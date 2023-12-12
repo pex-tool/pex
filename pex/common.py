@@ -461,11 +461,7 @@ class Chroot(object):
         pass
 
     class ChrootTaggingException(Error):
-        def __init__(self, filename, orig_tag, new_tag):
-            super(Chroot.ChrootTaggingException, self).__init__(  # noqa: T800
-                "Trying to add %s to fileset(%s) but already in fileset(%s)!"
-                % (filename, new_tag, orig_tag)
-            )
+        pass
 
     def __init__(self, chroot_base):
         # type: (str) -> None
@@ -479,6 +475,7 @@ class Chroot(object):
             raise self.Error("Unable to create chroot in %s: %s" % (chroot_base, e))
         self.chroot = chroot_base  # type: str
         self.filesets = defaultdict(set)  # type: DefaultDict[Optional[str], Set[str]]
+        self._compress_by_file = {}  # type: Dict[str, bool]
         self._file_index = {}  # type: Dict[str, Optional[str]]
 
     def clone(self, into=None):
@@ -511,23 +508,51 @@ class Chroot(object):
             raise self.Error("Destination path is not a relative path!")
         return dst
 
-    def _check_tag(self, fn, label):
+    def _check_tag(
+        self,
+        fn,  # type: str
+        label,  # type: Optional[str]
+        compress=True,  # type: bool
+    ):
+        # type: (...) -> None
         """Raises ChrootTaggingException if a file was added under more than one label."""
         existing_label = self._file_index.setdefault(fn, label)
         if label != existing_label:
-            raise self.ChrootTaggingException(fn, existing_label, label)
+            raise self.ChrootTaggingException(
+                "Trying to add {file} to fileset({new_tag}) but already in "
+                "fileset({orig_tag})!".format(file=fn, new_tag=label, orig_tag=existing_label)
+            )
+        existing_compress = self._compress_by_file.setdefault(fn, compress)
+        if compress != existing_compress:
+            raise self.ChrootTaggingException(
+                "Trying to add {file} to fileset({tag}) with compress {new_compress} but already "
+                "added with compress {orig_compress}!".format(
+                    file=fn, tag=label, new_compress=compress, orig_compress=existing_compress
+                )
+            )
 
-    def _tag(self, fn, label):
-        # type: (str, Optional[str]) -> None
-        self._check_tag(fn, label)
+    def _tag(
+        self,
+        fn,  # type: str
+        label,  # type: Optional[str]
+        compress,  # type: bool
+    ):
+        # type: (...) -> None
+        self._check_tag(fn, label, compress)
         self.filesets[label].add(fn)
 
     def _ensure_parent(self, path):
         # type: (str) -> None
         safe_mkdir(os.path.dirname(os.path.join(self.chroot, path)))
 
-    def copy(self, src, dst, label=None):
-        # type: (str, str, Optional[str]) -> None
+    def copy(
+        self,
+        src,  # type: str
+        dst,  # type: str
+        label=None,  # type: Optional[str]
+        compress=True,  # type: bool
+    ):
+        # type: (...) -> None
         """Copy file ``src`` to ``chroot/dst`` with optional label.
 
         May raise anything shutil.copy can raise, e.g.
@@ -537,12 +562,18 @@ class Chroot(object):
         but with a different label.
         """
         dst = self._normalize(dst)
-        self._tag(dst, label)
+        self._tag(dst, label, compress)
         self._ensure_parent(dst)
         shutil.copy(src, os.path.join(self.chroot, dst))
 
-    def link(self, src, dst, label=None):
-        # type: (str, str, Optional[str]) -> None
+    def link(
+        self,
+        src,  # type: str
+        dst,  # type: str
+        label=None,  # type: Optional[str]
+        compress=True,  # type: bool
+    ):
+        # type: (...) -> None
         """Hard link file from ``src`` to ``chroot/dst`` with optional label.
 
         May raise anything os.link can raise, e.g.
@@ -552,7 +583,7 @@ class Chroot(object):
         but with a different label.
         """
         dst = self._normalize(dst)
-        self._tag(dst, label)
+        self._tag(dst, label, compress)
         self._ensure_parent(dst)
         abs_src = src
         abs_dst = os.path.join(self.chroot, dst)
@@ -564,10 +595,11 @@ class Chroot(object):
         src,  # type: str
         dst,  # type: str
         label=None,  # type: Optional[str]
+        compress=True,  # type: bool
     ):
         # type: (...) -> None
         dst = self._normalize(dst)
-        self._tag(dst, label)
+        self._tag(dst, label, compress)
         self._ensure_parent(dst)
         abs_src = os.path.abspath(src)
         abs_dst = os.path.join(self.chroot, dst)
@@ -580,6 +612,7 @@ class Chroot(object):
         label=None,  # type: Optional[str]
         mode="wb",  # type: str
         executable=False,  # type: bool
+        compress=True,  # type: bool
     ):
         # type: (...) -> None
         """Write data to ``chroot/dst`` with optional label.
@@ -587,21 +620,25 @@ class Chroot(object):
         Has similar exceptional cases as ``Chroot.copy``
         """
         dst = self._normalize(dst)
-        self._tag(dst, label)
+        self._tag(dst, label, compress)
         self._ensure_parent(dst)
         with open(os.path.join(self.chroot, dst), mode) as wp:
             wp.write(data)
         if executable:
             chmod_plus_x(wp.name)
 
-    def touch(self, dst, label=None):
-        # type: (str, Optional[str]) -> None
+    def touch(
+        self,
+        dst,  # type: str
+        label=None,  # type: Optional[str]
+    ):
+        # type: (...) -> None
         """Perform 'touch' on ``chroot/dst`` with optional label.
 
         Has similar exceptional cases as Chroot.copy
         """
         dst = self._normalize(dst)
-        self._tag(dst, label)
+        self._tag(dst, label, compress=False)
         touch(os.path.join(self.chroot, dst))
 
     def get(self, label):
@@ -651,8 +688,9 @@ class Chroot(object):
         else:
             selected_files = self.files()
 
-        compression = zipfile.ZIP_DEFLATED if compress else zipfile.ZIP_STORED
-        with open_zip(filename, mode, compression) as zf:
+        with open_zip(
+            filename, mode, zipfile.ZIP_DEFLATED if compress else zipfile.ZIP_STORED
+        ) as zf:
 
             def write_entry(
                 filename,  # type: str
@@ -666,6 +704,8 @@ class Chroot(object):
                     if deterministic_timestamp
                     else None,
                 )
+                compress_file = compress and self._compress_by_file.get(arcname, True)
+                compression = zipfile.ZIP_DEFLATED if compress_file else zipfile.ZIP_STORED
                 zf.writestr(zip_entry.info, zip_entry.data, compression)
 
             def get_parent_dir(path):
