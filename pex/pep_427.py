@@ -15,7 +15,7 @@ from textwrap import dedent
 
 from pex import pex_warnings
 from pex.common import chmod_plus_x, is_pyc_file, iter_copytree, open_zip, safe_open, touch
-from pex.compatibility import commonpath, get_stdout_bytes_buffer, urlparse
+from pex.compatibility import commonpath, get_stdout_bytes_buffer
 from pex.dist_metadata import (
     DistMetadata,
     Distribution,
@@ -25,6 +25,7 @@ from pex.dist_metadata import (
     load_metadata,
     parse_message,
 )
+from pex.enum import Enum
 from pex.interpreter import PythonInterpreter
 from pex.pep_376 import InstalledFile, InstalledWheel, Record
 from pex.pep_503 import ProjectName
@@ -36,6 +37,14 @@ if TYPE_CHECKING:
     import attr  # vendor:skip
 else:
     from pex.third_party import attr
+
+
+class InstallableType(Enum["InstallableType.Value"]):
+    class Value(Enum.Value):
+        pass
+
+    INSTALLED_WHEEL_CHROOT = Value("installed wheel chroot")
+    WHEEL_FILE = Value(".whl file")
 
 
 @attr.s(frozen=True)

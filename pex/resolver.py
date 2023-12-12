@@ -24,6 +24,7 @@ from pex.jobs import Raise, SpawnedJob, execute_parallel
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.pep_425 import CompatibilityTags
+from pex.pep_427 import InstallableType
 from pex.pep_503 import ProjectName
 from pex.pex_info import PexInfo
 from pex.pip.download_observer import DownloadObserver
@@ -1038,6 +1039,7 @@ def resolve(
     pip_version=None,  # type: Optional[PipVersionValue]
     resolver=None,  # type: Optional[Resolver]
     use_pip_config=False,  # type: bool
+    result_type=InstallableType.INSTALLED_WHEEL_CHROOT,  # type: InstallableType.Value
 ):
     # type: (...) -> ResolveResult
     """Resolves all distributions needed to meet requirements for multiple distribution targets.
@@ -1175,8 +1177,12 @@ def resolve(
         build_and_install_request.install_distributions(
             ignore_errors=ignore_errors, max_parallel_jobs=max_parallel_jobs
         )
+        if result_type is InstallableType.INSTALLED_WHEEL_CHROOT
+        else build_and_install_request.build_distributions(
+            ignore_errors=ignore_errors, max_parallel_jobs=max_parallel_jobs
+        )
     )
-    return ResolveResult(distributions=distributions)
+    return ResolveResult(distributions=distributions, type=result_type)
 
 
 def _download_internal(

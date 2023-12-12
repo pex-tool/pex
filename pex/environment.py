@@ -16,7 +16,7 @@ from pex.exclude_configuration import ExcludeConfiguration
 from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.inherit_path import InheritPath
 from pex.interpreter import PythonInterpreter
-from pex.layout import ensure_installed
+from pex.layout import ensure_installed, identify_layout
 from pex.orderedset import OrderedSet
 from pex.pep_425 import CompatibilityTags, TagRank
 from pex.pep_503 import ProjectName
@@ -42,6 +42,8 @@ if TYPE_CHECKING:
     )
 
     import attr  # vendor:skip
+
+    from pex.pep_427 import InstallableType
 else:
     from pex.third_party import attr
 
@@ -240,7 +242,7 @@ class PEXEnvironment(object):
         if mounted is None:
             pex_root = pex_info.pex_root
             installed_pex = ensure_installed(pex=pex, pex_root=pex_root, pex_hash=pex_hash)
-            mounted = cls(pex=installed_pex, pex_info=pex_info, target=target)
+            mounted = cls(pex=installed_pex, pex_info=pex_info, target=target, source_pex=pex)
             cls._CACHE[key] = mounted
         return mounted
 
@@ -249,11 +251,13 @@ class PEXEnvironment(object):
         pex,  # type: str
         pex_info=None,  # type: Optional[PexInfo]
         target=None,  # type: Optional[Target]
+        source_pex=None,  # type: Optional[str]
     ):
         # type: (...) -> None
         self._pex = os.path.realpath(pex)
         self._pex_info = pex_info or PexInfo.from_pex(pex)
         self._target = target or targets.current()
+        self._source_pex = os.path.realpath(source_pex) if source_pex else None
 
         self._available_ranked_dists_by_project_name = defaultdict(
             list
@@ -269,16 +273,45 @@ class PEXEnvironment(object):
         # type: () -> str
         return self._pex
 
-    def iter_distributions(self):
-        # type: () -> Iterator[FingerprintedDistribution]
-        internal_cache = os.path.join(self._pex, self._pex_info.internal_cache)
-        with TRACER.timed("Searching dependency cache: %s" % internal_cache, V=2):
-            for distribution_name, fingerprint in self._pex_info.distributions.items():
-                dist_path = os.path.join(internal_cache, distribution_name)
-                yield FingerprintedDistribution(
-                    distribution=Distribution.load(dist_path),
-                    fingerprint=fingerprint,
+    @property
+    def source_pex(self):
+        # type: () -> str
+        return self._source_pex or self._pex
+
+    def iter_distributions(self, result_type_wheel_file=False):
+        # type: (bool) -> Iterator[FingerprintedDistribution]
+        if result_type_wheel_file:
+            if not self._pex_info.deps_are_wheel_files:
+                raise ResolveError(
+                    "Cannot resolve .whl files from PEX at {pex}; its dependencies are in the "
+                    "form of pre-installed wheel chroots.".format(pex=self.source_pex)
                 )
+            with TRACER.timed(
+                "Searching dependency cache: {cache}".format(
+                    cache=os.path.join(self.source_pex, self._pex_info.internal_cache)
+                ),
+                V=2,
+            ):
+                with identify_layout(self.source_pex) as layout:
+                    for distribution_name, fingerprint in self._pex_info.distributions.items():
+                        dist_relpath = os.path.join(
+                            self._pex_info.internal_cache, distribution_name
+                        )
+                        yield FingerprintedDistribution(
+                            distribution=Distribution.load(layout.wheel_file_path(dist_relpath)),
+                            fingerprint=fingerprint,
+                        )
+        else:
+            internal_cache = os.path.join(self._pex, self._pex_info.internal_cache)
+            with TRACER.timed(
+                "Searching dependency cache: {cache}".format(cache=internal_cache), V=2
+            ):
+                for distribution_name, fingerprint in self._pex_info.distributions.items():
+                    dist_path = os.path.join(internal_cache, distribution_name)
+                    yield FingerprintedDistribution(
+                        distribution=Distribution.load(dist_path),
+                        fingerprint=fingerprint,
+                    )
 
     def _update_candidate_distributions(self, distribution_iter):
         # type: (Iterable[FingerprintedDistribution]) -> None
@@ -528,10 +561,19 @@ class PEXEnvironment(object):
         self,
         reqs,  # type: Iterable[Requirement]
         exclude_configuration=ExcludeConfiguration(),  # type: ExcludeConfiguration
+        result_type=None,  # type: Optional[InstallableType.Value]
     ):
         # type: (...) -> Iterable[FingerprintedDistribution]
 
-        self._update_candidate_distributions(self.iter_distributions())
+        result_type_wheel_file = False
+        if result_type is not None:
+            from pex.pep_427 import InstallableType
+
+            result_type_wheel_file = result_type is InstallableType.WHEEL_FILE
+
+        self._update_candidate_distributions(
+            self.iter_distributions(result_type_wheel_file=result_type_wheel_file)
+        )
 
         unresolved_reqs = OrderedDict()  # type: OrderedDict[Requirement, OrderedSet]
 

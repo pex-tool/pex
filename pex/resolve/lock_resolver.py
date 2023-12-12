@@ -16,6 +16,7 @@ from pex.common import pluralize
 from pex.compatibility import cpu_count
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
+from pex.pep_427 import InstallableType
 from pex.pep_503 import ProjectName
 from pex.pip.local_project import digest_local_project
 from pex.pip.tool import PackageIndexConfiguration
@@ -247,6 +248,7 @@ def resolve_from_lock(
     max_parallel_jobs=None,  # type: Optional[int]
     pip_version=None,  # type: Optional[PipVersionValue]
     use_pip_config=False,  # type: bool
+    result_type=InstallableType.INSTALLED_WHEEL_CHROOT,  # type: InstallableType.Value
 ):
     # type: (...) -> Union[ResolveResult, Error]
 
@@ -440,17 +442,30 @@ def resolve_from_lock(
             pip_version=pip_version,
             resolver=resolver,
         )
-        distributions = build_and_install_request.install_distributions(
-            # This otherwise checks that resolved distributions all meet internal requirement
-            # constraints (This allows pip-legacy-resolver resolves with invalid solutions to be
-            # failed post-facto by Pex at PEX build time). We've already done this via
-            # `LockedResolve.resolve` above and need not waste time (~O(100ms)) doing this again.
-            ignore_errors=True,
-            max_parallel_jobs=max_parallel_jobs,
-            local_project_directory_to_sdist={
-                downloadable_artifact.artifact.directory: downloaded_artifact.path
-                for downloadable_artifact, downloaded_artifact in downloaded_artifacts.items()
-                if isinstance(downloadable_artifact.artifact, LocalProjectArtifact)
-            },
+
+        local_project_directory_to_sdist = {
+            downloadable_artifact.artifact.directory: downloaded_artifact.path
+            for downloadable_artifact, downloaded_artifact in downloaded_artifacts.items()
+            if isinstance(downloadable_artifact.artifact, LocalProjectArtifact)
+        }
+
+        # This otherwise checks that resolved distributions all meet internal requirement
+        # constraints (This allows pip-legacy-resolver resolves with invalid solutions to be
+        # failed post-facto by Pex at PEX build time). We've already done this via
+        # `LockedResolve.resolve` above and need not waste time (~O(100ms)) doing this again.
+        ignore_errors = True
+
+        distributions = (
+            build_and_install_request.install_distributions(
+                ignore_errors=ignore_errors,
+                max_parallel_jobs=max_parallel_jobs,
+                local_project_directory_to_sdist=local_project_directory_to_sdist,
+            )
+            if result_type is InstallableType.INSTALLED_WHEEL_CHROOT
+            else build_and_install_request.build_distributions(
+                ignore_errors=ignore_errors,
+                max_parallel_jobs=max_parallel_jobs,
+                local_project_directory_to_sdist=local_project_directory_to_sdist,
+            )
         )
-    return ResolveResult(distributions=tuple(distributions))
+    return ResolveResult(distributions=tuple(distributions), type=result_type)

@@ -11,6 +11,7 @@ from pex.dist_metadata import Requirement
 from pex.environment import PEXEnvironment
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
+from pex.pep_427 import InstallableType
 from pex.pep_503 import ProjectName
 from pex.pex_info import PexInfo
 from pex.requirements import Constraint, LocalProjectRequirement, parse_requirement_strings
@@ -32,6 +33,7 @@ def resolve_from_pex(
     network_configuration=None,  # type: Optional[NetworkConfiguration]
     transitive=True,  # type: bool
     ignore_errors=False,  # type: bool
+    result_type=InstallableType.INSTALLED_WHEEL_CHROOT,  # type: InstallableType.Value
 ):
     # type: (...) -> ResolveResult
 
@@ -73,7 +75,7 @@ def resolve_from_pex(
     for target in targets.unique_targets():
         pex_env = PEXEnvironment.mount(pex, target=target)
         try:
-            fingerprinted_distributions = pex_env.resolve_dists(all_reqs)
+            fingerprinted_distributions = pex_env.resolve_dists(all_reqs, result_type=result_type)
         except environment.ResolveError as e:
             raise Unsatisfiable(str(e))
 
@@ -105,4 +107,4 @@ def resolve_from_pex(
                     direct_requirements=direct_requirements,
                 )
             )
-    return ResolveResult(distributions=tuple(distributions))
+    return ResolveResult(distributions=tuple(distributions), type=result_type)

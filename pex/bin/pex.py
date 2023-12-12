@@ -30,6 +30,7 @@ from pex.inherit_path import InheritPath
 from pex.interpreter_constraints import InterpreterConstraints
 from pex.layout import Layout, ensure_installed
 from pex.orderedset import OrderedSet
+from pex.pep_427 import InstallableType
 from pex.pex import PEX
 from pex.pex_bootstrapper import ensure_venv
 from pex.pex_builder import Check, CopyMode, PEXBuilder
@@ -892,6 +893,11 @@ def build_pex(
                     resolver_configuration=resolver_configuration,
                     compile_pyc=options.compile,
                     ignore_errors=options.ignore_errors,
+                    result_type=(
+                        InstallableType.INSTALLED_WHEEL_CHROOT
+                        if options.pre_install_wheels
+                        else InstallableType.WHEEL_FILE
+                    ),
                 )
             )
         except Unsatisfiable as e:
