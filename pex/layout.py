@@ -237,11 +237,11 @@ def _ensure_distributions_installed_parallel(
 
                         from pex.atomic_directory import atomic_directory
                         from pex.common import safe_mkdir
-                        from pex.layout import _identify_layout
+                        from pex.layout import identify_layout
                         from pex.tracer import TRACER
 
 
-                        with _identify_layout({pex!r}) as layout, atomic_directory(
+                        with identify_layout({pex!r}) as layout, atomic_directory(
                             {spread_dest!r}, source={source!r}
                         ) as spread_chroot:
                             if not spread_chroot.is_finalized():

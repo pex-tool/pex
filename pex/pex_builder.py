@@ -819,16 +819,17 @@ class PEXBuilder(object):
         cached_bootstrap_zip_dir = zip_cache_dir(
             os.path.join(pex_info.pex_root, "bootstrap_zips", bootstrap_hash)
         )
-        with atomic_directory(cached_bootstrap_zip_dir) as atomic_bootstrap_zip_dir:
-            if not atomic_bootstrap_zip_dir.is_finalized():
-                self._chroot.zip(
-                    os.path.join(atomic_bootstrap_zip_dir.work_dir, pex_info.bootstrap),
-                    deterministic_timestamp=deterministic_timestamp,
-                    exclude_file=is_pyc_temporary_file,
-                    strip_prefix=pex_info.bootstrap,
-                    labels=("bootstrap",),
-                    compress=compress,
-                )
+        with TRACER.timed("Zipping PEX .bootstrap/ code."):
+            with atomic_directory(cached_bootstrap_zip_dir) as atomic_bootstrap_zip_dir:
+                if not atomic_bootstrap_zip_dir.is_finalized():
+                    self._chroot.zip(
+                        os.path.join(atomic_bootstrap_zip_dir.work_dir, pex_info.bootstrap),
+                        deterministic_timestamp=deterministic_timestamp,
+                        exclude_file=is_pyc_temporary_file,
+                        strip_prefix=pex_info.bootstrap,
+                        labels=("bootstrap",),
+                        compress=compress,
+                    )
         safe_copy(
             os.path.join(cached_bootstrap_zip_dir, pex_info.bootstrap),
             os.path.join(dirname, pex_info.bootstrap),
@@ -839,26 +840,32 @@ class PEXBuilder(object):
         if pex_info.distributions:
             internal_cache = os.path.join(dirname, pex_info.internal_cache)
             os.mkdir(internal_cache)
-            for location, fingerprint in pex_info.distributions.items():
-                dest = os.path.join(internal_cache, location)
-                if pex_info.deps_are_wheel_files:
-                    for path in self._chroot.filesets[location]:
-                        safe_copy(os.path.join(self._chroot.chroot, path), dest)
-                else:
-                    cached_installed_wheel_zip_dir = zip_cache_dir(
-                        os.path.join(pex_info.pex_root, "packed_wheels", fingerprint)
-                    )
-                    with atomic_directory(cached_installed_wheel_zip_dir) as atomic_zip_dir:
-                        if not atomic_zip_dir.is_finalized():
-                            self._chroot.zip(
-                                os.path.join(atomic_zip_dir.work_dir, location),
-                                deterministic_timestamp=deterministic_timestamp,
-                                exclude_file=is_pyc_temporary_file,
-                                strip_prefix=os.path.join(pex_info.internal_cache, location),
-                                labels=(location,),
-                                compress=compress,
-                            )
-                    safe_copy(os.path.join(cached_installed_wheel_zip_dir, location), dest)
+            with TRACER.timed(
+                "{action} {count} distributions.".format(
+                    action="Copying" if pex_info.deps_are_wheel_files else "Zipping",
+                    count=len(pex_info.distributions)
+                )
+            ):
+                for location, fingerprint in pex_info.distributions.items():
+                    dest = os.path.join(internal_cache, location)
+                    if pex_info.deps_are_wheel_files:
+                        for path in self._chroot.filesets[location]:
+                            safe_copy(os.path.join(self._chroot.chroot, path), dest)
+                    else:
+                        cached_installed_wheel_zip_dir = zip_cache_dir(
+                            os.path.join(pex_info.pex_root, "packed_wheels", fingerprint)
+                        )
+                        with atomic_directory(cached_installed_wheel_zip_dir) as atomic_zip_dir:
+                            if not atomic_zip_dir.is_finalized():
+                                self._chroot.zip(
+                                    os.path.join(atomic_zip_dir.work_dir, location),
+                                    deterministic_timestamp=deterministic_timestamp,
+                                    exclude_file=is_pyc_temporary_file,
+                                    strip_prefix=os.path.join(pex_info.internal_cache, location),
+                                    labels=(location,),
+                                    compress=compress,
+                                )
+                        safe_copy(os.path.join(cached_installed_wheel_zip_dir, location), dest)
 
     def _build_zipapp(
         self,
