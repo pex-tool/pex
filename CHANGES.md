@@ -8,11 +8,11 @@ This release brings three new features:
     `--python-shebang`, an appropriate shebang is chosen correctly in
     more cases than previously and a warning is emitted when the shebang
     chosen cannot be guaranteed to be correct. The common case this
-    helps select the appropriate shebang for are PEXes built using
+    helps select the appropriate shebang for is PEXes built using
     `--platform` or `--complete-platform`.
 2.  PEXes can now be created with `--no-pre-install-wheels` to cut down
-    PEX build times with a tradeoff of roughly 10% greater overhead upon
-    the 1st execution of the PEX file. For PEXes with very large
+    PEX build times with a tradeoff of roughly 10% greater boot overhead
+    upon the 1st execution of the PEX file. For PEXes with very large
     dependency sets (machine learning provides common cases), the build
     time savings can be dramatic.
 3.  PEXes can now be told to install dependencies at runtime on 1st
@@ -21,12 +21,13 @@ This release brings three new features:
     variable at runtime.
 
 The last two features come with complicated tradeoffs and are turned off
-by default as a result. If you think they might help you use case, there
-is more detail in the command line help for `--no-pre-install-wheels`
-and `--max-install-jobs` as well as in the `pex --help-variables` output
-for `PEX_MAX_INSTALL_JOBS`. You can also find a detailed performance
-analysis in #2292 for extreme cases of small and large PEXes. In the end
-though, experimenting is probably your best bet.
+by default as a result. If you think they might help some of your use
+cases, there is more detail in the command line help for
+`--no-pre-install-wheels` and `--max-install-jobs` as well as in the
+`pex --help-variables` output for `PEX_MAX_INSTALL_JOBS`. You can also
+find a detailed performance analysis in #2292 for the extreme cases of
+very small and very large PEXes. In the end though, experimenting is
+probably your best bet.
 
 * Use appropriate shebang for multi-platform PEXes. (#2296)
 * Add support for --no-pre-install-wheels and --max-install-jobs. (#2298)
