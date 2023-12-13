@@ -53,7 +53,7 @@ from testing import (
 from testing.pep_427 import get_installable_type_flag
 
 if TYPE_CHECKING:
-    from typing import Any, Callable, ContextManager, Iterator, List, Optional, Tuple
+    from typing import Any, Callable, ContextManager, Iterator, List, Optional, Text, Tuple
 
 
 def test_pex_execute():
@@ -70,21 +70,21 @@ def test_pex_raise():
 
 
 def assert_interpreters(label, pex_root):
-    # type: (str, str) -> None
+    # type: (Text, Text) -> None
     assert "interpreters" in os.listdir(
         pex_root
     ), "Expected {label} pex root to be populated with interpreters.".format(label=label)
 
 
 def assert_installed_wheels(label, pex_root):
-    # type: (str, str) -> None
+    # type: (Text, Text) -> None
     assert "installed_wheels" in os.listdir(
         pex_root
     ), "Expected {label} pex root to be populated with buildtime artifacts.".format(label=label)
 
 
 def assert_empty_home_dir(home_dir):
-    # type: (str) -> None
+    # type: (Text) -> None
     pip_cache_dir = "Library" if IS_MAC else ".cache"
     rust_cache_dir = ".rustup"
     home_dir_contents = [
@@ -119,49 +119,54 @@ def test_pex_root_build():
         assert_installed_wheels(label="buildtime", pex_root=buildtime_pex_root)
 
 
-def test_pex_root_run(pex_project_dir):
-    # type: (str) -> None
+def test_pex_root_run(
+    pex_project_dir,  # type: str
+    tmpdir,  # type: Any
+):
+    # type: (...) -> None
     python38 = ensure_python_interpreter(PY38)
     python310 = ensure_python_interpreter(PY310)
 
-    with temporary_dir() as td, temporary_dir() as runtime_pex_root, temporary_dir() as home:
-        pex_env = make_env(HOME=home, PEX_PYTHON_PATH=os.pathsep.join((python38, python310)))
+    runtime_pex_root = safe_mkdir(os.path.join(str(tmpdir), "runtime_pex_root"))
+    home = safe_mkdir(os.path.join(str(tmpdir), "home"))
 
-        buildtime_pex_root = os.path.join(td, "buildtime_pex_root")
-        output_dir = os.path.join(td, "output_dir")
+    pex_env = make_env(HOME=home, PEX_PYTHON_PATH=os.pathsep.join((python38, python310)))
 
-        pex_pex = os.path.join(output_dir, "pex.pex")
-        args = [
-            pex_project_dir,
-            "-o",
-            pex_pex,
-            "-c",
-            "pex",
-            "--not-zip-safe",
-            "--pex-root={}".format(buildtime_pex_root),
-            "--runtime-pex-root={}".format(runtime_pex_root),
-            "--interpreter-constraint=CPython=={version}".format(version=PY38),
-        ]
-        results = run_pex_command(args=args, env=pex_env, python=python310)
-        results.assert_success()
-        assert ["pex.pex"] == os.listdir(output_dir), "Expected built pex file."
-        assert_empty_home_dir(home_dir=home)
+    buildtime_pex_root = os.path.join(str(tmpdir), "buildtime_pex_root")
+    output_dir = os.path.join(str(tmpdir), "output_dir")
 
-        assert_interpreters(label="buildtime", pex_root=buildtime_pex_root)
-        assert_installed_wheels(label="buildtime", pex_root=buildtime_pex_root)
-        safe_mkdir(buildtime_pex_root, clean=True)
+    pex_pex = os.path.join(output_dir, "pex.pex")
+    args = [
+        pex_project_dir,
+        "-o",
+        pex_pex,
+        "-c",
+        "pex",
+        "--not-zip-safe",
+        "--pex-root={}".format(buildtime_pex_root),
+        "--runtime-pex-root={}".format(runtime_pex_root),
+        "--interpreter-constraint=CPython=={version}".format(version=PY38),
+    ]
+    results = run_pex_command(args=args, env=pex_env, python=python310)
+    results.assert_success()
+    assert ["pex.pex"] == os.listdir(output_dir), "Expected built pex file."
+    assert_empty_home_dir(home_dir=home)
 
-        assert [] == os.listdir(
-            runtime_pex_root
-        ), "Expected runtime pex root to be empty prior to any runs."
+    assert_interpreters(label="buildtime", pex_root=buildtime_pex_root)
+    assert_installed_wheels(label="buildtime", pex_root=buildtime_pex_root)
+    safe_mkdir(buildtime_pex_root, clean=True)
 
-        subprocess.check_call(args=[python310, pex_pex, "--version"], env=pex_env)
-        assert_interpreters(label="runtime", pex_root=runtime_pex_root)
-        assert_installed_wheels(label="runtime", pex_root=runtime_pex_root)
-        assert [] == os.listdir(
-            buildtime_pex_root
-        ), "Expected buildtime pex root to be empty after runs using a separate runtime pex root."
-        assert_empty_home_dir(home_dir=home)
+    assert [] == os.listdir(
+        runtime_pex_root
+    ), "Expected runtime pex root to be empty prior to any runs."
+
+    subprocess.check_call(args=[python310, pex_pex, "--version"], env=pex_env)
+    assert_interpreters(label="runtime", pex_root=runtime_pex_root)
+    assert_installed_wheels(label="runtime", pex_root=runtime_pex_root)
+    assert [] == os.listdir(
+        buildtime_pex_root
+    ), "Expected buildtime pex root to be empty after runs using a separate runtime pex root."
+    assert_empty_home_dir(home_dir=home)
 
 
 def test_cache_disable():
@@ -263,18 +268,17 @@ def test_pex_repl_history(venv_pex):
 
 
 @pytest.mark.skipif(WINDOWS, reason="No symlinks on windows")
-def test_pex_python_symlink():
-    # type: () -> None
-    with temporary_dir() as td:
-        symlink_path = os.path.join(td, "python-symlink")
-        os.symlink(sys.executable, symlink_path)
-        pexrc_path = os.path.join(td, ".pexrc")
-        with open(pexrc_path, "w") as pexrc:
-            pexrc.write("PEX_PYTHON=%s" % symlink_path)
+def test_pex_python_symlink(tmpdir):
+    # type: (Any) -> None
+    symlink_path = os.path.join(str(tmpdir), "python-symlink")
+    os.symlink(sys.executable, symlink_path)
+    pexrc_path = os.path.join(str(tmpdir), ".pexrc")
+    with open(pexrc_path, "w") as pexrc:
+        pexrc.write("PEX_PYTHON=%s" % symlink_path)
 
-        body = "print('Hello')"
-        _, rc = run_simple_pex_test(body, coverage=True, env=make_env(HOME=td))
-        assert rc == 0
+    body = "print('Hello')"
+    _, rc = run_simple_pex_test(body, coverage=True, env=make_env(HOME=tmpdir))
+    assert rc == 0
 
 
 def test_entry_point_exit_code(tmpdir):
@@ -1345,76 +1349,75 @@ def test_disable_cache():
         assert not os.path.exists(pex_root)
 
 
-def test_unzip_mode():
-    # type: () -> None
-    with temporary_dir() as td:
-        pex_root = os.path.join(td, "pex_root")
-        pex_file = os.path.join(td, "pex_file")
-        src_dir = os.path.join(td, "src")
-        with safe_open(os.path.join(src_dir, "example.py"), "w") as fp:
-            fp.write(
-                dedent(
-                    """\
-                    import os
-                    import sys
+def test_unzip_mode(tmpdir):
+    # type: (Any) -> None
+    pex_root = os.path.join(str(tmpdir), "pex_root")
+    pex_file = os.path.join(str(tmpdir), "pex_file")
+    src_dir = os.path.join(str(tmpdir), "src")
+    with safe_open(os.path.join(src_dir, "example.py"), "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                import os
+                import sys
 
-                    if 'quit' == sys.argv[-1]:
-                        print(os.path.realpath(sys.argv[0]))
-                        sys.exit(0)
+                if 'quit' == sys.argv[-1]:
+                    print(os.path.realpath(sys.argv[0]))
+                    sys.exit(0)
 
-                    print(' '.join(sys.argv[1:]))
-                    sys.stdout.flush()
-                    sys.stderr.flush()
-                    os.execv(sys.executable, [sys.executable] + sys.argv[:-1])
-                    """
-                )
+                print(' '.join(sys.argv[1:]))
+                sys.stdout.flush()
+                sys.stderr.flush()
+                os.execv(sys.executable, [sys.executable] + sys.argv[:-1])
+                """
             )
-        result = run_pex_command(
-            args=[
-                "--sources-directory",
-                src_dir,
-                "--entry-point",
-                "example",
-                "--output-file",
-                pex_file,
-                "--pex-root",
-                pex_root,
-                "--runtime-pex-root",
-                pex_root,
-                "--no-strip-pex-env",
-                "--unzip",
-            ]
         )
-        result.assert_success()
-        assert "PEXWarning: The `--unzip/--no-unzip` option is deprecated." in result.error
+    result = run_pex_command(
+        args=[
+            "--sources-directory",
+            src_dir,
+            "--entry-point",
+            "example",
+            "--output-file",
+            pex_file,
+            "--pex-root",
+            pex_root,
+            "--runtime-pex-root",
+            pex_root,
+            "--no-strip-pex-env",
+            "--unzip",
+        ]
+    )
+    result.assert_success()
+    assert "PEXWarning: The `--unzip/--no-unzip` option is deprecated." in result.error
 
-        process1 = subprocess.Popen(
-            args=[pex_file, "quit", "re-exec"], stdout=subprocess.PIPE, stderr=subprocess.PIPE
-        )
-        output1, error1 = process1.communicate()
-        assert 0 == process1.returncode
+    process1 = subprocess.Popen(
+        args=[pex_file, "quit", "re-exec"], stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    )
+    output1, error1 = process1.communicate()
+    assert 0 == process1.returncode
 
-        pex_hash = PexInfo.from_pex(pex_file).pex_hash
-        assert pex_hash is not None
-        unzipped_cache = unzip_dir(pex_root, pex_hash)
-        assert os.path.isdir(unzipped_cache)
-        example_py_path = os.path.realpath(os.path.join(unzipped_cache, "example.py"))
-        assert ["quit re-exec", example_py_path] == output1.decode("utf-8").splitlines()
-        assert not error1
+    pex_hash = PexInfo.from_pex(pex_file).pex_hash
+    assert pex_hash is not None
+    unzipped_cache = unzip_dir(pex_root, pex_hash)
+    assert os.path.isdir(unzipped_cache)
+    example_py_path = os.path.realpath(os.path.join(unzipped_cache, "example.py"))
+    assert ["quit re-exec", example_py_path] == output1.decode("utf-8").splitlines()
+    assert not error1
 
-        shutil.rmtree(unzipped_cache)
-        process2 = subprocess.Popen(
-            args=[pex_file, "quit", "re-exec"],
-            env=make_env(PEX_UNZIP=False),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-        output2, error2 = process2.communicate()
-        assert 0 == process2.returncode
+    shutil.rmtree(unzipped_cache)
+    process2 = subprocess.Popen(
+        args=[pex_file, "quit", "re-exec"],
+        env=make_env(PEX_UNZIP=False),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    output2, error2 = process2.communicate()
+    assert 0 == process2.returncode
 
-        assert ["quit re-exec", example_py_path] == output2.decode("utf-8").splitlines()
-        assert os.path.isdir(unzipped_cache)
-        assert "PEXWarning: The `PEX_UNZIP` env var is deprecated." in error2.decode("utf-8")
+    assert ["quit re-exec", example_py_path] == output2.decode("utf-8").splitlines()
+    assert os.path.isdir(unzipped_cache)
+    assert "PEXWarning: The `PEX_UNZIP` env var is deprecated." in error2.decode("utf-8")
 
 
 def test_tmpdir_absolute(tmp_workdir):

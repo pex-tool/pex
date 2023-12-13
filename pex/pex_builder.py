@@ -843,7 +843,7 @@ class PEXBuilder(object):
             with TRACER.timed(
                 "{action} {count} distributions.".format(
                     action="Copying" if pex_info.deps_are_wheel_files else "Zipping",
-                    count=len(pex_info.distributions)
+                    count=len(pex_info.distributions),
                 )
             ):
                 for location, fingerprint in pex_info.distributions.items():
