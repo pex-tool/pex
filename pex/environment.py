@@ -658,7 +658,9 @@ class PEXEnvironment(object):
                     "Failed to resolve requirements from PEX environment @ {pex}.\n"
                     "Needed {platform} compatible dependencies for:\n"
                     "{items}".format(
-                        pex=self._pex, platform=self._target.platform.tag, items="\n".join(items)
+                        pex=self.source_pex,
+                        platform=self._target.platform.tag,
+                        items="\n".join(items),
                     )
                 )
 
