@@ -23,6 +23,7 @@ from pex.fetcher import URLFetcher
 from pex.interpreter import PythonInterpreter
 from pex.layout import Layout
 from pex.network_configuration import NetworkConfiguration
+from pex.pep_427 import InstallableType
 from pex.pex_info import PexInfo
 from pex.requirements import LogicalLine, PyPIRequirement, parse_requirement_file
 from pex.typing import TYPE_CHECKING, cast
@@ -49,6 +50,7 @@ from testing import (
     run_simple_pex_test,
     temporary_content,
 )
+from testing.pep_427 import get_installable_type_flag
 
 if TYPE_CHECKING:
     from typing import Any, Callable, ContextManager, Iterator, List, Optional, Tuple
@@ -795,19 +797,67 @@ def test_pex_resource_bundling():
             assert stdout == b"hello\n"
 
 
-def test_entry_point_verification_3rdparty(tmpdir):
-    # type: (Any) -> None
+@pytest.mark.parametrize(
+    "layout", [pytest.param(layout, id=layout.value) for layout in Layout.values()]
+)
+@pytest.mark.parametrize(
+    "installable_type",
+    [
+        pytest.param(installable_type, id=installable_type.value)
+        for installable_type in InstallableType.values()
+    ],
+)
+def test_entry_point_verification_3rdparty(
+    tmpdir,  # type: Any
+    layout,  # type: Layout.Value
+    installable_type,  # type: InstallableType.Value
+):
+    # type: (...) -> None
     pex_out_path = os.path.join(str(tmpdir), "pex.pex")
     run_pex_command(
-        args=["ansicolors==1.1.8", "-e", "colors:red", "-o", pex_out_path, "--validate-entry-point"]
+        args=[
+            "ansicolors==1.1.8",
+            "-e",
+            "colors:red",
+            "--layout",
+            layout.value,
+            get_installable_type_flag(installable_type),
+            "-o",
+            pex_out_path,
+            "--validate-entry-point",
+        ]
     ).assert_success()
 
 
-def test_invalid_entry_point_verification_3rdparty(tmpdir):
-    # type: (Any) -> None
+@pytest.mark.parametrize(
+    "layout", [pytest.param(layout, id=layout.value) for layout in Layout.values()]
+)
+@pytest.mark.parametrize(
+    "installable_type",
+    [
+        pytest.param(installable_type, id=installable_type.value)
+        for installable_type in InstallableType.values()
+    ],
+)
+def test_invalid_entry_point_verification_3rdparty(
+    tmpdir,  # type: Any
+    layout,  # type: Layout.Value
+    installable_type,  # type: InstallableType.Value
+):
+    # type: (...) -> None
     pex_out_path = os.path.join(str(tmpdir), "pex.pex")
     run_pex_command(
-        args=["ansicolors==1.1.8", "-e", "colors:bad", "-o", pex_out_path, "--validate-entry-point"]
+        args=[
+            "ansicolors==1.1.8",
+            "-e",
+            "colors:bad",
+            "--layout",
+            layout.value,
+            get_installable_type_flag(installable_type),
+            "-o",
+            pex_out_path,
+            "--validate-entry-point",
+        ]
     ).assert_failure()
 
 
@@ -1521,15 +1571,25 @@ def test_venv_mode(
 @pytest.mark.parametrize(
     "layout", [pytest.param(layout, id=layout.value) for layout in Layout.values()]
 )
+@pytest.mark.parametrize(
+    "installable_type",
+    [
+        pytest.param(installable_type, id=installable_type.value)
+        for installable_type in InstallableType.values()
+    ],
+)
 def test_seed(
     isort_pex_args,  # type: Tuple[str, List[str]]
     execution_mode_args,  # type: List[str]
     layout,  # type: Layout.Value
+    installable_type,  # type: InstallableType.Value
 ):
     # type: (...) -> None
     pex_file, args = isort_pex_args
     results = run_pex_command(
-        args=args + execution_mode_args + ["--layout", layout.value, "--seed"]
+        args=args
+        + execution_mode_args
+        + ["--layout", layout.value, get_installable_type_flag(installable_type), "--seed"]
     )
     results.assert_success()
 
@@ -1549,6 +1609,13 @@ def test_seed(
     "layout", [pytest.param(layout, id=layout.value) for layout in Layout.values()]
 )
 @pytest.mark.parametrize(
+    "installable_type",
+    [
+        pytest.param(installable_type, id=installable_type.value)
+        for installable_type in InstallableType.values()
+    ],
+)
+@pytest.mark.parametrize(
     "seeded_execute_args",
     [pytest.param(["python", "pex"], id="Python"), pytest.param(["pex"], id="Direct")],
 )
@@ -1556,6 +1623,7 @@ def test_seed_verbose(
     isort_pex_args,  # type: Tuple[str, List[str]]
     execution_mode_args,  # type: List[str]
     layout,  # type: Layout.Value
+    installable_type,  # type: InstallableType.Value
     seeded_execute_args,  # type: List[str]
     tmpdir,  # type: Any
 ):
@@ -1563,7 +1631,15 @@ def test_seed_verbose(
     pex_root = str(tmpdir)
     pex_file, args = isort_pex_args
     results = run_pex_command(
-        args=args + execution_mode_args + ["--layout", layout.value, "--seed", "verbose"],
+        args=args
+        + execution_mode_args
+        + [
+            "--layout",
+            layout.value,
+            get_installable_type_flag(installable_type),
+            "--seed",
+            "verbose",
+        ],
         env=make_env(PEX_ROOT=pex_root, PEX_PYTHON_PATH=sys.executable),
     )
     results.assert_success()
@@ -1853,10 +1929,18 @@ def test_require_hashes(tmpdir):
 @pytest.mark.parametrize(
     "layout", [pytest.param(layout, id=layout.value) for layout in Layout.values()]
 )
+@pytest.mark.parametrize(
+    "installable_type",
+    [
+        pytest.param(installable_type, id=installable_type.value)
+        for installable_type in InstallableType.values()
+    ],
+)
 def test_binary_scripts(
     tmpdir,  # type: Any
     execution_mode_args,  # type: List[str]
     layout,  # type: Layout.Value
+    installable_type,  # type: InstallableType.Value
 ):
     # type: (...) -> None
 
@@ -1864,7 +1948,16 @@ def test_binary_scripts(
     # not try to parse as a traditional script but should still be able to execute.
     py_spy_pex = os.path.join(str(tmpdir), "py-spy.pex")
     run_pex_command(
-        args=["py-spy==0.3.8", "-c", "py-spy", "-o", py_spy_pex, "--layout", layout.value]
+        args=[
+            "py-spy==0.3.8",
+            "-c",
+            "py-spy",
+            "-o",
+            py_spy_pex,
+            "--layout",
+            layout.value,
+            get_installable_type_flag(installable_type),
+        ]
         + execution_mode_args
     ).assert_success()
     output = subprocess.check_output(args=[sys.executable, py_spy_pex, "-V"])
