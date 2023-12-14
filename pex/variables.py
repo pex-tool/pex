@@ -603,7 +603,7 @@ class Variables(object):
         # type: () -> Optional[Tuple[str, ...]]
         """String.
 
-        A {pathsep!r} separated string containing paths of blessed Python interpreters for
+        A ':' or ';' separated string containing paths of blessed Python interpreters for
         overriding the Python interpreter used to invoke this PEX. Can be absolute paths to
         interpreters or standard $PATH style directory entries that are searched for child files
         that are python binaries.
@@ -617,7 +617,7 @@ class Variables(object):
         # type: () -> Tuple[str, ...]
         """String.
 
-        A {pathsep!r} separated string containing paths to add to the runtime sys.path.
+        A ':' or ';' separated string containing paths to add to the runtime sys.path.
 
         Should be used sparingly, e.g., if you know that code inside this PEX needs to
         interact with code outside it.
@@ -628,9 +628,7 @@ class Variables(object):
         existing sys.path (which you may not have control over) is scrubbed.
 
         See also PEX_PATH for how to merge packages from other pexes into the current environment.
-        """.format(
-            pathsep=os.pathsep
-        )
+        """
         return self._maybe_get_path_tuple("PEX_EXTRA_SYS_PATH") or ()
 
     @defaulted_property(default=os.path.join("~", ".pex"))
@@ -743,6 +741,37 @@ class Variables(object):
         Default: false.
         """
         return self._get_bool("PEX_TOOLS")
+
+    @defaulted_property(default=1)
+    def PEX_MAX_INSTALL_JOBS(self):
+        # type: () -> int
+        """Integer.
+
+        The maximum number of parallel jobs to use when installing third party dependencies
+        contained in a PEX during its first boot. Values are interpreted as follows:
+
+        * ``>=2`` Dependencies should be installed in parallel using exactly this maximum number of
+          jobs.
+        * ``1`` Dependencies should be installed in serial.
+        * ``0`` The maximum number of parallel jobs should be auto-selected taking the number of
+          cores into account.
+        * ``-1`` The maximum number of parallel jobs should be auto-selected taking both the
+          characteristics of the third party dependencies contained in the PEX and the number of
+          cores into account. The third party dependency heuristics are intended to yield good
+          install performance, but are opaque and may change across PEX releases if better
+          heuristics are discovered.
+        * ``<=-2`` These are illegal values; an error is raised.
+
+        Default: 1
+        """
+        install_jobs = self._get_int("PEX_MAX_INSTALL_JOBS")
+        if install_jobs < -1:
+            raise ValueError(
+                "PEX_MAX_INSTALL_JOBS must be -1 or greater; given: {jobs}".format(
+                    jobs=install_jobs
+                )
+            )
+        return install_jobs
 
     def __repr__(self):
         return "{}({!r})".format(type(self).__name__, self._environ)

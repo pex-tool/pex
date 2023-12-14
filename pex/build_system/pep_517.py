@@ -58,11 +58,11 @@ def _default_build_system(
                     selected_pip_version.wheel_requirement,
                 ]
                 resolved = tuple(
-                    installed_distribution.fingerprinted_distribution.distribution
-                    for installed_distribution in resolver.resolve_requirements(
+                    resolved_distribution.fingerprinted_distribution.distribution
+                    for resolved_distribution in resolver.resolve_requirements(
                         requirements=requires,
                         targets=Targets.from_target(target),
-                    ).installed_distributions
+                    ).distributions
                 )
             build_system = try_(
                 BuildSystem.create(

@@ -3,6 +3,7 @@
 
 from __future__ import absolute_import
 
+from pex.pep_427 import InstallableType
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.lock_resolver import resolve_from_lock
 from pex.resolve.pex_repository_resolver import resolve_from_pex
@@ -11,7 +12,7 @@ from pex.resolve.resolver_configuration import (
     LockRepositoryConfiguration,
     PexRepositoryConfiguration,
 )
-from pex.resolve.resolvers import Installed
+from pex.resolve.resolvers import ResolveResult
 from pex.resolver import resolve as resolve_via_pip
 from pex.result import try_
 from pex.targets import Targets
@@ -28,8 +29,9 @@ def resolve(
     resolver_configuration,  # type: ResolverConfiguration
     compile_pyc=False,  # type: bool
     ignore_errors=False,  # type: bool
+    result_type=InstallableType.INSTALLED_WHEEL_CHROOT,  # type: InstallableType.Value
 ):
-    # type: (...) -> Installed
+    # type: (...) -> ResolveResult
     if isinstance(resolver_configuration, LockRepositoryConfiguration):
         lock = try_(resolver_configuration.parse_lock())
         with TRACER.timed(
@@ -59,6 +61,7 @@ def resolve(
                     max_parallel_jobs=pip_configuration.max_jobs,
                     pip_version=lock.pip_version,
                     use_pip_config=pip_configuration.use_pip_config,
+                    result_type=result_type,
                 )
             )
     elif isinstance(resolver_configuration, PexRepositoryConfiguration):
@@ -76,6 +79,7 @@ def resolve(
                 network_configuration=resolver_configuration.network_configuration,
                 transitive=resolver_configuration.transitive,
                 ignore_errors=ignore_errors,
+                result_type=result_type,
             )
     else:
         with TRACER.timed("Resolving requirements."):
@@ -103,4 +107,5 @@ def resolve(
                 pip_version=resolver_configuration.version,
                 resolver=ConfiguredResolver(pip_configuration=resolver_configuration),
                 use_pip_config=resolver_configuration.use_pip_config,
+                result_type=result_type,
             )

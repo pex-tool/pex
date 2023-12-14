@@ -7,6 +7,7 @@ from abc import abstractmethod
 
 from pex.dist_metadata import Distribution, Requirement
 from pex.fingerprinted_distribution import FingerprintedDistribution
+from pex.pep_427 import InstallableType
 from pex.pip.version import PipVersionValue
 from pex.resolve.lockfile.model import Lockfile
 from pex.sorted_tuple import SortedTuple
@@ -44,11 +45,11 @@ def _sorted_requirements(requirements):
 
 
 @attr.s(frozen=True)
-class InstalledDistribution(object):
-    """A distribution target, and the installed distribution that satisfies it.
+class ResolvedDistribution(object):
+    """A distribution target, and the resolved distribution that satisfies it.
 
-    If installed distribution directly satisfies a user-specified requirement, that requirement is
-    included.
+    If the resolved distribution directly satisfies a user-specified requirement, that requirement
+    is included.
     """
 
     target = attr.ib()  # type: Target
@@ -68,11 +69,11 @@ class InstalledDistribution(object):
         return self.fingerprinted_distribution.fingerprint
 
     def with_direct_requirements(self, direct_requirements=None):
-        # type: (Optional[Iterable[Requirement]]) -> InstalledDistribution
+        # type: (Optional[Iterable[Requirement]]) -> ResolvedDistribution
         direct_requirements = _sorted_requirements(direct_requirements)
         if direct_requirements == self.direct_requirements:
             return self
-        return InstalledDistribution(
+        return ResolvedDistribution(
             self.target,
             self.fingerprinted_distribution,
             direct_requirements=direct_requirements,
@@ -80,8 +81,9 @@ class InstalledDistribution(object):
 
 
 @attr.s(frozen=True)
-class Installed(object):
-    installed_distributions = attr.ib()  # type: Tuple[InstalledDistribution, ...]
+class ResolveResult(object):
+    distributions = attr.ib()  # type: Tuple[ResolvedDistribution, ...]
+    type = attr.ib()  # type: InstallableType.Value
 
 
 class Resolver(object):
@@ -96,8 +98,9 @@ class Resolver(object):
         lock,  # type: Lockfile
         targets=Targets(),  # type: Targets
         pip_version=None,  # type: Optional[PipVersionValue]
+        result_type=InstallableType.INSTALLED_WHEEL_CHROOT,  # type: InstallableType.Value
     ):
-        # type: (...) -> Installed
+        # type: (...) -> ResolveResult
         raise NotImplementedError()
 
     def resolve_requirements(
@@ -105,6 +108,7 @@ class Resolver(object):
         requirements,  # type: Iterable[str]
         targets=Targets(),  # type: Targets
         pip_version=None,  # type: Optional[PipVersionValue]
+        result_type=InstallableType.INSTALLED_WHEEL_CHROOT,  # type: InstallableType.Value
     ):
-        # type: (...) -> Installed
+        # type: (...) -> ResolveResult
         raise NotImplementedError()

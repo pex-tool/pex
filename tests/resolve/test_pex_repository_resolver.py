@@ -2,20 +2,22 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
+import re
 from collections import defaultdict
 
 import pytest
 
 from pex.common import safe_mkdtemp
-from pex.dist_metadata import Requirement
+from pex.dist_metadata import DistributionType, Requirement
 from pex.interpreter import PythonInterpreter
+from pex.pep_427 import InstallableType
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
 from pex.platforms import Platform
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.pex_repository_resolver import resolve_from_pex
 from pex.resolve.resolver_configuration import PipConfiguration
-from pex.resolve.resolvers import Unsatisfiable
+from pex.resolve.resolvers import ResolveResult, Unsatisfiable
 from pex.resolver import resolve
 from pex.targets import Targets
 from pex.typing import TYPE_CHECKING, cast
@@ -32,10 +34,12 @@ def create_pex_repository(
     requirement_files=None,  # type: Optional[Iterable[str]]
     constraint_files=None,  # type: Optional[Iterable[str]]
     manylinux=None,  # type: Optional[str]
+    result_type=InstallableType.INSTALLED_WHEEL_CHROOT,  # type: InstallableType.Value
 ):
     # type: (...) -> str
     pex_builder = PEXBuilder()
-    for installed_dist in resolve(
+    pex_builder.info.deps_are_wheel_files = result_type is InstallableType.WHEEL_FILE
+    for resolved_dist in resolve(
         targets=Targets(
             interpreters=tuple(interpreters) if interpreters else (),
             platforms=tuple(platforms) if platforms else (),
@@ -45,9 +49,10 @@ def create_pex_repository(
         requirement_files=requirement_files,
         constraint_files=constraint_files,
         resolver=ConfiguredResolver(PipConfiguration()),
-    ).installed_distributions:
-        pex_builder.add_distribution(installed_dist.distribution)
-        for direct_req in installed_dist.direct_requirements:
+        result_type=result_type,
+    ).distributions:
+        pex_builder.add_distribution(resolved_dist.distribution)
+        for direct_req in resolved_dist.direct_requirements:
             pex_builder.add_requirement(direct_req)
     pex_builder.freeze()
     return os.path.realpath(cast(str, pex_builder.path()))
@@ -101,9 +106,21 @@ def foreign_platform(
     return macosx if IS_LINUX else linux
 
 
-@pytest.fixture(scope="module")
-def pex_repository(py27, py310, foreign_platform, manylinux):
-    # type () -> str
+@pytest.fixture(
+    scope="module",
+    params=[
+        pytest.param(installable_type, id=installable_type.value)
+        for installable_type in InstallableType.values()
+    ],
+)
+def pex_repository(
+    py27,  # type: PythonInterpreter
+    py310,  # type: PythonInterpreter
+    foreign_platform,  # type: Platform
+    manylinux,  # type: Optional[str]
+    request,  # type: pytest.FixtureRequest
+):
+    # type (...) -> str
 
     constraints_file = create_constraints_file(
         # The 2.25.1 release of requests constrains urllib3 to <1.27,>=1.21.1 and picks 1.26.2 on
@@ -119,6 +136,7 @@ def pex_repository(py27, py310, foreign_platform, manylinux):
         requirements=["requests[security,socks]==2.25.1"],
         constraint_files=[constraints_file],
         manylinux=manylinux,
+        result_type=request.param,
     )
 
 
@@ -134,46 +152,96 @@ def test_resolve_from_pex(
     direct_requirements = pex_info.requirements
     assert 1 == len(direct_requirements)
 
-    result = resolve_from_pex(
-        pex=pex_repository,
-        requirements=direct_requirements,
-        targets=Targets(
-            interpreters=(py27, py310),
-            platforms=(foreign_platform,),
-            assume_manylinux=manylinux,
-        ),
-    )
+    def assert_resolve_result(
+        result,  # type: ResolveResult
+        expected_result_type,  # type: InstallableType.Value
+    ):
+        # type: (...) -> None
 
-    distribution_locations_by_key = defaultdict(set)  # type: DefaultDict[str, Set[str]]
-    for installed_distribution in result.installed_distributions:
-        distribution_locations_by_key[installed_distribution.distribution.key].add(
-            installed_distribution.distribution.location
+        assert expected_result_type is result.type
+        expected_dist_type = (
+            DistributionType.WHEEL
+            if expected_result_type is InstallableType.WHEEL_FILE
+            else DistributionType.INSTALLED
         )
 
-    assert {
-        os.path.basename(location)
-        for locations in distribution_locations_by_key.values()
-        for location in locations
-    } == set(pex_info.distributions.keys()), (
-        "Expected to resolve the same full set of distributions from the pex repository as make "
-        "it up when using the same requirements."
+        distribution_locations_by_key = defaultdict(set)  # type: DefaultDict[str, Set[str]]
+        for resolved_distribution in result.distributions:
+            assert expected_dist_type is resolved_distribution.distribution.type
+            distribution_locations_by_key[resolved_distribution.distribution.key].add(
+                resolved_distribution.distribution.location
+            )
+
+        assert {
+            os.path.basename(location)
+            for locations in distribution_locations_by_key.values()
+            for location in locations
+        } == set(pex_info.distributions.keys()), (
+            "Expected to resolve the same full set of distributions from the pex repository as make "
+            "it up when using the same requirements."
+        )
+
+        assert "requests" in distribution_locations_by_key
+        assert 1 == len(distribution_locations_by_key["requests"])
+
+        assert "pysocks" in distribution_locations_by_key
+        assert 2 == len(distribution_locations_by_key["pysocks"]), (
+            "PySocks has a non-platform-specific Python 2.7 distribution and a non-platform-specific "
+            "Python 3 distribution; so we expect to resolve two distributions - one covering "
+            "Python 2.7 and one covering local Python 3.6 and our cp36 foreign platform."
+        )
+
+        assert "cryptography" in distribution_locations_by_key
+        assert 3 == len(distribution_locations_by_key["cryptography"]), (
+            "The cryptography requirement of the security extra is platform specific; so we expect a "
+            "unique distribution to be resolved for each of the three distribution targets"
+        )
+
+    assert_resolve_result(
+        resolve_from_pex(
+            pex=pex_repository,
+            requirements=direct_requirements,
+            targets=Targets(
+                interpreters=(py27, py310),
+                platforms=(foreign_platform,),
+                assume_manylinux=manylinux,
+            ),
+        ),
+        expected_result_type=InstallableType.INSTALLED_WHEEL_CHROOT,
     )
 
-    assert "requests" in distribution_locations_by_key
-    assert 1 == len(distribution_locations_by_key["requests"])
-
-    assert "pysocks" in distribution_locations_by_key
-    assert 2 == len(distribution_locations_by_key["pysocks"]), (
-        "PySocks has a non-platform-specific Python 2.7 distribution and a non-platform-specific "
-        "Python 3 distribution; so we expect to resolve two distributions - one covering "
-        "Python 2.7 and one covering local Python 3.6 and our cp36 foreign platform."
-    )
-
-    assert "cryptography" in distribution_locations_by_key
-    assert 3 == len(distribution_locations_by_key["cryptography"]), (
-        "The cryptography requirement of the security extra is platform specific; so we expect a "
-        "unique distribution to be resolved for each of the three distribution targets"
-    )
+    if pex_info.deps_are_wheel_files:
+        assert_resolve_result(
+            resolve_from_pex(
+                pex=pex_repository,
+                requirements=direct_requirements,
+                targets=Targets(
+                    interpreters=(py27, py310),
+                    platforms=(foreign_platform,),
+                    assume_manylinux=manylinux,
+                ),
+                result_type=InstallableType.WHEEL_FILE,
+            ),
+            expected_result_type=InstallableType.WHEEL_FILE,
+        )
+    else:
+        with pytest.raises(
+            Unsatisfiable,
+            match=(
+                r"Cannot resolve \.whl files from PEX at {pex}; its dependencies are in the form "
+                r"of pre-installed wheel chroots\.".format(pex=re.escape(pex_repository))
+            ),
+        ):
+            resolve_from_pex(
+                pex=pex_repository,
+                requirements=direct_requirements,
+                targets=Targets(
+                    interpreters=(py27, py310),
+                    platforms=(foreign_platform,),
+                    assume_manylinux=manylinux,
+                ),
+                result_type=InstallableType.WHEEL_FILE,
+            )
 
 
 def test_resolve_from_pex_subset(
@@ -193,8 +261,8 @@ def test_resolve_from_pex_subset(
     )
 
     assert {"cffi", "pycparser"} == {
-        installed_distribution.distribution.project_name
-        for installed_distribution in result.installed_distributions
+        resolved_distribution.distribution.project_name
+        for resolved_distribution in result.distributions
     }
 
 
@@ -243,7 +311,7 @@ def test_resolve_from_pex_intransitive(
 ):
     # type: (...) -> None
 
-    installed_distributions = resolve_from_pex(
+    resolved_distributions = resolve_from_pex(
         pex=pex_repository,
         requirements=["requests"],
         transitive=False,
@@ -252,26 +320,26 @@ def test_resolve_from_pex_intransitive(
             platforms=(foreign_platform,),
             assume_manylinux=manylinux,
         ),
-    ).installed_distributions
+    ).distributions
     assert 3 == len(
-        installed_distributions
+        resolved_distributions
     ), "Expected one resolved distribution per distribution target."
     assert 1 == len(
         frozenset(
-            installed_distribution.distribution.location
-            for installed_distribution in installed_distributions
+            resolved_distribution.distribution.location
+            for resolved_distribution in resolved_distributions
         )
     ), (
         "Expected one underlying resolved universal distribution usable on Linux and macOs by "
         "both Python 2.7 and Python 3.6."
     )
-    for installed_distribution in installed_distributions:
+    for resolved_distribution in resolved_distributions:
         assert (
             Requirement.parse("requests==2.25.1")
-            == installed_distribution.distribution.as_requirement()
+            == resolved_distribution.distribution.as_requirement()
         )
-        assert 1 == len(installed_distribution.direct_requirements)
-        assert Requirement.parse("requests") == installed_distribution.direct_requirements[0]
+        assert 1 == len(resolved_distribution.direct_requirements)
+        assert Requirement.parse("requests") == resolved_distribution.direct_requirements[0]
 
 
 def test_resolve_from_pex_constraints(
@@ -311,12 +379,10 @@ def test_resolve_from_pex_ignore_errors(
         ),
         ignore_errors=True,
     )
-    installed_distributions_by_key = {
-        installed_distribution.distribution.project_name: installed_distribution.distribution.as_requirement()
-        for installed_distribution in result.installed_distributions
+    resolved_distributions_by_key = {
+        resolved_distribution.distribution.project_name: resolved_distribution.distribution.as_requirement()
+        for resolved_distribution in result.distributions
     }
-    assert (
-        len(installed_distributions_by_key) > 1
-    ), "We should resolve at least requests and urllib3"
-    assert "requests" in installed_distributions_by_key
-    assert Requirement.parse("urllib3==1.26.1") == installed_distributions_by_key["urllib3"]
+    assert len(resolved_distributions_by_key) > 1, "We should resolve at least requests and urllib3"
+    assert "requests" in resolved_distributions_by_key
+    assert Requirement.parse("urllib3==1.26.1") == resolved_distributions_by_key["urllib3"]

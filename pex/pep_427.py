@@ -10,12 +10,13 @@ import shutil
 import subprocess
 import sys
 from contextlib import closing
+from email.message import Message
 from fileinput import FileInput
 from textwrap import dedent
 
 from pex import pex_warnings
 from pex.common import chmod_plus_x, is_pyc_file, iter_copytree, open_zip, safe_open, touch
-from pex.compatibility import commonpath, get_stdout_bytes_buffer, urlparse
+from pex.compatibility import commonpath, get_stdout_bytes_buffer
 from pex.dist_metadata import (
     DistMetadata,
     Distribution,
@@ -25,6 +26,7 @@ from pex.dist_metadata import (
     load_metadata,
     parse_message,
 )
+from pex.enum import Enum
 from pex.interpreter import PythonInterpreter
 from pex.pep_376 import InstalledFile, InstalledWheel, Record
 from pex.pep_503 import ProjectName
@@ -36,6 +38,14 @@ if TYPE_CHECKING:
     import attr  # vendor:skip
 else:
     from pex.third_party import attr
+
+
+class InstallableType(Enum["InstallableType.Value"]):
+    class Value(Enum.Value):
+        pass
+
+    INSTALLED_WHEEL_CHROOT = Value("installed wheel chroot")
+    WHEEL_FILE = Value(".whl file")
 
 
 @attr.s(frozen=True)
@@ -136,6 +146,70 @@ def install_wheel_interpreter(
     )
 
 
+@attr.s(frozen=True)
+class Wheel(object):
+    @classmethod
+    def load(cls, wheel_path):
+        # type: (str) -> Wheel
+
+        metadata_files = load_metadata(wheel_path, restrict_types_to=(MetadataType.DIST_INFO,))
+        if not metadata_files:
+            raise ValueError("Could not find any metadata in {wheel}.".format(wheel=wheel_path))
+
+        metadata_path = metadata_files.metadata_file_rel_path("WHEEL")
+        metadata_bytes = metadata_files.read("WHEEL")
+        if not metadata_path or not metadata_bytes:
+            raise ValueError("Could not find WHEEL metadata in {wheel}.".format(wheel=wheel_path))
+        wheel_metadata_dir = os.path.dirname(metadata_path)
+        if not wheel_metadata_dir.endswith(".dist-info"):
+            raise ValueError(
+                "Expected WHEEL metadata for {wheel} to be housed in a .dist-info directory, but was "
+                "found at {wheel_metadata_path}.".format(
+                    wheel=wheel_path, wheel_metadata_path=metadata_path
+                )
+            )
+        # Although not crisply defined, all PEPs lead to PEP-508 which restricts project names
+        # to ASCII: https://peps.python.org/pep-0508/#names. Likewise, version numbers are also
+        # restricted to ASCII: https://peps.python.org/pep-0440/. Since the `.dist-info` dir
+        # path is defined as `<project name>-<version>.dist-info` in
+        # https://peps.python.org/pep-0427/, we are safe in assuming ASCII overall for the wheel
+        # metadata dir path.
+        metadata_dir = str(wheel_metadata_dir)
+        metadata = parse_message(metadata_bytes)
+
+        data_dir = re.sub(r"\.dist-info$", ".data", metadata_dir)
+
+        return cls(
+            location=wheel_path,
+            metadata_dir=metadata_dir,
+            metadata_files=metadata_files,
+            metadata=metadata,
+            data_dir=data_dir,
+        )
+
+    location = attr.ib()  # type: str
+    metadata_dir = attr.ib()  # type: str
+    metadata_files = attr.ib()  # type: MetadataFiles
+    metadata = attr.ib()  # type: Message
+    data_dir = attr.ib()  # type: str
+
+    @property
+    def purelib(self):
+        # type: () -> bool
+        return cast(bool, "true" == self.metadata.get("Root-Is-Purelib"))
+
+    def dist_metadata(self):
+        return DistMetadata.from_metadata_files(self.metadata_files)
+
+    def metadata_path(self, *components):
+        # typ: (*str) -> str
+        return os.path.join(self.metadata_dir, *components)
+
+    def data_path(self, *components):
+        # typ: (*str) -> str
+        return os.path.join(self.data_dir, *components)
+
+
 def install_wheel(
     wheel_path,  # type: str
     install_paths,  # type: InstallPaths
@@ -146,30 +220,13 @@ def install_wheel(
     # type: (...) -> MetadataFiles
 
     # See: https://packaging.python.org/en/latest/specifications/binary-distribution-format/#installing-a-wheel-distribution-1-0-py32-none-any-whl
-    metadata_files = load_metadata(wheel_path, restrict_types_to=(MetadataType.DIST_INFO,))
-    if not metadata_files:
-        raise ValueError("Could not find any metadata in {wheel}.".format(wheel=wheel_path))
+    wheel = Wheel.load(wheel_path)
+    dest = install_paths.purelib if wheel.purelib else install_paths.platlib
 
-    wheel_metadata_path = metadata_files.metadata_file_rel_path("WHEEL")
-    wheel_metadata = metadata_files.read("WHEEL")
-    if not wheel_metadata_path or not wheel_metadata:
-        raise ValueError("Could not find WHEEL metadata in {wheel}.".format(wheel=wheel_path))
-    wheel_metadata_dir = os.path.dirname(wheel_metadata_path)
-    if not wheel_metadata_dir.endswith(".dist-info"):
-        raise ValueError(
-            "Expected WHEEL metadata for {wheel} to be housed in a .dist-info directory, but was "
-            "found at {wheel_metadata_path}.".format(
-                wheel=wheel_path, wheel_metadata_path=wheel_metadata_path
-            )
-        )
-
-    purelib = "true" == parse_message(wheel_metadata).get("Root-Is-Purelib")
-    dest = install_paths.purelib if purelib else install_paths.platlib
-
-    record_relpath = os.path.join(wheel_metadata_dir, "RECORD")
+    record_relpath = wheel.metadata_path("RECORD")
     record_abspath = os.path.join(dest, record_relpath)
 
-    data_rel_path = re.sub(r"\.dist-info$", ".data", wheel_metadata_dir)
+    data_rel_path = wheel.data_dir
     data_path = os.path.join(dest, data_rel_path)
 
     installed_files = []  # type: List[InstalledFile]
@@ -275,7 +332,7 @@ def install_wheel(
                     file = InstalledFile(path=os.path.relpath(os.path.join(root, f), dest))
                     installed_files.append(file)
 
-    dist = Distribution(location=dest, metadata=DistMetadata.from_metadata_files(metadata_files))
+    dist = Distribution(location=dest, metadata=wheel.dist_metadata())
     entry_points = dist.get_entry_map()
     for entry_point in itertools.chain.from_iterable(
         entry_points.get(key, {}).values() for key in ("console_scripts", "gui_scripts")
@@ -310,12 +367,12 @@ def install_wheel(
             InstalledWheel.create_installed_file(path=script_abspath, dest_dir=dest)
         )
 
-    with safe_open(os.path.join(dest, wheel_metadata_dir, "INSTALLER"), "w") as fp:
+    with safe_open(os.path.join(dest, wheel.metadata_path("INSTALLER")), "w") as fp:
         print("pex", file=fp)
     installed_files.append(InstalledWheel.create_installed_file(path=fp.name, dest_dir=dest))
 
     if requested:
-        requested_path = os.path.join(dest, wheel_metadata_dir, "REQUESTED")
+        requested_path = os.path.join(dest, wheel.metadata_path("REQUESTED"))
         touch(requested_path)
         installed_files.append(
             InstalledWheel.create_installed_file(path=requested_path, dest_dir=dest)
@@ -323,4 +380,4 @@ def install_wheel(
 
     installed_files.append(InstalledFile(path=record_relpath, hash=None, size=None))
     Record.write(dst=record_abspath, installed_files=installed_files)
-    return metadata_files
+    return wheel.metadata_files

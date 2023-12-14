@@ -27,7 +27,7 @@ from pex.common import (
 )
 from pex.compatibility import commonpath, to_bytes
 from pex.compiler import Compiler
-from pex.dist_metadata import Distribution, MetadataError
+from pex.dist_metadata import Distribution, DistributionType, MetadataError
 from pex.enum import Enum
 from pex.finders import get_entry_point_from_console_script, get_script_from_distributions
 from pex.interpreter import PythonInterpreter
@@ -132,12 +132,12 @@ def __re_exec__(argv0, *extra_launch_args):
 
 __execute__ = __name__ == "__main__"
 
-def __maybe_install_pex__(pex, pex_root, pex_hash):
-  from pex.layout import maybe_install
+def __ensure_pex_installed__(pex, pex_root, pex_hash):
+  from pex.layout import ensure_installed
   from pex.tracer import TRACER
 
-  installed_location = maybe_install(pex, pex_root, pex_hash)
-  if not __execute__ or not installed_location:
+  installed_location = ensure_installed(pex, pex_root, pex_hash)
+  if not __execute__ or pex == installed_location:
     return installed_location
 
   # N.B.: This is read upon re-exec below to point sys.argv[0] back to the original pex before
@@ -215,11 +215,9 @@ if not __installed_from__:
         pex_root=__pex_root__,
         pex_path=ENV.PEX_PATH or {pex_path!r},
       )
-    __installed_location__ = __maybe_install_pex__(
+    __entry_point__ = __ensure_pex_installed__(
       __entry_point__, pex_root=__pex_root__, pex_hash={pex_hash!r}
     )
-    if __installed_location__:
-      __entry_point__ = __installed_location__
 else:
     os.environ['PEX'] = os.path.realpath(__installed_from__)
 
@@ -490,10 +488,22 @@ class PEXBuilder(object):
         """
         self._header = header
 
-    def _add_dist_dir(self, path, dist_name, fingerprint=None):
+    def _add_dist(
+        self,
+        path,  # type: str
+        dist_name,  # type: str
+        fingerprint=None,  # type: Optional[str]
+        is_wheel_file=False,  # type: bool
+    ):
         target_dir = os.path.join(self._pex_info.internal_cache, dist_name)
-        if self._copy_mode == CopyMode.SYMLINK:
-            self._copy_or_link(path, target_dir, label=dist_name)
+        if self._copy_mode is CopyMode.SYMLINK or is_wheel_file:
+            self._copy_or_link(
+                path,
+                target_dir,
+                label=dist_name,
+                compress=not is_wheel_file,
+                copy_mode=CopyMode.LINK if is_wheel_file else None,
+            )
         else:
             for root, _, files in os.walk(path):
                 for f in files:
@@ -501,7 +511,9 @@ class PEXBuilder(object):
                     relpath = os.path.relpath(filename, path)
                     target = os.path.join(target_dir, relpath)
                     self._copy_or_link(filename, target, label=dist_name)
-        return fingerprint or CacheHelper.dir_hash(path)
+        return fingerprint or (
+            CacheHelper.hash(path) if is_wheel_file else CacheHelper.dir_hash(path)
+        )
 
     def add_distribution(
         self,
@@ -523,12 +535,17 @@ class PEXBuilder(object):
         dist_name = os.path.basename(dist.location)
         self._distributions[dist.location] = dist
 
-        if not os.path.isdir(dist.location):
+        if dist.type not in (DistributionType.WHEEL, DistributionType.INSTALLED):
             raise self.InvalidDistribution(
-                "Unsupported distribution type: {}, pex can only accept dist "
+                "Unsupported distribution type: {}, pex can only accept wheel files and dist "
                 "dirs (installed wheels).".format(dist)
             )
-        dist_hash = self._add_dist_dir(dist.location, dist_name, fingerprint=fingerprint)
+        dist_hash = self._add_dist(
+            dist.location,
+            dist_name,
+            fingerprint=fingerprint,
+            is_wheel_file=dist.type is DistributionType.WHEEL,
+        )
 
         # add dependency key so that it can rapidly be retrieved from cache
         self._pex_info.add_distribution(dist_name, dist_hash)
@@ -599,15 +616,23 @@ class PEXBuilder(object):
             label="importhook",
         )
 
-    def _copy_or_link(self, src, dst, label=None):
+    def _copy_or_link(
+        self,
+        src,  # type: Optional[str]
+        dst,  # type: str
+        label=None,  # type: Optional[str]
+        compress=True,  # type: bool
+        copy_mode=None,  # type: Optional[CopyMode.Value]
+    ):
+        copy_mode = copy_mode or self._copy_mode
         if src is None:
             self._chroot.touch(dst, label)
-        elif self._copy_mode == CopyMode.COPY:
-            self._chroot.copy(src, dst, label)
-        elif self._copy_mode == CopyMode.SYMLINK:
-            self._chroot.symlink(src, dst, label)
+        elif copy_mode is CopyMode.COPY:
+            self._chroot.copy(src, dst, label, compress)
+        elif copy_mode is CopyMode.SYMLINK:
+            self._chroot.symlink(src, dst, label, compress)
         else:
-            self._chroot.link(src, dst, label)
+            self._chroot.link(src, dst, label, compress)
 
     def _prepare_bootstrap(self):
         from . import vendor
@@ -794,16 +819,17 @@ class PEXBuilder(object):
         cached_bootstrap_zip_dir = zip_cache_dir(
             os.path.join(pex_info.pex_root, "bootstrap_zips", bootstrap_hash)
         )
-        with atomic_directory(cached_bootstrap_zip_dir) as atomic_bootstrap_zip_dir:
-            if not atomic_bootstrap_zip_dir.is_finalized():
-                self._chroot.zip(
-                    os.path.join(atomic_bootstrap_zip_dir.work_dir, pex_info.bootstrap),
-                    deterministic_timestamp=deterministic_timestamp,
-                    exclude_file=is_pyc_temporary_file,
-                    strip_prefix=pex_info.bootstrap,
-                    labels=("bootstrap",),
-                    compress=compress,
-                )
+        with TRACER.timed("Zipping PEX .bootstrap/ code."):
+            with atomic_directory(cached_bootstrap_zip_dir) as atomic_bootstrap_zip_dir:
+                if not atomic_bootstrap_zip_dir.is_finalized():
+                    self._chroot.zip(
+                        os.path.join(atomic_bootstrap_zip_dir.work_dir, pex_info.bootstrap),
+                        deterministic_timestamp=deterministic_timestamp,
+                        exclude_file=is_pyc_temporary_file,
+                        strip_prefix=pex_info.bootstrap,
+                        labels=("bootstrap",),
+                        compress=compress,
+                    )
         safe_copy(
             os.path.join(cached_bootstrap_zip_dir, pex_info.bootstrap),
             os.path.join(dirname, pex_info.bootstrap),
@@ -814,24 +840,32 @@ class PEXBuilder(object):
         if pex_info.distributions:
             internal_cache = os.path.join(dirname, pex_info.internal_cache)
             os.mkdir(internal_cache)
-            for location, fingerprint in pex_info.distributions.items():
-                cached_installed_wheel_zip_dir = zip_cache_dir(
-                    os.path.join(pex_info.pex_root, "packed_wheels", fingerprint)
+            with TRACER.timed(
+                "{action} {count} distributions.".format(
+                    action="Copying" if pex_info.deps_are_wheel_files else "Zipping",
+                    count=len(pex_info.distributions),
                 )
-                with atomic_directory(cached_installed_wheel_zip_dir) as atomic_zip_dir:
-                    if not atomic_zip_dir.is_finalized():
-                        self._chroot.zip(
-                            os.path.join(atomic_zip_dir.work_dir, location),
-                            deterministic_timestamp=deterministic_timestamp,
-                            exclude_file=is_pyc_temporary_file,
-                            strip_prefix=os.path.join(pex_info.internal_cache, location),
-                            labels=(location,),
-                            compress=compress,
+            ):
+                for location, fingerprint in pex_info.distributions.items():
+                    dest = os.path.join(internal_cache, location)
+                    if pex_info.deps_are_wheel_files:
+                        for path in self._chroot.filesets[location]:
+                            safe_copy(os.path.join(self._chroot.chroot, path), dest)
+                    else:
+                        cached_installed_wheel_zip_dir = zip_cache_dir(
+                            os.path.join(pex_info.pex_root, "packed_wheels", fingerprint)
                         )
-                safe_copy(
-                    os.path.join(cached_installed_wheel_zip_dir, location),
-                    os.path.join(internal_cache, location),
-                )
+                        with atomic_directory(cached_installed_wheel_zip_dir) as atomic_zip_dir:
+                            if not atomic_zip_dir.is_finalized():
+                                self._chroot.zip(
+                                    os.path.join(atomic_zip_dir.work_dir, location),
+                                    deterministic_timestamp=deterministic_timestamp,
+                                    exclude_file=is_pyc_temporary_file,
+                                    strip_prefix=os.path.join(pex_info.internal_cache, location),
+                                    labels=(location,),
+                                    compress=compress,
+                                )
+                        safe_copy(os.path.join(cached_installed_wheel_zip_dir, location), dest)
 
     def _build_zipapp(
         self,

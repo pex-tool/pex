@@ -894,7 +894,7 @@ def test_pex_run_custom_setuptools_useable(
         requirements=[setuptools_requirement],
         resolver=ConfiguredResolver.default(),
     )
-    dists = [installed_dist.distribution for installed_dist in result.installed_distributions]
+    dists = [resolved_dist.distribution for resolved_dist in result.distributions]
     with temporary_dir() as temp_dir:
         pex = write_simple_pex(
             temp_dir,
@@ -919,7 +919,7 @@ def test_pex_run_conflicting_custom_setuptools_useable(
         requirements=[setuptools_requirement],
         resolver=ConfiguredResolver.default(),
     )
-    dists = [installed_dist.distribution for installed_dist in result.installed_distributions]
+    dists = [resolved_dist.distribution for resolved_dist in result.distributions]
     with temporary_dir() as temp_dir:
         pex = write_simple_pex(
             temp_dir,
@@ -946,7 +946,7 @@ def test_pex_run_custom_pex_useable():
         requirements=["pex=={}".format(old_pex_version), "setuptools==40.6.3"],
         resolver=ConfiguredResolver.default(),
     )
-    dists = [installed_dist.distribution for installed_dist in result.installed_distributions]
+    dists = [resolved_dist.distribution for resolved_dist in result.distributions]
     with temporary_dir() as temp_dir:
         from pex.version import __version__
 

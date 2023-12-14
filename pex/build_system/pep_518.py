@@ -185,8 +185,7 @@ def load_build_system(
             interpreter=target.get_interpreter(),
             requires=build_system_table.requires,
             resolved=tuple(
-                installed_distribution.distribution
-                for installed_distribution in result.installed_distributions
+                resolved_distribution.distribution for resolved_distribution in result.distributions
             ),
             build_backend=build_system_table.build_backend,
             backend_path=build_system_table.backend_path,

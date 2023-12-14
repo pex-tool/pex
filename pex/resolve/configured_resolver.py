@@ -4,11 +4,12 @@
 from __future__ import absolute_import
 
 from pex import resolver
+from pex.pep_427 import InstallableType
 from pex.pip.version import PipVersion, PipVersionValue
 from pex.resolve import lock_resolver
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.resolver_configuration import PipConfiguration, ReposConfiguration, ResolverVersion
-from pex.resolve.resolvers import Installed, Resolver
+from pex.resolve.resolvers import Resolver, ResolveResult
 from pex.result import try_
 from pex.targets import Targets
 from pex.typing import TYPE_CHECKING
@@ -46,8 +47,9 @@ class ConfiguredResolver(Resolver):
         lock,  # type: Lockfile
         targets=Targets(),  # type: Targets
         pip_version=None,  # type: Optional[PipVersionValue]
+        result_type=InstallableType.INSTALLED_WHEEL_CHROOT,  # type: InstallableType.Value
     ):
-        # type: (...) -> Installed
+        # type: (...) -> ResolveResult
         return try_(
             lock_resolver.resolve_from_lock(
                 targets=targets,
@@ -68,6 +70,7 @@ class ConfiguredResolver(Resolver):
                 max_parallel_jobs=self.pip_configuration.max_jobs,
                 pip_version=pip_version or self.pip_configuration.version,
                 use_pip_config=self.pip_configuration.use_pip_config,
+                result_type=result_type,
             )
         )
 
@@ -76,8 +79,9 @@ class ConfiguredResolver(Resolver):
         requirements,  # type: Iterable[str]
         targets=Targets(),  # type: Targets
         pip_version=None,  # type: Optional[PipVersionValue]
+        result_type=InstallableType.INSTALLED_WHEEL_CHROOT,  # type: InstallableType.Value
     ):
-        # type: (...) -> Installed
+        # type: (...) -> ResolveResult
         return resolver.resolve(
             targets=targets,
             requirements=requirements,
@@ -99,4 +103,5 @@ class ConfiguredResolver(Resolver):
             pip_version=pip_version or self.pip_configuration.version,
             resolver=self,
             use_pip_config=self.pip_configuration.use_pip_config,
+            result_type=result_type,
         )

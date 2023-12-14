@@ -672,6 +672,7 @@ def _populate_first_party(
                     "PEX_PYTHON_PATH",
                     "PEX_VERBOSE",
                     "PEX_EMIT_WARNINGS",
+                    "PEX_MAX_INSTALL_JOBS",
                     # This is used by the vendoring system.
                     "__PEX_UNVENDORED__",
                     # These are _not_ used at runtime, but are present under testing / CI and

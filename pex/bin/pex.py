@@ -28,8 +28,9 @@ from pex.dependency_manager import DependencyManager
 from pex.enum import Enum
 from pex.inherit_path import InheritPath
 from pex.interpreter_constraints import InterpreterConstraints
-from pex.layout import Layout, maybe_install
+from pex.layout import Layout, ensure_installed
 from pex.orderedset import OrderedSet
+from pex.pep_427 import InstallableType
 from pex.pex import PEX
 from pex.pex_bootstrapper import ensure_venv
 from pex.pex_builder import Check, CopyMode, PEXBuilder
@@ -162,6 +163,41 @@ def configure_clp_pex_options(parser):
             "tradeoffs. Both zipapp and packed layouts install themselves in the PEX_ROOT as loose "
             "apps by default before executing, but these layouts compose with `--venv` execution "
             "mode as well and support `--seed`ing."
+        ),
+    )
+    group.add_argument(
+        "--pre-install-wheels",
+        "--no-pre-install-wheels",
+        dest="pre_install_wheels",
+        default=True,
+        action=HandleBoolAction,
+        help=(
+            "Whether to pre-install third party dependency wheels. Pre-installed wheels will "
+            "always yield slightly faster PEX cold boot times; so they are used by default, but "
+            "they also slow down PEX build time. As the size of dependencies grows you may find a "
+            "tipping point where it makes sense to not pre-install wheels; either because the "
+            "increased cold boot time is irrelevant to your use case or marginal compared to "
+            "other costs. Note that you may be able to use --max-install-jobs to decrease cold "
+            "boot times for some PEX deployment scenarios."
+        ),
+    )
+    group.add_argument(
+        "--max-install-jobs",
+        dest="max_install_jobs",
+        default=1,
+        type=int,
+        help=(
+            "The maximum number of parallel jobs to use when installing third party dependencies "
+            "contained in a PEX during its first boot. By default, this is set to 1 which "
+            "indicates dependencies should be installed in serial. A value of 2 or more indicates "
+            "dependencies should be installed in parallel using exactly this maximum number of "
+            "jobs. A value of 0 indicates the maximum number of parallel jobs should be "
+            "auto-selected taking the number of cores into account. Finally, a value of -1 "
+            "indicates the maximum number of parallel jobs should be auto-selected taking both the "
+            "characteristics of the third party dependencies contained in the PEX and the number "
+            "of cores into account. The third party dependency heuristics are intended to yield "
+            "good install performance, but are opaque and may change across PEX releases if better "
+            "heuristics are discovered. Any other value is illegal."
         ),
     )
     group.add_argument(
@@ -824,6 +860,8 @@ def build_pex(
     pex_info.pex_root = options.runtime_pex_root
     pex_info.strip_pex_env = options.strip_pex_env
     pex_info.interpreter_constraints = interpreter_constraints
+    pex_info.deps_are_wheel_files = not options.pre_install_wheels
+    pex_info.max_install_jobs = options.max_install_jobs
 
     dependency_manager = DependencyManager()
     excluded = list(options.excluded)  # type: List[str]
@@ -848,13 +886,18 @@ def build_pex(
         )
     ):
         try:
-            dependency_manager.add_from_installed(
+            dependency_manager.add_from_resolved(
                 resolve(
                     targets=targets,
                     requirement_configuration=requirement_configuration,
                     resolver_configuration=resolver_configuration,
                     compile_pyc=options.compile,
                     ignore_errors=options.ignore_errors,
+                    result_type=(
+                        InstallableType.INSTALLED_WHEEL_CHROOT
+                        if options.pre_install_wheels
+                        else InstallableType.WHEEL_FILE
+                    ),
                 )
             )
         except Unsatisfiable as e:
@@ -1063,9 +1106,7 @@ def seed_cache(
 
         with TRACER.timed("Seeding caches for {}".format(pex_path)):
             final_pex_path = os.path.join(
-                maybe_install(pex=pex_path, pex_root=pex_root, pex_hash=pex_hash)
-                or os.path.abspath(pex_path),
-                "__main__.py",
+                ensure_installed(pex=pex_path, pex_root=pex_root, pex_hash=pex_hash), "__main__.py"
             )
             if verbose:
                 return json.dumps(create_verbose_info(final_pex_path=final_pex_path))

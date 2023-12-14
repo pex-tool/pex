@@ -20,7 +20,7 @@ from pex.interpreter import PythonInterpreter
 from pex.platforms import Platform
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.resolver_configuration import ResolverVersion
-from pex.resolve.resolvers import Installed, InstalledDistribution, Unsatisfiable
+from pex.resolve.resolvers import ResolvedDistribution, ResolveResult, Unsatisfiable
 from pex.resolver import download
 from pex.resolver import resolve as resolve_under_test
 from pex.targets import Target, Targets
@@ -67,16 +67,16 @@ def build_wheel(**kwargs):
 
 
 def resolve(**kwargs):
-    # type: (**Any) -> Installed
+    # type: (**Any) -> ResolveResult
     kwargs.setdefault("resolver", ConfiguredResolver.default())
     return resolve_under_test(**kwargs)
 
 
 def local_resolve(*args, **kwargs):
-    # type: (*Any, **Any) -> List[InstalledDistribution]
+    # type: (*Any, **Any) -> List[ResolvedDistribution]
     # Skip remote lookups.
     kwargs["indexes"] = []
-    return list(resolve(*args, **kwargs).installed_distributions)
+    return list(resolve(*args, **kwargs).distributions)
 
 
 @contextmanager
@@ -112,8 +112,8 @@ def test_simple_local_resolve():
 
     with temporary_dir() as td:
         safe_copy(project_wheel, os.path.join(td, os.path.basename(project_wheel)))
-        installed_dists = local_resolve(requirements=["project"], find_links=[td])
-        assert len(installed_dists) == 1
+        resolved_dists = local_resolve(requirements=["project"], find_links=[td])
+        assert len(resolved_dists) == 1
 
 
 def test_resolve_cache():
@@ -125,24 +125,22 @@ def test_resolve_cache():
 
         # Without a cache, each resolve should be isolated, but otherwise identical.
         with disabled_cache():
-            installed_dists1 = local_resolve(requirements=["project"], find_links=[td])
+            resolved_dists1 = local_resolve(requirements=["project"], find_links=[td])
         with disabled_cache():
-            installed_dists2 = local_resolve(requirements=["project"], find_links=[td])
-        assert installed_dists1 != installed_dists2
-        assert len(installed_dists1) == 1
-        assert len(installed_dists2) == 1
-        assert installed_dists1[0].direct_requirements == installed_dists2[0].direct_requirements
-        assert (
-            installed_dists1[0].distribution.location != installed_dists2[0].distribution.location
-        )
+            resolved_dists2 = local_resolve(requirements=["project"], find_links=[td])
+        assert resolved_dists1 != resolved_dists2
+        assert len(resolved_dists1) == 1
+        assert len(resolved_dists2) == 1
+        assert resolved_dists1[0].direct_requirements == resolved_dists2[0].direct_requirements
+        assert resolved_dists1[0].distribution.location != resolved_dists2[0].distribution.location
 
         # With a cache, each resolve should be identical.
         with cache(cache_dir):
-            installed_dists3 = local_resolve(requirements=["project"], find_links=[td])
-            installed_dists4 = local_resolve(requirements=["project"], find_links=[td])
-        assert installed_dists1 != installed_dists3
-        assert installed_dists2 != installed_dists3
-        assert installed_dists3 == installed_dists4
+            resolved_dists3 = local_resolve(requirements=["project"], find_links=[td])
+            resolved_dists4 = local_resolve(requirements=["project"], find_links=[td])
+        assert resolved_dists1 != resolved_dists3
+        assert resolved_dists2 != resolved_dists3
+        assert resolved_dists3 == resolved_dists4
 
 
 def test_diamond_local_resolve_cached():
@@ -155,8 +153,8 @@ def test_diamond_local_resolve_cached():
         for wheel in (project1_wheel, project2_wheel):
             safe_copy(wheel, os.path.join(dd, os.path.basename(wheel)))
         with temporary_dir() as cd, cache(cd):
-            installed_dists = local_resolve(requirements=["project1", "project2"], find_links=[dd])
-            assert len(installed_dists) == 2
+            resolved_dists = local_resolve(requirements=["project1", "project2"], find_links=[dd])
+            assert len(resolved_dists) == 2
 
 
 def test_cached_dependency_pinned_unpinned_resolution_multi_run():
@@ -170,15 +168,15 @@ def test_cached_dependency_pinned_unpinned_resolution_multi_run():
             safe_copy(wheel, os.path.join(td, os.path.basename(wheel)))
         with temporary_dir() as cd, cache(cd):
             # First run, pinning 1.0.0 in the cache
-            installed_dists = local_resolve(requirements=["project==1.0.0"], find_links=[td])
-            assert len(installed_dists) == 1
-            assert installed_dists[0].distribution.version == "1.0.0"
+            resolved_dists = local_resolve(requirements=["project==1.0.0"], find_links=[td])
+            assert len(resolved_dists) == 1
+            assert resolved_dists[0].distribution.version == "1.0.0"
 
             # Second, run, the unbounded 'project' req will find the 1.0.0 in the cache. But should
             # also return SourcePackages found in td
-            installed_dists = local_resolve(requirements=["project"], find_links=[td])
-            assert len(installed_dists) == 1
-            assert installed_dists[0].distribution.version == "1.1.0"
+            resolved_dists = local_resolve(requirements=["project"], find_links=[td])
+            assert len(resolved_dists) == 1
+            assert resolved_dists[0].distribution.version == "1.1.0"
 
 
 def test_intransitive():
@@ -190,10 +188,10 @@ def test_intransitive():
         for wheel in (foo1_0, bar1_0):
             safe_copy(wheel, os.path.join(td, os.path.basename(wheel)))
         with temporary_dir() as cd, cache(cd):
-            installed_dists = local_resolve(
+            resolved_dists = local_resolve(
                 requirements=["foo", "bar"], find_links=[td], transitive=False
             )
-            assert len(installed_dists) == 2
+            assert len(resolved_dists) == 2
 
 
 def test_resolve_prereleases():
@@ -206,12 +204,12 @@ def test_resolve_prereleases():
             safe_copy(wheel, os.path.join(td, os.path.basename(wheel)))
 
         def assert_resolve(expected_version, **resolve_kwargs):
-            installed_dists = local_resolve(
+            resolved_dists = local_resolve(
                 requirements=["dep>=1,<4"], find_links=[td], **resolve_kwargs
             )
-            assert 1 == len(installed_dists)
-            installed_dist = installed_dists[0]
-            assert expected_version == installed_dist.distribution.version
+            assert 1 == len(resolved_dists)
+            resolved_dist = resolved_dists[0]
+            assert expected_version == resolved_dist.distribution.version
 
         assert_resolve("2.0.0")
         assert_resolve("2.0.0", allow_prereleases=False)
@@ -234,12 +232,12 @@ def test_resolve_extra_setup_py():
         with temporary_dir() as td:
             safe_copy(project2_wheel, os.path.join(td, os.path.basename(project2_wheel)))
 
-            installed_dists = local_resolve(
+            resolved_dists = local_resolve(
                 requirements=["{}[foo]".format(project1_dir)], find_links=[td]
             )
             assert {_parse_requirement(req) for req in ("project1==1.0.0", "project2==2.0.0")} == {
-                _parse_requirement(installed_dist.distribution.as_requirement())
-                for installed_dist in installed_dists
+                _parse_requirement(resolved_dist.distribution.as_requirement())
+                for resolved_dist in resolved_dists
             }
 
 
@@ -253,18 +251,18 @@ def test_resolve_extra_wheel():
         for wheel in (project1_wheel, project2_wheel):
             safe_copy(wheel, os.path.join(td, os.path.basename(wheel)))
 
-        installed_dists = local_resolve(requirements=["project1[foo]"], find_links=[td])
+        resolved_dists = local_resolve(requirements=["project1[foo]"], find_links=[td])
         assert {_parse_requirement(req) for req in ("project1==1.0.0", "project2==2.0.0")} == {
-            _parse_requirement(installed_dist.distribution.as_requirement())
-            for installed_dist in installed_dists
+            _parse_requirement(resolved_dist.distribution.as_requirement())
+            for resolved_dist in resolved_dists
         }
 
 
 def resolve_wheel_names(**kwargs):
     # type: (**Any) -> List[str]
     return [
-        os.path.basename(installed_distribution.distribution.location)
-        for installed_distribution in resolve(**kwargs).installed_distributions
+        os.path.basename(resolved_distribution.distribution.location)
+        for resolved_distribution in resolve(**kwargs).distributions
     ]
 
 
@@ -414,8 +412,8 @@ def test_issues_851():
             requirements=["pytest=={}".format(pytest_version)],
         )
         project_to_version = {
-            installed_dist.distribution.project_name: installed_dist.distribution.version
-            for installed_dist in result.installed_distributions
+            resolved_dist.distribution.project_name: resolved_dist.distribution.version
+            for resolved_dist in result.distributions
         }
         assert project_to_version["pytest"] == pytest_version
         return project_to_version
@@ -559,15 +557,15 @@ def test_resolve_arbitrary_equality_issues_940():
         version="1.0.2-fba4511",
         python_requires=">=2.7,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*",
     )
-    installed_distributions = resolve(
+    resolved_distributions = resolve(
         requirements=[dist],
         # We need this to allow the invalid version above to sneak by pip wheel metadata
         # verification.
         verify_wheels=False,
-    ).installed_distributions
+    ).distributions
 
-    assert len(installed_distributions) == 1
-    requirements = installed_distributions[0].direct_requirements
+    assert len(resolved_distributions) == 1
+    requirements = resolved_distributions[0].direct_requirements
     assert 1 == len(requirements), (
         "The foo requirement was direct; so the resulting resolved distribution should carry the "
         "associated requirement."
@@ -578,7 +576,7 @@ def test_resolve_arbitrary_equality_issues_940():
 
 def test_resolve_overlapping_requirements_discriminated_by_markers_issues_1196(py27):
     # type: (PythonInterpreter) -> None
-    installed_distributions = resolve(
+    resolved_distributions = resolve(
         requirements=[
             "setuptools<45; python_full_version == '2.7.*'",
             "setuptools; python_version > '2.7'",
@@ -586,23 +584,23 @@ def test_resolve_overlapping_requirements_discriminated_by_markers_issues_1196(p
         targets=Targets(
             interpreters=(py27,),
         ),
-    ).installed_distributions
-    assert 1 == len(installed_distributions)
-    installed_distribution = installed_distributions[0]
-    assert 1 == len(installed_distribution.direct_requirements)
+    ).distributions
+    assert 1 == len(resolved_distributions)
+    resolved_distribution = resolved_distributions[0]
+    assert 1 == len(resolved_distribution.direct_requirements)
     assert (
         Requirement.parse("setuptools<45; python_full_version == '2.7.*'")
-        == installed_distribution.direct_requirements[0]
+        == resolved_distribution.direct_requirements[0]
     )
     assert (
         Requirement.parse("setuptools==44.1.1")
-        == installed_distribution.distribution.as_requirement()
+        == resolved_distribution.distribution.as_requirement()
     )
 
 
 def test_pip_proprietary_url_with_markers_issues_1415():
     # type: () -> None
-    installed_dists = resolve(
+    resolved_dists = resolve(
         requirements=[
             (
                 "https://files.pythonhosted.org/packages/53/18/"
@@ -611,15 +609,15 @@ def test_pip_proprietary_url_with_markers_issues_1415():
             ),
             "ansicolors==1.1.8; sys_platform == '{}'".format(sys.platform),
         ]
-    ).installed_distributions
-    assert len(installed_dists) == 1
+    ).distributions
+    assert len(resolved_dists) == 1
 
-    installed_dist = installed_dists[0]
-    assert Requirement.parse("ansicolors==1.1.8") == installed_dist.distribution.as_requirement()
-    assert 1 == len(installed_dist.direct_requirements)
+    resolved_dist = resolved_dists[0]
+    assert Requirement.parse("ansicolors==1.1.8") == resolved_dist.distribution.as_requirement()
+    assert 1 == len(resolved_dist.direct_requirements)
     assert (
         Requirement.parse("ansicolors==1.1.8; sys_platform == '{}'".format(sys.platform))
-        == installed_dist.direct_requirements[0]
+        == resolved_dist.direct_requirements[0]
     )
 
 
@@ -629,15 +627,15 @@ def test_duplicate_requirements_issues_1550():
     with pytest.raises(Unsatisfiable):
         resolve(requirements=["PyJWT", "PyJWT==1.7.1"], resolver_version=ResolverVersion.PIP_LEGACY)
 
-    installed_dists = resolve(
+    resolved_dists = resolve(
         requirements=["PyJWT", "PyJWT==1.7.1"], resolver_version=ResolverVersion.PIP_2020
     )
-    assert len(installed_dists.installed_distributions) == 1
-    installed_distribution = installed_dists.installed_distributions[0]
+    assert len(resolved_dists.distributions) == 1
+    resolved_distribution = resolved_dists.distributions[0]
     assert {Requirement.parse("PyJWT"), Requirement.parse("PyJWT==1.7.1")} == set(
-        installed_distribution.direct_requirements
+        resolved_distribution.direct_requirements
     )
-    distribution = installed_distribution.distribution
+    distribution = resolved_distribution.distribution
     assert "PyJWT" == distribution.project_name
     assert "1.7.1" == distribution.version
 
@@ -655,11 +653,11 @@ def test_check_resolve_prerelease_transitive_dependencies_issue_1730(tmpdir):
     for wheel in direct_wheel, indirect_wheel:
         shutil.move(wheel, find_links)
 
-    installed = resolve(
+    resolved = resolve(
         requirements=["direct==2.12.dev3"],
         allow_prereleases=False,
         ignore_errors=False,
         indexes=[],
         find_links=[find_links],
     )
-    assert 2 == len(installed.installed_distributions)
+    assert 2 == len(resolved.distributions)

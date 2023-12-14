@@ -143,12 +143,12 @@ def _resolved_installation(
         )
 
     def resolve_distribution_locations():
-        for installed_distribution in resolver.resolve_requirements(
+        for resolved_distribution in resolver.resolve_requirements(
             requirements=version.requirements,
             targets=targets,
             pip_version=PipVersion.VENDORED,
-        ).installed_distributions:
-            yield installed_distribution.distribution.location
+        ).distributions:
+            yield resolved_distribution.distribution.location
 
     return _pip_installation(
         version=version,

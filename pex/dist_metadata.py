@@ -785,6 +785,24 @@ def _realpath(path):
     return os.path.realpath(path)
 
 
+class DistributionType(Enum["DistributionType.Value"]):
+    class Value(Enum.Value):
+        pass
+
+    WHEEL = Value("whl")
+    SDIST = Value("sdist")
+    INSTALLED = Value("installed")
+
+    @classmethod
+    def of(cls, location):
+        # type: (Text) -> DistributionType.Value
+        if os.path.isdir(location):
+            return cls.INSTALLED
+        if location.endswith(".whl") and zipfile.is_zipfile(location):
+            return cls.WHEEL
+        return cls.SDIST
+
+
 @attr.s(frozen=True)
 class Distribution(object):
     @staticmethod
@@ -829,6 +847,11 @@ class Distribution(object):
     location = attr.ib(converter=_realpath)  # type: str
 
     metadata = attr.ib()  # type: DistMetadata
+
+    @property
+    def type(self):
+        # type: () -> DistributionType.Value
+        return DistributionType.of(self.location)
 
     @property
     def key(self):

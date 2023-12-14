@@ -769,7 +769,7 @@ def test_remove(
     # type: (...) -> None
     pex_root = os.path.join(str(tmpdir), "pex_root")
 
-    def create_venv_pex():
+    def create_pex():
         # type: () -> str
         venv_pex = os.path.join(str(tmpdir), "venv.pex")
         run_pex_command(
@@ -778,6 +778,8 @@ def test_remove(
                 pex_root,
                 "--runtime-pex-root",
                 pex_root,
+                "--layout",
+                str(layout),
                 "-o",
                 venv_pex,
                 "--include-tools",
@@ -788,29 +790,31 @@ def test_remove(
     venv_dir = os.path.join(str(tmpdir), "venv_dir")
     assert not os.path.exists(venv_dir)
 
-    venv_pex = create_venv_pex()
-    subprocess.check_call(args=[venv_pex, "venv", venv_dir], env=make_env(PEX_TOOLS=True))
+    pex = create_pex()
+    subprocess.check_call(
+        args=[sys.executable, pex, "venv", venv_dir], env=make_env(PEX_TOOLS=True)
+    )
     assert os.path.exists(venv_dir)
-    assert os.path.exists(venv_pex)
+    assert os.path.exists(pex)
     assert os.path.exists(pex_root)
 
     shutil.rmtree(venv_dir)
     assert not os.path.exists(venv_dir)
 
     subprocess.check_call(
-        args=[venv_pex, "venv", "--rm", "pex", venv_dir], env=make_env(PEX_TOOLS=True)
+        args=[sys.executable, pex, "venv", "--rm", "pex", venv_dir], env=make_env(PEX_TOOLS=True)
     )
     assert os.path.exists(venv_dir)
-    assert not os.path.exists(venv_pex)
+    assert not os.path.exists(pex)
     assert os.path.exists(pex_root)
 
     shutil.rmtree(venv_dir)
     assert not os.path.exists(venv_dir)
-    venv_pex = create_venv_pex()
+    pex = create_pex()
 
     subprocess.check_call(
-        args=[venv_pex, "venv", "--rm", "all", venv_dir], env=make_env(PEX_TOOLS=True)
+        args=[sys.executable, pex, "venv", "--rm", "all", venv_dir], env=make_env(PEX_TOOLS=True)
     )
     assert os.path.exists(venv_dir)
-    assert not os.path.exists(venv_pex)
+    assert not os.path.exists(pex)
     assert not os.path.exists(pex_root)

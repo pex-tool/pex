@@ -11,8 +11,10 @@ from subprocess import CalledProcessError
 import pytest
 
 from pex.layout import Layout
+from pex.pep_427 import InstallableType
 from pex.typing import TYPE_CHECKING
 from testing import run_pex_command
+from testing.pep_427 import get_installable_type_flag
 
 if TYPE_CHECKING:
     from typing import Any, Callable, Dict, Iterable, Tuple
@@ -57,13 +59,20 @@ def execute_colors_pex(tmpdir):
 @attr.s(frozen=True)
 class ExecutionMode(object):
     extra_args = attr.ib()  # type: Iterable[str]
-    isort_code_dir = attr.ib()  # type: Callable[[Layout.Value], str]
+    isort_code_dir = attr.ib()  # type: Callable[[Layout.Value, InstallableType.Value], str]
     venv_exception_expected = attr.ib()  # type: bool
 
 
-def installed_wheels_or_deps(layout):
-    # type: (Layout.Value) -> str
-    return "{app_root}/.deps/" if layout == Layout.LOOSE else "{pex_root}/installed_wheels/"
+def installed_wheels_or_deps(
+    layout,  # type: Layout.Value
+    installable_type,  # type: InstallableType.Value
+):
+    # type: (...) -> str
+    return (
+        "{app_root}/.deps/"
+        if layout is Layout.LOOSE and installable_type is InstallableType.INSTALLED_WHEEL_CHROOT
+        else "{pex_root}/installed_wheels/"
+    )
 
 
 @pytest.mark.parametrize(
@@ -88,7 +97,7 @@ def installed_wheels_or_deps(layout):
         pytest.param(
             ExecutionMode(
                 extra_args=["--venv"],
-                isort_code_dir=lambda _: "{pex_root}/venvs/",
+                isort_code_dir=lambda _, __: "{pex_root}/venvs/",
                 venv_exception_expected=False,
             ),
             id="VENV",
@@ -98,18 +107,31 @@ def installed_wheels_or_deps(layout):
 @pytest.mark.parametrize(
     "layout", [pytest.param(layout, id=layout.value) for layout in Layout.values()]
 )
+@pytest.mark.parametrize(
+    "installable_type",
+    [
+        pytest.param(installable_type, id=installable_type.value)
+        for installable_type in InstallableType.values()
+    ],
+)
 def test_execution_mode(
     create_colors_pex,  # type: CreateColorsPex
     execute_colors_pex,  # type: ExecuteColorsPex
     execution_mode,  # type: ExecutionMode
     layout,  # type: Layout.Value
+    installable_type,  # type: InstallableType.Value
 ):
     # type: (...) -> None
-    pex_app = create_colors_pex(list(execution_mode.extra_args) + ["--layout", layout.value])
+    pex_app = create_colors_pex(
+        list(execution_mode.extra_args)
+        + ["--layout", layout.value, get_installable_type_flag(installable_type)]
+    )
 
     output, pex_root = execute_colors_pex(pex_app, {})
     assert output.startswith(
-        execution_mode.isort_code_dir(layout).format(app_root=pex_app, pex_root=pex_root),
+        execution_mode.isort_code_dir(layout, installable_type).format(
+            app_root=pex_app, pex_root=pex_root
+        ),
     )
 
     if execution_mode.venv_exception_expected:

@@ -265,7 +265,7 @@ class Venv(OutputMixin, JsonMixin, BuildTimeCommand):
         requirement_configuration = requirement_options.configure(self.options)
         resolver_configuration = resolver_options.configure(self.options)
         with TRACER.timed("Resolving distributions"):
-            installed = configured_resolve.resolve(
+            resolved = configured_resolve.resolve(
                 targets=targets,
                 requirement_configuration=requirement_configuration,
                 resolver_configuration=resolver_configuration,
@@ -280,16 +280,16 @@ class Venv(OutputMixin, JsonMixin, BuildTimeCommand):
 
         with TRACER.timed(
             "Installing {count} {wheels} in {subject} at {dest_dir}".format(
-                count=len(installed.installed_distributions),
-                wheels=pluralize(installed.installed_distributions, "wheel"),
+                count=len(resolved.distributions),
+                wheels=pluralize(resolved.distributions, "wheel"),
                 subject=subject,
                 dest_dir=dest_dir,
             )
         ):
             hermetic_scripts = not update and installer_configuration.hermetic_scripts
             distributions = tuple(
-                installed_distribution.distribution
-                for installed_distribution in installed.installed_distributions
+                resolved_distribution.distribution
+                for resolved_distribution in resolved.distributions
             )
             provenance = (
                 Provenance.create(venv=venv)

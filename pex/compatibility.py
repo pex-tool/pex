@@ -160,7 +160,8 @@ if PY3:
         def cpu_count():
             # type: () -> Optional[int]
             # The set of CPUs accessible to the current process (pid 0).
-            cpu_set = os.sched_getaffinity(0)
+            # N.B.: MyPy does not track the hasattr guard above under interpreters without the attr.
+            cpu_set = os.sched_getaffinity(0)  # type: ignore[attr-defined]
             return len(cpu_set)
 
 else:
