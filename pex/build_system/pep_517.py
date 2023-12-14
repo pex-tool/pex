@@ -3,10 +3,12 @@
 
 from __future__ import absolute_import
 
+import itertools
 import json
 import os
 import subprocess
 import sys
+from collections import defaultdict
 from textwrap import dedent
 
 from pex import third_party
@@ -24,7 +26,7 @@ from pex.typing import TYPE_CHECKING, cast
 from pex.util import named_temporary_file
 
 if TYPE_CHECKING:
-    from typing import Any, Dict, Iterable, Mapping, Optional, Text, Union
+    from typing import Any, DefaultDict, Dict, Iterable, List, Mapping, Optional, Set, Text, Union
 
 _DEFAULT_BUILD_SYSTEMS = {}  # type: Dict[PipVersionValue, BuildSystem]
 
@@ -43,32 +45,38 @@ def _default_build_system(
             "Building {build_backend} build_backend PEX".format(build_backend=DEFAULT_BUILD_BACKEND)
         ):
             extra_env = {}  # type: Dict[str, str]
+            resolved_reqs = set()  # type: Set[str]
+            resolved_dists = []  # type: List[Distribution]
             if selected_pip_version is PipVersion.VENDORED:
-                requires = ["setuptools", "wheel"]
-                resolved = tuple(
+                requires = ["setuptools", selected_pip_version.wheel_requirement]
+                resolved_dists.extend(
                     Distribution.load(dist_location)
                     for dist_location in third_party.expose(
-                        requires, interpreter=target.get_interpreter()
+                        ["setuptools"], interpreter=target.get_interpreter()
                     )
                 )
+                resolved_reqs.add("setuptools")
                 extra_env.update(__PEX_UNVENDORED__="1")
             else:
                 requires = [
                     selected_pip_version.setuptools_requirement,
                     selected_pip_version.wheel_requirement,
                 ]
-                resolved = tuple(
-                    resolved_distribution.fingerprinted_distribution.distribution
-                    for resolved_distribution in resolver.resolve_requirements(
-                        requirements=requires,
-                        targets=Targets.from_target(target),
-                    ).distributions
-                )
+            unresolved = [
+                requirement for requirement in requires if requirement not in resolved_reqs
+            ]
+            resolved_dists.extend(
+                resolved_distribution.fingerprinted_distribution.distribution
+                for resolved_distribution in resolver.resolve_requirements(
+                    requirements=unresolved,
+                    targets=Targets.from_target(target),
+                ).distributions
+            )
             build_system = try_(
                 BuildSystem.create(
                     interpreter=target.get_interpreter(),
                     requires=requires,
-                    resolved=resolved,
+                    resolved=resolved_dists,
                     build_backend=DEFAULT_BUILD_BACKEND,
                     backend_path=(),
                     **extra_env

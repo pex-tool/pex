@@ -143,6 +143,7 @@ class PipVersion(Enum["PipVersionValue"]):
         requirement=(
             "pip @ git+https://github.com/pantsbuild/pip@386a54f097ece66775d0c7f34fd29bb596c6b0be"
         ),
+        wheel_version="0.37.1",
         requires_python="<3.12",
     )
 

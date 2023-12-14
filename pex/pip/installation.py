@@ -75,7 +75,7 @@ def _pip_installation(
     pip_cache = os.path.join(pip_root, "pip_cache")
     pip_pex = ensure_venv(PEX(pip_pex_path, interpreter=pip_interpreter))
     pip_venv = PipVenv(venv_dir=pip_pex.venv_dir, execute_args=tuple(pip_pex.execute_args()))
-    return Pip(pip=pip_venv, pip_cache=pip_cache)
+    return Pip(pip=pip_venv, version=version, pip_cache=pip_cache)
 
 
 def _vendored_installation(interpreter=None):
@@ -84,7 +84,7 @@ def _vendored_installation(interpreter=None):
     return _pip_installation(
         version=PipVersion.VENDORED,
         iter_distribution_locations=lambda: third_party.expose(
-            ("pip", "setuptools", "wheel"), interpreter=interpreter
+            ("pip", "setuptools"), interpreter=interpreter
         ),
         interpreter=interpreter,
     )
