@@ -17,8 +17,6 @@ def run_autoflake(*args: str) -> None:
         args=[
             "autoflake",
             *args,
-            # "--imports",
-            # "pex",
             "--remove-all-unused-imports",
             "--remove-unused-variables",
             "--remove-rhs-for-unused-variables",
