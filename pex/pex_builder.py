@@ -641,20 +641,11 @@ class PEXBuilder(object):
         # although we don't use pyparsing directly, packaging.markers, which we
         # do use at runtime, does.
         root_module_names = ["attr", "packaging", "pkg_resources", "pyparsing"]
-        include_dist_info = set()
-        if self._pex_info.includes_tools:
-            # The `repository extract` tool needs setuptools and wheel to build sdists and wheels
-            # and distutils needs .dist-info to discover setuptools (and wheel).
-            for project in "setuptools", "wheel":
-                root_module_names.append(project)
-                include_dist_info.add(project)
-
         prepared_sources = vendor.vendor_runtime(
             chroot=self._chroot,
             dest_basedir=self._pex_info.bootstrap,
             label="bootstrap",
             root_module_names=root_module_names,
-            include_dist_info=include_dist_info,
         )
 
         bootstrap_digest = hashlib.sha1()

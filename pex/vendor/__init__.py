@@ -262,9 +262,6 @@ def iter_vendor_specs(filter_requires_python=None):
         ],
     )
 
-    # We expose this to pip at buildtime for legacy builds.
-    yield VendorSpec.pinned("wheel", "0.37.1", rewrite=False)
-
 
 def vendor_runtime(
     chroot,  # type: Chroot

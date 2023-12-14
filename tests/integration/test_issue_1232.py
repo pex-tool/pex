@@ -69,7 +69,7 @@ def test_isolated_pex_zip(tmpdir):
         "Since we just ran the Pex tool and nothing else, a single isolation of the Pex loose "
         "source in this repo should have occurred."
     )
-    assert {"pip", "wheel"}.issubset(
+    assert {"pip", "toml"}.issubset(
         list(current_isolated_vendoreds.values())[0]
     ), "Expected isolation of current Pex code to be a full build-time isolation."
 
@@ -121,7 +121,7 @@ def test_isolated_pex_zip(tmpdir):
         "Since the ansicolors PEX was built from the modified Pex PEX a new isolation of the "
         "modified Pex PEX code should have occurred bringing the total isolations up to three."
     )
-    assert {"pip", "wheel"}.issubset(
+    assert {"pip", "toml"}.issubset(
         modified_pex_isolated_vendoreds[modified_pex_isolation.pop()]
     ), "Expected isolation of modified Pex code to be a full build-time isolation."
 
@@ -140,7 +140,7 @@ def test_isolated_pex_zip(tmpdir):
     )
     ansicolors_pex_vendoreds = ansicolors_pex_isolated_vendoreds[ansicolors_pex_isolation.pop()]
     assert "pip" not in ansicolors_pex_vendoreds, "Expected a Pex runtime isolation."
-    assert "wheel" not in ansicolors_pex_vendoreds, "Expected a Pex runtime isolation."
+    assert "toml" not in ansicolors_pex_vendoreds, "Expected a Pex runtime isolation."
 
     # 5. No new isolations.
     # ===

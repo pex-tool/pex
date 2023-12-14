@@ -4,6 +4,8 @@
 
 from __future__ import absolute_import, print_function
 
+import glob
+import hashlib
 import os
 import re
 import subprocess
@@ -13,23 +15,26 @@ from tempfile import mkdtemp
 from textwrap import dedent
 
 from pex import dist_metadata, targets
+from pex.atomic_directory import atomic_directory
 from pex.auth import PasswordEntry
 from pex.common import safe_mkdir, safe_mkdtemp
 from pex.compatibility import get_stderr_bytes_buffer, shlex_quote, urlparse
 from pex.interpreter import PythonInterpreter, spawn_python_job
 from pex.jobs import Job
 from pex.network_configuration import NetworkConfiguration
+from pex.pep_427 import install_wheel_interpreter
 from pex.pip import foreign_platform
 from pex.pip.download_observer import DownloadObserver
 from pex.pip.log_analyzer import ErrorAnalyzer, ErrorMessage, LogAnalyzer, LogScrapeJob
 from pex.pip.tailer import Tailer
-from pex.pip.version import PipVersionValue
+from pex.pip.version import PipVersion, PipVersionValue
 from pex.platforms import Platform
 from pex.resolve.resolver_configuration import ReposConfiguration, ResolverVersion
 from pex.targets import LocalInterpreter, Target
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
+from pex.venv.virtualenv import Virtualenv
 
 if TYPE_CHECKING:
     from typing import (
@@ -228,6 +233,10 @@ class PipVenv(object):
         # type: (*str) -> List[str]
         return list(self._execute_args + args)
 
+    def get_interpreter(self):
+        # type: () -> PythonInterpreter
+        return Virtualenv(self.venv_dir).interpreter
+
 
 @attr.s(frozen=True)
 class Pip(object):
@@ -235,6 +244,7 @@ class Pip(object):
     _PATCHES_PACKAGE_NAME = "_pex_pip_patches"
 
     _pip = attr.ib()  # type: PipVenv
+    _version = attr.ib()  # type: PipVersionValue
     _pip_cache = attr.ib()  # type: str
 
     @staticmethod
@@ -565,6 +575,26 @@ class Pip(object):
         else:
             return Job(command, process)
 
+    def _ensure_wheel_installed(self, package_index_configuration=None):
+        # type: (Optional[PackageIndexConfiguration]) -> None
+        pip_interpreter = self._pip.get_interpreter()
+        with atomic_directory(
+            os.path.join(
+                self._pip_cache,
+                ".wheel-install",
+                hashlib.sha1(pip_interpreter.binary.encode("utf-8")).hexdigest(),
+            )
+        ) as atomic_dir:
+            if not atomic_dir.is_finalized():
+                self.spawn_download_distributions(
+                    download_dir=atomic_dir.work_dir,
+                    requirements=[self._version.wheel_requirement],
+                    package_index_configuration=package_index_configuration,
+                    build=False,
+                ).wait()
+                for wheel in glob.glob(os.path.join(atomic_dir.work_dir, "*.whl")):
+                    install_wheel_interpreter(wheel_path=wheel, interpreter=pip_interpreter)
+
     def spawn_build_wheels(
         self,
         distributions,  # type: Iterable[str]
@@ -577,6 +607,10 @@ class Pip(object):
         verify=True,  # type: bool
     ):
         # type: (...) -> Job
+
+        if self._version is PipVersion.VENDORED:
+            self._ensure_wheel_installed(package_index_configuration=package_index_configuration)
+
         wheel_cmd = ["wheel", "--no-deps", "--wheel-dir", wheel_dir]
         extra_env = {}  # type: Dict[str, str]
 
