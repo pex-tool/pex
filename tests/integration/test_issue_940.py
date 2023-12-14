@@ -2,15 +2,13 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
-import subprocess
 import sys
 from textwrap import dedent
 
 import pytest
 
-from pex.common import temporary_dir
 from pex.typing import TYPE_CHECKING
-from testing import built_wheel, make_env, run_pex_command, run_simple_pex
+from testing import built_wheel, run_pex_command, run_simple_pex
 
 if TYPE_CHECKING:
     from typing import Any

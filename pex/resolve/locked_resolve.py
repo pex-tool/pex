@@ -26,7 +26,7 @@ from pex.resolve.resolved_requirement import (
 )
 from pex.result import Error
 from pex.sorted_tuple import SortedTuple
-from pex.targets import LocalInterpreter, Target
+from pex.targets import Target
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -558,7 +558,6 @@ class LockedResolve(object):
     ):
         # type: (...) -> Union[Resolved, Error]
 
-        is_local_interpreter = isinstance(target, LocalInterpreter)
         if not use_wheel and not build:
             return Error(
                 "Cannot both ignore wheels (use_wheel=False) and refrain from building "

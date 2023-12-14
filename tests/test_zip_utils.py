@@ -14,7 +14,7 @@ import pytest
 from pex.common import open_zip
 from pex.typing import TYPE_CHECKING
 from pex.ziputils import Zip, ZipError
-from testing import PY_VER, make_env
+from testing import PY_VER
 
 if TYPE_CHECKING:
     from typing import Any

@@ -11,7 +11,6 @@ from pex.commands.command import JsonMixin, OutputMixin
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import (
     InterpreterConstraint,
-    InterpreterConstraints,
     UnsatisfiableInterpreterConstraintsError,
 )
 from pex.pex import PEX

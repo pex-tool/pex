@@ -5,7 +5,6 @@ from __future__ import absolute_import
 
 import os
 
-from pex import pex_warnings
 from pex.dist_metadata import Requirement
 from pex.interpreter import PythonInterpreter, calculate_binary_name
 from pex.orderedset import OrderedSet

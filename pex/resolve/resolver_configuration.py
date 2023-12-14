@@ -4,7 +4,6 @@
 from __future__ import absolute_import
 
 import itertools
-import os
 
 from pex.auth import PasswordEntry
 from pex.enum import Enum

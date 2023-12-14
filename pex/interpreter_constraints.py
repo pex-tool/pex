@@ -8,7 +8,7 @@ from __future__ import absolute_import
 import itertools
 
 from pex.compatibility import indent
-from pex.dist_metadata import ProjectNameAndVersion, Requirement, RequirementParseError
+from pex.dist_metadata import Requirement, RequirementParseError
 from pex.enum import Enum
 from pex.interpreter import PythonInterpreter
 from pex.orderedset import OrderedSet

@@ -10,7 +10,7 @@ from pex.common import pluralize
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.requirements import LocalProjectRequirement, parse_requirement_strings
-from pex.resolve.locked_resolve import DownloadableArtifact, Resolved
+from pex.resolve.locked_resolve import Resolved
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.result import Error

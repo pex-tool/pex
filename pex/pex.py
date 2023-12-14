@@ -38,7 +38,6 @@ if TYPE_CHECKING:
         Mapping,
         NoReturn,
         Optional,
-        Set,
         Tuple,
         TypeVar,
         Union,

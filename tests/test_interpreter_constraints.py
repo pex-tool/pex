@@ -8,7 +8,7 @@ from pex import interpreter_constraints
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import COMPATIBLE_PYTHON_VERSIONS, InterpreterConstraint, Lifecycle
 from pex.typing import TYPE_CHECKING
-from testing import PY27, PY38, PY310, ensure_python_interpreter
+from testing import PY38, ensure_python_interpreter
 
 if TYPE_CHECKING:
     from typing import List, Tuple

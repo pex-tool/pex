@@ -16,7 +16,7 @@ from pex.venv.virtualenv import Virtualenv
 from testing import PY_VER, data, make_env, run_pex_command
 
 if TYPE_CHECKING:
-    from typing import Any, Tuple
+    from typing import Any
 
 
 @pytest.fixture(scope="module")

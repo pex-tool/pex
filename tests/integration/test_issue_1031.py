@@ -11,7 +11,7 @@ from pex.typing import TYPE_CHECKING
 from testing import PY27, PY310, ensure_python_venv, make_env, run_pex_command
 
 if TYPE_CHECKING:
-    from typing import Any, Callable, MutableSet
+    from typing import Callable, MutableSet
 
 
 @pytest.mark.parametrize(

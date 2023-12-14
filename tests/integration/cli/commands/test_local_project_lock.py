@@ -5,7 +5,6 @@ import os
 import re
 import shutil
 import subprocess
-import sys
 
 import pytest
 
@@ -13,16 +12,7 @@ from pex.common import touch
 from pex.interpreter import PythonInterpreter
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import Virtualenv
-from testing import (
-    IS_PYPY,
-    PY27,
-    PY310,
-    PY_VER,
-    ensure_python_interpreter,
-    ensure_python_venv,
-    make_env,
-    run_pex_command,
-)
+from testing import PY27, ensure_python_interpreter, run_pex_command
 from testing.cli import run_pex3
 
 if TYPE_CHECKING:

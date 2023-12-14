@@ -8,7 +8,6 @@ import re
 import shutil
 import subprocess
 import sys
-import zipfile
 from textwrap import dedent
 
 import colors

@@ -11,7 +11,7 @@ import pytest
 
 from pex.common import safe_open
 from pex.typing import TYPE_CHECKING
-from testing import PY310, ensure_python_distribution, make_project, run_pex_command
+from testing import PY310, ensure_python_distribution, run_pex_command
 
 if TYPE_CHECKING:
     from typing import Any

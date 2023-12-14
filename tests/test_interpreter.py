@@ -10,7 +10,6 @@ import sys
 from collections import defaultdict
 from contextlib import contextmanager
 from textwrap import dedent
-from typing import Dict
 
 import pytest
 

@@ -25,7 +25,7 @@ from pex.typing import TYPE_CHECKING, cast
 from testing import devpi, pex_project_dir
 
 if TYPE_CHECKING:
-    from typing import Iterator, Mapping, Optional, Tuple
+    from typing import Iterator, Tuple
 
 
 def iter_test_control_env_vars():
