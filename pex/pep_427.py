@@ -33,7 +33,7 @@ from pex.pep_503 import ProjectName
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from typing import Iterable, Iterator, List, Optional, Text
+    from typing import Iterable, Iterator, List, Optional, Text  # noqa
 
     import attr  # vendor:skip
 else:

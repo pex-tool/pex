@@ -11,7 +11,7 @@ from pex.typing import TYPE_CHECKING, cast
 from testing import run_pex_command, run_simple_pex
 
 if TYPE_CHECKING:
-    from typing import Any, Dict, Tuple
+    from typing import Any, Dict, Tuple  # noqa
 
 
 @pytest.mark.skipif(
