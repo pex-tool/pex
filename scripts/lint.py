@@ -35,7 +35,7 @@ def run_autoflake(*args: str) -> None:
 
 def main(check: bool = False) -> None:
     if check:
-        run_autoflake("--check-diff")
+        run_autoflake("--check-diff", "--quiet")
     else:
         run_autoflake()
 

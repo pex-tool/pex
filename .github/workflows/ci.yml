@@ -38,7 +38,7 @@ jobs:
         with:
           # We need to keep Python 3.8 for consistent vendoring with tox.
           python-version: "3.8"
-      - name: Check Formatting, Types, Vendoring and Packaging
+      - name: Check Formatting, Lints, Types, Vendoring and Packaging
         uses: pantsbuild/actions/run-tox@b16b9cf47cd566acfe217b1dafc5b452e27e6fd7
         with:
           tox-env: format-check,lint-check,typecheck,vendor-check,package -- --additional-format sdist --additional-format wheel
