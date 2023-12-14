@@ -539,13 +539,13 @@ def test_resolve_wheel_files(tmpdir):
     pex = os.path.join(str(tmpdir), "pex")
     exe = os.path.join(str(tmpdir), "exe")
     with open(exe, "w") as fp:
-        fp.write("import colors; print(colors.blue('Moo?'))")
+        fp.write("import colors, cowsay; cowsay.tux(colors.blue('Moo?'))")
 
     run_pex_command(
         args=["--lock", lock, "--no-pre-install-wheels", "-o", pex, "--exe", exe]
     ).assert_success()
 
-    assert colors.blue("Moo?") == subprocess.check_output(args=[pex]).decode("utf-8").strip()
+    assert colors.blue("Moo?") in subprocess.check_output(args=[pex]).decode("utf-8")
 
     pex_info = PexInfo.from_pex(pex)
     assert frozenset(

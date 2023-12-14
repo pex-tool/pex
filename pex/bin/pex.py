@@ -176,7 +176,7 @@ def configure_clp_pex_options(parser):
             "always yield slightly faster PEX cold boot times; so they are used by default, but "
             "they also slow down PEX build time. As the size of dependencies grows you may find a "
             "tipping point where it makes sense to not pre-install wheels; either because the "
-            "increased cold boot time is is irrelevant to your use case or marginal compared to "
+            "increased cold boot time is irrelevant to your use case or marginal compared to "
             "other costs. Note that you may be able to use --max-install-jobs to decrease cold "
             "boot times for some PEX deployment scenarios."
         ),

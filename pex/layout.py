@@ -306,7 +306,11 @@ def _ensure_distributions_installed_parallel(
             pass
 
 
-AVERAGE_DISTRIBUTION_SIZE_PARALLEL_JOB_THRESHOLD = 1 * 1024 * 1024  # ~1MB
+# This value was found via experiment on a single laptop with 16 cores and SSD storage. The
+# threshold that needs to be overcome is the startup overhead of a Python process that imports
+# enough Pex code to do the distribution install (~100ms) for each distribution in the PEX. It's
+# completely unclear this is a good value in general let alone the heuristic using it is reasonable.
+AVERAGE_DISTRIBUTION_SIZE_PARALLEL_JOB_THRESHOLD = 5 * 1024 * 1024  # ~5MB
 
 
 def _ensure_distributions_installed(
