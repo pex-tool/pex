@@ -2,7 +2,6 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import io
-import sys
 from argparse import Namespace
 from textwrap import dedent
 

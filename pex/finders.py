@@ -14,7 +14,7 @@ from pex.pep_503 import ProjectName
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from typing import Dict, Iterable, Optional, Tuple
+    from typing import Dict, Iterable, Optional
 
     import attr  # vendor:skip
 else:

@@ -235,7 +235,6 @@ class Platform(object):
                     raise AssertionError("Finished with count {}.".format(count))
 
         from pex.resolve.configured_resolver import ConfiguredResolver
-        from pex.resolve.resolver_configuration import PipConfiguration
 
         job = SpawnedJob.stdout(
             # TODO(John Sirois): Plumb pip_version and the user-configured resolver:

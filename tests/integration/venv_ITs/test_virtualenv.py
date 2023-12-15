@@ -8,14 +8,13 @@ import subprocess
 import pytest
 
 from pex.dist_metadata import Distribution
-from pex.interpreter import PythonInterpreter
 from pex.pep_503 import ProjectName
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import InvalidVirtualenvError, Virtualenv
-from testing import ALL_PY_VERSIONS, VenvFactory, all_python_venvs, ensure_python_venv
+from testing import VenvFactory, all_python_venvs
 
 if TYPE_CHECKING:
-    from typing import Any, Callable, Dict, Tuple
+    from typing import Any, Dict
 
 
 def test_invalid(tmpdir):

@@ -9,7 +9,6 @@ import sys
 from argparse import ArgumentTypeError, Namespace, _ActionsContainer
 
 from pex.argparse import HandleBoolAction
-from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import InterpreterConstraints
 from pex.orderedset import OrderedSet
 from pex.pep_425 import CompatibilityTags

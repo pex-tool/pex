@@ -4,7 +4,6 @@
 from __future__ import absolute_import
 
 import os
-import sys
 from textwrap import dedent
 
 from pex import pex_warnings, third_party

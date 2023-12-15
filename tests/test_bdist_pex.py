@@ -11,7 +11,7 @@ import pytest
 
 from pex.common import open_zip, safe_mkdtemp, temporary_dir
 from pex.pep_427 import InstallableType
-from pex.pip.version import PipVersion, PipVersionValue
+from pex.pip.version import PipVersion
 from pex.resolver import resolve
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import Virtualenv

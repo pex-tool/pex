@@ -2,7 +2,6 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import itertools
-import pkgutil
 import re
 from textwrap import dedent
 

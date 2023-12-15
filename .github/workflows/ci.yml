@@ -23,7 +23,7 @@ jobs:
       - name: Noop
         run: "true"
   checks:
-    name:  tox -e format-check,typecheck,vendor-check,package
+    name:  tox -e format-check,lint-check,typecheck,vendor-check,package
     needs: org-check
     runs-on: ubuntu-22.04
     steps:
@@ -38,10 +38,10 @@ jobs:
         with:
           # We need to keep Python 3.8 for consistent vendoring with tox.
           python-version: "3.8"
-      - name: Check Formatting, Types, Vendoring and Packaging
+      - name: Check Formatting, Lints, Types, Vendoring and Packaging
         uses: pantsbuild/actions/run-tox@b16b9cf47cd566acfe217b1dafc5b452e27e6fd7
         with:
-          tox-env: format-check,typecheck,vendor-check,package -- --additional-format sdist --additional-format wheel
+          tox-env: format-check,lint-check,typecheck,vendor-check,package -- --additional-format sdist --additional-format wheel
   # N.B.: The name of this job key (linux-tests) is depended on by scrips/build_cache_image.py. In
   # particular, the tox-env matrix list is used to ensure the cache covers all Linux CI jobs.
   linux-tests:

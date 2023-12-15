@@ -43,7 +43,7 @@ if TYPE_CHECKING:
 
     import attr  # vendor:skip
 
-    from pex.pep_427 import InstallableType
+    from pex.pep_427 import InstallableType  # noqa
 else:
     from pex.third_party import attr
 

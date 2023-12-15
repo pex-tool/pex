@@ -4,7 +4,6 @@
 from __future__ import absolute_import
 
 import os
-from collections import OrderedDict
 
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import (
@@ -20,7 +19,7 @@ from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
 
 if TYPE_CHECKING:
-    from typing import FrozenSet, Iterator, Optional, Set, Tuple
+    from typing import FrozenSet, Iterator, Optional, Tuple
 
     import attr  # vendor:skip
 else:

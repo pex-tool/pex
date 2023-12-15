@@ -5,12 +5,10 @@ import os.path
 
 import pytest
 
-from pex.pep_503 import ProjectName
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.downloads import ArtifactDownloader
 from pex.resolve.locked_resolve import Artifact, FileArtifact
 from pex.resolve.resolved_requirement import Fingerprint, PartialArtifact
-from pex.resolve.resolver_configuration import PipConfiguration
 from pex.typing import TYPE_CHECKING
 from testing import IS_LINUX
 

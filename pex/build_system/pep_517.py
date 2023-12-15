@@ -3,12 +3,10 @@
 
 from __future__ import absolute_import
 
-import itertools
 import json
 import os
 import subprocess
 import sys
-from collections import defaultdict
 from textwrap import dedent
 
 from pex import third_party
@@ -26,7 +24,7 @@ from pex.typing import TYPE_CHECKING, cast
 from pex.util import named_temporary_file
 
 if TYPE_CHECKING:
-    from typing import Any, DefaultDict, Dict, Iterable, List, Mapping, Optional, Set, Text, Union
+    from typing import Any, Dict, Iterable, List, Mapping, Optional, Set, Text, Union
 
 _DEFAULT_BUILD_SYSTEMS = {}  # type: Dict[PipVersionValue, BuildSystem]
 

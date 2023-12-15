@@ -10,7 +10,7 @@ from colors import yellow
 
 from pex.common import safe_open, touch
 from pex.typing import TYPE_CHECKING
-from testing import IS_PYPY3, make_env, run_pex_command
+from testing import make_env, run_pex_command
 
 if TYPE_CHECKING:
     from typing import Any, Iterable, List, Text
