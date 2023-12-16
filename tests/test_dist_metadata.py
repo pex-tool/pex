@@ -22,6 +22,7 @@ from pex.dist_metadata import (
     requires_dists,
     requires_python,
 )
+from pex.pep_427 import install_wheel_chroot
 from pex.pep_503 import ProjectName
 from pex.pex_warnings import PEXWarning
 from pex.pip.installation import get_pip
@@ -36,7 +37,7 @@ if TYPE_CHECKING:
 def installed_wheel(wheel_path):
     # type: (str) -> Iterator[Distribution]
     with temporary_dir() as install_dir:
-        get_pip().spawn_install_wheel(wheel=wheel_path, install_dir=install_dir).wait()
+        install_wheel_chroot(wheel_path=wheel_path, destination=install_dir)
         yield Distribution.load(install_dir)
 
 

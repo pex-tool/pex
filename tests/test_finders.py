@@ -12,9 +12,9 @@ from pex.finders import (
     get_script_from_distributions,
 )
 from pex.pep_376 import InstalledWheel
+from pex.pep_427 import install_wheel_chroot
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
-from pex.pip.installation import get_pip
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -50,7 +50,7 @@ def test_get_script_from_distributions(tmpdir):
     assert "aws_cfn_bootstrap-1.4.data/scripts/cfn-signal" == dist_script.path
 
     install_dir = os.path.join(str(tmpdir), os.path.basename(whl_path))
-    get_pip().spawn_install_wheel(wheel=whl_path, install_dir=install_dir).wait()
+    install_wheel_chroot(wheel_path=whl_path, destination=install_dir)
     installed_wheel_dist, dist_script = assert_script(Distribution.load(install_dir))
     assert InstalledWheel.load(install_dir).stashed_path("bin/cfn-signal") == dist_script.path
 

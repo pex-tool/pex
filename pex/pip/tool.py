@@ -12,14 +12,13 @@ import subprocess
 import sys
 from collections import deque
 from tempfile import mkdtemp
-from textwrap import dedent
 
-from pex import dist_metadata, targets
+from pex import targets
 from pex.atomic_directory import atomic_directory
 from pex.auth import PasswordEntry
 from pex.common import safe_mkdir, safe_mkdtemp
 from pex.compatibility import get_stderr_bytes_buffer, shlex_quote, urlparse
-from pex.interpreter import PythonInterpreter, spawn_python_job
+from pex.interpreter import PythonInterpreter
 from pex.jobs import Job
 from pex.network_configuration import NetworkConfiguration
 from pex.pep_427 import install_wheel_interpreter
@@ -638,48 +637,6 @@ class Pip(object):
             package_index_configuration=package_index_configuration,
             interpreter=interpreter,
             extra_env=extra_env,
-        )
-
-    def spawn_install_wheel(
-        self,
-        wheel,  # type: str
-        install_dir,  # type: str
-        compile=False,  # type: bool
-        target=None,  # type: Optional[Target]
-    ):
-        # type: (...) -> Job
-
-        project_name_and_version = dist_metadata.project_name_and_version(wheel)
-        assert project_name_and_version is not None, (
-            "Should never fail to parse a wheel path into a project name and version, but "
-            "failed to parse these from: {wheel}".format(wheel=wheel)
-        )
-
-        target = target or targets.current()
-        interpreter = target.get_interpreter()
-        if target.is_foreign:
-            if compile:
-                raise ValueError(
-                    "Cannot compile bytecode for {} using {} because the wheel has a foreign "
-                    "platform.".format(wheel, interpreter)
-                )
-
-        return spawn_python_job(
-            args=[
-                "-c",
-                dedent(
-                    """\
-                    from pex.pep_427 import install_wheel_chroot
-
-
-                    install_wheel_chroot(
-                        wheel_path={wheel_path!r}, destination={destination!r}, compile={compile!r}
-                    )
-                    """
-                ).format(wheel_path=wheel, destination=install_dir, compile=compile),
-            ],
-            interpreter=interpreter,
-            expose=["pex", "attrs", "packaging"],
         )
 
     def spawn_debug(

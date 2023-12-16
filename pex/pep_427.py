@@ -33,11 +33,24 @@ from pex.pep_503 import ProjectName
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from typing import Iterable, Iterator, List, Optional, Text  # noqa
+    from typing import (  # noqa
+        Callable,
+        DefaultDict,
+        Iterable,
+        Iterator,
+        List,
+        Optional,
+        Text,
+        Tuple,
+    )
 
     import attr  # vendor:skip
 else:
     from pex.third_party import attr
+
+
+class WheelError(Exception):
+    """Indicates an error interacting with a wheel."""
 
 
 class InstallableType(Enum["InstallableType.Value"]):
@@ -102,6 +115,10 @@ class InstallPaths(object):
         raise KeyError("Not a known install path: {item}".format(item=item))
 
 
+class WheelInstallError(WheelError):
+    """Indicates an error installing a `.whl` file."""
+
+
 def install_wheel_chroot(
     wheel_path,  # type: str
     destination,  # type: str
@@ -146,6 +163,10 @@ def install_wheel_interpreter(
     )
 
 
+class WheelLoadError(WheelError):
+    """Indicates loading a wheel from disk."""
+
+
 @attr.s(frozen=True)
 class Wheel(object):
     @classmethod
@@ -154,15 +175,17 @@ class Wheel(object):
 
         metadata_files = load_metadata(wheel_path, restrict_types_to=(MetadataType.DIST_INFO,))
         if not metadata_files:
-            raise ValueError("Could not find any metadata in {wheel}.".format(wheel=wheel_path))
+            raise WheelLoadError("Could not find any metadata in {wheel}.".format(wheel=wheel_path))
 
         metadata_path = metadata_files.metadata_file_rel_path("WHEEL")
         metadata_bytes = metadata_files.read("WHEEL")
         if not metadata_path or not metadata_bytes:
-            raise ValueError("Could not find WHEEL metadata in {wheel}.".format(wheel=wheel_path))
+            raise WheelLoadError(
+                "Could not find WHEEL metadata in {wheel}.".format(wheel=wheel_path)
+            )
         wheel_metadata_dir = os.path.dirname(metadata_path)
         if not wheel_metadata_dir.endswith(".dist-info"):
-            raise ValueError(
+            raise WheelLoadError(
                 "Expected WHEEL metadata for {wheel} to be housed in a .dist-info directory, but was "
                 "found at {wheel_metadata_path}.".format(
                     wheel=wheel_path, wheel_metadata_path=metadata_path
@@ -269,7 +292,7 @@ def install_wheel(
                 try:
                     dest_dir = install_paths[entry]
                 except KeyError as e:
-                    raise ValueError(
+                    raise WheelInstallError(
                         "The wheel at {wheel_path} is invalid and cannot be installed: "
                         "{err}".format(wheel_path=wheel_path, err=e)
                     )
