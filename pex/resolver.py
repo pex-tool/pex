@@ -20,11 +20,11 @@ from pex.common import safe_mkdir, safe_mkdtemp
 from pex.compatibility import url_unquote, urlparse
 from pex.dist_metadata import DistMetadata, Distribution, ProjectNameAndVersion, Requirement
 from pex.fingerprinted_distribution import FingerprintedDistribution
-from pex.jobs import Raise, SpawnedJob, execute_parallel
+from pex.jobs import Raise, SpawnedJob, execute_parallel, imap_parallel
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.pep_425 import CompatibilityTags
-from pex.pep_427 import InstallableType
+from pex.pep_427 import InstallableType, WheelError, install_wheel_chroot
 from pex.pep_503 import ProjectName
 from pex.pex_info import PexInfo
 from pex.pip.download_observer import DownloadObserver
@@ -416,6 +416,10 @@ class InstallResult(object):
         # type: () -> bool
         return self._atomic_dir.is_finalized()
 
+    def wheel_file(self):
+        # type: () -> str
+        return self.request.wheel_file
+
     @property
     def build_chroot(self):
         # type: () -> str
@@ -695,6 +699,18 @@ class DirectRequirements(object):
         return resolved_distributions
 
 
+def _perform_install(
+    installed_wheels_dir,  # type: str
+    install_request,  # type: InstallRequest
+):
+    # type: (...) -> InstallResult
+    install_result = install_request.result(installed_wheels_dir)
+    install_wheel_chroot(
+        wheel_path=install_request.wheel_path, destination=install_result.build_chroot
+    )
+    return install_result
+
+
 class BuildAndInstallRequest(object):
     def __init__(
         self,
@@ -754,25 +770,6 @@ class BuildAndInstallRequest(object):
                 )
                 install_results.append(install_result)
         return unsatisfied_install_requests, install_results
-
-    def _spawn_install(
-        self,
-        installed_wheels_dir,  # type: str
-        install_request,  # type: InstallRequest
-    ):
-        # type: (...) -> SpawnedJob[InstallResult]
-        install_result = install_request.result(installed_wheels_dir)
-        install_job = get_pip(
-            interpreter=install_request.target.get_interpreter(),
-            version=self._pip_version,
-            resolver=self._resolver,
-        ).spawn_install_wheel(
-            wheel=install_request.wheel_path,
-            install_dir=install_result.build_chroot,
-            compile=self._compile,
-            target=install_request.target,
-        )
-        return SpawnedJob.wait(job=install_job, result=install_result)
 
     def _resolve_direct_file_deps(
         self,
@@ -902,7 +899,7 @@ class BuildAndInstallRequest(object):
             return ()
 
         installed_wheels_dir = os.path.join(ENV.PEX_ROOT, PexInfo.INSTALL_CACHE)
-        spawn_install = functools.partial(self._spawn_install, installed_wheels_dir)
+        perform_install = functools.partial(_perform_install, installed_wheels_dir)
 
         installations = []  # type: List[ResolvedDistribution]
 
@@ -942,13 +939,19 @@ class BuildAndInstallRequest(object):
             for install_result in install_results:
                 add_installation(install_result)
 
-            for install_result in execute_parallel(
-                inputs=install_requests,
-                spawn_func=spawn_install,
-                error_handler=Raise[InstallRequest, InstallResult](Untranslatable),
-                max_jobs=max_parallel_jobs,
-            ):
-                add_installation(install_result)
+            try:
+                for install_result in imap_parallel(
+                    inputs=install_requests,
+                    function=perform_install,
+                    verb="install",
+                    verb_past="installed",
+                    max_jobs=max_parallel_jobs,
+                    costing_function=lambda req: os.path.getsize(req.wheel_path),
+                    result_render_function=InstallResult.wheel_file,
+                ):
+                    add_installation(install_result)
+            except WheelError as e:
+                raise Untranslatable("Failed to install a wheel: {err}".format(err=e))
 
         if not ignore_errors:
             with TRACER.timed("Checking install"):
@@ -1111,7 +1114,8 @@ def resolve(
     #
     # This means we need to separately resolve all distributions, then install each in their own
     # chroot. To do this we use `pip download` for the resolve and download of all needed
-    # distributions and then `pip install` to install each distribution in its own chroot.
+    # distributions and then `pex.pep_427.install_wheel_chroot` to install each distribution in its
+    # own chroot.
     #
     # As a complicating factor, the runtime activation scheme relies on PEP 425 tags; i.e.: wheel
     # names. Some requirements are only available or applicable in source form - either via sdist,

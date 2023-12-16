@@ -21,13 +21,13 @@ from pex.dist_metadata import Distribution
 from pex.enum import Enum
 from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
+from pex.pep_427 import install_wheel_chroot
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
 from pex.pip.installation import get_pip
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.resolver_configuration import PipConfiguration
-from pex.targets import LocalInterpreter
 from pex.typing import TYPE_CHECKING
 from pex.util import named_temporary_file
 from pex.venv.virtualenv import Virtualenv
@@ -279,7 +279,7 @@ def make_bdist(
     with built_wheel(
         name=name, version=version, zip_safe=zip_safe, interpreter=interpreter, **kwargs
     ) as dist_location:
-        yield install_wheel(dist_location, interpreter=interpreter)
+        yield install_wheel(dist_location)
 
 
 def install_wheel(
@@ -288,13 +288,7 @@ def install_wheel(
 ):
     # type: (...) -> Distribution
     install_dir = os.path.join(safe_mkdtemp(), os.path.basename(wheel))
-    get_pip(
-        interpreter=interpreter, resolver=ConfiguredResolver(pip_configuration=PipConfiguration())
-    ).spawn_install_wheel(
-        wheel=wheel,
-        install_dir=install_dir,
-        target=LocalInterpreter.create(interpreter),
-    ).wait()
+    install_wheel_chroot(wheel_path=wheel, destination=install_dir)
     return Distribution.load(install_dir)
 
 

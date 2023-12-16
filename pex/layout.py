@@ -9,14 +9,22 @@ from abc import abstractmethod
 from contextlib import contextmanager
 
 from pex.atomic_directory import atomic_directory
-from pex.common import is_script, open_zip, safe_copy, safe_mkdir, safe_mkdtemp
+from pex.common import (
+    PermPreservingZipFile,
+    is_script,
+    open_zip,
+    safe_copy,
+    safe_mkdir,
+    safe_mkdtemp,
+)
 from pex.enum import Enum
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 from pex.variables import unzip_dir
 
 if TYPE_CHECKING:
-    from typing import Iterator, Optional, Tuple
+    from types import TracebackType
+    from typing import Any, Dict, Iterator, Optional, Text, Tuple, Type
 
     from pex.pex_info import PexInfo
 
@@ -149,6 +157,39 @@ class _Layout(object):
         self._layout.record(dest_dir)
 
 
+def _install_distribution(
+    distribution_info,  # type: Tuple[str, str]
+    layout,  # type: _Layout
+    pex_info,  # type: PexInfo
+    work_dir,  # type: str
+    install_to,  # type: str
+):
+    # type: (...) -> str
+
+    location, sha = distribution_info
+    is_wheel_file = pex_info.deps_are_wheel_files
+    spread_dest = os.path.join(pex_info.install_cache, sha, location)
+    dist_relpath = os.path.join(DEPS_DIR, location)
+    source = None if is_wheel_file else layout.dist_strip_prefix(location)
+    symlink_src = os.path.relpath(
+        spread_dest,
+        os.path.join(install_to, os.path.dirname(dist_relpath)),
+    )
+    symlink_dest = os.path.join(work_dir, dist_relpath)
+
+    with atomic_directory(spread_dest, source=source) as spread_chroot:
+        if not spread_chroot.is_finalized():
+            layout.extract_dist(
+                dest_dir=spread_chroot.work_dir,
+                dist_relpath=dist_relpath,
+                is_wheel_file=is_wheel_file,
+            )
+
+    safe_mkdir(os.path.dirname(symlink_dest))
+    os.symlink(symlink_src, symlink_dest)
+    return location
+
+
 def _ensure_distributions_installed_serial(
     layout,  # type: _Layout
     pex_info,  # type: PexInfo
@@ -157,37 +198,9 @@ def _ensure_distributions_installed_serial(
 ):
     # type: (...) -> None
 
-    deps_are_wheel_files = pex_info.deps_are_wheel_files
-    install_cache = pex_info.install_cache
-
-    for location, sha in pex_info.distributions.items():
-        spread_dest = os.path.join(install_cache, sha, location)
-        dist_relpath = os.path.join(DEPS_DIR, location)
-        source = None if deps_are_wheel_files else layout.dist_strip_prefix(location)
-        extracting_message = (
-            "Installing wheel file {dist_relpath}".format(dist_relpath=dist_relpath)
-            if deps_are_wheel_files
-            else "Extracting {layout_type} distribution {dist_relpath}".format(
-                layout_type=layout.type, dist_relpath=dist_relpath
-            )
-        )
-        symlink_src = os.path.relpath(
-            spread_dest,
-            os.path.join(install_to, os.path.dirname(dist_relpath)),
-        )
-        symlink_dest = os.path.join(work_dir, dist_relpath)
-
-        with atomic_directory(spread_dest, source=source) as spread_chroot:
-            if not spread_chroot.is_finalized():
-                with TRACER.timed(extracting_message):
-                    layout.extract_dist(
-                        dest_dir=spread_chroot.work_dir,
-                        dist_relpath=dist_relpath,
-                        is_wheel_file=deps_are_wheel_files,
-                    )
-
-        safe_mkdir(os.path.dirname(symlink_dest))
-        os.symlink(symlink_src, symlink_dest)
+    for item in pex_info.distributions.items():
+        with TRACER.timed("Installing {wheel}".format(wheel=item[0]), V=2):
+            _install_distribution(item, layout, pex_info, work_dir, install_to)
 
 
 def _ensure_distributions_installed_parallel(
@@ -199,118 +212,36 @@ def _ensure_distributions_installed_parallel(
 ):
     # type: (...) -> None
 
-    from textwrap import dedent
+    import functools
 
-    from pex.interpreter import spawn_python_job
-    from pex.jobs import SpawnedJob, execute_parallel
+    from pex.jobs import map_parallel
 
-    deps_are_wheel_files = pex_info.deps_are_wheel_files
-    install_cache = pex_info.install_cache
-
-    def install_distribution(item):
-        # type: (Tuple[str, str]) -> SpawnedJob[None]
-
-        location, sha = item
-        spread_dest = os.path.join(install_cache, sha, location)
-        dist_relpath = os.path.join(DEPS_DIR, location)
-        source = None if deps_are_wheel_files else layout.dist_strip_prefix(location)
-        extracting_message = (
-            "Installing wheel file {dist_relpath}".format(dist_relpath=dist_relpath)
-            if deps_are_wheel_files
-            else "Extracting {layout_type} distribution {dist_relpath}".format(
-                layout_type=layout.type, dist_relpath=dist_relpath
-            )
-        )
-        symlink_src = os.path.relpath(
-            spread_dest,
-            os.path.join(install_to, os.path.dirname(dist_relpath)),
-        )
-        symlink_dest = os.path.join(work_dir, dist_relpath)
-
-        return SpawnedJob.wait(
-            job=spawn_python_job(
-                args=[
-                    "-c",
-                    dedent(
-                        """\
-                        import os
-
-                        from pex.atomic_directory import atomic_directory
-                        from pex.common import safe_mkdir
-                        from pex.layout import identify_layout
-                        from pex.tracer import TRACER
-
-
-                        with identify_layout({pex!r}) as layout, atomic_directory(
-                            {spread_dest!r}, source={source!r}
-                        ) as spread_chroot:
-                            if not spread_chroot.is_finalized():
-                                with TRACER.timed({extracting_msg!r}):
-                                    layout.extract_dist(
-                                        dest_dir=spread_chroot.work_dir,
-                                        dist_relpath={dist_relpath!r},
-                                        is_wheel_file={is_wheel_file!r}
-                                    )
-
-                        symlink_dest = {symlink_dest!r}
-                        safe_mkdir(os.path.dirname(symlink_dest))
-                        os.symlink({symlink_src!r}, symlink_dest)
-                        """
-                    ).format(
-                        pex=layout.path,
-                        spread_dest=spread_dest,
-                        source=source,
-                        extracting_msg=extracting_message,
-                        dist_relpath=dist_relpath,
-                        is_wheel_file=deps_are_wheel_files,
-                        symlink_src=symlink_src,
-                        symlink_dest=symlink_dest,
-                    ),
-                ],
-                expose=["pex"],
-            ),
-            result=None,
-        )
-
-    # Assuming that extract / install time scales with distribution size, we ensure no job slot is
-    # so unlucky as to get all the biggest jobs and thus become an un-necessarily long pole by
-    # sorting based on distribution size. Some examples to illustrate the effect using 6 input
-    # distributions and 2 job slots:
-    #
-    # 1.) Random worst case ordering:
-    #         [9, 1, 1, 1, 1, 10] -> slot1[9] slot2[1, 1, 1, 1, 10]: 14 long pole
-    #     Sorted becomes:
-    #         [10, 9, 1, 1, 1, 1] -> slot1[10, 1, 1] slot2[9, 1, 1]: 12 long pole
-    # 2.) Random worst case ordering:
-    #         [6, 4, 3, 10, 1, 1] -> slot1[6, 10] slot2[4, 3, 1, 1]: 16 long pole
-    #     Sorted becomes:
-    #         [10, 6, 4, 3, 1, 1] -> slot1[10, 3] slot2[6, 4, 1, 1]: 13 long pole
-    #
-    # TODO(John Sirois): Consider having execute_parallel take an optional costing function and
-    #  move this sorting logic and explanation centrally there.
-    inputs = sorted(
-        (item for item in pex_info.distributions.items()),
-        key=lambda item: layout.dist_size(
-            os.path.join(DEPS_DIR, item[0]), is_wheel_file=deps_are_wheel_files
-        ),
-        reverse=True,
+    install_distribution = functools.partial(
+        _install_distribution,
+        layout=layout,
+        pex_info=pex_info,
+        work_dir=work_dir,
+        install_to=install_to,
     )
-    with TRACER.timed(
-        "Using a maximum of {max_jobs} parallel jobs to install {count} distributions".format(
-            max_jobs="<auto>" if max_jobs == 0 else max_jobs, count=len(pex_info.distributions)
-        )
-    ):
-        for _ in execute_parallel(
-            inputs=inputs, spawn_func=install_distribution, max_jobs=max_jobs
-        ):
-            pass
+
+    map_parallel(
+        inputs=pex_info.distributions.items(),
+        function=install_distribution,
+        verb="install",
+        verb_past="installed",
+        max_jobs=max_jobs,
+        costing_function=lambda item: layout.dist_size(
+            os.path.join(DEPS_DIR, item[0]), is_wheel_file=pex_info.deps_are_wheel_files
+        ),
+    )
 
 
 # This value was found via experiment on a single laptop with 16 cores and SSD storage. The
-# threshold that needs to be overcome is the startup overhead of a Python process that imports
-# enough Pex code to do the distribution install (~100ms) for each distribution in the PEX. It's
-# completely unclear this is a good value in general let alone the heuristic using it is reasonable.
-AVERAGE_DISTRIBUTION_SIZE_PARALLEL_JOB_THRESHOLD = 5 * 1024 * 1024  # ~5MB
+# threshold that needs to be overcome is the startup and communication overhead of a Python
+# multiprocessing pool. It's completely unclear this is a good value in general let alone the
+# heuristic using it is reasonable; as such the user-facing documentation makes it clear the
+# heuristic can be tweaked from release to release in order to try to improve performance.
+AVERAGE_DISTRIBUTION_SIZE_PARALLEL_JOB_THRESHOLD = 1 * 1024 * 1024  # ~1MB
 
 
 def _ensure_distributions_installed(
@@ -443,12 +374,59 @@ class _ZipAppPEX(_Layout):
     def __init__(
         self,
         path,  # type: str
-        zfp,  # type: zipfile.ZipFile
     ):
         # type: (...) -> None
         super(_ZipAppPEX, self).__init__(Layout.ZIPAPP, path)
-        self._zfp = zfp
-        self._names = tuple(zfp.namelist())
+        self._zfp = None  # type: Optional[zipfile.ZipFile]
+        self._names = None  # type: Optional[Tuple[Text, ...]]
+
+    def close(self):
+        # type: () -> None
+        if self._zfp is not None:
+            self._zfp.close()
+
+    def open(self):
+        # type: () -> zipfile.ZipFile
+        if self._zfp is None:
+            self._zfp = PermPreservingZipFile(self.path)
+        return self._zfp
+
+    def __getstate__(self):
+        # type: () -> Dict[str, Any]
+        state = self.__dict__.copy()
+        # We can't pickle an open file handle; so don't try.
+        state["_zfp"] = None
+        return state
+
+    def __enter__(self):
+        # type: () -> _ZipAppPEX
+        self.open()
+        return self
+
+    def __exit__(
+        self,
+        _exc_type,  # type: Optional[Type]
+        _exc_val,  # type: Optional[Any]
+        _exc_tb,  # type: Optional[TracebackType]
+    ):
+        # type: (...) -> None
+        self.close()
+
+    def __del__(self):
+        # type: () -> None
+        self.close()
+
+    @property
+    def zfp(self):
+        # type: () -> zipfile.ZipFile
+        return self.open()
+
+    @property
+    def names(self):
+        # type: () -> Tuple[Text, ...]
+        if self._names is None:
+            self._names = tuple(self.zfp.namelist())
+        return self._names
 
     def bootstrap_strip_prefix(self):
         # type: () -> Optional[str]
@@ -456,9 +434,9 @@ class _ZipAppPEX(_Layout):
 
     def extract_bootstrap(self, dest_dir):
         # type: (str) -> None
-        for name in self._names:
+        for name in self.names:
             if name.startswith(BOOTSTRAP_DIR) and not name.endswith("/"):
-                self._zfp.extract(name, dest_dir)
+                self.zfp.extract(name, dest_dir)
 
     def dist_strip_prefix(self, dist_name):
         # type: (str) -> Optional[str]
@@ -471,11 +449,11 @@ class _ZipAppPEX(_Layout):
     ):
         # type: (...) -> int
         if is_wheel_file:
-            return self._zfp.getinfo(dist_relpath).file_size
+            return self.zfp.getinfo(dist_relpath).file_size
         else:
             return sum(
-                self._zfp.getinfo(name).file_size
-                for name in self._names
+                self.zfp.getinfo(name).file_size
+                for name in self.names
                 if name.startswith(dist_relpath)
             )
 
@@ -491,34 +469,34 @@ class _ZipAppPEX(_Layout):
 
             install_wheel_chroot(self.wheel_file_path(dist_relpath), dest_dir)
         else:
-            for name in self._names:
+            for name in self.names:
                 if name.startswith(dist_relpath) and not name.endswith("/"):
-                    self._zfp.extract(name, dest_dir)
+                    self.zfp.extract(name, dest_dir)
 
     def wheel_file_path(self, dist_relpath):
         # type: (str) -> str
         extract_chroot = safe_mkdtemp()
-        self._zfp.extract(dist_relpath, extract_chroot)
+        self.zfp.extract(dist_relpath, extract_chroot)
         return os.path.join(extract_chroot, dist_relpath)
 
     def extract_code(self, dest_dir):
         # type: (str) -> None
-        for name in self._names:
+        for name in self.names:
             if name not in ("__main__.py", PEX_INFO_PATH) and not name.startswith(
                 (BOOTSTRAP_DIR, DEPS_DIR)
             ):
-                self._zfp.extract(name, dest_dir)
+                self.zfp.extract(name, dest_dir)
 
     def extract_pex_info(self, dest_dir):
         # type: (str) -> None
-        self._zfp.extract(PEX_INFO_PATH, dest_dir)
+        self.zfp.extract(PEX_INFO_PATH, dest_dir)
 
     def extract_main(self, dest_dir):
         # type: (str) -> None
-        self._zfp.extract("__main__.py", dest_dir)
+        self.zfp.extract("__main__.py", dest_dir)
 
     def __str__(self):
-        return "PEX zipfile {}".format(self._path)
+        return "PEX zipfile {}".format(self.path)
 
 
 class _PackedPEX(_Layout):
@@ -665,8 +643,8 @@ def identify_layout(pex):
 
     layout = Layout.identify(pex)
     if Layout.ZIPAPP is layout:
-        with open_zip(pex) as zfp:
-            yield _ZipAppPEX(pex, zfp)
+        with _ZipAppPEX(pex) as zip_app_pex:
+            yield zip_app_pex
     elif Layout.PACKED is layout:
         yield _PackedPEX(pex)
     elif Layout.LOOSE is layout:
