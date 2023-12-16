@@ -394,13 +394,16 @@ def install_wheel(
         print("pex", file=fp)
     installed_files.append(InstalledWheel.create_installed_file(path=fp.name, dest_dir=dest))
 
-    if requested:
-        requested_path = os.path.join(dest, wheel.metadata_path("REQUESTED"))
-        touch(requested_path)
-        installed_files.append(
-            InstalledWheel.create_installed_file(path=requested_path, dest_dir=dest)
-        )
+    if interpreter:
+        # Finalize a proper venv install with REQUESTED and a RECORD to support un-installing.
+        if requested:
+            requested_path = os.path.join(dest, wheel.metadata_path("REQUESTED"))
+            touch(requested_path)
+            installed_files.append(
+                InstalledWheel.create_installed_file(path=requested_path, dest_dir=dest)
+            )
 
-    installed_files.append(InstalledFile(path=record_relpath, hash=None, size=None))
-    Record.write(dst=record_abspath, installed_files=installed_files)
+        installed_files.append(InstalledFile(path=record_relpath, hash=None, size=None))
+        Record.write(dst=record_abspath, installed_files=installed_files)
+
     return wheel.metadata_files

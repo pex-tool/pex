@@ -14,7 +14,7 @@ from pex.venv.virtualenv import Virtualenv
 from testing import PY38, ensure_python_venv, run_pex_command
 
 if TYPE_CHECKING:
-    from typing import Any, List
+    from typing import Any, Container, List
 
 
 def test_data_files(tmpdir):
@@ -63,12 +63,22 @@ def test_data_files(tmpdir):
     pip_venv = Virtualenv.enclosing(py38)
     assert pip_venv is not None
 
-    def recursive_listing(venv):
-        # type: (Virtualenv) -> List[str]
+    def recursive_listing(
+        venv,  # type: Virtualenv
+        exclude=(),  # type: Container[str]
+    ):
+        # type: (...) -> List[str]
         return sorted(
             os.path.relpath(os.path.join(root, f), venv.venv_dir)
             for root, _, files in os.walk(venv.venv_dir)
             for f in files
+            if f not in exclude
         )
 
-    assert recursive_listing(pip_venv) == recursive_listing(pex_venv)
+    # We exclude the REQUESTED .dist-info metadata file which Pip installs, but we currently do not.
+    # This file is not required as originally spelled out in PEP-376
+    # (https://peps.python.org/pep-0376/#one-dist-info-directory-per-installed-distribution):
+    # "The METADATA, RECORD and INSTALLER files are mandatory, while REQUESTED may be missing."
+    # This remains true in the modern spec as well. See:
+    # https://packaging.python.org/en/latest/specifications/recording-installed-packages/#the-dist-info-directory
+    assert recursive_listing(pip_venv, exclude={"REQUESTED"}) == recursive_listing(pex_venv)
