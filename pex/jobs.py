@@ -680,18 +680,19 @@ def _mp_pool(size):
 MULTIPROCESSING_DEFAULT_MIN_AVERAGE_LOAD = 4
 
 
-def imap_parallel(
+def iter_map_parallel(
     inputs,  # type: Iterable[_I]
     function,  # type: Callable[[_I], _O]
     max_jobs=None,  # type: Optional[int]
     min_average_load=MULTIPROCESSING_DEFAULT_MIN_AVERAGE_LOAD,  # type: int
     costing_function=None,  # type: Optional[Callable[[_I], Comparable]]
     result_render_function=None,  # type: Optional[Callable[[_O], Any]]
+    noun="item",  # type: str
     verb="process",  # type: str
     verb_past="processed",  # type: str
 ):
     # type: (...) -> Iterator[_O]
-    """Enhanced version of `multiprocessing.Pool.imap` that optimizes pool size and input ordering.
+    """Enhanced `multiprocessing.Pool.imap_unordered` that optimizes pool size and input ordering.
 
     :param inputs: The items to process with `function`.
     :param function: A function that takes a single argument from `inputs` and returns a result.
@@ -700,6 +701,7 @@ def imap_parallel(
     :param costing_function: A function that can estimate the cost of processing each input.
     :param result_render_function: A function that can take a result from `function` and render an
                                    identifier for it.
+    :param noun: A noun indicating what the input type is; "item" by default.
     :param verb: A verb indicating what the function does; "process" by default.
     :param verb_past: The past tense of `verb`; "processed" by default.
     :return: An iterator over the mapped results.
@@ -756,11 +758,11 @@ def imap_parallel(
         "Elapsed time per {verb} job:\n  {times}".format(
             verb=verb,
             times="\n  ".join(
-                "{index}) [{pid}] {total_secs:.2f}s {count} {wheels}".format(
+                "{index}) [{pid}] {total_secs:.2f}s {count} {inputs}".format(
                     index=index,
                     pid=pid,
                     count=len(elapsed),
-                    wheels=pluralize(elapsed, "wheel"),
+                    inputs=pluralize(elapsed, noun),
                     total_secs=total_secs,
                 )
                 for index, (total_secs, pid, elapsed) in enumerate(
@@ -782,6 +784,7 @@ def map_parallel(
     min_average_load=MULTIPROCESSING_DEFAULT_MIN_AVERAGE_LOAD,  # type: int
     costing_function=None,  # type: Optional[Callable[[_I], Comparable]]
     result_render_function=None,  # type: Optional[Callable[[_O], Any]]
+    noun="item",  # type: str
     verb="process",  # type: str
     verb_past="processed",  # type: str
 ):
@@ -795,13 +798,14 @@ def map_parallel(
     :return: A list of the mapped results.
     """
     return list(
-        imap_parallel(
+        iter_map_parallel(
             inputs,
             function,
             max_jobs=max_jobs,
             min_average_load=min_average_load,
             costing_function=costing_function,
             result_render_function=result_render_function,
+            noun=noun,
             verb=verb,
             verb_past=verb_past,
         )

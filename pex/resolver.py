@@ -20,7 +20,7 @@ from pex.common import safe_mkdir, safe_mkdtemp
 from pex.compatibility import url_unquote, urlparse
 from pex.dist_metadata import DistMetadata, Distribution, ProjectNameAndVersion, Requirement
 from pex.fingerprinted_distribution import FingerprintedDistribution
-from pex.jobs import Raise, SpawnedJob, execute_parallel, imap_parallel
+from pex.jobs import Raise, SpawnedJob, execute_parallel, iter_map_parallel
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.pep_425 import CompatibilityTags
@@ -940,9 +940,10 @@ class BuildAndInstallRequest(object):
                 add_installation(install_result)
 
             try:
-                for install_result in imap_parallel(
+                for install_result in iter_map_parallel(
                     inputs=install_requests,
                     function=perform_install,
+                    noun="wheel",
                     verb="install",
                     verb_past="installed",
                     max_jobs=max_parallel_jobs,

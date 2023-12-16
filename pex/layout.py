@@ -227,6 +227,7 @@ def _ensure_distributions_installed_parallel(
     map_parallel(
         inputs=pex_info.distributions.items(),
         function=install_distribution,
+        noun="wheel",
         verb="install",
         verb_past="installed",
         max_jobs=max_jobs,
