@@ -3,9 +3,10 @@
 
 from __future__ import absolute_import, print_function
 
+import glob
 import os
 import pkgutil
-import shutil
+import re
 import subprocess
 import sys
 from argparse import ArgumentParser
@@ -15,7 +16,6 @@ from colors import bold, green, yellow
 from redbaron import CommentNode, LiteralyEvaluable, NameNode, RedBaron
 
 from pex.common import safe_delete, safe_mkdir, safe_mkdtemp, safe_open, safe_rmtree
-from pex.interpreter import PythonInterpreter
 from pex.vendor import VendorSpec, iter_vendor_specs
 
 
@@ -207,17 +207,15 @@ def find_site_packages(prefix_dir):
     )
 
 
-def vendorize(interpreter, root_dir, vendor_specs, prefix, update):
+def vendorize(root_dir, vendor_specs, prefix, update):
     # There is bootstrapping catch-22 here. In order for `pex.third_party` to work, all 3rdparty
     # importable code must lie at the top of its vendored chroot. Although
-    # `pex.pep_376.Record.fixup_install` encodes the logic to achieve this layout, we can't run
-    # that without the current `pex.interpreter.PythonInterpreter` and 1st approximating that
-    # layout!. We take the tack of saving the current interpreter and then doing the `--prefix`
-    # install off into a temp dir, moving the site-packages importables into the vendor chroot,
-    # importing the code we'll need, then moving the importables back.
-    moved = {}
+    # `pex.pep_472.install_wheel_chroot` encodes the logic to achieve this layout, we can't run
+    # that without 1st approximating that layout!. We take the tack of performing an importable
+    # installation using `pip wheel ...` + `wheel unpack ...`. Although simply un-packing a wheel
+    # does not make it importable in general, it works for our pure-python vendored code.
 
-    prefix_dir_by_vendor_spec = defaultdict(safe_mkdtemp)
+    unpacked_wheel_chroots_by_vendor_spec = defaultdict(list)
     for vendor_spec in vendor_specs:
         # NB: We set --no-build-isolation to prevent pip from installing the requirements listed in
         # its [build-system] config in its pyproject.toml.
@@ -235,24 +233,14 @@ def vendorize(interpreter, root_dir, vendor_specs, prefix, update):
         # that Pip finds no newer versions of wheel in its cache. As a result, vendoring (at least
         # via tox) is hermetic.
         requirement = vendor_spec.prepare()
+        wheels_dir = safe_mkdtemp()
         cmd = [
             "pip",
-            "install",
+            "wheel",
             "--no-build-isolation",
             "--no-cache-dir",
-            "--no-compile",
-            "--prefix",
-            prefix_dir_by_vendor_spec[vendor_spec],
-            # In `--prefix` scheme, Pip warns about installed scripts not being on $PATH. We fix
-            # this when a PEX is turned into a venv.
-            "--no-warn-script-location",
-            # In `--prefix` scheme, Pip normally refuses to install a dependency already in the
-            # `sys.path` of Pip itself since the requirement is already satisfied. Since `pip`,
-            # `setuptools` and `wheel` are always in that `sys.path` (Our `pip.pex` venv PEX), we
-            # force installation so that PEXes with dependencies on those projects get them properly
-            # installed instead of skipped.
-            "--force-reinstall",
-            "--ignore-installed",
+            "--wheel-dir",
+            wheels_dir,
             requirement,
         ]
 
@@ -274,14 +262,28 @@ def vendorize(interpreter, root_dir, vendor_specs, prefix, update):
         if result != 0:
             raise VendorizeError("Failed to vendor {!r}".format(vendor_spec))
 
-        # Temporarily move importable code into the vendor chroot for importing tools later.
-        site_packages = find_site_packages(prefix_dir=prefix_dir_by_vendor_spec[vendor_spec])
+        # Temporarily make importable code available in the vendor chroot for importing Pex code
+        # later.
         safe_mkdir(vendor_spec.target_dir)
-        for item in os.listdir(site_packages):
-            src = os.path.join(site_packages, item)
-            dst = os.path.join(vendor_spec.target_dir, item)
-            shutil.move(src, dst)
-            moved[dst] = src
+        for wheel_file in glob.glob(os.path.join(wheels_dir, "*.whl")):
+            extract_dir = os.path.join(wheels_dir, ".extracted")
+            output = subprocess.check_output(
+                ["wheel", "unpack", "--dest", extract_dir, wheel_file]
+            ).decode("utf-8")
+            match = re.match(r"^Unpacking to: (?P<unpack_dir>.+)\.\.\.OK$", output)
+            assert match is not None, (
+                "Failed to determine {wheel_file} unpack dir from wheel unpack output:\n"
+                "{output}".format(wheel_file=wheel_file, output=output)
+            )
+            unpacked_to_dir = os.path.join(extract_dir, match["unpack_dir"])
+            unpacked_wheel_dir = os.path.join(extract_dir, os.path.basename(wheel_file))
+            os.rename(unpacked_to_dir, unpacked_wheel_dir)
+            unpacked_wheel_chroots_by_vendor_spec[vendor_spec].append(unpacked_wheel_dir)
+            for path in os.listdir(unpacked_wheel_dir):
+                os.symlink(
+                    os.path.join(unpacked_wheel_dir, path),
+                    os.path.join(vendor_spec.target_dir, path),
+                )
 
         if vendor_spec.constrain:
             cmd = ["pip", "freeze", "--all", "--path", vendor_spec.target_dir]
@@ -299,7 +301,7 @@ def vendorize(interpreter, root_dir, vendor_specs, prefix, update):
 
     rewrite_paths = [os.path.join(root_dir, c) for c in ("pex", "tests")] + vendored_path
     for rewrite_path in rewrite_paths:
-        for root, dirs, files in os.walk(rewrite_path):
+        for root, dirs, files in os.walk(rewrite_path, followlinks=True):
             if root == os.path.join(root_dir, "pex", "vendor"):
                 dirs[:] = [d for d in dirs if d != "_vendored"]
             for f in files:
@@ -325,47 +327,58 @@ def vendorize(interpreter, root_dir, vendor_specs, prefix, update):
 
     # Import all code needed below now before we move any vendored bits it depends on temporarily
     # back to the prefix site-packages dir.
-    from pex.dist_metadata import find_distributions
-    from pex.pep_376 import Record
-
-    dist_by_vendor_spec = OrderedDict()
-    for vendor_spec in vendor_specs:
-        for dist in find_distributions(search_path=[vendor_spec.target_dir]):
-            if dist.project_name == vendor_spec.key:
-                dist_by_vendor_spec[vendor_spec] = dist
-                break
-        if vendor_spec not in dist_by_vendor_spec:
-            raise RuntimeError("Failed to find a distribution for {}.".format(vendor_spec))
-
-    # Move the importables back to their temporary dir chroot original locations.
-    for dst, src in moved.items():
-        shutil.move(dst, src)
+    from pex.dist_metadata import ProjectNameAndVersion, Requirement
+    from pex.pep_427 import install_wheel_chroot
 
     for vendor_spec in vendor_specs:
         print(
             bold(
                 green(
-                    "Fixing up scripts and distribution metadata for {requirement}".format(
+                    "Finalizing vendoring of {requirement}".format(
                         requirement=vendor_spec.requirement
                     )
                 )
             )
         )
-        # Move the `pip install --prefix` temporary dir chroot into the vendor chroot.
-        prefix_dir = prefix_dir_by_vendor_spec[vendor_spec]
-        for item in os.listdir(prefix_dir):
-            shutil.move(os.path.join(prefix_dir, item), os.path.join(vendor_spec.target_dir, item))
-        dist = dist_by_vendor_spec[vendor_spec]
 
-        # Finally, let Record fixup the chroot to its final importable form.
-        record = Record.from_pip_prefix_install(
-            prefix_dir=vendor_spec.target_dir,
-            project_name=dist.project_name,
-            version=dist.version,
-        )
-        record.fixup_install(
-            exclude=("constraints.txt", "__init__.py", "__pycache__"), interpreter=interpreter
-        )
+        # With Pex code needed for the final vendor installs imported, we can safely clear out the
+        # vendor install dirs.
+        for name in os.listdir(vendor_spec.target_dir):
+            if name.endswith(".pyc") or name in ("__init__.py", "__pycache__", "constraints.txt"):
+                continue
+            path = os.path.join(vendor_spec.target_dir, name)
+            assert os.path.islink(path), (
+                "Expected {target_dir} to be composed ~purely of top-level symlinks but {path} "
+                "is not.".format(target_dir=vendor_spec.target_dir, path=path)
+            )
+            os.unlink(path)
+
+        # We want the primary artifact to own any special Pex wheel chroot metadata; so we arrange
+        # a list of installs that place it last.
+        primary_project = Requirement.parse(vendor_spec.requirement).project_name
+        wheel_chroots_by_project_name = {
+            ProjectNameAndVersion.from_filename(
+                wheel_chroot
+            ).canonicalized_project_name: wheel_chroot
+            for wheel_chroot in unpacked_wheel_chroots_by_vendor_spec[vendor_spec]
+        }
+        primary_wheel_chroot = wheel_chroots_by_project_name.pop(primary_project)
+        wheels_chroots_to_install = list(wheel_chroots_by_project_name.values())
+        wheels_chroots_to_install.append(primary_wheel_chroot)
+
+        for wheel_chroot in wheels_chroots_to_install:
+            dest_dir = safe_mkdtemp()
+            subprocess.check_call(["wheel", "pack", "--dest-dir", dest_dir, wheel_chroot])
+            wheel_files = glob.glob(os.path.join(dest_dir, "*.whl"))
+            assert len(wheel_files) == 1, (
+                "Expected re-packing {wheel_chroot} to produce one `.whl` file but found {count}:\n"
+                "{wheel_files}"
+            ).format(
+                wheel_chroot=wheel_chroot,
+                count=len(wheel_files),
+                wheel_files="\n".join(os.path.basename(wheel_file) for wheel_file in wheel_files),
+            )
+            install_wheel_chroot(wheel_path=wheel_files[0], destination=vendor_spec.target_dir)
 
 
 if __name__ == "__main__":
@@ -379,13 +392,10 @@ if __name__ == "__main__":
     )
     options = parser.parse_args()
 
-    # Grab the PythonInterpreter before we nuke the supporting code needed to identify it.
-    interpreter = PythonInterpreter.get()
     root_directory = VendorSpec.ROOT
     try:
         safe_rmtree(VendorSpec.vendor_root())
         vendorize(
-            interpreter=interpreter,
             root_dir=root_directory,
             vendor_specs=list(iter_vendor_specs()),
             prefix="pex.third_party",

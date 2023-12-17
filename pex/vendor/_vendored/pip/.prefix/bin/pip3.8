@@ -1,8 +1,14 @@
 #!python
 # -*- coding: utf-8 -*-
-import re
+import importlib
 import sys
-from pip._internal.cli.main import main
+
+object_ref = "pip._internal.cli.main:main"
+modname, qualname_separator, qualname = object_ref.partition(':')
+entry_point = importlib.import_module(modname)
+if qualname_separator:
+    for attr in qualname.split('.'):
+        entry_point = getattr(entry_point, attr)
+
 if __name__ == '__main__':
-    sys.argv[0] = re.sub(r'(-script\.pyw|\.exe)?$', '', sys.argv[0])
-    sys.exit(main())
+    sys.exit(entry_point())

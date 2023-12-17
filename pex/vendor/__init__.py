@@ -86,7 +86,7 @@ class VendorSpec(
         rewrite=True,  # type: bool
         constraints=(),  # type: Tuple[str, ...]
     ):
-        requirement = "git+{repo}@{commit}#egg={project_name}".format(
+        requirement = "{project_name} @ git+{repo}@{commit}".format(
             repo=repo, commit=commit, project_name=project_name
         )
         if not prep_command:
