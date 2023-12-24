@@ -1,5 +1,18 @@
 # Release Notes
 
+## 2.1.155
+
+This release brings support for `--pip-version 23.3.2` along with
+optimizations that reduce built PEX size for both `--include-tools` and
+`--venv` PEXes (which includes the Pex PEX) as well as reduce PEX build
+time for `--pre-install-wheels` PEXes (the default) and PEX cold first
+boot time for `--no-pre-install-wheels` PEXes that use more than one
+parallel install job.
+
+* Add support for Pip 23.3.2. (#2307)
+* Remove `Pip.spawn_install_wheel` & optimize. (#2305)
+* Since we no longer use wheel code, remove it. (#2302)
+
 ## 2.1.154
 
 This release brings three new features:
