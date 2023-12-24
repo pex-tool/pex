@@ -1,6 +1,0 @@
-include *.py *.rst *.ini MANIFEST.in LICENSE
-recursive-include docs *
-recursive-include tests *
-recursive-include scripts *
-recursive-include pex/vendor/_vendored *
-recursive-exclude * *.pyc *~
