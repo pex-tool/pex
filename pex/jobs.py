@@ -732,7 +732,7 @@ def iter_map_parallel(
     # least two slots to ensure we process input items in parallel.
     pool_size = max(2, min(len(input_items) // min_average_load, _sanitize_max_jobs(max_jobs)))
 
-    perform_install = functools.partial(_apply_function, function)
+    apply_function = functools.partial(_apply_function, function)
 
     slots = defaultdict(list)  # type: DefaultDict[int, List[float]]
     with TRACER.timed(
@@ -741,7 +741,7 @@ def iter_map_parallel(
         )
     ):
         with _mp_pool(size=pool_size) as pool:
-            for pid, result, elapsed_secs in pool.imap_unordered(perform_install, input_items):
+            for pid, result, elapsed_secs in pool.imap_unordered(apply_function, input_items):
                 TRACER.log(
                     "[{pid}] {verbed} {result} in {elapsed_secs:.2f}s".format(
                         pid=pid,

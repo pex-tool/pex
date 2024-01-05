@@ -17,6 +17,7 @@ from pex import hashing
 from pex.common import is_pyc_dir, is_pyc_file, safe_mkdir, safe_open
 from pex.interpreter import PythonInterpreter
 from pex.typing import TYPE_CHECKING, cast
+from pex.util import CacheHelper
 from pex.venv.virtualenv import Virtualenv
 
 if TYPE_CHECKING:
@@ -169,10 +170,24 @@ class InstalledWheel(object):
         record_relpath,  # type: Text
     ):
         # type: (...) -> InstalledWheel
-        layout = {"stash_dir": stash_dir, "record_relpath": record_relpath}
+
+        # We currently need the installed wheel chroot hash for PEX-INFO / boot purposes. It is
+        # expensive to calculate; so we do it here 1 time when saving the installed wheel.
+        fingerprint = CacheHelper.dir_hash(prefix_dir, hasher=hashlib.sha256)
+
+        layout = {
+            "stash_dir": stash_dir,
+            "record_relpath": record_relpath,
+            "fingerprint": fingerprint,
+        }
         with open(cls.layout_file(prefix_dir), "w") as fp:
             json.dump(layout, fp, sort_keys=True)
-        return cls(prefix_dir=prefix_dir, stash_dir=stash_dir, record_relpath=record_relpath)
+        return cls(
+            prefix_dir=prefix_dir,
+            stash_dir=stash_dir,
+            record_relpath=record_relpath,
+            fingerprint=fingerprint,
+        )
 
     @classmethod
     def load(cls, prefix_dir):
@@ -201,15 +216,20 @@ class InstalledWheel(object):
                     layout_file=layout_file, value=layout
                 )
             )
+
+        fingerprint = layout.get("fingerprint")
+
         return cls(
             prefix_dir=prefix_dir,
             stash_dir=cast(str, stash_dir),
             record_relpath=cast(str, record_relpath),
+            fingerprint=cast("Optional[str]", fingerprint),
         )
 
     prefix_dir = attr.ib()  # type: str
     stash_dir = attr.ib()  # type: str
     record_relpath = attr.ib()  # type: Text
+    fingerprint = attr.ib()  # type: Optional[str]
 
     def stashed_path(self, *components):
         # type: (*str) -> str
