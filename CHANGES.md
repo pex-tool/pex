@@ -3,7 +3,7 @@
 ## 2.1.156
 
 This release optimizes wheel install overhead for warm caches. Notably,
-this speeds up warm boot for PEXes containing large distrubutions like
+this speeds up warm boot for PEXes containing large distributions like
 PyTorch as well as creating venvs from them.
 
 * Lower noop wheel install overhead. (#2315)
