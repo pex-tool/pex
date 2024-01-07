@@ -275,7 +275,7 @@ def resolve_p537_wheel_names(
         return resolve_wheel_names(
             requirements=[
                 "p537=={version}".format(
-                    version="1.0.6" if sys.version_info[:2] >= (3, 6) else "1.0.5"
+                    version="1.0.7" if sys.version_info[:2] >= (3, 6) else "1.0.5"
                 )
             ],
             transitive=False,
@@ -328,7 +328,7 @@ def test_resolve_current_platform(p537_resolve_cache):
 )
 def test_resolve_current_and_foreign_platforms(p537_resolve_cache):
     # type: (str) -> None
-    foreign_platform = "macosx-10.15-x86_64-cp-37-m" if IS_LINUX else "manylinux1_x86_64-cp-37-m"
+    foreign_platform = "macosx-11.0-x86_64-cp-37-m" if IS_LINUX else "manylinux1_x86_64-cp-37-m"
 
     def resolve_current_and_foreign(interpreters=()):
         # type: (Iterable[PythonInterpreter]) -> List[str]

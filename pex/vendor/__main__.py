@@ -15,7 +15,7 @@ from collections import OrderedDict, defaultdict
 from colors import bold, green, yellow
 from redbaron import CommentNode, LiteralyEvaluable, NameNode, RedBaron
 
-from pex.common import safe_delete, safe_mkdir, safe_mkdtemp, safe_open, safe_rmtree
+from pex.common import safe_delete, safe_mkdir, safe_mkdtemp, safe_open, safe_rmtree, touch
 from pex.vendor import VendorSpec, iter_vendor_specs
 
 
@@ -379,6 +379,7 @@ def vendorize(root_dir, vendor_specs, prefix, update):
                 wheel_files="\n".join(os.path.basename(wheel_file) for wheel_file in wheel_files),
             )
             install_wheel_chroot(wheel_path=wheel_files[0], destination=vendor_spec.target_dir)
+            touch(os.path.join(vendor_spec.target_dir, "__init__.py"))
 
 
 if __name__ == "__main__":

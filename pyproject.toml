@@ -1,60 +1,9 @@
 [build-system]
-requires = ["flit_core>=2,<4"]
-build-backend = "flit_core.buildapi"
-
-[tool.flit.metadata]
-module = "pex"
-author = "The PEX developers"
-author-email = "pantsbuild@gmail.com"
-home-page = "https://github.com/pantsbuild/pex"
-description-file = "README.rst"
-classifiers = [
-  "Development Status :: 5 - Production/Stable",
-  "Intended Audience :: Developers",
-  "License :: OSI Approved :: Apache Software License",
-  "Operating System :: Unix",
-  "Operating System :: POSIX :: Linux",
-  "Operating System :: MacOS :: MacOS X",
-  "Programming Language :: Python",
-  "Programming Language :: Python :: 2",
-  "Programming Language :: Python :: 2.7",
-  "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.5",
-  "Programming Language :: Python :: 3.6",
-  "Programming Language :: Python :: 3.7",
-  "Programming Language :: Python :: 3.8",
-  "Programming Language :: Python :: 3.9",
-  "Programming Language :: Python :: 3.10",
-  "Programming Language :: Python :: 3.11",
-  "Programming Language :: Python :: 3.12",
-  "Programming Language :: Python :: Implementation :: CPython",
-  "Programming Language :: Python :: Implementation :: PyPy",
-  "Topic :: Software Development :: Build Tools",
-  "Topic :: System :: Archiving :: Packaging",
-  "Topic :: System :: Software Distribution",
-  "Topic :: Utilities",
-]
-requires-python = ">=2.7,<3.13,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*"
-
-[tool.flit.metadata.requires-extra]
-# For improved subprocess robustness under python2.7.
-subprocess = ["subprocess32>=3.2.7; python_version<'3'"]
-
-[tool.flit.scripts]
-pex = "pex.bin.pex:main"
-pex3 = "pex.cli.pex:main"
-pex-tools = "pex.tools.main:main"
-
-[tool.flit.entrypoints."distutils.commands"]
-# Make bdist_pex available for folks who install the pex distribution.
-bdist_pex = "pex.distutils.commands.bdist_pex:bdist_pex"
-
-[tool.flit.sdist]
-include = ["CHANGES.md"]
-
-[tool.flit.metadata.urls]
-Changelog = "https://github.com/pantsbuild/pex/blob/main/CHANGES.md"
-Documentation = "https://pex.readthedocs.io/en/latest/"
+# N.B.: We use `setup.cfg` for declarative metadata instead of `[project]` here since support for
+# pyproject.toml projects was introduced in setuptools 61.0.0 which only supports Python>=3.7. We
+# need to also support 2.7, 3.5 and 3.6.
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
 
 [tool.black]
 line-length = 100

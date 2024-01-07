@@ -5,6 +5,7 @@ from __future__ import absolute_import
 
 import os
 import sys
+from textwrap import dedent
 
 from pex.dist_metadata import Requirement
 from pex.enum import Enum
@@ -114,14 +115,29 @@ class DefaultPipVersion(object):
                     self._default = preferred_version
                     break
             if self._default is None:
-                self._default = max(
-                    (
-                        version
-                        for version in PipVersionValue._iter_values()
-                        if not version.hidden and version.requires_python_applies(current_version)
-                    ),
-                    key=lambda pv: pv.version,
+                applicable_versions = tuple(
+                    version
+                    for version in PipVersionValue._iter_values()
+                    if not version.hidden and version.requires_python_applies(current_version)
                 )
+                if not applicable_versions:
+                    raise ValueError(
+                        dedent(
+                            """\
+                            No version of Pip supported by Pex works with {python}.
+                            The supported Pip versions are:
+                            {versions}
+                            """
+                        ).format(
+                            python=sys.executable,
+                            versions=", ".join(
+                                version.value
+                                for version in PipVersionValue._iter_values()
+                                if not version.hidden
+                            ),
+                        )
+                    )
+                self._default = max(applicable_versions, key=lambda pv: pv.version)
         return self._default
 
 
@@ -211,7 +227,7 @@ class PipVersion(Enum["PipVersionValue"]):
         version="23.2",
         setuptools_version="68.0.0",
         wheel_version="0.40.0",
-        requires_python=">=3.7",
+        requires_python=">=3.7,<3.13",
     )
 
     v23_3_1 = PipVersionValue(
@@ -220,7 +236,7 @@ class PipVersion(Enum["PipVersionValue"]):
         # date) but 68.0.0 is the last setuptools version to support 3.7.
         setuptools_version="68.0.0",
         wheel_version="0.41.2",
-        requires_python=">=3.7",
+        requires_python=">=3.7,<3.13",
     )
 
     v23_3_2 = PipVersionValue(
@@ -229,7 +245,22 @@ class PipVersion(Enum["PipVersionValue"]):
         # date) but 68.0.0 is the last setuptools version to support 3.7.
         setuptools_version="68.0.0",
         wheel_version="0.42.0",
+        requires_python=">=3.7,<3.13",
+    )
+
+    # This is https://github.com/pypa/pip/pull/12462 which is approved but not yet merged or
+    # released. It allows testing Python 3.13 pre-releases but should not be used by the public; so
+    # we keep it hidden.
+    v24_0_dev0_patched = PipVersionValue(
+        name="24.0.dev0-patched",
+        version="24.0.dev0+patched",
+        requirement=(
+            "pip @ git+https://github.com/jsirois/pip@0257c9422f7bb99a6f319b54f808a5c50339be6c"
+        ),
+        setuptools_version="69.0.3",
+        wheel_version="0.42.0",
         requires_python=">=3.7",
+        hidden=True,
     )
 
     VENDORED = v20_3_4_patched

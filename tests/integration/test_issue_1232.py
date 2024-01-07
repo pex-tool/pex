@@ -79,10 +79,17 @@ def test_isolated_pex_zip(tmpdir):
     shutil.copytree("pex", os.path.join(modified_pex_src, "pex"))
     with open(os.path.join(modified_pex_src, "pex", "version.py"), "a") as fp:
         fp.write("# modified\n")
-    shutil.copy("pyproject.toml", os.path.join(modified_pex_src, "pyproject.toml"))
-    # N.B.: README.rst is needed by flit since we tell it to pull the distribution description from
-    # there when building the Pex distribution.
-    shutil.copy("README.rst", os.path.join(modified_pex_src, "README.rst"))
+    # N.B.: README.rst and LICENSE are needed by the build process: we configure our PEP-517 project
+    # to use these files for the project distribution and license respectively.
+    for build_file in (
+        "pyproject.toml",
+        "setup.cfg",
+        "setup.py",
+        "MANIFEST.in",
+        "README.rst",
+        "LICENSE",
+    ):
+        shutil.copy(build_file, os.path.join(modified_pex_src, build_file))
 
     modified_pex = os.path.join(str(tmpdir), "modified.pex")
     subprocess.check_call(
