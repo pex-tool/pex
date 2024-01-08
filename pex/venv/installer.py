@@ -678,6 +678,7 @@ def _populate_first_party(
                     # These are _not_ used at runtime, but are present under testing / CI and
                     # simplest to add an exception for here and not warn about in CI runs.
                     "_PEX_PIP_VERSION",
+                    "_PEX_REQUIRES_PYTHON",
                     "_PEX_TEST_DEV_ROOT",
                     "_PEX_TEST_PROJECT_DIR",
                     "_PEX_USE_PIP_CONFIG",

@@ -32,6 +32,7 @@ def test_import_from_pex(
     tmpdir,  # type: Any
     layout,  # type: Layout.Value
     execution_mode_args,  # type: List[str]
+    pex_project_dir,  # type: str
 ):
     # type: (...) -> None
 
@@ -69,7 +70,7 @@ def test_import_from_pex(
             src,
             "ansicolors==1.1.8",
             # Add pex to verify that it will shadow bootstrap pex
-            "pex==2.1.139",
+            pex_project_dir,
             "-o",
             pex,
             "--layout",

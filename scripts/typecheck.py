@@ -46,7 +46,7 @@ def main() -> None:
             exclude=[os.path.join("pex", "vendor", "_vendored")],
         )
     )
-    for python_version in ("3.12", "3.11", "3.5", "2.7"):
+    for python_version in ("3.13", "3.12", "3.5", "2.7"):
         run_mypy(python_version, files=source_and_tests)
 
 

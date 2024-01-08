@@ -6,7 +6,6 @@ from __future__ import absolute_import
 import json
 import os
 import subprocess
-import sys
 from textwrap import dedent
 
 from pex import third_party
@@ -118,8 +117,6 @@ def _invoke_build_hook(
     hook_args=(),  # type: Iterable[Any]
     hook_extra_requirements=None,  # type: Optional[Iterable[str]]
     hook_kwargs=None,  # type: Optional[Mapping[str, Any]]
-    stdout=None,  # type: Optional[int]
-    stderr=None,  # type: Optional[int]
     pip_version=None,  # type: Optional[PipVersionValue]
 ):
     # type: (...) -> Union[SpawnedJob[Any], Error]
@@ -183,8 +180,8 @@ def _invoke_build_hook(
             args=args,
             env=build_system.env,
             cwd=project_directory,
-            stdout=stdout if stdout is not None else sys.stderr.fileno(),
-            stderr=stderr if stderr is not None else sys.stderr.fileno(),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
         )
         return SpawnedJob.file(
             Job(command=args, process=process),

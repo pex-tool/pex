@@ -11,18 +11,7 @@ from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path, PurePath
 from typing import Optional, Tuple, cast
 
-PROJECT_METADATA = Path("pyproject.toml")
 DIST_DIR = Path("dist")
-
-
-def python_requires() -> str:
-    # N.B.: We run this script directly from integration tests where toml is not needed; so we lazy
-    # import to allow for this direct running of the script without dependency installation by tox
-    # in ITs.
-    import toml
-
-    project_metadata = toml.loads(PROJECT_METADATA.read_text())
-    return cast(str, project_metadata["tool"]["flit"]["metadata"]["requires-python"].strip())
 
 
 def build_pex_pex(output_file: PurePath, verbosity: int = 0) -> None:
@@ -83,11 +72,21 @@ class Format(Enum):
     def __str__(self) -> str:
         return cast(str, self.value)
 
+    def build_arg(self) -> str:
+        return f"--{self.value}"
+
 
 def build_pex_dists(dist_fmt: Format, *additional_dist_fmts: Format, verbose: bool = False) -> None:
     output = None if verbose else subprocess.DEVNULL
     subprocess.run(
-        ["flit", "build", *[f"--format={fmt}" for fmt in [dist_fmt, *additional_dist_fmts]]],
+        [
+            sys.executable,
+            "-m",
+            "build",
+            "--outdir",
+            str(DIST_DIR),
+            *[fmt.build_arg() for fmt in [dist_fmt, *additional_dist_fmts]],
+        ],
         stdout=output,
         stderr=output,
         check=True,
@@ -115,7 +114,9 @@ def main(
             f"Building additional distribution formats to `{DIST_DIR}`: "
             f'{", ".join(f"{i + 1}.) {fmt}" for i, fmt in enumerate(additional_dist_formats))} ...'
         )
-        build_pex_dists(*additional_dist_formats, verbose=verbosity > 0)
+        build_pex_dists(
+            additional_dist_formats[0], *additional_dist_formats[1:], verbose=verbosity > 0
+        )
         print("Built:")
         for root, _, files in os.walk(DIST_DIR):
             root_path = Path(root)
@@ -138,10 +139,6 @@ def main(
 
 
 if __name__ == "__main__":
-    if not PROJECT_METADATA.is_file():
-        print("This script must be run from the root of the Pex repo.", file=sys.stderr)
-        sys.exit(1)
-
     parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument(
         "-v", dest="verbosity", action="count", default=0, help="Increase output verbosity level."

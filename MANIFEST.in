@@ -1,0 +1,7 @@
+include CHANGES.md dtox.sh mypy.ini tox.ini
+graft docker
+graft docs
+graft scripts
+graft testing
+graft tests
+global-exclude *.pyc *.pyo

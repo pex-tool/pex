@@ -40,7 +40,7 @@ from pex.resolve.config import finalize as finalize_resolve_config
 from pex.resolve.configured_resolve import resolve
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolvers import Unsatisfiable
-from pex.result import ResultError, catch, try_
+from pex.result import Error, ResultError, catch, try_
 from pex.targets import Targets
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
@@ -958,7 +958,10 @@ def _compatible_with_current_platform(interpreter, platforms):
 def main(args=None):
     args = args[:] if args else sys.argv[1:]
     args = [transform_legacy_arg(arg) for arg in args]
-    parser = configure_clp()
+
+    parser = catch(configure_clp)
+    if isinstance(parser, Error):
+        die(str(parser))
 
     try:
         separator = args.index("--")
@@ -966,7 +969,10 @@ def main(args=None):
     except ValueError:
         args, cmdline = args, []
 
-    options = parser.parse_args(args=args)
+    options = catch(parser.parse_args, args=args)
+    if isinstance(options, Error):
+        die(str(options))
+
     try:
         with global_environment(options) as env:
             requirement_configuration = requirement_options.configure(options)
