@@ -252,6 +252,28 @@ class Virtualenv(object):
         )
         for script in virtualenv._rewrite_base_scripts(real_venv_dir=venv_dir.target_dir):
             TRACER.log("Re-writing {}".format(script))
+
+        # It's known that PyPy's 7.3.14 releases create venvs with absolute symlinks in bin/ to
+        # bin/ local files, which leaves invalid symlinks to the atomic workdir. We fix that up
+        # here. See: https://github.com/pypy/pypy/issues/4838
+        for path in os.listdir(virtualenv.bin_dir):
+            abs_path = os.path.join(virtualenv.bin_dir, path)
+            if not os.path.islink(abs_path):
+                continue
+            link_target = os.readlink(abs_path)
+            if not os.path.isabs(link_target):
+                continue
+            if virtualenv.bin_dir == commonpath((virtualenv.bin_dir, link_target)):
+                rel_dst = os.path.relpath(link_target, virtualenv.bin_dir)
+                TRACER.log(
+                    "Replacing absolute symlink {src} -> {dst} with relative symlink".format(
+                        src=abs_path, dst=link_target
+                    ),
+                    V=3,
+                )
+                os.unlink(abs_path)
+                os.symlink(rel_dst, abs_path)
+
         return virtualenv
 
     def __init__(
