@@ -173,9 +173,7 @@ class Virtualenv(object):
 
         custom_prompt = None  # type: Optional[str]
         py_major_minor = interpreter.version[:2]
-        if py_major_minor[0] == 2 or (
-            interpreter.identity.interpreter == "PyPy" and py_major_minor[:2] <= (3, 7)
-        ):
+        if py_major_minor[0] == 2 or (interpreter.is_pypy and py_major_minor[:2] <= (3, 7)):
             # N.B.: PyPy3.6 and PyPy3.7 come equipped with a venv module but it does not seem to
             # work.
             virtualenv_py = pkgutil.get_data(

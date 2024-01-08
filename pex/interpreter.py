@@ -217,7 +217,11 @@ class PythonIdentity(object):
             python_tag=preferred_tag.interpreter,
             abi_tag=preferred_tag.abi,
             platform_tag=preferred_tag.platform,
-            version=sys.version_info[:3],
+            version=cast("Tuple[int, int, int]", tuple(sys.version_info[:3])),
+            pypy_version=cast(
+                "Optional[Tuple[int, int, int]]",
+                tuple(getattr(sys, "pypy_version_info", ())[:3]) or None,
+            ),
             supported_tags=supported_tags,
             env_markers=MarkerEnvironment.default(),
             configured_macosx_deployment_target=configured_macosx_deployment_target,
@@ -227,8 +231,11 @@ class PythonIdentity(object):
     def decode(cls, encoded):
         TRACER.log("creating PythonIdentity from encoded: %s" % encoded, V=9)
         values = json.loads(encoded)
-        if len(values) != 15:
+        if len(values) != 16:
             raise cls.InvalidError("Invalid interpreter identity: %s" % encoded)
+
+        version = tuple(values.pop("version"))
+        pypy_version = tuple(values.pop("pypy_version") or ()) or None
 
         supported_tags = values.pop("supported_tags")
 
@@ -244,6 +251,8 @@ class PythonIdentity(object):
 
         env_markers = MarkerEnvironment(**values.pop("env_markers"))
         return cls(
+            version=cast("Tuple[int, int, int]", version),
+            pypy_version=pypy_version,
             supported_tags=iter_tags(),
             configured_macosx_deployment_target=configured_macosx_deployment_target,
             env_markers=env_markers,
@@ -270,7 +279,8 @@ class PythonIdentity(object):
         python_tag,  # type: str
         abi_tag,  # type: str
         platform_tag,  # type: str
-        version,  # type: Iterable[int]
+        version,  # type: Tuple[int, int, int]
+        pypy_version,  # type: Optional[Tuple[int, int, int]]
         supported_tags,  # type: Iterable[tags.Tag]
         env_markers,  # type: MarkerEnvironment
         configured_macosx_deployment_target,  # type: Optional[str]
@@ -291,7 +301,8 @@ class PythonIdentity(object):
         self._python_tag = python_tag
         self._abi_tag = abi_tag
         self._platform_tag = platform_tag
-        self._version = tuple(version)
+        self._version = version
+        self._pypy_version = pypy_version
         self._supported_tags = CompatibilityTags(tags=supported_tags)
         self._env_markers = env_markers
         self._configured_macosx_deployment_target = configured_macosx_deployment_target
@@ -310,6 +321,7 @@ class PythonIdentity(object):
             abi_tag=self._abi_tag,
             platform_tag=self._platform_tag,
             version=self._version,
+            pypy_version=self._pypy_version,
             supported_tags=[
                 (tag.interpreter, tag.abi, tag.platform) for tag in self._supported_tags
             ],
@@ -376,7 +388,22 @@ class PythonIdentity(object):
 
         Consistent with `sys.version_info`, the tuple corresponds to `<major>.<minor>.<micro>`.
         """
-        return cast("Tuple[int, int, int]", self._version)
+        return self._version
+
+    @property
+    def pypy_version(self):
+        # type: () -> Optional[Tuple[int, int, int]]
+        """The PyPy implementation version as a normalized tuple.
+
+        Only present for PyPy interpreters and, consistent with `sys.pypy_version_info`, the tuple
+        corresponds to `<major>.<minor>.<micro>`.
+        """
+        return self._pypy_version
+
+    @property
+    def is_pypy(self):
+        # type: () -> bool
+        return bool(self._pypy_version)
 
     @property
     def version_str(self):
@@ -426,11 +453,7 @@ class PythonIdentity(object):
     def hashbang(self):
         # type: () -> str
         return "#!/usr/bin/env {}".format(
-            self.binary_name(
-                version_components=0
-                if self._interpreter_name == "PyPy" and self.version[0] == 2
-                else 2
-            )
+            self.binary_name(version_components=0 if self.is_pypy and self.version[0] == 2 else 2)
         )
 
     @property
@@ -1246,7 +1269,7 @@ class PythonInterpreter(object):
         version = self._identity.version
         abi_tag = self._identity.abi_tag
 
-        prefix = "pypy" if self._identity.interpreter == "PyPy" else "python"
+        prefix = "pypy" if self.is_pypy else "python"
         suffixes = ("{}.{}".format(version[0], version[1]), str(version[0]), "")
         candidate_binaries = tuple("{}{}".format(prefix, suffix) for suffix in suffixes)
 
@@ -1297,6 +1320,11 @@ class PythonInterpreter(object):
     def identity(self):
         # type: () -> PythonIdentity
         return self._identity
+
+    @property
+    def is_pypy(self):
+        # type: () -> bool
+        return self._identity.is_pypy
 
     @property
     def python(self):

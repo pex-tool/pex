@@ -477,6 +477,13 @@ def test_venv_copies(tmpdir):
     assert not os.path.islink(venv_copies_interpreter.binary)
 
 
+@pytest.mark.skipif(
+    PythonInterpreter.get().identity.pypy_version == (7, 3, 14),
+    reason=(
+        "The PyPy 7.3.14 release creates non-relocatable venvs: "
+        "https://github.com/pypy/pypy/issues/4838"
+    ),
+)
 def test_relocatable_venv(tmpdir):
     # type: (Any) -> None
 
