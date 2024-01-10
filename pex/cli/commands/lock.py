@@ -292,7 +292,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             type=str,
             help=(
                 "Just attempt to update these projects in the lock, leaving all others unchanged. "
-                "If the projects aren't already in the lock, attempt to add them as top-level"
+                "If the projects aren't already in the lock, attempt to add them as top-level "
                 "requirements leaving all others unchanged."
             ),
         )
