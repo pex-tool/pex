@@ -677,6 +677,7 @@ def _populate_first_party(
                     "__PEX_UNVENDORED__",
                     # These are _not_ used at runtime, but are present under testing / CI and
                     # simplest to add an exception for here and not warn about in CI runs.
+                    "_PEX_PEXPECT_TIMEOUT",
                     "_PEX_PIP_VERSION",
                     "_PEX_REQUIRES_PYTHON",
                     "_PEX_TEST_DEV_ROOT",
@@ -776,18 +777,49 @@ def _populate_first_party(
                 # See https://docs.python.org/3/library/sys.html#sys.path
                 sys.path.insert(0, "")
 
-                if pex_interpreter_history:
-                    import atexit
+                try:
                     import readline
+                except ImportError:
+                    if pex_interpreter_history:
+                        pex_warnings.warn(
+                            "PEX_INTERPRETER_HISTORY was requested which requires the `readline` "
+                            "module, but the current interpreter at {{python}} does not have readline "
+                            "support.".format(python=sys.executable)
+                        )
+                else:
+                    # This import is used for its side effects by the line below.
+                    import rlcompleter
 
-                    histfile = os.path.expanduser(pex_interpreter_history_file)
+                    # N.B.: This hacky method of detecting use of libedit for the readline
+                    # implementation is the recommended means.
+                    # See https://docs.python.org/3/library/readline.html
+                    if "libedit" in readline.__doc__:
+                        # Mac can use libedit, and libedit has different config syntax.
+                        readline.parse_and_bind("bind ^I rl_complete")
+                    else:
+                        readline.parse_and_bind("tab: complete")
+
                     try:
-                        readline.read_history_file(histfile)
-                        readline.set_history_length(1000)
+                        readline.read_init_file()
                     except OSError:
+                        # No init file (~/.inputrc for readline or ~/.editrc for libedit).
                         pass
 
-                    atexit.register(readline.write_history_file, histfile)
+                    if pex_interpreter_history:
+                        import atexit
+
+                        histfile = os.path.expanduser(pex_interpreter_history_file)
+                        try:
+                            readline.read_history_file(histfile)
+                            readline.set_history_length(1000)
+                        except OSError as e:
+                            sys.stderr.write(
+                                "Failed to read history file at {{path}} due to: {{err}}\\n".format(
+                                    path=histfile, err=e
+                                )
+                            )
+
+                        atexit.register(readline.write_history_file, histfile)
 
             if entry_point == PEX_INTERPRETER_ENTRYPOINT and len(sys.argv) > 1:
                 args = sys.argv[1:]
