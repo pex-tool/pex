@@ -148,7 +148,7 @@ class Artifact(object):
 
     url = attr.ib()  # type: str
     fingerprint = attr.ib()  # type: Fingerprint
-    verified = attr.ib()  # type: bool
+    verified = attr.ib(eq=False)  # type: bool
 
     def __lt__(self, other):
         # type: (Any) -> bool
