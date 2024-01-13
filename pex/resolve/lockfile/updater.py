@@ -34,7 +34,7 @@ from pex.typing import TYPE_CHECKING
 from pex.util import named_temporary_file
 
 if TYPE_CHECKING:
-    from typing import Dict, Iterable, Iterator, List, Mapping, Optional, Tuple, Union
+    from typing import Any, Dict, Iterable, Iterator, List, Mapping, Optional, Tuple, Union
 
     import attr  # vendor:skip
 else:
@@ -322,20 +322,30 @@ class ResolveUpdater(object):
                         original=original_pin.as_requirement(), updated=updated_pin.as_requirement()
                     )
                 )
-                assert updated_requirement.artifact == locked_requirement.artifact, (
+
+                # N.B.: We use a custom key for artifact equality comparison since `Artifact`
+                # contains a `verified` attribute that can both vary based on Pex's current
+                # knowledge about the trustworthiness of an artifact hash and is not relevant to
+                # whether the artifact refers to the same artifact.
+                def artifact_key(artifact):
+                    # type: (Artifact) -> Any
+                    return artifact.url, artifact.fingerprint
+
+                assert artifact_key(updated_requirement.artifact) == artifact_key(
+                    locked_requirement.artifact
+                ), (
                     "The locked requirement {original} should have been undisturbed by the lock "
                     "update, but its primary artifact changed from:\n"
                     "{original_artifact}\n"
                     "to:\n"
                     "{updated_artifact}".format(
                         original=original_pin.as_requirement(),
-                        original_artifact=locked_requirement.artifact,
-                        updated_artifact=updated_requirement.artifact,
+                        original_artifact=artifact_key(locked_requirement.artifact),
+                        updated_artifact=artifact_key(updated_requirement.artifact),
                     )
                 )
-                assert (
-                    updated_requirement.additional_artifacts
-                    == locked_requirement.additional_artifacts
+                assert set(map(artifact_key, updated_requirement.additional_artifacts)) == set(
+                    map(artifact_key, locked_requirement.additional_artifacts)
                 ), (
                     "The locked requirement {original} should have been undisturbed by the lock "
                     "update, but its additional artifact set changed from:\n"
@@ -344,10 +354,16 @@ class ResolveUpdater(object):
                     "{updated_artifacts}".format(
                         original=original_pin.as_requirement(),
                         original_artifacts="\n".join(
-                            map(str, locked_requirement.additional_artifacts)
+                            map(
+                                lambda a: str(artifact_key(a)),
+                                locked_requirement.additional_artifacts,
+                            )
                         ),
                         updated_artifacts="\n".join(
-                            map(str, updated_requirement.additional_artifacts)
+                            map(
+                                lambda a: str(artifact_key(a)),
+                                updated_requirement.additional_artifacts,
+                            )
                         ),
                     )
                 )
