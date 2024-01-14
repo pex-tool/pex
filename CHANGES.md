@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.1.157
+
+This release fixes a bug in `pex3 lock update` for updates that leave
+projects unchanged whose primary artifact is an sdist.
+
+* Fix lock updates for locks with sdist bystanders. (#2325)
+
 ## 2.1.156
 
 This release optimizes wheel install overhead for warm caches. Notably,

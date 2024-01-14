@@ -34,7 +34,7 @@ from pex.typing import TYPE_CHECKING
 from pex.util import named_temporary_file
 
 if TYPE_CHECKING:
-    from typing import Dict, Iterable, Iterator, List, Mapping, Optional, Tuple, Union
+    from typing import Any, Dict, Iterable, Iterator, List, Mapping, Optional, Tuple, Union
 
     import attr  # vendor:skip
 else:
@@ -316,11 +316,56 @@ class ResolveUpdater(object):
                 self.update_constraints_by_project_name
                 and project_name not in self.update_constraints_by_project_name
             ):
-                assert updated_pin == original_pin
-                assert updated_requirement.artifact == locked_requirement.artifact
-                assert (
-                    updated_requirement.additional_artifacts
-                    == locked_requirement.additional_artifacts
+                assert updated_pin == original_pin, (
+                    "The locked requirement {original} should have been undisturbed by the lock "
+                    "update, but it changed to {updated}.".format(
+                        original=original_pin.as_requirement(), updated=updated_pin.as_requirement()
+                    )
+                )
+
+                # N.B.: We use a custom key for artifact equality comparison since `Artifact`
+                # contains a `verified` attribute that can both vary based on Pex's current
+                # knowledge about the trustworthiness of an artifact hash and is not relevant to
+                # whether the artifact refers to the same artifact.
+                def artifact_key(artifact):
+                    # type: (Artifact) -> Any
+                    return artifact.url, artifact.fingerprint
+
+                assert artifact_key(updated_requirement.artifact) == artifact_key(
+                    locked_requirement.artifact
+                ), (
+                    "The locked requirement {original} should have been undisturbed by the lock "
+                    "update, but its primary artifact changed from:\n"
+                    "{original_artifact}\n"
+                    "to:\n"
+                    "{updated_artifact}".format(
+                        original=original_pin.as_requirement(),
+                        original_artifact=artifact_key(locked_requirement.artifact),
+                        updated_artifact=artifact_key(updated_requirement.artifact),
+                    )
+                )
+                assert set(map(artifact_key, updated_requirement.additional_artifacts)) == set(
+                    map(artifact_key, locked_requirement.additional_artifacts)
+                ), (
+                    "The locked requirement {original} should have been undisturbed by the lock "
+                    "update, but its additional artifact set changed from:\n"
+                    "{original_artifacts}\n"
+                    "to:\n"
+                    "{updated_artifacts}".format(
+                        original=original_pin.as_requirement(),
+                        original_artifacts="\n".join(
+                            map(
+                                lambda a: str(artifact_key(a)),
+                                locked_requirement.additional_artifacts,
+                            )
+                        ),
+                        updated_artifacts="\n".join(
+                            map(
+                                lambda a: str(artifact_key(a)),
+                                updated_requirement.additional_artifacts,
+                            )
+                        ),
+                    )
                 )
             elif original_pin != updated_pin:
                 updates[project_name] = VersionUpdate(
