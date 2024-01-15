@@ -667,7 +667,7 @@ class PEX(object):  # noqa: T000
                         "support.".format(python=sys.executable)
                     )
             else:
-                # This import is used for its side effects by the line below.
+                # This import is used for its side effects by the parse_and_bind lines below.
                 import rlcompleter  # NOQA
 
                 # N.B.: This hacky method of detecting use of libedit for the readline

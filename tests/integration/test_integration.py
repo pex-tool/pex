@@ -236,6 +236,9 @@ def test_pex_repl_built():
 
 
 try:
+    # This import is needed for the side effect of testing readline availability.
+    import readline  # NOQA
+
     READLINE_AVAILABLE = True
 except ImportError:
     READLINE_AVAILABLE = False
