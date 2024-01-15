@@ -818,7 +818,7 @@ def _populate_first_party(
                         try:
                             readline.read_history_file(histfile)
                             readline.set_history_length(1000)
-                        except (IOError, OSError):
+                        except (IOError, OSError) as e:
                             sys.stderr.write(
                                 "Failed to read history file at {{path}} due to: {{err}}\\n".format(
                                     path=histfile, err=e
