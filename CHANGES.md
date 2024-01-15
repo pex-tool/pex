@@ -1,5 +1,14 @@
 # Release Notes
 
+## 2.1.158
+
+This release adds support for tab completion to all PEX repls running
+under Pythons with the `readline` module available. This tab completion
+support is on-par with newer Python REPL out of the box tab completion
+support.
+
+* Add tab-completion support to PEX repls. (#2321)
+
 ## 2.1.157
 
 This release fixes a bug in `pex3 lock update` for updates that leave

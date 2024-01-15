@@ -10,6 +10,7 @@ env:
   # collide when attempting to load libpython<major>.<minor><flags>.so and lead to mysterious errors
   # importing builtins like `fcntl` as outlined in https://github.com/pantsbuild/pex/issues/1391.
   _PEX_TEST_PYENV_VERSIONS: "2.7 3.7 3.10"
+  _PEX_PEXPECT_TIMEOUT: 10
 concurrency:
   group: CI-${{ github.ref }}
   # Queue on all branches and tags, but only cancel overlapping PR burns.
@@ -100,7 +101,10 @@ jobs:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
       - name: Run Tests
         run: |
-          BASE_MODE=pull CACHE_MODE=pull ./dtox.sh -e ${{ matrix.tox-env }} -- ${{ env._PEX_TEST_POS_ARGS }}
+          # This is needed to get pexpect tests working under PyPy running under docker.
+          export TERM="xterm"
+          BASE_MODE=pull CACHE_MODE=pull \
+            ./dtox.sh -e ${{ matrix.tox-env }} -- ${{ env._PEX_TEST_POS_ARGS }}
   mac-tests:
     name: tox -e ${{ matrix.tox-env }}
     needs: org-check

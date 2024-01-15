@@ -21,6 +21,14 @@ if TYPE_CHECKING:
 
 
 @pytest.fixture(scope="session")
+def pexpect_timeout():
+    # type: () -> int
+
+    # The default here of 5 provides enough margin for PyPy which has slow startup.
+    return int(os.environ.get("_PEX_PEXPECT_TIMEOUT", "5"))
+
+
+@pytest.fixture(scope="session")
 def is_pytest_xdist(worker_id):
     # type: (str) -> bool
     return worker_id != "master"

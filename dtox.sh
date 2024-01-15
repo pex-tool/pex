@@ -92,6 +92,13 @@ if [[ -n "${SSH_AUTH_SOCK:-}" ]]; then
   )
 fi
 
+if [[ -n "${TERM:-}" ]]; then
+  # Some integration tests need a TERM / terminfo. Propagate it when available.
+  DOCKER_ARGS+=(
+    --env TERM="${TERM}"
+  )
+fi
+
 # This ensures the current user owns the host .tox/ dir before launching the container, which
 # otherwise sets the ownership as root for undetermined reasons
 mkdir -p "${ROOT}/.tox"

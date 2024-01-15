@@ -7,10 +7,11 @@ import ast
 import itertools
 import os
 import sys
+import warnings
 from site import USER_SITE
 from types import ModuleType
 
-from pex import bootstrap
+from pex import bootstrap, pex_warnings
 from pex.bootstrap import Bootstrap
 from pex.common import die
 from pex.dist_metadata import CallableEntryPoint, Distribution, EntryPoint
@@ -656,20 +657,53 @@ class PEX(object):  # noqa: T000
                 sys.argv = args
                 return self.execute_content(arg, content)
         else:
-            if self._vars.PEX_INTERPRETER_HISTORY:
-                import atexit
+            try:
                 import readline
-
-                histfile = os.path.expanduser(self._vars.PEX_INTERPRETER_HISTORY_FILE)
-                try:
-                    readline.read_history_file(histfile)
-                    readline.set_history_length(1000)
-                except OSError as e:
-                    sys.stderr.write(
-                        "Failed to read history file at {} due to: {}".format(histfile, e)
+            except ImportError:
+                if self._vars.PEX_INTERPRETER_HISTORY:
+                    pex_warnings.warn(
+                        "PEX_INTERPRETER_HISTORY was requested which requires the `readline` "
+                        "module, but the current interpreter at {python} does not have readline "
+                        "support.".format(python=sys.executable)
                     )
+            else:
+                # This import is used for its side effects by the parse_and_bind lines below.
+                import rlcompleter  # NOQA
 
-                atexit.register(readline.write_history_file, histfile)
+                # N.B.: This hacky method of detecting use of libedit for the readline
+                # implementation is the recommended means.
+                # See https://docs.python.org/3/library/readline.html
+                if "libedit" in readline.__doc__:
+                    # Mac can use libedit, and libedit has different config syntax.
+                    readline.parse_and_bind("bind ^I rl_complete")
+                else:
+                    readline.parse_and_bind("tab: complete")
+
+                try:
+                    # Under current PyPy readline does not implement read_init_file and emits a
+                    # warning; so we squelch that noise.
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        readline.read_init_file()
+                except (IOError, OSError):
+                    # No init file (~/.inputrc for readline or ~/.editrc for libedit).
+                    pass
+
+                if self._vars.PEX_INTERPRETER_HISTORY:
+                    import atexit
+
+                    histfile = os.path.expanduser(self._vars.PEX_INTERPRETER_HISTORY_FILE)
+                    try:
+                        readline.read_history_file(histfile)
+                        readline.set_history_length(1000)
+                    except (IOError, OSError) as e:
+                        sys.stderr.write(
+                            "Failed to read history file at {path} due to: {err}\n".format(
+                                path=histfile, err=e
+                            )
+                        )
+
+                    atexit.register(readline.write_history_file, histfile)
 
             bootstrap.demote()
 

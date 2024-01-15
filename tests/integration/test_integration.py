@@ -11,9 +11,10 @@ import shlex
 import shutil
 import subprocess
 import sys
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from textwrap import dedent
 
+import pexpect  # type: ignore[import]  # MyPy can't see the types under Python 2.7.
 import pytest
 
 from pex.common import is_exe, safe_mkdir, safe_open, safe_rmtree, temporary_dir, touch
@@ -33,7 +34,6 @@ from testing import (
     IS_LINUX_ARM64,
     IS_MAC,
     IS_MAC_ARM64,
-    IS_PYPY,
     NOT_CPYTHON27,
     PY27,
     PY38,
@@ -43,6 +43,7 @@ from testing import (
     IntegResults,
     built_wheel,
     ensure_python_interpreter,
+    environment_as,
     get_dep_dist_names_from_pex,
     make_env,
     run_pex_command,
@@ -234,37 +235,100 @@ def test_pex_repl_built():
         assert b">>>" in stdout
 
 
-@pytest.mark.skipif(
-    IS_PYPY or IS_MAC,
-    reason="REPL history is only supported on CPython. It works on macOS in an interactive "
-    "terminal, but this test fails in CI on macOS with `Inappropriate ioctl for device`, "
-    "because readline.read_history_file expects a tty on stdout. The linux tests will have "
-    "to suffice for now.",
+try:
+    # This import is needed for the side effect of testing readline availability.
+    import readline  # NOQA
+
+    READLINE_AVAILABLE = True
+except ImportError:
+    READLINE_AVAILABLE = False
+
+readline_test = pytest.mark.skipif(
+    not READLINE_AVAILABLE,
+    reason="The readline module is not available, but is required for this test.",
 )
-@pytest.mark.parametrize("venv_pex", [False, True])
-def test_pex_repl_history(venv_pex):
+
+empty_pex_test = pytest.mark.parametrize(
+    "empty_pex", [pytest.param([], id="PEX"), pytest.param(["--venv"], id="VENV")], indirect=True
+)
+
+
+@pytest.fixture
+def empty_pex(
+    tmpdir,  # type: Any
+    request,  # type: Any
+):
+    # type: (...) -> str
+    pex_root = os.path.join(str(tmpdir), "pex_root")
+    result = run_pex_command(
+        [
+            "--pex-root",
+            pex_root,
+            "--runtime-pex-root",
+            pex_root,
+            "-o",
+            os.path.join(str(tmpdir), "pex"),
+            "--seed",
+            "verbose",
+        ]
+        + request.param
+    )
+    result.assert_success()
+    return cast(str, json.loads(result.output)["pex"])
+
+
+@readline_test
+@empty_pex_test
+def test_pex_repl_history(
+    tmpdir,  # type: Any
+    empty_pex,  # type: str
+    pexpect_timeout,  # type: int
+):
     # type: (...) -> None
-    """Tests enabling REPL command history."""
-    stdin_payload = b"import sys; import readline; print(readline.get_history_item(1)); sys.exit(3)"
 
-    with temporary_dir() as output_dir:
-        # Create a dummy temporary pex with no entrypoint.
-        pex_path = os.path.join(output_dir, "dummy.pex")
-        results = run_pex_command(
-            ["--disable-cache", "-o", pex_path] + (["--venv"] if venv_pex else [])
-        )
-        results.assert_success()
+    history_file = os.path.join(str(tmpdir), ".python_history")
+    with safe_open(history_file, "w") as fp:
+        # Mac can use libedit and libedit needs this header line or else the history file will fail
+        # to load with `OSError [Errno 22] invalid argument`.
+        # See: https://github.com/cdesjardins/libedit/blob/18b682734c11a2bd0a9911690fca522c96079712/src/history.c#L56
+        print("_HiStOrY_V2_", file=fp)
+        print("2 + 2", file=fp)
 
-        history_file = os.path.join(output_dir, ".python_history")
-        with open(history_file, "w") as fp:
-            fp.write("2 + 2\n")
+    # Test that the REPL can see the history.
+    with open(os.path.join(str(tmpdir), "pexpect.log"), "wb") as log, environment_as(
+        PEX_INTERPRETER_HISTORY=1, PEX_INTERPRETER_HISTORY_FILE=history_file
+    ), closing(pexpect.spawn(empty_pex, dimensions=(24, 80), logfile=log)) as process:
+        process.expect_exact(b">>>", timeout=pexpect_timeout)
+        process.send(
+            b"\x1b[A"
+        )  # This is up-arrow and should net the most recent history line: 2 + 2.
+        process.sendline(b"")
+        process.expect_exact(b"4", timeout=pexpect_timeout)
+        process.expect_exact(b">>>", timeout=pexpect_timeout)
 
-        # Test that the REPL can see the history.
-        env = {"PEX_INTERPRETER_HISTORY": "1", "PEX_INTERPRETER_HISTORY_FILE": history_file}
-        stdout, rc = run_simple_pex(pex_path, stdin=stdin_payload, env=env)
-        assert rc == 3, "Failed with: {}".format(stdout.decode("utf-8"))
-        assert b">>>" in stdout
-        assert b"2 + 2" in stdout
+
+@readline_test
+@empty_pex_test
+def test_pex_repl_tab_complete(
+    tmpdir,  # type: Any
+    empty_pex,  # type: str
+    pexpect_timeout,  # type: int
+):
+    # type: (...) -> None
+    subprocess_module_path = subprocess.check_output(
+        args=[sys.executable, "-c", "import subprocess; print(subprocess.__file__)"],
+    ).strip()
+    with open(os.path.join(str(tmpdir), "pexpect.log"), "wb") as log, closing(
+        pexpect.spawn(empty_pex, dimensions=(24, 80), logfile=log)
+    ) as process:
+        process.expect_exact(b">>>", timeout=pexpect_timeout)
+        process.send(b"impo\t")
+        process.expect_exact(b"rt", timeout=pexpect_timeout)
+        process.sendline(b" subprocess")
+        process.expect_exact(b">>>", timeout=pexpect_timeout)
+        process.sendline(b"print(subprocess.__file__)")
+        process.expect_exact(subprocess_module_path, timeout=pexpect_timeout)
+        process.expect_exact(b">>>", timeout=pexpect_timeout)
 
 
 @pytest.mark.skipif(WINDOWS, reason="No symlinks on windows")
