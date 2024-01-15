@@ -807,7 +807,7 @@ def _populate_first_party(
                         with warnings.catch_warnings():
                             warnings.simplefilter("ignore")
                             readline.read_init_file()
-                    except OSError:
+                    except (IOError, OSError):
                         # No init file (~/.inputrc for readline or ~/.editrc for libedit).
                         pass
 
@@ -818,7 +818,7 @@ def _populate_first_party(
                         try:
                             readline.read_history_file(histfile)
                             readline.set_history_length(1000)
-                        except OSError as e:
+                        except (IOError, OSError):
                             sys.stderr.write(
                                 "Failed to read history file at {{path}} due to: {{err}}\\n".format(
                                     path=histfile, err=e
