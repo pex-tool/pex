@@ -800,7 +800,13 @@ def _populate_first_party(
                         readline.parse_and_bind("tab: complete")
 
                     try:
-                        readline.read_init_file()
+                        # Under current PyPy readline does not implement read_init_file and emits a
+                        # warning; so we squelch that noise.
+                        import warnings
+
+                        with warnings.catch_warnings():
+                            warnings.simplefilter("ignore")
+                            readline.read_init_file()
                     except OSError:
                         # No init file (~/.inputrc for readline or ~/.editrc for libedit).
                         pass

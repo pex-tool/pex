@@ -7,6 +7,7 @@ import ast
 import itertools
 import os
 import sys
+import warnings
 from site import USER_SITE
 from types import ModuleType
 
@@ -679,7 +680,11 @@ class PEX(object):  # noqa: T000
                     readline.parse_and_bind("tab: complete")
 
                 try:
-                    readline.read_init_file()
+                    # Under current PyPy readline does not implement read_init_file and emits a
+                    # warning; so we squelch that noise.
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        readline.read_init_file()
                 except OSError:
                     # No init file (~/.inputrc for readline or ~/.editrc for libedit).
                     pass
