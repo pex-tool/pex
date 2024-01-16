@@ -19,7 +19,6 @@ from textwrap import dedent
 
 from pex import third_party
 from pex.common import is_exe, safe_mkdtemp, safe_rmtree
-from pex.compatibility import commonpath
 from pex.executor import Executor
 from pex.jobs import Job, Retain, SpawnedJob, execute_parallel
 from pex.orderedset import OrderedSet
@@ -188,19 +187,9 @@ class PythonIdentity(object):
         internal_entries = frozenset(
             (pythonpath.split(os.pathsep) if pythonpath else []) + list(third_party.exposed())
         )
-
-        def is_internal_entry(entry):
-            # type: (str) -> bool
-            if entry in internal_entries:
-                return True
-            if not os.path.isabs(entry):
-                return False
-            for internal_entry in internal_entries:
-                if internal_entry == commonpath((internal_entry, entry)):
-                    return True
-            return False
-
-        sys_path = OrderedSet(entry for entry in sys.path if entry and not is_internal_entry(entry))
+        sys_path = OrderedSet(
+            entry for entry in sys.path if entry and entry not in internal_entries
+        )
 
         site_packages = OrderedSet(
             path
