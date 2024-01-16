@@ -213,13 +213,11 @@ class VendorImporter(object):
     ):
         # type: (...) -> Iterator[VendorImporter]
         root = cls._abs_root(root)
-        vendored_paths = set(cls._vendored_path_items())
         for importer in cls._iter_all_installed_vendor_importers():
             # All Importables for a given VendorImporter will have the same prefix.
             if importer._importables and importer._importables[0].prefix == prefix:
                 if importer._root == root:
-                    if {importable.path for importable in importer._importables} == vendored_paths:
-                        yield importer
+                    yield importer
 
     @classmethod
     def install_vendored(
