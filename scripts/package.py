@@ -6,6 +6,7 @@ import os
 import subprocess
 import sys
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
+from email.parser import Parser
 from enum import Enum, unique
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path, PurePath
@@ -46,7 +47,12 @@ def build_pex_pex(output_file: PurePath, verbosity: int = 0) -> None:
     subprocess.run(args, check=True)
 
 
-def describe_git_rev() -> str:
+def describe_rev() -> str:
+    if not os.path.isdir(".git") and os.path.isfile("PKG-INFO"):
+        # We're being build from an unpacked sdist.
+        with open("PKG-INFO") as fp:
+            return Parser().parse(fp).get("Version", "Unknown Version")
+
     git_describe = subprocess.run(
         ["git", "describe"], check=True, stdout=subprocess.PIPE, encoding="utf-8"
     )
@@ -103,9 +109,9 @@ def main(
         print(f"Building Pex PEX to `{pex_output_file}` ...")
         build_pex_pex(pex_output_file, verbosity)
 
-        git_rev = describe_git_rev()
+        rev = describe_rev()
         sha256, size = describe_file(pex_output_file)
-        print(f"Built Pex PEX @ {git_rev}:")
+        print(f"Built Pex PEX @ {rev}:")
         print(f"sha256: {sha256}")
         print(f"  size: {size}")
 

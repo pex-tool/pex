@@ -40,13 +40,13 @@ def test_build_isolation(
     subprocess.check_call(args=[pip, "uninstall", "-y"] + build_requirements)
     result = run_pex_command(args=[pex_project_dir, "--no-build-isolation"], python=python)
     result.assert_failure()
-    assert "raise BackendInvalid(" in result.error, (
+    assert "ModuleNotFoundError: " in result.error, (
         "With build isolation turned off, it's expected that any build requirements "
-        "(setuptools for Pex) are pre-installed. They are not; so we expect a failure here."
+        "(setuptools for Pex) are pre-installed. They are not; so we expect a failure here. Got:\n"
+        "{error}".format(error=result.error)
     )
 
-    # N.B.: We need wheel so that setuptools.build_meta can execute bdist_wheel successfully.
-    subprocess.check_call(args=[pip, "install", "wheel"] + build_requirements)
+    subprocess.check_call(args=[pip, "install"] + build_requirements)
 
     pex = os.path.join(str(tmpdir), "pex")
     run_pex_command(
