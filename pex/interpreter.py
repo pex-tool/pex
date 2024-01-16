@@ -19,6 +19,7 @@ from textwrap import dedent
 
 from pex import third_party
 from pex.common import is_exe, safe_mkdtemp, safe_rmtree
+from pex.compatibility import commonpath
 from pex.executor import Executor
 from pex.jobs import Job, Retain, SpawnedJob, execute_parallel
 from pex.orderedset import OrderedSet
@@ -183,10 +184,23 @@ class PythonIdentity(object):
         # vendored attrs distribution so that its `cache_hash=True` feature can work (see the
         # bottom of pex/third_party/__init__.py where the vendor importer is installed). We ignore
         # such adjoined `sys.path` entries to discover the true base interpreter `sys.path`.
-        pythonpath = frozenset(
-            os.environ.get("PYTHONPATH", "").split(os.pathsep) + list(third_party.exposed())
+        pythonpath = os.environ.get("PYTHONPATH")
+        internal_entries = frozenset(
+            (pythonpath.split(os.pathsep) if pythonpath else []) + list(third_party.exposed())
         )
-        sys_path = OrderedSet(item for item in sys.path if item and item not in pythonpath)
+
+        def is_internal_entry(entry):
+            # type: (str) -> bool
+            if entry in internal_entries:
+                return True
+            if not os.path.isabs(entry):
+                return False
+            for internal_entry in internal_entries:
+                if internal_entry == commonpath((internal_entry, entry)):
+                    return True
+            return False
+
+        sys_path = OrderedSet(entry for entry in sys.path if entry and not is_internal_entry(entry))
 
         site_packages = OrderedSet(
             path
@@ -227,12 +241,34 @@ class PythonIdentity(object):
             configured_macosx_deployment_target=configured_macosx_deployment_target,
         )
 
+    # Increment this integer version number when changing the encode / decode format or content.
+    _FORMAT_VERSION = 1
+
     @classmethod
     def decode(cls, encoded):
-        TRACER.log("creating PythonIdentity from encoded: %s" % encoded, V=9)
+        # type: (Text) -> PythonIdentity
+        TRACER.log("creating PythonIdentity from encoded: {encoded}".format(encoded=encoded), V=9)
         values = json.loads(encoded)
-        if len(values) != 16:
-            raise cls.InvalidError("Invalid interpreter identity: %s" % encoded)
+        if len(values) != 17:
+            raise cls.InvalidError(
+                "Invalid interpreter identity: {encoded}".format(encoded=encoded)
+            )
+        try:
+            format_version = int(values.pop("__format_version__", "0"))
+        except ValueError as e:
+            raise cls.InvalidError(
+                "The PythonIdentity __format_version__ is invalid: {err}".format(err=e)
+            )
+        else:
+            if format_version < cls._FORMAT_VERSION:
+                raise cls.InvalidError(
+                    "The PythonIdentity __format_version__ was {format_version}, but the current "
+                    "version is {current_version}. Upgrading existing encoding: {encoded}".format(
+                        format_version=format_version,
+                        current_version=cls._FORMAT_VERSION,
+                        encoded=encoded,
+                    )
+                )
 
         version = tuple(values.pop("version"))
         pypy_version = tuple(values.pop("pypy_version") or ()) or None
@@ -252,7 +288,7 @@ class PythonIdentity(object):
         env_markers = MarkerEnvironment(**values.pop("env_markers"))
         return cls(
             version=cast("Tuple[int, int, int]", version),
-            pypy_version=pypy_version,
+            pypy_version=cast("Optional[Tuple[int, int, int]]", pypy_version),
             supported_tags=iter_tags(),
             configured_macosx_deployment_target=configured_macosx_deployment_target,
             env_markers=env_markers,
@@ -309,6 +345,7 @@ class PythonIdentity(object):
 
     def encode(self):
         values = dict(
+            __format_version__=self._FORMAT_VERSION,
             binary=self._binary,
             prefix=self._prefix,
             base_prefix=self._base_prefix,

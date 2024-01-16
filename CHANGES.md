@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.1.159
+
+This release brings a fix for leaks of Pex's vendored `attrs` onto the
+`sys.path` of PEXes during boot in common usage scenarios.
+
+* Fix vendored attrs `sys.path` leak. (#2328)
+
 ## 2.1.158
 
 This release adds support for tab completion to all PEX repls running
