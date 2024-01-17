@@ -6,7 +6,6 @@ import os
 import pytest
 
 from pex import sh_boot
-from pex.compatibility import ConfigParser
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import InterpreterConstraints, iter_compatible_versions
 from pex.orderedset import OrderedSet
@@ -19,6 +18,10 @@ from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     from typing import Iterable, List
+
+    import toml  # vendor:skip
+else:
+    from pex.third_party import toml
 
 
 def calculate_binary_names(
@@ -39,9 +42,10 @@ def requires_python(pex_project_dir):
     requires_python = os.environ.get("_PEX_REQUIRES_PYTHON")
     if requires_python:
         return requires_python
-    parser = ConfigParser()
-    parser.read(os.path.join(pex_project_dir, "setup.cfg"))
-    return cast(str, parser.get("options", "python_requires")).strip()
+    return cast(
+        str,
+        toml.load(os.path.join(pex_project_dir, "pyproject.toml"))["project"]["requires-python"],
+    )
 
 
 def expected(

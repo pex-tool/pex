@@ -436,6 +436,7 @@ class Pip(object):
 
         download_cmd = ["download", "--dest", download_dir]
         extra_env = {}  # type: Dict[str, str]
+        pex_extra_sys_path = []  # type: List[str]
 
         if not build:
             download_cmd.extend(["--only-binary", ":all:"])
@@ -451,7 +452,7 @@ class Pip(object):
 
         if not build_isolation:
             download_cmd.append("--no-build-isolation")
-            extra_env.update(PEP517_BACKEND_PATH=os.pathsep.join(sys.path))
+            pex_extra_sys_path.extend(sys.path)
 
         if allow_prereleases:
             download_cmd.append("--pre")
@@ -483,7 +484,6 @@ class Pip(object):
             )
 
         log_analyzers = []  # type: List[LogAnalyzer]
-        pex_extra_sys_path = []  # type: List[str]
         for obs in (foreign_platform_observer, observer):
             if obs:
                 if obs.analyzer:
@@ -492,10 +492,10 @@ class Pip(object):
                 extra_sys_path = obs.patch_set.emit_patches(package=self._PATCHES_PACKAGE_NAME)
                 if extra_sys_path:
                     pex_extra_sys_path.append(extra_sys_path)
+                    extra_env[self._PATCHES_PACKAGE_ENV_VAR_NAME] = self._PATCHES_PACKAGE_NAME
 
         if pex_extra_sys_path:
             extra_env["PEX_EXTRA_SYS_PATH"] = os.pathsep.join(pex_extra_sys_path)
-            extra_env[self._PATCHES_PACKAGE_ENV_VAR_NAME] = self._PATCHES_PACKAGE_NAME
 
         # The Pip 2020 resolver hides useful dependency conflict information in stdout interspersed
         # with other information we want to suppress. We jump though some hoops here to get at that
@@ -624,7 +624,7 @@ class Pip(object):
         if not build_isolation:
             wheel_cmd.append("--no-build-isolation")
             interpreter = interpreter or PythonInterpreter.get()
-            extra_env.update(PEP517_BACKEND_PATH=os.pathsep.join(interpreter.sys_path))
+            extra_env.update(PEX_EXTRA_SYS_PATH=os.pathsep.join(interpreter.sys_path))
 
         if not verify:
             wheel_cmd.append("--no-verify")

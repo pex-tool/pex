@@ -53,7 +53,10 @@ jobs:
       matrix:
         tox-env:
           - py27-pip20
-          - py35-pip20
+          # N.B.: Although we support Python 3.5 with a published universal wheel, Pex does not
+          # build under Python 3.5 or 3.6; so we skip to Python 3.7 for tests which must be able to
+          # build a Pex distribution both as part of the tox setup and in many test cases as well.
+          - py37-pip20
           - py311-pip20
           - py311-pip22_3_1
           - py311-pip23_1_2

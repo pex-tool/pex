@@ -38,6 +38,9 @@ def run_mypy(python_version: str, files: Sequence[str], subject: str = "files") 
 
 
 def main() -> None:
+    run_mypy(
+        "2.7", files=sorted(find_files_to_check(include=["build-backend"])), subject="build-backend"
+    )
     run_mypy("3.8", files=sorted(find_files_to_check(include=["scripts"])), subject="scripts")
 
     source_and_tests = sorted(

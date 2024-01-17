@@ -151,14 +151,7 @@ class VendorSpec(
         if not self.rewrite:
             # The extra package structure is only required by Pex for vendored code used via import
             # rewrites.
-
-            # N.B.: Although we've historically early-returned here, the switch from flit to
-            # setuptools for our build backend necessitates all vendored dists are seen as part of
-            # the `pex` package tree by setuptools to get all vendored code properly included in
-            # our distribution.
-            # TODO(John Sirois): re-introduce early return once it is no longer foils our build
-            #  process.
-            pass
+            return
 
         for index, _ in enumerate(self._subpath_components):
             relpath = _PACKAGE_COMPONENTS + self._subpath_components[: index + 1] + ["__init__.py"]
