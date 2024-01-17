@@ -1,8 +1,8 @@
 [build-system]
 # N.B.: We use an in-tree backend just to get our hatchling in-tree plugins visible without having
 # to publish a plugin distribution. The real backend is `hatchling.build` and the
-# `pex_build.hatchling.build` backend is a very thin wrapper that just serves to install our hooks
-# just in time.
+# `pex_build.hatchling.build` backend is a very thin wrapper that just serves to expose our hook
+# entry point metadata so the hook is discovered.
 backend-path = ["build-backend"]
 build-backend = "pex_build.hatchling.build"
 requires = ["hatchling"]
