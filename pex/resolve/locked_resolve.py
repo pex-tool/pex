@@ -436,7 +436,11 @@ class Resolved(object):
             )
 
         return cls(
-            target_specificity=sum(target_specificities) / len(target_specificities),
+            target_specificity=(
+                smallest_rank_value
+                if not target_specificities
+                else sum(target_specificities) / len(target_specificities)
+            ),
             downloadable_artifacts=tuple(downloadable_artifacts),
             source=source,
         )

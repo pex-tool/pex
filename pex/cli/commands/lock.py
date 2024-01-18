@@ -10,12 +10,12 @@ from operator import attrgetter
 
 from pex import pex_warnings
 from pex.argparse import HandleBoolAction
+from pex.asserts import production_assert
 from pex.cli.command import BuildTimeCommand
 from pex.commands.command import JsonMixin, OutputMixin
 from pex.common import pluralize
 from pex.dist_metadata import Requirement, RequirementParseError
 from pex.enum import Enum
-from pex.orderedset import OrderedSet
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.resolve import requirement_options, resolver_options, target_options
@@ -27,6 +27,7 @@ from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.lockfile.subset import subset
 from pex.resolve.lockfile.updater import (
     ArtifactUpdate,
+    DeleteUpdate,
     FingerprintUpdate,
     LockUpdater,
     ResolveUpdateRequest,
@@ -45,7 +46,7 @@ from pex.typing import TYPE_CHECKING
 from pex.version import __version__
 
 if TYPE_CHECKING:
-    from typing import IO, Dict, Iterable, List, Optional, Tuple, Union
+    from typing import IO, Dict, Iterable, List, Mapping, Optional, Tuple, Union
 
     import attr  # vendor:skip
 else:
@@ -291,9 +292,35 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             default=[],
             type=str,
             help=(
-                "Just attempt to update these projects in the lock, leaving all others unchanged. "
+                "Attempt to update these projects in the lock, leaving all others unchanged. "
                 "If the projects aren't already in the lock, attempt to add them as top-level "
-                "requirements leaving all others unchanged."
+                "requirements leaving all others unchanged. If a project is already in the lock "
+                "and is specified by a top-level requirement, the allowable updates will be "
+                "constrained by the original top-level requirement. In other words, for an "
+                "original top-level requirement of `requests>=2,<4` you could specify "
+                "`-p requests` to pick up new releases in the `>=2,<4` range specified by the "
+                "original top-level requirement or you could specify an overlapping range like "
+                "`-p 'requests<3.6,!==3.8.2'` to, for example, downgrade away from a newly "
+                "identified security vulnerability. If you specify a disjoint requirement like "
+                "`-p 'requests>=4'`, the operation will fail. If you really want to replace the "
+                "original top-level requirement and have this operation succeed, you can precede "
+                "the requirement with an `=` like so: `-p '=requests>=4'`. This option is mutually "
+                "exclusive with `--pin`."
+            ),
+        )
+        update_parser.add_argument(
+            "-d",
+            "--delete-project",
+            dest="delete_projects",
+            action="append",
+            default=[],
+            type=str,
+            help=(
+                "Attempt to delete these projects from the lock, leaving all others unchanged. "
+                "If the projects are not top-level requirements requested in the original lock or "
+                "else they are but are transitive dependencies of the remaining top-level "
+                "requirements, then no deletion will be performed in order to maintain lock "
+                "integrity. This option is mutually exclusive with `--pin`."
             ),
         )
         update_parser.add_argument(
@@ -319,7 +346,9 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 "When performing the update, pin all projects in the lock to their current "
                 "versions. This is useful to pick up newly published wheels for those projects or "
                 "else switch repositories from the original ones when used in conjunction with any "
-                "of --index, --no-pypi and --find-links."
+                "of --index, --no-pypi and --find-links. When specifying `--pin`, it is an error "
+                "to also specify lock modifications via `-p` / `--project` or "
+                "`-d` / `--delete-project`."
             ),
         )
 
@@ -606,12 +635,42 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
 
     def _update(self):
         # type: () -> Result
-        try:
-            update_requirements = tuple(
-                Requirement.parse(project) for project in self.options.projects
+
+        if self.options.pin and any((self.options.projects, self.options.delete_projects)):
+            return Error(
+                "When executing a `--pin`ed update, no `-p` / `--project` or `-d` / "
+                "`--delete-project` modifications are allowed."
             )
-        except RequirementParseError as e:
-            return Error("Failed to parse project requirement to update: {err}".format(err=e))
+
+        update_requirements_by_project_name = (
+            OrderedDict()
+        )  # type: OrderedDict[ProjectName, Requirement]
+        replace_requirements = []  # type: List[Requirement]
+        for project in self.options.projects:
+            if project.startswith("="):
+                try:
+                    replace_requirements.append(Requirement.parse(project[1:]))
+                    continue
+                except RequirementParseError as e:
+                    return Error(
+                        "Failed to parse project requirement to replace: {err}".format(err=e)
+                    )
+
+            try:
+                update_requirement = Requirement.parse(project)
+            except RequirementParseError as e:
+                return Error("Failed to parse project requirement to update: {err}".format(err=e))
+            else:
+                update_requirements_by_project_name[
+                    update_requirement.project_name
+                ] = update_requirement
+
+        try:
+            delete_projects = tuple(
+                ProjectName(project, validated=True) for project in self.options.delete_projects
+            )
+        except ProjectName.InvalidError as e:
+            return Error("Failed to parse project name to delete: {err}".format(err=e))
 
         lock_file_path, lock_file = self._load_lockfile()
         network_configuration = resolver_options.create_network_configuration(self.options)
@@ -703,15 +762,25 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         lock_update = try_(
             lock_updater.update(
                 update_requests=update_requests,
-                updates=update_requirements,
+                updates=update_requirements_by_project_name.values(),
+                replacements=replace_requirements,
+                deletes=delete_projects,
                 pin=self.options.pin,
-                assume_manylinux=targets.assume_manylinux,
             )
         )
 
-        constraints_by_project_name = {
+        original_requirements_by_project_name = {
+            requirement.project_name: requirement for requirement in lock_file.requirements
+        }
+        requirements_by_project_name = {
+            requirement.project_name: requirement for requirement in lock_update.requirements
+        }
+
+        original_constraints_by_project_name = {
             constraint.project_name: constraint for constraint in lock_file.constraints
         }
+        constraints_by_project_name = original_constraints_by_project_name.copy()
+
         dry_run = self.options.dry_run
         path_mappings = self._get_path_mappings()
         output = sys.stdout if dry_run is DryRunStyle.DISPLAY else sys.stderr
@@ -719,7 +788,16 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         warnings = []  # type: List[str]
         for resolve_update in lock_update.resolves:
             platform = resolve_update.updated_resolve.platform_tag or "universal"
-            print("Updates for lock generated by {platform}".format(platform=platform), file=output)
+            if not resolve_update.updates:
+                print(
+                    "No updates for lock generated by {platform}.".format(platform=platform),
+                    file=output,
+                )
+                continue
+
+            print(
+                "Updates for lock generated by {platform}:".format(platform=platform), file=output
+            )
             fingerprint_updates = {}  # type: Dict[ProjectName, Version]
             for project_name, update in resolve_update.updates.items():
                 if not update:
@@ -733,7 +811,26 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                     continue
 
                 updates.append(update)
-                if isinstance(update, VersionUpdate):
+                if isinstance(update, DeleteUpdate):
+                    print(
+                        "  {lead_in} {project_name} {deleted_version}".format(
+                            lead_in="Would delete" if dry_run else "Deleted",
+                            project_name=project_name,
+                            deleted_version=update.version,
+                        ),
+                        file=output,
+                    )
+                    production_assert(
+                        project_name not in requirements_by_project_name,
+                        "Deletes should have been unconditionally removed from requirements earlier. "
+                        "Found deleted project {project_name} in updated requirements:\n{requirements}".format(
+                            project_name=project_name,
+                            requirements="\n".join(map(str, requirements_by_project_name.values())),
+                        ),
+                    )
+                    constraints_by_project_name.pop(project_name, None)
+                elif isinstance(update, VersionUpdate):
+                    update_req = update_requirements_by_project_name.get(project_name)
                     if update.original:
                         print(
                             "  {lead_in} {project_name} from {original_version} to "
@@ -745,6 +842,8 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                             ),
                             file=output,
                         )
+                        if update_req:
+                            constraints_by_project_name[project_name] = update_req
                     else:
                         print(
                             "  {lead_in} {project_name} {updated_version}".format(
@@ -754,6 +853,8 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                             ),
                             file=output,
                         )
+                        if update_req:
+                            requirements_by_project_name[project_name] = update_req
                 else:
                     message_lines = [
                         "  {lead_in} {project_name} {version} artifacts:".format(
@@ -805,7 +906,72 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                     )
                 )
 
-        if not updates:
+        def process_req_edit(
+            original,  # type: Optional[Requirement]
+            final,  # type: Optional[Requirement]
+        ):
+            # type: (...) -> None
+            if not original:
+                print(
+                    "  {lead_in} {requirement!r}".format(
+                        lead_in="Would add" if dry_run else "Added",
+                        requirement=str(final),
+                    ),
+                    file=output,
+                )
+            elif not final:
+                print(
+                    "  {lead_in} {requirement!r}".format(
+                        lead_in="Would delete" if dry_run else "Deleted",
+                        requirement=str(original),
+                    ),
+                    file=output,
+                )
+            else:
+                print(
+                    "  {lead_in} {original!r} to {final!r}".format(
+                        lead_in="Would update" if dry_run else "Updated",
+                        original=str(original),
+                        final=str(final),
+                    ),
+                    file=output,
+                )
+
+        def process_req_edits(
+            requirement_type,  # type: str
+            original,  # type: Mapping[ProjectName, Requirement]
+            final,  # type: Mapping[ProjectName, Requirement]
+        ):
+            # type: (...) -> Tuple[Tuple[Optional[Requirement], Optional[Requirement]], ...]
+            edits = []  # type: List[Tuple[Optional[Requirement], Optional[Requirement]]]
+            for name, original_req in original.items():
+                final_req = final.get(name)
+                if final_req != original_req:
+                    edits.append((original_req, final_req))
+            for name, final_req in final.items():
+                if name not in original:
+                    edits.append((None, final_req))
+            if not edits:
+                return ()
+
+            print(
+                "Updates to lock input {requirement_types}:".format(
+                    requirement_types=pluralize(2, requirement_type)
+                ),
+                file=output,
+            )
+            for original_requirement, final_requirement in edits:
+                process_req_edit(original=original_requirement, final=final_requirement)
+            return tuple(edits)
+
+        requirement_edits = process_req_edits(
+            "requirement", original_requirements_by_project_name, requirements_by_project_name
+        )
+        constraints_edits = process_req_edits(
+            "constraint", original_constraints_by_project_name, constraints_by_project_name
+        )
+
+        if not any((updates, requirement_edits, constraints_edits)):
             return Ok()
 
         if warnings:
@@ -821,30 +987,12 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         if dry_run:
             return Error() if dry_run is DryRunStyle.CHECK else Ok()
 
-        original_locked_project_names = {
-            locked_requirement.pin.project_name
-            for locked_resolve in lock_file.locked_resolves
-            for locked_requirement in locked_resolve.locked_requirements
-        }
-        new_requirements = OrderedSet(
-            update
-            for update in update_requirements
-            if update.project_name not in original_locked_project_names
-        )
-        constraints_by_project_name.update(
-            (constraint.project_name, constraint) for constraint in update_requirements
-        )
-        for requirement in new_requirements:
-            constraints_by_project_name.pop(requirement.project_name, None)
-        requirements = OrderedSet(lock_file.requirements)
-        requirements.update(new_requirements)
-
         with open(lock_file_path, "w") as fp:
             self._dump_lockfile(
                 lock_file=attr.evolve(
                     lock_file,
                     pex_version=__version__,
-                    requirements=SortedTuple(requirements, key=str),
+                    requirements=SortedTuple(requirements_by_project_name.values(), key=str),
                     constraints=SortedTuple(constraints_by_project_name.values(), key=str),
                     locked_resolves=SortedTuple(
                         resolve_update.updated_resolve for resolve_update in lock_update.resolves
