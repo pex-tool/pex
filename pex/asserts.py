@@ -10,18 +10,9 @@ from textwrap import dedent
 
 from pex.version import __version__
 
-_ASSERT_ADVICE = (
+_ASSERT_DETAILS = (
     dedent(
         """\
-    The error reported above resulted from an unexpected programming error which 
-    you should never encounter.
-    
-    Firstly, please accept our apology!
-    
-    If you could file an issue with the error above and the details below, we'd be
-    grateful. You can do that at https://github.com/pantsbuild/pex/issues/new and
-    redact or amend any details that expose sensitive information:
-    ---
     Pex {version}
     platform: {platform}
     python: {python_version}
@@ -34,14 +25,27 @@ _ASSERT_ADVICE = (
     .strip()
 )
 
+_ASSERT_ADVICE = dedent(
+    """\
+    The error reported above resulted from an unexpected programming error which 
+    you should never encounter.
+    
+    Firstly, please accept our apology!
+    
+    If you could file an issue with the error and details above, we'd be
+    grateful. You can do that at https://github.com/pantsbuild/pex/issues/new and
+    redact or amend any details that expose sensitive information.
+    """
+).strip()
 
-def production_assert(condition, message=""):
+
+def production_assert(condition, msg=""):
     # type: (...) -> None
 
     if condition:
         return
 
-    assert_advice = _ASSERT_ADVICE
+    message = [msg, "---", _ASSERT_DETAILS]
     pex = os.environ.get("PEX")
     if pex:
         try:
@@ -51,10 +55,13 @@ def production_assert(condition, message=""):
 
             pex_info = PexInfo.from_pex(pex)
             pex_info.update(PexInfo.from_env())
-            assert_advice = "\n".join(
-                (assert_advice, "PEX-INFO:", json.dumps(pex_info.as_json_dict(), indent=2))
-            )
+            pex_info_json = json.dumps(pex_info.as_json_dict(), indent=2)
         except Exception:
             pass
+        else:
+            message.append("PEX-INFO:")
+            message.append(pex_info_json)
+    message.append("---")
+    message.append(_ASSERT_ADVICE)
 
-    raise AssertionError("\n".join((message, "---", assert_advice)))
+    raise AssertionError("\n".join(message))
