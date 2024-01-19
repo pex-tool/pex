@@ -287,7 +287,8 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         update_parser.add_argument(
             "-p",
             "--project",
-            dest="projects",
+            "--update-project",
+            dest="update_projects",
             action="append",
             default=[],
             type=str,
@@ -303,9 +304,24 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 "`-p 'requests<3.6,!==3.8.2'` to, for example, downgrade away from a newly "
                 "identified security vulnerability. If you specify a disjoint requirement like "
                 "`-p 'requests>=4'`, the operation will fail. If you really want to replace the "
-                "original top-level requirement and have this operation succeed, you can precede "
-                "the requirement with an `=` like so: `-p '=requests>=4'`. This option is mutually "
-                "exclusive with `--pin`."
+                "original top-level requirement and have this operation succeed, use the "
+                "`--replace-project` option instead. This option is mutually exclusive with "
+                "`--pin`."
+            ),
+        )
+        update_parser.add_argument(
+            "-R",
+            "--replace-project",
+            dest="replace_projects",
+            action="append",
+            default=[],
+            type=str,
+            help=(
+                "Attempt to replace these projects in the lock, leaving all others unchanged. "
+                "If the projects aren't already in the lock, attempt to add them as top-level "
+                "requirements leaving all others unchanged. If a project is already in the lock "
+                "and is specified by a top-level requirement, that top-level requirement will be "
+                "replaced. This option is mutually exclusive with `--pin`."
             ),
         )
         update_parser.add_argument(
@@ -347,8 +363,8 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 "versions. This is useful to pick up newly published wheels for those projects or "
                 "else switch repositories from the original ones when used in conjunction with any "
                 "of --index, --no-pypi and --find-links. When specifying `--pin`, it is an error "
-                "to also specify lock modifications via `-p` / `--project` or "
-                "`-d` / `--delete-project`."
+                "to also specify lock modifications via `-p` / `--project`, "
+                "`-R` / `--replace-project` or `-d` / `--delete-project`."
             ),
         )
 
@@ -636,34 +652,44 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
     def _update(self):
         # type: () -> Result
 
-        if self.options.pin and any((self.options.projects, self.options.delete_projects)):
+        if self.options.pin and any(
+            (
+                self.options.update_projects,
+                self.options.replace_projects,
+                self.options.delete_projects,
+            )
+        ):
             return Error(
-                "When executing a `--pin`ed update, no `-p` / `--project` or `-d` / "
-                "`--delete-project` modifications are allowed."
+                "When executing a `--pin`ed update, no `-p` / `--project`, "
+                "`-R` / `--replace-project` or `-d` / `--delete-project` modifications are "
+                "allowed."
             )
 
         update_requirements_by_project_name = (
             OrderedDict()
         )  # type: OrderedDict[ProjectName, Requirement]
-        replace_requirements = []  # type: List[Requirement]
-        for project in self.options.projects:
-            if project.startswith("="):
-                try:
-                    replace_requirements.append(Requirement.parse(project[1:]))
-                    continue
-                except RequirementParseError as e:
-                    return Error(
-                        "Failed to parse project requirement to replace: {err}".format(err=e)
-                    )
-
+        for project in self.options.update_projects:
             try:
-                update_requirement = Requirement.parse(project)
+                requirement = Requirement.parse(project)
             except RequirementParseError as e:
-                return Error("Failed to parse project requirement to update: {err}".format(err=e))
+                return Error(
+                    "Failed to parse project requirement to update {project!r}: {err}".format(
+                        project=project, err=e
+                    )
+                )
             else:
-                update_requirements_by_project_name[
-                    update_requirement.project_name
-                ] = update_requirement
+                update_requirements_by_project_name[requirement.project_name] = requirement
+
+        replace_requirements = []  # type: List[Requirement]
+        for project in self.options.replace_projects:
+            try:
+                replace_requirements.append(Requirement.parse(project))
+            except RequirementParseError as e:
+                return Error(
+                    "Failed to parse replacement project requirement {project!r}: {err}".format(
+                        project=project, err=e
+                    )
+                )
 
         try:
             delete_projects = tuple(
@@ -822,8 +848,9 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                     )
                     production_assert(
                         project_name not in requirements_by_project_name,
-                        "Deletes should have been unconditionally removed from requirements earlier. "
-                        "Found deleted project {project_name} in updated requirements:\n{requirements}".format(
+                        "Deletes should have been unconditionally removed from requirements "
+                        "earlier. Found deleted project {project_name} in updated requirements:\n"
+                        "{requirements}".format(
                             project_name=project_name,
                             requirements="\n".join(map(str, requirements_by_project_name.values())),
                         ),
@@ -842,7 +869,11 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                             ),
                             file=output,
                         )
-                        if update_req:
+                        # Only update the constraint if it is truly a constraint. If it's just the
+                        # project name with no specifier, markers, etc., then it was just used to
+                        # grab the latest version in the range already constrained by an existing
+                        # requirement or constraint.
+                        if update_req and str(update_req) != update_req.name:
                             constraints_by_project_name[project_name] = update_req
                     else:
                         print(
