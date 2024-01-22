@@ -8,6 +8,7 @@ import itertools
 import os
 import platform
 import random
+import re
 import subprocess
 import sys
 from collections import Counter
@@ -362,17 +363,37 @@ class IntegResults(object):
     error = attr.ib()  # type: Text
     return_code = attr.ib()  # type: int
 
-    def assert_success(self):
-        # type: () -> None
+    def assert_success(
+        self,
+        expected_output_re=None,
+        re_flags=0,  # type: int
+    ):
+        # type: (...) -> None
         assert (
             self.return_code == 0
         ), "integration test failed: return_code={}, output={}, error={}".format(
             self.return_code, self.output, self.error
         )
+        if expected_output_re:
+            assert re.match(
+                expected_output_re, self.error, flags=re_flags
+            ), "Failed to match re: {re!r} against:\n{output}".format(
+                re=expected_output_re, output=self.error
+            )
 
-    def assert_failure(self):
-        # type: () -> None
+    def assert_failure(
+        self,
+        expected_error_re=None,
+        re_flags=0,  # type: int
+    ):
+        # type: (...) -> None
         assert self.return_code != 0
+        if expected_error_re:
+            assert re.match(
+                expected_error_re, self.error, flags=re_flags
+            ), "Failed to match re: {re!r} against:\n{error}".format(
+                re=expected_error_re, error=self.error
+            )
 
 
 def create_pex_command(

@@ -81,13 +81,13 @@ def die(msg, exit_code=1):
 
 
 def pluralize(
-    subject,  # type: Sized
+    subject,  # type: Union[int, Sized]
     noun,  # type: str
 ):
     # type: (...) -> str
     if noun == "":
         return ""
-    count = len(subject)
+    count = subject if isinstance(subject, int) else len(subject)
     if count == 1:
         return noun
     if noun[-1] in ("s", "x", "z") or noun[-2:] in ("sh", "ch"):

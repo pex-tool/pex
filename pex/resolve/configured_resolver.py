@@ -28,14 +28,18 @@ _DEFAULT_REPOS = ReposConfiguration.create()
 @attr.s(frozen=True)
 class ConfiguredResolver(Resolver):
     @classmethod
-    def default(cls):
-        # type: () -> ConfiguredResolver
-        pip_version = PipVersion.DEFAULT
+    def version(cls, pip_version):
+        # type: (PipVersionValue) -> ConfiguredResolver
         return cls(
             PipConfiguration(
                 version=pip_version, resolver_version=ResolverVersion.default(pip_version)
             )
         )
+
+    @classmethod
+    def default(cls):
+        # type: () -> ConfiguredResolver
+        return cls.version(PipVersion.DEFAULT)
 
     pip_configuration = attr.ib()  # type: PipConfiguration
 

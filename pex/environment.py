@@ -192,12 +192,13 @@ class ResolveError(Exception):
 
 
 @attr.s(frozen=True)
-class _RequirementKey(ProjectName):
+class _RequirementKey(object):
     @classmethod
     def create(cls, requirement):
         # type: (Requirement) -> _RequirementKey
-        return cls(requirement.name, frozenset(requirement.extras))
+        return cls(ProjectName(requirement.name), frozenset(requirement.extras))
 
+    project_name = attr.ib()  # type: ProjectName
     extras = attr.ib()  # type: FrozenSet[str]
 
     def satisfied_keys(self):
@@ -213,7 +214,7 @@ class _RequirementKey(ProjectName):
         items = list(self.extras)
         for size in range(len(items) + 1):
             for combination_of_size in itertools.combinations(items, size):
-                yield _RequirementKey(self.raw, frozenset(combination_of_size))
+                yield _RequirementKey(self.project_name, frozenset(combination_of_size))
 
 
 class PEXEnvironment(object):
