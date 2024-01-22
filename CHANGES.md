@@ -1,5 +1,13 @@
 # Release Notes
 
+## 2.1.160
+
+This release adds the ability for `pex3 lock update` to replace
+requirements in a lock or delete them from the lock using
+`-R` / `--replace-project` and `-d` / `--delete-project`, respectively.
+
+* Lock updates support deleting & replacing reqs. (#2335)
+
 ## 2.1.159
 
 This release brings a fix for leaks of Pex's vendored `attrs` onto the
