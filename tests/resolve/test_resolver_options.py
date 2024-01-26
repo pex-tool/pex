@@ -237,7 +237,7 @@ def test_build_configuration_invalid_no_wheels_only_wheel(parser):
         BuildConfiguration.Error,
         match=re.escape(
             "Resolving wheels was disallowed, but the following project names are configured to "
-            "only allow resolving pre-built wheels for: ansicolors, cowsay"
+            "only allow resolving pre-built wheels: ansicolors, cowsay"
         ),
     ):
         compute_build_configuration(
