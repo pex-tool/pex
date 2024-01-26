@@ -21,7 +21,7 @@ from pex.resolve.locked_resolve import (
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.path_mappings import PathMappings
 from pex.resolve.resolved_requirement import Fingerprint, Pin
-from pex.resolve.resolver_configuration import PipConfiguration, ResolverVersion
+from pex.resolve.resolver_configuration import BuildConfiguration, PipConfiguration, ResolverVersion
 from pex.sorted_tuple import SortedTuple
 from pex.third_party.packaging import tags
 from pex.third_party.packaging.specifiers import InvalidSpecifier, SpecifierSet
@@ -332,13 +332,15 @@ def loads(
         requirements=requirements,
         constraints=constraints,
         allow_prereleases=get("allow_prereleases", bool),
-        allow_wheels=get("allow_wheels", bool),
-        only_wheels=only_wheels,
-        allow_builds=get("allow_builds", bool),
-        only_builds=only_builds,
-        prefer_older_binary=get("prefer_older_binary", bool),
-        use_pep517=get("use_pep517", bool, optional=True),
-        build_isolation=get("build_isolation", bool),
+        build_configuration=BuildConfiguration.create(
+            allow_wheels=get("allow_wheels", bool),
+            only_wheels=only_wheels,
+            allow_builds=get("allow_builds", bool),
+            only_builds=only_builds,
+            prefer_older_binary=get("prefer_older_binary", bool),
+            use_pep517=get("use_pep517", bool, optional=True),
+            build_isolation=get("build_isolation", bool),
+        ),
         transitive=get("transitive", bool),
         locked_resolves=locked_resolves,
         source=source,

@@ -38,13 +38,7 @@ class Lockfile(object):
         requirements,  # type: Iterable[Union[Requirement, ParsedRequirement]]
         constraints,  # type: Iterable[Requirement]
         allow_prereleases,  # type: bool
-        allow_wheels,  # type: bool
-        only_wheels,  # type: Iterable[ProjectName]
-        allow_builds,  # type: bool
-        only_builds,  # type: Iterable[ProjectName]
-        prefer_older_binary,  # type: bool
-        use_pep517,  # type: Optional[bool]
-        build_isolation,  # type: bool
+        build_configuration,  # type: BuildConfiguration
         transitive,  # type: bool
         locked_resolves,  # type: Iterable[LockedResolve]
         source=None,  # type: Optional[str]
@@ -102,13 +96,13 @@ class Lockfile(object):
             requirements=SortedTuple(resolve_requirements, key=str),
             constraints=SortedTuple(constraints, key=str),
             allow_prereleases=allow_prereleases,
-            allow_wheels=allow_wheels,
-            only_wheels=SortedTuple(only_wheels),
-            allow_builds=allow_builds,
-            only_builds=SortedTuple(only_builds),
-            prefer_older_binary=prefer_older_binary,
-            use_pep517=use_pep517,
-            build_isolation=build_isolation,
+            allow_wheels=build_configuration.allow_wheels,
+            only_wheels=SortedTuple(build_configuration.only_wheels),
+            allow_builds=build_configuration.allow_builds,
+            only_builds=SortedTuple(build_configuration.only_builds),
+            prefer_older_binary=build_configuration.prefer_older_binary,
+            use_pep517=build_configuration.use_pep517,
+            build_isolation=build_configuration.build_isolation,
             transitive=transitive,
             locked_resolves=SortedTuple(locked_resolves),
             local_project_requirement_mapping=requirement_by_local_project_directory,

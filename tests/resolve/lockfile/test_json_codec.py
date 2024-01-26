@@ -20,7 +20,7 @@ from pex.resolve.lockfile.json_codec import ParseError, PathMappingError
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.path_mappings import PathMapping, PathMappings
 from pex.resolve.resolved_requirement import Fingerprint, Pin
-from pex.resolve.resolver_configuration import ResolverVersion
+from pex.resolve.resolver_configuration import BuildConfiguration, ResolverVersion
 from pex.sorted_tuple import SortedTuple
 from pex.third_party.packaging import tags
 from pex.typing import TYPE_CHECKING
@@ -52,13 +52,7 @@ def test_roundtrip(tmpdir):
         ),
         constraints=(Requirement.parse("ansicolors==1.1.8"),),
         allow_prereleases=True,
-        allow_wheels=False,
-        only_wheels=(),
-        allow_builds=False,
-        only_builds=(),
-        prefer_older_binary=False,
-        use_pep517=None,
-        build_isolation=True,
+        build_configuration=BuildConfiguration(),
         transitive=False,
         locked_resolves=[
             LockedResolve(
