@@ -26,10 +26,7 @@ from pex.resolve.lockfile.create import create
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolved_requirement import Fingerprint
-from pex.resolve.resolver_configuration import (
-    PipConfiguration,
-    ReposConfiguration,
-)
+from pex.resolve.resolver_configuration import PipConfiguration, ReposConfiguration
 from pex.result import Error, ResultError, catch, try_
 from pex.sorted_tuple import SortedTuple
 from pex.targets import Target, Targets
