@@ -26,7 +26,11 @@ from pex.resolve.lockfile.create import create
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolved_requirement import Fingerprint
-from pex.resolve.resolver_configuration import PipConfiguration, ReposConfiguration
+from pex.resolve.resolver_configuration import (
+    BuildConfiguration,
+    PipConfiguration,
+    ReposConfiguration,
+)
 from pex.result import Error, ResultError, catch, try_
 from pex.sorted_tuple import SortedTuple
 from pex.targets import Target, Targets
@@ -497,11 +501,15 @@ class LockUpdater(object):
             version=lock_file.pip_version,
             resolver_version=lock_file.resolver_version,
             allow_prereleases=lock_file.allow_prereleases,
-            allow_wheels=lock_file.allow_wheels,
-            allow_builds=lock_file.allow_builds,
-            prefer_older_binary=lock_file.prefer_older_binary,
-            use_pep517=lock_file.use_pep517,
-            build_isolation=lock_file.build_isolation,
+            build_configuration=BuildConfiguration.create(
+                allow_wheels=lock_file.allow_wheels,
+                only_wheels=lock_file.only_wheels,
+                allow_builds=lock_file.allow_builds,
+                only_builds=lock_file.only_builds,
+                prefer_older_binary=lock_file.prefer_older_binary,
+                use_pep517=lock_file.use_pep517,
+                build_isolation=lock_file.build_isolation,
+            ),
             transitive=lock_file.transitive,
             repos_configuration=repos_configuration,
             network_configuration=network_configuration,

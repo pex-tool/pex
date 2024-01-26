@@ -10,12 +10,14 @@ from pex import pex_warnings
 from pex.argparse import HandleBoolAction
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
+from pex.pep_503 import ProjectName
 from pex.pip.version import PipVersion, PipVersionValue
 from pex.resolve.lockfile import json_codec
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.path_mappings import PathMapping, PathMappings
 from pex.resolve.resolver_configuration import (
     PYPI,
+    BuildConfiguration,
     LockRepositoryConfiguration,
     PexRepositoryConfiguration,
     PipConfiguration,
@@ -178,17 +180,42 @@ def register(
         "--no-binary",
         "--no-use-binary",
         dest="allow_wheels",
-        default=default_resolver_configuration.allow_wheels,
+        default=default_resolver_configuration.build_configuration.allow_wheels,
         action=HandleBoolAction,
         help="Whether to allow binary distributions.",
+    )
+
+    def valid_project_name(arg):
+        # type: (str) -> ProjectName
+        try:
+            return ProjectName(arg, validated=True)
+        except ProjectName.InvalidError as e:
+            raise ArgumentTypeError(str(e))
+
+    parser.add_argument(
+        "--only-binary",
+        "--only-wheel",
+        dest="only_wheels",
+        default=[],
+        action="append",
+        help="Names of projects to only ever accept pre-built wheels for.",
+        type=valid_project_name,
     )
     parser.add_argument(
         "--build",
         "--no-build",
         dest="allow_builds",
-        default=default_resolver_configuration.allow_builds,
+        default=default_resolver_configuration.build_configuration.allow_builds,
         action=HandleBoolAction,
         help="Whether to allow building of distributions from source.",
+    )
+    parser.add_argument(
+        "--only-build",
+        dest="only_builds",
+        default=[],
+        action="append",
+        help="Names of projects to only ever build from source.",
+        type=valid_project_name,
     )
     parser.add_argument(
         "--prefer-wheel",
@@ -196,7 +223,7 @@ def register(
         "--no-prefer-wheel",
         "--no-prefer-binary",
         dest="prefer_older_binary",
-        default=default_resolver_configuration.prefer_older_binary,
+        default=default_resolver_configuration.build_configuration.prefer_older_binary,
         action=HandleBoolAction,
         help=(
             "Whether to prefer older binary distributions to newer source distributions (prefer "
@@ -208,7 +235,7 @@ def register(
         "--use-pep517",
         "--no-use-pep517",
         dest="use_pep517",
-        default=default_resolver_configuration.use_pep517,
+        default=default_resolver_configuration.build_configuration.use_pep517,
         action=HandleBoolAction,
         help=(
             "Whether to force use of PEP 517 for building source distributions into wheels ("
@@ -226,7 +253,7 @@ def register(
         "--build-isolation",
         "--no-build-isolation",
         dest="build_isolation",
-        default=default_resolver_configuration.build_isolation,
+        default=default_resolver_configuration.build_configuration.build_isolation,
         action=HandleBoolAction,
         help=(
             "Disable `sys.path` isolation when building a modern source distribution. Build "
@@ -493,15 +520,21 @@ def create_pip_configuration(options):
             )
         )
 
+    build_configuration = BuildConfiguration.create(
+        allow_wheels=options.allow_wheels,
+        only_wheels=options.only_wheels,
+        allow_builds=options.allow_builds,
+        only_builds=options.only_builds,
+        prefer_older_binary=options.prefer_older_binary,
+        use_pep517=options.use_pep517,
+        build_isolation=options.build_isolation,
+    )
+
     return PipConfiguration(
         repos_configuration=repos_configuration,
         network_configuration=create_network_configuration(options),
         allow_prereleases=options.allow_prereleases,
-        allow_wheels=options.allow_wheels,
-        allow_builds=options.allow_builds,
-        prefer_older_binary=options.prefer_older_binary,
-        use_pep517=options.use_pep517,
-        build_isolation=options.build_isolation,
+        build_configuration=build_configuration,
         transitive=options.transitive,
         max_jobs=get_max_jobs_value(options),
         preserve_log=options.preserve_pip_download_log,

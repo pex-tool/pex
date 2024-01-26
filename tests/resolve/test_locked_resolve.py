@@ -27,6 +27,7 @@ from pex.resolve.locked_resolve import (
     _ResolvedArtifact,
 )
 from pex.resolve.resolved_requirement import Fingerprint, PartialArtifact, Pin
+from pex.resolve.resolver_configuration import BuildConfiguration
 from pex.result import Error, try_
 from pex.sorted_tuple import SortedTuple
 from pex.targets import AbbreviatedPlatform, CompletePlatform, LocalInterpreter, Target
@@ -147,7 +148,11 @@ def test_build(
         ),
     )
     assert_resolved(
-        ansicolors_simple.resolve(current_target, [req("ansicolors")], build=False),
+        ansicolors_simple.resolve(
+            current_target,
+            [req("ansicolors")],
+            build_configuration=BuildConfiguration.create(allow_builds=False),
+        ),
         DownloadableArtifact.create(
             pin=pin("ansicolors", "1.1.7"),
             artifact=artifact(
@@ -178,7 +183,11 @@ def test_use_wheel(
         ),
     )
     assert_resolved(
-        ansicolors_simple.resolve(current_target, [req("ansicolors==1.1.7")], use_wheel=False),
+        ansicolors_simple.resolve(
+            current_target,
+            [req("ansicolors==1.1.7")],
+            build_configuration=BuildConfiguration.create(allow_wheels=False),
+        ),
         DownloadableArtifact.create(
             pin=pin("ansicolors", "1.1.7"),
             artifact=artifact(
@@ -264,20 +273,6 @@ def assert_error(
 def platform(plat):
     # type: (str) -> AbbreviatedPlatform
     return AbbreviatedPlatform.create(Platform.create(plat))
-
-
-def test_invalid_configuration(
-    current_target,  # type: Target
-    ansicolors_exotic,  # type: LockedResolve
-):
-    # type: (...) -> None
-    assert_error(
-        ansicolors_exotic.resolve(
-            current_target, [req("ansicolors")], build=False, use_wheel=False
-        ),
-        "Cannot both ignore wheels (use_wheel=False) and refrain from building distributions "
-        "(build=False).",
-    )
 
 
 def test_platform_resolve(ansicolors_exotic):
@@ -402,7 +397,11 @@ def test_wheel_tag_mismatch(
 ):
     # type: (...) -> None
     assert_error(
-        ansicolors_exotic.resolve(current_target, [req("ansicolors==1.1.*")], build=False),
+        ansicolors_exotic.resolve(
+            current_target,
+            [req("ansicolors==1.1.*")],
+            build_configuration=BuildConfiguration.create(allow_builds=False),
+        ),
         dedent(
             """\
             Failed to resolve all requirements for {target_description}:
@@ -578,7 +577,11 @@ def test_prefer_older_binary(current_target):
     )
 
     assert_resolved(
-        locked_resolve.resolve(current_target, [req("ansicolors>1")], prefer_older_binary=True),
+        locked_resolve.resolve(
+            current_target,
+            [req("ansicolors>1")],
+            build_configuration=BuildConfiguration.create(prefer_older_binary=True),
+        ),
         DownloadableArtifact.create(
             pin=pin("ansicolors", "1.1.7"),
             artifact=artifact(
@@ -759,7 +762,11 @@ def test_multiple_errors(
     # type: (...) -> None
 
     assert_error(
-        cyclic_resolve.resolve(current_target, [req("A==1.0.1")], use_wheel=False),
+        cyclic_resolve.resolve(
+            current_target,
+            [req("A==1.0.1")],
+            build_configuration=BuildConfiguration.create(allow_wheels=False),
+        ),
         dedent(
             """\
             Failed to resolve all requirements for {target_description}:

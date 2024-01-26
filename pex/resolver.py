@@ -35,7 +35,7 @@ from pex.pip.version import PipVersionValue
 from pex.requirements import LocalProjectRequirement
 from pex.resolve.downloads import get_downloads_dir
 from pex.resolve.requirement_configuration import RequirementConfiguration
-from pex.resolve.resolver_configuration import ResolverVersion
+from pex.resolve.resolver_configuration import BuildConfiguration, ResolverVersion
 from pex.resolve.resolvers import (
     ResolvedDistribution,
     Resolver,
@@ -84,11 +84,7 @@ class DownloadRequest(object):
     allow_prereleases = attr.ib(default=False)  # type: bool
     transitive = attr.ib(default=True)  # type: bool
     package_index_configuration = attr.ib(default=None)  # type: Optional[PackageIndexConfiguration]
-    build = attr.ib(default=True)  # type: bool
-    use_wheel = attr.ib(default=True)  # type: bool
-    prefer_older_binary = attr.ib(default=False)  # type: bool
-    use_pep517 = attr.ib(default=None)  # type: Optional[bool]
-    build_isolation = attr.ib(default=True)  # type: bool
+    build_configuration = attr.ib(default=BuildConfiguration())  # type: BuildConfiguration
     observer = attr.ib(default=None)  # type: Optional[ResolveObserver]
     preserve_log = attr.ib(default=False)  # type: bool
     pip_version = attr.ib(default=None)  # type: Optional[PipVersionValue]
@@ -148,11 +144,7 @@ class DownloadRequest(object):
             transitive=self.transitive,
             target=target,
             package_index_configuration=self.package_index_configuration,
-            build=self.build,
-            use_wheel=self.use_wheel,
-            prefer_older_binary=self.prefer_older_binary,
-            use_pep517=self.use_pep517,
-            build_isolation=self.build_isolation,
+            build_configuration=self.build_configuration,
             observer=observer,
             preserve_log=self.preserve_log,
         )
@@ -528,18 +520,14 @@ class WheelBuilder(object):
     def __init__(
         self,
         package_index_configuration=None,  # type: Optional[PackageIndexConfiguration]
-        prefer_older_binary=False,  # type: bool
-        use_pep517=None,  # type: Optional[bool]
-        build_isolation=True,  # type: bool
+        build_configuration=BuildConfiguration(),  # type: BuildConfiguration
         verify_wheels=True,  # type: bool
         pip_version=None,  # type: Optional[PipVersionValue]
         resolver=None,  # type: Optional[Resolver]
     ):
         # type: (...) -> None
         self._package_index_configuration = package_index_configuration
-        self._prefer_older_binary = prefer_older_binary
-        self._use_pep517 = use_pep517
-        self._build_isolation = build_isolation
+        self._build_configuration = build_configuration
         self._verify_wheels = verify_wheels
         self._pip_version = pip_version
         self._resolver = resolver
@@ -586,9 +574,7 @@ class WheelBuilder(object):
             wheel_dir=build_result.build_dir,
             package_index_configuration=self._package_index_configuration,
             interpreter=build_request.target.get_interpreter(),
-            prefer_older_binary=self._prefer_older_binary,
-            use_pep517=self._use_pep517,
-            build_isolation=self._build_isolation,
+            build_configuration=self._build_configuration,
             verify=self._verify_wheels,
         )
         return SpawnedJob.wait(job=build_job, result=build_result)
@@ -729,9 +715,7 @@ class BuildAndInstallRequest(object):
         direct_requirements=None,  # type: Optional[Iterable[ParsedRequirement]]
         package_index_configuration=None,  # type: Optional[PackageIndexConfiguration]
         compile=False,  # type: bool
-        prefer_older_binary=False,  # type: bool
-        use_pep517=None,  # type: Optional[bool]
-        build_isolation=True,  # type: bool
+        build_configuration=BuildConfiguration(),  # type: BuildConfiguration
         verify_wheels=True,  # type: bool
         pip_version=None,  # type: Optional[PipVersionValue]
         resolver=None,  # type: Optional[Resolver]
@@ -743,9 +727,7 @@ class BuildAndInstallRequest(object):
         self._compile = compile
         self._wheel_builder = WheelBuilder(
             package_index_configuration=package_index_configuration,
-            prefer_older_binary=prefer_older_binary,
-            use_pep517=use_pep517,
-            build_isolation=build_isolation,
+            build_configuration=build_configuration,
             verify_wheels=verify_wheels,
             pip_version=pip_version,
             resolver=resolver,
@@ -1040,11 +1022,7 @@ def resolve(
     resolver_version=None,  # type: Optional[ResolverVersion.Value]
     network_configuration=None,  # type: Optional[NetworkConfiguration]
     password_entries=(),  # type: Iterable[PasswordEntry]
-    build=True,  # type: bool
-    use_wheel=True,  # type: bool
-    prefer_older_binary=False,  # type: bool
-    use_pep517=None,  # type: Optional[bool]
-    build_isolation=True,  # type: bool
+    build_configuration=BuildConfiguration(),  # type: BuildConfiguration
     compile=False,  # type: bool
     max_parallel_jobs=None,  # type: Optional[int]
     ignore_errors=False,  # type: bool
@@ -1080,18 +1058,7 @@ def resolve(
     :keyword network_configuration: Configuration for network requests made downloading and building
       distributions.
     :keyword password_entries: Any known authentication information needed for resolving.
-    :keyword build: Whether to allow building source distributions when no wheel is found.
-      Defaults to ``True``.
-    :keyword use_wheel: Whether to allow resolution of pre-built wheel distributions.
-      Defaults to ``True``.
-    :keyword prefer_older_binary: Whether to prefer older binary distributions to newer source
-      distributions (avoid building wheels when possible). Defaults to ``False``.
-    :keyword use_pep517: Whether to force use of PEP 517 for building source distributions into
-      wheels or force direct invocation of ``setup.py bdist_wheel``. Defaults to using PEP-517 only
-      when a ``pyproject.toml`` file is present with a ``build-system`` section.
-    :keyword build_isolation: Disable ``sys.path`` isolation when building a modern source
-      distribution. Build dependencies specified by PEP 518 must already be installed on the
-      ``sys.path`` if `build_isolation` is ``True``.
+    :keyword build_configuration: The configuration for building resolved projects.
     :keyword compile: Whether to pre-compile resolved distribution python sources.
       Defaults to ``False``.
     :keyword max_parallel_jobs: The maximum number of parallel jobs to use when resolving,
@@ -1157,11 +1124,7 @@ def resolve(
         allow_prereleases=allow_prereleases,
         transitive=transitive,
         package_index_configuration=package_index_configuration,
-        build=build,
-        use_wheel=use_wheel,
-        prefer_older_binary=prefer_older_binary,
-        use_pep517=use_pep517,
-        build_isolation=build_isolation,
+        build_configuration=build_configuration,
         max_parallel_jobs=max_parallel_jobs,
         preserve_log=preserve_log,
         pip_version=pip_version,
@@ -1179,9 +1142,7 @@ def resolve(
         direct_requirements=direct_requirements,
         package_index_configuration=package_index_configuration,
         compile=compile,
-        prefer_older_binary=prefer_older_binary,
-        use_pep517=use_pep517,
-        build_isolation=build_isolation,
+        build_configuration=build_configuration,
         verify_wheels=verify_wheels,
         pip_version=pip_version,
         resolver=resolver,
@@ -1209,11 +1170,7 @@ def _download_internal(
     allow_prereleases=False,  # type: bool
     transitive=True,  # type: bool
     package_index_configuration=None,  # type: Optional[PackageIndexConfiguration]
-    build=True,  # type: bool
-    use_wheel=True,  # type: bool
-    prefer_older_binary=False,  # type: bool
-    use_pep517=None,  # type: Optional[bool]
-    build_isolation=True,  # type: bool
+    build_configuration=BuildConfiguration(),  # type: BuildConfiguration
     dest=None,  # type: Optional[str]
     max_parallel_jobs=None,  # type: Optional[int]
     observer=None,  # type: Optional[ResolveObserver]
@@ -1233,11 +1190,7 @@ def _download_internal(
         allow_prereleases=allow_prereleases,
         transitive=transitive,
         package_index_configuration=package_index_configuration,
-        build=build,
-        use_wheel=use_wheel,
-        prefer_older_binary=prefer_older_binary,
-        use_pep517=use_pep517,
-        build_isolation=build_isolation,
+        build_configuration=build_configuration,
         observer=observer,
         preserve_log=preserve_log,
         pip_version=pip_version,
@@ -1294,11 +1247,7 @@ def download(
     resolver_version=None,  # type: Optional[ResolverVersion.Value]
     network_configuration=None,  # type: Optional[NetworkConfiguration]
     password_entries=(),  # type: Iterable[PasswordEntry]
-    build=True,  # type: bool
-    use_wheel=True,  # type: bool
-    prefer_older_binary=False,  # type: bool
-    use_pep517=None,  # type: Optional[bool]
-    build_isolation=True,  # type: bool
+    build_configuration=BuildConfiguration(),  # type: BuildConfiguration
     dest=None,  # type: Optional[str]
     max_parallel_jobs=None,  # type: Optional[int]
     observer=None,  # type: Optional[ResolveObserver]
@@ -1329,18 +1278,7 @@ def download(
     :keyword network_configuration: Configuration for network requests made downloading and building
       distributions.
     :keyword password_entries: Any known authentication information needed for downloading.
-    :keyword build: Whether to allow building source distributions when no wheel is found.
-      Defaults to ``True``.
-    :keyword use_wheel: Whether to allow resolution of pre-built wheel distributions.
-      Defaults to ``True``.
-    :keyword prefer_older_binary: Whether to prefer older binary distributions to newer source
-      distributions (avoid building wheels when possible). Defaults to ``False``.
-    :keyword use_pep517: Whether to force use of PEP 517 for building source distributions into
-      wheels or force direct invocation of ``setup.py bdist_wheel``. Defaults to using PEP-517 only
-      when a ``pyproject.toml`` file is present with a ``build-system`` section.
-    :keyword build_isolation: Disable ``sys.path`` isolation when building a modern source
-      distribution. Build dependencies specified by PEP 518 must already be installed on the
-      ``sys.path`` if `build_isolation` is ``True``.
+    :keyword build_configuration: The configuration for building resolved projects.
     :keyword dest: A directory path to download distributions to.
     :keyword max_parallel_jobs: The maximum number of parallel jobs to use when resolving,
       building and installing distributions in a resolve. Defaults to the number of CPUs available.
@@ -1371,11 +1309,7 @@ def download(
         allow_prereleases=allow_prereleases,
         transitive=transitive,
         package_index_configuration=package_index_configuration,
-        build=build,
-        use_wheel=use_wheel,
-        prefer_older_binary=prefer_older_binary,
-        use_pep517=use_pep517,
-        build_isolation=build_isolation,
+        build_configuration=build_configuration,
         dest=dest,
         max_parallel_jobs=max_parallel_jobs,
         observer=observer,

@@ -156,6 +156,18 @@ def loads(
             enum_type=enum_type, value=value, path='{path}["{key}"]'.format(path=path, key=key)
         )
 
+    def parse_project_name(
+        raw_project_name,  # type: str
+        path,  # type: str
+    ):
+        # type: (...) -> ProjectName
+        try:
+            return ProjectName(raw_project_name, validated=True)
+        except ProjectName.InvalidError as e:
+            raise ParseError(
+                "The project name string at '{path}' is invalid: {err}".format(path=path, err=e)
+            )
+
     def parse_requirement(
         raw_requirement,  # type: str
         path,  # type: str
@@ -195,6 +207,16 @@ def loads(
             path=".target_systems[{index}]".format(index=index),
         )
         for index, target_system in enumerate(get("target_systems", list, optional=True) or ())
+    ]
+
+    only_wheels = [
+        parse_project_name(project_name, path=".only_wheels[{index}]".format(index=index))
+        for index, project_name in enumerate(get("only_wheels", list, optional=True) or ())
+    ]
+
+    only_builds = [
+        parse_project_name(project_name, path=".only_builds[{index}]".format(index=index))
+        for index, project_name in enumerate(get("only_builds", list, optional=True) or ())
     ]
 
     requirements = [
@@ -311,7 +333,9 @@ def loads(
         constraints=constraints,
         allow_prereleases=get("allow_prereleases", bool),
         allow_wheels=get("allow_wheels", bool),
+        only_wheels=only_wheels,
         allow_builds=get("allow_builds", bool),
+        only_builds=only_builds,
         prefer_older_binary=get("prefer_older_binary", bool),
         use_pep517=get("use_pep517", bool, optional=True),
         build_isolation=get("build_isolation", bool),
@@ -353,7 +377,9 @@ def as_json_data(
         "constraints": [str(constraint) for constraint in lockfile.constraints],
         "allow_prereleases": lockfile.allow_prereleases,
         "allow_wheels": lockfile.allow_wheels,
+        "only_wheels": [str(project_name) for project_name in lockfile.only_wheels],
         "allow_builds": lockfile.allow_builds,
+        "only_builds": [str(project_name) for project_name in lockfile.only_builds],
         "prefer_older_binary": lockfile.prefer_older_binary,
         "use_pep517": lockfile.use_pep517,
         "build_isolation": lockfile.build_isolation,

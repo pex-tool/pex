@@ -5,16 +5,18 @@ from __future__ import absolute_import
 
 import itertools
 
+from pex import pex_warnings
 from pex.auth import PasswordEntry
 from pex.enum import Enum
 from pex.jobs import DEFAULT_MAX_JOBS
 from pex.network_configuration import NetworkConfiguration
 from pex.pep_440 import Version
+from pex.pep_503 import ProjectName
 from pex.pip.version import PipVersion, PipVersionValue
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Callable, Iterable, Optional, Tuple, Union
+    from typing import Callable, FrozenSet, Iterable, Optional, Tuple, Union
 
     import attr  # vendor:skip
 
@@ -82,15 +84,105 @@ class ReposConfiguration(object):
 
 
 @attr.s(frozen=True)
-class PipConfiguration(object):
-    repos_configuration = attr.ib(default=ReposConfiguration())  # type: ReposConfiguration
-    network_configuration = attr.ib(default=NetworkConfiguration())  # type: NetworkConfiguration
-    allow_prereleases = attr.ib(default=False)  # type: bool
-    allow_wheels = attr.ib(default=True)  # type: bool
+class BuildConfiguration(object):
+    class Error(ValueError):
+        """Indicates a build configuration error."""
+
+    @classmethod
+    def create(
+        cls,
+        allow_builds=True,  # type: bool
+        only_builds=(),  # type: Iterable[ProjectName]
+        allow_wheels=True,  # type: bool
+        only_wheels=(),  # type: Iterable[ProjectName]
+        prefer_older_binary=False,  # type: bool
+        use_pep517=None,  # type: Optional[bool]
+        build_isolation=True,  # type: bool
+    ):
+        # type: (...) -> BuildConfiguration
+        return cls(
+            allow_builds=allow_builds,
+            only_builds=frozenset(only_builds),
+            allow_wheels=allow_wheels,
+            only_wheels=frozenset(only_wheels),
+            prefer_older_binary=prefer_older_binary,
+            use_pep517=use_pep517,
+            build_isolation=build_isolation,
+        )
+
     allow_builds = attr.ib(default=True)  # type: bool
+    only_builds = attr.ib(default=frozenset())  # type: FrozenSet[ProjectName]
+    allow_wheels = attr.ib(default=True)  # type: bool
+    only_wheels = attr.ib(default=frozenset())  # type: FrozenSet[ProjectName]
     prefer_older_binary = attr.ib(default=False)  # type: bool
     use_pep517 = attr.ib(default=None)  # type: Optional[bool]
     build_isolation = attr.ib(default=True)  # type: bool
+
+    def __attrs_post_init__(self):
+        # type: () -> None
+        if not self.allow_builds and not self.allow_wheels:
+            raise self.Error(
+                "Cannot both disallow builds and disallow wheels. Please allow one of these or "
+                "both so that some distributions can be resolved."
+            )
+        if not self.allow_builds and self.only_builds:
+            raise self.Error(
+                "Builds were disallowed, but the following project names are configured to only "
+                "allow building: {only_builds}".format(
+                    only_builds=", ".join(sorted(map(str, self.only_builds)))
+                )
+            )
+        if not self.allow_wheels and self.only_wheels:
+            raise self.Error(
+                "Resolving wheels was disallowed, but the following project names are configured "
+                "to only allow resolving pre-built wheels for: {only_wheels}".format(
+                    only_wheels=", ".join(sorted(map(str, self.only_wheels)))
+                )
+            )
+
+        contradictory_only = self.only_builds.intersection(self.only_wheels)
+        if contradictory_only:
+            raise self.Error(
+                "The following project names were specified as only being allowed to be built and "
+                "only allowed to be resolved as pre-built wheels, please pick one or the other for "
+                "each: {contradictory_only}".format(
+                    contradictory_only=", ".join(sorted(map(str, contradictory_only)))
+                )
+            )
+
+        if self.prefer_older_binary and not (self.allow_wheels and self.allow_builds):
+            pex_warnings.warn(
+                "The prefer older binary setting was requested, but this has no effect unless both "
+                "pre-built wheels and sdist builds are allowed."
+            )
+
+        if not self.allow_builds and self.use_pep517 is not None:
+            pex_warnings.warn(
+                "Use of PEP-517 builds was set to {value}, but builds are turned off; so this "
+                "setting has no effect.".format(value=self.use_pep517)
+            )
+
+        if not self.allow_builds and not self.build_isolation:
+            pex_warnings.warn(
+                "Build isolation was turned off, but builds are also turned off; so this setting "
+                "has no effect."
+            )
+
+    def allow_build(self, project_name):
+        # type: (ProjectName) -> bool
+        return self.allow_builds and project_name not in self.only_wheels
+
+    def allow_wheel(self, project_name):
+        # type: (ProjectName) -> bool
+        return self.allow_wheels and project_name not in self.only_builds
+
+
+@attr.s(frozen=True)
+class PipConfiguration(object):
+    repos_configuration = attr.ib(default=ReposConfiguration())  # type: ReposConfiguration
+    network_configuration = attr.ib(default=NetworkConfiguration())  # type: NetworkConfiguration
+    build_configuration = attr.ib(default=BuildConfiguration())  # type: BuildConfiguration
+    allow_prereleases = attr.ib(default=False)  # type: bool
     transitive = attr.ib(default=True)  # type: bool
     max_jobs = attr.ib(default=DEFAULT_MAX_JOBS)  # type: int
     preserve_log = attr.ib(default=False)  # type: bool

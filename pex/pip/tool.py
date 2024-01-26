@@ -28,7 +28,11 @@ from pex.pip.log_analyzer import ErrorAnalyzer, ErrorMessage, LogAnalyzer, LogSc
 from pex.pip.tailer import Tailer
 from pex.pip.version import PipVersion, PipVersionValue
 from pex.platforms import Platform
-from pex.resolve.resolver_configuration import ReposConfiguration, ResolverVersion
+from pex.resolve.resolver_configuration import (
+    BuildConfiguration,
+    ReposConfiguration,
+    ResolverVersion,
+)
 from pex.targets import LocalInterpreter, Target
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
@@ -401,6 +405,36 @@ class Pip(object):
         )
         return Job(command=command, process=process, finalizer=finalizer)
 
+    @staticmethod
+    def _iter_build_configuration_options(build_configuration):
+        # type: (BuildConfiguration) -> Iterator[str]
+
+        # N.B.: BuildConfiguration maintains invariants that ensure --only-binary, --no-binary,
+        # --prefer-binary, --use-pep517 and --no-build-isolation are coherent.
+
+        if not build_configuration.allow_builds:
+            yield "--only-binary"
+            yield ":all:"
+        elif not build_configuration.allow_wheels:
+            yield "--no-binary"
+            yield ":all:"
+        else:
+            for project in build_configuration.only_wheels:
+                yield "--only-binary"
+                yield str(project)
+            for project in build_configuration.only_builds:
+                yield "--no-binary"
+                yield str(project)
+
+        if build_configuration.prefer_older_binary:
+            yield "--prefer-binary"
+
+        if build_configuration.use_pep517 is not None:
+            yield "--use-pep517" if build_configuration.use_pep517 else "--no-use-pep517"
+
+        if not build_configuration.build_isolation:
+            yield "--no-build-isolation"
+
     def spawn_download_distributions(
         self,
         download_dir,  # type: str
@@ -411,47 +445,25 @@ class Pip(object):
         transitive=True,  # type: bool
         target=None,  # type: Optional[Target]
         package_index_configuration=None,  # type: Optional[PackageIndexConfiguration]
-        build=True,  # type: bool
-        use_wheel=True,  # type: bool
-        prefer_older_binary=False,  # type: bool
-        use_pep517=None,  # type: Optional[bool]
-        build_isolation=True,  # type: bool
+        build_configuration=BuildConfiguration(),  # type: BuildConfiguration
         observer=None,  # type: Optional[DownloadObserver]
         preserve_log=False,  # type: bool
     ):
         # type: (...) -> Job
         target = target or targets.current()
 
-        if not use_wheel:
-            if not build:
-                raise ValueError(
-                    "Cannot both ignore wheels (use_wheel=False) and refrain from building "
-                    "distributions (build=False)."
-                )
-            elif not isinstance(target, LocalInterpreter):
-                raise ValueError(
-                    "Cannot ignore wheels (use_wheel=False) when resolving for a platform: "
-                    "{}".format(target.platform)
-                )
+        if not build_configuration.allow_wheels and not isinstance(target, LocalInterpreter):
+            raise ValueError(
+                "Cannot ignore wheels (use_wheel=False) when resolving for a platform: "
+                "{}".format(target.platform)
+            )
 
         download_cmd = ["download", "--dest", download_dir]
         extra_env = {}  # type: Dict[str, str]
         pex_extra_sys_path = []  # type: List[str]
 
-        if not build:
-            download_cmd.extend(["--only-binary", ":all:"])
-
-        if not use_wheel:
-            download_cmd.extend(["--no-binary", ":all:"])
-
-        if prefer_older_binary:
-            download_cmd.append("--prefer-binary")
-
-        if use_pep517 is not None:
-            download_cmd.append("--use-pep517" if use_pep517 else "--no-use-pep517")
-
-        if not build_isolation:
-            download_cmd.append("--no-build-isolation")
+        download_cmd.extend(self._iter_build_configuration_options(build_configuration))
+        if not build_configuration.build_isolation:
             pex_extra_sys_path.extend(sys.path)
 
         if allow_prereleases:
@@ -589,7 +601,7 @@ class Pip(object):
                     download_dir=atomic_dir.work_dir,
                     requirements=[self._version.wheel_requirement],
                     package_index_configuration=package_index_configuration,
-                    build=False,
+                    build_configuration=BuildConfiguration.create(allow_builds=False),
                 ).wait()
                 for wheel in glob.glob(os.path.join(atomic_dir.work_dir, "*.whl")):
                     install_wheel_interpreter(wheel_path=wheel, interpreter=pip_interpreter)
@@ -600,9 +612,7 @@ class Pip(object):
         wheel_dir,  # type: str
         interpreter=None,  # type: Optional[PythonInterpreter]
         package_index_configuration=None,  # type: Optional[PackageIndexConfiguration]
-        prefer_older_binary=False,  # type: bool
-        use_pep517=None,  # type: Optional[bool]
-        build_isolation=True,  # type: bool
+        build_configuration=BuildConfiguration(),  # type: BuildConfiguration
         verify=True,  # type: bool
     ):
         # type: (...) -> Job
@@ -613,16 +623,10 @@ class Pip(object):
         wheel_cmd = ["wheel", "--no-deps", "--wheel-dir", wheel_dir]
         extra_env = {}  # type: Dict[str, str]
 
-        # It's not clear if Pip's implementation of PEP-517 builds respects this option for
-        # resolving build dependencies, but in case it is we pass it.
-        if use_pep517 is not False and prefer_older_binary:
-            wheel_cmd.append("--prefer-binary")
-
-        if use_pep517 is not None:
-            wheel_cmd.append("--use-pep517" if use_pep517 else "--no-use-pep517")
-
-        if not build_isolation:
-            wheel_cmd.append("--no-build-isolation")
+        # It's not clear if Pip's implementation of PEP-517 builds respects all build configuration
+        # options for resolving build dependencies, but in case it does, we pass them all.
+        wheel_cmd.extend(self._iter_build_configuration_options(build_configuration))
+        if not build_configuration.build_isolation:
             interpreter = interpreter or PythonInterpreter.get()
             extra_env.update(PEX_EXTRA_SYS_PATH=os.pathsep.join(interpreter.sys_path))
 
