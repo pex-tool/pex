@@ -135,7 +135,7 @@ class BuildConfiguration(object):
         if not self.allow_wheels and self.only_wheels:
             raise self.Error(
                 "Resolving wheels was disallowed, but the following project names are configured "
-                "to only allow resolving pre-built wheels for: {only_wheels}".format(
+                "to only allow resolving pre-built wheels: {only_wheels}".format(
                     only_wheels=", ".join(sorted(map(str, self.only_wheels)))
                 )
             )
