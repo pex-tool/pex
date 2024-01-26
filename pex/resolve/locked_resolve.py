@@ -24,6 +24,7 @@ from pex.resolve.resolved_requirement import (
     Pin,
     ResolvedRequirement,
 )
+from pex.resolve.resolver_configuration import BuildConfiguration
 from pex.result import Error
 from pex.sorted_tuple import SortedTuple
 from pex.targets import Target
@@ -555,18 +556,10 @@ class LockedResolve(object):
         constraints=(),  # type: Iterable[Requirement]
         source=None,  # type: Optional[str]
         transitive=True,  # type: bool
-        build=True,  # type: bool
-        use_wheel=True,  # type: bool
-        prefer_older_binary=False,  # type: bool
+        build_configuration=BuildConfiguration(),  # type: BuildConfiguration
         include_all_matches=False,  # type: bool
     ):
         # type: (...) -> Union[Resolved, Error]
-
-        if not use_wheel and not build:
-            return Error(
-                "Cannot both ignore wheels (use_wheel=False) and refrain from building "
-                "distributions (build=False)."
-            )
 
         repository = defaultdict(list)  # type: DefaultDict[ProjectName, List[LockedRequirement]]
         for locked_requirement in self.locked_requirements:
@@ -686,8 +679,8 @@ class LockedResolve(object):
                 ranked_artifacts = tuple(
                     locked_requirement.iter_compatible_artifacts(
                         target,
-                        build=build,
-                        use_wheel=use_wheel,
+                        build=build_configuration.allow_build(project_name),
+                        use_wheel=build_configuration.allow_wheel(project_name),
                     )
                 )
                 if not ranked_artifacts:
@@ -741,7 +734,7 @@ class LockedResolve(object):
 
             compatible_artifacts.sort(
                 key=lambda ra: _ResolvedArtifactComparator(
-                    ra, prefer_older_binary=prefer_older_binary
+                    ra, prefer_older_binary=build_configuration.prefer_older_binary
                 ),
                 reverse=True,  # We want the highest rank sorted 1st.
             )
@@ -751,22 +744,34 @@ class LockedResolve(object):
                 resolved_artifacts.append(compatible_artifacts[0])
 
         if errors:
-            from_source = " from {source}".format(source=source) if source else ""
-            return Error(
-                "Failed to resolve all requirements for {target}{from_source}:\n"
-                "\n"
-                "Configured with:\n"
-                "    build: {build}\n"
-                "    use_wheel: {use_wheel}\n"
-                "\n"
-                "{errors}".format(
+            lines = [
+                "Failed to resolve all requirements for {target}{from_source}:".format(
                     target=target.render_description(),
-                    from_source=from_source,
-                    build=build,
-                    use_wheel=use_wheel,
-                    errors="\n\n".join("{error}".format(error=error) for error in errors),
+                    from_source=" from {source}".format(source=source) if source else "",
+                ),
+                "",
+                "Configured with:",
+            ]
+            lines.append("    build: {build}".format(build=build_configuration.allow_builds))
+            if build_configuration.only_builds:
+                lines.append(
+                    "    only_build: {only_build}".format(
+                        only_build=", ".join(sorted(map(str, build_configuration.only_builds)))
+                    )
                 )
+            lines.append(
+                "    use_wheel: {use_wheel}".format(use_wheel=build_configuration.allow_wheels)
             )
+            if build_configuration.only_wheels:
+                lines.append(
+                    "    only_wheel: {only_wheel}".format(
+                        only_wheel=", ".join(sorted(map(str, build_configuration.only_wheels)))
+                    )
+                )
+            for error in errors:
+                lines.append("")
+                lines.append(error)
+            return Error("\n".join(lines))
 
         uniqued_resolved_artifacts = []  # type: List[_ResolvedArtifact]
         seen = set()

@@ -19,7 +19,7 @@ from pex.dist_metadata import Distribution, Requirement
 from pex.interpreter import PythonInterpreter
 from pex.platforms import Platform
 from pex.resolve.configured_resolver import ConfiguredResolver
-from pex.resolve.resolver_configuration import ResolverVersion
+from pex.resolve.resolver_configuration import BuildConfiguration, ResolverVersion
 from pex.resolve.resolvers import ResolvedDistribution, ResolveResult, Unsatisfiable
 from pex.resolver import download
 from pex.resolver import resolve as resolve_under_test
@@ -378,7 +378,7 @@ def test_resolve_foreign_abi3():
                     assume_manylinux=manylinux,
                 ),
                 transitive=False,
-                build=False,
+                build_configuration=BuildConfiguration.create(allow_builds=False),
             )
 
     wheel_names = resolve_cryptography_wheel_names(manylinux="manylinux2014")

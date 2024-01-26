@@ -17,6 +17,7 @@ from pex.common import DETERMINISTIC_DATETIME, open_zip, safe_open, temporary_di
 from pex.dist_metadata import Distribution, Requirement
 from pex.pip.installation import get_pip
 from pex.pip.version import PipVersion
+from pex.resolve.resolver_configuration import BuildConfiguration
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.typing import TYPE_CHECKING
 from testing import PY310, ensure_python_venv, run_command_with_jitter, run_pex_command
@@ -220,7 +221,7 @@ def test_extract_lifecycle(pex, pex_tools_env, tmpdir):
     get_pip().spawn_download_distributions(
         download_dir=vendored_pip_dists_dir,
         requirements=[PipVersion.VENDORED.wheel_requirement],
-        build=False,
+        build_configuration=BuildConfiguration.create(allow_builds=False),
     ).wait()
 
     dists_dir = os.path.join(str(tmpdir), "dists")

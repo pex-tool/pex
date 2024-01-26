@@ -591,9 +591,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                     lock=lock_file,
                     requirement_configuration=requirement_configuration,
                     network_configuration=network_configuration,
-                    build=lock_file.allow_builds,
-                    use_wheel=lock_file.allow_wheels,
-                    prefer_older_binary=lock_file.prefer_older_binary,
+                    build_configuration=lock_file.build_configuration(),
                     transitive=lock_file.transitive,
                     include_all_matches=True,
                 )
@@ -733,9 +731,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                     targets=targets,
                     lock=lock_file,
                     network_configuration=network_configuration,
-                    build=lock_file.allow_builds,
-                    use_wheel=lock_file.allow_wheels,
-                    prefer_older_binary=lock_file.prefer_older_binary,
+                    build_configuration=lock_file.build_configuration(),
                     transitive=lock_file.transitive,
                 )
             )

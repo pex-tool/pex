@@ -13,6 +13,7 @@ from pex.requirements import LocalProjectRequirement, parse_requirement_strings
 from pex.resolve.locked_resolve import Resolved
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.requirement_configuration import RequirementConfiguration
+from pex.resolve.resolver_configuration import BuildConfiguration
 from pex.result import Error
 from pex.targets import Target, Targets
 from pex.tracer import TRACER
@@ -45,9 +46,7 @@ def subset(
     lock,  # type: Lockfile
     requirement_configuration=RequirementConfiguration(),  # type: RequirementConfiguration
     network_configuration=None,  # type: Optional[NetworkConfiguration]
-    build=True,  # type: bool
-    use_wheel=True,  # type: bool
-    prefer_older_binary=False,  # type: bool
+    build_configuration=BuildConfiguration(),  # type: BuildConfiguration
     transitive=True,  # type: bool
     include_all_matches=False,  # type: bool
 ):
@@ -87,9 +86,7 @@ def subset(
                     requirements_to_resolve,
                     constraints=constraints,
                     source=lock.source,
-                    build=build,
-                    use_wheel=use_wheel,
-                    prefer_older_binary=prefer_older_binary,
+                    build_configuration=build_configuration,
                     transitive=transitive,
                     include_all_matches=include_all_matches,
                     # TODO(John Sirois): Plumb `--ignore-errors` to support desired but technically

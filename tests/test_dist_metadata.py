@@ -26,6 +26,7 @@ from pex.pep_427 import install_wheel_chroot
 from pex.pep_503 import ProjectName
 from pex.pex_warnings import PEXWarning
 from pex.pip.installation import get_pip
+from pex.resolve.resolver_configuration import BuildConfiguration
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.typing import TYPE_CHECKING
 
@@ -58,7 +59,7 @@ def downloaded_sdist(requirement):
             download_dir=download_dir,
             requirements=[requirement],
             transitive=False,
-            use_wheel=False,
+            build_configuration=BuildConfiguration.create(allow_wheels=False),
         ).wait()
         dists = os.listdir(download_dir)
         assert len(dists) == 1, "Expected 1 dist to be downloaded for {}.".format(requirement)

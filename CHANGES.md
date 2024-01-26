@@ -1,5 +1,15 @@
 # Release Notes
 
+## 2.1.161
+
+This release adds support for `--only-wheel <project name>` and
+`--only-build <project name>` to allow finer control over which
+distribution artifacts are resolved when building a PEX or creating or
+updating a lock file. These options correspond to Pip's `--only-binary`
+and `--no-binary` options with project name arguments.
+
+* Plumb Pip's `--{no,only}-binary`. (#2346)
+
 ## 2.1.160
 
 This release adds the ability for `pex3 lock update` to replace

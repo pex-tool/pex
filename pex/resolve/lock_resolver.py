@@ -33,7 +33,7 @@ from pex.resolve.lockfile.download_manager import DownloadedArtifact, DownloadMa
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.lockfile.subset import subset
 from pex.resolve.requirement_configuration import RequirementConfiguration
-from pex.resolve.resolver_configuration import ResolverVersion
+from pex.resolve.resolver_configuration import BuildConfiguration, ResolverVersion
 from pex.resolve.resolvers import MAX_PARALLEL_DOWNLOADS, Resolver, ResolveResult
 from pex.resolver import BuildAndInstallRequest, BuildRequest, InstallRequest
 from pex.result import Error, catch, try_
@@ -44,7 +44,11 @@ from pex.typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from typing import Dict, Iterable, Mapping, Optional, Sequence, Tuple, Union
 
+    import attr  # vendor:skip
+
     from pex.hashing import HintedDigest
+else:
+    from pex.third_party import attr
 
 
 class FileArtifactDownloadManager(DownloadManager[FileArtifact]):
@@ -81,8 +85,7 @@ class VCSArtifactDownloadManager(DownloadManager[VCSArtifact]):
         network_configuration=None,  # type: Optional[NetworkConfiguration]
         password_entries=(),  # type: Iterable[PasswordEntry]
         cache=None,  # type: Optional[str]
-        use_pep517=None,  # type: Optional[bool]
-        build_isolation=True,  # type: bool
+        build_configuration=BuildConfiguration(),  # type: BuildConfiguration
         pex_root=None,  # type: Optional[str]
         pip_version=None,  # type: Optional[PipVersionValue]
         resolver=None,  # type: Optional[Resolver]
@@ -98,8 +101,9 @@ class VCSArtifactDownloadManager(DownloadManager[VCSArtifact]):
         self._network_configuration = network_configuration
         self._password_entries = password_entries
         self._cache = cache
-        self._use_pep517 = use_pep517
-        self._build_isolation = build_isolation
+        self._build_configuration = attr.evolve(
+            build_configuration, allow_wheels=False, prefer_older_binary=False
+        )
         self._pip_version = pip_version
         self._resolver = resolver
         self._use_pip_config = use_pip_config
@@ -123,10 +127,7 @@ class VCSArtifactDownloadManager(DownloadManager[VCSArtifact]):
             resolver_version=self._resolver_version,
             network_configuration=self._network_configuration,
             password_entries=self._password_entries,
-            use_wheel=False,
-            prefer_older_binary=False,
-            use_pep517=self._use_pep517,
-            build_isolation=self._build_isolation,
+            build_configuration=self._build_configuration,
             max_parallel_jobs=1,
             pip_version=self._pip_version,
             resolver=self._resolver,
@@ -237,11 +238,7 @@ def resolve_from_lock(
     resolver_version=None,  # type: Optional[ResolverVersion.Value]
     network_configuration=None,  # type: Optional[NetworkConfiguration]
     password_entries=(),  # type: Iterable[PasswordEntry]
-    build=True,  # type: bool
-    use_wheel=True,  # type: bool
-    prefer_older_binary=False,  # type: bool
-    use_pep517=None,  # type: Optional[bool]
-    build_isolation=True,  # type: bool
+    build_configuration=BuildConfiguration(),  # type: BuildConfiguration
     compile=False,  # type: bool
     transitive=True,  # type: bool
     verify_wheels=True,  # type: bool
@@ -262,9 +259,7 @@ def resolve_from_lock(
                 constraint_files=constraint_files,
             ),
             network_configuration=network_configuration,
-            build=build,
-            use_wheel=use_wheel,
-            prefer_older_binary=prefer_older_binary,
+            build_configuration=build_configuration,
             transitive=transitive,
         )
     )
@@ -311,8 +306,7 @@ def resolve_from_lock(
             resolver_version=resolver_version,
             network_configuration=network_configuration,
             password_entries=password_entries,
-            use_pep517=use_pep517,
-            build_isolation=build_isolation,
+            build_configuration=build_configuration,
             pip_version=pip_version,
             resolver=resolver,
             use_pip_config=use_pip_config,
@@ -435,9 +429,7 @@ def resolve_from_lock(
                 use_pip_config=use_pip_config,
             ),
             compile=compile,
-            prefer_older_binary=prefer_older_binary,
-            use_pep517=use_pep517,
-            build_isolation=build_isolation,
+            build_configuration=build_configuration,
             verify_wheels=verify_wheels,
             pip_version=pip_version,
             resolver=resolver,
