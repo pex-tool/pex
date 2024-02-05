@@ -248,6 +248,15 @@ class PipVersion(Enum["PipVersionValue"]):
         requires_python=">=3.7,<3.13",
     )
 
+    v24_0 = PipVersionValue(
+        version="24.0",
+        # N.B.: The setuptools 69.0.3 release was available on 2/03/2024 (the Pip 24.0 release
+        # date) but 68.0.0 is the last setuptools version to support 3.7.
+        setuptools_version="68.0.0",
+        wheel_version="0.42.0",
+        requires_python=">=3.7,<3.13",
+    )
+
     # This is https://github.com/pypa/pip/pull/12462 which is approved but not yet merged or
     # released. It allows testing Python 3.13 pre-releases but should not be used by the public; so
     # we keep it hidden.
