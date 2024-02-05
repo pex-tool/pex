@@ -128,6 +128,8 @@ def pex_repository(
         "urllib3==1.26.1",
         # The 22.0.0 release of pyOpenSSL drops support for Python 2.7; so we pin lower.
         "pyOpenSSL<22",
+        # The 2022 and later releases only support Python>=3.6; so we pin lower.
+        "certifi<2022",
     )
 
     return create_pex_repository(
