@@ -112,7 +112,17 @@ class ArtifactURL(object):
                     continue
                 fingerprints.append(Fingerprint(algorithm=alg, hash=hashes[0]))
 
-        download_url = urlparse.urlunparse(url_info._replace(params="", query="", fragment=""))
+        download_url = urlparse.urlunparse(
+            url_info._replace(
+                fragment="&".join(
+                    sorted(
+                        "{name}={value}".format(name=name, value=value)
+                        for name, values in fragment_parameters.items()
+                        for value in values
+                    )
+                )
+            )
+        )
         normalized_url = urlparse.urlunparse(
             url_info._replace(path=path, params="", query="", fragment="")
         )
