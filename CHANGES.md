@@ -1,5 +1,16 @@
 # Release Notes
 
+## 2.1.162
+
+This release adds support for `--pip-version 24.0` as well as fixing a
+bug in URL encoding for artifacts in lock files. Notably, torch use of
+local version identifiers (`+cpu`) combined with their find links page
+at https://download.pytorch.org/whl/torch_stable.html would lead to
+`pex3 lock create` errors.
+
+* Add support for Pip 24.0. (#2350)
+* Fix URL escaping for lock artifacts. (#2349)
+
 ## 2.1.161
 
 This release adds support for `--only-wheel <project name>` and
