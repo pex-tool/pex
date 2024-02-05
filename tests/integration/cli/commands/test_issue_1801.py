@@ -60,7 +60,7 @@ def test_preserve_pip_download_log():
     assert 1 == len(artifacts)
 
     artifact = artifacts[0]
-    assert artifact.url.endswith(expected_url_suffix)
+    assert artifact.url.download_url.endswith(expected_url_suffix)
     assert expected_algorithm == artifact.fingerprint.algorithm
     assert expected_hash == artifact.fingerprint.hash
 

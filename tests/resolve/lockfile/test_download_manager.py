@@ -12,7 +12,7 @@ from pex.hashing import Sha1Fingerprint, Sha256Fingerprint
 from pex.pep_503 import ProjectName
 from pex.resolve.locked_resolve import FileArtifact
 from pex.resolve.lockfile.download_manager import DownloadedArtifact, DownloadManager
-from pex.resolve.resolved_requirement import Fingerprint
+from pex.resolve.resolved_requirement import ArtifactURL, Fingerprint
 from pex.result import Error, catch
 from pex.typing import TYPE_CHECKING
 
@@ -71,7 +71,7 @@ def project_name():
 def artifact(expected_content):
     # type: (bytes) -> FileArtifact
     return FileArtifact(
-        url="file:///foo-1.0.tar.gz",
+        url=ArtifactURL.parse("file:///foo-1.0.tar.gz"),
         fingerprint=Fingerprint.from_stream(BytesIO(expected_content), algorithm="sha1"),
         filename="foo-1.0.tar.gz",
         verified=False,

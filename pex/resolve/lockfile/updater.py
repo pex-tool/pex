@@ -25,7 +25,7 @@ from pex.resolve.locked_resolve import (
 from pex.resolve.lockfile.create import create
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.requirement_configuration import RequirementConfiguration
-from pex.resolve.resolved_requirement import Fingerprint
+from pex.resolve.resolved_requirement import ArtifactURL, Fingerprint
 from pex.resolve.resolver_configuration import PipConfiguration, ReposConfiguration
 from pex.result import Error, ResultError, catch, try_
 from pex.sorted_tuple import SortedTuple
@@ -69,12 +69,14 @@ class VersionUpdate(object):
 
 @attr.s(frozen=True)
 class URLUpdate(object):
-    original = attr.ib()  # type: str
-    updated = attr.ib()  # type: str
+    original = attr.ib()  # type: ArtifactURL
+    updated = attr.ib()  # type: ArtifactURL
 
     def render_update(self):
         # type: () -> str
-        return "{original} -> {updated}".format(original=self.original, updated=self.updated)
+        return "{original} -> {updated}".format(
+            original=self.original.download_url, updated=self.updated.download_url
+        )
 
 
 @attr.s(frozen=True)
@@ -102,10 +104,10 @@ class ArtifactUpdate(object):
     def render_update(self):
         # type: () -> str
         return "{o_url}#{o_alg}:{o_hash} -> {u_url}#{u_alg}:{u_hash}".format(
-            o_url=self.original.url,
+            o_url=self.original.url.download_url,
             o_alg=self.original.fingerprint.algorithm,
             o_hash=self.original.fingerprint.hash,
-            u_url=self.updated.url,
+            u_url=self.updated.url.download_url,
             u_alg=self.updated.fingerprint.algorithm,
             u_hash=self.updated.fingerprint.hash,
         )
@@ -124,7 +126,11 @@ class ArtifactsUpdate(object):
 
         def key(artifact):
             # type: (Artifact) -> str
-            return artifact.filename if isinstance(artifact, FileArtifact) else artifact.url
+            return (
+                artifact.filename
+                if isinstance(artifact, FileArtifact)
+                else artifact.url.normalized_url
+            )
 
         def calculate_updates(
             original_art,  # type: Artifact

@@ -893,7 +893,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                     if update.added:
                         message_lines.extend(
                             "    + {added}".format(
-                                added=path_mappings.maybe_canonicalize(artifact.url)
+                                added=path_mappings.maybe_canonicalize(artifact.url.download_url)
                             )
                             for artifact in update.added
                         )
@@ -912,7 +912,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                     if update.removed:
                         message_lines.extend(
                             "    - {removed}".format(
-                                removed=path_mappings.maybe_canonicalize(artifact.url)
+                                removed=path_mappings.maybe_canonicalize(artifact.url.download_url)
                             )
                             for artifact in update.removed
                         )

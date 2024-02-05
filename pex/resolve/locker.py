@@ -280,17 +280,8 @@ class Locker(LogAnalyzer):
     def _extract_resolve_data(artifact_url):
         # type: (ArtifactURL) -> Tuple[Pin, PartialArtifact]
 
-        fingerprint = None  # type: Optional[Fingerprint]
-        fingerprint_match = re.search(
-            r"[^#]+#(?P<algorithm>[^=]+)=(?P<hash>.*)$", artifact_url.raw_url
-        )
-        if fingerprint_match:
-            algorithm = fingerprint_match.group("algorithm")
-            hash_ = fingerprint_match.group("hash")
-            fingerprint = Fingerprint(algorithm=algorithm, hash=hash_)
-
         pin = Pin.canonicalize(ProjectNameAndVersion.from_filename(artifact_url.path))
-        partial_artifact = PartialArtifact(artifact_url, fingerprint)
+        partial_artifact = PartialArtifact(artifact_url, fingerprint=artifact_url.fingerprint)
         return pin, partial_artifact
 
     def _maybe_record_wheel(self, url):

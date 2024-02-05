@@ -6,7 +6,6 @@ import os.path
 
 import pytest
 
-from pex.compatibility import urlparse
 from pex.interpreter import PythonInterpreter
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
@@ -78,7 +77,7 @@ def assert_file_artifact(artifact):
 
 def assert_wheel(artifact):
     # type: (Artifact) -> FileArtifact
-    assert urlparse.urlparse(artifact.url).path.endswith(".whl")
+    assert artifact.url.is_wheel
     return assert_file_artifact(artifact)
 
 

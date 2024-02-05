@@ -19,7 +19,7 @@ from pex.resolve.lockfile import json_codec
 from pex.resolve.lockfile.json_codec import ParseError, PathMappingError
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.path_mappings import PathMapping, PathMappings
-from pex.resolve.resolved_requirement import Fingerprint, Pin
+from pex.resolve.resolved_requirement import ArtifactURL, Fingerprint, Pin
 from pex.resolve.resolver_configuration import BuildConfiguration, ResolverVersion
 from pex.sorted_tuple import SortedTuple
 from pex.third_party.packaging import tags
@@ -596,6 +596,8 @@ def test_path_mappings_round_trip():
         lock_file2 != lock_file
     ), "Expected path roots to be reified to different values than we started with."
     assert (
-        "file:///at/another/path/find-links/ansicolors-1.1.8-py2.py3-none-any.whl"
+        ArtifactURL.parse(
+            "file:///at/another/path/find-links/ansicolors-1.1.8-py2.py3-none-any.whl"
+        )
         == lock_file2.locked_resolves[0].locked_requirements[0].artifact.url
     )
