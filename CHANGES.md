@@ -3,7 +3,7 @@
 ## 2.1.162
 
 This release adds support for `--pip-version 24.0` as well as fixing a
-bug in URL encoding for artifacts in lock files. Notably, torch use of
+bug in URL encoding for artifacts in lock files. Notably, torch's use of
 local version identifiers (`+cpu`) combined with their find links page
 at https://download.pytorch.org/whl/torch_stable.html would lead to
 `pex3 lock create` errors.
