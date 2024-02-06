@@ -9,7 +9,6 @@ from collections import OrderedDict, defaultdict, deque
 from functools import total_ordering
 
 from pex.common import pluralize
-from pex.compatibility import urlparse
 from pex.dist_metadata import DistMetadata, Requirement
 from pex.enum import Enum
 from pex.orderedset import OrderedSet
@@ -121,7 +120,7 @@ class Artifact(object):
         if "file" == artifact_url.scheme and os.path.isdir(artifact_url.path):
             directory = os.path.normpath(artifact_url.path)
             return LocalProjectArtifact(
-                url=artifact_url.normalized_url,
+                url=artifact_url,
                 fingerprint=fingerprint,
                 verified=verified,
                 directory=directory,
@@ -129,7 +128,7 @@ class Artifact(object):
 
         filename = os.path.basename(artifact_url.path)
         return FileArtifact(
-            url=artifact_url.normalized_url,
+            url=artifact_url,
             fingerprint=fingerprint,
             verified=verified,
             filename=filename,
@@ -147,7 +146,7 @@ class Artifact(object):
             artifact_url=ArtifactURL.parse(url), fingerprint=fingerprint, verified=verified
         )
 
-    url = attr.ib()  # type: str
+    url = attr.ib()  # type: ArtifactURL
     fingerprint = attr.ib()  # type: Fingerprint
     verified = attr.ib()  # type: bool
 
@@ -201,9 +200,7 @@ class VCSArtifact(Artifact):
                 )
             )
         return cls(
-            # N.B.: We need the raw URL in order to have access to the fragment needed for
-            # `as_unparsed_requirement`.
-            url=artifact_url.raw_url,
+            url=artifact_url,
             fingerprint=fingerprint,
             verified=verified,
             vcs=artifact_url.scheme.vcs,
@@ -217,16 +214,13 @@ class VCSArtifact(Artifact):
 
     def as_unparsed_requirement(self, project_name):
         # type: (ProjectName) -> str
-        url_info = urlparse.urlparse(self.url)
-        if url_info.fragment:
-            fragment_parameters = urlparse.parse_qs(url_info.fragment)
-            names = fragment_parameters.get("egg")
-            if names and ProjectName(names[-1]) == project_name:
-                # A Pip proprietary VCS requirement.
-                return self.url
+        names = self.url.fragment_parameters.get("egg")
+        if names and ProjectName(names[-1]) == project_name:
+            # A Pip proprietary VCS requirement.
+            return self.url.raw_url
         # A PEP-440 direct reference VCS requirement with the project name stripped from earlier
         # processing. See: https://peps.python.org/pep-0440/#direct-references
-        return "{project_name} @ {url}".format(project_name=project_name, url=self.url)
+        return "{project_name} @ {url}".format(project_name=project_name, url=self.url.raw_url)
 
 
 @attr.s(frozen=True)
@@ -688,7 +682,7 @@ class LockedResolve(object):
                         attributed_reason(
                             "does not have any compatible artifacts:\n{artifacts}".format(
                                 artifacts="\n".join(
-                                    "    {url}".format(url=artifact.url)
+                                    "    {url}".format(url=artifact.url.download_url)
                                     for artifact in locked_requirement.iter_artifacts()
                                 )
                             )

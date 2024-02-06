@@ -9,7 +9,7 @@ from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.resolve.locked_resolve import Artifact, FileArtifact, LockedRequirement
 from pex.resolve.lockfile import json_codec
-from pex.resolve.resolved_requirement import Fingerprint
+from pex.resolve.resolved_requirement import ArtifactURL, Fingerprint
 from pex.typing import TYPE_CHECKING
 from testing import IS_PYPY, PY_VER, run_pex_command
 from testing.cli import run_pex3
@@ -34,7 +34,7 @@ def normalize_artifact(artifact):
     # type: (Artifact) -> Artifact
     if not isinstance(artifact, FileArtifact):
         return artifact
-    return attr.evolve(artifact, url=artifact.filename)
+    return attr.evolve(artifact, url=ArtifactURL.parse(artifact.filename))
 
 
 def test_backtrack_links_preserved(

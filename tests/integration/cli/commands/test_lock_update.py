@@ -15,6 +15,7 @@ from pex.pip.version import PipVersion
 from pex.resolve.locked_resolve import Artifact, FileArtifact, LockedRequirement
 from pex.resolve.lockfile import json_codec
 from pex.resolve.lockfile.model import Lockfile
+from pex.resolve.resolved_requirement import ArtifactURL
 from pex.typing import TYPE_CHECKING
 from testing import make_env, run_pex_command
 from testing.cli import run_pex3
@@ -69,7 +70,7 @@ def find_links(
     url_fetcher = URLFetcher()
     find_links = os.path.join(str(tmpdir), "find_links")
     for artifact in iter_artifacts(lock_file):
-        with url_fetcher.get_body_stream(artifact.url) as url_fp:
+        with url_fetcher.get_body_stream(artifact.url.download_url) as url_fp:
             with safe_open(os.path.join(find_links, artifact.filename), "wb") as fl_fp:
                 shutil.copyfileobj(url_fp, fl_fp)
 
@@ -163,7 +164,9 @@ def test_lock_update_repo_migration_nominal(
         assert original_artifact.fingerprint == updated_artifact.fingerprint
         assert original_artifact.url != updated_artifact.url
         assert (
-            "file://{}".format(os.path.join(find_links, original_artifact.filename))
+            ArtifactURL.parse(
+                "file://{}".format(os.path.join(find_links, original_artifact.filename))
+            )
             == updated_artifact.url
         )
     assert not artifacts_by_filename

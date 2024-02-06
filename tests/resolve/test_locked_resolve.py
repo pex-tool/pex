@@ -26,7 +26,7 @@ from pex.resolve.locked_resolve import (
     VCSArtifact,
     _ResolvedArtifact,
 )
-from pex.resolve.resolved_requirement import Fingerprint, PartialArtifact, Pin
+from pex.resolve.resolved_requirement import ArtifactURL, Fingerprint, PartialArtifact, Pin
 from pex.resolve.resolver_configuration import BuildConfiguration
 from pex.result import Error, try_
 from pex.sorted_tuple import SortedTuple
@@ -910,19 +910,19 @@ def test_locked_requirement_mixed_artifacts_issue_2150():
     # type: () -> None
 
     file_artifact = FileArtifact(
-        url="https://host/project.whl",
+        url=ArtifactURL.parse("https://host/project.whl"),
         fingerprint=Fingerprint(algorithm="md5", hash="foo"),
         verified=False,
         filename="a.whl",
     )
     vcs_artifact = VCSArtifact(
-        url="git+https://host/a/project",
+        url=ArtifactURL.parse("git+https://host/a/project"),
         fingerprint=Fingerprint(algorithm="sha1", hash="bar"),
         verified=False,
         vcs=VCS.Git,
     )
     local_project_artifact = LocalProjectArtifact(
-        url="file:///tmp/project",
+        url=ArtifactURL.parse("file:///tmp/project"),
         fingerprint=Fingerprint(algorithm="sha256", hash="baz"),
         verified=False,
         directory="/tmp/project",
@@ -947,7 +947,7 @@ def test_locked_resolve_same_pins_mixed_primary_artifacts_issue_2150():
     file_artifact_requirement = LockedRequirement.create(
         pin,
         FileArtifact(
-            url="https://host/project.whl",
+            url=ArtifactURL.parse("https://host/project.whl"),
             fingerprint=Fingerprint(algorithm="md5", hash="foo"),
             verified=False,
             filename="a.whl",
@@ -956,7 +956,7 @@ def test_locked_resolve_same_pins_mixed_primary_artifacts_issue_2150():
     vcs_artifact_requirement = LockedRequirement.create(
         pin,
         VCSArtifact(
-            url="git+https://host/a/project",
+            url=ArtifactURL.parse("git+https://host/a/project"),
             fingerprint=Fingerprint(algorithm="sha1", hash="bar"),
             verified=False,
             vcs=VCS.Git,
@@ -965,7 +965,7 @@ def test_locked_resolve_same_pins_mixed_primary_artifacts_issue_2150():
     local_project_artifact_requirement = LockedRequirement.create(
         pin,
         LocalProjectArtifact(
-            url="file:///tmp/project",
+            url=ArtifactURL.parse("file:///tmp/project"),
             fingerprint=Fingerprint(algorithm="sha256", hash="baz"),
             verified=False,
             directory="/tmp/project",

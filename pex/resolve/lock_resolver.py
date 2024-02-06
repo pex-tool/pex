@@ -378,7 +378,7 @@ def resolve_from_lock(
                         "{index}. {pin} from {url}\n    {error}".format(
                             index=index,
                             pin=downloadable_artifact.pin,
-                            url=downloadable_artifact.artifact.url,
+                            url=downloadable_artifact.artifact.url.download_url,
                             error=error,
                         )
                         for index, (downloadable_artifact, error) in enumerate(

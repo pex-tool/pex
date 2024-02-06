@@ -12,10 +12,11 @@ from pex.hashing import HashlibHasher
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.requirements import ArchiveScheme, VCSScheme, parse_scheme
+from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import BinaryIO, Iterator, Optional, Tuple, Union
+    from typing import BinaryIO, Iterator, Mapping, Optional, Sequence, Tuple, Union
 
     import attr  # vendor:skip
 else:
@@ -77,28 +78,81 @@ class Fingerprint(object):
 
 @attr.s(frozen=True)
 class ArtifactURL(object):
+    # These ranks prefer the highest digest size and then use alphabetic order for a tie-break.
+
+    _RANKED_ALGORITHMS = tuple(
+        sorted(
+            hashlib.algorithms_guaranteed,
+            key=lambda alg: (-hashlib.new(alg).digest_size, alg),
+        )
+    )
+
     @classmethod
     def parse(cls, url):
         # type: (str) -> ArtifactURL
         url_info = urlparse.urlparse(url)
+        scheme = parse_scheme(url_info.scheme) if url_info.scheme else None
+        path = url_unquote(url_info.path)
+
+        fingerprints = []
+        fragment_parameters = urlparse.parse_qs(url_info.fragment)
+        if fragment_parameters:
+            # Artifact URLs from indexes may contain pre-computed hashes. We isolate those here,
+            # centrally, if present.
+            # See: https://peps.python.org/pep-0503/#specification
+            for alg in cls._RANKED_ALGORITHMS:
+                hashes = fragment_parameters.pop(alg, None)
+                if not hashes:
+                    continue
+                if len(hashes) > 1 and len(set(hashes)) > 1:
+                    TRACER.log(
+                        "The artifact url contains multiple distinct hash values for the {alg} "
+                        "algorithm, not trusting any of these: {url}".format(alg=alg, url=url)
+                    )
+                    continue
+                fingerprints.append(Fingerprint(algorithm=alg, hash=hashes[0]))
+
+        download_url = urlparse.urlunparse(
+            url_info._replace(
+                fragment="&".join(
+                    sorted(
+                        "{name}={value}".format(name=name, value=value)
+                        for name, values in fragment_parameters.items()
+                        for value in values
+                    )
+                )
+            )
+        )
         normalized_url = urlparse.urlunparse(
-            (url_info.scheme, url_info.netloc, url_unquote(url_info.path).rstrip(), "", "", "")
+            url_info._replace(path=path, params="", query="", fragment="")
         )
         return cls(
             raw_url=url,
+            download_url=download_url,
             normalized_url=normalized_url,
-            scheme=parse_scheme(url_info.scheme) if url_info.scheme else None,
-            path=url_unquote(url_info.path),
+            scheme=scheme,
+            path=path,
+            fragment_parameters=fragment_parameters,
+            fingerprints=tuple(fingerprints),
         )
 
     raw_url = attr.ib(eq=False)  # type: str
+    download_url = attr.ib(eq=False)  # type: str
     normalized_url = attr.ib()  # type: str
-    scheme = attr.ib()  # type: Optional[Union[str, ArchiveScheme.Value, VCSScheme]]
+    scheme = attr.ib(eq=False)  # type: Optional[Union[str, ArchiveScheme.Value, VCSScheme]]
     path = attr.ib(eq=False)  # type: str
+    fragment_parameters = attr.ib(eq=False)  # type: Mapping[str, Sequence[str]]
+    fingerprints = attr.ib(eq=False)  # type: Tuple[Fingerprint, ...]
 
     @property
     def is_wheel(self):
+        # type: () -> bool
         return self.path.endswith(".whl")
+
+    @property
+    def fingerprint(self):
+        # type: () -> Optional[Fingerprint]
+        return self.fingerprints[0] if self.fingerprints else None
 
 
 def _convert_url(value):

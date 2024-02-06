@@ -411,7 +411,7 @@ def as_json_data(
                         else None,
                         "artifacts": [
                             {
-                                "url": path_mappings.maybe_canonicalize(artifact.url),
+                                "url": path_mappings.maybe_canonicalize(artifact.url.download_url),
                                 "algorithm": artifact.fingerprint.algorithm,
                                 "hash": artifact.fingerprint.hash,
                             }
