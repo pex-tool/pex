@@ -8,6 +8,7 @@ from argparse import Action, ArgumentTypeError, Namespace, _ActionsContainer
 
 from pex import pex_warnings
 from pex.argparse import HandleBoolAction
+from pex.fetcher import initialize_ssl_context
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.pep_503 import ProjectName
@@ -564,13 +565,15 @@ def create_network_configuration(options):
 
     :param options: The Pip resolver configuration options.
     """
-    return NetworkConfiguration(
+    network_configuration = NetworkConfiguration(
         retries=options.retries,
         timeout=options.timeout,
         proxy=options.proxy,
         cert=options.cert,
         client_cert=options.client_cert,
     )
+    initialize_ssl_context(network_configuration=network_configuration)
+    return network_configuration
 
 
 def get_max_jobs_value(options):

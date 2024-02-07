@@ -7,9 +7,12 @@ import contextlib
 import os
 import ssl
 import sys
+import threading
 import time
 from contextlib import closing, contextmanager
+from ssl import SSLContext
 
+from pex import asserts
 from pex.auth import PasswordDatabase, PasswordEntry
 from pex.compatibility import (
     FileHandler,
@@ -21,6 +24,7 @@ from pex.compatibility import (
     ProxyHandler,
     Request,
     build_opener,
+    in_main_thread,
 )
 from pex.network_configuration import NetworkConfiguration
 from pex.typing import TYPE_CHECKING, cast
@@ -28,8 +32,11 @@ from pex.version import __version__
 
 if TYPE_CHECKING:
     from typing import BinaryIO, Dict, Iterable, Iterator, Mapping, Optional, Text
+
+    import attr  # vendor:skip
 else:
     BinaryIO = None
+    from pex.third_party import attr
 
 
 @contextmanager
@@ -44,6 +51,60 @@ def guard_stdout():
                 yield
     else:
         yield
+
+
+@attr.s(frozen=True)
+class _CertConfig(object):
+    @classmethod
+    def create(cls, network_configuration=None):
+        # type: (Optional[NetworkConfiguration]) -> _CertConfig
+        if network_configuration is None:
+            return cls()
+        return cls(cert=network_configuration.cert, client_cert=network_configuration.client_cert)
+
+    cert = attr.ib(default=None)  # type: Optional[str]
+    client_cert = attr.ib(default=None)  # type: Optional[str]
+
+    def create_ssl_context(self):
+        # type: () -> SSLContext
+        asserts.production_assert(
+            in_main_thread(),
+            msg=(
+                "An SSLContext must be initialized from the main thread. An attempt was made to "
+                "initialize an SSLContext for {cert_config} from thread {thread}.".format(
+                    cert_config=self, thread=threading.current_thread()
+                )
+            ),
+        )
+        with guard_stdout():
+            ssl_context = ssl.create_default_context(cafile=self.cert)
+            if self.client_cert:
+                ssl_context.load_cert_chain(self.client_cert)
+            return ssl_context
+
+
+_SSL_CONTEXTS = {}  # type: Dict[_CertConfig, SSLContext]
+
+
+def get_ssl_context(network_configuration=None):
+    # type: (Optional[NetworkConfiguration]) -> SSLContext
+    cert_config = _CertConfig.create(network_configuration=network_configuration)
+    ssl_context = _SSL_CONTEXTS.get(cert_config)
+    if not ssl_context:
+        ssl_context = cert_config.create_ssl_context()
+        _SSL_CONTEXTS[cert_config] = ssl_context
+    return ssl_context
+
+
+def initialize_ssl_context(network_configuration=None):
+    # type: (Optional[NetworkConfiguration]) -> None
+    get_ssl_context(network_configuration=network_configuration)
+
+
+# N.B.: We eagerly initialize an SSLContext for the default case of no CA cert and no client cert.
+# When a custom CA cert or client cert or both are configured, that code will need to call
+# initialize_ssl_context on its own.
+initialize_ssl_context()
 
 
 class URLFetcher(object):
@@ -62,16 +123,14 @@ class URLFetcher(object):
         self._timeout = network_configuration.timeout
         self._max_retries = network_configuration.retries
 
-        with guard_stdout():
-            ssl_context = ssl.create_default_context(cafile=network_configuration.cert)
-            if network_configuration.client_cert:
-                ssl_context.load_cert_chain(network_configuration.client_cert)
-
         proxies = None  # type: Optional[Dict[str, str]]
         if network_configuration.proxy:
             proxies = {protocol: network_configuration.proxy for protocol in ("http", "https")}
 
-        handlers = [ProxyHandler(proxies), HTTPSHandler(context=ssl_context)]
+        handlers = [
+            ProxyHandler(proxies),
+            HTTPSHandler(context=get_ssl_context(network_configuration=network_configuration)),
+        ]
         if handle_file_urls:
             handlers.append(FileHandler())
 
