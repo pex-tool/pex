@@ -9,6 +9,7 @@ from __future__ import absolute_import
 import os
 import re
 import sys
+import threading
 from abc import ABCMeta
 from sys import version_info as sys_version_info
 
@@ -273,3 +274,22 @@ else:
     from pipes import quote as _shlex_quote
 
 shlex_quote = _shlex_quote
+
+
+if PY3:
+
+    def in_main_thread():
+        # type: () -> bool
+        return threading.current_thread() == threading.main_thread()
+
+else:
+
+    def in_main_thread():
+        # type: () -> bool
+
+        # Both CPython 2.7 and PyPy 2.7 do, in fact, have a threading._MainThread type that the
+        # main thread derives from.
+        return isinstance(
+            threading.current_thread(),
+            threading._MainThread,  # type: ignore[attr-defined]
+        )

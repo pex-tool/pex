@@ -1,5 +1,13 @@
 # Release Notes
 
+## 2.1.163
+
+This release fixes Pex to work in certain OS / SSL environments where it
+did not previously. In particular, under certain Fedora distributions
+using certain Python Build Standalone interpreters.
+
+* Create SSLContexts in the main thread. (#2356)
+
 ## 2.1.162
 
 This release adds support for `--pip-version 24.0` as well as fixing a
