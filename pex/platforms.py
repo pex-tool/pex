@@ -1,4 +1,4 @@
-# Copyright 2017 Pants project contributors (see CONTRIBUTORS.md).
+# Copyright 2017 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 from __future__ import absolute_import
@@ -238,7 +238,7 @@ class Platform(object):
 
         job = SpawnedJob.stdout(
             # TODO(John Sirois): Plumb pip_version and the user-configured resolver:
-            #  https://github.com/pantsbuild/pex/issues/1894
+            #  https://github.com/pex-tool/pex/issues/1894
             job=get_pip(resolver=ConfiguredResolver.default()).spawn_debug(
                 platform=self, manylinux=manylinux
             ),

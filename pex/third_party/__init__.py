@@ -1,4 +1,4 @@
-# Copyright 2018 Pants project contributors (see CONTRIBUTORS.md).
+# Copyright 2018 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 from __future__ import absolute_import
@@ -559,7 +559,7 @@ def install(root=None, expose=None):
     >>> third_party.install(expose=['setuptools'])
     >>> import sys
     >>> sys.modules.pop('pkg_resources')
-    <module 'pkg_resources' from '/home/jsirois/dev/pantsbuild/jsirois-pex/.tox/py27-repl/lib/python2.7/site-packages/pkg_resources/__init__.pyc'>  # noqa
+    <module 'pkg_resources' from '/home/jsirois/dev/pex-tool/pex/.tox/py27-repl/lib/python2.7/site-packages/pkg_resources/__init__.pyc'>  # noqa
     >>> from pkg_resources import Requirement
     >>> new_req = Requirement.parse('wheel==0.31.1')
     >>> new_req == orig_req

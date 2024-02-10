@@ -1,4 +1,4 @@
-# Copyright 2021 Pants project contributors (see CONTRIBUTORS.md).
+# Copyright 2021 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
@@ -34,7 +34,7 @@ def test_hermetic_console_scripts(tmpdir):
     # type: (Any) -> None
 
     # N.B.: See pex/vendor/_vendored/pip/pip/_vendor/distlib/scripts.py lines 127-156.
-    # https://github.com/pantsbuild/pex/blob/196b4cd5b8dd4b4af2586460530e9a777262be7d/pex/vendor/_vendored/pip/pip/_vendor/distlib/scripts.py#L127-L156
+    # https://github.com/pex-tool/pex/blob/196b4cd5b8dd4b4af2586460530e9a777262be7d/pex/vendor/_vendored/pip/pip/_vendor/distlib/scripts.py#L127-L156
     length_pad = 127 if IS_LINUX else 512
     pex_root = os.path.join(str(tmpdir), "_" * length_pad, "pex_root")
     assert len(pex_root) > length_pad

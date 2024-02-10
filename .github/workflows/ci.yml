@@ -8,7 +8,7 @@ env:
   _PEX_TEST_POS_ARGS: "--color --devpi --devpi-timeout 15.0 --shutdown-devpi -vvs"
   # We use this to skip exposing same-versioned Pythons present on Linux hosts. These otherwise can
   # collide when attempting to load libpython<major>.<minor><flags>.so and lead to mysterious errors
-  # importing builtins like `fcntl` as outlined in https://github.com/pantsbuild/pex/issues/1391.
+  # importing builtins like `fcntl` as outlined in https://github.com/pex-tool/pex/issues/1391.
   _PEX_TEST_PYENV_VERSIONS: "2.7 3.7 3.10"
   _PEX_PEXPECT_TIMEOUT: 10
 concurrency:
@@ -18,7 +18,7 @@ concurrency:
 jobs:
   org-check:
     name: Check GitHub Organization
-    if: github.repository_owner == 'pantsbuild'
+    if: github.repository_owner == 'pex-tool'
     runs-on: ubuntu-22.04
     steps:
       - name: Noop

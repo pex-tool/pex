@@ -1,4 +1,4 @@
-# Copyright 2021 Pants project contributors (see CONTRIBUTORS.md).
+# Copyright 2021 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
@@ -23,7 +23,7 @@ def test_devendoring_required():
     # type: () -> None
     # The cryptography distribution does not have a whl released for python3 on linux at version 2.5.
     # As a result, we're forced to build it under python3 and, prior to the fix for
-    # https://github.com/pantsbuild/pex/issues/661, this would fail using the vendored setuptools
+    # https://github.com/pex-tool/pex/issues/661, this would fail using the vendored setuptools
     # inside pex.
     with temporary_dir() as td:
         cryptography_pex = os.path.join(td, "cryptography.pex")

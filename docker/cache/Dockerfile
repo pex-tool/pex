@@ -1,9 +1,9 @@
 # A data image with the necessary binaries and libraries to develop pex.
 
 # Populate the ~/.pex_dev cache.
-FROM ghcr.io/pantsbuild/pex/base:latest as cache
+FROM ghcr.io/pex-tool/pex/base:latest as cache
 
-ARG PEX_REPO=https://github.com/pantsbuild/pex
+ARG PEX_REPO=https://github.com/pex-tool/pex
 ARG GIT_REF=HEAD
 
 # These must be set as a comma-separated list of all tox envs to cache.

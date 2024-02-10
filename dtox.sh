@@ -15,16 +15,16 @@ BASE_INPUT=(
 base_hash=$(cat "${BASE_INPUT[@]}" | git hash-object -t blob --stdin)
 
 function base_image_id() {
-  docker image ls -q "ghcr.io/pantsbuild/pex/base:${base_hash}"
+  docker image ls -q "ghcr.io/pex-tool/pex/base:${base_hash}"
 }
 
 if [[ "${BASE_MODE}" == "build" && -z "$(base_image_id)" ]]; then
   docker build \
-    --tag ghcr.io/pantsbuild/pex/base:latest \
-    --tag "ghcr.io/pantsbuild/pex/base:${base_hash}" \
+    --tag ghcr.io/pex-tool/pex/base:latest \
+    --tag "ghcr.io/pex-tool/pex/base:${base_hash}" \
     "${ROOT}/docker/base"
 elif [[ "${BASE_MODE}" == "pull" ]]; then
-  docker pull "ghcr.io/pantsbuild/pex/base:${base_hash}"
+  docker pull "ghcr.io/pex-tool/pex/base:${base_hash}"
 fi
 
 USER_INPUT=(
@@ -35,7 +35,7 @@ USER_INPUT=(
 user_hash=$(cat "${USER_INPUT[@]}" | git hash-object -t blob --stdin)
 
 function user_image_id() {
-  docker image ls -q "pantsbuild/pex/user:${user_hash}"
+  docker image ls -q "pex-tool/pex/user:${user_hash}"
 }
 
 if [[ -z "$(user_image_id)" ]]; then
@@ -45,8 +45,8 @@ if [[ -z "$(user_image_id)" ]]; then
     --build-arg UID="$(id -u)" \
     --build-arg GROUP="$(id -gn)" \
     --build-arg GID="$(id -g)" \
-    --tag pantsbuild/pex/user:latest \
-    --tag "pantsbuild/pex/user:${user_hash}" \
+    --tag pex-tool/pex/user:latest \
+    --tag "pex-tool/pex/user:${user_hash}" \
     "${ROOT}/docker/user"
 fi
 
@@ -60,13 +60,13 @@ if [[ "${CACHE_MODE}" == "pull" ]]; then
   docker run \
     --rm \
     --volume pex-caches:/development/pex_dev \
-    "ghcr.io/pantsbuild/pex/cache:${CACHE_TAG}" || true
+    "ghcr.io/pex-tool/pex/cache:${CACHE_TAG}" || true
   docker run \
     --rm \
     --volume pex-caches:/development/pex_dev \
     --entrypoint bash \
     --user root \
-    "pantsbuild/pex/user:${user_hash}" \
+    "pex-tool/pex/user:${user_hash}" \
     -c "chown -R $(id -u):$(id -g) /development/pex_dev"
 fi
 
@@ -114,6 +114,6 @@ exec docker run \
   --volume "${ROOT}:/development/pex" \
   --volume pex-tox:/development/pex/.tox \
   "${DOCKER_ARGS[@]}" \
-  "pantsbuild/pex/user:${user_hash}" \
+  "pex-tool/pex/user:${user_hash}" \
   "$@"
 

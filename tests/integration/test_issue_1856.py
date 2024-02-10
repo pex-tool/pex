@@ -1,4 +1,4 @@
-# Copyright 2022 Pants project contributors (see CONTRIBUTORS.md).
+# Copyright 2022 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
@@ -43,7 +43,7 @@ def test_os_name_spoofing(tmpdir):
     # we can't build the pywinpty sdist to extract needed resolve metadata from it.
     #
     # For more info on this corner to reproducing the prior failure, see:
-    #   https://github.com/pantsbuild/pex/issues/1856#issuecomment-1193054493
+    #   https://github.com/pex-tool/pex/issues/1856#issuecomment-1193054493
     env = make_env(RUSTC=os.devnull)
 
     # The above attempt to get pywinpty dependency metadata by building the sdist requires a

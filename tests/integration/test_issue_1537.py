@@ -1,4 +1,4 @@
-# Copyright 2021 Pants project contributors (see CONTRIBUTORS.md).
+# Copyright 2021 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os.path
@@ -26,7 +26,7 @@ def test_rel_cert_path(
                 "http://localhost:{port}".format(port=port),
                 "--cert",
                 "cert",
-                # N.B.: The original issue (https://github.com/pantsbuild/pex/issues/1537) involved
+                # N.B.: The original issue (https://github.com/pex-tool/pex/issues/1537) involved
                 # avro-python3 1.10.0, but that distribution utilizes setup_requires which leads to
                 # issues in CI for Mac. We use the Python 2/3 version of the same distribution
                 # instead, which had setup_requires removed in

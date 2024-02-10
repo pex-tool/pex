@@ -1,4 +1,4 @@
-# Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
+# Copyright 2014 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 """pex support for interacting with interpreters."""
@@ -95,7 +95,7 @@ class PythonIdentity(object):
         # type: (Any) -> Optional[str]
 
         # N.B.: Sometimes MACOSX_DEPLOYMENT_TARGET can be configured as a float.
-        # See: https://github.com/pantsbuild/pex/issues/1337
+        # See: https://github.com/pex-tool/pex/issues/1337
         if value is None:
             return None
         return str(value)
@@ -269,7 +269,7 @@ class PythonIdentity(object):
                 yield tags.Tag(interpreter=interpreter, abi=abi, platform=platform)
 
         # N.B.: Old encoded identities may have numeric values; so we support these and convert
-        # back to strings here as needed. See: https://github.com/pantsbuild/pex/issues/1337
+        # back to strings here as needed. See: https://github.com/pex-tool/pex/issues/1337
         configured_macosx_deployment_target = cls._normalize_macosx_deployment_target(
             values.pop("configured_macosx_deployment_target")
         )

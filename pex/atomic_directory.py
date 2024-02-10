@@ -1,4 +1,4 @@
-# Copyright 2022 Pants project contributors (see CONTRIBUTORS.md).
+# Copyright 2022 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 from __future__ import absolute_import
@@ -86,7 +86,7 @@ class AtomicDirectory(object):
             # this compaction is more robust.
             #
             # See: https://bugs.launchpad.net/ecryptfs/+bug/344878
-            # See: https://github.com/pantsbuild/pex/issues/2087
+            # See: https://github.com/pex-tool/pex/issues/2087
 
             fingerprint = hashlib.sha256(target_basename.encode("utf-8")).hexdigest()
             self._work_dir = os.path.join(

@@ -1,4 +1,4 @@
-# Copyright 2018 Pants project contributors (see CONTRIBUTORS.md).
+# Copyright 2018 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 from __future__ import absolute_import
@@ -138,7 +138,7 @@ class VendorSpec(
     def create_packages(self):
         """Create missing packages joining the vendor root to the base of the vendored distribution.
 
-        For example, given a root at ``/home/jake/dev/pantsbuild/pex`` and a vendored distribution
+        For example, given a root at ``/home/jake/dev/pex-tool/pex`` and a vendored distribution
         at ``pex/vendor/_vendored/requests`` this method would create the following package files::
 
           pex/vendor/_vendored/__init__.py
@@ -206,19 +206,19 @@ def iter_vendor_specs(filter_requires_python=None):
 
     # We shell out to pip at buildtime to resolve and install dependencies.
     # N.B.: We're currently using a patched version of Pip 20.3.4 housed at
-    # https://github.com/pantsbuild/pip/tree/pex/patches/generation-2.
+    # https://github.com/pex-tool/pip/tree/pex/patches/generation-2.
     # It has 2 patches:
-    # 1.) https://github.com/pantsbuild/pip/commit/06f462537c981116c763c1ba40cf40e9dd461bcf
+    # 1.) https://github.com/pex-tool/pip/commit/06f462537c981116c763c1ba40cf40e9dd461bcf
     #     The patch works around a bug in `pip download --constraint...` tracked at
     #     https://github.com/pypa/pip/issues/9283 and fixed by https://github.com/pypa/pip/pull/9301
-    #     there and https://github.com/pantsbuild/pip/pull/8 in our fork.
-    # 2.) https://github.com/pantsbuild/pip/commit/386a54f097ece66775d0c7f34fd29bb596c6b0be
+    #     there and https://github.com/pex-tool/pip/pull/8 in our fork.
+    # 2.) https://github.com/pex-tool/pip/commit/386a54f097ece66775d0c7f34fd29bb596c6b0be
     #     This is a cherry-pick of
-    #     https://github.com/pantsbuild/pip/commit/00fb5a0b224cde08e3e5ca034247baadfb646468
+    #     https://github.com/pex-tool/pip/commit/00fb5a0b224cde08e3e5ca034247baadfb646468
     #     (https://github.com/pypa/pip/pull/9533) from upstream that upgrades Pip's vendored
     #     packaging to 20.9 to pick up support for mac universal2 wheels.
     yield VendorSpec.git(
-        repo="https://github.com/pantsbuild/pip",
+        repo="https://github.com/pex-tool/pip",
         commit="386a54f097ece66775d0c7f34fd29bb596c6b0be",
         project_name="pip",
         rewrite=False,
@@ -228,10 +228,10 @@ def iter_vendor_specs(filter_requires_python=None):
     # pex.third_party at runtime to inject pkg_resources style namespace packages if needed.
     # N.B.: 44.0.0 is the last setuptools version compatible with Python 2 and we use a fork of that
     # with patches needed to support Pex on the v44.0.0/patches/pex-2.x branch.
-    pantsbuild_setuptools_commit = "3acb925dd708430aeaf197ea53ac8a752f7c1863"
+    pex_tool_setuptools_commit = "3acb925dd708430aeaf197ea53ac8a752f7c1863"
     yield VendorSpec.git(
-        repo="https://github.com/pantsbuild/setuptools",
-        commit=pantsbuild_setuptools_commit,
+        repo="https://github.com/pex-tool/setuptools",
+        commit=pex_tool_setuptools_commit,
         project_name="setuptools",
         # Setuptools from source requires running bootstrap.py 1st manually due to circularity in
         # needing setuptools to build setuptools. The bootstrap runs `setup.py egg_info` which
@@ -258,7 +258,7 @@ def iter_vendor_specs(filter_requires_python=None):
 
                 subprocess.check_call([sys.executable, "bootstrap.py"])
                 """
-            ).format(commit=pantsbuild_setuptools_commit),
+            ).format(commit=pex_tool_setuptools_commit),
         ],
     )
 

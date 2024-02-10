@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
+# Copyright 2014 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 from __future__ import absolute_import
@@ -199,7 +199,7 @@ def fingerprint_path(path):
     # option than switching hashing algorithms will be needed, like post-fixing a running version
     # integer or just mixing one into the hashed content.
     #
-    # See: https://github.com/pantsbuild/pex/issues/1655 for a general overview of these cache
+    # See: https://github.com/pex-tool/pex/issues/1655 for a general overview of these cache
     # structure concerns.
     hasher = hashlib.sha256
 

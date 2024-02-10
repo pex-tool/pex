@@ -1,4 +1,4 @@
-# Copyright 2020 Pants project contributors (see CONTRIBUTORS.md).
+# Copyright 2020 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 from __future__ import absolute_import, print_function
@@ -249,7 +249,7 @@ def test_requires_dists_none(pygoogleearth_zip_sdist):
         assert [] == list(requires_dists(dist))
 
     # This tests a strange case detailed here:
-    #   https://github.com/pantsbuild/pex/issues/1201#issuecomment-791715585
+    #   https://github.com/pex-tool/pex/issues/1201#issuecomment-791715585
     with downloaded_sdist("et-xmlfile==1.0.1") as sdist, warnings.catch_warnings(
         record=True
     ) as events:
@@ -265,7 +265,7 @@ def test_requires_dists_none(pygoogleearth_zip_sdist):
 
                 You may have issues using the 'et_xmlfile' distribution as a result.
                 More information on this workaround can be found here:
-                  https://github.com/pantsbuild/pex/issues/1201#issuecomment-791715585
+                  https://github.com/pex-tool/pex/issues/1201#issuecomment-791715585
                 """
             ).format(sdist=sdist)
             == str(warning.message)

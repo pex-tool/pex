@@ -1,4 +1,4 @@
-# Copyright 2022 Pants project contributors (see CONTRIBUTORS.md).
+# Copyright 2022 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import json
@@ -243,6 +243,6 @@ def test_argv0(
     assert pex == data.pop("PEX")
     assert "app.py" == os.path.basename(data.pop("argv0")), (
         "When executing modules we expect runpy.run_module to `alter_sys` in order to support "
-        "pickling and other use cases as outlined in https://github.com/pantsbuild/pex/issues/1018."
+        "pickling and other use cases as outlined in https://github.com/pex-tool/pex/issues/1018."
     )
     assert {} == data

@@ -1,4 +1,4 @@
-# Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
+# Copyright 2014 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 from __future__ import absolute_import
@@ -275,7 +275,7 @@ class PEX(object):  # noqa: T000
                 # for performing needed patches to the `distutils` stdlib breaks.
                 #
                 # See:
-                # + https://github.com/pantsbuild/pex/issues/992
+                # + https://github.com/pex-tool/pex/issues/992
                 # + https://github.com/pypa/virtualenv/pull/1688
                 (not is_venv or module_name != "_virtualenv")
                 and module_file

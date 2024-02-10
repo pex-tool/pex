@@ -1202,7 +1202,7 @@ contain those characters under PyPy3, Python 3.5 and Python 3.6.
 This is another hotfix of the 2.1.48 release's `--layout` feature that
 fixes identification of `--layout zipapp` PEXes that have had their
 execute mode bit turned off. A notable example is the Pex PEX when
-downloaded from <https://github.com/pantsbuild/pex/releases>.
+downloaded from <https://github.com/pex-tool/pex/releases>.
 
 * Fix zipapp layout identification. (#1448)
 
@@ -1712,7 +1712,7 @@ applications when specifying the `--unzip` option. PEXes built with
 there already and then re-execute themselves from there. This can
 improve startup latency. Pex itself now uses this mode in our [PEX
 release](
-https://github.com/pantsbuild/pex/releases/download/v2.1.8/pex).
+https://github.com/pex-tool/pex/releases/download/v2.1.8/pex).
 
 * Better support unzip mode PEXes. (#941)
 * Support an unzip toggle for PEXes. (#939)
@@ -1731,7 +1731,7 @@ new support for control of the cache's runtime location with
 control the cache's runtime location.
 
 Unlike in the past, the [Pex PEX](
-https://github.com/pantsbuild/pex/releases/download/v2.1.7/pex) we
+https://github.com/pex-tool/pex/releases/download/v2.1.7/pex) we
 release can now also be controlled via the `PEX_ROOT` environment
 variable. Consult the CLI help for `--no-strip-pex-env`cto find out
 more.
@@ -2448,7 +2448,7 @@ normalization.
 
 * Add support for `.pexrc` files for influencing the pex environment.
     See the notes [here](
-    https://github.com/pantsbuild/pex/blob/master/docs/buildingpex.rst#tailoring-pex-execution-at-build-time
+    https://github.com/pex-tool/pex/blob/master/docs/buildingpex.rst#tailoring-pex-execution-at-build-time
     ).
 * Bug fix: PEX_PROFILE_FILENAME and PEX_PROFILE_SORT were not
     respected.
@@ -2475,7 +2475,7 @@ normalization.
     with default values that were not explicitly set in the environment.
     Fixes #135.
 * Bug fix: Since
-    [69649c1](https://github.com/pantsbuild/pex/commit/69649c1) we have
+    [69649c1](https://github.com/pex-tool/pex/commit/69649c1) we have
     been un-patching the side effects of `sys.modules` after
     `PEX.execute`. This takes all modules imported during the PEX
     lifecycle and sets all their attributes to `None`. Unfortunately,
@@ -2622,7 +2622,7 @@ This is the last release before the 1.0.0 development branch is started.
     [requests](https://github.com/kennethreitz/requests), improving both
     performance and security. For more information, read the commit
     notes at [91c7f32](
-    https://github.com/pantsbuild/pex/commit/91c7f324085c18af714d35947b603a5f60aeb682
+    https://github.com/pex-tool/pex/commit/91c7f324085c18af714d35947b603a5f60aeb682
     ).
 * Improvements to API documentation throughout.
 * Renamed `Tracer` to `TraceLogger` to prevent nondeterministic isort

@@ -1,4 +1,4 @@
-# Copyright 2021 Pants project contributors (see CONTRIBUTORS.md).
+# Copyright 2021 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 from __future__ import absolute_import
@@ -199,7 +199,7 @@ def test_download_platform_markers_issue_1366_issue_1387(
 ):
     # type: (...) -> None
 
-    # As noted in https://github.com/pantsbuild/pex/issues/1387, previously, internal env vars were
+    # As noted in https://github.com/pex-tool/pex/issues/1387, previously, internal env vars were
     # passed by 1st cloning the ambient environment and then adding internal env vars for
     # subprocesses to see. This could lead to duplicate keyword argument errors when env vars we
     # patch - like PEX_ROOT - are also present in the ambient environment. This test verifies we

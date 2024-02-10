@@ -1,4 +1,4 @@
-# Copyright 2022 Pants project contributors (see CONTRIBUTORS.md).
+# Copyright 2022 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 from textwrap import dedent
@@ -883,25 +883,25 @@ def test_vcs_artifact():
     # type: () -> None
 
     artifact = Artifact.from_url(
-        url="git+https://github.com/pantsbuild/pex",
+        url="git+https://github.com/pex-tool/pex",
         fingerprint=Fingerprint(algorithm="md5", hash="bar"),
     )
     assert isinstance(artifact, VCSArtifact)
     assert VCS.Git is artifact.vcs
     assert artifact.is_source
-    assert "pex @ git+https://github.com/pantsbuild/pex" == artifact.as_unparsed_requirement(
+    assert "pex @ git+https://github.com/pex-tool/pex" == artifact.as_unparsed_requirement(
         ProjectName("pex")
     )
 
     artifact = Artifact.from_url(
-        url="hg+https://github.com/pantsbuild/pex#egg=pex&subdirectory=.",
+        url="hg+https://github.com/pex-tool/pex#egg=pex&subdirectory=.",
         fingerprint=Fingerprint(algorithm="sha1", hash="bar"),
     )
     assert isinstance(artifact, VCSArtifact)
     assert VCS.Mercurial is artifact.vcs
     assert artifact.is_source
     assert (
-        "hg+https://github.com/pantsbuild/pex#egg=pex&subdirectory=."
+        "hg+https://github.com/pex-tool/pex#egg=pex&subdirectory=."
         == artifact.as_unparsed_requirement(ProjectName("pex"))
     )
 

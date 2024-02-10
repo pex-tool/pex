@@ -1,4 +1,4 @@
-# Copyright 2015 Pants project contributors (see CONTRIBUTORS.md).
+# Copyright 2015 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 # Due to the PEX_ properties, disable checkstyle.
@@ -780,7 +780,7 @@ ENV = Variables()
 
 
 # TODO(John Sirois): Extract a runtime.modes package to hold code dealing with runtime mode
-#  calculations: https://github.com/pantsbuild/pex/issues/1154
+#  calculations: https://github.com/pex-tool/pex/issues/1154
 def _expand_pex_root(pex_root):
     # type: (str) -> str
     fallback = os.path.expanduser(pex_root)

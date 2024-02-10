@@ -1,4 +1,4 @@
-# Copyright 2022 Pants project contributors (see CONTRIBUTORS.md).
+# Copyright 2022 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 from __future__ import absolute_import
@@ -91,7 +91,7 @@ def subset(
                     include_all_matches=include_all_matches,
                     # TODO(John Sirois): Plumb `--ignore-errors` to support desired but technically
                     #  invalid `pip-legacy-resolver` locks:
-                    #  https://github.com/pantsbuild/pex/issues/1652
+                    #  https://github.com/pex-tool/pex/issues/1652
                 )
                 if isinstance(resolve_result, Resolved):
                     resolveds.append(resolve_result)

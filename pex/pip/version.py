@@ -1,4 +1,4 @@
-# Copyright 2022 Pants project contributors (see CONTRIBUTORS.md).
+# Copyright 2022 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 from __future__ import absolute_import
@@ -157,7 +157,7 @@ class PipVersion(Enum["PipVersionValue"]):
         name="20.3.4-patched",
         version="20.3.4+patched",
         requirement=(
-            "pip @ git+https://github.com/pantsbuild/pip@386a54f097ece66775d0c7f34fd29bb596c6b0be"
+            "pip @ git+https://github.com/pex-tool/pip@386a54f097ece66775d0c7f34fd29bb596c6b0be"
         ),
         wheel_version="0.37.1",
         requires_python="<3.12",
@@ -165,7 +165,7 @@ class PipVersion(Enum["PipVersionValue"]):
 
     # TODO(John Sirois): Expose setuptools and wheel version flags - these don't affect
     #  Pex; so we should allow folks to experiment with upgrade easily:
-    #  https://github.com/pantsbuild/pex/issues/1895
+    #  https://github.com/pex-tool/pex/issues/1895
 
     v22_2_2 = PipVersionValue(
         version="22.2.2",

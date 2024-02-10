@@ -1,4 +1,4 @@
-# Copyright 2021 Pants project contributors (see CONTRIBUTORS.md).
+# Copyright 2021 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import json
@@ -204,7 +204,7 @@ def test_create_vcs(
         "create",
         "--python",
         python,
-        "pex @ git+https://github.com/pantsbuild/pex@473c6ac7",
+        "pex @ git+https://github.com/pex-tool/pex@473c6ac7",
         "git+https://github.com/VaasuDevanS/cowsay-python@v3.0#egg=cowsay",
         "-o",
         lock,

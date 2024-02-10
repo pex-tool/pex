@@ -1,4 +1,4 @@
-# Copyright 2021 Pants project contributors (see CONTRIBUTORS.md).
+# Copyright 2021 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
@@ -9,7 +9,7 @@ from testing import PY310, ensure_python_interpreter, run_pex_command, run_simpl
 
 def test_entry_point_targeting():
     # type: () -> None
-    """Test bugfix for https://github.com/pantsbuild/pex/issues/434."""
+    """Test bugfix for https://github.com/pex-tool/pex/issues/434."""
     with temporary_dir() as td:
         pexrc_path = os.path.join(td, ".pexrc")
         with open(pexrc_path, "w") as pexrc:

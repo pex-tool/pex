@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2019 Pants project contributors (see CONTRIBUTORS.md).
+# Copyright 2019 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 from __future__ import absolute_import, print_function
@@ -343,7 +343,7 @@ class Pip(object):
         # Ensure the pip cache (`http/` and `wheels/` dirs) is housed in the same partition as the
         # temporary directories it creates. This is needed to ensure atomic filesystem operations
         # since Pip relies upon `shutil.move` which is only atomic when `os.rename` can be used.
-        # See https://github.com/pantsbuild/pex/issues/1776 for an example of the issues non-atomic
+        # See https://github.com/pex-tool/pex/issues/1776 for an example of the issues non-atomic
         # moves lead to in the `pip wheel` case.
         pip_tmpdir = os.path.join(self._pip_cache, ".tmp")
         safe_mkdir(pip_tmpdir)
@@ -356,7 +356,7 @@ class Pip(object):
             **extra_env
         ) as env:
             # Guard against API calls from environment with ambient PYTHONPATH preventing pip PEX
-            # bootstrapping. See: https://github.com/pantsbuild/pex/issues/892
+            # bootstrapping. See: https://github.com/pex-tool/pex/issues/892
             pythonpath = env.pop("PYTHONPATH", None)
             if pythonpath:
                 TRACER.log(
@@ -368,7 +368,7 @@ class Pip(object):
             # To uphold the Pex standard, force Pip to comply by re-directing stdout to stderr.
             #
             # See:
-            # + https://github.com/pantsbuild/pex/issues/1267
+            # + https://github.com/pex-tool/pex/issues/1267
             # + https://github.com/pypa/pip/issues/9420
             if "stdout" not in popen_kwargs:
                 popen_kwargs["stdout"] = sys.stderr.fileno()

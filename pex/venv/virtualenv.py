@@ -1,4 +1,4 @@
-# Copyright 2020 Pants project contributors (see CONTRIBUTORS.md).
+# Copyright 2020 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 from __future__ import absolute_import
@@ -160,7 +160,7 @@ class Virtualenv(object):
             interpreter = base_interpreter
 
         # Guard against API calls from environment with ambient PYTHONPATH preventing pip virtualenv
-        # creation. See: https://github.com/pantsbuild/pex/issues/1451
+        # creation. See: https://github.com/pex-tool/pex/issues/1451
         env = os.environ.copy()
         pythonpath = env.pop("PYTHONPATH", None)
         if pythonpath:

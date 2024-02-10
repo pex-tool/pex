@@ -1,8 +1,8 @@
 ***
 PEX
 ***
-.. image:: https://github.com/pantsbuild/pex/workflows/CI/badge.svg?branch=main
-    :target: https://github.com/pantsbuild/pex/actions?query=branch%3Amain+workflow%3ACI
+.. image:: https://github.com/pex-tool/pex/workflows/CI/badge.svg?branch=main
+    :target: https://github.com/pex-tool/pex/actions?query=branch%3Amain+workflow%3ACI
 .. image:: https://img.shields.io/pypi/l/pex.svg
     :target: https://pypi.org/project/pex/
 .. image:: https://img.shields.io/pypi/v/pex.svg
@@ -167,13 +167,13 @@ running ``tox --listenvs-all``, then invoke like this:
 
 .. code-block::
 
-    $ tox -e format-run
+    $ tox -e fmt
 
 To run MyPy:
 
 .. code-block::
 
-    $ tox -e typecheck
+    $ tox -e check
 
 All of our tox test environments allow passthrough arguments, which can be helpful to run
 specific tests:
@@ -188,7 +188,3 @@ To run Pex from source, rather than through what is on your PATH, invoke via Pyt
 
     $ python -m pex
 
-Contributing
-============
-
-To contribute, follow these instructions: https://www.pantsbuild.org/docs/contributor-overview

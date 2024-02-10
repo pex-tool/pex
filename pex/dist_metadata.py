@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2020 Pants project contributors (see CONTRIBUTORS.md).
+# Copyright 2020 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 from __future__ import absolute_import
@@ -603,7 +603,7 @@ def requires_dists(location):
 
                 You may have issues using the '{project_name}' distribution as a result.
                 More information on this workaround can be found here:
-                  https://github.com/pantsbuild/pex/issues/1201#issuecomment-791715585
+                  https://github.com/pex-tool/pex/issues/1201#issuecomment-791715585
                 """
             ).format(
                 dist=location,
@@ -745,7 +745,7 @@ class Requirement(object):
 
 
 # N.B.: DistributionMetadata can have an expensive hash when a distribution has many requirements;
-# so we cache the hash. See: https://github.com/pantsbuild/pex/issues/1928
+# so we cache the hash. See: https://github.com/pex-tool/pex/issues/1928
 @attr.s(frozen=True, cache_hash=True)
 class DistMetadata(object):
     @classmethod
