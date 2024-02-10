@@ -7,7 +7,7 @@ export PYENV_ROOT=/pyenv
 # N.B.: The 1st listed version will supply the default `python` on the PATH; otherwise order does
 # not matter.
 PYENV_VERSIONS=(
-  3.11.7
+  3.11.8
   2.7.18
   3.5.10
   3.6.15
@@ -15,15 +15,15 @@ PYENV_VERSIONS=(
   3.8.18
   3.9.18
   3.10.13
-  3.12.1
+  3.12.2
   3.13.0a3
-  pypy2.7-7.3.14
+  pypy2.7-7.3.15
   pypy3.5-7.0.0
   pypy3.6-7.3.3
   pypy3.7-7.3.9
   pypy3.8-7.3.11
-  pypy3.9-7.3.14
-  pypy3.10-7.3.14
+  pypy3.9-7.3.15
+  pypy3.10-7.3.15
 )
 
 git clone https://github.com/pyenv/pyenv.git "${PYENV_ROOT}" && (
@@ -32,13 +32,13 @@ git clone https://github.com/pyenv/pyenv.git "${PYENV_ROOT}" && (
 PATH="${PATH}:${PYENV_ROOT}/bin"
 
 for version in "${PYENV_VERSIONS[@]}"; do
-  if [[ "${version}" == "pypy2.7-7.3.14" ]]; then
-    # Installation of pypy2.7-7.3.14 fails like so without adjusting the version of get-pip it
+  if [[ "${version}" == "pypy2.7-7.3.15" ]]; then
+    # Installation of pypy2.7-7.3.15 fails like so without adjusting the version of get-pip it
     # uses:
-    #  $ pyenv install pypy2.7-7.3.14
-    #  Downloading pypy2.7-v7.3.14-linux64.tar.bz2...
-    #  -> https://downloads.python.org/pypy/pypy2.7-v7.3.14-linux64.tar.bz2
-    #  Installing pypy2.7-v7.3.14-linux64...
+    #  $ pyenv install pypy2.7-7.3.15
+    #  Downloading pypy2.7-v7.3.15-linux64.tar.bz2...
+    #  -> https://downloads.python.org/pypy/pypy2.7-v7.3.15-linux64.tar.bz2
+    #  Installing pypy2.7-v7.3.15-linux64...
     #  Installing pip from https://bootstrap.pypa.io/get-pip.py...
     #  error: failed to install pip via get-pip.py
     #  ...
