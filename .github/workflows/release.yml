@@ -11,7 +11,7 @@ on:
 jobs:
   org-check:
     name: Check GitHub Organization
-    if: ${{ github.repository_owner == 'pantsbuild' }}
+    if: ${{ github.repository_owner == 'pex-tool' }}
     runs-on: ubuntu-22.04
     steps:
       - name: Noop
@@ -125,7 +125,7 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "Pex ${{ needs.determine-tag.outputs.release-version }} is released:\n* https://pypi.org/project/pex/${{ needs.determine-tag.outputs.release-version }}/\n* https://github.com/pantsbuild/pex/releases/tag/${{ needs.determine-tag.outputs.release-tag }}"
+                    "text": "Pex ${{ needs.determine-tag.outputs.release-version }} is released:\n* https://pypi.org/project/pex/${{ needs.determine-tag.outputs.release-version }}/\n* https://github.com/pex-tool/pex/releases/tag/${{ needs.determine-tag.outputs.release-tag }}"
                   }
                 }
               ]

@@ -65,7 +65,7 @@ process title so you see both the Python being used to run your PEX and the PEX 
 
     $ ./my.pex --foo bar &
     $ ps -o command | grep pex
-    /home/jsirois/.pyenv/versions/3.10.2/bin/python3.10 /home/jsirois/dev/pantsbuild/jsirois-pex/my.pex --foo bar
+    /home/jsirois/.pyenv/versions/3.10.2/bin/python3.10 /home/jsirois/dev/pex-tool/pex/my.pex --foo bar
 
 PEX app in a container
 ----------------------

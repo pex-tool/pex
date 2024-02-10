@@ -1,4 +1,4 @@
-# Copyright 2021 Pants project contributors (see CONTRIBUTORS.md).
+# Copyright 2021 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
@@ -12,7 +12,7 @@ def test_pkg_resource_early_import_on_pex_path():
     # type: () -> None
     """Test that packages which access pkg_resources at import time can be found with pkg_resources.
 
-    See https://github.com/pantsbuild/pex/issues/749 for context. We only declare namespace packages
+    See https://github.com/pex-tool/pex/issues/749 for context. We only declare namespace packages
     once all environments have been resolved including ones passed in via PEX_PATH. This avoids
     importing pkg_resources too early which is potentially impactful with packages interacting with
     pkg_resources at import time.

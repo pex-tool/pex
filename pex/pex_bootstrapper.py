@@ -1,4 +1,4 @@
-# Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
+# Copyright 2014 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 from __future__ import absolute_import
@@ -227,7 +227,7 @@ def _select_path_interpreter(
         # overhead.
         return current_interpreter
     # TODO: Allow the selection strategy to be parameterized:
-    #   https://github.com/pantsbuild/pex/issues/430
+    #   https://github.com/pex-tool/pex/issues/430
     return PythonInterpreter.latest_release_of_min_compatible_version(candidate_interpreters)
 
 

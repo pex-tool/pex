@@ -1,4 +1,4 @@
-# Copyright 2017 Pants project contributors (see CONTRIBUTORS.md).
+# Copyright 2017 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 # A library of functions for filtering Python interpreters based on compatibility constraints
@@ -197,7 +197,7 @@ class UnsatisfiableInterpreterConstraintsError(Exception):
             failures_message = (
                 "{}\n"
                 "\n"
-                "(See https://github.com/pantsbuild/pex/issues/1027 for a list of known breaks and "
+                "(See https://github.com/pex-tool/pex/issues/1027 for a list of known breaks and "
                 "workarounds.)"
             ).format(
                 "\n".join(

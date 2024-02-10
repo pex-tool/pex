@@ -1,4 +1,4 @@
-# Copyright 2024 Pants project contributors (see CONTRIBUTORS.md).
+# Copyright 2024 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 from __future__ import absolute_import
@@ -33,7 +33,7 @@ _ASSERT_ADVICE = dedent(
     Firstly, please accept our apology!
     
     If you could file an issue with the error and details above, we'd be
-    grateful. You can do that at https://github.com/pantsbuild/pex/issues/new and
+    grateful. You can do that at https://github.com/pex-tool/pex/issues/new and
     redact or amend any details that expose sensitive information.
     """
 ).strip()

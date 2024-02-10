@@ -1,4 +1,4 @@
-# Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
+# Copyright 2014 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
@@ -207,7 +207,7 @@ skip_if_no_pkg_resources = pytest.mark.skipif(
 
 
 @skip_if_no_pkg_resources
-@pytest.mark.xfail(IS_PYPY3, reason="https://github.com/pantsbuild/pex/issues/1210")
+@pytest.mark.xfail(IS_PYPY3, reason="https://github.com/pex-tool/pex/issues/1210")
 def test_issues_598_explicit_any_interpreter():
     # type: () -> None
     assert_force_local_implicit_ns_packages_issues_598(

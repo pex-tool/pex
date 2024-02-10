@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2018 Pants project contributors (see CONTRIBUTORS.md).
+# Copyright 2018 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 from __future__ import absolute_import, print_function
@@ -54,7 +54,7 @@ class Bootstrap(object):
 
         # N.B.: We mutate the sys.path before un-importing modules so that any re-imports triggered
         # by concurrent code will pull from the desired sys.path ordering.
-        # See here for how this situation might arise: https://github.com/pantsbuild/pex/issues/1272
+        # See here for how this situation might arise: https://github.com/pex-tool/pex/issues/1272
 
         sys.path[:] = [path for path in sys.path if os.path.realpath(path) != self._realpath]
         sys.path.append(self._sys_path_entry)

@@ -1,4 +1,4 @@
-# Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
+# Copyright 2014 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import json
@@ -985,7 +985,7 @@ def test_pex_run_custom_pex_useable():
 def test_interpreter_teardown_dev_null_unclosed_resource_warning_suppressed():
     # type: () -> None
 
-    # See https://github.com/pantsbuild/pex/issues/1101 and
+    # See https://github.com/pex-tool/pex/issues/1101 and
     # https://github.com/pantsbuild/pants/issues/11058 for the motivating issue.
     with temporary_dir() as pex_chroot:
         pex_builder = PEXBuilder(path=pex_chroot)

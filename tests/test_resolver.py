@@ -1,4 +1,4 @@
-# Copyright 2015 Pants project contributors (see CONTRIBUTORS.md).
+# Copyright 2015 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
@@ -145,7 +145,7 @@ def test_resolve_cache():
 
 def test_diamond_local_resolve_cached():
     # type: () -> None
-    # This exercises the issue described here: https://github.com/pantsbuild/pex/issues/120
+    # This exercises the issue described here: https://github.com/pex-tool/pex/issues/120
     project1_wheel = build_wheel(name="project1", install_reqs=["project2<1.0.0"])
     project2_wheel = build_wheel(name="project2")
 
@@ -159,7 +159,7 @@ def test_diamond_local_resolve_cached():
 
 def test_cached_dependency_pinned_unpinned_resolution_multi_run():
     # type: () -> None
-    # This exercises the issue described here: https://github.com/pantsbuild/pex/issues/178
+    # This exercises the issue described here: https://github.com/pex-tool/pex/issues/178
     project1_0_0 = build_wheel(name="project", version="1.0.0")
     project1_1_0 = build_wheel(name="project", version="1.1.0")
 

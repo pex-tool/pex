@@ -1,4 +1,4 @@
-# Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
+# Copyright 2014 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 from __future__ import absolute_import, print_function
@@ -125,7 +125,7 @@ def safe_copy(source, dest, overwrite=False):
                 # `protected_hardlinks` (see: https://www.kernel.org/doc/Documentation/sysctl/fs.txt) and
                 # we can fall back to copying in that case.
                 #
-                # See also https://github.com/pantsbuild/pex/issues/850 where this was discovered.
+                # See also https://github.com/pex-tool/pex/issues/850 where this was discovered.
                 do_copy()
             else:
                 raise

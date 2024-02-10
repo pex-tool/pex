@@ -1,4 +1,4 @@
-# Copyright 2022 Pants project contributors (see CONTRIBUTORS.md).
+# Copyright 2022 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 from __future__ import absolute_import
@@ -121,7 +121,7 @@ class FingerprintService(object):
             "If you encounter this error frequently, Pex may need to adjust how it uses SQLite for "
             "its cache of artifact fingerprints obtained from PEP-691 indexes. Please consider "
             "reporting the problem by filing an issue at "
-            "https://github.com/pantsbuild/pex/issues/new.".format(message=message, error=error)
+            "https://github.com/pex-tool/pex/issues/new.".format(message=message, error=error)
         )
 
     def fingerprint(

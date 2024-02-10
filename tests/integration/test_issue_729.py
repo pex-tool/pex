@@ -1,4 +1,4 @@
-# Copyright 2021 Pants project contributors (see CONTRIBUTORS.md).
+# Copyright 2021 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 from __future__ import print_function
@@ -28,7 +28,7 @@ def test_undeclared_setuptools_import_on_pex_path(tmpdir):
     # type: (Any) -> None
     """Test that packages which access pkg_resources at import time can be found with pkg_resources.
 
-    See https://github.com/pantsbuild/pex/issues/729 for context. We warn when a package accesses
+    See https://github.com/pex-tool/pex/issues/729 for context. We warn when a package accesses
     pkg_resources without declaring it in install_requires, but we also want to check that those
     packages can be accessed successfully via the PEX_PATH.
     """

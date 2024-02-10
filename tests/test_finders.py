@@ -1,4 +1,4 @@
-# Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
+# Copyright 2014 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
@@ -26,8 +26,8 @@ else:
 
 
 # In-part, tests a bug where the wheel distribution name has dashes as reported in:
-#   https://github.com/pantsbuild/pex/issues/443
-#   https://github.com/pantsbuild/pex/issues/551
+#   https://github.com/pex-tool/pex/issues/443
+#   https://github.com/pex-tool/pex/issues/551
 def test_get_script_from_distributions(tmpdir):
     # type: (Any) -> None
 

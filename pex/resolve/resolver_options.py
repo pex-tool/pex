@@ -1,4 +1,4 @@
-# Copyright 2021 Pants project contributors (see CONTRIBUTORS.md).
+# Copyright 2021 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 from __future__ import absolute_import
@@ -309,7 +309,7 @@ def get_use_pip_config_value(options):
     if options.use_pip_config is not None:
         return cast(bool, options.use_pip_config)
     # An affordance for tests to point at the devpi server.
-    # TODO(John Sirois): https://github.com/pantsbuild/pex/issues/2242
+    # TODO(John Sirois): https://github.com/pex-tool/pex/issues/2242
     #  Improve options system to accept command line args or env vars in general which will promote
     #  PEX_USE_PIP_CONFIG (no leading underscore) to a 1st class Pex CLI control knob.
     return os.environ.get("_PEX_USE_PIP_CONFIG", "False").lower() in ("1", "true")

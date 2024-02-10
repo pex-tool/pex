@@ -1,4 +1,4 @@
-# Copyright 2023 Pants project contributors (see CONTRIBUTORS.md).
+# Copyright 2023 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 from __future__ import print_function
@@ -65,10 +65,10 @@ def test_update_sdists_not_updated(tmpdir):
     # expected to be unmodified by the lock update.
     #
     # E       Traceback (most recent call last):
-    # E         File "/home/jsirois/dev/pantsbuild/jsirois-pex/pex/result.py", line 105, in catch
+    # E         File "/home/jsirois/dev/pex-tool/pex/pex/result.py", line 105, in catch
     # E           return func(*args, **kwargs)
     # E                  ^^^^^^^^^^^^^^^^^^^^^
-    # E         File "/home/jsirois/dev/pantsbuild/jsirois-pex/pex/resolve/lockfile/updater.py", line 320, in update_resolve
+    # E         File "/home/jsirois/dev/pex-tool/pex/pex/resolve/lockfile/updater.py", line 320, in update_resolve
     # E           assert updated_requirement.artifact == locked_requirement.artifact
     # E                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     # E       AssertionError

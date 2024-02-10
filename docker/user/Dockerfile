@@ -1,5 +1,5 @@
 ARG BASE_IMAGE_TAG=latest
-FROM ghcr.io/pantsbuild/pex/base:${BASE_IMAGE_TAG}
+FROM ghcr.io/pex-tool/pex/base:${BASE_IMAGE_TAG}
 
 # Prepare developer shim that can operate on local files and not mess up perms in the process.
 ARG USER

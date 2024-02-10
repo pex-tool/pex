@@ -14,7 +14,7 @@ import yaml
 def build_cache_image(
     tox_envs: list[str], tag: str, pex_repo: str, git_ref: str, push: bool = False
 ) -> None:
-    image_tag = f"ghcr.io/pantsbuild/pex/cache:{tag}"
+    image_tag = f"ghcr.io/pex-tool/pex/cache:{tag}"
     subprocess.run(
         args=[
             "docker",
@@ -58,12 +58,12 @@ def main() -> None:
         "--tag",
         type=str,
         default="latest",
-        help="The tag for the ghcr.io/pantsbuild/pex/cache-all image.",
+        help="The tag for the ghcr.io/pex-tool/pex/cache-all image.",
     )
     parser.add_argument(
         "--pex-repo",
         type=str,
-        default="https://github.com/pantsbuild/pex",
+        default="https://github.com/pex-tool/pex",
         help="The pex repo to clone and use for the docker/cache population.",
     )
     parser.add_argument(

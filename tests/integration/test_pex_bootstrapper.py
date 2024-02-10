@@ -1,4 +1,4 @@
-# Copyright 2021 Pants project contributors (see CONTRIBUTORS.md).
+# Copyright 2021 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os.path
@@ -281,8 +281,8 @@ def test_boot_compatible_issue_1020_no_ic(tmpdir):
         # interpreter. If the current interpreter is in a venv though, we expect the PEX bootstrap
         # to have broken out of the venv and used its base system interpreter.
         # See:
-        #   https://github.com/pantsbuild/pex/pull/1130
-        #   https://github.com/pantsbuild/pex/issues/1031
+        #   https://github.com/pex-tool/pex/pull/1130
+        #   https://github.com/pex-tool/pex/issues/1031
         assert (
             PythonInterpreter.get().resolve_base_interpreter()
             == PythonInterpreter.from_binary(
@@ -351,8 +351,8 @@ def test_boot_compatible_issue_1020_ic_min_compatible_build_time_hole(tmpdir):
     # interpreter. If the max interpreter is in a venv though, we expect the PEX bootstrap
     # to have broken out of the venv and used its base system interpreter.
     # See:
-    #   https://github.com/pantsbuild/pex/pull/1130
-    #   https://github.com/pantsbuild/pex/issues/1031
+    #   https://github.com/pex-tool/pex/pull/1130
+    #   https://github.com/pex-tool/pex/issues/1031
     assert (
         max_interpreter.resolve_base_interpreter()
         == PythonInterpreter.from_binary(

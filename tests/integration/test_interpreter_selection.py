@@ -1,4 +1,4 @@
-# Copyright 2021 Pants project contributors (see CONTRIBUTORS.md).
+# Copyright 2021 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
@@ -404,7 +404,7 @@ def test_interpreter_selection_using_os_environ_for_bootstrap_reexec(
     selection logic and validate a corresponding bugfix.
 
     More details on the nature of the bug can be found at:
-    https://github.com/pantsbuild/pex/pull/441
+    https://github.com/pex-tool/pex/pull/441
     """
     td = os.path.join(str(tmpdir), "tester_project")
     pexrc_path = os.path.join(td, ".pexrc")

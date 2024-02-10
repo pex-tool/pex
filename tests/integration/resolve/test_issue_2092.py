@@ -1,4 +1,4 @@
-# Copyright 2023 Pants project contributors (see CONTRIBUTORS.md).
+# Copyright 2023 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 import os.path
 
@@ -87,5 +87,5 @@ def test_vcs_respects_target(
     #
     # Ideally, Pex could include lock information for each sdist in a lock that utilized PEP-518
     # and then use that information when building wheels from those locked sdists to form a PEX.
-    # See: https://github.com/pantsbuild/pex/issues/2100
+    # See: https://github.com/pex-tool/pex/issues/2100
     assert ["emote_rl-23.0.0-py3-none-any.whl"] == list(PexInfo.from_pex(pex).distributions)

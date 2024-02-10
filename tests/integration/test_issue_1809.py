@@ -1,4 +1,4 @@
-# Copyright 2022 Pants project contributors (see CONTRIBUTORS.md).
+# Copyright 2022 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os.path
@@ -77,7 +77,7 @@ def test_excepthook_scrubbing(tmpdir):
     create_pex_args = ["-D", src, "-m", "app", "-o", pex]
 
     # Ensure this complicated test setup reproduces the original error in
-    # https://github.com/pantsbuild/pex/issues/1809
+    # https://github.com/pex-tool/pex/issues/1809
     # (via https://github.com/pantsbuild/pants/issues/15877).
     run_pex_command(args=["pex==2.1.92", "-c", "pex", "--"] + create_pex_args).assert_success()
 
