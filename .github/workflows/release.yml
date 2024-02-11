@@ -103,32 +103,3 @@ jobs:
           files: dist/pex
           fail_on_unmatched_files: true
           discussion_category_name: Announcements
-  announce-release:
-    name: Announce Release
-    needs:
-      - determine-tag
-      - pypi
-      - github-release
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Post Release Announcement to Pants Slack `#announce`
-        id: slack
-        uses: slackapi/slack-github-action@v1.23.0
-        with:
-          channel-id: "C18RRR4JK"
-          # N.B.: You can muck with the JSON blob and see the results rendered here:
-          #  https://app.slack.com/block-kit-builder
-          payload: |
-            {
-              "blocks": [
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "Pex ${{ needs.determine-tag.outputs.release-version }} is released:\n* https://pypi.org/project/pex/${{ needs.determine-tag.outputs.release-version }}/\n* https://github.com/pex-tool/pex/releases/tag/${{ needs.determine-tag.outputs.release-tag }}"
-                  }
-                }
-              ]
-            }
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
