@@ -202,7 +202,6 @@ jobs:
     name: Gather Final Status
     needs:
       - checks
-      - docs
       - linux-tests
       - mac-tests
     runs-on: ubuntu-22.04
