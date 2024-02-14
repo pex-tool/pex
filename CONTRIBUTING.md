@@ -34,7 +34,12 @@ lead to a better end result.
 Before sending off changes you should run `tox -e fmt,lint,check`. This formats, lints and type
 checks the code.
 
-In addition you should run tests, which are divided into integration tests (those under
+If you've made `docs/` changes, you should run `tox -e docs -- --linkcheck --pdf --serve` which
+will build the full doc site including its downloadable PDF version as well as the search index.
+You can browse to the URL printed out at the end of the output to view the site on your local
+machine.
+
+In addition, you should run tests, which are divided into integration tests (those under
 `tests/integration/`) and unit tests (those under `tests/` but not under `tests/integration/`).
 Unit tests have a tox environment name that matches the desired interpreter to test against. So, to
 run unit tests against CPython 3.11 (which you must have installed), use `tox -e py311`. For
@@ -56,3 +61,14 @@ without having to actually install PyPy 2.7 on your machine.
 When you're ready to get additional eyes on your changes, submit a [pull request](
 https://github.com/pex-tool/pex/pulls).
 
+If you've made documentation changes you can render the site in the fork you used for the pull
+request by navigating to the "Deploy Doc Site" action in your fork and running the workflow
+manually. You do this using the "Run workflow" widget in the top row of the workflow run list,
+selecting your PR branch and clicking "Run workflow". This will fail your first time doing this due
+to a branch protection rule the "Deploy Doc Site" action automatically establishes to restrict doc
+site deployments to the main branch. To fix this, navigate to "Environments" in your fork settings
+and edit the "github-pages" branch protection rule, changing "Deployment Branches" from
+"Selected branches" to "All branches" and then save the protection rules. You can now re-run the
+workflow and should be able to browse to https://<your github id>.github.io/pex to browse the
+deployed site with your changes incorporated. N.B.: The site will be destroyed when you delete your
+PR branch.

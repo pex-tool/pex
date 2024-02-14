@@ -1,6 +1,8 @@
 # Copyright 2020 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+from typing import List
+
 from docutils import nodes, statemachine
 from docutils.parsers.rst import Directive
 from sphinx import addnodes
@@ -10,7 +12,7 @@ from pex.variables import DefaultedProperty, Variables
 
 
 class Vars(Directive):
-    def convert_rst_to_nodes(self, rst_source):
+    def convert_rst_to_nodes(self, rst_source: str) -> List[nodes.Node]:
         """Turn an RST string into a node that can be used in the document."""
         node = nodes.Element()
         node.document = self.state.document
@@ -19,8 +21,8 @@ class Vars(Directive):
         )
         return node.children
 
-    def run(self):
-        def make_nodes(var_name):
+    def run(self) -> List[nodes.Node]:
+        def make_nodes(var_name: str) -> List[nodes.Node]:
             var_obj = Variables.__dict__[var_name]
             if isinstance(var_obj, DefaultedProperty):
                 desc_str = var_obj._func.__doc__
@@ -33,18 +35,10 @@ class Vars(Directive):
             sig.append(nodes.target("", "", ids=[var_name]))
             sig.append(addnodes.desc_signature(var_name, var_name))
 
-            return [sig] + self.convert_rst_to_nodes(desc_str)
+            var_nodes = [sig]  # type: List[nodes.Node]
+            var_nodes.extend(self.convert_rst_to_nodes(desc_str))
+            return var_nodes
 
         return [
             node for var in dir(Variables) if var.startswith("PEX_") for node in make_nodes(var)
         ]
-
-
-def setup(app):
-    app.add_directive("vars", Vars)
-
-    return {
-        "version": "0.1",
-        "parallel_read_safe": True,
-        "parallel_write_safe": True,
-    }

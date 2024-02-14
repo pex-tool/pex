@@ -25,6 +25,7 @@ def run_autoflake(*args: str) -> None:
             ",".join(excludes),
             "--recursive",
             "build-backend",
+            "docs",
             "pex",
             "scripts",
             "testing",

@@ -27,7 +27,7 @@ def register(
             "situations it's beneficial to split the venv installation into {deps} and "
             "{sources} steps. This is particularly useful when installing a PEX in a container "
             "image. See "
-            "https://pex.readthedocs.io/en/latest/recipes.html#pex-app-in-a-container for more "
+            "https://docs.pex-tool.org/recipes.html#pex-app-in-a-container for more "
             "information.".format(
                 all=InstallScope.ALL,
                 deps=InstallScope.DEPS_ONLY,

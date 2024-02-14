@@ -7,7 +7,10 @@ backend-path = ["build-backend"]
 build-backend = "pex_build.hatchling.build"
 requires = ["hatchling"]
 
-[tool.hatch.metadata.hooks.pex-dynamic-requires-python]
+[tool.hatch.metadata.hooks.pex-adjust-metadata]
+expand = {"pex_version" = "version"}
+
+[tool.hatch.build.targets.wheel.hooks.pex-adjust-build]
 # We need this empty table to enable our hook.
 
 [project]
@@ -62,11 +65,11 @@ pex-tools = "pex.tools.main:main"
 bdist_pex = "pex.distutils.commands.bdist_pex:bdist_pex"
 
 [project.urls]
+Changelog = "https://github.com/pex-tool/pex/blob/v{pex_version}/CHANGES.md"
+Documentation = "https://docs.pex-tool.org/"
+Download = "https://github.com/pex-tool/pex/releases/download/v{pex_version}/pex"
 Homepage = "https://github.com/pex-tool/pex"
-Download = "https://github.com/pex-tool/pex/releases/latest/download/pex"
-Changelog = "https://github.com/pex-tool/pex/blob/main/CHANGES.md"
-Documentation = "https://pex.readthedocs.io/en/latest/"
-Source = "https://github.com/pex-tool/pex"
+Source = "https://github.com/pex-tool/pex/tree/v{pex_version}"
 
 [tool.hatch.version]
 path = "pex/version.py"

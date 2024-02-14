@@ -138,7 +138,7 @@ Documentation
 =============
 
 More documentation about Pex, building .pex files, and how .pex files work
-is available at https://pex.readthedocs.io.
+is available at https://docs.pex-tool.org.
 
 
 Development

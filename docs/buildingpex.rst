@@ -435,9 +435,7 @@ Tailoring PEX execution at runtime
 ----------------------------------
 
 Tailoring of PEX execution can be done at runtime by setting various environment variables.
-The source of truth for these environment variables can be found in the
-`pex.variables API <api/index.html#module-pex.variables>`_.
-
+See :ref:`vars`.
 
 Using ``bdist_pex``
 ===================

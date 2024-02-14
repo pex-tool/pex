@@ -1,5 +1,18 @@
 # Release Notes
 
+## 2.1.164
+
+This release moves Pex documentation from https://pex.readthedocs.io to
+https://docs.pex-tool.org. While legacy versioned docs will remain
+available at RTD in perpetuity, going forward only the latest Pex
+release docs will be available online at the https://docs.pex-tool.org
+site. If you want to see the Pex docs for the version you are currently
+using, Pex now supports the `pex3 docs` command which will serve the
+docs for your Pex version locally, offline, but with full functionality,
+including search.
+
+* Re-work Pex documentation. (#2362)
+
 ## 2.1.163
 
 This release fixes Pex to work in certain OS / SSL environments where it
@@ -567,7 +580,7 @@ In addition, you can now "inject" runtime environment variables and
 arguments into PEX files such that, when run, the PEX runtime ensures
 those environment variables and command line arguments are passed to the
 PEXed application. See [PEX Recipes](
-https://pex.readthedocs.io/en/latest/recipes.html#uvicorn-and-other-customizable-application-servers
+https://docs.pex-tool.org/recipes.html#uvicorn-and-other-customizable-application-servers
 )
 for more information.
 
@@ -1021,7 +1034,7 @@ PEX venvs (More on additional data files
 as well as a new venv install `--scope` that can be used to create fully
 optimized container images with PEXed applications (See how to use this
 feature
-[here](https://pex.readthedocs.io/en/latest/recipes.html#pex-app-in-a-container)).
+[here](https://docs.pex-tool.org/recipes.html#pex-app-in-a-container)).
 
 * Support splitting venv creation into deps & srcs. (#1634)
 * Fix handling of data files when creating venvs. (#1632)
@@ -1052,7 +1065,7 @@ pre-built wheels are available for that foreign platform.
 
 Additionally, PEXes now know how to set a usable process name when the
 PEX contains the `setproctitle` distribution. See
-[here](https://pex.readthedocs.io/en/v2.1.66/recipes.html#long-running-pex-applications-and-daemons)
+[here](https://docs.pex-tool.org/recipes.html#long-running-pex-applications-and-daemons)
 for more information.
 
 * Add support for `--complete-platform`. (#1609)
@@ -1148,7 +1161,7 @@ creating optimized container images from PEX files.
 ## 2.1.55
 
 This release brings official support for Python 3.10 as well as fixing
-<https://pex.readthedocs.io> doc generation and fixing help for
+<https://docs.pex-tool.org> doc generation and fixing help for
 `pex-tools` / `PEX_TOOLS=1 ./my.pex` pex tools invocations that have too
 few arguments.
 
@@ -1547,7 +1560,7 @@ This release improves interpreter discovery to prefer more recent patch
 versions, e.g. preferring Python 3.6.10 over 3.6.8.
 
 We recently regained access to the docsite, and
-<https://pex.readthedocs.io/en/latest/> is now up-to-date.
+<https://docs.pex-tool.org/> is now up-to-date.
 
 * Prefer more recent patch versions in interpreter discovery. (#1088)
 * Fix `--pex-python` when it's the same as the current interpreter.
