@@ -1,0 +1,54 @@
+{% extends "page.html" %}
+
+{%- block htmltitle -%}
+<title>{{ _("Search") }} - {{ docstitle }}</title>
+{%- endblock htmltitle -%}
+
+{% block content %}
+<h1>{{ _("Search") }}</h1>
+<div id="search"></div>
+{% endblock %}
+
+{% block scripts -%}
+{{ super() }}
+<script src="/_pagefind/pagefind-ui.js" type="text/javascript"></script>
+<script>
+  window.addEventListener("DOMContentLoaded", () => {
+    new PagefindUI({
+      element: "#search",
+      showSubResults: true,
+    });
+
+    // Hook up the furo search sidebar query text (if any).
+    const urlParams = new URLSearchParams(window.location.search);
+    const query = urlParams.get("q");
+    const searchInputElement = document.querySelector("#search form[role=search] input");
+
+    const inputChangeEvent = new Event("input");
+    searchInputElement.value = query;
+    searchInputElement?.dispatchEvent(inputChangeEvent);
+    searchInputElement?.focus();
+  });
+</script>
+{%- endblock scripts %}
+
+{% block extra_styles -%}
+{{ super() }}
+  <style>
+    #search form input[type="text"] {
+      box-sizing: border-box;
+      width: 100%;
+      line-height: 2em;
+      padding-inline: 0.6em;
+      font-size: 1.2rem;
+      border-radius: 0.25rem;
+      border: 2px solid var(--color-foreground-border);
+      border-bottom-color: 2px solid var(--color-foreground-secondary);
+      transition: border-color 20ms ease;
+    }
+    #search form input[type="text"]:focus {
+      border-color: var(--color-foreground-primary);
+    }
+  </style>
+{%- endblock extra_styles %}
+

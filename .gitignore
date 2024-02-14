@@ -5,5 +5,5 @@
 /.mypy_cache/
 /.tox/
 /dist/
-/docs/_build
+/docs/_static_dynamic/
 

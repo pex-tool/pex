@@ -1,21 +1,26 @@
 #!/usr/bin/env python3
 
+import atexit
 import hashlib
 import io
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 from email.parser import Parser
 from enum import Enum, unique
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path, PurePath
-from typing import Optional, Tuple, cast
+from typing import Dict, Iterator, Optional, Tuple, cast
 
 DIST_DIR = Path("dist")
 
 
-def build_pex_pex(output_file: PurePath, verbosity: int = 0) -> None:
+def build_pex_pex(
+    output_file: PurePath, verbosity: int = 0, env: Optional[Dict[str, str]] = None
+) -> PurePath:
     # NB: We do not include the subprocess extra (which would be spelled: `.[subprocess]`) since we
     # would then produce a pex that would not be consumable by all python interpreters otherwise
     # meeting `python_requires`; ie: we'd need to then come up with a deploy environment / deploy
@@ -44,7 +49,8 @@ def build_pex_pex(output_file: PurePath, verbosity: int = 0) -> None:
         "pex",
         pex_requirement,
     ]
-    subprocess.run(args, check=True)
+    subprocess.run(args=args, env=env, check=True)
+    return output_file
 
 
 def describe_rev() -> str:
@@ -82,32 +88,54 @@ class Format(Enum):
         return f"--{self.value}"
 
 
-def build_pex_dists(dist_fmt: Format, *additional_dist_fmts: Format, verbose: bool = False) -> None:
+def build_pex_dists(
+    dist_fmt: Format,
+    *additional_dist_fmts: Format,
+    verbose: bool = False,
+    env: Optional[Dict[str, str]] = None
+) -> Iterator[PurePath]:
+    tmp_dir = DIST_DIR / ".tmp"
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    out_dir = tempfile.mkdtemp(dir=tmp_dir)
+    atexit.register(shutil.rmtree, out_dir, ignore_errors=True)
+
     output = None if verbose else subprocess.DEVNULL
+
     subprocess.run(
-        [
+        args=[
             sys.executable,
             "-m",
             "build",
             "--outdir",
-            str(DIST_DIR),
+            out_dir,
             *[fmt.build_arg() for fmt in [dist_fmt, *additional_dist_fmts]],
         ],
+        env=env,
         stdout=output,
         stderr=output,
         check=True,
     )
 
+    for dist in os.listdir(out_dir):
+        built = DIST_DIR / dist
+        shutil.move(os.path.join(out_dir, dist), built)
+        yield built
+
 
 def main(
     *additional_dist_formats: Format,
     verbosity: int = 0,
+    embed_docs: bool = False,
     pex_output_file: Optional[Path] = DIST_DIR / "pex",
     serve: bool = False
 ) -> None:
+    env = os.environ.copy()
+    if embed_docs:
+        env.update(__PEX_BUILD_INCLUDE_DOCS__="1")
+
     if pex_output_file:
         print(f"Building Pex PEX to `{pex_output_file}` ...")
-        build_pex_pex(pex_output_file, verbosity)
+        build_pex_pex(pex_output_file, verbosity, env=env)
 
         rev = describe_rev()
         sha256, size = describe_file(pex_output_file)
@@ -120,16 +148,17 @@ def main(
             f"Building additional distribution formats to `{DIST_DIR}`: "
             f'{", ".join(f"{i + 1}.) {fmt}" for i, fmt in enumerate(additional_dist_formats))} ...'
         )
-        build_pex_dists(
-            additional_dist_formats[0], *additional_dist_formats[1:], verbose=verbosity > 0
+        built = list(
+            build_pex_dists(
+                additional_dist_formats[0],
+                *additional_dist_formats[1:],
+                verbose=verbosity > 0,
+                env=env
+            )
         )
         print("Built:")
-        for root, _, files in os.walk(DIST_DIR):
-            root_path = Path(root)
-            for f in files:
-                dist_path = root_path / f
-                if dist_path != pex_output_file:
-                    print(f"  {dist_path}")
+        for dist_path in built:
+            print(f"  {dist_path}")
 
     if serve:
         server = HTTPServer(("", 0), SimpleHTTPRequestHandler)
@@ -148,6 +177,12 @@ if __name__ == "__main__":
     parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument(
         "-v", dest="verbosity", action="count", default=0, help="Increase output verbosity level."
+    )
+    parser.add_argument(
+        "--embed-docs",
+        default=False,
+        action="store_true",
+        help="Embed offline docs in the built binary distributions.",
     )
     parser.add_argument(
         "--additional-format",
@@ -180,6 +215,7 @@ if __name__ == "__main__":
     main(
         *(args.additional_formats or ()),
         verbosity=args.verbosity,
+        embed_docs=args.embed_docs,
         pex_output_file=None if args.no_pex else args.pex_output_file,
         serve=args.serve
     )

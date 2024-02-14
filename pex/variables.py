@@ -337,7 +337,9 @@ class Variables(object):
     def strip(self):
         # type: () -> Variables
         stripped_environ = {
-            k: v for k, v in self.copy().items() if not k.startswith(("PEX_", "__PEX_"))
+            k: v
+            for k, v in self.copy().items()
+            if k.startswith("__PEX_BUILD_") or not k.startswith(("PEX_", "__PEX_"))
         }
         return Variables(environ=stripped_environ)
 

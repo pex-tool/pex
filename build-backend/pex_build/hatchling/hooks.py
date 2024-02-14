@@ -3,13 +3,22 @@
 
 from __future__ import absolute_import
 
-from typing import Type
-
+import pex_build
 from hatchling.plugin import hookimpl
-from pex_build.hatchling.dynamic_requires_python import DynamicRequiresPythonHook
+from pex_build.hatchling.build_hook import AdjustBuild
+from pex_build.hatchling.metadata_hook import AdjustMetadata
+
+if pex_build.TYPE_CHECKING:
+    from typing import Type
 
 
 @hookimpl
 def hatch_register_metadata_hook():
-    # type: () -> Type[DynamicRequiresPythonHook]
-    return DynamicRequiresPythonHook
+    # type: () -> Type[AdjustMetadata]
+    return AdjustMetadata
+
+
+@hookimpl
+def hatch_register_build_hook():
+    # type: () -> Type[AdjustBuild]
+    return AdjustBuild

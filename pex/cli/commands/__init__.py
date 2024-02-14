@@ -2,6 +2,7 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 from pex.cli.command import BuildTimeCommand
+from pex.cli.commands.docs import Docs
 from pex.cli.commands.interpreter import Interpreter
 from pex.cli.commands.lock import Lock
 from pex.cli.commands.venv import Venv
@@ -13,4 +14,4 @@ if TYPE_CHECKING:
 
 def all_commands():
     # type: () -> Iterable[Type[BuildTimeCommand]]
-    return Interpreter, Lock, Venv
+    return Docs, Interpreter, Lock, Venv

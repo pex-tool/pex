@@ -82,7 +82,7 @@ class Platform(object):
                     You may be forced to specify this form when resolves encounter environment
                     markers that use `python_full_version`. See the `--complete-platform` help as
                     well as:
-                    + https://pex.readthedocs.io/en/latest/buildingpex.html#complete-platform
+                    + https://docs.pex-tool.org/buildingpex.html#complete-platform
                     + https://www.python.org/dev/peps/pep-0508/#environment-markers
                     """
                 )
