@@ -50,7 +50,7 @@ jobs:
       - name: Check Packaging
         uses: pantsbuild/actions/run-tox@b16b9cf47cd566acfe217b1dafc5b452e27e6fd7
         with:
-          tox-env: package -- --additional-format sdist --additional-format wheel --embed-docs
+          tox-env: package -- --additional-format sdist --additional-format wheel --embed-docs --clean-docs
       - name: Check Docs
         uses: pantsbuild/actions/run-tox@b16b9cf47cd566acfe217b1dafc5b452e27e6fd7
         with:

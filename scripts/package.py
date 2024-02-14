@@ -126,6 +126,7 @@ def main(
     *additional_dist_formats: Format,
     verbosity: int = 0,
     embed_docs: bool = False,
+    clean_docs: bool = False,
     pex_output_file: Optional[Path] = DIST_DIR / "pex",
     serve: bool = False
 ) -> None:
@@ -160,6 +161,9 @@ def main(
         for dist_path in built:
             print(f"  {dist_path}")
 
+    if clean_docs:
+        shutil.rmtree(DIST_DIR / "docs", ignore_errors=True)
+
     if serve:
         server = HTTPServer(("", 0), SimpleHTTPRequestHandler)
         host, port = server.server_address
@@ -183,6 +187,12 @@ if __name__ == "__main__":
         default=False,
         action="store_true",
         help="Embed offline docs in the built binary distributions.",
+    )
+    parser.add_argument(
+        "--clean-docs",
+        default=False,
+        action="store_true",
+        help="Clean up loose generated docs after they have embedded in binary distributions.",
     )
     parser.add_argument(
         "--additional-format",
@@ -216,6 +226,7 @@ if __name__ == "__main__":
         *(args.additional_formats or ()),
         verbosity=args.verbosity,
         embed_docs=args.embed_docs,
+        clean_docs=args.clean_docs,
         pex_output_file=None if args.no_pex else args.pex_output_file,
         serve=args.serve
     )
