@@ -96,8 +96,8 @@ def build_pex_dists(
 ) -> Iterator[PurePath]:
     tmp_dir = DIST_DIR / ".tmp"
     tmp_dir.mkdir(parents=True, exist_ok=True)
+    atexit.register(shutil.rmtree, tmp_dir, ignore_errors=True)
     out_dir = tempfile.mkdtemp(dir=tmp_dir)
-    atexit.register(shutil.rmtree, out_dir, ignore_errors=True)
 
     output = None if verbose else subprocess.DEVNULL
 
