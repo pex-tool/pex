@@ -55,8 +55,8 @@ class HtmlDocsConfig(object):
 # 0x45 0x58 0x50
 #
 # This is a currently unassigned port in the 1024-49151 user port registration range.
-# We have no intention of registering! But this value plays by the loose rules and satisfies
-# the criteria of being unlikely to be in use.
+# This value plays by the loose rules and satisfies the criteria of being unlikely to be in use.
+# We have no intention of registering with IANA tough!
 STANDARD_PORT = 45585
 
 

@@ -15,7 +15,6 @@ import shlex
 import sys
 from argparse import Action, ArgumentDefaultsHelpFormatter, ArgumentError, ArgumentParser
 from textwrap import TextWrapper
-from typing import NoReturn
 
 from pex import pex_warnings
 from pex.argparse import HandleBoolAction
@@ -52,7 +51,7 @@ from pex.version import __version__
 
 if TYPE_CHECKING:
     from argparse import Namespace
-    from typing import Dict, Iterable, Iterator, List, Optional, Set, Text, Tuple
+    from typing import Dict, Iterable, Iterator, List, NoReturn, Optional, Set, Text, Tuple
 
     import attr  # vendor:skip
 

@@ -10,7 +10,6 @@ import signal
 import subprocess
 import sys
 import time
-from typing import Optional
 
 from pex.common import safe_open
 from pex.typing import TYPE_CHECKING
@@ -180,8 +179,9 @@ def launch(
             if e.errno != errno.ESRCH:  # No such process.
                 raise LaunchError(
                     log,
-                    additional_msg="Also failed to kill the partially launched server at pid {pid}: {err}".format(
-                        pid=process.pid, err=e
+                    additional_msg=(
+                        "Also failed to kill the partially launched server at pid {pid}: "
+                        "{err}".format(pid=process.pid, err=e)
                     ),
                 )
         raise LaunchError(log)
