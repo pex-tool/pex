@@ -1,5 +1,30 @@
 # Release Notes
 
+## 2.2.0
+
+This release adds tools to interact with Pex's new embedded offline
+documentation. You can browse those docs with `pex --docs` or, more
+flexibly, with `pex3 docs`. See `pex3 docs --help` for all the options
+available.
+
+This release also returns to [SemVer](https://semver.org/) versioning
+practices. Simply, you can expect 3 things from Pex version numbers:
+
++ The first component (the major version) will remain 2 as long as
+  possible. Pex tries very hard to never break existing users and to
+  allow them to upgrade without fear of breaking.
++ The second component (the minor version) will be incremented whenever
+  a release adds a feature. Since Pex is a command line tool only (not
+  a library), this means you can expect a new subcommand, a new option,
+  or a new allowable option value was added. Bugs might also have been
+  fixed.
++ The third component (the patch version) indicates only bugs were
+  fixed.
+
+You can expect the minor version to get pretty big going forward!
+
+* Flesh out CLI access to the embedded Pex offline docs (#2363)
+
 ## 2.1.164
 
 This release moves Pex documentation from https://pex.readthedocs.io to
