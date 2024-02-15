@@ -63,13 +63,13 @@ from sphinx_pex import SVGIcon
 
 html_title = f"Pex Docs (v{release})"
 html_theme = "furo"
-html_favicon = "_static/pex.ico"
+html_favicon = "_static/pex-icon.png"
 html_static_path = sphinx_pex.html_static_path()
 
 
 html_theme_options = {
-    "light_logo": "pex-full-light.png",
-    "dark_logo": "pex-full-dark.png",
+    "light_logo": "pex-logo-light.png",
+    "dark_logo": "pex-logo-dark.png",
     "sidebar_hide_name": True,
     "source_repository": "https://github.com/pex-tool/pex/",
     "source_branch": "main",
