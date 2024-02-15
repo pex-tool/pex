@@ -106,5 +106,5 @@ html_theme_options = {
 simplepdf_vars = {
     "primary": "#ffcc00",
     "cover": "black",
-    "cover-bg": "url(pex-cover.png) no-repeat center",
+    "cover-bg": "url(pex-icon.png) no-repeat center",
 }
