@@ -12,7 +12,12 @@ practices. Simply, you can expect 3 things from Pex version numbers:
 
 + The first component (the major version) will remain 2 as long as
   possible. Pex tries very hard to never break existing users and to
-  allow them to upgrade without fear of breaking.
+  allow them to upgrade without fear of breaking. This includes not
+  breaking Python compatibility. In Pex 2, Python 2.7 is supported as
+  well as Python 3.5+ for both CPython and PyPy. Pex will only continue
+  to add support for new CPython and PyPy releases and never remove
+  support for already supported Python versions while the major version
+  remains 2.
 + The second component (the minor version) will be incremented whenever
   a release adds a feature. Since Pex is a command line tool only (not
   a library), this means you can expect a new subcommand, a new option,
