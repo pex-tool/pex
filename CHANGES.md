@@ -23,7 +23,7 @@ practices. Simply, you can expect 3 things from Pex version numbers:
 
 You can expect the minor version to get pretty big going forward!
 
-* Flesh out CLI access to the embedded Pex offline docs (#2363)
+* Add `pex --docs` and several `pex3 docs` options. (#2365)
 
 ## 2.1.164
 
