@@ -25,6 +25,7 @@ from pex.commands.command import (
 )
 from pex.common import die, is_pyc_dir, is_pyc_file, safe_mkdtemp
 from pex.dependency_manager import DependencyManager
+from pex.docs.command import serve_html_docs
 from pex.enum import Enum
 from pex.inherit_path import InheritPath
 from pex.interpreter_constraints import InterpreterConstraints
@@ -50,7 +51,7 @@ from pex.version import __version__
 
 if TYPE_CHECKING:
     from argparse import Namespace
-    from typing import Dict, Iterable, Iterator, List, Optional, Set, Text, Tuple
+    from typing import Dict, Iterable, Iterator, List, NoReturn, Optional, Set, Text, Tuple
 
     import attr  # vendor:skip
 
@@ -87,6 +88,13 @@ class PrintVariableHelpAction(Action):
                 variable_help
             ):
                 print(line)
+        sys.exit(0)
+
+
+class OpenHtmlDocsAction(Action):
+    def __call__(self, *args, **kwargs):
+        # type: (...) -> NoReturn
+        try_(serve_html_docs(open_browser=True))
         sys.exit(0)
 
 
@@ -762,8 +770,22 @@ def configure_clp():
         "--help-variables",
         action=PrintVariableHelpAction,
         nargs=0,
-        help="Print out help about the various environment variables used to change the behavior of "
-        "a running PEX file.",
+        help=(
+            "Print out help about the various environment variables used to change the behavior "
+            "of a running PEX file."
+        ),
+    )
+    parser.add_argument(
+        "--docs",
+        "--help-html",
+        dest="open_html_docs",
+        action=OpenHtmlDocsAction,
+        nargs=0,
+        help=(
+            "Open a browser to view the embedded documentation for this Pex installation. For "
+            "more flexible interaction with the embedded documentation, you can use this Pex "
+            "installation's `pex3` script. Try `pex3 docs --help` to get started."
+        ),
     )
 
     return parser

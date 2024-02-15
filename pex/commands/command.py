@@ -12,10 +12,12 @@ import sys
 import tempfile
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace, _ActionsContainer
 from contextlib import contextmanager
+from subprocess import CalledProcessError
 
 from pex import pex_warnings
 from pex.argparse import HandleBoolAction
 from pex.common import safe_mkdtemp, safe_open
+from pex.compatibility import shlex_quote
 from pex.result import Error, Ok, Result
 from pex.typing import TYPE_CHECKING, Generic, cast
 from pex.variables import ENV, Variables
@@ -48,11 +50,23 @@ def try_run_program(
     args,  # type: Iterable[str]
     url=None,  # type: Optional[str]
     error=None,  # type: Optional[str]
+    disown=False,  # type: bool
     **kwargs  # type: Any
 ):
     # type: (...) -> Result
+    cmd = [program] + list(args)
     try:
-        subprocess.check_call([program] + list(args), **kwargs)
+        process = subprocess.Popen(cmd, preexec_fn=os.setsid if disown else None, **kwargs)
+        if not disown and process.wait() != 0:
+            return Error(
+                str(
+                    CalledProcessError(
+                        returncode=process.returncode,
+                        cmd=" ".join(shlex_quote(arg) for arg in cmd),
+                    )
+                ),
+                exit_code=process.returncode,
+            )
         return Ok()
     except OSError as e:
         msg = [error] if error else []
@@ -62,22 +76,35 @@ def try_run_program(
                 "Find more information on `{program}` at {url}.".format(program=program, url=url)
             )
         return Error("\n".join(msg))
-    except subprocess.CalledProcessError as e:
-        return Error(str(e), exit_code=e.returncode)
 
 
 def try_open_file(
     path,  # type: str
+    open_program=None,  # type: Optional[str]
     error=None,  # type: Optional[str]
+    suppress_stderr=False,  # type: bool
 ):
     # type: (...) -> Result
-    opener, url = (
-        ("xdg-open", "https://www.freedesktop.org/wiki/Software/xdg-utils/")
-        if "Linux" == os.uname()[0]
-        else ("open", None)
-    )
+
+    url = None  # type: Optional[str]
+    if open_program:
+        opener = open_program
+    elif "Linux" == os.uname()[0]:
+        opener = "xdg-open"
+        url = "https://www.freedesktop.org/wiki/Software/xdg-utils/"
+    else:
+        opener = "open"
+
     with open(os.devnull, "wb") as devnull:
-        return try_run_program(opener, [path], url=url, error=error, stdout=devnull)
+        return try_run_program(
+            opener,
+            [path],
+            url=url,
+            error=error,
+            disown=True,
+            stdout=devnull,
+            stderr=devnull if suppress_stderr else None,
+        )
 
 
 @attr.s(frozen=True)
