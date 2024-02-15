@@ -1,5 +1,17 @@
 # Release Notes
 
+## 2.2.1
+
+This release trims down the size of the Pex wheel on PyPI and the
+released Pex PEX by about 20KB by consolidating image resources.
+
+This release also fixes the release process to remove a window of time
+when several links would be dead on at https://docs.pex-tool.org that
+pointed to release artifacts that were not yet fully deployed.
+
+* Fix release ordering of the doc site deploy. (#2369)
+* Trim embedded doc image assets. (#2368)
+
 ## 2.2.0
 
 This release adds tools to interact with Pex's new embedded offline

@@ -109,3 +109,19 @@ jobs:
             dist/docs/pdf/pex.pdf
           fail_on_unmatched_files: true
           discussion_category_name: Announcements
+  deploy-docsite:
+    name: Trigger Deploy Doc Site
+    needs:
+      - determine-tag
+      - pypi
+      - github-release
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Dispatch `release-docs` Event
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          event-type: release-docs
+          client-payload: |-
+            {
+              "ref": "${{ github.ref }}"
+            }
