@@ -1,8 +1,7 @@
 name: Deploy Doc Site
 on:
-  push:
-    tags:
-      - v[0-9]+.[0-9]+.[0-9]+
+  repository_dispatch:
+    types: [release-docs]
   workflow_dispatch:
 
 permissions:
@@ -21,8 +20,14 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-22.04
     steps:
-      - name: Checkout Pex
-        uses: actions/checkout@v3
+      - name: Checkout Pex (for release-docs event)
+        uses: actions/checkout@v4
+        if: github.event_name == 'repository_dispatch'
+        with:
+          ref: ${{ github.event.client_payload.ref }}
+      - name: Checkout Pex (for manual workflow dispatch)
+        uses: actions/checkout@v4
+        if: github.event_name == 'workflow_dispatch'
       - name: Setup Python 3.11
         uses: actions/setup-python@v4
         with:
