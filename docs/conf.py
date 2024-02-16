@@ -63,13 +63,13 @@ from sphinx_pex import SVGIcon
 
 html_title = f"Pex Docs (v{release})"
 html_theme = "furo"
-html_favicon = "_static/pex.ico"
+html_favicon = "_static/pex-icon.png"
 html_static_path = sphinx_pex.html_static_path()
 
 
 html_theme_options = {
-    "light_logo": "pex-full-light.png",
-    "dark_logo": "pex-full-dark.png",
+    "light_logo": "pex-logo-light.png",
+    "dark_logo": "pex-logo-dark.png",
     "sidebar_hide_name": True,
     "source_repository": "https://github.com/pex-tool/pex/",
     "source_branch": "main",
@@ -104,7 +104,11 @@ html_theme_options = {
 # https://sphinx-simplepdf.readthedocs.io/en/latest/configuration.html
 
 simplepdf_vars = {
-    "primary": "#ffcc00",
     "cover": "black",
-    "cover-bg": "url(pex-cover.png) no-repeat center",
+    # Confusing! The white gets applied to the page number color (which appears inside a rusty red
+    # box) and the back cover text color. Neither white nor black work well for the back page text
+    # color since the text intersects the thick black bottom arc of the Pex P-egg. The yolk color
+    # works well enough in both these spots though.
+    "white": "#ffee00",
+    "cover-bg": "url(pex-icon.png) no-repeat center",
 }
