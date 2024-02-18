@@ -48,11 +48,11 @@ jobs:
       id-token: write
     steps:
       - name: Checkout Pex ${{ needs.determine-tag.outputs.release-tag }}
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           ref: ${{ needs.determine-tag.outputs.release-tag }}
       - name: Setup Python 3.11
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
       - name: Build sdist and wheel
@@ -71,13 +71,13 @@ jobs:
     environment: Release
     steps:
       - name: Checkout Pex ${{ needs.determine-tag.outputs.release-tag }}
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           ref: ${{ needs.determine-tag.outputs.release-tag }}
           # This ensures we get all branches and tags which is needed for `tox -e package`.
           fetch-depth: 0
       - name: Setup Python 3.11
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
       - name: Package Pex ${{ needs.determine-tag.outputs.release-tag }} PEX
@@ -95,7 +95,8 @@ jobs:
           changelog-file: ${{ github.workspace }}/CHANGES.md
           version: ${{ needs.determine-tag.outputs.release-version }}
       - name: Create ${{ needs.determine-tag.outputs.release-tag }} Release
-        uses: softprops/action-gh-release@v1
+        # Upgrades node16 -> node20: in main but not tagged yet.
+        uses: softprops/action-gh-release@4634c16e79c963813287e889244c50009e7f0981
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
