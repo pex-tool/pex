@@ -29,13 +29,13 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout Pex
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           # We need branches and tags since package leans on `git describe`. Passing 0 gets us
           # complete history.
           fetch-depth: 0
       - name: Setup Python 3.8
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           # We need to keep Python 3.8 for consistent vendoring with tox.
           python-version: "3.8"
@@ -103,13 +103,13 @@ jobs:
           docker-images: false
           swap-storage: false
       - name: Checkout Pex
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           # We need branches and tags for some ITs.
           fetch-depth: 0
       # Some ITs need this for VCS URLs of the form git+ssh://git@github.com/...
       - name: Setup SSH Agent
-        uses: webfactory/ssh-agent@v0.5.4
+        uses: webfactory/ssh-agent@v0.9.0
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
         if: env.SSH_PRIVATE_KEY != ''
@@ -144,13 +144,13 @@ jobs:
           fi
           echo "skip=${skip}" >> $GITHUB_OUTPUT
       - name: Checkout Pex
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           # We need branches and tags for some ITs.
           fetch-depth: 0
           path: repo
       - name: Setup Python ${{ join(matrix.python-version, '.') }}
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "${{ join(matrix.python-version, '.') }}"
       - name: Expose Pythons
@@ -159,13 +159,13 @@ jobs:
           skip: "${{ steps.calculate-pythons-to-expose.outputs.skip }}"
       - name: Restore Cached Pyenv Interpreters
         id: restore-pyenv-interpreters
-        uses: actions/cache/restore@v3
+        uses: actions/cache/restore@v4
         with:
           path: ${{ env._PEX_TEST_DEV_ROOT }}/pyenv
           key: macos-12-${{ runner.arch }}-pex-test-dev-root-pyenv-v1
       - name: Restore Cached Devpi Server
         id: restore-devpi-server
-        uses: actions/cache/restore@v3
+        uses: actions/cache/restore@v4
         with:
           path: ${{ env._PEX_TEST_DEV_ROOT }}/devpi
           # We're using a key suffix / restore-keys prefix trick here to get an updatable cache.
@@ -174,7 +174,7 @@ jobs:
           restore-keys: macos-12-${{ runner.arch }}-${{ matrix.tox-env }}-pex-test-dev-root-devpi-v1
       # Some ITs need this for VCS URLs of the form git+ssh://git@github.com/...
       - name: Setup SSH Agent
-        uses: webfactory/ssh-agent@v0.5.4
+        uses: webfactory/ssh-agent@v0.9.0
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
         if: env.SSH_PRIVATE_KEY != ''
@@ -187,13 +187,13 @@ jobs:
           python: ${{ matrix.tox-env-python }}
           tox-env: ${{ matrix.tox-env }} -- ${{ env._PEX_TEST_POS_ARGS }}
       - name: Cache Pyenv Interpreters
-        uses: actions/cache/save@v3
+        uses: actions/cache/save@v4
         if: github.ref == 'refs/heads/main'
         with:
           path: ${{ env._PEX_TEST_DEV_ROOT }}/pyenv
           key: ${{ steps.restore-pyenv-interpreters.outputs.cache-primary-key }}
       - name: Cache Devpi Server
-        uses: actions/cache/save@v3
+        uses: actions/cache/save@v4
         if: github.ref == 'refs/heads/main'
         with:
           path: ${{ env._PEX_TEST_DEV_ROOT }}/devpi
