@@ -752,6 +752,7 @@ class DistMetadata(object):
     def from_metadata_files(cls, metadata_files):
         # type: (MetadataFiles) -> DistMetadata
         return cls(
+            files=metadata_files,
             project_name=metadata_files.metadata.project_name,
             version=metadata_files.metadata.version,
             requires_dists=tuple(requires_dists(metadata_files)),
@@ -774,10 +775,16 @@ class DistMetadata(object):
             )
         return cls.from_metadata_files(metadata_files)
 
+    files = attr.ib(eq=False)  # type: MetadataFiles
     project_name = attr.ib()  # type: ProjectName
     version = attr.ib()  # type: Version
     requires_dists = attr.ib(default=())  # type: Tuple[Requirement, ...]
     requires_python = attr.ib(default=SpecifierSet())  # type: Optional[SpecifierSet]
+
+    @property
+    def type(self):
+        # type: () -> MetadataType.Value
+        return self.files.metadata.type
 
 
 def _realpath(path):
@@ -893,10 +900,7 @@ class Distribution(object):
                 ".egg-info/) directory. Given: {name}".format(name=name)
             )
 
-        metadata_file = load_metadata(
-            location=self.location, project_name=self.metadata.project_name
-        )
-        return metadata_file.read(name) if metadata_file else None
+        return self.metadata.files.read(name)
 
     def iter_metadata_lines(self, name):
         # type: (str) -> Iterator[Text]

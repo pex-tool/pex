@@ -3,6 +3,8 @@
 
 from __future__ import absolute_import, print_function
 
+import itertools
+import os.path
 import sys
 from argparse import Action, ArgumentError, ArgumentParser, ArgumentTypeError, _ActionsContainer
 from collections import OrderedDict
@@ -13,22 +15,30 @@ from pex.argparse import HandleBoolAction
 from pex.asserts import production_assert
 from pex.cli.command import BuildTimeCommand
 from pex.commands.command import JsonMixin, OutputMixin
-from pex.common import pluralize
-from pex.dist_metadata import Requirement, RequirementParseError
+from pex.common import is_exe, pluralize, safe_delete, safe_open
+from pex.compatibility import commonpath
+from pex.dist_metadata import Distribution, MetadataType, Requirement, RequirementParseError
 from pex.enum import Enum
+from pex.interpreter import PythonInterpreter
+from pex.pep_376 import InstalledWheel, Record
+from pex.pep_427 import InstallableType
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.resolve import requirement_options, resolver_options, target_options
 from pex.resolve.config import finalize as finalize_resolve_config
+from pex.resolve.configured_resolver import ConfiguredResolver
+from pex.resolve.lock_resolver import resolve_from_lock
 from pex.resolve.locked_resolve import LockConfiguration, LockStyle, Resolved, TargetSystem
 from pex.resolve.lockfile import json_codec
 from pex.resolve.lockfile.create import create
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.lockfile.subset import subset
 from pex.resolve.lockfile.updater import (
+    ArtifactsUpdate,
     ArtifactUpdate,
     DeleteUpdate,
     FingerprintUpdate,
+    LockUpdate,
     LockUpdater,
     ResolveUpdateRequest,
     VersionUpdate,
@@ -36,17 +46,19 @@ from pex.resolve.lockfile.updater import (
 from pex.resolve.path_mappings import PathMappings
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolved_requirement import Fingerprint, Pin
+from pex.resolve.resolver_configuration import LockRepositoryConfiguration
 from pex.resolve.resolver_options import parse_lockfile
 from pex.resolve.target_configuration import InterpreterConstraintsNotSatisfied, TargetConfiguration
 from pex.result import Error, Ok, Result, try_
 from pex.sorted_tuple import SortedTuple
-from pex.targets import Targets
+from pex.targets import LocalInterpreter, Targets
 from pex.tracer import TRACER
-from pex.typing import TYPE_CHECKING
+from pex.typing import TYPE_CHECKING, cast
+from pex.venv.virtualenv import InvalidVirtualenvError, Virtualenv
 from pex.version import __version__
 
 if TYPE_CHECKING:
-    from typing import IO, Dict, Iterable, List, Mapping, Optional, Tuple, Union
+    from typing import IO, Dict, Iterable, List, Mapping, Optional, Set, Text, Tuple, Union
 
     import attr  # vendor:skip
 else:
@@ -119,6 +131,235 @@ class HandleDryRunAction(Action):
         setattr(namespace, self.dest, dry_run_style)
 
 
+@attr.s(frozen=True)
+class SyncTarget(object):
+    @classmethod
+    def resolve_command(
+        cls,
+        venv,  # type: Virtualenv
+        command=None,  # type: Optional[Tuple[str, ...]]
+    ):
+        # type: (...) -> SyncTarget
+        if command:
+            argv0 = command[0] if os.path.isabs(command[0]) else venv.bin_path(command[0])
+            command = (argv0,) + command[1:]
+        return SyncTarget(venv=venv, command=command)
+
+    @classmethod
+    def resolve_venv(
+        cls,
+        argv0,  # type str
+        *additional_args  # type: str
+    ):
+        # type: (...) -> Union[SyncTarget, Error]
+
+        argv0_path = None  # type: Optional[str]
+        if is_exe(argv0):
+            argv0_path = argv0
+        else:
+            path = os.environ.get("PATH")
+            if path:
+                for entry in path.split(os.pathsep):
+                    exe_path = os.path.abspath(os.path.join(entry, argv0))
+                    if is_exe(exe_path):
+                        argv0_path = exe_path
+                        break
+
+        if argv0_path:
+            venv = Virtualenv.enclosing(python=argv0_path)
+            if not venv:
+                try:
+                    venv = Virtualenv(os.path.dirname(os.path.dirname(argv0_path)))
+                except InvalidVirtualenvError as e:
+                    return Error(
+                        "Could not find a valid venv enclosing {argv0} to sync: {err}.\n"
+                        "Try explicitly specifying a venv to sync with `--venv`.".format(
+                            err=e, argv0=argv0
+                        )
+                    )
+            command = [argv0_path]
+            command.extend(additional_args)
+            return SyncTarget(venv=venv, command=tuple(command))
+
+        if os.path.isdir(argv0) and not additional_args:
+            try:
+                return SyncTarget(venv=Virtualenv(argv0))
+            except InvalidVirtualenvError as e:
+                return Error(
+                    "The directory at {path} is not a valid venv to sync: {err}.\n"
+                    "Try explicitly specifying a venv to sync with `--venv`.".format(
+                        err=e, path=argv0
+                    )
+                )
+
+        return Error(
+            "Could not determine a venv to sync after examining {argv0}.\n"
+            "Try explicitly specifying a venv to sync with `--venv`.".format(argv0=argv0)
+        )
+
+    venv = attr.ib()  # type: Virtualenv
+    command = attr.ib(default=None)  # type: Optional[Tuple[str, ...]]
+
+    def sync(
+        self,
+        distributions,  # type: Iterable[Distribution]
+        confirm=True,  # type: bool
+        retain_pip=False,  # type: bool
+    ):
+        # type: (...) -> Result
+
+        abs_venv_dir = os.path.realpath(self.venv.venv_dir)
+
+        existing_distributions_by_project_name = {
+            dist.metadata.project_name: dist for dist in self.venv.iter_distributions()
+        }  # type: Dict[ProjectName, Distribution]
+
+        to_remove = []  # type: List[Distribution]
+        to_install = []  # type: List[Distribution]
+        for distribution in distributions:
+            existing_distribution = existing_distributions_by_project_name.pop(
+                distribution.metadata.project_name, None
+            )
+            if not existing_distribution:
+                to_install.append(distribution)
+            elif existing_distribution.metadata.version != distribution.metadata.version:
+                to_remove.append(existing_distribution)
+                to_install.append(distribution)
+        if retain_pip:
+            existing_distributions_by_project_name.pop(ProjectName("pip"))
+        to_remove.extend(existing_distributions_by_project_name.values())
+
+        to_unlink_by_pin = (
+            OrderedDict()
+        )  # type: OrderedDict[Tuple[ProjectName, Version], List[Text]]
+        for distribution in to_remove:
+            to_unlink = []  # type: List[Text]
+            if distribution.metadata.type is MetadataType.DIST_INFO:
+                to_unlink.extend(
+                    os.path.realpath(os.path.join(distribution.location, installed_file.path))
+                    for installed_file in Record.read(distribution.iter_metadata_lines("RECORD"))
+                )
+            elif distribution.metadata.type is MetadataType.EGG_INFO:
+                installed_files = distribution.metadata.files.metadata_file_rel_path(
+                    "installed-files.txt"
+                )
+                if installed_files:
+                    base_dir = os.path.realpath(
+                        os.path.join(distribution.location, os.path.dirname(installed_files))
+                    )
+                    to_unlink.extend(
+                        os.path.join(base_dir, path)
+                        for path in distribution.iter_metadata_lines("installed-files.txt")
+                    )
+                    # Pip generates "installed-files.txt" upon installing and this file does not
+                    # include itself; so we tack that on here ourselves.
+                    to_unlink.append(
+                        os.path.realpath(os.path.join(distribution.location, installed_files))
+                    )
+            if to_unlink:
+                to_unlink_by_pin[
+                    (distribution.metadata.project_name, distribution.metadata.version)
+                ] = [file for file in to_unlink if abs_venv_dir == commonpath((abs_venv_dir, file))]
+        if confirm and to_unlink_by_pin:
+            for (project_name, version), files in to_unlink_by_pin.items():
+                print(project_name, version, ":", file=sys.stderr)
+                for f in files:
+                    print("    ", f, file=sys.stderr)
+            if input(
+                "Remove the outdated distributions listed above from the venv at "
+                "{venv}? [yN]: ".format(venv=self.venv.venv_dir)
+            ).strip().lower() not in ("y", "yes"):
+                return Error("Sync cancelled.")
+
+        if to_unlink_by_pin:
+            parent_dirs = set()  # type: Set[Text]
+            for file in itertools.chain.from_iterable(to_unlink_by_pin.values()):
+                safe_delete(file)
+                parent_dirs.add(os.path.dirname(file))
+            for parent_dir in sorted(parent_dirs, reverse=True):
+                if not os.listdir(parent_dir) and abs_venv_dir == commonpath(
+                    (abs_venv_dir, parent_dir)
+                ):
+                    os.rmdir(parent_dir)
+
+        if to_install:
+            for distribution in to_install:
+                for src, dst in InstalledWheel.load(distribution.location).reinstall_venv(
+                    self.venv
+                ):
+                    TRACER.log("Installed {src} -> {dst}".format(src=src, dst=dst))
+            for script in self.venv.rewrite_scripts():
+                TRACER.log("Re-wrote script shebang for {script}".format(script=script))
+
+        if self.command:
+            try:
+                os.execv(self.command[0], self.command)
+            except OSError as e:
+                return Error("Failed to execute {exe}: {err}".format(exe=self.command[0], err=e))
+
+        return Ok()
+
+
+@attr.s(frozen=True)
+class LockUpdateRequest(object):
+    _lock_file_path = attr.ib()  # type: str
+    _lock_updater = attr.ib()  # type: LockUpdater
+    _update_requests = attr.ib()  # type: Iterable[ResolveUpdateRequest]
+
+    def update(
+        self,
+        updates=(),  # type: Iterable[Requirement]
+        replacements=(),  # type: Iterable[Requirement]
+        deletes=(),  # type: Iterable[ProjectName]
+        pin=False,  # type: bool
+    ):
+        # type: (...) -> Union[LockUpdate, Result]
+        if not self._update_requests:
+            return self._no_updates()
+
+        return self._lock_updater.update(
+            update_requests=self._update_requests,
+            updates=updates,
+            replacements=replacements,
+            deletes=deletes,
+            pin=pin,
+        )
+
+    def sync(
+        self,
+        requirement_configuration,  # type: RequirementConfiguration
+        pin=False,  # type: bool
+    ):
+        # type: (...) -> Union[LockUpdate, Result]
+        if not self._update_requests:
+            return self._no_updates()
+
+        return self._lock_updater.sync(
+            update_requests=self._update_requests,
+            requirement_configuration=requirement_configuration,
+            pin=pin,
+        )
+
+    def _no_updates(self):
+        # type: () -> Ok
+        return Ok(
+            "No lock update was performed.\n"
+            "The following platforms present in {lock_file} were not found on the local "
+            "machine:\n"
+            "{missing_platforms}\n"
+            "You might still be able to update the lock by adjusting target options like "
+            "--python-path.".format(
+                lock_file=self._lock_file_path,
+                missing_platforms="\n".join(
+                    sorted(
+                        "+ {platform}".format(platform=locked_resolve.platform_tag)
+                        for locked_resolve in self._lock_updater.lock_file.locked_resolves
+                    )
+                ),
+            )
+        )
+
+
 class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
     """Operate on PEX lock files."""
 
@@ -187,6 +428,11 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
     @classmethod
     def _add_create_arguments(cls, create_parser):
         # type: (_ActionsContainer) -> None
+        cls.add_create_lock_options(create_parser)
+        cls.add_output_option(create_parser, entity="lock")
+
+    @classmethod
+    def add_create_lock_options(cls, create_parser):
         create_parser.add_argument(
             "--style",
             default=LockStyle.STRICT,
@@ -238,9 +484,8 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             ),
         )
         cls._add_lock_options(create_parser)
-        cls.add_output_option(create_parser, entity="lock")
-        cls.add_json_options(create_parser, entity="lock", include_switch=False)
         cls._add_resolve_options(create_parser)
+        cls.add_json_options(create_parser, entity="lock", include_switch=False)
 
     @classmethod
     def _add_export_arguments(
@@ -339,20 +584,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 "integrity. This option is mutually exclusive with `--pin`."
             ),
         )
-        update_parser.add_argument(
-            "--strict",
-            "--no-strict",
-            "--non-strict",
-            action=HandleBoolAction,
-            default=True,
-            type=bool,
-            help=(
-                "Require all target platforms in the lock be updated at once. If any target "
-                "platform in the lock file does not have a representative local interpreter to "
-                "execute the lock update with, the update will fail."
-            ),
-        )
-
+        cls.add_update_lock_options(update_parser)
         update_parser.add_argument(
             "--pin",
             action=HandleBoolAction,
@@ -384,6 +616,31 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 )
             ),
         )
+        cls._add_lockfile_option(update_parser, verb="update")
+        cls._add_lock_options(update_parser)
+        cls.add_json_options(update_parser, entity="lock", include_switch=False)
+        cls._add_target_options(update_parser)
+        resolver_options_parser = cls._create_resolver_options_group(update_parser)
+        resolver_options.register_repos_options(resolver_options_parser)
+        resolver_options.register_network_options(resolver_options_parser)
+        resolver_options.register_max_jobs_option(resolver_options_parser)
+        resolver_options.register_use_pip_config(resolver_options_parser)
+
+    @classmethod
+    def add_update_lock_options(cls, update_parser):
+        update_parser.add_argument(
+            "--strict",
+            "--no-strict",
+            "--non-strict",
+            action=HandleBoolAction,
+            default=True,
+            type=bool,
+            help=(
+                "Require all target platforms in the lock be updated at once. If any target "
+                "platform in the lock file does not have a representative local interpreter to "
+                "execute the lock update with, the update will fail."
+            ),
+        )
         update_parser.add_argument(
             "-n",
             "--dry-run",
@@ -397,15 +654,48 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 )
             ),
         )
-        cls._add_lockfile_option(update_parser, verb="update")
-        cls._add_lock_options(update_parser)
-        cls.add_json_options(update_parser, entity="lock", include_switch=False)
-        cls._add_target_options(update_parser)
-        resolver_options_parser = cls._create_resolver_options_group(update_parser)
-        resolver_options.register_repos_options(resolver_options_parser)
-        resolver_options.register_network_options(resolver_options_parser)
-        resolver_options.register_max_jobs_option(resolver_options_parser)
-        resolver_options.register_use_pip_config(resolver_options_parser)
+
+    @classmethod
+    def _add_sync_arguments(cls, sync_parser):
+        # type: (_ActionsContainer) -> None
+        sync_parser.add_argument(
+            "--venv",
+            help=(
+                "Synchronize this venv to the contents of the lock after synchronizing the "
+                "contents of the lock to the passed requirements."
+            ),
+        )
+        sync_parser.add_argument(
+            "--venv-python",
+            help="Use this interpreter to create the `--venv` if the venv doesn't exist.",
+        )
+        sync_parser.add_argument(
+            "--pip",
+            "--retain-pip",
+            "--no-pip",
+            "--no-retain-pip",
+            action=HandleBoolAction,
+            default=False,
+            help=(
+                "When creating a venv that doesn't exist, install pip in it. When syncing an "
+                "existing venv, retain its pip, if any, even if pip is not present in the lock "
+                "file being synced. N.B.: When in `--no-retain-pip` mode (the default) only remove "
+                "pip if it is both present in the venv and not present in the lock file being "
+                "synced."
+            ),
+        )
+        sync_parser.add_argument(
+            "-y",
+            "--yes",
+            default=False,
+            action="store_true",
+            help=(
+                "Do not prompt when deleting or overwriting venv distributions during a venv sync."
+            ),
+        )
+        cls._add_lockfile_option(sync_parser, verb="sync", positional=False)
+        cls.add_create_lock_options(sync_parser)
+        cls.add_update_lock_options(sync_parser)
 
     @classmethod
     def add_extra_arguments(
@@ -440,6 +730,19 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             name="update", help="Update a Pex lock file.", func=cls._update
         ) as update_parser:
             cls._add_update_arguments(update_parser)
+        with subcommands.parser(
+            name="sync",
+            help=(
+                "Create or update a Pex lock file from requirements and optionally synchronize a "
+                "venv to it."
+            ),
+            passthrough_args=(
+                "The path to a venv directory to sync with this lock or else a command line whose "
+                "1st argument resolves to a binary in a venv."
+            ),
+            func=cls._sync,
+        ) as update_parser:
+            cls._add_sync_arguments(update_parser)
 
     def _resolve_targets(
         self,
@@ -647,56 +950,13 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         requirement_configuration = requirement_options.configure(self.options)
         return self._export(requirement_configuration=requirement_configuration)
 
-    def _update(self):
-        # type: () -> Result
+    def _create_lock_update_request(
+        self,
+        lock_file_path,  # type: str
+        lock_file,  # type: Lockfile
+    ):
+        # type: (...) -> Union[LockUpdateRequest, Error]
 
-        if self.options.pin and any(
-            (
-                self.options.update_projects,
-                self.options.replace_projects,
-                self.options.delete_projects,
-            )
-        ):
-            return Error(
-                "When executing a `--pin`ed update, no `-p` / `--project`, "
-                "`-R` / `--replace-project` or `-d` / `--delete-project` modifications are "
-                "allowed."
-            )
-
-        update_requirements_by_project_name = (
-            OrderedDict()
-        )  # type: OrderedDict[ProjectName, Requirement]
-        for project in self.options.update_projects:
-            try:
-                requirement = Requirement.parse(project)
-            except RequirementParseError as e:
-                return Error(
-                    "Failed to parse project requirement to update {project!r}: {err}".format(
-                        project=project, err=e
-                    )
-                )
-            else:
-                update_requirements_by_project_name[requirement.project_name] = requirement
-
-        replace_requirements = []  # type: List[Requirement]
-        for project in self.options.replace_projects:
-            try:
-                replace_requirements.append(Requirement.parse(project))
-            except RequirementParseError as e:
-                return Error(
-                    "Failed to parse replacement project requirement {project!r}: {err}".format(
-                        project=project, err=e
-                    )
-                )
-
-        try:
-            delete_projects = tuple(
-                ProjectName(project, validated=True) for project in self.options.delete_projects
-            )
-        except ProjectName.InvalidError as e:
-            return Error("Failed to parse project name to delete: {err}".format(err=e))
-
-        lock_file_path, lock_file = self._load_lockfile()
         network_configuration = resolver_options.create_network_configuration(self.options)
         lock_updater = LockUpdater.create(
             lock_file=lock_file,
@@ -763,50 +1023,32 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                     )
                 )
 
-        if not update_requests:
-            return Ok(
-                "No lock update was performed.\n"
-                "The following platforms present in {lock_file} were not found on the local "
-                "machine:\n"
-                "{missing_platforms}\n"
-                "You might still be able to update the lock by adjusting target options like "
-                "--python-path.".format(
-                    lock_file=lock_file_path,
-                    missing_platforms="\n".join(
-                        sorted(
-                            "+ {platform}".format(platform=locked_resolve.platform_tag)
-                            for locked_resolve in lock_file.locked_resolves
-                        )
-                    ),
-                )
-            )
+        return LockUpdateRequest(lock_file_path, lock_updater, update_requests)
 
-        lock_update = try_(
-            lock_updater.update(
-                update_requests=update_requests,
-                updates=update_requirements_by_project_name.values(),
-                replacements=replace_requirements,
-                deletes=delete_projects,
-                pin=self.options.pin,
-            )
+    def _process_lock_update(
+        self,
+        lock_update,  # type: LockUpdate
+        lock_file,  # type: Lockfile
+        lock_file_path,  # type: str
+    ):
+        # type: (...) -> Result
+
+        original_requirements_by_project_name = OrderedDict(
+            (requirement.project_name, requirement) for requirement in lock_file.requirements
+        )
+        requirements_by_project_name = OrderedDict(
+            (requirement.project_name, requirement) for requirement in lock_update.requirements
         )
 
-        original_requirements_by_project_name = {
-            requirement.project_name: requirement for requirement in lock_file.requirements
-        }
-        requirements_by_project_name = {
-            requirement.project_name: requirement for requirement in lock_update.requirements
-        }
-
-        original_constraints_by_project_name = {
-            constraint.project_name: constraint for constraint in lock_file.constraints
-        }
+        original_constraints_by_project_name = OrderedDict(
+            (constraint.project_name, constraint) for constraint in lock_file.constraints
+        )
         constraints_by_project_name = original_constraints_by_project_name.copy()
 
         dry_run = self.options.dry_run
         path_mappings = self._get_path_mappings()
         output = sys.stdout if dry_run is DryRunStyle.DISPLAY else sys.stderr
-        updates = []
+        updates = []  # type: List[Union[DeleteUpdate, VersionUpdate, ArtifactsUpdate]]
         warnings = []  # type: List[str]
         for resolve_update in lock_update.resolves:
             platform = resolve_update.updated_resolve.platform_tag or "universal"
@@ -820,7 +1062,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             print(
                 "Updates for lock generated by {platform}:".format(platform=platform), file=output
             )
-            fingerprint_updates = {}  # type: Dict[ProjectName, Version]
+            fingerprint_updates = OrderedDict()  # type: OrderedDict[ProjectName, Version]
             for project_name, update in resolve_update.updates.items():
                 if not update:
                     print(
@@ -853,7 +1095,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                     )
                     constraints_by_project_name.pop(project_name, None)
                 elif isinstance(update, VersionUpdate):
-                    update_req = update_requirements_by_project_name.get(project_name)
+                    update_req = lock_update.update_requirements_by_project_name.get(project_name)
                     if update.original:
                         print(
                             "  {lead_in} {project_name} from {original_version} to "
@@ -1028,3 +1270,203 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 output=fp,
             )
         return Ok()
+
+    def _update(self):
+        # type: () -> Result
+
+        pin = getattr(self.options, "pin", False)
+        if pin and any(
+            (
+                self.options.update_projects,
+                self.options.replace_projects,
+                self.options.delete_projects,
+            )
+        ):
+            return Error(
+                "When executing a `--pin`ed update, no `-p` / `--project`, "
+                "`-R` / `--replace-project` or `-d` / `--delete-project` modifications are "
+                "allowed."
+            )
+
+        update_requirements = []  # type: List[Requirement]
+        for project in self.options.update_projects:
+            try:
+                update_requirements.append(Requirement.parse(project))
+            except RequirementParseError as e:
+                return Error(
+                    "Failed to parse project requirement to update {project!r}: {err}".format(
+                        project=project, err=e
+                    )
+                )
+
+        replace_requirements = []  # type: List[Requirement]
+        for project in self.options.replace_projects:
+            try:
+                replace_requirements.append(Requirement.parse(project))
+            except RequirementParseError as e:
+                return Error(
+                    "Failed to parse replacement project requirement {project!r}: {err}".format(
+                        project=project, err=e
+                    )
+                )
+
+        try:
+            delete_projects = tuple(
+                ProjectName(project, validated=True) for project in self.options.delete_projects
+            )
+        except ProjectName.InvalidError as e:
+            return Error("Failed to parse project name to delete: {err}".format(err=e))
+
+        lock_file_path, lock_file = self._load_lockfile()
+        lock_update_request = try_(
+            self._create_lock_update_request(lock_file_path=lock_file_path, lock_file=lock_file)
+        )
+        lock_update = lock_update_request.update(
+            updates=update_requirements,
+            replacements=replace_requirements,
+            deletes=delete_projects,
+            pin=pin,
+        )
+        if isinstance(lock_update, Result):
+            return lock_update
+
+        return self._process_lock_update(lock_update, lock_file, lock_file_path)
+
+    def _sync(self):
+        # type: () -> Result
+        if self.options.dry_run and any((self.options.venv, self.passthrough_args)):
+            return Error(
+                "Cannot update a venv or execute a command in it when performing a dry run."
+            )
+
+        requirement_configuration = requirement_options.configure(self.options)
+        resolver_configuration = cast(
+            LockRepositoryConfiguration, resolver_options.configure(self.options)
+        )
+        production_assert(isinstance(resolver_configuration, LockRepositoryConfiguration))
+        pip_configuration = resolver_configuration.pip_configuration
+
+        lock_file_path = self.options.lock
+        if os.path.exists(lock_file_path):
+            lock_file = try_(parse_lockfile(self.options, lock_file_path=lock_file_path))
+            lock_update_request = try_(
+                self._create_lock_update_request(lock_file_path=lock_file_path, lock_file=lock_file)
+            )
+
+            pin = getattr(self.options, "pin", False)
+            lock_update = lock_update_request.sync(
+                requirement_configuration=requirement_configuration, pin=pin
+            )
+            if isinstance(lock_update, Result):
+                return lock_update
+
+            try_(self._process_lock_update(lock_update, lock_file, lock_file_path))
+        else:
+            target_configuration = target_options.configure(self.options)
+            if self.options.style == LockStyle.UNIVERSAL:
+                lock_configuration = LockConfiguration(
+                    style=LockStyle.UNIVERSAL,
+                    requires_python=tuple(
+                        str(interpreter_constraint.requires_python)
+                        for interpreter_constraint in target_configuration.interpreter_constraints
+                    ),
+                    target_systems=tuple(self.options.target_systems),
+                )
+            elif self.options.target_systems:
+                return Error(
+                    "The --target-system option only applies to --style {universal} locks.".format(
+                        universal=LockStyle.UNIVERSAL.value
+                    )
+                )
+            else:
+                lock_configuration = LockConfiguration(style=self.options.style)
+
+            targets = try_(
+                self._resolve_targets(
+                    action="creating",
+                    style=self.options.style,
+                    target_configuration=target_configuration,
+                )
+            )
+            lockfile = try_(
+                create(
+                    lock_configuration=lock_configuration,
+                    requirement_configuration=requirement_configuration,
+                    targets=targets,
+                    pip_configuration=pip_configuration,
+                )
+            )
+            with safe_open(lock_file_path, "w") as fp:
+                self._dump_lockfile(lockfile, output=fp)
+
+        sync_target = None  # type: Optional[SyncTarget]
+        if self.options.venv:
+            if os.path.exists(self.options.venv):
+                try:
+                    venv = Virtualenv(self.options.venv)
+                except InvalidVirtualenvError as e:
+                    return Error("The given --venv is not a valid venv: {err}".format(err=e))
+            else:
+                if self.options.venv_python:
+                    interpreter = (
+                        PythonInterpreter.from_binary(self.options.venv_python)
+                        if os.path.isfile(self.options.venv_python)
+                        else PythonInterpreter.from_env(self.options.venv_python)
+                    )
+                else:
+                    targets = target_options.configure(self.options).resolve_targets()
+                    interpreters = [
+                        target.get_interpreter()
+                        for target in targets.unique_targets()
+                        if isinstance(target, LocalInterpreter)
+                    ]
+                    if len(interpreters) != 1:
+                        return Error(
+                            "In order to create the venv {venv} the sync operation needs to know "
+                            "which interpreter to use to create it.\n"
+                            "Use `--venv-interpreter` to select an interpreter for venv creation."
+                        )
+                    interpreter = interpreters[0]
+                venv = Virtualenv.create(self.options.venv, interpreter=interpreter)
+                if self.options.pip:
+                    venv.install_pip(upgrade=True)
+            sync_target = SyncTarget.resolve_command(venv=venv, command=self.passthrough_args)
+        elif self.passthrough_args:
+            sync_target = try_(
+                SyncTarget.resolve_venv(self.passthrough_args[0], *self.passthrough_args[1:])
+            )
+        if not sync_target:
+            return Ok()
+
+        lock_file = try_(parse_lockfile(self.options, lock_file_path=lock_file_path))
+        target = LocalInterpreter.create(sync_target.venv.interpreter)
+        resolve_result = try_(
+            resolve_from_lock(
+                targets=Targets.from_target(target),
+                lock=lock_file,
+                resolver=ConfiguredResolver(pip_configuration),
+                requirements=requirement_configuration.requirements,
+                requirement_files=requirement_configuration.requirement_files,
+                constraint_files=requirement_configuration.constraint_files,
+                indexes=pip_configuration.repos_configuration.indexes,
+                find_links=pip_configuration.repos_configuration.find_links,
+                resolver_version=pip_configuration.resolver_version,
+                network_configuration=pip_configuration.network_configuration,
+                password_entries=pip_configuration.repos_configuration.password_entries,
+                build_configuration=pip_configuration.build_configuration,
+                transitive=pip_configuration.transitive,
+                max_parallel_jobs=pip_configuration.max_jobs,
+                pip_version=pip_configuration.version,
+                use_pip_config=pip_configuration.use_pip_config,
+                result_type=InstallableType.INSTALLED_WHEEL_CHROOT,
+            )
+        )
+        return sync_target.sync(
+            distributions=[
+                resolved_distribution.distribution
+                for resolved_distribution in resolve_result.distributions
+                if resolved_distribution.target == target
+            ],
+            confirm=not self.options.yes,
+            retain_pip=self.options.pip,
+        )

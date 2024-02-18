@@ -5,7 +5,7 @@ import os
 
 import pytest
 
-from pex.dist_metadata import CallableEntryPoint, DistMetadata, Distribution, EntryPoint
+from pex.dist_metadata import CallableEntryPoint, Distribution, EntryPoint
 from pex.finders import (
     DistributionScript,
     get_entry_point_from_console_script,
@@ -13,9 +13,8 @@ from pex.finders import (
 )
 from pex.pep_376 import InstalledWheel
 from pex.pep_427 import install_wheel_chroot
-from pex.pep_440 import Version
-from pex.pep_503 import ProjectName
 from pex.typing import TYPE_CHECKING
+from testing.dist_metadata import create_dist_metadata
 
 if TYPE_CHECKING:
     from typing import Any, Dict, Text, Tuple
@@ -68,12 +67,10 @@ def create_dist(
             # type: () -> Dict[Text, Dict[Text, EntryPoint]]
             return {"console_scripts": {entry_point.name: entry_point}}
 
+    location = os.getcwd()
     return FakeDist(
-        location=os.getcwd(),
-        metadata=DistMetadata(
-            project_name=ProjectName(key),
-            version=Version("1.0"),
-        ),
+        location=location,
+        metadata=create_dist_metadata(key, "1.0", location=location),
     )
 
 
