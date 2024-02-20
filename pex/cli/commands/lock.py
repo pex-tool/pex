@@ -226,7 +226,7 @@ class SyncTarget(object):
                 to_remove.append(existing_distribution)
                 to_install.append(distribution)
         if retain_pip:
-            existing_distributions_by_project_name.pop(ProjectName("pip"))
+            existing_distributions_by_project_name.pop(ProjectName("pip"), None)
         to_remove.extend(existing_distributions_by_project_name.values())
 
         to_unlink_by_pin = (

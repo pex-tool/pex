@@ -1,6 +1,8 @@
 # Copyright 2022 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+from __future__ import print_function
+
 import filecmp
 import os.path
 import re
@@ -797,4 +799,86 @@ def test_sync_venv_run_retain_pip(
     assert_venv(venv_dir, expected_pins=[pip_pin])
     subprocess.check_call(args=[venv.bin_path("pip"), "install", "cowsay==5.0"] + repo_args)
     assert_venv(venv_dir, expected_pins=[pin("cowsay", "5.0"), pip_pin])
+    assert_cowsay5(venv)
+
+
+@skip_cowsay6_for_python27
+@pytest.mark.parametrize(
+    "retain_pip_args",
+    [
+        pytest.param([], id="default"),
+        pytest.param(["--retain-pip"], id="--retain-pip"),
+        pytest.param(["--no-retain-pip"], id="--no-retain-pip"),
+    ],
+)
+def test_sync_venv_run_retain_user_pip(
+    tmpdir,  # type: Any
+    repo_args,  # type: List[str]
+    path_mappings,  # type: PathMappings
+    retain_pip_args,  # type: List[str]
+):
+    # type: (...) -> None
+
+    venv_dir = os.path.join(str(tmpdir), "venv")
+    venv = Virtualenv.create(venv_dir)
+    venv.install_pip()
+    original_pip = find_distribution("pip", search_path=venv.sys_path)
+    assert original_pip is not None
+
+    subprocess.check_call(args=[venv.bin_path("pip"), "install", "cowsay==5.0"] + repo_args)
+    assert_cowsay5(venv)
+
+    requirements = os.path.join(str(tmpdir), "requirements.txt")
+    with open(requirements, "w") as fp:
+        print("cowsay<6.1", file=fp)
+
+    constraints = os.path.join(str(tmpdir), "constraints.txt")
+    with open(constraints, "w") as fp:
+        print(
+            "pip!={original_pip_version}".format(original_pip_version=original_pip.version), file=fp
+        )
+
+    lock = os.path.join(str(tmpdir), "lock.json")
+    run_sync(
+        *(
+            repo_args
+            + retain_pip_args
+            + [
+                "--pypi",  # N.B.: We need to turn PyPI back on to get at the user Pip.
+                "--yes",
+                "-r",
+                requirements,
+                "--constraints",
+                constraints,
+                "cowsay<6.1",
+                "pip",
+                "--lock",
+                lock,
+                "--",
+                venv.bin_path("cowsay"),
+                "-t",
+                "A New Moo!",
+            ]
+        )
+    ).assert_success(
+        expected_output_re=r".*| A New Moo! |.*", expected_error_re=NO_OUTPUT, re_flags=re.DOTALL
+    )
+
+    user_pip = find_distribution("pip", search_path=venv.sys_path, rescan=True)
+    assert user_pip is not None
+    assert user_pip.version != original_pip.version
+    user_pip_pin = pin("pip", user_pip.version)
+
+    assert_lock_matches_venv(
+        lock=lock,
+        path_mappings=path_mappings,
+        venv=venv,
+        expected_pins=[pin("cowsay", "6.0"), user_pip_pin],
+    )
+
+    # And check Pip still works.
+    subprocess.check_call(args=[venv.bin_path("pip"), "uninstall", "--yes", "cowsay"])
+    assert_venv(venv_dir, expected_pins=[user_pip_pin])
+    subprocess.check_call(args=[venv.bin_path("pip"), "install", "cowsay==5.0"] + repo_args)
+    assert_venv(venv_dir, expected_pins=[pin("cowsay", "5.0"), user_pip_pin])
     assert_cowsay5(venv)
