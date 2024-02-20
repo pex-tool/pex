@@ -16,7 +16,7 @@ from pex.asserts import production_assert
 from pex.cli.command import BuildTimeCommand
 from pex.commands.command import JsonMixin, OutputMixin
 from pex.common import is_exe, pluralize, safe_delete, safe_open
-from pex.compatibility import commonpath
+from pex.compatibility import commonpath, shlex_quote
 from pex.dist_metadata import Distribution, MetadataType, Requirement, RequirementParseError
 from pex.enum import Enum
 from pex.interpreter import PythonInterpreter
@@ -1334,10 +1334,6 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
 
     def _sync(self):
         # type: () -> Result
-        if self.options.dry_run and any((self.options.venv, self.passthrough_args)):
-            return Error(
-                "Cannot update a venv or execute a command in it when performing a dry run."
-            )
 
         requirement_configuration = requirement_options.configure(self.options)
         resolver_configuration = cast(
@@ -1437,6 +1433,22 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             )
         if not sync_target:
             return Ok()
+
+        if self.options.dry_run:
+            would_update_venv_msg = "Would sync venv at {venv}".format(
+                venv=sync_target.venv.venv_dir
+            )
+            if sync_target.command:
+                return Ok(
+                    os.linesep.join(
+                        (
+                            would_update_venv_msg + " and run the following command in it:",
+                            "  " + " ".join(shlex_quote(arg) for arg in sync_target.command),
+                        )
+                    )
+                )
+            else:
+                return Ok(would_update_venv_msg + ".")
 
         lock_file = try_(parse_lockfile(self.options, lock_file_path=lock_file_path))
         target = LocalInterpreter.create(sync_target.venv.interpreter)
