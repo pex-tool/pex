@@ -403,6 +403,7 @@ class ResolveUpdater(object):
         locked_resolve,  # type: LockedResolve
         target,  # type: Target
         pin_all=False,  # type: bool
+        artifacts_can_change=False,  # type: bool
     ):
         # type: (...) -> Union[ResolveUpdate, Error]
 
@@ -469,6 +470,21 @@ class ResolveUpdater(object):
             updated_pin = updated_requirement.pin
             original_artifacts = tuple(locked_requirement.iter_artifacts())
             updated_artifacts = tuple(updated_requirement.iter_artifacts())
+
+            # N.B.: We use a custom key for artifact equality comparison since `Artifact`
+            # contains a `verified` attribute that can both vary based on Pex's current
+            # knowledge about the trustworthiness of an artifact hash and is not relevant to
+            # whether the artifact refers to the same artifact.
+            def artifact_key(artifact):
+                # type: (Artifact) -> Any
+                return artifact.url, artifact.fingerprint
+
+            def artifacts_differ():
+                # type: () -> bool
+                return tuple(map(artifact_key, original_artifacts)) != tuple(
+                    map(artifact_key, updated_artifacts)
+                )
+
             if (
                 self.update_constraints_by_project_name
                 and project_name not in self.update_constraints_by_project_name
@@ -480,13 +496,13 @@ class ResolveUpdater(object):
                     )
                 )
 
-                # N.B.: We use a custom key for artifact equality comparison since `Artifact`
-                # contains a `verified` attribute that can both vary based on Pex's current
-                # knowledge about the trustworthiness of an artifact hash and is not relevant to
-                # whether the artifact refers to the same artifact.
-                def artifact_key(artifact):
-                    # type: (Artifact) -> Any
-                    return artifact.url, artifact.fingerprint
+                if artifacts_can_change and artifacts_differ():
+                    updates[project_name] = ArtifactsUpdate.calculate(
+                        version=original_pin.version,
+                        original=original_artifacts,
+                        updated=updated_artifacts,
+                    )
+                    continue
 
                 assert artifact_key(updated_requirement.artifact) == artifact_key(
                     locked_requirement.artifact
@@ -528,7 +544,7 @@ class ResolveUpdater(object):
                 updates[project_name] = VersionUpdate(
                     original=original_pin.version, updated=updated_pin.version
                 )
-            elif original_artifacts != updated_artifacts:
+            elif artifacts_differ():
                 updates[project_name] = ArtifactsUpdate.calculate(
                     version=original_pin.version,
                     original=original_artifacts,
@@ -611,6 +627,7 @@ class LockUpdater(object):
         update_requests,  # type: Iterable[ResolveUpdateRequest]
         requirement_configuration,  # type: RequirementConfiguration
         pin=False,  # type: bool
+        lock_config_updated=False,  # type: bool
     ):
         # type: (...) -> Union[LockUpdate, Error]
 
@@ -624,7 +641,7 @@ class LockUpdater(object):
                 self.pip_configuration.network_configuration
             )
         )
-        if not any((pin, requirements, constraints)):
+        if not any((pin, lock_config_updated, requirements, constraints)):
             return LockUpdate(
                 requirements=self.lock_file.requirements,
                 resolves=tuple(
@@ -643,7 +660,10 @@ class LockUpdater(object):
             )
         )
         return self._perform_update(
-            update_requests=update_requests, resolve_updater=resolve_updater, pin=pin
+            update_requests=update_requests,
+            resolve_updater=resolve_updater,
+            pin=pin,
+            artifacts_can_change=lock_config_updated,
         )
 
     def update(
@@ -682,6 +702,7 @@ class LockUpdater(object):
         update_requests,  # type: Iterable[ResolveUpdateRequest]
         resolve_updater,  # type: ResolveUpdater
         pin=False,  # type: bool
+        artifacts_can_change=False,  # type: bool
     ):
         # type: (...) -> Union[LockUpdate, Error]
 
@@ -702,6 +723,7 @@ class LockUpdater(object):
                 locked_resolve=update_request.locked_resolve,
                 target=update_request.target,
                 pin_all=pin,
+                artifacts_can_change=artifacts_can_change,
             )
             if isinstance(result, Error):
                 error_by_target[update_request.target] = result

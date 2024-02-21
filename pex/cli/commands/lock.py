@@ -329,6 +329,7 @@ class LockUpdateRequest(object):
         self,
         requirement_configuration,  # type: RequirementConfiguration
         pin=False,  # type: bool
+        lock_config_updated=False,  # type: bool
     ):
         # type: (...) -> Union[LockUpdate, Result]
         if not self._update_requests:
@@ -338,6 +339,7 @@ class LockUpdateRequest(object):
             update_requests=self._update_requests,
             requirement_configuration=requirement_configuration,
             pin=pin,
+            lock_config_updated=lock_config_updated,
         )
 
     def _no_updates(self):
@@ -1342,41 +1344,61 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         production_assert(isinstance(resolver_configuration, LockRepositoryConfiguration))
         pip_configuration = resolver_configuration.pip_configuration
 
+        target_configuration = target_options.configure(self.options)
+        if self.options.style == LockStyle.UNIVERSAL:
+            lock_configuration = LockConfiguration(
+                style=LockStyle.UNIVERSAL,
+                requires_python=tuple(
+                    str(interpreter_constraint.requires_python)
+                    for interpreter_constraint in target_configuration.interpreter_constraints
+                ),
+                target_systems=tuple(self.options.target_systems),
+            )
+        elif self.options.target_systems:
+            return Error(
+                "The --target-system option only applies to --style {universal} locks.".format(
+                    universal=LockStyle.UNIVERSAL.value
+                )
+            )
+        else:
+            lock_configuration = LockConfiguration(style=self.options.style)
+
         lock_file_path = self.options.lock
         if os.path.exists(lock_file_path):
-            lock_file = try_(parse_lockfile(self.options, lock_file_path=lock_file_path))
+            build_configuration = pip_configuration.build_configuration
+            original_lock_file = try_(parse_lockfile(self.options, lock_file_path=lock_file_path))
+            lock_file = attr.evolve(
+                original_lock_file,
+                style=lock_configuration.style,
+                requires_python=SortedTuple(lock_configuration.requires_python),
+                target_systems=SortedTuple(lock_configuration.target_systems),
+                pip_version=pip_configuration.version,
+                resolver_version=pip_configuration.resolver_version,
+                allow_prereleases=pip_configuration.allow_prereleases,
+                allow_wheels=build_configuration.allow_wheels,
+                only_wheels=SortedTuple(build_configuration.only_wheels),
+                allow_builds=build_configuration.allow_builds,
+                only_builds=SortedTuple(build_configuration.only_builds),
+                prefer_older_binary=build_configuration.prefer_older_binary,
+                use_pep517=build_configuration.use_pep517,
+                build_isolation=build_configuration.build_isolation,
+                transitive=pip_configuration.transitive,
+            )
             lock_update_request = try_(
                 self._create_lock_update_request(lock_file_path=lock_file_path, lock_file=lock_file)
             )
 
             pin = getattr(self.options, "pin", False)
             lock_update = lock_update_request.sync(
-                requirement_configuration=requirement_configuration, pin=pin
+                requirement_configuration=requirement_configuration,
+                pin=pin,
+                lock_config_updated=lock_file != original_lock_file,
             )
             if isinstance(lock_update, Result):
                 return lock_update
 
             try_(self._process_lock_update(lock_update, lock_file, lock_file_path))
         else:
-            target_configuration = target_options.configure(self.options)
-            if self.options.style == LockStyle.UNIVERSAL:
-                lock_configuration = LockConfiguration(
-                    style=LockStyle.UNIVERSAL,
-                    requires_python=tuple(
-                        str(interpreter_constraint.requires_python)
-                        for interpreter_constraint in target_configuration.interpreter_constraints
-                    ),
-                    target_systems=tuple(self.options.target_systems),
-                )
-            elif self.options.target_systems:
-                return Error(
-                    "The --target-system option only applies to --style {universal} locks.".format(
-                        universal=LockStyle.UNIVERSAL.value
-                    )
-                )
-            else:
-                lock_configuration = LockConfiguration(style=self.options.style)
-
             targets = try_(
                 self._resolve_targets(
                     action="creating",
