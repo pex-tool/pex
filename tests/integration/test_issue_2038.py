@@ -20,8 +20,14 @@ if TYPE_CHECKING:
 
 
 @pytest.mark.skipif(
-    sys.version_info[:2] < (3, 7),
-    reason="This test needs to run Poetry which requires at least Python 3.7",
+    sys.version_info[:2] < (3, 7) or sys.version_info == (3, 13, 0, "alpha", 4),
+    reason=(
+        "This test needs to run Poetry which requires at least Python 3.7. "
+        "Poetry also indirectly depends on msgpack (1.0.7 currently), which uses the "
+        "_PyCFunctionFastWithKeywords ~private CPython API which was mistakenly yanked (typo) by "
+        "https://github.com/python/cpython/pull/114627 just before the 3.13.0a4 release and "
+        "restored by https://github.com/python/cpython/pull/115561 just after."
+    ),
 )
 def test_wheel_file_url_dep(tmpdir):
     # type: (Any) -> None
