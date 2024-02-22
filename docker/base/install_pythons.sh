@@ -2,7 +2,15 @@
 
 set -xeuo pipefail
 
+# TODO(John Sirois): Delete this definition when we upgarde past 3.13.0a4. Pyenv needed to revert
+# 3.13.0a4 due to Mac build issues which don't affect us.
+# See:
+# + https://github.com/pyenv/pyenv/pull/2903
+# + https://github.com/pyenv/pyenv/commit/f9a2bb81b69bc2fc45753f7da5d246bc2706f01d
+PYENV_SHA=932dc464f5550e3c6af7f705891c1797c4ab004d
+
 export PYENV_ROOT=/pyenv
+
 
 # N.B.: The 1st listed version will supply the default `python` on the PATH; otherwise order does
 # not matter.
@@ -16,7 +24,7 @@ PYENV_VERSIONS=(
   3.9.18
   3.10.13
   3.12.2
-  3.13.0a3
+  3.13.0a4
   pypy2.7-7.3.15
   pypy3.5-7.0.0
   pypy3.6-7.3.3
@@ -27,7 +35,7 @@ PYENV_VERSIONS=(
 )
 
 git clone https://github.com/pyenv/pyenv.git "${PYENV_ROOT}" && (
-  cd "${PYENV_ROOT}" && src/configure && make -C src
+  cd "${PYENV_ROOT}" && git checkout "${PYENV_SHA:-HEAD}" && src/configure && make -C src
 )
 PATH="${PATH}:${PYENV_ROOT}/bin"
 
