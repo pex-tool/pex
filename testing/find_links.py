@@ -15,7 +15,7 @@ from pex.typing import TYPE_CHECKING
 from testing import built_wheel, make_project
 
 if TYPE_CHECKING:
-    from typing import Text
+    from typing import List, Optional, Text
 
     import attr  # vendor:skip
 else:
@@ -45,18 +45,22 @@ class FindLinksRepo(object):
         self,
         project_name,  # type: str
         version,  # type: str
+        install_reqs=None,  # type: Optional[List[str]]
     ):
         # type: (...) -> None
-        with built_wheel(name=project_name, version=version, universal=True) as wheel:
+        with built_wheel(
+            name=project_name, version=version, universal=True, install_reqs=install_reqs
+        ) as wheel:
             self.host(wheel)
 
     def make_sdist(
         self,
         project_name,  # type: str
         version,  # type: str
+        install_reqs=None,  # type: Optional[List[str]]
     ):
         # type: (...) -> None
-        with make_project(name=project_name, version=version) as project:
+        with make_project(name=project_name, version=version, install_reqs=install_reqs) as project:
             self.host(
                 try_(
                     pep_517.build_sdist(

@@ -64,16 +64,19 @@ def session_fixtures(shared_integration_test_tmpdir):
                 for resolved_distribution in result.distributions:
                     find_links_repo.host(resolved_distribution.distribution.location)
 
-            # N.B.: Since we are setting up a find links repo for offline lock resolves, we grab one
-            # distribution online to allow the current Pip version to bootstrap itself if needed.
+            # N.B.: Since we are setting up a find links repo for offline lock resolves, we need to
+            # grab at least one distribution online to allow the current Pip version to bootstrap
+            # itself if needed.
             host_requirements(
                 "cowsay==5.0.0",
                 pip_version.setuptools_requirement,
                 pip_version.wheel_requirement,
             )
+            find_links_repo.make_sdist("spam", version="1")
+            find_links_repo.make_wheel("spam", version="1")
             for project_name in "foo", "bar", "baz":
-                find_links_repo.make_sdist(project_name, version="1")
-                find_links_repo.make_wheel(project_name, version="1")
+                find_links_repo.make_sdist(project_name, version="1", install_reqs=["spam"])
+                find_links_repo.make_wheel(project_name, version="1", install_reqs=["spam"])
 
             run_pex3(
                 "lock",
@@ -93,6 +96,8 @@ def session_fixtures(shared_integration_test_tmpdir):
             ).assert_success()
 
             host_requirements("cowsay<6.1")
+            find_links_repo.make_sdist("spam", version="2", install_reqs=["foo"])
+            find_links_repo.make_wheel("spam", version="2", install_reqs=["foo"])
             for project_name in "foo", "bar", "baz":
                 find_links_repo.make_sdist(project_name, version="2")
                 find_links_repo.make_wheel(project_name, version="2")
@@ -282,7 +287,12 @@ def test_sync_noop(
     locked_resolve = assert_lock(
         initial_lock,
         path_mappings,
-        expected_pins=[pin("cowsay", "5.0"), pin("foo", "1"), pin("bar", "1")],
+        expected_pins=[
+            pin("cowsay", "5.0"),
+            pin("foo", "1"),
+            pin("bar", "1"),
+            pin("spam", "1"),
+        ],
     )
     run_sync(
         "cowsay", "foo", "bar", "--lock", initial_lock, *(repo_args + path_mapping_args)
@@ -297,7 +307,12 @@ def test_sync_noop(
     assert_lock(
         initial_lock,
         path_mappings,
-        expected_pins=[pin("cowsay", "5.0"), pin("foo", "1"), pin("bar", "1")],
+        expected_pins=[
+            pin("cowsay", "5.0"),
+            pin("foo", "1"),
+            pin("bar", "1"),
+            pin("spam", "1"),
+        ],
     )
 
 
@@ -312,7 +327,12 @@ def test_sync_update(
     locked_resolve = assert_lock(
         initial_lock,
         path_mappings,
-        expected_pins=[pin("cowsay", "5.0"), pin("foo", "1"), pin("bar", "1")],
+        expected_pins=[
+            pin("cowsay", "5.0"),
+            pin("foo", "1"),
+            pin("bar", "1"),
+            pin("spam", "1"),
+        ],
     )
 
     run_sync(
@@ -333,7 +353,12 @@ def test_sync_update(
     assert_lock(
         initial_lock,
         path_mappings,
-        expected_pins=[pin("cowsay", "5.0"), pin("foo", "2"), pin("bar", "1")],
+        expected_pins=[
+            pin("cowsay", "5.0"),
+            pin("foo", "2"),
+            pin("bar", "1"),
+            pin("spam", "1"),
+        ],
     )
 
 
@@ -348,7 +373,12 @@ def test_sync_add(
     locked_resolve = assert_lock(
         initial_lock,
         path_mappings,
-        expected_pins=[pin("cowsay", "5.0"), pin("foo", "1"), pin("bar", "1")],
+        expected_pins=[
+            pin("cowsay", "5.0"),
+            pin("foo", "1"),
+            pin("bar", "1"),
+            pin("spam", "1"),
+        ],
     )
 
     run_sync(
@@ -369,7 +399,13 @@ def test_sync_add(
     assert_lock(
         initial_lock,
         path_mappings,
-        expected_pins=[pin("cowsay", "5.0"), pin("foo", "1"), pin("bar", "1"), pin("baz", "2")],
+        expected_pins=[
+            pin("cowsay", "5.0"),
+            pin("foo", "1"),
+            pin("bar", "1"),
+            pin("baz", "2"),
+            pin("spam", "1"),
+        ],
     )
 
 
@@ -384,7 +420,12 @@ def test_sync_remove(
     locked_resolve = assert_lock(
         initial_lock,
         path_mappings,
-        expected_pins=[pin("cowsay", "5.0"), pin("foo", "1"), pin("bar", "1")],
+        expected_pins=[
+            pin("cowsay", "5.0"),
+            pin("foo", "1"),
+            pin("bar", "1"),
+            pin("spam", "1"),
+        ],
     )
 
     run_sync(
@@ -405,7 +446,7 @@ def test_sync_remove(
     assert_lock(
         initial_lock,
         path_mappings,
-        expected_pins=[pin("cowsay", "5.0"), pin("foo", "1")],
+        expected_pins=[pin("cowsay", "5.0"), pin("foo", "1"), pin("spam", "1")],
     )
 
 
@@ -420,7 +461,12 @@ def test_sync_complex(
     locked_resolve = assert_lock(
         initial_lock,
         path_mappings,
-        expected_pins=[pin("cowsay", "5.0"), pin("foo", "1"), pin("bar", "1")],
+        expected_pins=[
+            pin("cowsay", "5.0"),
+            pin("foo", "1"),
+            pin("bar", "1"),
+            pin("spam", "1"),
+        ],
     )
 
     # N.B.: Update foo, remove bar, add baz.
@@ -446,7 +492,12 @@ def test_sync_complex(
     assert_lock(
         initial_lock,
         path_mappings,
-        expected_pins=[pin("cowsay", "5.0"), pin("foo", "2"), pin("baz", "1")],
+        expected_pins=[
+            pin("cowsay", "5.0"),
+            pin("foo", "2"),
+            pin("baz", "1"),
+            pin("spam", "1"),
+        ],
     )
 
 
@@ -463,7 +514,12 @@ def test_sync_configuration(
     assert_lock(
         lock_file,
         path_mappings,
-        expected_pins=[pin("cowsay", "5.0"), pin("foo", "1"), pin("bar", "1")],
+        expected_pins=[
+            pin("cowsay", "5.0"),
+            pin("foo", "1"),
+            pin("bar", "1"),
+            pin("spam", "1"),
+        ],
     )
     assert lock_file.style is LockStyle.STRICT
 
@@ -485,6 +541,8 @@ def test_sync_configuration(
                   Updated bar 1 artifacts:
                     + file://${{FL}}/bar-1.tar.gz
                   Updated foo from 1 to 2
+                  Updated spam 1 artifacts:
+                    + file://${{FL}}/spam-1.tar.gz
                 Updates to lock input requirements:
                   Updated 'foo' to 'foo>1'
                 """
@@ -495,7 +553,12 @@ def test_sync_configuration(
     assert_lock(
         lock_file,
         path_mappings,
-        expected_pins=[pin("cowsay", "5.0"), pin("foo", "2"), pin("bar", "1")],
+        expected_pins=[
+            pin("cowsay", "5.0"),
+            pin("foo", "2"),
+            pin("bar", "1"),
+            pin("spam", "1"),
+        ],
     )
     assert lock_file.style is LockStyle.SOURCES
 
@@ -517,7 +580,7 @@ def initial_venv(
         lock=initial_lock,
         path_mappings=path_mappings,
         venv=venv_dir,
-        expected_pins=[pin("cowsay", "5.0"), pin("foo", "1"), pin("bar", "1")],
+        expected_pins=[pin("cowsay", "5.0"), pin("foo", "1"), pin("bar", "1"), pin("spam", "1")],
     )
     return venv_dir
 
@@ -547,7 +610,12 @@ def test_sync_venv_noop(
         lock=initial_lock,
         path_mappings=path_mappings,
         venv=initial_venv,
-        expected_pins=[pin("cowsay", "5.0"), pin("foo", "1"), pin("bar", "1")],
+        expected_pins=[
+            pin("cowsay", "5.0"),
+            pin("foo", "1"),
+            pin("bar", "1"),
+            pin("spam", "1"),
+        ],
     )
 
 
@@ -576,7 +644,12 @@ def test_sync_venv_update(
         lock=initial_lock,
         path_mappings=path_mappings,
         venv=initial_venv,
-        expected_pins=[pin("cowsay", "5.0"), pin("foo", "1"), pin("bar", "2")],
+        expected_pins=[
+            pin("cowsay", "5.0"),
+            pin("foo", "1"),
+            pin("bar", "2"),
+            pin("spam", "1"),
+        ],
     )
 
 
@@ -606,7 +679,13 @@ def test_sync_venv_add(
         lock=initial_lock,
         path_mappings=path_mappings,
         venv=initial_venv,
-        expected_pins=[pin("cowsay", "5.0"), pin("foo", "1"), pin("bar", "1"), pin("baz", "2")],
+        expected_pins=[
+            pin("cowsay", "5.0"),
+            pin("foo", "1"),
+            pin("bar", "1"),
+            pin("baz", "2"),
+            pin("spam", "1"),
+        ],
     )
 
 
@@ -634,7 +713,7 @@ def test_sync_venv_remove(
         lock=initial_lock,
         path_mappings=path_mappings,
         venv=initial_venv,
-        expected_pins=[pin("foo", "1"), pin("bar", "1")],
+        expected_pins=[pin("foo", "1"), pin("bar", "1"), pin("spam", "1")],
     )
 
 
@@ -648,6 +727,8 @@ def test_sync_venv_complex(
     # type: (...) -> None
 
     # N.B.: The "cowsay" and "foo" requirements are removed, "bar" -> "bar>1" and "baz" is added.
+    # Since bar and baz promote to v2, there is no longer any transitive dependency on spam
+    # and so it is implicitly removed.
     run_sync(
         "--yes",
         "bar>1",
@@ -663,6 +744,48 @@ def test_sync_venv_complex(
         path_mappings=path_mappings,
         venv=initial_venv,
         expected_pins=[pin("bar", "2"), pin("baz", "2")],
+    )
+
+
+def test_sync_venv_transitive_to_direct_and_vice_versa(
+    repo_args,  # type: List[str]
+    initial_lock,  # type: str
+    path_mappings,  # type: PathMappings
+    path_mapping_args,  # type: List[str]
+    initial_venv,  # type: str
+):
+    # type: (...) -> None
+
+    assert_lock(
+        initial_lock,
+        path_mappings,
+        expected_pins=[
+            pin("cowsay", "5.0"),
+            pin("foo", "1"),
+            pin("bar", "1"),
+            pin("spam", "1"),
+        ],
+    )
+
+    run_sync(
+        "--yes",
+        "spam",
+        "--lock",
+        initial_lock,
+        "--venv",
+        initial_venv,
+        *(repo_args + path_mapping_args)
+    ).assert_success()
+
+    # N.B.: The spam project was locked at version 1 in the initial lock, but we ask for it here as
+    # a new top-level requirement unconstrained; so we expect the latest version to be resolved.
+    # N.B.: Since foo was in the initial lock at version 1, it should stay undisturbed at 1 even
+    # though foo is a transitive dependency of spam and foo 2 is available.
+    assert_lock_matches_venv(
+        lock=initial_lock,
+        path_mappings=path_mappings,
+        venv=initial_venv,
+        expected_pins=[pin("spam", "2"), pin("foo", "1")],
     )
 
 
