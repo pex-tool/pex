@@ -867,7 +867,53 @@ def test_sync_venv_run(
     )
 
 
-def test_sync_venv_dry_run(
+def test_sync_venv_dry_run_create(
+    tmpdir,  # type: Any
+    repo_args,  # type: List[str]
+    path_mappings,  # type: PathMappings
+):
+    # type: (...) -> None
+
+    lock = os.path.join(str(tmpdir), "lock.json")
+    venv_dir = os.path.join(str(tmpdir), "venv")
+    venv = Virtualenv.create(venv_dir)
+    run_sync(
+        *(
+            repo_args
+            + [
+                "cowsay<6.1",
+                "--style",
+                "universal",
+                "--lock",
+                lock,
+                "--dry-run",
+                "--venv",
+                venv_dir,
+                "--",
+                "cowsay",
+                "-t",
+                "I would have mooed!",
+            ]
+        )
+    ).assert_success(
+        expected_output_re=re_exact(
+            dedent(
+                """\
+                Would lock 1 project for platform universal:
+                  cowsay 6
+                Would sync venv at {venv_dir} and run the following command in it:
+                  {cowsay} -t 'I would have mooed!'
+                """
+            ).format(
+                venv_dir=venv_dir,
+                cowsay=venv.bin_path("cowsay"),
+            )
+        ),
+        expected_error_re=NO_OUTPUT,
+    )
+
+
+def test_sync_venv_dry_run_update(
     tmpdir,  # type: Any
     repo_args,  # type: List[str]
     path_mappings,  # type: PathMappings

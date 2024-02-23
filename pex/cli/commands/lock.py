@@ -1428,8 +1428,28 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                     pip_configuration=pip_configuration,
                 )
             )
-            with safe_open(lock_file_path, "w") as fp:
-                self._dump_lockfile(lockfile, output=fp)
+            if self.options.dry_run:
+                output = sys.stdout if self.options.dry_run is DryRunStyle.DISPLAY else sys.stderr
+                for locked_resolve in lockfile.locked_resolves:
+                    print(
+                        "Would lock {count} {project} for platform {platform}:".format(
+                            count=len(locked_resolve.locked_requirements),
+                            project=pluralize(locked_resolve.locked_requirements, "project"),
+                            platform=locked_resolve.platform_tag or "universal",
+                        ),
+                        file=output,
+                    )
+                    for locked_requirement in locked_resolve.locked_requirements:
+                        print(
+                            "  {project_name} {version}".format(
+                                project_name=locked_requirement.pin.project_name,
+                                version=locked_requirement.pin.version,
+                            ),
+                            file=output,
+                        )
+            else:
+                with safe_open(lock_file_path, "w") as fp:
+                    self._dump_lockfile(lockfile, output=fp)
 
         sync_target = None  # type: Optional[SyncTarget]
         if self.options.venv:
