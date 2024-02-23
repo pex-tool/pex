@@ -133,6 +133,8 @@ class HandleDryRunAction(Action):
 
 @attr.s(frozen=True)
 class SyncTarget(object):
+    _PIP_PROJECT_NAME = ProjectName("pip")
+
     @classmethod
     def resolve_command(
         cls,
@@ -213,10 +215,16 @@ class SyncTarget(object):
         existing_distributions_by_project_name = {
             dist.metadata.project_name: dist for dist in self.venv.iter_distributions()
         }  # type: Dict[ProjectName, Distribution]
+        installed_pip = existing_distributions_by_project_name.get(
+            self._PIP_PROJECT_NAME
+        )  # type: Optional[Distribution]
 
+        resolved_pip = None  # type: Optional[Distribution]
         to_remove = []  # type: List[Distribution]
         to_install = []  # type: List[Distribution]
         for distribution in distributions:
+            if self._PIP_PROJECT_NAME == distribution.metadata.project_name:
+                resolved_pip = distribution
             existing_distribution = existing_distributions_by_project_name.pop(
                 distribution.metadata.project_name, None
             )
@@ -226,7 +234,7 @@ class SyncTarget(object):
                 to_remove.append(existing_distribution)
                 to_install.append(distribution)
         if retain_pip:
-            existing_distributions_by_project_name.pop(ProjectName("pip"), None)
+            existing_distributions_by_project_name.pop(self._PIP_PROJECT_NAME, None)
         to_remove.extend(existing_distributions_by_project_name.values())
 
         to_unlink_by_pin = (
@@ -281,6 +289,9 @@ class SyncTarget(object):
                     (abs_venv_dir, parent_dir)
                 ):
                     os.rmdir(parent_dir)
+
+        if retain_pip and not resolved_pip and not installed_pip:
+            self.venv.install_pip(upgrade=True)
 
         if to_install:
             for distribution in to_install:
@@ -679,11 +690,14 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             action=HandleBoolAction,
             default=False,
             help=(
-                "When creating a venv that doesn't exist, install pip in it. When syncing an "
-                "existing venv, retain its pip, if any, even if pip is not present in the lock "
-                "file being synced. N.B.: When in `--no-retain-pip` mode (the default) only remove "
-                "pip if it is both present in the venv and not present in the lock file being "
-                "synced."
+                "When syncing a venv in the default `--no-pip`/`--no-retain-pip` mode, new venvs "
+                "will be created without Pip installed in them and existing venvs will have Pip "
+                "removed unless the lock being synced specifies a locked Pip, in which case that "
+                "locked Pip version will be ensured. When syncing a venv in the "
+                "`--pip`/`--retain-pip` mode, new venvs will be created with Pip installed in them "
+                "and existing venvs will have Pip installed. The version of Pip installed will be "
+                "taken from the lock being synced is present, and will be the latest compatible "
+                "with the venv interpreter otherwise."
             ),
         )
         sync_parser.add_argument(
@@ -1446,8 +1460,6 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                         )
                     interpreter = interpreters[0]
                 venv = Virtualenv.create(self.options.venv, interpreter=interpreter)
-                if self.options.pip:
-                    venv.install_pip(upgrade=True)
             sync_target = SyncTarget.resolve_command(venv=venv, command=self.passthrough_args)
         elif self.passthrough_args:
             sync_target = try_(
