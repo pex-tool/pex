@@ -247,7 +247,7 @@ class Pip(object):
     _PATCHES_PACKAGE_NAME = "_pex_pip_patches"
 
     _pip = attr.ib()  # type: PipVenv
-    _version = attr.ib()  # type: PipVersionValue
+    version = attr.ib()  # type: PipVersionValue
     _pip_cache = attr.ib()  # type: str
 
     @staticmethod
@@ -599,7 +599,7 @@ class Pip(object):
             if not atomic_dir.is_finalized():
                 self.spawn_download_distributions(
                     download_dir=atomic_dir.work_dir,
-                    requirements=[self._version.wheel_requirement],
+                    requirements=[self.version.wheel_requirement],
                     package_index_configuration=package_index_configuration,
                     build_configuration=BuildConfiguration.create(allow_builds=False),
                 ).wait()
@@ -617,7 +617,7 @@ class Pip(object):
     ):
         # type: (...) -> Job
 
-        if self._version is PipVersion.VENDORED:
+        if self.version is PipVersion.VENDORED:
             self._ensure_wheel_installed(package_index_configuration=package_index_configuration)
 
         wheel_cmd = ["wheel", "--no-deps", "--wheel-dir", wheel_dir]
