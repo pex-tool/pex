@@ -19,6 +19,7 @@ from pex.pip.tool import PackageIndexConfiguration, Pip
 from pex.pip.version import PipVersion, PipVersionValue
 from pex.platforms import Platform
 from pex.resolve.configured_resolver import ConfiguredResolver
+from pex.resolve.resolver_configuration import ResolverVersion
 from pex.targets import AbbreviatedPlatform, LocalInterpreter, Target
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
@@ -105,6 +106,17 @@ def test_no_duplicate_constraints_pex_warnings(
     )
 
 
+def package_index_configuration(pip_version):
+    # type: (PipVersionValue) -> Optional[PackageIndexConfiguration]
+    if pip_version is PipVersion.v23_2:
+        # N.B.: Pip 23.2 has a bug handling PEP-658 metadata with the legacy resolver; so we use the
+        # 2020 resolver to work around. See: https://github.com/pypa/pip/issues/12156
+        return PackageIndexConfiguration.create(
+            pip_version, resolver_version=ResolverVersion.PIP_2020
+        )
+    return None
+
+
 @pytest.mark.skipif(
     not IS_LINUX
     or not any(
@@ -126,18 +138,15 @@ def test_download_platform_issues_1355(
     pip = create_pip(py38, version=version)
     download_dir = os.path.join(str(tmpdir), "downloads")
 
-    def download_pyarrow(
-        target=None,  # type: Optional[Target]
-        package_index_configuration=None,  # type: Optional[PackageIndexConfiguration]
-    ):
-        # type: (...) -> Job
+    def download_pyarrow(target=None):
+        # type: (Optional[Target]) -> Job
         safe_rmtree(download_dir)
         return pip.spawn_download_distributions(
             download_dir=download_dir,
             requirements=["pyarrow==4.0.1"],
             transitive=False,
             target=target,
-            package_index_configuration=package_index_configuration,
+            package_index_configuration=package_index_configuration(pip.version),
         )
 
     def assert_pyarrow_downloaded(
@@ -256,6 +265,7 @@ def test_download_platform_markers_issue_1488(
         constraint_files=[constraints_file],
         download_dir=download_dir,
         transitive=True,
+        package_index_configuration=package_index_configuration(version),
     ).wait()
 
     assert (
