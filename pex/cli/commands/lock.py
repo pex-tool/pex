@@ -757,8 +757,8 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 "1st argument resolves to a binary in a venv."
             ),
             func=cls._sync,
-        ) as update_parser:
-            cls._add_sync_arguments(update_parser)
+        ) as sync_parser:
+            cls._add_sync_arguments(sync_parser)
 
     def _resolve_targets(
         self,
