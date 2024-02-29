@@ -184,6 +184,7 @@ def assert_download_platform_markers_issue_1366(
         requirements=["typing_extensions==3.7.4.2; python_version < '3.8'"],
         download_dir=download_dir,
         transitive=False,
+        package_index_configuration=package_index_configuration(pip.version),
     ).wait()
 
     assert ["typing_extensions-3.7.4.2-py2-none-any.whl"] == os.listdir(download_dir)
