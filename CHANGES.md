@@ -6,7 +6,7 @@ This release fixes `pex3 lock create` to handle `.tar.bz2` and `.tgz`
 sdists in addition to the officially sanctioned `.tar.gz` and (less
 officially so) `.zip` sdists.
 
-# Handle `.tar.bz2` & `.tgz` sdists when locking. (#2380)
+* Handle `.tar.bz2` & `.tgz` sdists when locking. (#2380)
 
 ## 2.2.1
 
