@@ -159,12 +159,57 @@ class Artifact(object):
 
 @attr.s(frozen=True, order=False)
 class FileArtifact(Artifact):
+    @staticmethod
+    def is_zip_sdist(path):
+        # type: (str) -> bool
+
+        # N.B.: Windows sdists traditionally were released in zip format.
+        return path.endswith(".zip")
+
+    @staticmethod
+    def is_tar_sdist(path):
+        # type: (str) -> bool
+
+        # N.B.: PEP-625 (https://peps.python.org/pep-0625/) says sdists must use .tar.gz, but we
+        # have a known example of tar.bz2 in the wild in python-constraint 1.4.0 on PyPI:
+        # https://pypi.org/project/python-constraint/1.4.0/#files
+        # This probably all stems from the legacy `python setup.py sdist` as last described here:
+        #   https://docs.python.org/3.11/distutils/sourcedist.html
+        # There was a move to reject exotic formats in PEP-527 in 2016 and the historical sdist
+        # formats appear to be listed here: https://peps.python.org/pep-0527/#file-extensions
+        # A query on the PyPI dataset shows:
+        #
+        # SELECT
+        # REGEXP_EXTRACT(path, r'\.([^.]+|tar\.[^.]+|tar)$') as extension,
+        # count(*) as count
+        # FROM `bigquery-public-data.pypi.distribution_metadata`
+        # group by extension
+        # order by count desc
+        #
+        #   | extension | count   |
+        #   |-----------|---------|
+        #   | whl       | 6332494 |
+        # * | tar.gz    | 5283102 |
+        #   | egg       |  135940 |
+        # * | zip       |  108532 |
+        #   | exe       |   18452 |
+        # * | tar.bz2   |    3857 |
+        #   | msi       |     625 |
+        #   | rpm       |     603 |
+        # * | tgz       |     226 |
+        #   | dmg       |      47 |
+        #   | deb       |      36 |
+        # * | tar.zip   |       2 |
+        # * | ZIP       |       1 |
+        #
+        return path.endswith((".tar.gz", ".tgz", ".tar.bz2"))
+
     filename = attr.ib()  # type: str
 
     @property
     def is_source(self):
         # type: () -> bool
-        return self.filename.endswith((".sdist", ".tar.gz", ".tgz", ".tar.bz2", ".tbz2", ".zip"))
+        return self.is_tar_sdist(self.filename) or self.is_zip_sdist(self.filename)
 
     def parse_tags(self):
         # type: () -> Iterator[tags.Tag]
