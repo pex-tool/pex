@@ -259,22 +259,27 @@ class Pip(object):
             else ResolverVersion.default()
         )
 
-    @classmethod
     def _calculate_resolver_version_args(
-        cls,
+        self,
         interpreter,  # type: PythonInterpreter
         package_index_configuration=None,  # type: Optional[PackageIndexConfiguration]
     ):
         # type: (...) -> Iterator[str]
-        resolver_version = cls._calculate_resolver_version(
+        resolver_version = self._calculate_resolver_version(
             package_index_configuration=package_index_configuration
         )
         # N.B.: The pip default resolver depends on the python it is invoked with. For Python 2.7
         # Pip defaults to the legacy resolver and for Python 3 Pip defaults to the 2020 resolver.
         # Further, Pip warns when you do not use the default resolver version for the interpreter
         # in play. To both avoid warnings and set the correct resolver version, we need
-        # to only set the resolver version when it's not the default for the interpreter in play:
-        if resolver_version == ResolverVersion.PIP_2020 and interpreter.version[0] == 2:
+        # to only set the resolver version when it's not the default for the interpreter in play.
+        # As an added constraint, the 2020-resolver feature was removed and made default in the
+        # Pip 22.3 release.
+        if (
+            resolver_version == ResolverVersion.PIP_2020
+            and interpreter.version[0] == 2
+            and self.version.version < PipVersion.v22_3.version
+        ):
             yield "--use-feature"
             yield "2020-resolver"
         elif resolver_version == ResolverVersion.PIP_LEGACY and interpreter.version[0] == 3:
