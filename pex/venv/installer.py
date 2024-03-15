@@ -15,6 +15,7 @@ from pex.dist_metadata import Distribution
 from pex.environment import PEXEnvironment
 from pex.orderedset import OrderedSet
 from pex.pep_376 import InstalledWheel, LoadError
+from pex.pep_427 import Wheel, WheelLoadError
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pex import PEX
@@ -471,10 +472,16 @@ def _populate_venv_deps(
             ):
                 yield src, dst
         except LoadError:
+            try:
+                wheel = Wheel.load(dist.location)
+            except WheelLoadError:
+                site_packages_dir = venv.site_packages_dir
+            else:
+                site_packages_dir = venv.purelib if wheel.root_is_purelib else venv.platlib
             dst = (
-                os.path.join(venv.site_packages_dir, rel_extra_path)
+                os.path.join(site_packages_dir, rel_extra_path)
                 if rel_extra_path
-                else venv.site_packages_dir
+                else site_packages_dir
             )
             for src, dst in _populate_legacy_dist(
                 dest_dir=dst, bin_dir=venv.bin_dir, dist=dist, symlink=symlink

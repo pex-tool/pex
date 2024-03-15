@@ -1,9 +1,11 @@
 # Copyright 2022 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+import json
 import os.path
 import shutil
 import subprocess
+from textwrap import dedent
 
 import pytest
 
@@ -12,6 +14,7 @@ from pex.pep_503 import ProjectName
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import InvalidVirtualenvError, Virtualenv
 from testing import VenvFactory, all_python_venvs
+from testing.docker import DockerVirtualenvRunner
 
 if TYPE_CHECKING:
     from typing import Any, Dict
@@ -105,3 +108,34 @@ def test_iter_distributions_spaces(tmpdir):
     pip_dist = dists.get(ProjectName("pip"))
     assert pip_dist is not None, "Expected venv to have Pip installed."
     assert os.path.realpath(venv.site_packages_dir) == os.path.realpath(pip_dist.location)
+
+
+def test_multiple_site_packages_dirs(fedora39_virtualenv_runner):
+    # type: (DockerVirtualenvRunner) -> None
+
+    assert {
+        "site_packages_dir": "/virtualenv.venv/lib/python3.12/site-packages",
+        "purelib": "/virtualenv.venv/lib/python3.12/site-packages",
+        "platlib": "/virtualenv.venv/lib64/python3.12/site-packages",
+    } == json.loads(
+        fedora39_virtualenv_runner.run(
+            dedent(
+                """\
+                import json
+                import sys
+
+                from pex.venv.virtualenv import Virtualenv
+
+                venv = Virtualenv("/virtualenv.venv")
+                json.dump(
+                    {
+                        "site_packages_dir": venv.site_packages_dir,
+                        "purelib": venv.purelib,
+                        "platlib": venv.platlib,s
+                    },
+                    sys.stdout
+                )
+                """
+            )
+        ).decode("utf-8")
+    )

@@ -48,7 +48,10 @@ def requests_certifi_excluded_pex(tmpdir_factory):
     return pex
 
 
-REQUESTS_CMD = ["-c", "import requests, sys; print(sys.modules['certifi'].__file__)"]
+REQUESTS_CMD = [
+    "-c",
+    "import os, requests, sys; print(os.path.realpath(sys.modules['certifi'].__file__))",
+]
 EXPECTED_IMPORT_ERROR_MSG = "ModuleNotFoundError: No module named 'certifi'"
 
 

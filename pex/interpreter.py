@@ -75,6 +75,41 @@ def calculate_binary_name(
     return "{name}{version}".format(name=name, version=".".join(map(str, python_version)))
 
 
+class SitePackagesDir(object):
+    def __init__(self, path):
+        # type: (str) -> None
+        self._path = os.path.realpath(path)
+
+    @property
+    def path(self):
+        # type: () -> str
+        return self._path
+
+    def __repr__(self):
+        # type: () -> str
+        return "{class_name}({path})".format(class_name=self.__class__.__name__, path=self._path)
+
+    def __eq__(self, other):
+        # type: (Any) -> bool
+        return type(self) is type(other) and self._path == other._path
+
+    def __ne__(self, other):
+        # type: (Any) -> bool
+        return not self == other
+
+    def __hash__(self):
+        # type: () -> int
+        return hash((type(self), self._path))
+
+
+class Purelib(SitePackagesDir):
+    pass
+
+
+class Platlib(SitePackagesDir):
+    pass
+
+
 class PythonIdentity(object):
     class Error(Exception):
         pass
@@ -101,14 +136,20 @@ class PythonIdentity(object):
         return str(value)
 
     @staticmethod
-    def _iter_site_packages():
-        # type: () -> Iterator[str]
+    def _site_packages_dirs():
+        # type: () -> Iterable[SitePackagesDir]
 
+        # N.B.: The paths returned by site.getsitepackages are un-differentiated; so we let any
+        # purelib or platlib directories discovered below trump for a given path so that we pick up
+        # the extra bit of information about the site packages directory type.
+
+        site_packages = OrderedDict()  # type: OrderedDict[str, SitePackagesDir]
         try:
             from site import getsitepackages
 
             for path in getsitepackages():
-                yield path
+                entry = SitePackagesDir(path)
+                site_packages[entry.path] = entry
         except ImportError as e:
             # The site.py provided by old virtualenv (which we use to create some venvs) does not
             # include a getsitepackages function.
@@ -124,9 +165,14 @@ class PythonIdentity(object):
             get_default_scheme = getattr(sysconfig, "get_default_scheme", None)
             if get_default_scheme and sys.version_info[:2] >= (3, 11):
                 scheme = get_default_scheme()
-                yield sysconfig.get_path("purelib", scheme)
-                yield sysconfig.get_path("platlib", scheme)
-                return
+
+                purelib = Purelib(sysconfig.get_path("purelib", scheme))
+                site_packages[purelib.path] = purelib
+
+                platlib = Platlib(sysconfig.get_path("platlib", scheme))
+                site_packages[platlib.path] = platlib
+
+                return site_packages.values()
         except ImportError:
             pass
 
@@ -136,17 +182,23 @@ class PythonIdentity(object):
         try:
             from distutils.sysconfig import get_python_lib
 
-            yield get_python_lib(plat_specific=False)
-            yield get_python_lib(plat_specific=True)
+            purelib = Purelib(get_python_lib(plat_specific=False))
+            site_packages[purelib.path] = purelib
+
+            platlib = Platlib(get_python_lib(plat_specific=True))
+            site_packages[platlib.path] = platlib
         except ImportError:
             pass
 
+        return site_packages.values()
+
     @staticmethod
     def _iter_extras_paths(site_packages):
-        # type: (Iterable[str]) -> Iterator[str]
+        # type: (Iterable[SitePackagesDir]) -> Iterator[str]
 
         # Handle .pth injected paths as extras.
-        for dir_path in site_packages:
+        for entry in site_packages:
+            dir_path = entry.path
             if not os.path.isdir(dir_path):
                 continue
             for file in os.listdir(dir_path):
@@ -192,12 +244,12 @@ class PythonIdentity(object):
         )
 
         site_packages = OrderedSet(
-            path
-            for path in cls._iter_site_packages()
+            site_packages_dir
+            for site_packages_dir in cls._site_packages_dirs()
             # On Windows getsitepackages() includes sys.prefix as a historical vestige. In PEP-250
             # Windows got a proper dedicated directory for this which is what is used in the Pythons
             # we support. See: https://peps.python.org/pep-0250/
-            if path != sys.prefix
+            if site_packages_dir.path != sys.prefix
         )
 
         extras_paths = OrderedSet(cls._iter_extras_paths(site_packages=site_packages))
@@ -238,7 +290,7 @@ class PythonIdentity(object):
         # type: (Text) -> PythonIdentity
         TRACER.log("creating PythonIdentity from encoded: {encoded}".format(encoded=encoded), V=9)
         values = json.loads(encoded)
-        if len(values) != 17:
+        if len(values) != 19:
             raise cls.InvalidError(
                 "Invalid interpreter identity: {encoded}".format(encoded=encoded)
             )
@@ -275,7 +327,21 @@ class PythonIdentity(object):
         )
 
         env_markers = MarkerEnvironment(**values.pop("env_markers"))
+
+        site_packages_paths = values.pop("site_packages")
+        purelib = values.pop("purelib")
+        platlib = values.pop("platlib")
+        site_packages = []  # type: List[SitePackagesDir]
+        for path in site_packages_paths:
+            if path == purelib:
+                site_packages.append(Purelib(path))
+            elif path == platlib:
+                site_packages.append(Platlib(path))
+            else:
+                site_packages.append(SitePackagesDir(path))
+
         return cls(
+            site_packages=site_packages,
             version=cast("Tuple[int, int, int]", version),
             pypy_version=cast("Optional[Tuple[int, int, int]]", pypy_version),
             supported_tags=iter_tags(),
@@ -297,7 +363,7 @@ class PythonIdentity(object):
         prefix,  # type: str
         base_prefix,  # type: str
         sys_path,  # type: Iterable[str]
-        site_packages,  # type: Iterable[str]
+        site_packages,  # type: Iterable[SitePackagesDir]
         extras_paths,  # type: Iterable[str]
         paths,  # type: Mapping[str, str]
         packaging_version,  # type: str
@@ -333,13 +399,28 @@ class PythonIdentity(object):
         self._configured_macosx_deployment_target = configured_macosx_deployment_target
 
     def encode(self):
+        site_packages = []  # type: List[str]
+        purelib = None  # type: Optional[str]
+        platlib = None  # type: Optional[str]
+        for entry in self._site_packages:
+            site_packages.append(entry.path)
+            if isinstance(entry, Purelib):
+                purelib = entry.path
+            elif isinstance(entry, Platlib):
+                platlib = entry.path
+
         values = dict(
             __format_version__=self._FORMAT_VERSION,
             binary=self._binary,
             prefix=self._prefix,
             base_prefix=self._base_prefix,
             sys_path=self._sys_path,
-            site_packages=self._site_packages,
+            site_packages=site_packages,
+            # N.B.: We encode purelib and platlib site-packages entries on the side like this to
+            # ensure older Pex versions that did not know the distinction can still use the
+            # interpreter cache.
+            purelib=purelib,
+            platlib=platlib,
             extras_paths=self._extras_paths,
             paths=self._paths,
             packaging_version=self._packaging_version,
@@ -382,7 +463,7 @@ class PythonIdentity(object):
 
     @property
     def site_packages(self):
-        # type: () -> Tuple[str, ...]
+        # type: () -> Tuple[SitePackagesDir, ...]
         return self._site_packages
 
     @property
@@ -1247,7 +1328,7 @@ class PythonInterpreter(object):
 
     @property
     def site_packages(self):
-        # type: () -> Tuple[str, ...]
+        # type: () -> Tuple[SitePackagesDir, ...]
         """Return the interpreter's site packages directories."""
         return self.identity.site_packages
 

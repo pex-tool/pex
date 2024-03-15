@@ -9,7 +9,7 @@ import shutil
 from pex.dist_metadata import ProjectNameAndVersion
 from pex.pex_info import PexInfo
 from pex.typing import TYPE_CHECKING
-from testing import IS_MAC, PY310, ensure_python_interpreter, run_pex_command
+from testing import IS_ARM_64, IS_MAC, PY310, ensure_python_interpreter, run_pex_command
 from testing.cli import run_pex3
 
 if TYPE_CHECKING:
@@ -49,8 +49,8 @@ def test_find_links_url_escaping(tmpdir):
         "2",
     ).assert_success()
 
-    # The torch 2.0.1+cpu wheel is only published for Linux and Windows.
-    if IS_MAC:
+    # The torch 2.0.1+cpu wheel is only published for x86_64 for Linux and Windows.
+    if IS_MAC or IS_ARM_64:
         return
 
     # Force the torch 2.0.1+cpu wheel to be re-downloaded from the lock.

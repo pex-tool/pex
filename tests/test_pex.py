@@ -221,7 +221,7 @@ def test_site_libs(tmpdir):
         site_packages = os.path.join(str(tmpdir), "site-packages")
         os.mkdir(site_packages)
         mock_site_packages.return_value = {site_packages}
-        site_libs = PythonIdentity.get().site_packages
+        site_libs = frozenset(entry.path for entry in PythonIdentity.get().site_packages)
         assert site_packages in site_libs
 
 
@@ -264,7 +264,7 @@ def test_site_libs_excludes_prefix():
         site_packages = os.path.join(tempdir, "site-packages")
         os.mkdir(site_packages)
         mock_site_packages.return_value = [site_packages, sys.prefix]
-        site_libs = PythonIdentity.get().site_packages
+        site_libs = tuple(entry.path for entry in PythonIdentity.get().site_packages)
         assert site_packages in site_libs
         assert sys.prefix not in site_libs
 

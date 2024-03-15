@@ -19,6 +19,7 @@ from pex.interpreter import PythonInterpreter
 from pex.typing import TYPE_CHECKING, cast
 from pex.util import CacheHelper
 from pex.venv.virtualenv import Virtualenv
+from pex.wheel import WHEEL
 
 if TYPE_CHECKING:
     from typing import Callable, Iterable, Iterator, Optional, Protocol, Text, Tuple, Union
@@ -168,6 +169,7 @@ class InstalledWheel(object):
         prefix_dir,  # type: str
         stash_dir,  # type: str
         record_relpath,  # type: Text
+        root_is_purelib,  # type: bool
     ):
         # type: (...) -> InstalledWheel
 
@@ -179,6 +181,7 @@ class InstalledWheel(object):
             "stash_dir": stash_dir,
             "record_relpath": record_relpath,
             "fingerprint": fingerprint,
+            "root_is_purelib": root_is_purelib,
         }
         with open(cls.layout_file(prefix_dir), "w") as fp:
             json.dump(layout, fp, sort_keys=True)
@@ -187,6 +190,7 @@ class InstalledWheel(object):
             stash_dir=stash_dir,
             record_relpath=record_relpath,
             fingerprint=fingerprint,
+            root_is_purelib=root_is_purelib,
         )
 
     @classmethod
@@ -219,17 +223,32 @@ class InstalledWheel(object):
 
         fingerprint = layout.get("fingerprint")
 
+        # N.B.: Caching root_is_purelib was not part of the original InstalledWheel layout data; so
+        # we materialize the property if needed to support older installed wheel chroots.
+        root_is_purelib = layout.get("root_is_purelib")
+        if type(root_is_purelib) is not bool:
+            try:
+                wheel = WHEEL.load(prefix_dir)
+            except WHEEL.LoadError as e:
+                raise LoadError(
+                    "Failed to determine if installed wheel at {location} is platform-specific: "
+                    "{err}".format(location=prefix_dir, err=e)
+                )
+            root_is_purelib = wheel.root_is_purelib
+
         return cls(
             prefix_dir=prefix_dir,
             stash_dir=cast(str, stash_dir),
             record_relpath=cast(str, record_relpath),
             fingerprint=cast("Optional[str]", fingerprint),
+            root_is_purelib=root_is_purelib,
         )
 
     prefix_dir = attr.ib()  # type: str
     stash_dir = attr.ib()  # type: str
     record_relpath = attr.ib()  # type: Text
     fingerprint = attr.ib()  # type: Optional[str]
+    root_is_purelib = attr.ib()  # type: bool
 
     def stashed_path(self, *components):
         # type: (*str) -> str
@@ -312,10 +331,10 @@ class InstalledWheel(object):
 
         :return: An iterator over src -> dst pairs.
         """
+
+        site_packages_dir = venv.purelib if self.root_is_purelib else venv.platlib
         site_packages_dir = (
-            os.path.join(venv.site_packages_dir, rel_extra_path)
-            if rel_extra_path
-            else venv.site_packages_dir
+            os.path.join(site_packages_dir, rel_extra_path) if rel_extra_path else site_packages_dir
         )
 
         installed_files = [InstalledFile(self.record_relpath)]
