@@ -93,43 +93,51 @@ def mitmdump():
     with open(os.path.join(safe_mkdtemp(), "constraints.txt"), "w") as fp:
         fp.write(
             """\
-            Brotli==1.0.9
-            Jinja2==2.11.3
-            MarkupSafe==2.0.1
-            Werkzeug==1.0.1
-            asgiref==3.3.4
-            blinker==1.4
-            certifi==2021.10.8
-            cffi==1.15.0
-            click==7.1.2
-            cryptography==3.2.1
-            flask==1.1.4
-            h11==0.13.0
+            aioquic==0.9.25
+            asgiref==3.7.2
+            attrs==23.2.0
+            blinker==1.7.0
+            Brotli==1.1.0
+            certifi==2024.2.2
+            cffi==1.16.0
+            click==8.1.7
+            cryptography==42.0.5
+            Flask==3.0.2
+            h11==0.14.0
             h2==4.1.0
             hpack==4.0.0
             hyperframe==6.0.1
-            itsdangerous==1.1.0
-            kaitaistruct==0.9
-            ldap3==2.8.1
-            msgpack==1.0.3
+            itsdangerous==2.1.2
+            Jinja2==3.1.3
+            kaitaistruct==0.10
+            ldap3==2.9.1
+            MarkupSafe==2.1.5
+            mitmproxy==10.2.4
+            mitmproxy_rs==0.5.1
+            msgpack==1.0.8
             passlib==1.7.4
-            protobuf==3.13.0
+            protobuf==4.25.3
             publicsuffix2==2.20191221
-            pyOpenSSL==19.1.0
-            pyasn1==0.4.8
+            pyasn1==0.5.1
+            pyasn1-modules==0.3.0
             pycparser==2.21
-            pyparsing==2.4.7
+            pylsqpack==0.3.18
+            pyOpenSSL==24.0.0
+            pyparsing==3.1.2
             pyperclip==1.8.2
-            ruamel.yaml==0.16.13
-            six==1.16.0
-            sortedcontainers==2.2.2
-            tornado==6.1
-            urwid==2.1.2
-            wsproto==0.15.0
-            zstandard==0.14.1
+            ruamel.yaml==0.18.6
+            ruamel.yaml.clib==0.2.8
+            service-identity==24.1.0
+            sortedcontainers==2.4.0
+            tornado==6.4
+            typing_extensions==4.10.0
+            urwid-mitmproxy==2.1.2.1
+            Werkzeug==3.0.1
+            wsproto==1.2.0
+            zstandard==0.22.0
             """
         )
-    subprocess.check_call([pip, "install", "mitmproxy==5.3.0", "--constraint", fp.name])
+    subprocess.check_call([pip, "install", "mitmproxy==10.2.4", "--constraint", fp.name])
     mitmdump = os.path.join(os.path.dirname(python), "mitmdump")
     return mitmdump, os.path.expanduser("~/.mitmproxy/mitmproxy-ca-cert.pem")
 
@@ -147,7 +155,7 @@ def run_proxy(mitmdump, tmp_workdir):
         
                 class NotifyUp:
                     def running(self) -> None:
-                        port = ctx.master.server.address[1]
+                        port = ctx.master.addons.get("proxyserver").listen_addrs()[0][1]
                         with open({msg_channel!r}, "w") as fp:
                             print(str(port), file=fp)
         
