@@ -131,7 +131,7 @@ def test_multiple_site_packages_dirs(fedora39_virtualenv_runner):
                     {
                         "site_packages_dir": venv.site_packages_dir,
                         "purelib": venv.purelib,
-                        "platlib": venv.platlib,s
+                        "platlib": venv.platlib,
                     },
                     sys.stdout
                 )

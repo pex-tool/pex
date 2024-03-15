@@ -261,7 +261,7 @@ def test_site_libs_excludes_prefix():
     with mock.patch.object(
         site, "getsitepackages"
     ) as mock_site_packages, temporary_dir() as tempdir:
-        site_packages = os.path.join(tempdir, "site-packages")
+        site_packages = os.path.realpath(os.path.join(tempdir, "site-packages"))
         os.mkdir(site_packages)
         mock_site_packages.return_value = [site_packages, sys.prefix]
         site_libs = tuple(entry.path for entry in PythonIdentity.get().site_packages)
