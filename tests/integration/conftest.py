@@ -13,9 +13,11 @@ from textwrap import dedent
 import pytest
 
 from pex.atomic_directory import atomic_directory
-from pex.common import safe_mkdtemp, temporary_dir
+from pex.common import temporary_dir
+from pex.interpreter import PythonInterpreter
 from pex.typing import TYPE_CHECKING
-from testing import PY310, ensure_python_venv, make_env, run_pex_command
+from pex.venv.virtualenv import Virtualenv
+from testing import PY310, data, ensure_python_interpreter, make_env, run_pex_command
 
 if TYPE_CHECKING:
     from typing import Any, Callable, ContextManager, Iterator, Optional, Tuple
@@ -87,64 +89,38 @@ def tmp_workdir():
             os.chdir(cwd)
 
 
-@pytest.fixture(scope="module")
-def mitmdump():
-    # type: () -> str
-    python, pip = ensure_python_venv(PY310)
-    with open(os.path.join(safe_mkdtemp(), "constraints.txt"), "w") as fp:
-        fp.write(
-            """\
-            aioquic==0.9.25
-            asgiref==3.7.2
-            attrs==23.2.0
-            blinker==1.7.0
-            Brotli==1.1.0
-            certifi==2024.2.2
-            cffi==1.16.0
-            click==8.1.7
-            cryptography==42.0.5
-            Flask==3.0.2
-            h11==0.14.0
-            h2==4.1.0
-            hpack==4.0.0
-            hyperframe==6.0.1
-            itsdangerous==2.1.2
-            Jinja2==3.1.3
-            kaitaistruct==0.10
-            ldap3==2.9.1
-            MarkupSafe==2.1.5
-            mitmproxy==10.2.4
-            mitmproxy_rs==0.5.1
-            msgpack==1.0.8
-            passlib==1.7.4
-            protobuf==4.25.3
-            publicsuffix2==2.20191221
-            pyasn1==0.5.1
-            pyasn1-modules==0.3.0
-            pycparser==2.21
-            pylsqpack==0.3.18
-            pyOpenSSL==24.0.0
-            pyparsing==3.1.2
-            pyperclip==1.8.2
-            ruamel.yaml==0.18.6
-            ruamel.yaml.clib==0.2.8
-            service-identity==24.1.0
-            sortedcontainers==2.4.0
-            tornado==6.4
-            typing_extensions==4.10.0
-            urwid-mitmproxy==2.1.2.1
-            Werkzeug==3.0.1
-            wsproto==1.2.0
-            zstandard==0.22.0
-            """
-        )
-    subprocess.check_call([pip, "install", "mitmproxy==10.2.4", "--constraint", fp.name])
-    return os.path.join(os.path.dirname(python), "mitmdump")
+@pytest.fixture(scope="session")
+def mitmdump_venv(shared_integration_test_tmpdir):
+    # type: (str) -> Virtualenv
+    mitmproxy_venv_dir = os.path.join(shared_integration_test_tmpdir, "mitmproxy")
+    with atomic_directory(mitmproxy_venv_dir) as atomic_venvdir:
+        if not atomic_venvdir.is_finalized():
+            python = ensure_python_interpreter(PY310)
+            Virtualenv.create_atomic(
+                venv_dir=atomic_venvdir,
+                interpreter=PythonInterpreter.from_binary(python),
+                force=True,
+            )
+            mitmproxy_lock = data.path("locks", "mitmproxy.lock.json")
+            subprocess.check_call(
+                args=[
+                    python,
+                    "-m",
+                    "pex.cli",
+                    "venv",
+                    "create",
+                    "-d",
+                    atomic_venvdir.work_dir,
+                    "--lock",
+                    mitmproxy_lock,
+                ]
+            )
+    return Virtualenv(mitmproxy_venv_dir)
 
 
 @pytest.fixture
 def run_proxy(
-    mitmdump,  # type: str
+    mitmdump_venv,  # type: Virtualenv
     tmpdir,  # type: Any
 ):
     # type: (...) -> Callable[[Optional[str]], ContextManager[Tuple[int, str]]]
@@ -177,7 +153,8 @@ def run_proxy(
         # type: (...) -> Iterator[Tuple[int, str]]
         os.mkfifo(messages)
         args = [
-            mitmdump,
+            mitmdump_venv.interpreter.binary,
+            mitmdump_venv.bin_path("mitmdump"),
             "--set",
             "confdir={confdir}".format(confdir=confdir),
             "-p",
