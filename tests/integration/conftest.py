@@ -4,6 +4,7 @@
 from __future__ import absolute_import
 
 import glob
+import json
 import os
 import subprocess
 from contextlib import contextmanager
@@ -88,7 +89,7 @@ def tmp_workdir():
 
 @pytest.fixture(scope="module")
 def mitmdump():
-    # type: () -> Tuple[str, str]
+    # type: () -> str
     python, pip = ensure_python_venv(PY310)
     with open(os.path.join(safe_mkdtemp(), "constraints.txt"), "w") as fp:
         fp.write(
@@ -138,28 +139,31 @@ def mitmdump():
             """
         )
     subprocess.check_call([pip, "install", "mitmproxy==10.2.4", "--constraint", fp.name])
-    mitmdump = os.path.join(os.path.dirname(python), "mitmdump")
-    return mitmdump, os.path.expanduser("~/.mitmproxy/mitmproxy-ca-cert.pem")
+    return os.path.join(os.path.dirname(python), "mitmdump")
 
 
 @pytest.fixture
-def run_proxy(mitmdump, tmp_workdir):
-    # type: (Tuple[str, str], str) -> Callable[[Optional[str]], ContextManager[Tuple[int, str]]]
-    messages = os.path.join(tmp_workdir, "messages")
-    addon = os.path.join(tmp_workdir, "addon.py")
+def run_proxy(
+    mitmdump,  # type: str
+    tmpdir,  # type: Any
+):
+    # type: (...) -> Callable[[Optional[str]], ContextManager[Tuple[int, str]]]
+    confdir = os.path.join(str(tmpdir), "confdir")
+    messages = os.path.join(str(tmpdir), "messages")
+    addon = os.path.join(str(tmpdir), "addon.py")
     with open(addon, "w") as fp:
         fp.write(
             dedent(
                 """\
+                import json
+
                 from mitmproxy import ctx
-        
-                class NotifyUp:
-                    def running(self) -> None:
-                        port = ctx.master.addons.get("proxyserver").listen_addrs()[0][1]
-                        with open({msg_channel!r}, "w") as fp:
-                            print(str(port), file=fp)
-        
-                addons = [NotifyUp()]
+
+
+                def running() -> None:
+                    port = ctx.master.addons.get("proxyserver").listen_addrs()[0][1]
+                    with open({msg_channel!r}, "w") as fp:
+                        json.dump({{"port": port}}, fp)
                 """.format(
                     msg_channel=messages
                 )
@@ -172,15 +176,22 @@ def run_proxy(mitmdump, tmp_workdir):
     ):
         # type: (...) -> Iterator[Tuple[int, str]]
         os.mkfifo(messages)
-        proxy, ca_cert = mitmdump
-        args = [proxy, "-p", "0", "-s", addon]
+        args = [
+            mitmdump,
+            "--set",
+            "confdir={confdir}".format(confdir=confdir),
+            "-p",
+            "0",
+            "-s",
+            addon,
+        ]
         if proxy_auth:
             args.extend(["--proxyauth", proxy_auth])
         proxy_process = subprocess.Popen(args)
         try:
             with open(messages, "r") as fp:
-                port = int(fp.readline().strip())
-                yield port, ca_cert
+                data = json.load(fp)
+            yield data["port"], os.path.join(confdir, "mitmproxy-ca.pem")
         finally:
             proxy_process.kill()
             os.unlink(messages)
