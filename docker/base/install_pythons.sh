@@ -2,13 +2,6 @@
 
 set -xeuo pipefail
 
-# TODO(John Sirois): Delete these definitions once the 3.13.0a5 PR is merged.
-# See:
-# + https://github.com/pyenv/pyenv/pull/2924
-# + https://github.com/edgarrmondragon/pyenv/commit/fb284ee32adb97101eb859e2ace50402d2768677
-PYENV_REPO=https://github.com/edgarrmondragon/pyenv
-PYENV_SHA=fb284ee32adb97101eb859e2ace50402d2768677
-
 export PYENV_ROOT=/pyenv
 
 
