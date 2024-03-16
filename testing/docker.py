@@ -31,7 +31,7 @@ skip_unless_docker = pytest.mark.skipif(not HAVE_DOCKER, reason="This test needs
 
 @attr.s(frozen=True)
 class DockerVirtualenvRunner(object):
-    """Run's code in a venv created by Virtualenv at /virtualenv.venv in a docker container."""
+    """Runs code in a venv created by Virtualenv at /virtualenv.venv in a docker container."""
 
     @classmethod
     def create(

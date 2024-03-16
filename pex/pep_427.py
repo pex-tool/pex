@@ -16,13 +16,13 @@ from textwrap import dedent
 from pex import pex_warnings
 from pex.common import chmod_plus_x, is_pyc_file, iter_copytree, open_zip, safe_open, touch
 from pex.compatibility import commonpath, get_stdout_bytes_buffer
-from pex.dist_metadata import DistMetadata, Distribution, MetadataFiles, ProjectNameAndVersion
+from pex.dist_metadata import Distribution, ProjectNameAndVersion
 from pex.enum import Enum
 from pex.interpreter import PythonInterpreter
 from pex.pep_376 import InstalledFile, InstalledWheel, Record
 from pex.pep_503 import ProjectName
 from pex.typing import TYPE_CHECKING, cast
-from pex.wheel import WHEEL
+from pex.wheel import Wheel
 
 if TYPE_CHECKING:
     from typing import (  # noqa
@@ -156,76 +156,6 @@ def install_wheel_interpreter(
         compile=compile,
         requested=requested,
     )
-
-
-class WheelLoadError(WheelError):
-    """Indicates loading a wheel from disk."""
-
-
-@attr.s(frozen=True)
-class Wheel(object):
-    @classmethod
-    def load(cls, wheel_path):
-        # type: (str) -> Wheel
-
-        try:
-            metadata = WHEEL.load(wheel_path)
-        except WHEEL.LoadError as e:
-            raise WheelLoadError(str(e))
-
-        metadata_path = metadata.files.metadata_file_rel_path("WHEEL")
-        if not metadata_path:
-            raise WheelLoadError(
-                "Could not find WHEEL metadata in {wheel}.".format(wheel=wheel_path)
-            )
-
-        wheel_metadata_dir = os.path.dirname(metadata_path)
-        if not wheel_metadata_dir.endswith(".dist-info"):
-            raise WheelLoadError(
-                "Expected WHEEL metadata for {wheel} to be housed in a .dist-info directory, but was "
-                "found at {wheel_metadata_path}.".format(
-                    wheel=wheel_path, wheel_metadata_path=metadata_path
-                )
-            )
-        # Although not crisply defined, all PEPs lead to PEP-508 which restricts project names
-        # to ASCII: https://peps.python.org/pep-0508/#names. Likewise, version numbers are also
-        # restricted to ASCII: https://peps.python.org/pep-0440/. Since the `.dist-info` dir
-        # path is defined as `<project name>-<version>.dist-info` in
-        # https://peps.python.org/pep-0427/, we are safe in assuming ASCII overall for the wheel
-        # metadata dir path.
-        metadata_dir = str(wheel_metadata_dir)
-
-        data_dir = re.sub(r"\.dist-info$", ".data", metadata_dir)
-
-        return cls(
-            location=wheel_path,
-            metadata_dir=metadata_dir,
-            metadata_files=metadata.files,
-            metadata=metadata,
-            data_dir=data_dir,
-        )
-
-    location = attr.ib()  # type: str
-    metadata_dir = attr.ib()  # type: str
-    metadata_files = attr.ib()  # type: MetadataFiles
-    metadata = attr.ib()  # type: WHEEL
-    data_dir = attr.ib()  # type: str
-
-    @property
-    def root_is_purelib(self):
-        # type: () -> bool
-        return self.metadata.root_is_purelib
-
-    def dist_metadata(self):
-        return DistMetadata.from_metadata_files(self.metadata_files)
-
-    def metadata_path(self, *components):
-        # typ: (*str) -> str
-        return os.path.join(self.metadata_dir, *components)
-
-    def data_path(self, *components):
-        # typ: (*str) -> str
-        return os.path.join(self.data_dir, *components)
 
 
 def install_wheel(

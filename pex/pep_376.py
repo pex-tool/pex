@@ -19,7 +19,7 @@ from pex.interpreter import PythonInterpreter
 from pex.typing import TYPE_CHECKING, cast
 from pex.util import CacheHelper
 from pex.venv.virtualenv import Virtualenv
-from pex.wheel import WHEEL
+from pex.wheel import WHEEL, WheelMetadataLoadError
 
 if TYPE_CHECKING:
     from typing import Callable, Iterable, Iterator, Optional, Protocol, Text, Tuple, Union
@@ -142,20 +142,11 @@ class InstalledFile(object):
     size = attr.ib(default=None)  # type: Optional[int]
 
 
-class InstalledWheelError(Exception):
-    pass
-
-
-class LoadError(InstalledWheelError):
-    """Indicates an installed wheel was not loadable at a particular path."""
-
-
-class ReinstallError(InstalledWheelError):
-    """Indicates an error re-installing an installed wheel."""
-
-
 @attr.s(frozen=True)
 class InstalledWheel(object):
+    class LoadError(Exception):
+        """Indicates an installed wheel was not loadable at a particular path."""
+
     _LAYOUT_JSON_FILENAME = ".layout.json"
 
     @classmethod
@@ -201,20 +192,20 @@ class InstalledWheel(object):
             with open(layout_file) as fp:
                 layout = json.load(fp)
         except (IOError, OSError) as e:
-            raise LoadError(
+            raise cls.LoadError(
                 "Failed to load an installed wheel layout from {layout_file}: {err}".format(
                     layout_file=layout_file, err=e
                 )
             )
         if not isinstance(layout, dict):
-            raise LoadError(
+            raise cls.LoadError(
                 "The installed wheel layout file at {layout_file} must contain a single top-level "
                 "object, found: {value}.".format(layout_file=layout_file, value=layout)
             )
         stash_dir = layout.get("stash_dir")
         record_relpath = layout.get("record_relpath")
         if not stash_dir or not record_relpath:
-            raise LoadError(
+            raise cls.LoadError(
                 "The installed wheel layout file at {layout_file} must contain an object with both "
                 "`stash_dir` and `record_relpath` attributes, found: {value}".format(
                     layout_file=layout_file, value=layout
@@ -226,11 +217,11 @@ class InstalledWheel(object):
         # N.B.: Caching root_is_purelib was not part of the original InstalledWheel layout data; so
         # we materialize the property if needed to support older installed wheel chroots.
         root_is_purelib = layout.get("root_is_purelib")
-        if type(root_is_purelib) is not bool:
+        if root_is_purelib is None:
             try:
                 wheel = WHEEL.load(prefix_dir)
-            except WHEEL.LoadError as e:
-                raise LoadError(
+            except WheelMetadataLoadError as e:
+                raise cls.LoadError(
                     "Failed to determine if installed wheel at {location} is platform-specific: "
                     "{err}".format(location=prefix_dir, err=e)
                 )

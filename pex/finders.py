@@ -9,9 +9,9 @@ import os
 from pex.common import is_python_script, open_zip, safe_mkdtemp
 from pex.dist_metadata import Distribution, DistributionType, EntryPoint
 from pex.pep_376 import InstalledWheel
-from pex.pep_427 import Wheel
 from pex.pep_503 import ProjectName
 from pex.typing import TYPE_CHECKING, cast
+from pex.wheel import Wheel
 
 if TYPE_CHECKING:
     from typing import Dict, Iterable, Optional
