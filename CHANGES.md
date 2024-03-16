@@ -1,5 +1,13 @@
 # Release Notes
 
+## 2.2.2
+
+This release fixes `pex3 lock create` to handle `.tar.bz2` and `.tgz`
+sdists in addition to the officially sanctioned `.tar.gz` and (less
+officially so) `.zip` sdists.
+
+* Handle `.tar.bz2` & `.tgz` sdists when locking. (#2380)
+
 ## 2.2.1
 
 This release trims down the size of the Pex wheel on PyPI and the

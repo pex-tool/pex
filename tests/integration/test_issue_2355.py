@@ -5,23 +5,15 @@ import os
 import subprocess
 from textwrap import dedent
 
-import pytest
-
-from pex.common import is_exe
 from pex.typing import TYPE_CHECKING
-from testing import run_pex_command
+from testing import IS_X86_64, run_pex_command
+from testing.docker import skip_unless_docker
 
 if TYPE_CHECKING:
     from typing import Any
 
 
-@pytest.mark.skipif(
-    not any(
-        is_exe(os.path.join(entry, "docker"))
-        for entry in os.environ.get("PATH", os.path.defpath).split(os.pathsep)
-    ),
-    reason="This test needs docker to run.",
-)
+@skip_unless_docker
 def test_ssl_context(
     tmpdir,  # type: Any
     pex_project_dir,  # type: str
@@ -49,7 +41,9 @@ def test_ssl_context(
         )
 
     pbs_release = "https://github.com/indygreg/python-build-standalone/releases/download/20240107"
-    pbs_archive = "cpython-3.9.18+20240107-x86_64-unknown-linux-gnu-install_only.tar.gz"
+    pbs_archive = "cpython-3.9.18+20240107-{arch}-unknown-linux-gnu-install_only.tar.gz".format(
+        arch="x86_64" if IS_X86_64 else "aarch64"
+    )
     subprocess.check_call(
         args=[
             "docker",

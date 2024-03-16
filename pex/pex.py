@@ -77,7 +77,7 @@ class IsolatedSysPath(object):
         site_packages = OrderedSet()  # type: OrderedSet[str]
         for site_lib in ident.site_packages:
             TRACER.log("Discarding site packages path: {site_lib}".format(site_lib=site_lib))
-            site_packages.add(site_lib)
+            site_packages.add(site_lib.path)
 
         extras_paths = OrderedSet()  # type: OrderedSet[str]
         for extras_path in ident.extras_paths:

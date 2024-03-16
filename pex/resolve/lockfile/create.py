@@ -154,10 +154,10 @@ def _prepare_project_directory(build_request):
         return target, project
 
     extract_dir = os.path.join(safe_mkdtemp(), "project")
-    if project.endswith(".zip"):
+    if FileArtifact.is_zip_sdist(project):
         with open_zip(project) as zf:
             zf.extractall(extract_dir)
-    elif project.endswith(".tar.gz"):
+    elif FileArtifact.is_tar_sdist(project):
         with tarfile.open(project) as tf:
             tf.extractall(extract_dir)
     else:

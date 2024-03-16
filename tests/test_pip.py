@@ -106,15 +106,18 @@ def test_no_duplicate_constraints_pex_warnings(
     )
 
 
-def package_index_configuration(pip_version):
-    # type: (PipVersionValue) -> Optional[PackageIndexConfiguration]
+def package_index_configuration(
+    pip_version,  # type: PipVersionValue
+    use_pip_config=False,  # type: bool
+):
+    # type: (...) -> PackageIndexConfiguration
     if pip_version is PipVersion.v23_2:
         # N.B.: Pip 23.2 has a bug handling PEP-658 metadata with the legacy resolver; so we use the
         # 2020 resolver to work around. See: https://github.com/pypa/pip/issues/12156
         return PackageIndexConfiguration.create(
-            pip_version, resolver_version=ResolverVersion.PIP_2020
+            pip_version, resolver_version=ResolverVersion.PIP_2020, use_pip_config=use_pip_config
         )
-    return None
+    return PackageIndexConfiguration.create(use_pip_config=use_pip_config)
 
 
 @pytest.mark.skipif(
@@ -184,6 +187,7 @@ def assert_download_platform_markers_issue_1366(
         requirements=["typing_extensions==3.7.4.2; python_version < '3.8'"],
         download_dir=download_dir,
         transitive=False,
+        package_index_configuration=package_index_configuration(pip.version),
     ).wait()
 
     assert ["typing_extensions-3.7.4.2-py2-none-any.whl"] == os.listdir(download_dir)
@@ -292,7 +296,9 @@ def test_create_confounding_env_vars_issue_1668(
 
     download_dir = os.path.join(str(tmpdir), "downloads")
     create_pip(None, version=version, PEX_SCRIPT="pex3").spawn_download_distributions(
-        requirements=["ansicolors==1.1.8"], download_dir=download_dir
+        requirements=["ansicolors==1.1.8"],
+        download_dir=download_dir,
+        package_index_configuration=package_index_configuration(pip_version=version),
     ).wait()
     assert ["ansicolors-1.1.8-py2.py3-none-any.whl"] == os.listdir(download_dir)
 
@@ -352,20 +358,23 @@ def test_use_pip_config(
     with ENV.patch(PIP_PYTHON_VERSION="invalid") as env, environment_as(**env):
         assert "invalid" == os.environ["PIP_PYTHON_VERSION"]
         job = pip.spawn_download_distributions(
-            download_dir=download_dir, requirements=["ansicolors==1.1.8"]
+            download_dir=download_dir,
+            requirements=["ansicolors==1.1.8"],
+            package_index_configuration=package_index_configuration(pip_version=version),
         )
         assert "--isolated" in job._command
         job.wait()
         assert ["ansicolors-1.1.8-py2.py3-none-any.whl"] == os.listdir(download_dir)
 
         shutil.rmtree(download_dir)
-        package_index_configuration = PackageIndexConfiguration.create(use_pip_config=True)
         job = pip.spawn_download_distributions(
             download_dir=download_dir,
             requirements=["ansicolors==1.1.8"],
-            package_index_configuration=package_index_configuration,
+            package_index_configuration=package_index_configuration(
+                pip_version=version, use_pip_config=True
+            ),
         )
-        assert "--isolated" not in job._command
+        assert "--isolated" not in job._command, "\n".join(job._command)
         with pytest.raises(Job.Error) as exc:
             job.wait()
         assert not os.path.exists(download_dir)
