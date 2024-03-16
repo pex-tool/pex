@@ -4,6 +4,7 @@
 from __future__ import absolute_import
 
 import glob
+import json
 import os
 import subprocess
 from contextlib import contextmanager
@@ -12,9 +13,11 @@ from textwrap import dedent
 import pytest
 
 from pex.atomic_directory import atomic_directory
-from pex.common import safe_mkdtemp, temporary_dir
+from pex.common import temporary_dir
+from pex.interpreter import PythonInterpreter
 from pex.typing import TYPE_CHECKING
-from testing import PY310, ensure_python_venv, make_env, run_pex_command
+from pex.venv.virtualenv import Virtualenv
+from testing import PY310, data, ensure_python_interpreter, make_env, run_pex_command
 
 if TYPE_CHECKING:
     from typing import Any, Callable, ContextManager, Iterator, Optional, Tuple
@@ -86,72 +89,57 @@ def tmp_workdir():
             os.chdir(cwd)
 
 
-@pytest.fixture(scope="module")
-def mitmdump():
-    # type: () -> Tuple[str, str]
-    python, pip = ensure_python_venv(PY310)
-    with open(os.path.join(safe_mkdtemp(), "constraints.txt"), "w") as fp:
-        fp.write(
-            """\
-            Brotli==1.0.9
-            Jinja2==2.11.3
-            MarkupSafe==2.0.1
-            Werkzeug==1.0.1
-            asgiref==3.3.4
-            blinker==1.4
-            certifi==2021.10.8
-            cffi==1.15.0
-            click==7.1.2
-            cryptography==3.2.1
-            flask==1.1.4
-            h11==0.13.0
-            h2==4.1.0
-            hpack==4.0.0
-            hyperframe==6.0.1
-            itsdangerous==1.1.0
-            kaitaistruct==0.9
-            ldap3==2.8.1
-            msgpack==1.0.3
-            passlib==1.7.4
-            protobuf==3.13.0
-            publicsuffix2==2.20191221
-            pyOpenSSL==19.1.0
-            pyasn1==0.4.8
-            pycparser==2.21
-            pyparsing==2.4.7
-            pyperclip==1.8.2
-            ruamel.yaml==0.16.13
-            six==1.16.0
-            sortedcontainers==2.2.2
-            tornado==6.1
-            urwid==2.1.2
-            wsproto==0.15.0
-            zstandard==0.14.1
-            """
-        )
-    subprocess.check_call([pip, "install", "mitmproxy==5.3.0", "--constraint", fp.name])
-    mitmdump = os.path.join(os.path.dirname(python), "mitmdump")
-    return mitmdump, os.path.expanduser("~/.mitmproxy/mitmproxy-ca-cert.pem")
+@pytest.fixture(scope="session")
+def mitmdump_venv(shared_integration_test_tmpdir):
+    # type: (str) -> Virtualenv
+    mitmproxy_venv_dir = os.path.join(shared_integration_test_tmpdir, "mitmproxy")
+    with atomic_directory(mitmproxy_venv_dir) as atomic_venvdir:
+        if not atomic_venvdir.is_finalized():
+            python = ensure_python_interpreter(PY310)
+            Virtualenv.create_atomic(
+                venv_dir=atomic_venvdir,
+                interpreter=PythonInterpreter.from_binary(python),
+                force=True,
+            )
+            mitmproxy_lock = data.path("locks", "mitmproxy.lock.json")
+            subprocess.check_call(
+                args=[
+                    python,
+                    "-m",
+                    "pex.cli",
+                    "venv",
+                    "create",
+                    "-d",
+                    atomic_venvdir.work_dir,
+                    "--lock",
+                    mitmproxy_lock,
+                ]
+            )
+    return Virtualenv(mitmproxy_venv_dir)
 
 
 @pytest.fixture
-def run_proxy(mitmdump, tmp_workdir):
-    # type: (Tuple[str, str], str) -> Callable[[Optional[str]], ContextManager[Tuple[int, str]]]
-    messages = os.path.join(tmp_workdir, "messages")
-    addon = os.path.join(tmp_workdir, "addon.py")
+def run_proxy(
+    mitmdump_venv,  # type: Virtualenv
+    tmpdir,  # type: Any
+):
+    # type: (...) -> Callable[[Optional[str]], ContextManager[Tuple[int, str]]]
+    confdir = os.path.join(str(tmpdir), "confdir")
+    messages = os.path.join(str(tmpdir), "messages")
+    addon = os.path.join(str(tmpdir), "addon.py")
     with open(addon, "w") as fp:
         fp.write(
             dedent(
                 """\
+                import json
+
                 from mitmproxy import ctx
-        
-                class NotifyUp:
-                    def running(self) -> None:
-                        port = ctx.master.server.address[1]
-                        with open({msg_channel!r}, "w") as fp:
-                            print(str(port), file=fp)
-        
-                addons = [NotifyUp()]
+
+
+                def running() -> None:
+                    port = ctx.master.addons.get("proxyserver").listen_addrs()[0][1]
+                    with open({msg_channel!r}, "w") as fp:
+                        json.dump({{"port": port}}, fp)
                 """.format(
                     msg_channel=messages
                 )
@@ -164,15 +152,23 @@ def run_proxy(mitmdump, tmp_workdir):
     ):
         # type: (...) -> Iterator[Tuple[int, str]]
         os.mkfifo(messages)
-        proxy, ca_cert = mitmdump
-        args = [proxy, "-p", "0", "-s", addon]
+        args = [
+            mitmdump_venv.interpreter.binary,
+            mitmdump_venv.bin_path("mitmdump"),
+            "--set",
+            "confdir={confdir}".format(confdir=confdir),
+            "-p",
+            "0",
+            "-s",
+            addon,
+        ]
         if proxy_auth:
             args.extend(["--proxyauth", proxy_auth])
         proxy_process = subprocess.Popen(args)
         try:
             with open(messages, "r") as fp:
-                port = int(fp.readline().strip())
-                yield port, ca_cert
+                data = json.load(fp)
+            yield data["port"], os.path.join(confdir, "mitmproxy-ca.pem")
         finally:
             proxy_process.kill()
             os.unlink(messages)
