@@ -19,6 +19,7 @@ from pex.interpreter import PythonInterpreter
 from pex.typing import TYPE_CHECKING, cast
 from pex.util import CacheHelper
 from pex.venv.virtualenv import Virtualenv
+from pex.wheel import WHEEL, WheelMetadataLoadError
 
 if TYPE_CHECKING:
     from typing import Callable, Iterable, Iterator, Optional, Protocol, Text, Tuple, Union
@@ -141,20 +142,11 @@ class InstalledFile(object):
     size = attr.ib(default=None)  # type: Optional[int]
 
 
-class InstalledWheelError(Exception):
-    pass
-
-
-class LoadError(InstalledWheelError):
-    """Indicates an installed wheel was not loadable at a particular path."""
-
-
-class ReinstallError(InstalledWheelError):
-    """Indicates an error re-installing an installed wheel."""
-
-
 @attr.s(frozen=True)
 class InstalledWheel(object):
+    class LoadError(Exception):
+        """Indicates an installed wheel was not loadable at a particular path."""
+
     _LAYOUT_JSON_FILENAME = ".layout.json"
 
     @classmethod
@@ -168,6 +160,7 @@ class InstalledWheel(object):
         prefix_dir,  # type: str
         stash_dir,  # type: str
         record_relpath,  # type: Text
+        root_is_purelib,  # type: bool
     ):
         # type: (...) -> InstalledWheel
 
@@ -179,6 +172,7 @@ class InstalledWheel(object):
             "stash_dir": stash_dir,
             "record_relpath": record_relpath,
             "fingerprint": fingerprint,
+            "root_is_purelib": root_is_purelib,
         }
         with open(cls.layout_file(prefix_dir), "w") as fp:
             json.dump(layout, fp, sort_keys=True)
@@ -187,6 +181,7 @@ class InstalledWheel(object):
             stash_dir=stash_dir,
             record_relpath=record_relpath,
             fingerprint=fingerprint,
+            root_is_purelib=root_is_purelib,
         )
 
     @classmethod
@@ -197,20 +192,20 @@ class InstalledWheel(object):
             with open(layout_file) as fp:
                 layout = json.load(fp)
         except (IOError, OSError) as e:
-            raise LoadError(
+            raise cls.LoadError(
                 "Failed to load an installed wheel layout from {layout_file}: {err}".format(
                     layout_file=layout_file, err=e
                 )
             )
         if not isinstance(layout, dict):
-            raise LoadError(
+            raise cls.LoadError(
                 "The installed wheel layout file at {layout_file} must contain a single top-level "
                 "object, found: {value}.".format(layout_file=layout_file, value=layout)
             )
         stash_dir = layout.get("stash_dir")
         record_relpath = layout.get("record_relpath")
         if not stash_dir or not record_relpath:
-            raise LoadError(
+            raise cls.LoadError(
                 "The installed wheel layout file at {layout_file} must contain an object with both "
                 "`stash_dir` and `record_relpath` attributes, found: {value}".format(
                     layout_file=layout_file, value=layout
@@ -219,17 +214,32 @@ class InstalledWheel(object):
 
         fingerprint = layout.get("fingerprint")
 
+        # N.B.: Caching root_is_purelib was not part of the original InstalledWheel layout data; so
+        # we materialize the property if needed to support older installed wheel chroots.
+        root_is_purelib = layout.get("root_is_purelib")
+        if root_is_purelib is None:
+            try:
+                wheel = WHEEL.load(prefix_dir)
+            except WheelMetadataLoadError as e:
+                raise cls.LoadError(
+                    "Failed to determine if installed wheel at {location} is platform-specific: "
+                    "{err}".format(location=prefix_dir, err=e)
+                )
+            root_is_purelib = wheel.root_is_purelib
+
         return cls(
             prefix_dir=prefix_dir,
             stash_dir=cast(str, stash_dir),
             record_relpath=cast(str, record_relpath),
             fingerprint=cast("Optional[str]", fingerprint),
+            root_is_purelib=root_is_purelib,
         )
 
     prefix_dir = attr.ib()  # type: str
     stash_dir = attr.ib()  # type: str
     record_relpath = attr.ib()  # type: Text
     fingerprint = attr.ib()  # type: Optional[str]
+    root_is_purelib = attr.ib()  # type: bool
 
     def stashed_path(self, *components):
         # type: (*str) -> str
@@ -312,10 +322,10 @@ class InstalledWheel(object):
 
         :return: An iterator over src -> dst pairs.
         """
+
+        site_packages_dir = venv.purelib if self.root_is_purelib else venv.platlib
         site_packages_dir = (
-            os.path.join(venv.site_packages_dir, rel_extra_path)
-            if rel_extra_path
-            else venv.site_packages_dir
+            os.path.join(site_packages_dir, rel_extra_path) if rel_extra_path else site_packages_dir
         )
 
         installed_files = [InstalledFile(self.record_relpath)]

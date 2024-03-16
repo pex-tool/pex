@@ -9,6 +9,7 @@ import pkgutil
 import re
 import shutil
 import sys
+from collections import defaultdict
 from contextlib import closing
 from fileinput import FileInput
 from textwrap import dedent
@@ -19,7 +20,14 @@ from pex.compatibility import commonpath, get_stdout_bytes_buffer
 from pex.dist_metadata import Distribution, find_distributions
 from pex.executor import Executor
 from pex.fetcher import URLFetcher
-from pex.interpreter import PythonInterpreter, PyVenvCfg, create_shebang
+from pex.interpreter import (
+    Platlib,
+    Purelib,
+    PythonInterpreter,
+    PyVenvCfg,
+    SitePackagesDir,
+    create_shebang,
+)
 from pex.orderedset import OrderedSet
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
@@ -28,8 +36,7 @@ from pex.variables import ENV
 from pex.version import __version__
 
 if TYPE_CHECKING:
-    from typing import Iterator, Optional, Tuple, Union
-
+    from typing import DefaultDict, Iterator, Optional, Tuple, Type, Union
 
 logger = logging.getLogger(__name__)
 
@@ -82,39 +89,53 @@ class InvalidVirtualenvError(Exception):
     """Indicates a virtualenv is malformed."""
 
 
-def find_site_packages_dir(
+def _find_preferred_site_packages_dir(
     venv_dir,  # type: str
     interpreter=None,  # type: Optional[PythonInterpreter]
 ):
     # type: (...) -> str
 
     real_venv_dir = os.path.realpath(venv_dir)
-    site_packages_dirs = OrderedSet()  # type: OrderedSet[str]
+    site_packages_dirs_by_type = defaultdict(
+        OrderedSet
+    )  # type: DefaultDict[Type[SitePackagesDir], OrderedSet[SitePackagesDir]]
 
     interpreter = interpreter or PythonInterpreter.get()
-    for entry in interpreter.sys_path:
-        real_entry_path = os.path.realpath(entry)
-        if commonpath((real_venv_dir, real_entry_path)) != real_venv_dir:
+    for entry in interpreter.site_packages:
+        if commonpath((real_venv_dir, entry.path)) != real_venv_dir:
             # This ignores system site packages when the venv is built with --system-site-packages.
             continue
-        if "site-packages" == os.path.basename(real_entry_path) and os.path.isdir(real_entry_path):
-            site_packages_dirs.add(real_entry_path)
+        if os.path.isdir(entry.path):
+            site_packages_dirs_by_type[type(entry)].add(entry)
 
-    if not site_packages_dirs:
+    if not site_packages_dirs_by_type:
         raise InvalidVirtualenvError(
             "The virtualenv at {venv_dir} is not valid. No site-packages directory was found in "
             "its sys.path:\n{sys_path}".format(
                 venv_dir=venv_dir, sys_path="\n".join(interpreter.sys_path)
             )
         )
-    if len(site_packages_dirs) > 1:
-        raise InvalidVirtualenvError(
-            "The virtualenv at {venv_dir} is not valid. It has more than one site-packages "
-            "directory:\n{site_packages}".format(
-                venv_dir=venv_dir, site_packages="\n".join(site_packages_dirs)
+
+    for site_packages_dir_type in Purelib, Platlib, SitePackagesDir:
+        site_packages_dirs = site_packages_dirs_by_type.get(site_packages_dir_type)
+        if not site_packages_dirs:
+            continue
+        if len(site_packages_dirs) > 1:
+            raise InvalidVirtualenvError(
+                "The virtualenv at {venv_dir} is not valid. It has more than one {dir_type} "
+                "directory:\n{site_packages}".format(
+                    venv_dir=venv_dir,
+                    dir_type=site_packages_dir_type,
+                    site_packages="\n".join(entry.path for entry in site_packages_dirs),
+                )
             )
+        return site_packages_dirs.pop().path
+
+    raise InvalidVirtualenvError(
+        "Could not determine the site-packages directory for the venv at {venv_dir}.".format(
+            venv_dir=venv_dir
         )
-    return site_packages_dirs.pop()
+    )
 
 
 class Virtualenv(object):
@@ -294,7 +315,15 @@ class Virtualenv(object):
                     venv_dir=self._venv_dir, python_exe_path=python_exe_path, err=e
                 )
             )
-        self._site_packages_dir = find_site_packages_dir(venv_dir, self._interpreter)
+        self._site_packages_dir = _find_preferred_site_packages_dir(venv_dir, self._interpreter)
+        self._purelib = self._site_packages_dir
+        self._platlib = self._site_packages_dir
+        for entry in self._interpreter.site_packages:
+            if isinstance(entry, Purelib):
+                self._purelib = entry.path
+            elif isinstance(entry, Platlib):
+                self._platlib = entry.path
+
         self._base_bin = frozenset(_iter_files(self._bin_dir))
         self._sys_path = None  # type: Optional[Tuple[str, ...]]
 
@@ -347,6 +376,16 @@ class Virtualenv(object):
         return self._site_packages_dir
 
     @property
+    def purelib(self):
+        # type: () -> str
+        return self._purelib
+
+    @property
+    def platlib(self):
+        # type: () -> str
+        return self._platlib
+
+    @property
     def interpreter(self):
         # type: () -> PythonInterpreter
         return self._interpreter
@@ -369,7 +408,9 @@ class Virtualenv(object):
 
     def iter_distributions(self, rescan=False):
         # type: (bool) -> Iterator[Distribution]
-        for dist in find_distributions(search_path=self._interpreter.site_packages, rescan=rescan):
+        for dist in find_distributions(
+            search_path=[entry.path for entry in self._interpreter.site_packages], rescan=rescan
+        ):
             yield dist
 
     def _rewrite_base_scripts(self, real_venv_dir):

@@ -14,7 +14,7 @@ from pex.compatibility import is_valid_python_identifier
 from pex.dist_metadata import Distribution
 from pex.environment import PEXEnvironment
 from pex.orderedset import OrderedSet
-from pex.pep_376 import InstalledWheel, LoadError
+from pex.pep_376 import InstalledWheel
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pex import PEX
@@ -25,6 +25,7 @@ from pex.util import CacheHelper
 from pex.venv.bin_path import BinPath
 from pex.venv.install_scope import InstallScope
 from pex.venv.virtualenv import PipUnavailableError, Virtualenv
+from pex.wheel import Wheel, WheelMetadataLoadError
 
 if TYPE_CHECKING:
     import typing
@@ -257,7 +258,7 @@ def _populate_flat_deps(
             installed_wheel = InstalledWheel.load(dist.location)
             for src, dst in installed_wheel.reinstall_flat(target_dir=dest_dir, symlink=symlink):
                 yield src, dst
-        except LoadError:
+        except InstalledWheel.LoadError:
             for src, dst in _populate_legacy_dist(
                 dest_dir=dest_dir, bin_dir=dest_dir, dist=dist, symlink=symlink
             ):
@@ -470,11 +471,17 @@ def _populate_venv_deps(
                 venv, symlink=symlink, rel_extra_path=rel_extra_path
             ):
                 yield src, dst
-        except LoadError:
+        except InstalledWheel.LoadError:
+            try:
+                wheel = Wheel.load(dist.location)
+            except WheelMetadataLoadError:
+                site_packages_dir = venv.site_packages_dir
+            else:
+                site_packages_dir = venv.purelib if wheel.root_is_purelib else venv.platlib
             dst = (
-                os.path.join(venv.site_packages_dir, rel_extra_path)
+                os.path.join(site_packages_dir, rel_extra_path)
                 if rel_extra_path
-                else venv.site_packages_dir
+                else site_packages_dir
             )
             for src, dst in _populate_legacy_dist(
                 dest_dir=dst, bin_dir=venv.bin_dir, dist=dist, symlink=symlink

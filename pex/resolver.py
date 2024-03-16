@@ -23,7 +23,7 @@ from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.jobs import Raise, SpawnedJob, execute_parallel, iter_map_parallel
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
-from pex.pep_376 import InstalledWheel, LoadError
+from pex.pep_376 import InstalledWheel
 from pex.pep_425 import CompatibilityTags
 from pex.pep_427 import InstallableType, WheelError, install_wheel_chroot
 from pex.pep_503 import ProjectName
@@ -481,7 +481,7 @@ class InstallResult(object):
         cached_fingerprint = None  # type: Optional[str]
         try:
             installed_wheel = InstalledWheel.load(self.install_chroot)
-        except LoadError:
+        except InstalledWheel.LoadError:
             # We support legacy chroots below by calculating the chroot fingerprint just in time.
             pass
         else:

@@ -110,7 +110,7 @@ def package_index_configuration(
     pip_version,  # type: PipVersionValue
     use_pip_config=False,  # type: bool
 ):
-    # type: (...) -> Optional[PackageIndexConfiguration]
+    # type: (...) -> PackageIndexConfiguration
     if pip_version is PipVersion.v23_2:
         # N.B.: Pip 23.2 has a bug handling PEP-658 metadata with the legacy resolver; so we use the
         # 2020 resolver to work around. See: https://github.com/pypa/pip/issues/12156
@@ -298,7 +298,7 @@ def test_create_confounding_env_vars_issue_1668(
     create_pip(None, version=version, PEX_SCRIPT="pex3").spawn_download_distributions(
         requirements=["ansicolors==1.1.8"],
         download_dir=download_dir,
-        package_index_configuration=package_index_configuration(version),
+        package_index_configuration=package_index_configuration(pip_version=version),
     ).wait()
     assert ["ansicolors-1.1.8-py2.py3-none-any.whl"] == os.listdir(download_dir)
 
@@ -360,7 +360,7 @@ def test_use_pip_config(
         job = pip.spawn_download_distributions(
             download_dir=download_dir,
             requirements=["ansicolors==1.1.8"],
-            package_index_configuration=package_index_configuration(version),
+            package_index_configuration=package_index_configuration(pip_version=version),
         )
         assert "--isolated" in job._command
         job.wait()
@@ -370,9 +370,11 @@ def test_use_pip_config(
         job = pip.spawn_download_distributions(
             download_dir=download_dir,
             requirements=["ansicolors==1.1.8"],
-            package_index_configuration=package_index_configuration(version, use_pip_config=True),
+            package_index_configuration=package_index_configuration(
+                pip_version=version, use_pip_config=True
+            ),
         )
-        assert "--isolated" not in job._command
+        assert "--isolated" not in job._command, "\n".join(job._command)
         with pytest.raises(Job.Error) as exc:
             job.wait()
         assert not os.path.exists(download_dir)

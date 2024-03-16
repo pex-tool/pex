@@ -3,10 +3,19 @@
 
 import os
 
+import pytest
+
 from pex.common import temporary_dir
-from testing import PY38, ensure_python_interpreter, run_pex_command
+from testing import IS_ARM_64, PY38, ensure_python_interpreter, run_pex_command
 
 
+@pytest.mark.skipif(
+    IS_ARM_64,
+    reason=(
+        "Pandas 1.0.5 requires Cython<3 to build from source, but its build_requires does not "
+        "constrain an upper bound and Cython 3 was released in the intervening time."
+    ),
+)
 def test_resolve_python_requires_full_version():
     # type: () -> None
     python38 = ensure_python_interpreter(PY38)
