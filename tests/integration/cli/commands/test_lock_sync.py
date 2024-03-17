@@ -36,7 +36,7 @@ from pex.sorted_tuple import SortedTuple
 from pex.third_party.packaging.tags import Tag
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import Virtualenv
-from testing import PY39, PY310, IntegResults, ensure_python_interpreter, make_env, re_exact
+from testing import PY39, PY310, PY_VER, IntegResults, ensure_python_interpreter, make_env, re_exact
 from testing.cli import run_pex3
 from testing.find_links import FindLinksRepo
 
@@ -1222,6 +1222,13 @@ def assert_p537_lock(
     return locked_requirement
 
 
+skip_unless_p537_compatible = pytest.mark.skipif(
+    PY_VER < (3, 6) or PY_VER >= (3, 13),
+    reason="The p537 1.0.7 release only supports Python >=3.6,<3.13",
+)
+
+
+@skip_unless_p537_compatible
 def test_sync_strict_to_sources(tmpdir):
     # type: (Any) -> None
 
@@ -1247,6 +1254,7 @@ def test_sync_strict_to_sources(tmpdir):
     assert source_artifact.is_source
 
 
+@skip_unless_p537_compatible
 def test_sync_strict_to_strict(tmpdir):
     # type: (Any) -> None
 
