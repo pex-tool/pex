@@ -18,8 +18,10 @@ def test_rel_cert_path(
 ):
     # type: (...) -> None
     pex_file = os.path.join(str(tmpdir), "pex")
+    workdir = os.path.join(str(tmpdir), "workdir")
+    os.mkdir(workdir)
     with run_proxy() as (port, ca_cert):
-        shutil.copy(ca_cert, "cert")
+        shutil.copy(ca_cert, os.path.join(workdir, "cert"))
         run_pex_command(
             args=[
                 "--proxy",
@@ -34,6 +36,7 @@ def test_rel_cert_path(
                 "avro==1.10.0",
                 "-o",
                 pex_file,
-            ]
+            ],
+            cwd=workdir,
         ).assert_success()
         subprocess.check_call(args=[pex_file, "-c", "import avro"])
