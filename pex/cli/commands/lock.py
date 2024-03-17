@@ -322,7 +322,7 @@ class LockUpdateRequest(object):
         updates=(),  # type: Iterable[Requirement]
         replacements=(),  # type: Iterable[Requirement]
         deletes=(),  # type: Iterable[ProjectName]
-        pin=False,  # type: bool
+        artifacts_can_change=False,  # type: bool
     ):
         # type: (...) -> Union[LockUpdate, Result]
         if not self._update_requests:
@@ -333,24 +333,17 @@ class LockUpdateRequest(object):
             updates=updates,
             replacements=replacements,
             deletes=deletes,
-            pin=pin,
+            artifacts_can_change=artifacts_can_change,
         )
 
-    def sync(
-        self,
-        requirement_configuration,  # type: RequirementConfiguration
-        pin=False,  # type: bool
-        lock_config_updated=False,  # type: bool
-    ):
-        # type: (...) -> Union[LockUpdate, Result]
+    def sync(self, requirement_configuration):
+        # type: (RequirementConfiguration) -> Union[LockUpdate, Result]
         if not self._update_requests:
             return self._no_updates()
 
         return self._lock_updater.sync(
             update_requests=self._update_requests,
             requirement_configuration=requirement_configuration,
-            pin=pin,
-            lock_config_updated=lock_config_updated,
         )
 
     def _no_updates(self):
@@ -640,20 +633,25 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         resolver_options.register_use_pip_config(resolver_options_parser)
 
     @classmethod
-    def add_update_lock_options(cls, update_parser):
-        update_parser.add_argument(
-            "--strict",
-            "--no-strict",
-            "--non-strict",
-            action=HandleBoolAction,
-            default=True,
-            type=bool,
-            help=(
-                "Require all target platforms in the lock be updated at once. If any target "
-                "platform in the lock file does not have a representative local interpreter to "
-                "execute the lock update with, the update will fail."
-            ),
-        )
+    def add_update_lock_options(
+        cls,
+        update_parser,  # type: _ActionsContainer
+        include_strict=True,  # type: bool
+    ):
+        if include_strict:
+            update_parser.add_argument(
+                "--strict",
+                "--no-strict",
+                "--non-strict",
+                action=HandleBoolAction,
+                default=True,
+                type=bool,
+                help=(
+                    "Require all target platforms in the lock be updated at once. If any target "
+                    "platform in the lock file does not have a representative local interpreter to "
+                    "execute the lock update with, the update will fail."
+                ),
+            )
         update_parser.add_argument(
             "-n",
             "--dry-run",
@@ -711,7 +709,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         )
         cls._add_lockfile_option(sync_parser, verb="sync", positional=False)
         cls.add_create_lock_options(sync_parser)
-        cls.add_update_lock_options(sync_parser)
+        cls.add_update_lock_options(sync_parser, include_strict=False)
 
     @classmethod
     def add_extra_arguments(
@@ -1002,23 +1000,42 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         )
 
         with TRACER.timed("Selecting locks to update"):
-            subset_result = try_(
-                subset(
-                    targets=targets,
-                    lock=lock_file,
-                    network_configuration=network_configuration,
-                    build_configuration=lock_file.build_configuration(),
-                    transitive=lock_file.transitive,
+            locked_resolve_count = len(lock_file.locked_resolves)
+            if lock_file.style is LockStyle.UNIVERSAL and locked_resolve_count != 1:
+                return Error(
+                    "The lock at {path} contains {count} locked resolves; so it "
+                    "cannot be updated as a universal lock which requires exactly one locked "
+                    "resolve.".format(path=lock_file_path, count=locked_resolve_count)
                 )
-            )
-
-        update_requests = [
-            ResolveUpdateRequest(
-                target=resolved_subset.target, locked_resolve=resolved_subset.resolved.source
-            )
-            for resolved_subset in subset_result.subsets
-        ]
-        if self.options.strict and lock_file.style is not LockStyle.UNIVERSAL:
+            if locked_resolve_count == 1:
+                locked_resolve = lock_file.locked_resolves[0]
+                update_targets = (
+                    [LocalInterpreter.create(targets.interpreter)]
+                    if lock_file.style is LockStyle.UNIVERSAL
+                    else targets.unique_targets()
+                )
+                update_requests = [
+                    ResolveUpdateRequest(target=target, locked_resolve=locked_resolve)
+                    for target in update_targets
+                ]
+            else:
+                subset_result = try_(
+                    subset(
+                        targets=targets,
+                        lock=lock_file,
+                        network_configuration=network_configuration,
+                        build_configuration=lock_file.build_configuration(),
+                        transitive=lock_file.transitive,
+                    )
+                )
+                update_requests = [
+                    ResolveUpdateRequest(
+                        target=resolved_subset.target,
+                        locked_resolve=resolved_subset.resolved.source,
+                    )
+                    for resolved_subset in subset_result.subsets
+                ]
+        if getattr(self.options, "strict", False) and lock_file.style is not LockStyle.UNIVERSAL:
             missing_updates = set(lock_file.locked_resolves) - {
                 update_request.locked_resolve for update_request in update_requests
             }
@@ -1341,7 +1358,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             updates=update_requirements,
             replacements=replace_requirements,
             deletes=delete_projects,
-            pin=pin,
+            artifacts_can_change=pin,
         )
         if isinstance(lock_update, Result):
             return lock_update
@@ -1402,11 +1419,8 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 self._create_lock_update_request(lock_file_path=lock_file_path, lock_file=lock_file)
             )
 
-            pin = getattr(self.options, "pin", False)
             lock_update = lock_update_request.sync(
                 requirement_configuration=requirement_configuration,
-                pin=pin,
-                lock_config_updated=lock_file != original_lock_file,
             )
             if isinstance(lock_update, Result):
                 return lock_update

@@ -350,10 +350,10 @@ class ResolveUpdater(object):
     def _calculate_requirement_configuration(
         self,
         locked_resolve,  # type: LockedResolve
-        pin_all=False,  # type: bool
+        artifacts_can_change=False,  # type: bool
     ):
         # type: (...) -> Iterator[Optional[RequirementConfiguration]]
-        if not self.update_constraints_by_project_name and not pin_all:
+        if not self.update_constraints_by_project_name and not artifacts_can_change:
             yield None
             return
 
@@ -402,7 +402,6 @@ class ResolveUpdater(object):
         self,
         locked_resolve,  # type: LockedResolve
         target,  # type: Target
-        pin_all=False,  # type: bool
         artifacts_can_change=False,  # type: bool
     ):
         # type: (...) -> Union[ResolveUpdate, Error]
@@ -410,7 +409,7 @@ class ResolveUpdater(object):
         updated_resolve = locked_resolve
         updated_requirements = self.original_requirements
         with self._calculate_requirement_configuration(
-            locked_resolve, pin_all=pin_all
+            locked_resolve, artifacts_can_change=artifacts_can_change
         ) as requirement_configuration:
             if requirement_configuration:
                 updated_lock_file = try_(
@@ -626,8 +625,6 @@ class LockUpdater(object):
         self,
         update_requests,  # type: Iterable[ResolveUpdateRequest]
         requirement_configuration,  # type: RequirementConfiguration
-        pin=False,  # type: bool
-        lock_config_updated=False,  # type: bool
     ):
         # type: (...) -> Union[LockUpdate, Error]
 
@@ -636,20 +633,6 @@ class LockUpdater(object):
                 self.pip_configuration.network_configuration
             )
         )
-        constraints = tuple(
-            requirement_configuration.parse_constraints(
-                self.pip_configuration.network_configuration
-            )
-        )
-        if not any((pin, lock_config_updated, requirements, constraints)):
-            return LockUpdate(
-                requirements=self.lock_file.requirements,
-                resolves=tuple(
-                    ResolveUpdate(updated_resolve=update_request.locked_resolve)
-                    for update_request in update_requests
-                ),
-            )
-
         resolve_updater = try_(
             ResolveUpdater.derived(
                 requirement_configuration=requirement_configuration,
@@ -662,8 +645,7 @@ class LockUpdater(object):
         return self._perform_update(
             update_requests=update_requests,
             resolve_updater=resolve_updater,
-            pin=pin,
-            artifacts_can_change=lock_config_updated,
+            artifacts_can_change=True,
         )
 
     def update(
@@ -672,11 +654,11 @@ class LockUpdater(object):
         updates=(),  # type: Iterable[Requirement]
         replacements=(),  # type: Iterable[Requirement]
         deletes=(),  # type: Iterable[ProjectName]
-        pin=False,  # type: bool
+        artifacts_can_change=False,  # type: bool
     ):
         # type: (...) -> Union[LockUpdate, Error]
 
-        if not any((pin, updates, replacements, deletes)):
+        if not any((artifacts_can_change, updates, replacements, deletes)):
             return LockUpdate(
                 requirements=self.lock_file.requirements,
                 resolves=tuple(
@@ -694,14 +676,15 @@ class LockUpdater(object):
             pip_configuration=self.pip_configuration,
         )
         return self._perform_update(
-            update_requests=update_requests, resolve_updater=resolve_updater, pin=pin
+            update_requests=update_requests,
+            resolve_updater=resolve_updater,
+            artifacts_can_change=artifacts_can_change,
         )
 
     def _perform_update(
         self,
         update_requests,  # type: Iterable[ResolveUpdateRequest]
         resolve_updater,  # type: ResolveUpdater
-        pin=False,  # type: bool
         artifacts_can_change=False,  # type: bool
     ):
         # type: (...) -> Union[LockUpdate, Error]
@@ -722,7 +705,6 @@ class LockUpdater(object):
                 resolve_updater.update_resolve,
                 locked_resolve=update_request.locked_resolve,
                 target=update_request.target,
-                pin_all=pin,
                 artifacts_can_change=artifacts_can_change,
             )
             if isinstance(result, Error):
