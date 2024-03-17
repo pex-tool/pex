@@ -10,38 +10,41 @@ import shutil
 import subprocess
 import sys
 from textwrap import dedent
-from typing import Optional
 
 import pytest
 
 from pex.atomic_directory import atomic_directory
 from pex.dist_metadata import find_distribution
+from pex.interpreter import PythonInterpreter
 from pex.pep_425 import CompatibilityTags
 from pex.pep_427 import InstallableType
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pip.version import PipVersion
-from pex.resolve.locked_resolve import (
-    Artifact,
-    FileArtifact,
-    LockedRequirement,
-    LockedResolve,
-    LockStyle,
-)
+from pex.resolve.locked_resolve import Artifact, FileArtifact, LockedResolve, LockStyle
 from pex.resolve.lockfile import json_codec
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.path_mappings import PathMapping, PathMappings
 from pex.resolve.resolved_requirement import Pin
 from pex.sorted_tuple import SortedTuple
 from pex.third_party.packaging.tags import Tag
-from pex.typing import TYPE_CHECKING
+from pex.typing import TYPE_CHECKING, cast
 from pex.venv.virtualenv import Virtualenv
-from testing import PY39, PY310, PY_VER, IntegResults, ensure_python_interpreter, make_env, re_exact
+from testing import (
+    IS_PYPY,
+    PY39,
+    PY310,
+    PY_VER,
+    IntegResults,
+    ensure_python_interpreter,
+    make_env,
+    re_exact,
+)
 from testing.cli import run_pex3
 from testing.find_links import FindLinksRepo
 
 if TYPE_CHECKING:
-    from typing import Any, Iterable, List, Union
+    from typing import Any, Iterable, List, Mapping, Optional, Union
 
     import attr  # vendor:skip
 else:
@@ -1200,12 +1203,47 @@ def test_sync_venv_run_retain_user_pip(
     assert_cowsay5(venv)
 
 
+def wheel_tag(artifact):
+    # type: (Artifact) -> Optional[Tag]
+    if not isinstance(artifact, FileArtifact) or artifact.is_source:
+        return None
+    # Just 1 tag will do from the manylinux compressed tag sets.
+    return CompatibilityTags.from_wheel(artifact.filename)[0]
+
+
+def assert_wheel_tag(
+    artifact,  # type: Artifact
+    expected_python_tag=None,  # type: Optional[str]
+    expected_abi_tag=None,  # type: Optional[str]
+    expected_platform_tag=None,  # type: Optional[str]
+):
+    # type: (...) -> Optional[Tag]
+    tag = wheel_tag(artifact)
+    if tag is not None:
+        if expected_python_tag:
+            assert expected_python_tag == tag.interpreter
+        if expected_abi_tag:
+            assert expected_abi_tag == tag.abi
+        if expected_platform_tag:
+            assert expected_platform_tag == tag.platform
+    return tag
+
+
+@attr.s(frozen=True)
+class LockAnalysis(object):
+    pin = attr.ib()  # type: Pin
+    artifacts_by_tag = attr.ib()  # type: Mapping[Optional[Tag], Artifact]
+
+
 def assert_p537_lock(
     lock,  # type: str
     expected_style,  # type: LockStyle.Value
     expected_requires_python=None,  # type: Optional[str]
+    expected_python_tag=None,  # type: Optional[str]
+    expected_abi_tag=None,  # type: Optional[str]
+    expected_platform_tag=None,  # type: Optional[str]
 ):
-    # type: (...) -> LockedRequirement
+    # type: (...) -> LockAnalysis
 
     lock_file = json_codec.load(lock)
     assert lock_file.style is expected_style
@@ -1219,39 +1257,42 @@ def assert_p537_lock(
     assert len(locked_resolve.locked_requirements) == 1
     locked_requirement = locked_resolve.locked_requirements[0]
     assert ProjectName("p537") == locked_requirement.pin.project_name
-    return locked_requirement
+
+    return LockAnalysis(
+        pin=locked_requirement.pin,
+        artifacts_by_tag={
+            assert_wheel_tag(
+                artifact,
+                expected_python_tag=expected_python_tag,
+                expected_abi_tag=expected_abi_tag,
+                expected_platform_tag=expected_platform_tag,
+            ): artifact
+            for artifact in locked_requirement.iter_artifacts()
+        },
+    )
 
 
 skip_unless_p537_compatible = pytest.mark.skipif(
-    PY_VER < (3, 6) or PY_VER >= (3, 13),
-    reason="The p537 1.0.7 release only supports Python >=3.6,<3.13",
+    PY_VER < (3, 6) or PY_VER >= (3, 13) or IS_PYPY,
+    reason="The p537 1.0.7 release only supports CPython >=3.6,<3.13",
 )
 
 
-@skip_unless_p537_compatible
-def test_sync_strict_to_sources(tmpdir):
-    # type: (Any) -> None
+def interpreter_tag(interpreter=None):
+    # type: (Optional[PythonInterpreter]) -> Tag
+    return (interpreter or PythonInterpreter.get()).platform.tag
 
-    lock = os.path.join(str(tmpdir), "lock.json")
-    run_pex3(
-        "lock", "sync", "--style", "strict", "p537==1.0.7", "--indent", "2", "--lock", lock
-    ).assert_success()
-    p537_strict = assert_p537_lock(lock, LockStyle.STRICT)
 
-    run_pex3(
-        "lock", "sync", "--style", "sources", "p537==1.0.7", "--indent", "2", "--lock", lock
-    ).assert_success()
-    p537_sources = assert_p537_lock(lock, LockStyle.SOURCES)
+def python_tag(interpreter=None):
+    # type: (Optional[PythonInterpreter]) -> str
+    tag = interpreter_tag(interpreter=interpreter)
+    return cast(str, tag.interpreter)
 
-    assert p537_strict.pin == p537_sources.pin
-    assert p537_strict.artifact == p537_sources.artifact
 
-    # We should have kept the pin but picked up an additional source artifact.
-    assert not p537_strict.additional_artifacts
-    assert len(p537_sources.additional_artifacts) == 1
-    source_artifact = p537_sources.additional_artifacts[0]
-    assert isinstance(source_artifact, FileArtifact)
-    assert source_artifact.is_source
+def abi_tag(interpreter=None):
+    # type: (Optional[PythonInterpreter]) -> str
+    tag = interpreter_tag(interpreter=interpreter)
+    return cast(str, tag.abi)
 
 
 @skip_unless_p537_compatible
@@ -1264,7 +1305,10 @@ def test_sync_strict_to_strict(tmpdir):
     run_pex3(
         "lock", "sync", "--style", "strict", "p537==1.0.7", "--indent", "2", "--lock", lock
     ).assert_success()
-    p537_current = assert_p537_lock(lock, LockStyle.STRICT)
+    p537_current = assert_p537_lock(
+        lock, LockStyle.STRICT, expected_python_tag=python_tag(), expected_abi_tag=abi_tag()
+    )
+    assert len(p537_current.artifacts_by_tag) == 1
 
     other_python = (
         ensure_python_interpreter(PY39)
@@ -1284,52 +1328,49 @@ def test_sync_strict_to_strict(tmpdir):
         "--lock",
         lock,
     ).assert_success()
-    p537_other = assert_p537_lock(lock, LockStyle.STRICT)
+    other_interpreter = PythonInterpreter.from_binary(other_python)
+    p537_other = assert_p537_lock(
+        lock,
+        LockStyle.STRICT,
+        expected_python_tag=python_tag(other_interpreter),
+        expected_abi_tag=abi_tag(other_interpreter),
+    )
+    assert len(p537_other.artifacts_by_tag) == 1
 
-    def assert_wheel(artifact):
-        # type: (Artifact) -> None
 
-        assert isinstance(artifact, FileArtifact)
-        assert not artifact.is_source
-        assert artifact.filename.endswith(".whl")
+@skip_unless_p537_compatible
+def test_sync_strict_to_sources(tmpdir):
+    # type: (Any) -> None
 
-    assert p537_current.pin == p537_other.pin
-    assert not p537_current.additional_artifacts
-    assert not p537_other.additional_artifacts
+    lock = os.path.join(str(tmpdir), "lock.json")
+    run_pex3(
+        "lock", "sync", "--style", "strict", "p537==1.0.7", "--indent", "2", "--lock", lock
+    ).assert_success()
+    p537_strict = assert_p537_lock(
+        lock, LockStyle.STRICT, expected_python_tag=python_tag(), expected_abi_tag=abi_tag()
+    )
+    assert len(p537_strict.artifacts_by_tag) == 1
+    p537_strict_tag, p537_strict_wheel = next(iter(p537_strict.artifacts_by_tag.items()))
 
-    assert p537_current.artifact != p537_other.artifact
-    assert_wheel(p537_current.artifact)
-    assert_wheel(p537_other.artifact)
+    run_pex3(
+        "lock", "sync", "--style", "sources", "p537==1.0.7", "--indent", "2", "--lock", lock
+    ).assert_success()
+    p537_sources = assert_p537_lock(
+        lock, LockStyle.SOURCES, expected_python_tag=python_tag(), expected_abi_tag=abi_tag()
+    )
+    # We should have kept the pin but picked up an additional source artifact.
+    assert p537_strict.pin == p537_sources.pin
+    assert len(p537_sources.artifacts_by_tag) == 2
+    assert p537_strict_wheel == p537_sources.artifacts_by_tag[p537_strict_tag]
+    assert (
+        None in p537_sources.artifacts_by_tag
+    ), "Expected the `--style sources` lock to contain an sdist"
 
 
 def test_sync_universal_to_universal(tmpdir):
     # type: (Any) -> None
 
     # Make sure we can change ICs to migrate to a new Python version with a sync.
-
-    def wheel_tag(artifact):
-        # type: (Artifact) -> Optional[Tag]
-        if not isinstance(artifact, FileArtifact) or artifact.is_source:
-            return None
-        # Just 1 tag will do from the manylinux compressed tag sets.
-        return CompatibilityTags.from_wheel(artifact.filename)[0]
-
-    def assert_wheel_tag(
-        artifact,  # type: Artifact
-        expected_python=None,  # type: Optional[str]
-        expected_abi=None,  # type: Optional[str]
-        expected_platform=None,  # type: Optional[str]
-    ):
-        # type: (...) -> Optional[Tag]
-        tag = wheel_tag(artifact)
-        if tag is not None:
-            if expected_python:
-                assert expected_python == tag.interpreter
-            if expected_abi:
-                assert expected_abi == tag.abi
-            if expected_platform:
-                assert expected_platform == tag.platform
-        return tag
 
     lock = os.path.join(str(tmpdir), "lock.json")
     run_pex3(
@@ -1346,15 +1387,16 @@ def test_sync_universal_to_universal(tmpdir):
         lock,
     ).assert_success()
     p537_py310 = assert_p537_lock(
-        lock, LockStyle.UNIVERSAL, expected_requires_python="CPython==3.10.*"
+        lock,
+        LockStyle.UNIVERSAL,
+        expected_requires_python="CPython==3.10.*",
+        expected_python_tag="cp310",
+        expected_abi_tag="cp310",
     )
-    p537_py310_artifacts = {
-        assert_wheel_tag(artifact, expected_python="cp310", expected_abi="cp310"): artifact
-        for artifact in p537_py310.iter_artifacts()
-    }
+
     # We expect a wheel each for Linux, Mac and Windows as well as an sdist.
-    assert len(p537_py310_artifacts) == 4
-    p537_py310_sdist = p537_py310_artifacts[None]
+    assert len(p537_py310.artifacts_by_tag) == 4
+    p537_py310_sdist = p537_py310.artifacts_by_tag[None]
 
     run_pex3(
         "lock",
@@ -1370,13 +1412,12 @@ def test_sync_universal_to_universal(tmpdir):
         lock,
     ).assert_success()
     p537_py311 = assert_p537_lock(
-        lock, LockStyle.UNIVERSAL, expected_requires_python="CPython==3.11.*"
+        lock,
+        LockStyle.UNIVERSAL,
+        expected_requires_python="CPython==3.11.*",
+        expected_python_tag="cp311",
+        expected_abi_tag="cp311",
     )
     assert p537_py310.pin == p537_py311.pin
-
-    p537_py311_artifacts = {
-        assert_wheel_tag(artifact, expected_python="cp311", expected_abi="cp311"): artifact
-        for artifact in p537_py311.iter_artifacts()
-    }
-    assert len(p537_py311_artifacts) == 4
-    assert p537_py310_sdist == p537_py311_artifacts[None]
+    assert len(p537_py311.artifacts_by_tag) == 4
+    assert p537_py310_sdist == p537_py311.artifacts_by_tag[None]
