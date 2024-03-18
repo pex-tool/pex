@@ -21,7 +21,13 @@ from pex.pep_427 import InstallableType
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pip.version import PipVersion
-from pex.resolve.locked_resolve import Artifact, FileArtifact, LockedResolve, LockStyle
+from pex.resolve.locked_resolve import (
+    Artifact,
+    FileArtifact,
+    LockedRequirement,
+    LockedResolve,
+    LockStyle,
+)
 from pex.resolve.lockfile import json_codec
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.path_mappings import PathMapping, PathMappings
@@ -32,6 +38,7 @@ from pex.typing import TYPE_CHECKING, cast
 from pex.venv.virtualenv import Virtualenv
 from testing import (
     IS_PYPY,
+    IS_X86_64,
     PY39,
     PY310,
     PY_VER,
@@ -44,7 +51,7 @@ from testing.cli import run_pex3
 from testing.find_links import FindLinksRepo
 
 if TYPE_CHECKING:
-    from typing import Any, Iterable, List, Mapping, Optional, Union
+    from typing import Any, Dict, Iterable, List, Mapping, Optional, Union
 
     import attr  # vendor:skip
 else:
@@ -1273,8 +1280,11 @@ def assert_p537_lock(
 
 
 skip_unless_p537_compatible = pytest.mark.skipif(
-    PY_VER < (3, 6) or PY_VER >= (3, 13) or IS_PYPY,
-    reason="The p537 1.0.7 release only supports CPython >=3.6,<3.13",
+    PY_VER < (3, 6) or PY_VER >= (3, 13) or IS_PYPY or not IS_X86_64,
+    reason=(
+        "The p537 1.0.7 release only supports CPython >=3.6,<3.13 and only has published wheels "
+        "for Linux and Mac x86_64",
+    ),
 )
 
 
@@ -1421,3 +1431,33 @@ def test_sync_universal_to_universal(tmpdir):
     assert p537_py310.pin == p537_py311.pin
     assert len(p537_py311.artifacts_by_tag) == 4
     assert p537_py310_sdist == p537_py311.artifacts_by_tag[None]
+
+
+@pytest.mark.skipif(PY_VER < (3, 6), reason="The shiv 1.0.5 release requires Python >=3.6.")
+def test_sync_extras(tmpdir):
+    # type: (Any) -> None
+
+    # Verify requirements with extras work with the lock update constraint system.
+
+    lock = os.path.join(str(tmpdir), "lock.json")
+
+    def collect_locked_requirements():
+        # type: () -> Dict[ProjectName, LockedRequirement]
+        locked_resolves = json_codec.load(lock).locked_resolves
+        assert len(locked_resolves) == 1
+        return {
+            locked_requirement.pin.project_name: locked_requirement
+            for locked_requirement in locked_resolves[0].locked_requirements
+        }
+
+    run_pex3("lock", "sync", "shiv==1.0.5", "--indent", "2", "--lock", lock).assert_success()
+    original_locked_requirements = collect_locked_requirements()
+    assert ProjectName("sphinx-click") not in original_locked_requirements
+
+    run_pex3("lock", "sync", "shiv[rtd]==1.0.5", "--indent", "2", "--lock", lock).assert_success()
+    updated_locked_requirements = collect_locked_requirements()
+
+    for project_name, locked_requirement in original_locked_requirements.items():
+        assert locked_requirement == updated_locked_requirements.pop(project_name)
+
+    assert ProjectName("sphinx-click") in updated_locked_requirements

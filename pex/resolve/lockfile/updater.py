@@ -10,7 +10,7 @@ from collections import OrderedDict
 from contextlib import contextmanager
 
 from pex.common import pluralize
-from pex.dist_metadata import Requirement
+from pex.dist_metadata import Constraint, Requirement
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.pep_440 import Version
@@ -250,11 +250,11 @@ class ResolveUpdater(object):
 
         original_constraints_by_project_name = OrderedDict(
             (constraint.project_name, constraint) for constraint in lock_file.constraints
-        )  # type: OrderedDict[ProjectName, Requirement]
+        )  # type: OrderedDict[ProjectName, Constraint]
 
         update_constraints_by_project_name = (
             OrderedDict()
-        )  # type: OrderedDict[ProjectName, Requirement]
+        )  # type: OrderedDict[ProjectName, Constraint]
         for requirement in replace_requirements:
             project_name = requirement.project_name
             original_constraint = original_constraints_by_project_name.get(project_name)
@@ -264,7 +264,7 @@ class ResolveUpdater(object):
                         original=original_constraint, override=requirement
                     )
                 )
-            update_constraints_by_project_name[project_name] = requirement
+            update_constraints_by_project_name[project_name] = requirement.as_constraint()
 
         original_requirements = OrderedDict(
             (requirement.project_name, requirement) for requirement in lock_file.requirements
@@ -302,11 +302,11 @@ class ResolveUpdater(object):
 
         original_constraints_by_project_name = OrderedDict(
             (constraint.project_name, constraint) for constraint in lock_file.constraints
-        )  # type: OrderedDict[ProjectName, Requirement]
+        )  # type: OrderedDict[ProjectName, Constraint]
 
         update_constraints_by_project_name = (
             OrderedDict()
-        )  # type: OrderedDict[ProjectName, Requirement]
+        )  # type: OrderedDict[ProjectName, Constraint]
         for change in itertools.chain(updates, replacements):
             project_name = change.project_name
             original_constraint = original_constraints_by_project_name.get(project_name)
@@ -316,7 +316,7 @@ class ResolveUpdater(object):
                         original=original_constraint, override=change
                     )
                 )
-            update_constraints_by_project_name[project_name] = change
+            update_constraints_by_project_name[project_name] = change.as_constraint()
 
         return cls(
             requirement_configuration=RequirementConfiguration(
@@ -332,7 +332,7 @@ class ResolveUpdater(object):
 
     requirement_configuration = attr.ib()  # type: RequirementConfiguration
     original_requirements = attr.ib()  # type: Iterable[Requirement]
-    update_constraints_by_project_name = attr.ib()  # type: Mapping[ProjectName, Requirement]
+    update_constraints_by_project_name = attr.ib()  # type: Mapping[ProjectName, Constraint]
     deletes = attr.ib()  # type: Container[ProjectName]
     lock_configuration = attr.ib()  # type: LockConfiguration
     pip_configuration = attr.ib()  # type: PipConfiguration

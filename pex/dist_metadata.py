@@ -626,29 +626,23 @@ class RequirementParseError(Exception):
 
 
 @attr.s(frozen=True)
-class Requirement(object):
+class Constraint(object):
     @classmethod
-    def parse(cls, requirement):
-        # type: (Text) -> Requirement
+    def parse(cls, constraint):
+        # type: (Text) -> Constraint
         try:
-            return cls.from_packaging_requirement(PackagingRequirement(requirement))
+            return cls.from_packaging_requirement(PackagingRequirement(constraint))
         except InvalidRequirement as e:
             raise RequirementParseError(str(e))
 
     @classmethod
     def from_packaging_requirement(cls, requirement):
-        # type: (PackagingRequirement) -> Requirement
+        # type: (PackagingRequirement) -> Constraint
         return cls(
-            name=requirement.name,
-            url=requirement.url,
-            extras=frozenset(requirement.extras),
-            specifier=requirement.specifier,
-            marker=requirement.marker,
+            name=requirement.name, specifier=requirement.specifier, marker=requirement.marker
         )
 
     name = attr.ib(eq=False)  # type: str
-    url = attr.ib(default=None)  # type: Optional[str]
-    extras = attr.ib(default=frozenset())  # type: FrozenSet[str]
     specifier = attr.ib(factory=SpecifierSet)  # type: SpecifierSet
     marker = attr.ib(default=None, eq=str)  # type: Optional[Marker]
 
@@ -657,17 +651,12 @@ class Requirement(object):
     _legacy_version = attr.ib(init=False, repr=False)  # type: Optional[str]
 
     def __attrs_post_init__(self):
+        # type: () -> None
         object.__setattr__(self, "project_name", ProjectName(self.name))
 
         parts = [self.name]
-        if self.extras:
-            parts.append("[{extras}]".format(extras=",".join(sorted(self.extras))))
         if self.specifier:
             parts.append(str(self.specifier))
-        if self.url:
-            parts.append("@ {url}".format(url=self.url))
-            if self.marker:
-                parts.append(" ")
         if self.marker:
             parts.append("; {marker}".format(marker=self.marker))
         object.__setattr__(self, "_str", "".join(parts))
@@ -742,6 +731,52 @@ class Requirement(object):
     def __str__(self):
         # type: () -> str
         return self._str
+
+
+@attr.s(frozen=True)
+class Requirement(Constraint):
+    @classmethod
+    def parse(cls, requirement):
+        # type: (Text) -> Requirement
+        try:
+            return cls.from_packaging_requirement(PackagingRequirement(requirement))
+        except InvalidRequirement as e:
+            raise RequirementParseError(str(e))
+
+    @classmethod
+    def from_packaging_requirement(cls, requirement):
+        # type: (PackagingRequirement) -> Requirement
+        return cls(
+            name=requirement.name,
+            url=requirement.url,
+            extras=frozenset(requirement.extras),
+            specifier=requirement.specifier,
+            marker=requirement.marker,
+        )
+
+    url = attr.ib(default=None)  # type: Optional[str]
+    extras = attr.ib(default=frozenset())  # type: FrozenSet[str]
+
+    def __attrs_post_init__(self):
+        # type: () -> None
+        super(Requirement, self).__attrs_post_init__()
+
+        parts = [self.name]
+        if self.extras:
+            parts.append("[{extras}]".format(extras=",".join(sorted(self.extras))))
+        if self.specifier:
+            parts.append(str(self.specifier))
+        if self.url:
+            parts.append("@ {url}".format(url=self.url))
+            if self.marker:
+                parts.append(" ")
+        if self.marker:
+            parts.append("; {marker}".format(marker=self.marker))
+        object.__setattr__(self, "_str", "".join(parts))
+
+    def as_constraint(self):
+        # type: () -> Constraint
+        return Constraint(name=self.name, specifier=self.specifier, marker=self.marker)
 
 
 # N.B.: DistributionMetadata can have an expensive hash when a distribution has many requirements;

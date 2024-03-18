@@ -17,7 +17,13 @@ from pex.cli.command import BuildTimeCommand
 from pex.commands.command import JsonMixin, OutputMixin
 from pex.common import is_exe, pluralize, safe_delete, safe_open
 from pex.compatibility import commonpath, shlex_quote
-from pex.dist_metadata import Distribution, MetadataType, Requirement, RequirementParseError
+from pex.dist_metadata import (
+    Constraint,
+    Distribution,
+    MetadataType,
+    Requirement,
+    RequirementParseError,
+)
 from pex.enum import Enum
 from pex.interpreter import PythonInterpreter
 from pex.pep_376 import InstalledWheel, Record
@@ -1158,7 +1164,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                         # grab the latest version in the range already constrained by an existing
                         # requirement or constraint.
                         if update_req and str(update_req) != update_req.name:
-                            constraints_by_project_name[project_name] = update_req
+                            constraints_by_project_name[project_name] = update_req.as_constraint()
                     else:
                         print(
                             "  {lead_in} {project_name} {updated_version}".format(
@@ -1222,8 +1228,8 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 )
 
         def process_req_edit(
-            original,  # type: Optional[Requirement]
-            final,  # type: Optional[Requirement]
+            original,  # type: Optional[Constraint]
+            final,  # type: Optional[Constraint]
         ):
             # type: (...) -> None
             if not original:
@@ -1254,11 +1260,11 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
 
         def process_req_edits(
             requirement_type,  # type: str
-            original,  # type: Mapping[ProjectName, Requirement]
-            final,  # type: Mapping[ProjectName, Requirement]
+            original,  # type: Mapping[ProjectName, Constraint]
+            final,  # type: Mapping[ProjectName, Constraint]
         ):
-            # type: (...) -> Tuple[Tuple[Optional[Requirement], Optional[Requirement]], ...]
-            edits = []  # type: List[Tuple[Optional[Requirement], Optional[Requirement]]]
+            # type: (...) -> Tuple[Tuple[Optional[Constraint], Optional[Constraint]], ...]
+            edits = []  # type: List[Tuple[Optional[Constraint], Optional[Constraint]]]
             for name, original_req in original.items():
                 final_req = final.get(name)
                 if final_req != original_req:
