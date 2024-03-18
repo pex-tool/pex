@@ -1283,7 +1283,7 @@ skip_unless_p537_compatible = pytest.mark.skipif(
     PY_VER < (3, 6) or PY_VER >= (3, 13) or IS_PYPY or not IS_X86_64,
     reason=(
         "The p537 1.0.7 release only supports CPython >=3.6,<3.13 and only has published wheels "
-        "for Linux and Mac x86_64",
+        "for Linux and Mac x86_64"
     ),
 )
 
