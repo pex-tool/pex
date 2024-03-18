@@ -1019,6 +1019,19 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                     for target in update_targets
                 ]
             else:
+                # N.B.: With 1 locked resolve in the lock file we're updating, there is no ambiguity
+                # about which locked resolve should be paired with which target, but when there is
+                # more than 1 locked resolve, we need to match up targets with the locked resolve
+                # they should be responsible for updating. Here we use the existing subset logic
+                # which is stricter than necessary in the sync case since it takes into account
+                # artifacts. For any locked resolve with locked requirements that only have platform
+                # specific wheel artifacts, this can prevent an update of a locked resolve to a new
+                # Python version or platform.
+                #
+                # TODO(John Sirois): Consider implementing more permissive locked resolve selection
+                #   logic to support syncing lock files containing multiple locked resolves:
+                #     https://github.com/pex-tool/pex/issues/2386
+
                 subset_result = try_(
                     subset(
                         targets=targets,
