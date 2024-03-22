@@ -102,7 +102,7 @@ class VCSArtifactDownloadManager(DownloadManager[VCSArtifact]):
         self._password_entries = password_entries
         self._cache = cache
         self._build_configuration = attr.evolve(
-            build_configuration, allow_wheels=False, prefer_older_binary=False
+            build_configuration, allow_wheels=False, allow_builds=True, prefer_older_binary=False
         )
         self._pip_version = pip_version
         self._resolver = resolver
