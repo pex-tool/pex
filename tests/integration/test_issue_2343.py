@@ -3,83 +3,26 @@
 
 import os
 import re
-import shutil
 
 import pytest
 
 from pex.atomic_directory import atomic_directory
-from pex.build_system import pep_517
-from pex.common import safe_mkdir, safe_mkdtemp
 from pex.pep_427 import InstallableType
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
-from pex.pip.version import PipVersion, PipVersionValue
-from pex.resolve.configured_resolver import ConfiguredResolver
+from pex.pip.version import PipVersion
 from pex.resolve.locked_resolve import FileArtifact
 from pex.resolve.lockfile import json_codec
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.resolved_requirement import Pin
-from pex.resolve.resolvers import Resolver
-from pex.result import try_
 from pex.sorted_tuple import SortedTuple
-from pex.targets import LocalInterpreter
 from pex.typing import TYPE_CHECKING
-from testing import built_wheel, make_project, run_pex_command
+from testing import run_pex_command
 from testing.cli import run_pex3
+from testing.find_links import FindLinksRepo
 
 if TYPE_CHECKING:
-    from typing import Any, List, Text
-
-    import attr  # vendor:skip
-else:
-    from pex.third_party import attr
-
-
-@attr.s(frozen=True)
-class FindLinksRepo(object):
-    @classmethod
-    def create(
-        cls,
-        path,  # type: str
-        pip_version,  # type: PipVersionValue
-    ):
-        # type: (...) -> FindLinksRepo
-        safe_mkdir(path, clean=True)
-        return cls(path=path, resolver=ConfiguredResolver.version(pip_version))
-
-    path = attr.ib()  # type: str
-    resolver = attr.ib()  # type: Resolver
-
-    def host(self, distribution):
-        # type: (Text) -> None
-        shutil.copy(distribution, os.path.join(self.path, os.path.basename(distribution)))
-
-    def make_wheel(
-        self,
-        project_name,  # type: str
-        version,  # type: str
-    ):
-        # type: (...) -> None
-        with built_wheel(name=project_name, version=version, universal=True) as wheel:
-            self.host(wheel)
-
-    def make_sdist(
-        self,
-        project_name,  # type: str
-        version,  # type: str
-    ):
-        # type: (...) -> None
-        with make_project(name=project_name, version=version) as project:
-            self.host(
-                try_(
-                    pep_517.build_sdist(
-                        project_directory=project,
-                        dist_dir=safe_mkdtemp(),
-                        target=LocalInterpreter.create(),
-                        resolver=self.resolver,
-                    )
-                )
-            )
+    from typing import Any, List
 
 
 @pytest.fixture(scope="session")

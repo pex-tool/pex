@@ -6,15 +6,12 @@ from textwrap import dedent
 
 from pex.build_system import pep_517
 from pex.common import safe_open
-from pex.dist_metadata import DistMetadata, Requirement
-from pex.pep_440 import Version
-from pex.pep_503 import ProjectName
 from pex.pip.version import PipVersion
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.resolver_configuration import PipConfiguration
 from pex.targets import LocalInterpreter
-from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.typing import TYPE_CHECKING
+from testing.dist_metadata import create_dist_metadata
 
 if TYPE_CHECKING:
     from typing import Any
@@ -90,11 +87,11 @@ def test_missing_get_requires_for_build_wheel(tmpdir):
     ).await_result()
 
     assert (
-        DistMetadata(
-            project_name=ProjectName("foo"),
-            version=Version("0.1.0"),
-            requires_dists=(Requirement.parse("conscript"), Requirement.parse("pex>=2.1.134")),
-            requires_python=SpecifierSet(">=3.11"),
+        create_dist_metadata(
+            project_name="foo",
+            version="0.1.0",
+            requires_python=">=3.11",
+            requires_dists=("conscript", "pex>=2.1.134"),
         )
         == dist_metadata
     )

@@ -355,7 +355,7 @@ def create(
     network_configuration = pip_configuration.network_configuration
     parsed_requirements = tuple(requirement_configuration.parse_requirements(network_configuration))
     constraints = tuple(
-        parsed_constraint.requirement
+        parsed_constraint.requirement.as_constraint()
         for parsed_constraint in requirement_configuration.parse_constraints(network_configuration)
     )
 

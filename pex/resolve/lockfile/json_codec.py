@@ -225,7 +225,9 @@ def loads(
     ]
 
     constraints = [
-        parse_requirement(constraint, path=".constraints[{index}]".format(index=index))
+        parse_requirement(
+            constraint, path=".constraints[{index}]".format(index=index)
+        ).as_constraint()
         for index, constraint in enumerate(get("constraints", list))
     ]
 

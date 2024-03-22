@@ -12,7 +12,7 @@ from textwrap import dedent
 import pytest
 
 from pex.common import safe_open
-from pex.dist_metadata import Requirement
+from pex.dist_metadata import Constraint, Requirement
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import InterpreterConstraint
 from pex.pep_440 import Version
@@ -739,7 +739,7 @@ def test_update_targeted_upgrade(lock_file_path):
     )
 
     lock_file = json_codec.load(lock_file_path)
-    assert SortedTuple([Requirement.parse("urllib3<1.26.7")]) == lock_file.constraints
+    assert SortedTuple([Constraint.parse("urllib3<1.26.7")]) == lock_file.constraints
     assert 1 == len(lock_file.locked_resolves)
     locked_resolve = lock_file.locked_resolves[0]
     assert 5 == len(locked_resolve.locked_requirements)

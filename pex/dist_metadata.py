@@ -626,29 +626,23 @@ class RequirementParseError(Exception):
 
 
 @attr.s(frozen=True)
-class Requirement(object):
+class Constraint(object):
     @classmethod
-    def parse(cls, requirement):
-        # type: (Text) -> Requirement
+    def parse(cls, constraint):
+        # type: (Text) -> Constraint
         try:
-            return cls.from_packaging_requirement(PackagingRequirement(requirement))
+            return cls.from_packaging_requirement(PackagingRequirement(constraint))
         except InvalidRequirement as e:
             raise RequirementParseError(str(e))
 
     @classmethod
     def from_packaging_requirement(cls, requirement):
-        # type: (PackagingRequirement) -> Requirement
+        # type: (PackagingRequirement) -> Constraint
         return cls(
-            name=requirement.name,
-            url=requirement.url,
-            extras=frozenset(requirement.extras),
-            specifier=requirement.specifier,
-            marker=requirement.marker,
+            name=requirement.name, specifier=requirement.specifier, marker=requirement.marker
         )
 
     name = attr.ib(eq=False)  # type: str
-    url = attr.ib(default=None)  # type: Optional[str]
-    extras = attr.ib(default=frozenset())  # type: FrozenSet[str]
     specifier = attr.ib(factory=SpecifierSet)  # type: SpecifierSet
     marker = attr.ib(default=None, eq=str)  # type: Optional[Marker]
 
@@ -657,17 +651,12 @@ class Requirement(object):
     _legacy_version = attr.ib(init=False, repr=False)  # type: Optional[str]
 
     def __attrs_post_init__(self):
+        # type: () -> None
         object.__setattr__(self, "project_name", ProjectName(self.name))
 
         parts = [self.name]
-        if self.extras:
-            parts.append("[{extras}]".format(extras=",".join(sorted(self.extras))))
         if self.specifier:
             parts.append(str(self.specifier))
-        if self.url:
-            parts.append("@ {url}".format(url=self.url))
-            if self.marker:
-                parts.append(" ")
         if self.marker:
             parts.append("; {marker}".format(marker=self.marker))
         object.__setattr__(self, "_str", "".join(parts))
@@ -744,6 +733,52 @@ class Requirement(object):
         return self._str
 
 
+@attr.s(frozen=True)
+class Requirement(Constraint):
+    @classmethod
+    def parse(cls, requirement):
+        # type: (Text) -> Requirement
+        try:
+            return cls.from_packaging_requirement(PackagingRequirement(requirement))
+        except InvalidRequirement as e:
+            raise RequirementParseError(str(e))
+
+    @classmethod
+    def from_packaging_requirement(cls, requirement):
+        # type: (PackagingRequirement) -> Requirement
+        return cls(
+            name=requirement.name,
+            url=requirement.url,
+            extras=frozenset(requirement.extras),
+            specifier=requirement.specifier,
+            marker=requirement.marker,
+        )
+
+    url = attr.ib(default=None)  # type: Optional[str]
+    extras = attr.ib(default=frozenset())  # type: FrozenSet[str]
+
+    def __attrs_post_init__(self):
+        # type: () -> None
+        super(Requirement, self).__attrs_post_init__()
+
+        parts = [self.name]
+        if self.extras:
+            parts.append("[{extras}]".format(extras=",".join(sorted(self.extras))))
+        if self.specifier:
+            parts.append(str(self.specifier))
+        if self.url:
+            parts.append("@ {url}".format(url=self.url))
+            if self.marker:
+                parts.append(" ")
+        if self.marker:
+            parts.append("; {marker}".format(marker=self.marker))
+        object.__setattr__(self, "_str", "".join(parts))
+
+    def as_constraint(self):
+        # type: () -> Constraint
+        return Constraint(name=self.name, specifier=self.specifier, marker=self.marker)
+
+
 # N.B.: DistributionMetadata can have an expensive hash when a distribution has many requirements;
 # so we cache the hash. See: https://github.com/pex-tool/pex/issues/1928
 @attr.s(frozen=True, cache_hash=True)
@@ -752,6 +787,7 @@ class DistMetadata(object):
     def from_metadata_files(cls, metadata_files):
         # type: (MetadataFiles) -> DistMetadata
         return cls(
+            files=metadata_files,
             project_name=metadata_files.metadata.project_name,
             version=metadata_files.metadata.version,
             requires_dists=tuple(requires_dists(metadata_files)),
@@ -774,10 +810,16 @@ class DistMetadata(object):
             )
         return cls.from_metadata_files(metadata_files)
 
+    files = attr.ib(eq=False)  # type: MetadataFiles
     project_name = attr.ib()  # type: ProjectName
     version = attr.ib()  # type: Version
     requires_dists = attr.ib(default=())  # type: Tuple[Requirement, ...]
     requires_python = attr.ib(default=SpecifierSet())  # type: Optional[SpecifierSet]
+
+    @property
+    def type(self):
+        # type: () -> MetadataType.Value
+        return self.files.metadata.type
 
 
 def _realpath(path):
@@ -893,10 +935,7 @@ class Distribution(object):
                 ".egg-info/) directory. Given: {name}".format(name=name)
             )
 
-        metadata_file = load_metadata(
-            location=self.location, project_name=self.metadata.project_name
-        )
-        return metadata_file.read(name) if metadata_file else None
+        return self.metadata.files.read(name)
 
     def iter_metadata_lines(self, name):
         # type: (str) -> Iterator[Text]

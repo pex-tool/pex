@@ -10,7 +10,7 @@ from textwrap import dedent
 import pytest
 
 from pex.compatibility import PY2
-from pex.dist_metadata import Requirement
+from pex.dist_metadata import Constraint, Requirement
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pip.version import PipVersion
@@ -50,7 +50,7 @@ def test_roundtrip(tmpdir):
             Requirement.parse("ansicolors"),
             Requirement.parse("requests>=2; sys_platform == 'darwin'"),
         ),
-        constraints=(Requirement.parse("ansicolors==1.1.8"),),
+        constraints=(Constraint.parse("ansicolors==1.1.8"),),
         allow_prereleases=True,
         build_configuration=BuildConfiguration(),
         transitive=False,

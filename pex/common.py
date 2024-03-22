@@ -318,7 +318,7 @@ def safe_open(filename, *args, **kwargs):
 
 
 def safe_delete(filename):
-    # type: (str) -> None
+    # type: (Text) -> None
     """Delete a file safely.
 
     If it's not present, no-op.

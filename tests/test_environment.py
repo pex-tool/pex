@@ -13,13 +13,11 @@ import pytest
 from pex import resolver
 from pex.common import temporary_dir
 from pex.compatibility import to_bytes
-from pex.dist_metadata import DistMetadata, Distribution
+from pex.dist_metadata import Distribution
 from pex.environment import PEXEnvironment, _InvalidWheelName, _RankedDistribution
 from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.inherit_path import InheritPath
 from pex.interpreter import PythonInterpreter
-from pex.pep_440 import Version
-from pex.pep_503 import ProjectName
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
@@ -37,6 +35,7 @@ from testing import (
     temporary_content,
     temporary_filename,
 )
+from testing.dist_metadata import create_dist_metadata
 
 if TYPE_CHECKING:
     from typing import Any, Callable, Dict, Iterable, Iterator, Optional, Tuple
@@ -416,7 +415,9 @@ def create_dist(
     return FingerprintedDistribution(
         distribution=Distribution(
             location=location,
-            metadata=DistMetadata(project_name=ProjectName(project_name), version=Version(version)),
+            metadata=create_dist_metadata(
+                project_name=project_name, version=version, location=location
+            ),
         ),
         fingerprint=location,
     )
