@@ -11,12 +11,18 @@ new lock. On subsequent uses however,
 `pex3 lock sync --lock lock.json ...` updates the lock file minimally to
 meet any changed requirements or other changed lock settings.
 
-This release also fixes `pex3 venv` to handle venvs created by
+This release also fixes `pex --no-build --lock ...` to work with lock
+files also created with `--no-build`. The known case here is a
+`--style universal` lock created with `--no-build` to achieve a
+wheel-only universal lock.
+
+Finally, this release fixes `pex3 venv` to handle venvs created by
 Virtualenv on systems that distinguish `purelib` and `platlib`
 site-packages directories. Red Hat distributions are a notable example
 of this.
 
 * Implement pex3 lock sync. (#2373)
+* Fix `pex --no-build --lock ...`. (#2390)
 * Fix Pex to handle venvs with multiple site-packages dirs. (#2383)
 
 ## 2.2.2
