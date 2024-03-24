@@ -16,12 +16,18 @@ files also created with `--no-build`. The known case here is a
 `--style universal` lock created with `--no-build` to achieve a
 wheel-only universal lock.
 
+This release includes a fix to clarify the conditions under which
+`--requierements-pex` can be used to combine the third party
+dependencies from a pre-built PEX into a new PEX; namely, that the PEXes
+must use the same value for the `--pre-install-wheels` option.
+
 Finally, this release fixes `pex3 venv` to handle venvs created by
 Virtualenv on systems that distinguish `purelib` and `platlib`
 site-packages directories. Red Hat distributions are a notable example
 of this.
 
 * Implement pex3 lock sync. (#2373)
+* Guard against mismatched `--requirements-pex`. (#2392)
 * Fix `pex --no-build --lock ...`. (#2390)
 * Fix Pex to handle venvs with multiple site-packages dirs. (#2383)
 
