@@ -1,5 +1,36 @@
 # Release Notes
 
+## 2.3.0
+
+This release introduces `pex3 lock sync` as a higher-level tool that
+can be used to create and maintain a lock as opposed to using a
+combination of `pex3 lock create` and `pex3 lock update`. When there is
+no existing lock file, `pex3 lock sync --lock lock.json ...` is
+equivalent to `pex3 lock create --output lock.json ...`, it creates a
+new lock. On subsequent uses however,
+`pex3 lock sync --lock lock.json ...` updates the lock file minimally to
+meet any changed requirements or other changed lock settings.
+
+This release also fixes `pex --no-build --lock ...` to work with lock
+files also created with `--no-build`. The known case here is a
+`--style universal` lock created with `--no-build` to achieve a
+wheel-only universal lock.
+
+This release includes a fix to clarify the conditions under which
+`--requierements-pex` can be used to combine the third party
+dependencies from a pre-built PEX into a new PEX; namely, that the PEXes
+must use the same value for the `--pre-install-wheels` option.
+
+Finally, this release fixes `pex3 venv` to handle venvs created by
+Virtualenv on systems that distinguish `purelib` and `platlib`
+site-packages directories. Red Hat distributions are a notable example
+of this.
+
+* Implement pex3 lock sync. (#2373)
+* Guard against mismatched `--requirements-pex`. (#2392)
+* Fix `pex --no-build --lock ...`. (#2390)
+* Fix Pex to handle venvs with multiple site-packages dirs. (#2383)
+
 ## 2.2.2
 
 This release fixes `pex3 lock create` to handle `.tar.bz2` and `.tgz`
