@@ -892,28 +892,9 @@ def build_pex(
         "Adding distributions from pexes: {}".format(" ".join(options.requirements_pexes))
     ):
         for requirements_pex in options.requirements_pexes:
-            if (
-                pex_info.deps_are_wheel_files
-                != PexInfo.from_pex(requirements_pex).deps_are_wheel_files
-            ):
-                die(
-                    "The {option} option was selected but the --requirements-pex "
-                    "{requirements_pex} is built with {opposite_option}. Any --requirements-pex "
-                    "you want to merge into the main PEX must be built with {option}.".format(
-                        option=(
-                            "--no-pre-install-wheels"
-                            if pex_info.deps_are_wheel_files
-                            else "--pre-install-wheels"
-                        ),
-                        requirements_pex=requirements_pex,
-                        opposite_option=(
-                            "--pre-install-wheels"
-                            if pex_info.deps_are_wheel_files
-                            else "--no-pre-install-wheels"
-                        ),
-                    )
-                )
-            requirements_pex_info = dependency_manager.add_from_pex(requirements_pex)
+            requirements_pex_info = dependency_manager.add_from_pex(
+                requirements_pex, result_type_wheel_file=pex_info.deps_are_wheel_files
+            )
             excluded.extend(requirements_pex_info.excluded)
 
     with TRACER.timed(

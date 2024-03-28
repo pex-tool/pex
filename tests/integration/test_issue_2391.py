@@ -85,22 +85,16 @@ def test_requirements_pex_wheel_type_mismatch(
     ).assert_success()
     assert_pex()
 
+    # N.B.: We cannot currently re-materialize wheel files from pre-installed wheel chroots.
+    # See: https://github.com/pex-tool/pex/issues/2299
     run_pex_command(
         args=["--no-pre-install-wheels", "--requirements-pex", pre_installed_reqs_pex], quiet=True
     ).assert_failure(
         expected_error_re=re.escape(
-            "The --no-pre-install-wheels option was selected but the --requirements-pex {reqs_pex} "
-            "is built with --pre-install-wheels. Any --requirements-pex you want to merge into the "
-            "main PEX must be built with --no-pre-install-wheels.".format(
-                reqs_pex=pre_installed_reqs_pex
-            )
+            "Cannot resolve .whl files from PEX at {reqs_pex}; its dependencies are in the form of "
+            "pre-installed wheel chroots.".format(reqs_pex=pre_installed_reqs_pex)
         )
     )
 
-    run_pex_command(args=["--requirements-pex", wheel_file_reqs_pex], quiet=True).assert_failure(
-        expected_error_re=re.escape(
-            "The --pre-install-wheels option was selected but the --requirements-pex {reqs_pex} is "
-            "built with --no-pre-install-wheels. Any --requirements-pex you want to merge into the "
-            "main PEX must be built with --pre-install-wheels.".format(reqs_pex=wheel_file_reqs_pex)
-        )
-    )
+    # But we can go the other way around and turn wheel files into pre-installed wheel chroots.
+    run_pex_command(args=["--requirements-pex", wheel_file_reqs_pex], quiet=True).assert_success()
