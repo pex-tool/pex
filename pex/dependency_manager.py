@@ -31,14 +31,20 @@ class DependencyManager(object):
     _requirements = attr.ib(factory=OrderedSet)  # type: OrderedSet[Requirement]
     _distributions = attr.ib(factory=OrderedSet)  # type: OrderedSet[FingerprintedDistribution]
 
-    def add_from_pex(self, pex):
-        # type: (str) -> PexInfo
+    def add_from_pex(
+        self,
+        pex,  # type: str
+        result_type_wheel_file=False,  # type: bool
+    ):
+        # type: (...) -> PexInfo
 
         pex_info = PexInfo.from_pex(pex)
         self._requirements.update(Requirement.parse(req) for req in pex_info.requirements)
 
         pex_environment = PEXEnvironment.mount(pex, pex_info=pex_info)
-        self._distributions.update(pex_environment.iter_distributions())
+        self._distributions.update(
+            pex_environment.iter_distributions(result_type_wheel_file=result_type_wheel_file)
+        )
 
         return pex_info
 

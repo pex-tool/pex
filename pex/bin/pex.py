@@ -892,7 +892,9 @@ def build_pex(
         "Adding distributions from pexes: {}".format(" ".join(options.requirements_pexes))
     ):
         for requirements_pex in options.requirements_pexes:
-            requirements_pex_info = dependency_manager.add_from_pex(requirements_pex)
+            requirements_pex_info = dependency_manager.add_from_pex(
+                requirements_pex, result_type_wheel_file=pex_info.deps_are_wheel_files
+            )
             excluded.extend(requirements_pex_info.excluded)
 
     with TRACER.timed(
