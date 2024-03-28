@@ -5,7 +5,7 @@ from __future__ import absolute_import, print_function
 
 import os
 
-from pex.dist_metadata import Requirement
+from pex.dist_metadata import Constraint, Requirement
 from pex.orderedset import OrderedSet
 from pex.pep_503 import ProjectName
 from pex.pip.version import PipVersion, PipVersionValue
@@ -36,7 +36,7 @@ class Lockfile(object):
         requires_python,  # type: Iterable[str]
         target_systems,  # type: Iterable[TargetSystem.Value]
         requirements,  # type: Iterable[Union[Requirement, ParsedRequirement]]
-        constraints,  # type: Iterable[Requirement]
+        constraints,  # type: Iterable[Constraint]
         allow_prereleases,  # type: bool
         build_configuration,  # type: BuildConfiguration
         transitive,  # type: bool
@@ -116,7 +116,7 @@ class Lockfile(object):
     pip_version = attr.ib()  # type: PipVersionValue
     resolver_version = attr.ib()  # type: ResolverVersion.Value
     requirements = attr.ib()  # type: SortedTuple[Requirement]
-    constraints = attr.ib()  # type: SortedTuple[Requirement]
+    constraints = attr.ib()  # type: SortedTuple[Constraint]
     allow_prereleases = attr.ib()  # type: bool
     allow_wheels = attr.ib()  # type: bool
     only_wheels = attr.ib()  # type: SortedTuple[ProjectName]

@@ -356,6 +356,11 @@ def write_simple_pex(
     return pb
 
 
+def re_exact(text):
+    # type: (str) -> str
+    return r"^{escaped}$".format(escaped=re.escape(text))
+
+
 @attr.s(frozen=True)
 class IntegResults(object):
     """Convenience object to return integration run results."""
@@ -366,7 +371,8 @@ class IntegResults(object):
 
     def assert_success(
         self,
-        expected_output_re=None,
+        expected_output_re=None,  # type: Optional[str]
+        expected_error_re=None,  # type: Optional[str]
         re_flags=0,  # type: int
     ):
         # type: (...) -> None
@@ -375,25 +381,35 @@ class IntegResults(object):
         ), "integration test failed: return_code={}, output={}, error={}".format(
             self.return_code, self.output, self.error
         )
-        if expected_output_re:
-            assert re.match(
-                expected_output_re, self.error, flags=re_flags
-            ), "Failed to match re: {re!r} against:\n{output}".format(
-                re=expected_output_re, output=self.error
-            )
+        self.assert_output(expected_output_re, expected_error_re, re_flags)
 
     def assert_failure(
         self,
-        expected_error_re=None,
+        expected_error_re=None,  # type: Optional[str]
+        expected_output_re=None,  # type: Optional[str]
         re_flags=0,  # type: int
     ):
         # type: (...) -> None
         assert self.return_code != 0
+        self.assert_output(expected_output_re, expected_error_re, re_flags)
+
+    def assert_output(
+        self,
+        expected_output_re=None,  # type: Optional[str]
+        expected_error_re=None,  # type: Optional[str]
+        re_flags=0,  # type: int
+    ):
+        if expected_output_re:
+            assert re.match(
+                expected_output_re, self.output, flags=re_flags
+            ), "Failed to match re: {re!r} against:\n{output}".format(
+                re=expected_output_re, output=self.output
+            )
         if expected_error_re:
             assert re.match(
                 expected_error_re, self.error, flags=re_flags
-            ), "Failed to match re: {re!r} against:\n{error}".format(
-                re=expected_error_re, error=self.error
+            ), "Failed to match re: {re!r} against:\n{output}".format(
+                re=expected_error_re, output=self.error
             )
 
 

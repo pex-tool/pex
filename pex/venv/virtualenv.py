@@ -145,11 +145,14 @@ class Virtualenv(object):
     def enclosing(cls, python):
         # type: (Union[str, PythonInterpreter]) -> Optional[Virtualenv]
         """Return the virtual environment the given python interpreter is enclosed in."""
-        interpreter = (
-            python
-            if isinstance(python, PythonInterpreter)
-            else PythonInterpreter.from_binary(python)
-        )
+        if isinstance(python, PythonInterpreter):
+            interpreter = python
+        else:
+            try:
+                interpreter = PythonInterpreter.from_binary(python)
+            except PythonInterpreter.Error:
+                return None
+
         if not interpreter.is_venv:
             return None
         return cls(
@@ -308,7 +311,7 @@ class Virtualenv(object):
         python_exe_path = os.path.join(self._bin_dir, python_exe_name)
         try:
             self._interpreter = PythonInterpreter.from_binary(python_exe_path)
-        except PythonInterpreter.InterpreterNotFound as e:
+        except PythonInterpreter.Error as e:
             raise InvalidVirtualenvError(
                 "The virtualenv at {venv_dir} is not valid. Failed to load an interpreter at "
                 "{python_exe_path}: {err}".format(
@@ -399,12 +402,7 @@ class Virtualenv(object):
     @property
     def sys_path(self):
         # type: () -> Tuple[str, ...]
-        if self._sys_path is None:
-            _, stdout, _ = self.interpreter.execute(
-                args=["-c", "import os, sys; print(os.linesep.join(sys.path))"]
-            )
-            self._sys_path = tuple(stdout.strip().splitlines())
-        return self._sys_path
+        return self.interpreter.sys_path
 
     def iter_distributions(self, rescan=False):
         # type: (bool) -> Iterator[Distribution]

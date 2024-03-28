@@ -8,15 +8,15 @@ import warnings
 import pytest
 
 from pex.dependency_manager import DependencyManager
-from pex.dist_metadata import DistMetadata, Distribution, Requirement
+from pex.dist_metadata import Distribution, Requirement
 from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.orderedset import OrderedSet
-from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
 from pex.pex_warnings import PEXWarning
 from pex.typing import TYPE_CHECKING
+from testing.dist_metadata import create_dist_metadata
 
 if TYPE_CHECKING:
     from typing import Any, Tuple
@@ -42,10 +42,8 @@ class DistFactory(object):
         return FingerprintedDistribution(
             distribution=Distribution(
                 location=location,
-                metadata=DistMetadata(
-                    project_name=ProjectName(name),
-                    version=Version("0.1.0"),
-                    requires_dists=tuple(Requirement.parse(req) for req in requires),
+                metadata=create_dist_metadata(
+                    project_name=name, version="0.1.0", requires_dists=requires, location=location
                 ),
             ),
             fingerprint=fingerprint,

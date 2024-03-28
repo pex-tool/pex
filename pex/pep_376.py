@@ -480,8 +480,8 @@ class Record(object):
     @classmethod
     def read(
         cls,
-        lines,  # type: Union[FileInput[str], Iterator[str]]
-        exclude=None,  # type: Optional[Callable[[str], bool]]
+        lines,  # type: Union[FileInput[Text], Iterator[Text]]
+        exclude=None,  # type: Optional[Callable[[Text], bool]]
     ):
         # type: (...) -> Iterator[InstalledFile]
 
