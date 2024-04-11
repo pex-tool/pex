@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.3.1
+
+This release fixes Pex to respect lock file interpreter constraints and
+target systems when downloading artifacts.
+
+* Fix lock downloads to use all lock info. (#2396)
+
 ## 2.3.0
 
 This release introduces `pex3 lock sync` as a higher-level tool that
