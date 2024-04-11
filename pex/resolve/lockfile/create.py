@@ -331,6 +331,7 @@ class LockObserver(ResolveObserver):
                 dist_metadatas=dist_metadatas_by_target[target],
                 fingerprinter=ArtifactDownloader(
                     resolver=self.resolver,
+                    lock_configuration=self.lock_configuration,
                     target=target,
                     package_index_configuration=self.package_index_configuration,
                     max_parallel_jobs=self.max_parallel_jobs,
