@@ -131,7 +131,7 @@ def pex_repository(
         # The 2022 and later releases only support Python>=3.6; so we pin lower.
         "certifi<2022",
         # The 2.22 release of pycparser drops support for Python 2.7.
-        "pycparser<2.22"
+        "pycparser<2.22",
     )
 
     return create_pex_repository(
