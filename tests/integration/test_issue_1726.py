@@ -62,6 +62,8 @@ def test_check_install_issue_1726(
         src,
         "--constraints",
         constraints,
+        "--resolver-version",
+        "pip-2020-resolver",
         "--",
         "-c",
         "from jaraco import collections; print(collections.__file__)",

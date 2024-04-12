@@ -15,7 +15,7 @@ from pex.pip.download_observer import DownloadObserver
 from pex.pip.installation import get_pip
 from pex.pip.tool import PackageIndexConfiguration, Pip
 from pex.resolve import locker
-from pex.resolve.locked_resolve import Artifact, FileArtifact, LockConfiguration, LockStyle
+from pex.resolve.locked_resolve import Artifact, FileArtifact, LockConfiguration
 from pex.resolve.resolved_requirement import ArtifactURL, Fingerprint, PartialArtifact
 from pex.resolve.resolvers import Resolver
 from pex.result import Error
@@ -50,6 +50,7 @@ def get_downloads_dir(pex_root=None):
 @attr.s(frozen=True)
 class ArtifactDownloader(object):
     resolver = attr.ib()  # type: Resolver
+    lock_configuration = attr.ib()  # type: LockConfiguration
     target = attr.ib(factory=LocalInterpreter.create)  # type: Target
     package_index_configuration = attr.ib(
         factory=PackageIndexConfiguration.create
@@ -113,7 +114,7 @@ class ArtifactDownloader(object):
         # restrictions.
         download_observer = DownloadObserver(
             analyzer=None,
-            patch_set=locker.patch(lock_configuration=LockConfiguration(style=LockStyle.UNIVERSAL)),
+            patch_set=locker.patch(lock_configuration=self.lock_configuration),
         )
         return self.pip.spawn_download_distributions(
             download_dir=download_dir,
