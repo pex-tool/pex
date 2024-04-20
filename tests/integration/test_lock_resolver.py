@@ -344,7 +344,7 @@ def test_issue_1413_portable_find_links(tmpdir):
             )
         )
 
-    repository_pex = os.path.join(str(tmpdir), "my-app-not-on-pypi.pex")
+    repository_pex = os.path.join(str(tmpdir), "myappnotonpypi.pex")
     run_pex_command(
         args=["-D", src, "ansicolors==1.1.8", "-m", "app", "--include-tools", "-o", repository_pex]
     ).assert_success()
@@ -362,16 +362,14 @@ def test_issue_1413_portable_find_links(tmpdir):
     # We should have only the sdist of the src/app.py source code available in the find-links repo.
     os.unlink(os.path.join(original_find_links, "ansicolors-1.1.8-py2.py3-none-any.whl"))
     assert 1 == len(os.listdir(original_find_links))
-    assert 1 == len(
-        glob.glob(os.path.join(original_find_links, "my-app-not-on-pypi-0.0.0*.tar.gz"))
-    )
+    assert 1 == len(glob.glob(os.path.join(original_find_links, "myappnotonpypi-0.0.0*.tar.gz")))
 
     lock = os.path.join(str(tmpdir), "lock")
     run_pex3(
         "lock",
         "create",
         "ansicolors==1.1.8",
-        "my-app-not-on-pypi",
+        "myappnotonpypi",
         "-f",
         original_find_links,
         "--path-mapping",
