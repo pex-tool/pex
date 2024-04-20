@@ -491,6 +491,13 @@ def test_build_compression(
 
 
 @pytest.mark.skipif(
+    sys.version_info == (3, 13, 0, "alpha", 6),
+    reason=(
+        "The 3.13.0a6 release has a bug in its zipimporter ZIP64 handling, see: "
+        "https://github.com/python/cpython/issues/118107"
+    ),
+)
+@pytest.mark.skipif(
     subprocess.call(args=["cat", os.devnull]) != 0,
     reason="The cat binary is required for this test.",
 )
@@ -506,16 +513,23 @@ def test_check(tmpdir):
         assert Check.ERROR.perform_check(Layout.PACKED, zipapp) is None
         assert Check.ERROR.perform_check(Layout.LOOSE, zipapp) is None
 
-        expected_error_message_re = r"The PEX zip at {path} is not a valid zipapp: ".format(
-            path=re.escape(zipapp)
-        )
-        with pytest.warns(PEXWarning, match=expected_error_message_re):
-            assert Check.WARN.perform_check(Layout.ZIPAPP, zipapp) is False
-        with pytest.raises(InvalidZipAppError, match=expected_error_message_re):
-            Check.ERROR.perform_check(Layout.ZIPAPP, zipapp)
+        # Python 3.13 newly supports ZIP64 in `zipimport.zipimporter`.
+        if sys.version_info >= (3, 13):
+            assert Check.WARN.perform_check(Layout.ZIPAPP, zipapp) is True
+            assert Check.ERROR.perform_check(Layout.ZIPAPP, zipapp) is True
+            if test_run:
+                subprocess.check_call(args=[sys.executable, zipapp])
+        else:
+            expected_error_message_re = r"The PEX zip at {path} is not a valid zipapp: ".format(
+                path=re.escape(zipapp)
+            )
+            with pytest.warns(PEXWarning, match=expected_error_message_re):
+                assert Check.WARN.perform_check(Layout.ZIPAPP, zipapp) is False
+            with pytest.raises(InvalidZipAppError, match=expected_error_message_re):
+                Check.ERROR.perform_check(Layout.ZIPAPP, zipapp)
 
-        if test_run:
-            assert subprocess.call(args=[sys.executable, zipapp]) != 0
+            if test_run:
+                assert subprocess.call(args=[sys.executable, zipapp]) != 0
 
     @contextmanager
     def write_zipapp(path):
