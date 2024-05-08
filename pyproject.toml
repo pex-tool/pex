@@ -5,7 +5,7 @@
 # entry point metadata so the hook is discovered.
 backend-path = ["build-backend"]
 build-backend = "pex_build.hatchling.build"
-requires = ["hatchling>=1.22.5"]
+requires = ["hatchling"]
 
 [tool.hatch.metadata.hooks.pex-adjust-metadata]
 expand = {"pex_version" = "version"}
