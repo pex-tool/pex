@@ -51,6 +51,14 @@ class AdjustMetadata(MetadataHookInterface):
         else:
             metadata["requires-python"] = ">=2.7,<3.13,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*"
 
+        metadata["urls"] = {
+            "Changelog": "https://github.com/pex-tool/pex/blob/v{pex_version}/CHANGES.md",
+            "Documentation": "https://docs.pex-tool.org/",
+            "Download": "https://github.com/pex-tool/pex/releases/download/v{pex_version}/pex",
+            "Homepage": "https://github.com/pex-tool/pex",
+            "Source": "https://github.com/pex-tool/pex/tree/v{pex_version}",
+        }
+
         expand = self.config.get("expand")
         if expand:
             metadata.update(

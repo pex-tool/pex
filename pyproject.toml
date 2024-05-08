@@ -15,7 +15,7 @@ expand = {"pex_version" = "version"}
 
 [project]
 name = "pex"
-dynamic = ["version", "requires-python"]
+dynamic = ["version", "requires-python", "urls"]
 authors = [
   {name = "The PEX developers", email="developers@pex-tool.org"}
 ]
@@ -62,13 +62,6 @@ pex-tools = "pex.tools.main:main"
 
 [project.entry-points."distutils.commands"]
 bdist_pex = "pex.distutils.commands.bdist_pex:bdist_pex"
-
-[project.urls]
-Changelog = "https://github.com/pex-tool/pex/blob/v{pex_version}/CHANGES.md"
-Documentation = "https://docs.pex-tool.org/"
-Download = "https://github.com/pex-tool/pex/releases/download/v{pex_version}/pex"
-Homepage = "https://github.com/pex-tool/pex"
-Source = "https://github.com/pex-tool/pex/tree/v{pex_version}"
 
 [tool.hatch.version]
 path = "pex/version.py"
