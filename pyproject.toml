@@ -5,14 +5,7 @@
 # entry point metadata so the hook is discovered.
 backend-path = ["build-backend"]
 build-backend = "pex_build.hatchling.build"
-
-# The hatchling 1.22.0 release breaks our build in several ways:
-# + Our console scripts are no longer generated.
-# + The `project.readme` pyproject.toml key now has its value hydrated before our metadata plugin
-#   runs, which foils our metadata expansion since our README.rst contains inadvertant expansion
-#   tokens.
-# This pin low buys time to work through the issues.
-requires = ["hatchling<1.22.0"]
+requires = ["hatchling>=1.22.5"]
 
 [tool.hatch.metadata.hooks.pex-adjust-metadata]
 expand = {"pex_version" = "version"}
