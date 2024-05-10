@@ -3,6 +3,7 @@
 
 import os
 import subprocess
+import sys
 from textwrap import dedent
 
 from pex.typing import TYPE_CHECKING
@@ -28,7 +29,9 @@ def test_ssl_context(
                 
                 ARG PBS_RELEASE
                 ARG PBS_ARCHIVE
-                
+
+                {extra_instructions}
+
                 RUN \
                 curl --fail -sSL -O $PBS_RELEASE/$PBS_ARCHIVE && \
                 curl --fail -sSL -O $PBS_RELEASE/$PBS_ARCHIVE.sha256 && \
@@ -37,6 +40,16 @@ def test_ssl_context(
                 ]] && \
                 tar -xzf $PBS_ARCHIVE
                 """
+            ).format(
+                extra_instructions="\n".join(
+                    # Git is needed for the git VCS URL the patched Pip needed for Python 3.13
+                    # pre-releases is resolved by.
+                    # TODO(John sirois): Remove once a Pip with Python 3.13 support is released:
+                    #   https://github.com/pex-tool/pex/issues/2406
+                    ["RUN dnf install -y git"]
+                    if sys.version_info[:2] == (3, 13)
+                    else []
+                )
             )
         )
 
@@ -71,6 +84,12 @@ def test_ssl_context(
             "{work_dir}:/work".format(work_dir=work_dir),
             "-w",
             "/code",
+            # This env var propagation is needed to support patched Pip 24.0 for Python 3.13
+            # pre-release testing.
+            # TODO(John sirois): Remove once a Pip with Python 3.13 support is released:
+            #   https://github.com/pex-tool/pex/issues/2406
+            "--env",
+            "_PEX_PIP_VERSION",
             "test_issue_2355",
             "/python/bin/python3.9",
             "-mpex.cli",
