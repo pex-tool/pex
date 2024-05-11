@@ -42,10 +42,10 @@ def requires_python(pex_project_dir):
     requires_python = os.environ.get("_PEX_REQUIRES_PYTHON")
     if requires_python:
         return requires_python
-    return cast(
-        str,
-        toml.load(os.path.join(pex_project_dir, "pyproject.toml"))["project"]["requires-python"],
-    )
+    pyproject_data = toml.load(os.path.join(pex_project_dir, "pyproject.toml"))
+    metadata_hooks_data = pyproject_data["tool"]["hatch"]["metadata"]["hooks"]
+    pex_adjust_metadata_data = metadata_hooks_data["pex-adjust-metadata"]
+    return cast(str, pex_adjust_metadata_data["project"]["requires-python"])
 
 
 def expected(
