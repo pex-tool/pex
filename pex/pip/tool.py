@@ -512,7 +512,7 @@ class Pip(object):
             extra_env.update(patch_set.env)
             extra_sys_path = patch_set.emit_patches(package=self._PATCHES_PACKAGE_NAME)
             if extra_sys_path:
-                pex_extra_sys_path.append(extra_sys_path)
+                pex_extra_sys_path.extend(extra_sys_path)
                 extra_env[self._PATCHES_PACKAGE_ENV_VAR_NAME] = self._PATCHES_PACKAGE_NAME
 
         if pex_extra_sys_path:

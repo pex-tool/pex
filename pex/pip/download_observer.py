@@ -8,6 +8,7 @@ import pkgutil
 
 from pex.common import safe_mkdtemp
 from pex.pip.log_analyzer import LogAnalyzer
+from pex.third_party import isolated
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -65,10 +66,10 @@ class PatchSet(object):
         return env
 
     def emit_patches(self, package):
-        # type: (str) -> Optional[str]
+        # type: (str) -> Tuple[str, ...]
 
         if not self.patches:
-            return None
+            return ()
 
         if not package or "." in package:
             raise ValueError(
@@ -91,7 +92,7 @@ class PatchSet(object):
                 print("from . import {module}".format(module=patch.module), file=fp)
                 print("{module}.patch()".format(module=patch.module), file=fp)
 
-        return patches_dir
+        return patches_dir, isolated().chroot_path
 
     def add(self, patch_set):
         # type: (PatchSet) -> PatchSet
