@@ -11,7 +11,7 @@ from pex.pip.log_analyzer import LogAnalyzer
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Dict, Mapping, Optional, Text, Tuple
+    from typing import Any, Dict, Mapping, Optional, Text, Tuple
 
     import attr  # vendor:skip
 else:
@@ -92,6 +92,23 @@ class PatchSet(object):
                 print("{module}.patch()".format(module=patch.module), file=fp)
 
         return patches_dir
+
+    def add(self, patch_set):
+        # type: (PatchSet) -> PatchSet
+        return PatchSet(self.patches + patch_set.patches)
+
+    def __add__(self, other):
+        # type: (Any) -> PatchSet
+        if type(other) is not type(self):
+            return NotImplemented
+        return self.add(other)
+
+    def __bool__(self):
+        # type: () -> bool
+        return bool(self.patches)
+
+    # N.B.: For Python 2.7.
+    __nonzero__ = __bool__
 
 
 @attr.s(frozen=True)
