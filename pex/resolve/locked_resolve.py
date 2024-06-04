@@ -588,6 +588,11 @@ class LockedResolve(object):
     locked_requirements = attr.ib()  # type: SortedTuple[LockedRequirement]
     platform_tag = attr.ib(order=str, default=None)  # type: Optional[tags.Tag]
 
+    @property
+    def target_platform(self):
+        # type: () -> str
+        return str(self.platform_tag) if self.platform_tag else "universal"
+
     def resolve(
         self,
         target,  # type: Target
