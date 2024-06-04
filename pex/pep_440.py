@@ -3,10 +3,12 @@
 
 from __future__ import absolute_import
 
+import functools
+
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from typing import Optional, Text, Union
+    from typing import Any, Optional, Text, Union
 
     import attr  # vendor:skip
     from packaging import utils as packaging_utils  # vendor:skip
@@ -29,7 +31,8 @@ def _ensure_ascii_str(text):
     return str(text)
 
 
-@attr.s(frozen=True, order=True)
+@functools.total_ordering
+@attr.s(frozen=True, order=False)
 class Version(object):
     """A PEP-440 normalized version: https://www.python.org/dev/peps/pep-0440/#normalization"""
 
@@ -63,6 +66,12 @@ class Version(object):
         parsed_version = packaging_version.parse(self.raw)
         object.__setattr__(self, "_parsed_version", parsed_version)
         return parsed_version
+
+    def __lt__(self, other):
+        # type: (Any) -> bool
+        if not isinstance(other, Version):
+            return NotImplemented
+        return self.parsed_version < other.parsed_version
 
     @property
     def is_legacy(self):

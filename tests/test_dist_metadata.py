@@ -368,3 +368,18 @@ def test_find_dist_info_file(
     )
     assert metadata_files is not None
     assert expected_metadata_relpath == metadata_files.metadata_file_rel_path("direct_url.json")
+
+
+def test_requirement_contains_requirement():
+    req = Requirement.parse
+
+    assert req("foo==1") in req("foo")
+    assert req("foo") not in req("foo==1")
+
+    assert req("bar") not in req("foo")
+    assert req("bar==1") not in req("foo==1")
+
+    assert req("foo>1,<3") not in req("foo==2")
+    assert req("foo==2") in req("foo>1,<3")
+    assert req("foo>=1,<3") not in req("foo>1,<3")
+    assert req("foo>1,<=2") in req("foo>1,<3")
