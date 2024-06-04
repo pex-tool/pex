@@ -12,7 +12,6 @@ from operator import attrgetter
 
 from pex import pex_warnings
 from pex.argparse import HandleBoolAction
-from pex.asserts import production_assert
 from pex.cli.command import BuildTimeCommand
 from pex.commands.command import JsonMixin, OutputMixin
 from pex.common import is_exe, pluralize, safe_delete, safe_open
@@ -25,6 +24,7 @@ from pex.dist_metadata import (
     RequirementParseError,
 )
 from pex.enum import Enum
+from pex.exceptions import production_assert
 from pex.interpreter import PythonInterpreter
 from pex.pep_376 import InstalledWheel, Record
 from pex.pep_427 import InstallableType

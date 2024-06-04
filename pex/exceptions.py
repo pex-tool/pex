@@ -13,11 +13,11 @@ from pex.version import __version__
 _ASSERT_DETAILS = (
     dedent(
         """\
-    Pex {version}
-    platform: {platform}
-    python: {python_version}
-    argv: {argv}
-    """
+        Pex {version}
+        platform: {platform}
+        python: {python_version}
+        argv: {argv}
+        """
     )
     .format(
         version=__version__, platform=platform.platform(), python_version=sys.version, argv=sys.argv
@@ -27,11 +27,11 @@ _ASSERT_DETAILS = (
 
 _ASSERT_ADVICE = dedent(
     """\
-    The error reported above resulted from an unexpected programming error which 
-    you should never encounter.
-    
+    The error reported above resulted from an unexpected error which you should
+    never encounter.
+
     Firstly, please accept our apology!
-    
+
     If you could file an issue with the error and details above, we'd be
     grateful. You can do that at https://github.com/pex-tool/pex/issues/new and
     redact or amend any details that expose sensitive information.
@@ -39,11 +39,8 @@ _ASSERT_ADVICE = dedent(
 ).strip()
 
 
-def production_assert(condition, msg=""):
-    # type: (...) -> None
-
-    if condition:
-        return
+def reportable_unexpected_error_msg(msg=""):
+    # type: (str) -> str
 
     message = [msg, "---", _ASSERT_DETAILS]
     pex = os.environ.get("PEX")
@@ -64,4 +61,14 @@ def production_assert(condition, msg=""):
     message.append("---")
     message.append(_ASSERT_ADVICE)
 
-    raise AssertionError("\n".join(message))
+    return "\n".join(message)
+
+
+def production_assert(
+    condition,  # type: bool
+    msg="",  # type: str
+):
+    # type: (...) -> None
+
+    if not condition:
+        raise AssertionError(reportable_unexpected_error_msg(msg=msg))
