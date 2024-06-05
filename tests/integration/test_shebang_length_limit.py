@@ -6,16 +6,16 @@ from __future__ import absolute_import
 import errno
 import json
 import os
+import shutil
 import subprocess
 from textwrap import dedent
 
 import colors
 import pytest
 
-from pex.common import chmod_plus_x, touch
+from pex.common import chmod_plus_x, safe_open, touch
 from pex.typing import TYPE_CHECKING
-from pex.version import __version__
-from testing import IS_PYPY, run_pex_command
+from testing import IS_PYPY, make_project, run_pex_command
 from testing.cli import run_pex3
 
 if TYPE_CHECKING:
@@ -260,14 +260,19 @@ def test_shebang_length_limit_buildtime_resolve(
 
 def test_shebang_length_limit_buildtime_lock_local_project(
     tmpdir,  # type: Any
-    pex_project_dir,  # type: str
     too_deep_pex_root,  # type: str
 ):
     # type: (...) -> None
 
+    local_project_dir = os.path.join(str(tmpdir), "foo")
+    with make_project(name="foo") as td:
+        with safe_open(os.path.join(td, "foo", "version.py"), "w") as fp:
+            fp.write("__version__ = 42")
+        shutil.move(td, local_project_dir)
+
     lock = os.path.realpath(os.path.join(str(tmpdir), "lock.json"))
     # N.B.: This runs the vendored PEP 517 / 518 sdist build tool in a dogfood venv to create an
-    # sdist for the local Pex project that can be consistently hashed.
+    # sdist for the local foo project that can be consistently hashed.
     run_pex3(
         "lock",
         "create",
@@ -278,7 +283,7 @@ def test_shebang_length_limit_buildtime_lock_local_project(
         "--indent",
         "2",
         "ansicolors==1.1.8",
-        pex_project_dir,
+        local_project_dir,
     ).assert_success()
 
     pex = os.path.realpath(os.path.join(str(tmpdir), "pex"))
@@ -296,7 +301,7 @@ def test_shebang_length_limit_buildtime_lock_local_project(
     ).assert_success()
 
     assert (
-        colors.yellow(__version__)
+        colors.yellow("42")
         == subprocess.check_output(
             args=[
                 pex,
@@ -305,7 +310,7 @@ def test_shebang_length_limit_buildtime_lock_local_project(
                     """\
                     import colors
 
-                    from pex.version import __version__
+                    from foo.version import __version__
 
 
                     print(colors.yellow(__version__))
