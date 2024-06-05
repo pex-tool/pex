@@ -57,7 +57,12 @@ def test_lambdex_with_incompatible_attrs(tmpdir):
     lambda_zip = os.path.join(str(tmpdir), "lambda.zip")
     run_pex_command(
         args=[
-            "lambdex",
+            # The Lambdex 0.2.0 final release changed from a top-level pex.third_party import to a
+            # lazy one which foils scrubbing under Python<3.8. Instead of releasing a Lambdex 0.2.1
+            # with a fix for this eagerly, we just pin this test dep low to avoid the issue and see
+            # if any bug report ever comes in, which seems unlikely since Python 3.7 is EOL and
+            # Lambdex is as well.
+            "lambdex<0.2.0",
             "-c",
             "lambdex",
             "--",
