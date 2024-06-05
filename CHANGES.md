@@ -1,5 +1,14 @@
 # Release Notes
 
+## 2.3.2
+
+This release fixes a regression for users of gevent monkey patching. The
+fix in #2356 released in Pex 2.1.163 lead to these users receiving
+spurious warnings from the gevent monkey patch system about ssl being
+patched too late.
+
+* Delay import of ssl in `pex.fetcher`. (#2417)
+
 ## 2.3.1
 
 This release fixes Pex to respect lock file interpreter constraints and
