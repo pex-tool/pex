@@ -5,7 +5,6 @@ import atexit
 import os.path
 import re
 import subprocess
-import sys
 import threading
 from textwrap import dedent
 from threading import Event
@@ -16,7 +15,7 @@ import pytest
 from pex.common import safe_open
 from pex.fetcher import URLFetcher
 from pex.typing import TYPE_CHECKING
-from testing import PY_VER, data, run_pex_command, IS_PYPY
+from testing import IS_PYPY, PY_VER, data, run_pex_command
 
 if TYPE_CHECKING:
     from typing import Any
