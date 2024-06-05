@@ -5,12 +5,10 @@ from __future__ import absolute_import
 
 import contextlib
 import os
-import ssl
 import sys
 import threading
 import time
 from contextlib import closing, contextmanager
-from ssl import SSLContext
 
 from pex import asserts
 from pex.auth import PasswordDatabase, PasswordEntry
@@ -31,6 +29,7 @@ from pex.typing import TYPE_CHECKING, cast
 from pex.version import __version__
 
 if TYPE_CHECKING:
+    from ssl import SSLContext
     from typing import BinaryIO, Dict, Iterable, Iterator, Mapping, Optional, Text
 
     import attr  # vendor:skip
@@ -112,6 +111,13 @@ class _CertConfig(object):
             ),
         )
         with guard_stdout():
+            # We import ssl lazily as an affordance to PEXes that use gevent SSL monkeypatching,
+            # which requires (and checks) that the `ssl` module is not imported priory to the
+            # `from gevent import monkey; monkey.patch_all()` call.
+            #
+            # See: https://github.com/pex-tool/pex/issues/2415
+            import ssl
+
             ssl_context = ssl.create_default_context(cafile=self.cert)
             if self.client_cert:
                 ssl_context.load_cert_chain(self.client_cert)
