@@ -120,10 +120,13 @@ else:
 
 
 if PY3:
+    from http.client import HTTPConnection as HTTPConnection
+    from http.client import HTTPResponse as HTTPResponse
     from urllib import parse as _url_parse
     from urllib.error import HTTPError as HTTPError
     from urllib.parse import quote as _url_quote
     from urllib.parse import unquote as _url_unquote
+    from urllib.request import AbstractHTTPHandler as AbstractHTTPHandler
     from urllib.request import FileHandler as FileHandler
     from urllib.request import HTTPBasicAuthHandler as HTTPBasicAuthHandler
     from urllib.request import HTTPDigestAuthHandler as HTTPDigestAuthHandler
@@ -137,6 +140,9 @@ else:
     from urllib import unquote as _url_unquote
 
     import urlparse as _url_parse
+    from httplib import HTTPConnection as HTTPConnection
+    from httplib import HTTPResponse as HTTPResponse
+    from urllib2 import AbstractHTTPHandler as AbstractHTTPHandler
     from urllib2 import FileHandler as FileHandler
     from urllib2 import HTTPBasicAuthHandler as HTTPBasicAuthHandler
     from urllib2 import HTTPDigestAuthHandler as HTTPDigestAuthHandler

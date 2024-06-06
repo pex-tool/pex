@@ -1491,7 +1491,7 @@
   "requirements": [
     "flask",
     "gevent>=1.3.4",
-    "gunicorn"
+    "gunicorn[gevent]"
   ],
   "requires_python": [
     "<3.13,>=3.8"

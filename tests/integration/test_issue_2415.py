@@ -3,10 +3,9 @@
 
 import atexit
 import os.path
-import re
 import subprocess
+import time
 from textwrap import dedent
-from typing import Optional
 
 import pytest
 
@@ -33,18 +32,15 @@ def test_gevent_monkeypatch(tmpdir):
         app_fp.write(
             dedent(
                 """\
-                from gevent import monkey
-                monkey.patch_all()
-
                 from flask import Flask
 
 
                 app = Flask(__name__)
 
 
-                @app.route("/")
-                def hello_world():
-                    return "Hello, World!"
+                @app.route("/<username>")
+                def hello_world(username):
+                    return "Hello, {}!".format(username)
                 """
             )
         )
@@ -61,10 +57,11 @@ def test_gevent_monkeypatch(tmpdir):
     #   --pip-version latest \
     #   --style universal \
     #   --interpreter-constraint ">=3.8,<3.13" \
+    #   --no-build \
     #   --indent 2 \
     #   flask \
     #   "gevent>=1.3.4" \
-    #   gunicorn
+    #   gunicorn[gevent]
     lock = data.path("locks", "issue-2415.lock.json")
 
     run_pex_command(
@@ -80,41 +77,39 @@ def test_gevent_monkeypatch(tmpdir):
             "-c",
             "gunicorn",
             "--inject-args",
-            "app:app",
+            "--worker-class gevent app:app",
             "-o",
             pex,
         ],
         cwd=str(tmpdir),
     ).assert_success()
 
-    log = os.path.join(str(tmpdir), "log")
-    os.mkfifo(log)
-
+    socket = os.path.join(str(tmpdir), "socket.sock")
     with open(os.path.join(str(tmpdir), "stderr"), "wb+") as stderr_fp:
         gunicorn = subprocess.Popen(
-            args=[pex, "--bind", "127.0.0.1:0", "--log-file", log], stderr=stderr_fp
+            args=[pex, "--bind", "unix:{socket}".format(socket=socket)], stderr=stderr_fp
         )
         atexit.register(gunicorn.kill)
 
-        # N.B.: Since the fifo is blocking, we can only open it now, after the server is launched
-        # in the background where it too is blocked waiting to write to the log.
-        with open(log) as log_fp:
-            port = None  # type: Optional[int]
-            for line in log_fp:
-                match = re.search(r"Listening at: http://127.0.0.1:(?P<port>\d{1,5})", line)
-                if match:
-                    port = int(match.group("port"))
-                    break
-            assert port is not None, "Failed to determine port from gunicorn log at {log}".format(
-                log=log
+        start = time.time()
+        while not os.path.exists(socket):
+            if time.time() - start > 30:
+                break
+            # Local testing on an unloaded system shows gunicorn takes about a second to start up.
+            time.sleep(1.0)
+        assert os.path.exists(socket), (
+            "Timed out after waiting {time:.3f}s for gunicorn to start and open a unix socket at "
+            "{socket}".format(time=time.time() - start, socket=socket)
+        )
+        print(
+            "Waited {time:.3f}s for gunicorn to start and open a unix socket at {socket}".format(
+                time=time.time() - start, socket=socket
             )
+        )
 
-            with URLFetcher().get_body_stream(
-                "http://127.0.0.1:{port}".format(port=port)
-            ) as http_fp:
-                assert b"Hello, World!" == http_fp.read().strip()
-
-            gunicorn.kill()
+        with URLFetcher().get_body_stream("unix://{socket}/World".format(socket=socket)) as http_fp:
+            assert b"Hello, World!" == http_fp.read().strip()
+        gunicorn.kill()
 
         stderr_fp.seek(0)
         stderr = stderr_fp.read()
