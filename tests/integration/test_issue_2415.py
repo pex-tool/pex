@@ -9,7 +9,7 @@ from textwrap import dedent
 
 import pytest
 
-from pex.common import safe_mkdtemp, safe_open
+from pex.common import safe_mkdtemp, safe_open, safe_mkdir
 from pex.fetcher import URLFetcher
 from pex.typing import TYPE_CHECKING
 from testing import IS_MAC, IS_PYPY, PY_VER, data, run_pex_command
@@ -93,9 +93,13 @@ def test_gevent_monkeypatch(tmpdir):
         if IS_MAC
         else os.path.join("/run/user", str(os.getuid())),
     )
-    # But if the proper directory does not exist, we fall back to the tmpdir.
-    socket_dir = safe_mkdtemp(dir=None if not os.path.isdir(socket_dir) else socket_dir)
-    socket = os.path.realpath(os.path.join(socket_dir, "gunicorn.sock"))
+    try:
+        safe_mkdir(socket_dir)
+    except OSError:
+        # But if the proper directory does not exist / can't be made with our perms, we fall back
+        # to the tmpdir.
+        socket_dir = str(tmpdir)
+    socket = os.path.realpath(os.path.join(safe_mkdtemp(dir=socket_dir), "gunicorn.sock"))
 
     with open(os.path.join(str(tmpdir), "stderr"), "wb+") as stderr_fp:
         gunicorn = subprocess.Popen(
