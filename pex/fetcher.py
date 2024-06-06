@@ -195,7 +195,7 @@ class UnixHTTPHandler(AbstractHTTPHandler):
         url = urlparse.urlunparse(
             ("unix", "localhost", path, url_info.params, url_info.query, url_info.fragment)
         )
-        kwargs = {} if PY2 else {"method": req.method}
+        kwargs = {} if PY2 else {"method": req.get_method()}
         modified_req = Request(
             url,
             data=req.data,
