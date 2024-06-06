@@ -87,15 +87,16 @@ def test_gevent_monkeypatch(tmpdir):
     # N.B.: Simply using a path under tmpdir does not work on Mac; so we jump through some extra
     # hoops here and use the proper directory for socket files for the operating system we're
     # running under.
-    socket_dir = safe_mkdtemp(
-        dir=os.environ.get(
-            "XDG_RUNTIME_DIR",
-            os.path.expanduser("~/Library/Caches/TemporaryItems")
-            if IS_MAC
-            else os.path.join("/run/user", str(os.getuid())),
-        )
+    socket_dir = os.environ.get(
+        "XDG_RUNTIME_DIR",
+        os.path.expanduser("~/Library/Caches/TemporaryItems")
+        if IS_MAC
+        else os.path.join("/run/user", str(os.getuid())),
     )
-    socket = os.path.join(socket_dir, "gunicorn.sock")
+    # But if the proper directory does not exist, we fall back to the tmpdir.
+    socket_dir = safe_mkdtemp(dir=None if not os.path.isdir(socket_dir) else socket_dir)
+    socket = os.path.realpath(os.path.join(socket_dir, "gunicorn.sock"))
+
     with open(os.path.join(str(tmpdir), "stderr"), "wb+") as stderr_fp:
         gunicorn = subprocess.Popen(
             args=[pex, "--bind", "unix:{socket}".format(socket=socket)], stderr=stderr_fp
