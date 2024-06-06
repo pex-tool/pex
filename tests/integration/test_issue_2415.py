@@ -5,9 +5,7 @@ import atexit
 import os.path
 import re
 import subprocess
-import threading
 from textwrap import dedent
-from threading import Event
 from typing import Optional
 
 import pytest
@@ -19,10 +17,6 @@ from testing import IS_PYPY, PY_VER, data, run_pex_command
 
 if TYPE_CHECKING:
     from typing import Any
-
-    import attr  # vendor:skip
-else:
-    from pex.third_party import attr
 
 
 @pytest.mark.skipif(
@@ -96,48 +90,32 @@ def test_gevent_monkeypatch(tmpdir):
     log = os.path.join(str(tmpdir), "log")
     os.mkfifo(log)
 
-    @attr.s
-    class LogScanner(object):
-        port_seen = attr.ib(factory=Event, init=False)  # type: Event
-        _port = attr.ib(default=None)  # type: Optional[int]
-
-        def scan_log(self):
-            # type: () -> None
-
-            with open(log) as log_fp:
-                for line in log_fp:
-                    if self._port is None:
-                        match = re.search(r"Listening at: http://127.0.0.1:(?P<port>\d{1,5})", line)
-                        if match:
-                            self._port = int(match.group("port"))
-                            self.port_seen.set()
-
-        @property
-        def port(self):
-            # type: () -> int
-            self.port_seen.wait()
-            assert self._port is not None
-            return self._port
-
-    log_scanner = LogScanner()
-    log_scan_thread = threading.Thread(target=log_scanner.scan_log)
-    log_scan_thread.daemon = True
-    log_scan_thread.start()
-
     with open(os.path.join(str(tmpdir), "stderr"), "wb+") as stderr_fp:
         gunicorn = subprocess.Popen(
             args=[pex, "--bind", "127.0.0.1:0", "--log-file", log], stderr=stderr_fp
         )
         atexit.register(gunicorn.kill)
 
-        with URLFetcher().get_body_stream(
-            "http://127.0.0.1:{port}".format(port=log_scanner.port)
-        ) as http_fp:
-            assert b"Hello, World!" == http_fp.read().strip()
+        # N.B.: Since the fifo is blocking, we can only open it now, after the server is launched
+        # in the background where it too is blocked waiting to write to the log.
+        with open(log) as log_fp:
+            port = None  # type: Optional[int]
+            for line in log_fp:
+                match = re.search(r"Listening at: http://127.0.0.1:(?P<port>\d{1,5})", line)
+                if match:
+                    port = int(match.group("port"))
+                    break
+            assert port is not None, "Failed to determine port from gunicorn log at {log}".format(
+                log=log
+            )
 
-        gunicorn.kill()
-        log_scan_thread.join()
-        stderr_fp.flush()
+            with URLFetcher().get_body_stream(
+                "http://127.0.0.1:{port}".format(port=port)
+            ) as http_fp:
+                assert b"Hello, World!" == http_fp.read().strip()
+
+            gunicorn.kill()
+
         stderr_fp.seek(0)
         stderr = stderr_fp.read()
         assert b"MonkeyPatchWarning: Monkey-patching ssl after ssl " not in stderr, stderr.decode(
