@@ -9,10 +9,10 @@ from textwrap import dedent
 
 import pytest
 
-from pex.common import safe_open
+from pex.common import safe_mkdtemp, safe_open
 from pex.fetcher import URLFetcher
 from pex.typing import TYPE_CHECKING
-from testing import IS_PYPY, PY_VER, data, run_pex_command
+from testing import IS_MAC, IS_PYPY, PY_VER, data, run_pex_command
 
 if TYPE_CHECKING:
     from typing import Any
@@ -84,7 +84,18 @@ def test_gevent_monkeypatch(tmpdir):
         cwd=str(tmpdir),
     ).assert_success()
 
-    socket = os.path.join(str(tmpdir), "socket.sock")
+    # N.B.: Simply using a path under tmpdir does not work on Mac; so we jump through some extra
+    # hoops here and use the proper directory for socket files for the operating system we're
+    # running under.
+    socket_dir = safe_mkdtemp(
+        dir=os.environ.get(
+            "XDG_RUNTIME_DIR",
+            os.path.expanduser("~/Library/Caches/TemporaryItems")
+            if IS_MAC
+            else os.path.join("/run/user", str(os.getuid())),
+        )
+    )
+    socket = os.path.join(socket_dir, "gunicorn.sock")
     with open(os.path.join(str(tmpdir), "stderr"), "wb+") as stderr_fp:
         gunicorn = subprocess.Popen(
             args=[pex, "--bind", "unix:{socket}".format(socket=socket)], stderr=stderr_fp
