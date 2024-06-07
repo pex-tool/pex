@@ -290,14 +290,22 @@ class Locker(LogAnalyzer):
         if artifact_url.is_wheel:
             pin, partial_artifact = self._extract_resolve_data(artifact_url)
 
-            additional_artifacts = self._links[pin]
-            additional_artifacts.pop(artifact_url, None)
-            self._resolved_requirements[pin] = ResolvedRequirement(
-                pin=pin,
-                artifact=partial_artifact,
-                additional_artifacts=tuple(additional_artifacts.values()),
-            )
-            self._selected_path_to_pin[os.path.basename(artifact_url.path)] = pin
+            # A wheel selected in a Pip download resolve can be noted more than one time. Notably,
+            # this occurs across all supported versions of Pip when an index serves re-directs.
+            # We want the original URL in the lock since that points to the index the user selected
+            # and not the re-directed final (implementation detail) URL that may change but should
+            # not affect the lock.
+            #
+            # See: https://github.com/pex-tool/pex/issues/2414
+            if pin not in self._resolved_requirements:
+                additional_artifacts = self._links[pin]
+                additional_artifacts.pop(artifact_url, None)
+                self._resolved_requirements[pin] = ResolvedRequirement(
+                    pin=pin,
+                    artifact=partial_artifact,
+                    additional_artifacts=tuple(additional_artifacts.values()),
+                )
+                self._selected_path_to_pin[os.path.basename(artifact_url.path)] = pin
         return artifact_url
 
     def analyze(self, line):
