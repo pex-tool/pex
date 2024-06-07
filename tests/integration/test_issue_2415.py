@@ -3,26 +3,19 @@
 
 import atexit
 import os.path
-import re
 import subprocess
-import threading
+import time
 from textwrap import dedent
-from threading import Event
-from typing import Optional
 
 import pytest
 
-from pex.common import safe_open
+from pex.common import safe_mkdir, safe_open
 from pex.fetcher import URLFetcher
 from pex.typing import TYPE_CHECKING
-from testing import IS_PYPY, PY_VER, data, run_pex_command
+from testing import IS_MAC, IS_PYPY, PY_VER, data, run_pex_command
 
 if TYPE_CHECKING:
     from typing import Any
-
-    import attr  # vendor:skip
-else:
-    from pex.third_party import attr
 
 
 @pytest.mark.skipif(
@@ -39,18 +32,15 @@ def test_gevent_monkeypatch(tmpdir):
         app_fp.write(
             dedent(
                 """\
-                from gevent import monkey
-                monkey.patch_all()
-
                 from flask import Flask
 
 
                 app = Flask(__name__)
 
 
-                @app.route("/")
-                def hello_world():
-                    return "Hello, World!"
+                @app.route("/<username>")
+                def hello_world(username):
+                    return "Hello, {}!".format(username)
                 """
             )
         )
@@ -67,10 +57,11 @@ def test_gevent_monkeypatch(tmpdir):
     #   --pip-version latest \
     #   --style universal \
     #   --interpreter-constraint ">=3.8,<3.13" \
+    #   --no-build \
     #   --indent 2 \
     #   flask \
     #   "gevent>=1.3.4" \
-    #   gunicorn
+    #   gunicorn[gevent]
     lock = data.path("locks", "issue-2415.lock.json")
 
     run_pex_command(
@@ -86,58 +77,45 @@ def test_gevent_monkeypatch(tmpdir):
             "-c",
             "gunicorn",
             "--inject-args",
-            "app:app",
+            "--worker-class gevent app:app",
             "-o",
             pex,
         ],
         cwd=str(tmpdir),
     ).assert_success()
 
-    log = os.path.join(str(tmpdir), "log")
-    os.mkfifo(log)
-
-    @attr.s
-    class LogScanner(object):
-        port_seen = attr.ib(factory=Event, init=False)  # type: Event
-        _port = attr.ib(default=None)  # type: Optional[int]
-
-        def scan_log(self):
-            # type: () -> None
-
-            with open(log) as log_fp:
-                for line in log_fp:
-                    if self._port is None:
-                        match = re.search(r"Listening at: http://127.0.0.1:(?P<port>\d{1,5})", line)
-                        if match:
-                            self._port = int(match.group("port"))
-                            self.port_seen.set()
-
-        @property
-        def port(self):
-            # type: () -> int
-            self.port_seen.wait()
-            assert self._port is not None
-            return self._port
-
-    log_scanner = LogScanner()
-    log_scan_thread = threading.Thread(target=log_scanner.scan_log)
-    log_scan_thread.daemon = True
-    log_scan_thread.start()
-
+    socket = os.path.join(
+        safe_mkdir(os.path.expanduser("~/Library/Caches/TemporaryItems"))
+        if IS_MAC
+        else str(tmpdir),
+        "gunicorn.sock",
+    )
     with open(os.path.join(str(tmpdir), "stderr"), "wb+") as stderr_fp:
         gunicorn = subprocess.Popen(
-            args=[pex, "--bind", "127.0.0.1:0", "--log-file", log], stderr=stderr_fp
+            args=[pex, "--bind", "unix:{socket}".format(socket=socket)], stderr=stderr_fp
         )
         atexit.register(gunicorn.kill)
 
-        with URLFetcher().get_body_stream(
-            "http://127.0.0.1:{port}".format(port=log_scanner.port)
-        ) as http_fp:
-            assert b"Hello, World!" == http_fp.read().strip()
+        start = time.time()
+        while not os.path.exists(socket):
+            if time.time() - start > 60:
+                break
+            # Local testing on an unloaded system shows gunicorn takes about a second to start up.
+            time.sleep(1.0)
+        assert os.path.exists(socket), (
+            "Timed out after waiting {time:.3f}s for gunicorn to start and open a unix socket at "
+            "{socket}".format(time=time.time() - start, socket=socket)
+        )
+        print(
+            "Waited {time:.3f}s for gunicorn to start and open a unix socket at {socket}".format(
+                time=time.time() - start, socket=socket
+            )
+        )
 
+        with URLFetcher().get_body_stream("unix://{socket}/World".format(socket=socket)) as http_fp:
+            assert b"Hello, World!" == http_fp.read().strip()
         gunicorn.kill()
-        log_scan_thread.join()
-        stderr_fp.flush()
+
         stderr_fp.seek(0)
         stderr = stderr_fp.read()
         assert b"MonkeyPatchWarning: Monkey-patching ssl after ssl " not in stderr, stderr.decode(

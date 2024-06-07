@@ -5,6 +5,7 @@ from __future__ import absolute_import
 
 import contextlib
 import os
+import socket
 import sys
 import threading
 import time
@@ -13,16 +14,21 @@ from contextlib import closing, contextmanager
 from pex import asserts
 from pex.auth import PasswordDatabase, PasswordEntry
 from pex.compatibility import (
+    PY2,
+    AbstractHTTPHandler,
     FileHandler,
     HTTPBasicAuthHandler,
+    HTTPConnection,
     HTTPDigestAuthHandler,
     HTTPError,
     HTTPPasswordMgrWithDefaultRealm,
+    HTTPResponse,
     HTTPSHandler,
     ProxyHandler,
     Request,
     build_opener,
     in_main_thread,
+    urlparse,
 )
 from pex.network_configuration import NetworkConfiguration
 from pex.typing import TYPE_CHECKING, cast
@@ -30,7 +36,7 @@ from pex.version import __version__
 
 if TYPE_CHECKING:
     from ssl import SSLContext
-    from typing import BinaryIO, Dict, Iterable, Iterator, Mapping, Optional, Text
+    from typing import Any, BinaryIO, Dict, Iterable, Iterator, Mapping, Optional, Text
 
     import attr  # vendor:skip
 else:
@@ -148,6 +154,68 @@ def initialize_ssl_context(network_configuration=None):
 initialize_ssl_context()
 
 
+class UnixHTTPConnection(HTTPConnection):
+    def __init__(
+        self,
+        *args,  # type: Any
+        **kwargs  # type: Any
+    ):
+        # type: (...) -> None
+        path = kwargs.pop("path")
+        super(UnixHTTPConnection, self).__init__(*args, **kwargs)
+        self.path = path
+
+    def connect(self):
+        # type: () -> None
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.connect(self.path)
+        self.sock = sock
+
+
+class UnixHTTPHandler(AbstractHTTPHandler):
+    # N.B.: The naming scheme here is <protocol>_<action>; thus `unix` captures unix:// URLs and
+    # `open` captures the open event for unix:// URLs.
+    def unix_open(self, req):
+        # type: (Request) -> HTTPResponse
+        url_info = urlparse.urlparse(req.get_full_url())
+
+        path = ""
+        unix_socket_path = url_info.path
+        while not os.path.basename(unix_socket_path).endswith(".sock"):
+            path = os.path.join(path, os.path.basename(unix_socket_path))
+            new_unix_socket_path = os.path.dirname(unix_socket_path)
+            if new_unix_socket_path == unix_socket_path:
+                # There was no *.sock component, so just use the full path.
+                path = ""
+                unix_socket_path = url_info.path
+                break
+            unix_socket_path = new_unix_socket_path
+
+        # <scheme>://<netloc>/<path>;<params>?<query>#<fragment>
+        url = urlparse.urlunparse(
+            ("unix", "localhost", path, url_info.params, url_info.query, url_info.fragment)
+        )
+        kwargs = {} if PY2 else {"method": req.get_method()}
+        modified_req = Request(
+            url,
+            data=req.data,
+            headers=req.headers,
+            # N.B.: MyPy for Python 2.7 needs the cast.
+            origin_req_host=cast(str, req.origin_req_host),
+            unverifiable=req.unverifiable,
+            **kwargs
+        )
+
+        # The stdlib actually sets timeout this way - it is not a constructor argument in any
+        # Python version.
+        modified_req.timeout = req.timeout
+
+        # N.B.: MyPy for Python 2.7 needs the cast.
+        return cast(
+            HTTPResponse, self.do_open(UnixHTTPConnection, modified_req, path=unix_socket_path)
+        )
+
+
 class URLFetcher(object):
     USER_AGENT = "pex/{version}".format(version=__version__)
 
@@ -171,6 +239,7 @@ class URLFetcher(object):
         handlers = [
             ProxyHandler(proxies),
             HTTPSHandler(context=get_ssl_context(network_configuration=network_configuration)),
+            UnixHTTPHandler(),
         ]
         if handle_file_urls:
             handlers.append(FileHandler())
