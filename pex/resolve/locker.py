@@ -258,6 +258,7 @@ class Locker(LogAnalyzer):
         self._links = defaultdict(
             OrderedDict
         )  # type: DefaultDict[Pin, OrderedDict[ArtifactURL, PartialArtifact]]
+        self._known_fingerprints = {}  # type: Dict[ArtifactURL, Fingerprint]
         self._artifact_build_observer = None  # type: Optional[ArtifactBuildObserver]
         self._local_projects = OrderedSet()  # type: OrderedSet[str]
         self._lock_result = None  # type: Optional[LockResult]
@@ -276,6 +277,13 @@ class Locker(LogAnalyzer):
         # type: (int) -> bool
         return returncode == 0
 
+    def parse_url_and_maybe_record_fingerprint(self, url):
+        # type: (str) -> ArtifactURL
+        artifact_url = ArtifactURL.parse(url)
+        if artifact_url.fingerprint:
+            self._known_fingerprints[artifact_url] = artifact_url.fingerprint
+        return artifact_url
+
     @staticmethod
     def _extract_resolve_data(artifact_url):
         # type: (ArtifactURL) -> Tuple[Pin, PartialArtifact]
@@ -286,7 +294,7 @@ class Locker(LogAnalyzer):
 
     def _maybe_record_wheel(self, url):
         # type: (str) -> ArtifactURL
-        artifact_url = ArtifactURL.parse(url)
+        artifact_url = self.parse_url_and_maybe_record_fingerprint(url)
         if artifact_url.is_wheel:
             pin, partial_artifact = self._extract_resolve_data(artifact_url)
 
@@ -362,7 +370,7 @@ class Locker(LogAnalyzer):
                     )
                     verified = True
                     selected_path = os.path.basename(archive_path)
-                    artifact_url = ArtifactURL.parse(
+                    artifact_url = self.parse_url_and_maybe_record_fingerprint(
                         self._vcs_url_manager.normalize_url(artifact_url.raw_url)
                     )
                     self._selected_path_to_pin[selected_path] = build_result.pin
@@ -474,7 +482,7 @@ class Locker(LogAnalyzer):
                     ),
                     re.compile(r"WARNING: Discarding {url}".format(url=re.escape(file_url))),
                 ),
-                artifact_url=ArtifactURL.parse(file_url),
+                artifact_url=self.parse_url_and_maybe_record_fingerprint(file_url),
             )
             return self.Continue()
 
@@ -489,7 +497,7 @@ class Locker(LogAnalyzer):
         if self.style in (LockStyle.SOURCES, LockStyle.UNIVERSAL):
             match = re.search(r"Found link (?P<url>[^\s]+)(?: \(from .*\))?, version: ", line)
             if match:
-                url = ArtifactURL.parse(match.group("url"))
+                url = self.parse_url_and_maybe_record_fingerprint(match.group("url"))
                 pin, partial_artifact = self._extract_resolve_data(url)
                 self._links[pin][url] = partial_artifact
                 return self.Continue()
@@ -504,15 +512,20 @@ class Locker(LogAnalyzer):
             if resolved_requirement.pin in self._saved
         ]
 
+        artifacts = []
+        for resolved_requirement in resolved_requirements:
+            for artifact in resolved_requirement.iter_artifacts():
+                if not artifact.fingerprint:
+                    fingerprint = self._known_fingerprints.get(artifact.url)
+                    if fingerprint:
+                        artifact = attr.evolve(artifact, fingerprint=fingerprint)
+                artifacts.append(artifact)
+
         fingerprinted_artifacts = {
             artifact.url: artifact
             for artifact in self._fingerprint_service.fingerprint(
                 endpoints=self._pep_691_endpoints,
-                artifacts=tuple(
-                    artifact
-                    for resolved_requirement in resolved_requirements
-                    for artifact in resolved_requirement.iter_artifacts()
-                ),
+                artifacts=tuple(artifacts),
             )
         }
 
