@@ -11,6 +11,7 @@ from pex.atomic_directory import atomic_directory
 from pex.common import safe_mkdir, safe_mkdtemp
 from pex.hashing import Sha256
 from pex.jobs import Job, Raise, SpawnedJob, execute_parallel
+from pex.pip import foreign_platform
 from pex.pip.download_observer import DownloadObserver
 from pex.pip.installation import get_pip
 from pex.pip.tool import PackageIndexConfiguration, Pip
@@ -109,10 +110,10 @@ class ArtifactDownloader(object):
                 break
 
         # Although we don't actually need to observe the download, we do need to patch Pip to not
-        # care about wheel tags, environment markers or Requires-Python. The locker's download
-        # observer does just this for universal locks with no target system or requires python
-        # restrictions.
-        download_observer = DownloadObserver(
+        # care about wheel tags, environment markers or Requires-Python if the lock target is
+        # either foreign or universal. The locker.patch below handles the universal case or else
+        # generates no patches if the lock is not universal.
+        download_observer = foreign_platform.patch(self.target) or DownloadObserver(
             analyzer=None,
             patch_set=locker.patch(lock_configuration=self.lock_configuration),
         )
