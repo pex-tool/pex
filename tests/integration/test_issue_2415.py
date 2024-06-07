@@ -9,10 +9,10 @@ from textwrap import dedent
 
 import pytest
 
-from pex.common import safe_open
+from pex.common import safe_mkdir, safe_open
 from pex.fetcher import URLFetcher
 from pex.typing import TYPE_CHECKING
-from testing import IS_PYPY, PY_VER, data, run_pex_command
+from testing import IS_MAC, IS_PYPY, PY_VER, data, run_pex_command
 
 if TYPE_CHECKING:
     from typing import Any
@@ -84,7 +84,12 @@ def test_gevent_monkeypatch(tmpdir):
         cwd=str(tmpdir),
     ).assert_success()
 
-    socket = os.path.realpath(os.path.join(str(tmpdir), "gunicorn.sock"))
+    socket = os.path.join(
+        safe_mkdir(os.path.expanduser("~/Library/Caches/TemporaryItems"))
+        if IS_MAC
+        else str(tmpdir),
+        "gunicorn.sock",
+    )
     with open(os.path.join(str(tmpdir), "stderr"), "wb+") as stderr_fp:
         gunicorn = subprocess.Popen(
             args=[pex, "--bind", "unix:{socket}".format(socket=socket)], stderr=stderr_fp
@@ -93,7 +98,7 @@ def test_gevent_monkeypatch(tmpdir):
 
         start = time.time()
         while not os.path.exists(socket):
-            if time.time() - start > 30:
+            if time.time() - start > 60:
                 break
             # Local testing on an unloaded system shows gunicorn takes about a second to start up.
             time.sleep(1.0)
