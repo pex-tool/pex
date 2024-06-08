@@ -384,11 +384,11 @@ def test_export_vcs_and_local_project_requirements_issue_2416(
         The requirements exported from {lockfile} include the following requirements
         that tools likely won't support --hash for:
         + VCS requirement 'cowsay @ git+https://github.com/VaasuDevanS/cowsay-python@3db622ce'
-        + local project requirement 'pex @ file:///home/jsirois/dev/pex-tool/pex'
+        + local project requirement 'pex @ file://{pex_project_dir}'
 
         If you can accept a lack of hash checking you can specify `--format pip-no-hashes`.
         """
-    ).format(lockfile=lockfile_path)
+    ).format(lockfile=lockfile_path, pex_project_dir=pex_project_dir)
     exported = export(
         tmpdir,
         ansicolors_plus_vcs_plus_local_project,
