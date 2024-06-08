@@ -34,7 +34,14 @@ from pex.resolve import requirement_options, resolver_options, target_options
 from pex.resolve.config import finalize as finalize_resolve_config
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.lock_resolver import resolve_from_lock
-from pex.resolve.locked_resolve import LockConfiguration, LockStyle, Resolved, TargetSystem
+from pex.resolve.locked_resolve import (
+    LocalProjectArtifact,
+    LockConfiguration,
+    LockStyle,
+    Resolved,
+    TargetSystem,
+    VCSArtifact,
+)
 from pex.resolve.lockfile import json_codec
 from pex.resolve.lockfile.create import create
 from pex.resolve.lockfile.model import Lockfile
@@ -85,6 +92,7 @@ class ExportFormat(Enum["ExportFormat.Value"]):
         pass
 
     PIP = Value("pip")
+    PIP_NO_HASHES = Value("pip-no-hashes")
     PEP_665 = Value("pep-665")
 
 
@@ -512,8 +520,8 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             choices=ExportFormat.values(),
             type=ExportFormat.for_value,
             help=(
-                "The format to export the lock to. Currently only the {pip!r} requirements file "
-                "format using `--hash` is supported.".format(pip=ExportFormat.PIP)
+                "The format to export the lock to. Currently only the Pip requirements file "
+                "formats (using `--hash` or bare) are supported."
             ),
         )
         export_parser.add_argument(
@@ -895,9 +903,11 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
 
     def _export(self, requirement_configuration=RequirementConfiguration()):
         # type: (RequirementConfiguration) -> Result
-        if self.options.format != ExportFormat.PIP:
+        supported_formats = ExportFormat.PIP, ExportFormat.PIP_NO_HASHES
+        if self.options.format not in supported_formats:
             return Error(
-                "Only the {pip!r} lock format is supported currently.".format(pip=ExportFormat.PIP)
+                "Only the Pip lock formats are supported currently. "
+                "Choose one of: {choices}".format(choices=" or ".join(map(str, supported_formats)))
             )
 
         lockfile_path, lock_file = self._load_lockfile()
@@ -939,31 +949,80 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         else:
             resolved = subset_result.subsets[0].resolved
 
+        requirement_by_pin = {}  # type: Dict[Pin, str]
         fingerprints_by_pin = OrderedDict()  # type: OrderedDict[Pin, List[Fingerprint]]
+        warnings = []  # type: List[str]
+
+        def add_warning(
+            type_,  # type: str
+            requirement,  # type: str
+        ):
+            # type: (...) -> str
+            warnings.append("{type} {requirement!r}".format(type=type_, requirement=requirement))
+            return requirement
+
         for downloaded_artifact in resolved.downloadable_artifacts:
+            if isinstance(downloaded_artifact.artifact, LocalProjectArtifact):
+                requirement_by_pin[downloaded_artifact.pin] = add_warning(
+                    "local project requirement",
+                    requirement="{project_name} @ file://{directory}".format(
+                        project_name=downloaded_artifact.pin.project_name,
+                        directory=downloaded_artifact.artifact.directory,
+                    ),
+                )
+            elif isinstance(downloaded_artifact.artifact, VCSArtifact):
+                requirement_by_pin[downloaded_artifact.pin] = add_warning(
+                    "VCS requirement",
+                    requirement=downloaded_artifact.artifact.as_unparsed_requirement(
+                        downloaded_artifact.pin.project_name
+                    ),
+                )
+            else:
+                requirement_by_pin[downloaded_artifact.pin] = "{project_name}=={version}".format(
+                    project_name=downloaded_artifact.pin.project_name,
+                    version=downloaded_artifact.pin.version.raw,
+                )
             fingerprints_by_pin.setdefault(downloaded_artifact.pin, []).append(
                 downloaded_artifact.artifact.fingerprint
             )
 
+        if self.options.format is ExportFormat.PIP and warnings:
+            print(
+                "The requirements exported from {lockfile} include the following requirements\n"
+                "that tools likely won't support --hash for:\n"
+                "{warnings}\n"
+                "\n"
+                "If you can accept a lack of hash checking you can specify "
+                "`--format pip-no-hashes`.\n".format(
+                    lockfile=lockfile_path,
+                    warnings="\n".join(
+                        "+ {warning}".format(warning=warning) for warning in warnings
+                    ),
+                ),
+                file=sys.stderr,
+            )
         with self.output(self.options) as output:
             pins = fingerprints_by_pin.keys()  # type: Iterable[Pin]
             if self.options.sort_by == ExportSortBy.PROJECT_NAME:
                 pins = sorted(pins, key=attrgetter("project_name.normalized"))
             for pin in pins:
-                fingerprints = fingerprints_by_pin[pin]
-                output.write(
-                    "{project_name}=={version} \\\n"
-                    "  {hashes}\n".format(
-                        project_name=pin.project_name,
-                        version=pin.version.raw,
-                        hashes=" \\\n  ".join(
-                            "--hash={algorithm}:{hash}".format(
-                                algorithm=fingerprint.algorithm, hash=fingerprint.hash
-                            )
-                            for fingerprint in fingerprints
-                        ),
+                requirement = requirement_by_pin[pin]
+                if self.options.format is ExportFormat.PIP_NO_HASHES:
+                    print(requirement, file=output)
+                else:
+                    fingerprints = fingerprints_by_pin[pin]
+                    output.write(
+                        "{requirement} \\\n"
+                        "  {hashes}\n".format(
+                            requirement=requirement,
+                            hashes=" \\\n  ".join(
+                                "--hash={algorithm}:{hash}".format(
+                                    algorithm=fingerprint.algorithm, hash=fingerprint.hash
+                                )
+                                for fingerprint in fingerprints
+                            ),
+                        )
                     )
-                )
         return Ok()
 
     def _export_subset(self):

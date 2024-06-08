@@ -5,24 +5,35 @@ from __future__ import absolute_import
 
 import json
 import os.path
+import re
 import sys
 from textwrap import dedent
+
+import pytest
 
 from pex.dist_metadata import Requirement
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pip.version import PipVersion
-from pex.resolve.locked_resolve import Artifact, LockedRequirement, LockedResolve, LockStyle
+from pex.resolve.locked_resolve import (
+    Artifact,
+    LocalProjectArtifact,
+    LockedRequirement,
+    LockedResolve,
+    LockStyle,
+    VCSArtifact,
+)
 from pex.resolve.lockfile import json_codec
 from pex.resolve.lockfile.model import Lockfile
-from pex.resolve.resolved_requirement import Fingerprint, Pin
+from pex.resolve.resolved_requirement import ArtifactURL, Fingerprint, Pin
 from pex.resolve.resolver_configuration import ResolverVersion
 from pex.sorted_tuple import SortedTuple
 from pex.typing import TYPE_CHECKING
+from pex.version import __version__
 from testing.cli import run_pex3
 
 if TYPE_CHECKING:
-    from typing import Any, Text
+    from typing import Any, Iterable, Optional, Text
 
     import attr  # vendor:skip
 else:
@@ -79,15 +90,17 @@ UNIVERSAL_ANSICOLORS = Lockfile(
 def export(
     tmpdir,  # type: Any
     lockfile,  # type: Lockfile
-    *export_args  # type: str
+    lockfile_path=None,  # type: Optional[str]
+    export_args=(),  # type: Iterable[str]
+    expected_error_re=None,  # type: Optional[str]
 ):
     # type: (...) -> Text
-    lock = os.path.join(str(tmpdir), "lock.json")
+    lock = lockfile_path or os.path.join(str(tmpdir), "lock.json")
     with open(lock, "w") as fp:
         json.dump(json_codec.as_json_data(lockfile), fp, sort_keys=True, indent=2)
 
-    result = run_pex3("lock", "export", lock, *export_args)
-    result.assert_success()
+    result = run_pex3(*(("lock", "export", lock) + tuple(export_args)))
+    result.assert_success(expected_error_re=expected_error_re)
     return result.output
 
 
@@ -219,7 +232,7 @@ def test_export_sort_by(tmpdir):
               --hash=sha256:spamspam
             """
         )
-        == export(tmpdir, ansicolors_plus_attrs, "--sort-by=specificity")
+        == export(tmpdir, ansicolors_plus_attrs, export_args=("--sort-by", "specificity"))
     )
 
     assert (
@@ -233,7 +246,7 @@ def test_export_sort_by(tmpdir):
               --hash=sha256:spameggs
             """
         )
-        == export(tmpdir, ansicolors_plus_attrs, "--sort-by=project-name")
+        == export(tmpdir, ansicolors_plus_attrs, export_args=("--sort-by", "project-name"))
     )
 
 
@@ -279,12 +292,14 @@ def test_export_respects_target(tmpdir):
     ) == export(
         tmpdir,
         ansicolors_plus_pywin32,
-        "--complete-platform",
-        json.dumps(
-            {
-                "marker_environment": {"sys_platform": "win32"},
-                "compatible_tags": ["cp39-cp39-win32", "py3-none-any"],
-            }
+        export_args=(
+            "--complete-platform",
+            json.dumps(
+                {
+                    "marker_environment": {"sys_platform": "win32"},
+                    "compatible_tags": ["cp39-cp39-win32", "py3-none-any"],
+                }
+            ),
         ),
     ), (
         "A win32 foreign target should get both ansicolors cross-platform artifacts as well as "
@@ -299,5 +314,120 @@ def test_export_respects_target(tmpdir):
           --hash=sha1:ef567890
         """
         )
-        == export(tmpdir, ansicolors_plus_pywin32, "--python", sys.executable)
+        == export(tmpdir, ansicolors_plus_pywin32, export_args=("--python", sys.executable))
     ), "The local interpreter doesn't support Windows; so we should just get ansicolors artifacts."
+
+
+@pytest.fixture
+def ansicolors_plus_vcs_plus_local_project(pex_project_dir):
+    # type: (str) -> Lockfile
+    return attr.evolve(
+        UNIVERSAL_ANSICOLORS,
+        requirements=SortedTuple(
+            [
+                Requirement.parse("ansicolors"),
+                Requirement.parse("cowsay"),
+                Requirement.parse("pex=={version}".format(version=__version__)),
+            ],
+            key=str,
+        ),
+        locked_resolves=SortedTuple(
+            [
+                attr.evolve(
+                    UNIVERSAL_ANSICOLORS.locked_resolves[0],
+                    locked_requirements=SortedTuple(
+                        list(UNIVERSAL_ANSICOLORS.locked_resolves[0].locked_requirements)
+                        + [
+                            LockedRequirement(
+                                pin=Pin(ProjectName("cowsay"), Version("6.1")),
+                                artifact=VCSArtifact.from_artifact_url(
+                                    artifact_url=ArtifactURL.parse(
+                                        "git+https://github.com/VaasuDevanS/cowsay-python@3db622ce"
+                                    ),
+                                    fingerprint=Fingerprint(algorithm="sha256", hash="moo"),
+                                ),
+                            ),
+                            LockedRequirement(
+                                pin=Pin(ProjectName("pex"), Version(__version__)),
+                                artifact=LocalProjectArtifact(
+                                    url=ArtifactURL.parse(
+                                        "file://{pex_project_dir}".format(
+                                            pex_project_dir=pex_project_dir
+                                        )
+                                    ),
+                                    fingerprint=Fingerprint(algorithm="sha256", hash="pex"),
+                                    verified=False,
+                                    directory=pex_project_dir,
+                                ),
+                            ),
+                        ]
+                    ),
+                )
+            ]
+        ),
+        local_project_requirement_mapping={
+            pex_project_dir: Requirement.parse("pex=={version}".format(version=__version__))
+        },
+    )
+
+
+def test_export_vcs_and_local_project_requirements_issue_2416(
+    tmpdir,  # type: Any
+    ansicolors_plus_vcs_plus_local_project,  # type: Lockfile
+    pex_project_dir,  # type: str
+):
+    # type: (...) -> None
+
+    lockfile_path = os.path.join(str(tmpdir), "lock.json")
+    expected_error_msg = dedent(
+        """\
+        The requirements exported from {lockfile} include the following requirements
+        that tools likely won't support --hash for:
+        + VCS requirement 'cowsay @ git+https://github.com/VaasuDevanS/cowsay-python@3db622ce'
+        + local project requirement 'pex @ file:///home/jsirois/dev/pex-tool/pex'
+
+        If you can accept a lack of hash checking you can specify `--format pip-no-hashes`.
+        """
+    ).format(lockfile=lockfile_path)
+    exported = export(
+        tmpdir,
+        ansicolors_plus_vcs_plus_local_project,
+        lockfile_path=lockfile_path,
+        expected_error_re=re.escape(expected_error_msg),
+    )
+    assert (
+        dedent(
+            """\
+            ansicolors==1.1.8 \\
+              --hash=md5:abcd1234 \\
+              --hash=sha1:ef567890
+            cowsay @ git+https://github.com/VaasuDevanS/cowsay-python@3db622ce \\
+              --hash=sha256:moo
+            pex @ file://{pex_project_dir} \\
+              --hash=sha256:pex
+            """
+        ).format(pex_project_dir=pex_project_dir)
+        == exported
+    ), exported
+
+
+def test_export_no_hashes(
+    tmpdir,  # type: Any
+    ansicolors_plus_vcs_plus_local_project,  # type: Lockfile
+    pex_project_dir,  # type: str
+):
+    # type: (...) -> None
+
+    exported = export(
+        tmpdir, ansicolors_plus_vcs_plus_local_project, export_args=("--format", "pip-no-hashes")
+    )
+    assert (
+        dedent(
+            """\
+            ansicolors==1.1.8
+            cowsay @ git+https://github.com/VaasuDevanS/cowsay-python@3db622ce
+            pex @ file://{pex_project_dir}
+            """
+        ).format(pex_project_dir=pex_project_dir)
+        == exported
+    ), exported
