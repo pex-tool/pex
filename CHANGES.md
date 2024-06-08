@@ -1,5 +1,17 @@
 # Release Notes
 
+## 2.3.3
+
+This release fixes `pex3 lock create` support for `--pip-version`s
+23.3.1 and newer. Previously, when locking using indexes that serve
+artifacts via re-directs, the resulting lock file would contain the
+final re-directed URL instead of the originating index artifact URL.
+This could lead to issues when the indexes re-direction scheme changed
+or else if authentication parameters in the original index URL were
+stripped in the Pip logs.
+
+* Fix artifact URL recording for `pip>=23.3`. (#2421)
+
 ## 2.3.2
 
 This release fixes a regression for users of gevent monkey patching. The

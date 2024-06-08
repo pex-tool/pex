@@ -1,0 +1,180 @@
+2024-06-07T14:20:11,127 Created temporary directory: /home/jsirois/.pex/pip/23.2/pip_cache/.tmp/pip-build-tracker-4nk0agh3
+2024-06-07T14:20:11,127 Initialized build tracking at /home/jsirois/.pex/pip/23.2/pip_cache/.tmp/pip-build-tracker-4nk0agh3
+2024-06-07T14:20:11,127 Created build tracker: /home/jsirois/.pex/pip/23.2/pip_cache/.tmp/pip-build-tracker-4nk0agh3
+2024-06-07T14:20:11,127 Entered build tracker: /home/jsirois/.pex/pip/23.2/pip_cache/.tmp/pip-build-tracker-4nk0agh3
+2024-06-07T14:20:11,127 Created temporary directory: /home/jsirois/.pex/pip/23.2/pip_cache/.tmp/pip-download-ekv8xmtq
+2024-06-07T14:20:11,133 Looking in indexes: https://m.devpi.net/root/pypi/+simple/
+2024-06-07T14:20:11,133 1 location(s) to search for versions of wheel:
+2024-06-07T14:20:11,133 * https://m.devpi.net/root/pypi/+simple/wheel/
+2024-06-07T14:20:11,133 Fetching project page and analyzing links: https://m.devpi.net/root/pypi/+simple/wheel/
+2024-06-07T14:20:11,133 Getting page https://m.devpi.net/root/pypi/+simple/wheel/
+2024-06-07T14:20:11,133 Found index url https://m.devpi.net/root/pypi/+simple/
+2024-06-07T14:20:11,134 Looking up "https://m.devpi.net/root/pypi/+simple/wheel/" in the cache
+2024-06-07T14:20:11,134 Request header has "max_age" as 0, cache bypassed
+2024-06-07T14:20:11,135 Starting new HTTPS connection (1): m.devpi.net:443
+2024-06-07T14:20:12,140 https://m.devpi.net:443 "GET /root/pypi/+simple/wheel/ HTTP/1.1" 200 None
+2024-06-07T14:20:12,141 Updating cache with response from "https://m.devpi.net/root/pypi/+simple/wheel/"
+2024-06-07T14:20:12,141 Fetched page https://m.devpi.net/root/pypi/+simple/wheel/ as application/vnd.pypi.simple.v1+json
+2024-06-07T14:20:12,146   Found link https://m.devpi.net/root/pypi/%2Bf/2cc/0dd3d9465ae32/wheel-0.1.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.1
+2024-06-07T14:20:12,146   Found link https://m.devpi.net/root/pypi/%2Bf/820/26a421ca379af/wheel-0.2.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.2
+2024-06-07T14:20:12,146   Found link https://m.devpi.net/root/pypi/%2Bf/767/c011ae408983b/wheel-0.3.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.3
+2024-06-07T14:20:12,146   Found link https://m.devpi.net/root/pypi/%2Bf/d15/9b9b80abbb60c/wheel-0.4.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.4
+2024-06-07T14:20:12,146   Found link https://m.devpi.net/root/pypi/%2Bf/684/79e3af00ccb4d/wheel-0.4.1.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.4.1
+2024-06-07T14:20:12,147   Found link https://m.devpi.net/root/pypi/%2Bf/ca0/e82e12241a71b/wheel-0.4.2.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.4.2
+2024-06-07T14:20:12,147   Found link https://m.devpi.net/root/pypi/%2Bf/804/7cd7403336317/wheel-0.5.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.5
+2024-06-07T14:20:12,147   Found link https://m.devpi.net/root/pypi/%2Bf/c2a/e5ea88f47ed0b/wheel-0.6.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.6
+2024-06-07T14:20:12,147   Found link https://m.devpi.net/root/pypi/%2Bf/3bb/349bde3db626f/wheel-0.7.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.7
+2024-06-07T14:20:12,149   Skipping link: none of the wheel's tags (py27-none-any) are compatible (run pip debug --verbose to show compatible tags): https://m.devpi.net/root/pypi/%2Bf/583/831383bdf191f/wheel-0.8-py27-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/)
+2024-06-07T14:20:12,149   Found link https://m.devpi.net/root/pypi/%2Bf/855/4dad22e0fda18/wheel-0.8.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.8
+2024-06-07T14:20:12,149   Skipping link: none of the wheel's tags (py27-none-any) are compatible (run pip debug --verbose to show compatible tags): https://m.devpi.net/root/pypi/%2Bf/c98/9d0fa55662134/wheel-0.9-py27-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/)
+2024-06-07T14:20:12,150   Found link https://m.devpi.net/root/pypi/%2Bf/469/8c1d702ca4aa5/wheel-0.9-py32-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.9
+2024-06-07T14:20:12,150   Found link https://m.devpi.net/root/pypi/%2Bf/a50/92ad01848ab3b/wheel-0.9.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.9
+2024-06-07T14:20:12,150   Found link https://m.devpi.net/root/pypi/%2Bf/930/a334a9df1e11b/wheel-0.9.1.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.9.1
+2024-06-07T14:20:12,150   Found link https://m.devpi.net/root/pypi/%2Bf/a8a/d92542fa0a548/wheel-0.9.2.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.9.2
+2024-06-07T14:20:12,150   Found link https://m.devpi.net/root/pypi/%2Bf/75e/69663f8817f23/wheel-0.9.3.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.9.3
+2024-06-07T14:20:12,150   Found link https://m.devpi.net/root/pypi/%2Bf/3fa/176a44642d666/wheel-0.9.4.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.9.4
+2024-06-07T14:20:12,150   Found link https://m.devpi.net/root/pypi/%2Bf/2fa/fe3ab14e79a5c/wheel-0.9.5-py2.py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.9.5
+2024-06-07T14:20:12,150   Found link https://m.devpi.net/root/pypi/%2Bf/e9e/6395873fecf89/wheel-0.9.5.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.9.5
+2024-06-07T14:20:12,150   Skipping link: none of the wheel's tags (py27-none-any) are compatible (run pip debug --verbose to show compatible tags): https://m.devpi.net/root/pypi/%2Bf/890/20b5f151462bc/wheel-0.9.6-py27-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/)
+2024-06-07T14:20:12,150   Found link https://m.devpi.net/root/pypi/%2Bf/a24/09a6300454bc5/wheel-0.9.6.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.9.6
+2024-06-07T14:20:12,150   Skipping link: none of the wheel's tags (py27-none-any) are compatible (run pip debug --verbose to show compatible tags): https://m.devpi.net/root/pypi/%2Bf/311/0450f09bd937a/wheel-0.9.7-py27-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/)
+2024-06-07T14:20:12,150   Found link https://m.devpi.net/root/pypi/%2Bf/b8e/ef2651193edc4/wheel-0.9.7.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.9.7
+2024-06-07T14:20:12,150   Found link https://m.devpi.net/root/pypi/%2Bf/dbd/b989fd7a99eac/wheel-0.10.0-py2.py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.10.0
+2024-06-07T14:20:12,150   Found link https://m.devpi.net/root/pypi/%2Bf/7b9/745941475a44c/wheel-0.10.0.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.10.0
+2024-06-07T14:20:12,151   Found link https://m.devpi.net/root/pypi/%2Bf/28f/16c298102f358/wheel-0.10.1-py2.py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.10.1
+2024-06-07T14:20:12,151   Found link https://m.devpi.net/root/pypi/%2Bf/d05/cad700d41c005/wheel-0.10.1.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.10.1
+2024-06-07T14:20:12,151   Found link https://m.devpi.net/root/pypi/%2Bf/abf/dc3fb4427901d/wheel-0.10.2-py2.py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.10.2
+2024-06-07T14:20:12,151   Found link https://m.devpi.net/root/pypi/%2Bf/d24/2e094b505073c/wheel-0.10.2.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.10.2
+2024-06-07T14:20:12,151   Found link https://m.devpi.net/root/pypi/%2Bf/456/f150509b57b16/wheel-0.10.3-py2.py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.10.3
+2024-06-07T14:20:12,151   Found link https://m.devpi.net/root/pypi/%2Bf/082/7c883b021ec89/wheel-0.10.3.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.10.3
+2024-06-07T14:20:12,151   Found link https://m.devpi.net/root/pypi/%2Bf/10a/60ecaff2bde8b/wheel-0.11.0-py2.py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.11.0
+2024-06-07T14:20:12,151   Found link https://m.devpi.net/root/pypi/%2Bf/5e7/4c552d747c630/wheel-0.11.0.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.11.0
+2024-06-07T14:20:12,151   Found link https://m.devpi.net/root/pypi/%2Bf/351/b5f218032c882/wheel-0.12.0-py2.py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.12.0
+2024-06-07T14:20:12,151   Found link https://m.devpi.net/root/pypi/%2Bf/ef6/468ae7f8e19dc/wheel-0.12.0.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.12.0
+2024-06-07T14:20:12,151   Found link https://m.devpi.net/root/pypi/%2Bf/e22/c0ee13924fa77/wheel-0.13.0-py2.py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.13.0
+2024-06-07T14:20:12,151   Found link https://m.devpi.net/root/pypi/%2Bf/54e/b152a88932f48/wheel-0.13.0.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.13.0
+2024-06-07T14:20:12,151   Found link https://m.devpi.net/root/pypi/%2Bf/41a/973fa2d0a3b00/wheel-0.14.0-py2.py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.14.0
+2024-06-07T14:20:12,151   Found link https://m.devpi.net/root/pypi/%2Bf/76c/3c424dc79dde4/wheel-0.14.0.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.14.0
+2024-06-07T14:20:12,152   Found link https://m.devpi.net/root/pypi/%2Bf/c71/9c414d4a192ee/wheel-0.15.0-py2.py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.15.0
+2024-06-07T14:20:12,152   Found link https://m.devpi.net/root/pypi/%2Bf/052/2f7cbf7a658ab/wheel-0.15.0.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.15.0
+2024-06-07T14:20:12,152   Found link https://m.devpi.net/root/pypi/%2Bf/145/1499fcc03da0d/wheel-0.16.0-py2.py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.16.0
+2024-06-07T14:20:12,152   Found link https://m.devpi.net/root/pypi/%2Bf/490/7bf9c716264f0/wheel-0.16.0.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.16.0
+2024-06-07T14:20:12,152   Found link https://m.devpi.net/root/pypi/%2Bf/b5a/ffc7301543258/wheel-0.17.0-py2.py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.17.0
+2024-06-07T14:20:12,152   Found link https://m.devpi.net/root/pypi/%2Bf/c13/9e4acbc3c7c14/wheel-0.17.0.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.17.0
+2024-06-07T14:20:12,152   Found link https://m.devpi.net/root/pypi/%2Bf/504/64317d6baf354/wheel-0.18.0-py2.py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.18.0
+2024-06-07T14:20:12,152   Found link https://m.devpi.net/root/pypi/%2Bf/3a3/f6b1ee1e0e46d/wheel-0.18.0.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.18.0
+2024-06-07T14:20:12,152   Found link https://m.devpi.net/root/pypi/%2Bf/c43/93edc51986db5/wheel-0.19.0-py2.py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.19.0
+2024-06-07T14:20:12,152   Found link https://m.devpi.net/root/pypi/%2Bf/a1e/6118ca67ca0e7/wheel-0.19.0.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.19.0
+2024-06-07T14:20:12,152   Found link https://m.devpi.net/root/pypi/%2Bf/b07/98123cd67a763/wheel-0.21.0-py2.py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.21.0
+2024-06-07T14:20:12,152   Found link https://m.devpi.net/root/pypi/%2Bf/68a/d3e66560e9df1/wheel-0.21.0.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.21.0
+2024-06-07T14:20:12,152   Found link https://m.devpi.net/root/pypi/%2Bf/4ac/0ec6404ef2dd3/wheel-0.22.0-py2.py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.22.0
+2024-06-07T14:20:12,152   Found link https://m.devpi.net/root/pypi/%2Bf/dff/df998910de1fd/wheel-0.22.0.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.22.0
+2024-06-07T14:20:12,152   Found link https://m.devpi.net/root/pypi/%2Bf/cbc/6b2e274557b5e/wheel-0.23.0-py2.py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.23.0
+2024-06-07T14:20:12,152   Found link https://m.devpi.net/root/pypi/%2Bf/bf8/eed43df6c88fd/wheel-0.23.0.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.23.0
+2024-06-07T14:20:12,152   Found link https://m.devpi.net/root/pypi/%2Bf/53a/8b47d3db4ded8/wheel-0.24.0-py2.py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.24.0
+2024-06-07T14:20:12,153   Found link https://m.devpi.net/root/pypi/%2Bf/ef8/32abfedea7ed8/wheel-0.24.0.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.24.0
+2024-06-07T14:20:12,153   Found link https://m.devpi.net/root/pypi/%2Bf/11d/7473000053180/wheel-0.25.0-py2.py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.25.0
+2024-06-07T14:20:12,153   Found link https://m.devpi.net/root/pypi/%2Bf/c7a/72676357e26dd/wheel-0.25.0.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.25.0
+2024-06-07T14:20:12,153   Found link https://m.devpi.net/root/pypi/%2Bf/c92/ed3a2dd87c54a/wheel-0.26.0-py2.py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.26.0
+2024-06-07T14:20:12,153   Found link https://m.devpi.net/root/pypi/%2Bf/eaa/d353805c180a4/wheel-0.26.0.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.26.0
+2024-06-07T14:20:12,153   Found link https://m.devpi.net/root/pypi/%2Bf/b2e/5cf1b3e5ca787/wheel-0.27.0-py2.py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.27.0
+2024-06-07T14:20:12,153   Found link https://m.devpi.net/root/pypi/%2Bf/0be/ae2ec3a20df54/wheel-0.27.0.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.27.0
+2024-06-07T14:20:12,153   Found link https://m.devpi.net/root/pypi/%2Bf/7a8/3f0fd22ccf413/wheel-0.28.0-py2.py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.28.0
+2024-06-07T14:20:12,153   Found link https://m.devpi.net/root/pypi/%2Bf/705/25cdda4fe80f3/wheel-0.28.0.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.28.0
+2024-06-07T14:20:12,153   Found link https://m.devpi.net/root/pypi/%2Bf/ea8/033fc9905804e/wheel-0.29.0-py2.py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.29.0
+2024-06-07T14:20:12,153   Found link https://m.devpi.net/root/pypi/%2Bf/1eb/b8ad7e26b448e/wheel-0.29.0.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.29.0
+2024-06-07T14:20:12,153   Found link https://m.devpi.net/root/pypi/%2Bf/cd1/9aa9325d3af1c/wheel-0.30.0a0-py2.py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.30.0a0
+2024-06-07T14:20:12,153   Found link https://m.devpi.net/root/pypi/%2Bf/98f/3e09b4ad7f564/wheel-0.30.0a0.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.30.0a0
+2024-06-07T14:20:12,153   Found link https://m.devpi.net/root/pypi/%2Bf/e72/1e53864f084f9/wheel-0.30.0-py2.py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.30.0
+2024-06-07T14:20:12,153   Found link https://m.devpi.net/root/pypi/%2Bf/951/5fe0a94e823fd/wheel-0.30.0.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/), version: 0.30.0
+2024-06-07T14:20:12,154   Found link https://m.devpi.net/root/pypi/%2Bf/9cd/c8ab2cc9c3c2e/wheel-0.31.0-py2.py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:>=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*), version: 0.31.0
+2024-06-07T14:20:12,154   Found link https://m.devpi.net/root/pypi/%2Bf/1ae/8153bed701cb0/wheel-0.31.0.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:>=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*), version: 0.31.0
+2024-06-07T14:20:12,154   Found link https://m.devpi.net/root/pypi/%2Bf/800/44e51ec5bbf6c/wheel-0.31.1-py2.py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:>=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*), version: 0.31.1
+2024-06-07T14:20:12,154   Found link https://m.devpi.net/root/pypi/%2Bf/0a2/e54558a0628f2/wheel-0.31.1.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:>=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*), version: 0.31.1
+2024-06-07T14:20:12,154   Found link https://m.devpi.net/root/pypi/%2Bf/397/0f4130b7f8bf8/wheel-0.32.0-py2.py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:>=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*), version: 0.32.0
+2024-06-07T14:20:12,154   Found link https://m.devpi.net/root/pypi/%2Bf/a26/bc27230baaec9/wheel-0.32.0.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:>=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*), version: 0.32.0
+2024-06-07T14:20:12,155   Found link https://m.devpi.net/root/pypi/%2Bf/9fa/1f772f1a2df2b/wheel-0.32.1-py2.py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:>=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*), version: 0.32.1
+2024-06-07T14:20:12,155   Found link https://m.devpi.net/root/pypi/%2Bf/d21/5f4520a1ba185/wheel-0.32.1.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:>=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*), version: 0.32.1
+2024-06-07T14:20:12,155   Found link https://m.devpi.net/root/pypi/%2Bf/c93/e2d711f5f9841/wheel-0.32.2-py2.py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:>=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*), version: 0.32.2
+2024-06-07T14:20:12,155   Found link https://m.devpi.net/root/pypi/%2Bf/196/c9842d79262bb/wheel-0.32.2.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:>=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*), version: 0.32.2
+2024-06-07T14:20:12,155   Found link https://m.devpi.net/root/pypi/%2Bf/1e5/3cdb3f808d5cc/wheel-0.32.3-py2.py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:>=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*), version: 0.32.3
+2024-06-07T14:20:12,155   Found link https://m.devpi.net/root/pypi/%2Bf/029/703bf514e16c8/wheel-0.32.3.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:>=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*), version: 0.32.3
+2024-06-07T14:20:12,156   Found link https://m.devpi.net/root/pypi/%2Bf/b79/ffea026bc0dbd/wheel-0.33.0-py2.py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:>=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*), version: 0.33.0
+2024-06-07T14:20:12,156   Found link https://m.devpi.net/root/pypi/%2Bf/123/63e6df5678ecf/wheel-0.33.0.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:>=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*), version: 0.33.0
+2024-06-07T14:20:12,156   Found link https://m.devpi.net/root/pypi/%2Bf/8eb/4a788b3aec8ab/wheel-0.33.1-py2.py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:>=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*), version: 0.33.1
+2024-06-07T14:20:12,156   Found link https://m.devpi.net/root/pypi/%2Bf/66a/8fd76f28977bb/wheel-0.33.1.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:>=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*), version: 0.33.1
+2024-06-07T14:20:12,156   Found link https://m.devpi.net/root/pypi/%2Bf/5e7/9117472686ac0/wheel-0.33.4-py2.py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:>=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*), version: 0.33.4
+2024-06-07T14:20:12,156   Found link https://m.devpi.net/root/pypi/%2Bf/62f/cfa03d45b5b72/wheel-0.33.4.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:>=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*), version: 0.33.4
+2024-06-07T14:20:12,156   Found link https://m.devpi.net/root/pypi/%2Bf/fd8/5f7f5ba5b1337/wheel-0.33.5-py2.py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:>=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*), version: 0.33.5
+2024-06-07T14:20:12,157   Found link https://m.devpi.net/root/pypi/%2Bf/0f8/3c322fbe95b52/wheel-0.33.5.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:>=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*), version: 0.33.5
+2024-06-07T14:20:12,157   Found link https://m.devpi.net/root/pypi/%2Bf/f4d/a1763d3becf2e/wheel-0.33.6-py2.py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:>=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*), version: 0.33.6
+2024-06-07T14:20:12,157   Found link https://m.devpi.net/root/pypi/%2Bf/10c/9da68765315ed/wheel-0.33.6.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:>=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*), version: 0.33.6
+2024-06-07T14:20:12,157   Found link https://m.devpi.net/root/pypi/%2Bf/98a/7bd648493d21d/wheel-0.34.0-py2.py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,>=2.7), version: 0.34.0
+2024-06-07T14:20:12,157   Found link https://m.devpi.net/root/pypi/%2Bf/a69/231973dccde85/wheel-0.34.0.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,>=2.7), version: 0.34.0
+2024-06-07T14:20:12,158   Found link https://m.devpi.net/root/pypi/%2Bf/48e/082fac9a549bb/wheel-0.34.1-py2.py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:>=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*), version: 0.34.1
+2024-06-07T14:20:12,158   Found link https://m.devpi.net/root/pypi/%2Bf/664/b9c5033ee7cd5/wheel-0.34.1.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:>=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*), version: 0.34.1
+2024-06-07T14:20:12,158   Found link https://m.devpi.net/root/pypi/%2Bf/df2/77cb51e61359a/wheel-0.34.2-py2.py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:>=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*), version: 0.34.2
+2024-06-07T14:20:12,158   Found link https://m.devpi.net/root/pypi/%2Bf/878/8e9155fe14f54/wheel-0.34.2.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:>=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*), version: 0.34.2
+2024-06-07T14:20:12,159   Found link https://m.devpi.net/root/pypi/%2Bf/64a/0d73747636637/wheel-0.35.0-py2.py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,>=2.7), version: 0.35.0
+2024-06-07T14:20:12,159   Found link https://m.devpi.net/root/pypi/%2Bf/625/e645aae0706ad/wheel-0.35.0.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,>=2.7), version: 0.35.0
+2024-06-07T14:20:12,159   Found link https://m.devpi.net/root/pypi/%2Bf/497/add53525d16c1/wheel-0.35.1-py2.py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,>=2.7), version: 0.35.1
+2024-06-07T14:20:12,159   Found link https://m.devpi.net/root/pypi/%2Bf/99a/22d87add3f634/wheel-0.35.1.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,>=2.7), version: 0.35.1
+2024-06-07T14:20:12,159   Found link https://m.devpi.net/root/pypi/%2Bf/645/f81da70dcd993/wheel-0.36.0-py2.py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,>=2.7), version: 0.36.0
+2024-06-07T14:20:12,159   Found link https://m.devpi.net/root/pypi/%2Bf/e17/f05e14282d0e6/wheel-0.36.0.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,>=2.7), version: 0.36.0
+2024-06-07T14:20:12,159   Found link https://m.devpi.net/root/pypi/%2Bf/906/864fb722c0ab5/wheel-0.36.1-py2.py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,>=2.7), version: 0.36.1
+2024-06-07T14:20:12,160   Found link https://m.devpi.net/root/pypi/%2Bf/aae/f9b8c36db72f8/wheel-0.36.1.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,>=2.7), version: 0.36.1
+2024-06-07T14:20:12,160   Found link https://m.devpi.net/root/pypi/%2Bf/78b/5b185f0e5763c/wheel-0.36.2-py2.py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,>=2.7), version: 0.36.2
+2024-06-07T14:20:12,160   Found link https://m.devpi.net/root/pypi/%2Bf/e11/eefd162658ea5/wheel-0.36.2.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,>=2.7), version: 0.36.2
+2024-06-07T14:20:12,160   Found link https://m.devpi.net/root/pypi/%2Bf/210/14b2bd93c6d00/wheel-0.37.0-py2.py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,>=2.7), version: 0.37.0
+2024-06-07T14:20:12,161   Found link https://m.devpi.net/root/pypi/%2Bf/e2e/f7239991699e3/wheel-0.37.0.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,>=2.7), version: 0.37.0
+2024-06-07T14:20:12,161   Found link https://m.devpi.net/root/pypi/%2Bf/4bd/cd7d840138086/wheel-0.37.1-py2.py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,>=2.7), version: 0.37.1
+2024-06-07T14:20:12,161   Found link https://m.devpi.net/root/pypi/%2Bf/e9a/504e793efbca1/wheel-0.37.1.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,>=2.7), version: 0.37.1
+2024-06-07T14:20:12,161   Found link https://m.devpi.net/root/pypi/%2Bf/12b/e48b0b8684b51/wheel-0.38.0-py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:>=3.7), version: 0.38.0
+2024-06-07T14:20:12,161   Found link https://m.devpi.net/root/pypi/%2Bf/d52/844afee64cdd4/wheel-0.38.0.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:>=3.7), version: 0.38.0
+2024-06-07T14:20:12,161   Found link https://m.devpi.net/root/pypi/%2Bf/7a9/5f9a8dc0924ef/wheel-0.38.1-py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:>=3.7), version: 0.38.1
+2024-06-07T14:20:12,161   Found link https://m.devpi.net/root/pypi/%2Bf/ea0/41edf63f4ccba/wheel-0.38.1.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:>=3.7), version: 0.38.1
+2024-06-07T14:20:12,161   Found link https://m.devpi.net/root/pypi/%2Bf/7a5/a3095dceca97a/wheel-0.38.2-py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:>=3.7), version: 0.38.2
+2024-06-07T14:20:12,162   Found link https://m.devpi.net/root/pypi/%2Bf/3d4/92ef22379a156/wheel-0.38.2.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:>=3.7), version: 0.38.2
+2024-06-07T14:20:12,162   Found link https://m.devpi.net/root/pypi/%2Bf/f3c/99240da8d2698/wheel-0.38.3-py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:>=3.7), version: 0.38.3
+2024-06-07T14:20:12,162   Found link https://m.devpi.net/root/pypi/%2Bf/406/6646ef77d0e56/wheel-0.38.3.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:>=3.7), version: 0.38.3
+2024-06-07T14:20:12,162   Found link https://m.devpi.net/root/pypi/%2Bf/b60/533f3f5d530e9/wheel-0.38.4-py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:>=3.7), version: 0.38.4
+2024-06-07T14:20:12,162   Found link https://m.devpi.net/root/pypi/%2Bf/965/f5259b5667254/wheel-0.38.4.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:>=3.7), version: 0.38.4
+2024-06-07T14:20:12,162   Found link https://m.devpi.net/root/pypi/%2Bf/d23/6b20e7cb522da/wheel-0.40.0-py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:>=3.7), version: 0.40.0
+2024-06-07T14:20:12,162   Found link https://m.devpi.net/root/pypi/%2Bf/cd1/196f3faee2b31/wheel-0.40.0.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:>=3.7), version: 0.40.0
+2024-06-07T14:20:12,162   Found link https://m.devpi.net/root/pypi/%2Bf/7e9/be3bbd0078f61/wheel-0.41.0-py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:>=3.7), version: 0.41.0
+2024-06-07T14:20:12,162   Found link https://m.devpi.net/root/pypi/%2Bf/55a/0f0a5a84869bc/wheel-0.41.0.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:>=3.7), version: 0.41.0
+2024-06-07T14:20:12,162   Found link https://m.devpi.net/root/pypi/%2Bf/473/219bd4cbedc62/wheel-0.41.1-py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:>=3.7), version: 0.41.1
+2024-06-07T14:20:12,162   Found link https://m.devpi.net/root/pypi/%2Bf/12b/911f083e876e1/wheel-0.41.1.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:>=3.7), version: 0.41.1
+2024-06-07T14:20:12,163   Found link https://m.devpi.net/root/pypi/%2Bf/759/09db2664838d0/wheel-0.41.2-py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:>=3.7), version: 0.41.2
+2024-06-07T14:20:12,163   Found link https://m.devpi.net/root/pypi/%2Bf/0c5/ac5ff2afb79ac/wheel-0.41.2.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:>=3.7), version: 0.41.2
+2024-06-07T14:20:12,163   Found link https://m.devpi.net/root/pypi/%2Bf/488/609bc63a29322/wheel-0.41.3-py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:>=3.7), version: 0.41.3
+2024-06-07T14:20:12,163   Found link https://m.devpi.net/root/pypi/%2Bf/4d4/987ce51a49370/wheel-0.41.3.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:>=3.7), version: 0.41.3
+2024-06-07T14:20:12,163   Found link https://m.devpi.net/root/pypi/%2Bf/177/f9c9b0d45c478/wheel-0.42.0-py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:>=3.7), version: 0.42.0
+2024-06-07T14:20:12,163   Found link https://m.devpi.net/root/pypi/%2Bf/c45/be39f7882c9d3/wheel-0.42.0.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:>=3.7), version: 0.42.0
+2024-06-07T14:20:12,163   Found link https://m.devpi.net/root/pypi/%2Bf/55c/570405f142630/wheel-0.43.0-py3-none-any.whl (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:>=3.8), version: 0.43.0
+2024-06-07T14:20:12,163   Found link https://m.devpi.net/root/pypi/%2Bf/465/ef92c69fa5c5d/wheel-0.43.0.tar.gz (from https://m.devpi.net/root/pypi/+simple/wheel/) (requires-python:>=3.8), version: 0.43.0
+2024-06-07T14:20:12,163 Skipping link: not a file: https://m.devpi.net/root/pypi/+simple/wheel/
+2024-06-07T14:20:12,164 Given no hashes to check 132 links for project 'wheel': discarding no candidates
+2024-06-07T14:20:12,166 Collecting wheel
+2024-06-07T14:20:12,167   Created temporary directory: /home/jsirois/.pex/pip/23.2/pip_cache/.tmp/pip-unpack-u605d32b
+2024-06-07T14:20:12,167   Found index url https://m.devpi.net/root/pypi/+simple/
+2024-06-07T14:20:12,168   Looking up "https://m.devpi.net/root/pypi/%2Bf/55c/570405f142630/wheel-0.43.0-py3-none-any.whl" in the cache
+2024-06-07T14:20:12,168   No cache entry available
+2024-06-07T14:20:12,388   https://m.devpi.net:443 "GET /root/pypi/%2Bf/55c/570405f142630/wheel-0.43.0-py3-none-any.whl HTTP/1.1" 302 304
+2024-06-07T14:20:12,388   Status code 302 not in (200, 203, 300, 301, 308)
+2024-06-07T14:20:12,389   Looking up "https://files.pythonhosted.org/packages/7d/cd/d7460c9a869b16c3dd4e1e403cce337df165368c71d6af229a74699622ce/wheel-0.43.0-py3-none-any.whl" in the cache
+2024-06-07T14:20:12,390   No cache entry available
+2024-06-07T14:20:12,390   Starting new HTTPS connection (1): files.pythonhosted.org:443
+2024-06-07T14:20:12,524   https://files.pythonhosted.org:443 "GET /packages/7d/cd/d7460c9a869b16c3dd4e1e403cce337df165368c71d6af229a74699622ce/wheel-0.43.0-py3-none-any.whl HTTP/1.1" 200 65775
+2024-06-07T14:20:12,524   Downloading https://m.devpi.net/root/pypi/%2Bf/55c/570405f142630/wheel-0.43.0-py3-none-any.whl (65 kB)
+2024-06-07T14:20:12,555   Ignoring unknown cache-control directive: immutable
+2024-06-07T14:20:12,555   Updating cache with response from "https://files.pythonhosted.org/packages/7d/cd/d7460c9a869b16c3dd4e1e403cce337df165368c71d6af229a74699622ce/wheel-0.43.0-py3-none-any.whl"
+2024-06-07T14:20:12,555   etag object cached for 1209600 seconds
+2024-06-07T14:20:12,555   Caching due to etag
+2024-06-07T14:20:12,567   Added wheel from https://m.devpi.net/root/pypi/%2Bf/55c/570405f142630/wheel-0.43.0-py3-none-any.whl to build tracker '/home/jsirois/.pex/pip/23.2/pip_cache/.tmp/pip-build-tracker-4nk0agh3'
+2024-06-07T14:20:12,567   Removed wheel from https://m.devpi.net/root/pypi/%2Bf/55c/570405f142630/wheel-0.43.0-py3-none-any.whl from build tracker '/home/jsirois/.pex/pip/23.2/pip_cache/.tmp/pip-build-tracker-4nk0agh3'
+2024-06-07T14:20:12,570 Created temporary directory: /home/jsirois/.pex/pip/23.2/pip_cache/.tmp/pip-unpack-jf3j10vu
+2024-06-07T14:20:12,571 Saved /tmp/tmpfshaqpoi/home.jsirois.bin.pex.venv.bin.python3.12/wheel-0.43.0-py3-none-any.whl
+2024-06-07T14:20:12,571 Created temporary directory: /home/jsirois/.pex/pip/23.2/pip_cache/.tmp/pip-unpack-woncm5kj
+2024-06-07T14:20:12,573 Successfully downloaded wheel
+2024-06-07T14:20:12,573 Removed build tracker: '/home/jsirois/.pex/pip/23.2/pip_cache/.tmp/pip-build-tracker-4nk0agh3'
