@@ -1,22 +1,37 @@
 # Copyright 2023 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+from __future__ import print_function
+
+import glob
+import json
 import os.path
+import re
 import subprocess
 from os.path import commonprefix
+from textwrap import dedent
+from typing import Iterator
 
 import pytest
 
+from pex.common import safe_open
+from pex.compatibility import PY2, commonpath
 from pex.executor import Executor
 from pex.pep_503 import ProjectName
 from pex.pex import PEX
 from pex.pex_info import PexInfo
+from pex.pip.version import PipVersion, PipVersionValue
+from pex.resolve.resolver_configuration import ResolverVersion
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import Virtualenv
 from testing import PY_VER, data, make_env, run_pex_command
 
 if TYPE_CHECKING:
     from typing import Any
+
+    import attr  # vendor:skip
+else:
+    from pex.third_party import attr
 
 
 @pytest.fixture(scope="module")
@@ -145,3 +160,204 @@ def test_requirements_pex_exclude(
     assert pex_root == commonprefix([pex_root, output.decode("utf-8").strip()])
 
     assert_certifi_import_behavior(pex, certifi_venv)
+
+
+@attr.s(frozen=True)
+class PipOptions(object):
+    @classmethod
+    def iter(cls):
+        # type: () -> Iterator[PipOptions]
+        for pip_version in PipVersion.values():
+            if not pip_version.requires_python_applies():
+                continue
+            for resolver_version in ResolverVersion.values():
+                if not ResolverVersion.applies(resolver_version, pip_version):
+                    continue
+                yield cls(pip_version=pip_version, resolver_version=resolver_version)
+
+    pip_version = attr.ib()  # type: PipVersionValue
+    resolver_version = attr.ib()  # type: ResolverVersion.Value
+
+    def iter_args(self):
+        # type: () -> Iterator[str]
+        yield "--pip-version"
+        yield str(self.pip_version)
+        yield "--resolver-version"
+        yield str(self.resolver_version)
+
+    def __str__(self):
+        # type: () -> str
+        return "-".join(
+            (
+                str(self.pip_version),
+                "legacy" if self.resolver_version is ResolverVersion.PIP_LEGACY else "resolvelib",
+            )
+        )
+
+
+@pytest.mark.parametrize(
+    "pip_options",
+    [pytest.param(pip_options, id=str(pip_options)) for pip_options in PipOptions.iter()],
+)
+def test_exclude_deep(
+    tmpdir,  # type: Any
+    pip_options,  # type: PipOptions
+):
+    # type: (...) -> None
+
+    # Bootstrap the Pip version being used if needed before we turn off PyPI.
+    if pip_options.pip_version is not PipVersion.VENDORED:
+        run_pex_command(
+            args=list(pip_options.iter_args()) + ["ansicolors==1.1.8", "--", "-c", ""]
+        ).assert_success()
+
+    venv = Virtualenv.create(os.path.join(str(tmpdir), "venv"))
+    pip = venv.install_pip(upgrade=True)
+    subprocess.check_call(args=[pip, "install", "-U", "setuptools", "wheel"])
+
+    find_links = os.path.join(str(tmpdir), "find_links")
+    project_dir = os.path.join(str(tmpdir), "projects")
+
+    foo_dir = os.path.join(project_dir, "foo")
+    with safe_open(os.path.join(foo_dir, "foo.py"), "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                from bar import BAR
+
+
+                def foo():
+                    return BAR * 42
+                """
+            )
+        )
+    with safe_open(os.path.join(foo_dir, "setup.py"), "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                from setuptools import setup
+
+
+                setup(
+                    name="foo",
+                    version="0.1.0",
+                    install_requires=["bar"],
+                    py_modules=["foo"],
+                )
+                """
+            )
+        )
+    venv.interpreter.execute(
+        args=["setup.py", "bdist_wheel", "--dist-dir", find_links], cwd=foo_dir
+    )
+
+    bar_dir = os.path.join(project_dir, "bar")
+    with safe_open(os.path.join(bar_dir, "bar.py"), "w") as fp:
+        print("BAR=1", file=fp)
+    with safe_open(os.path.join(bar_dir, "setup.py"), "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                import os
+                import sys
+
+                from setuptools import setup
+
+
+                if "BEHAVE" not in os.environ:
+                    sys.exit("I'm an evil package.")
+
+
+                setup(
+                    name="bar",
+                    version="0.1.0",
+                    py_modules=["bar"],
+                )
+                """
+            )
+        )
+
+    def assert_stderr_contains(
+        expected,  # type: bytes
+        *args,  # type: str
+        **kwargs  # type: Any
+    ):
+        # type: (...) -> None
+        process = subprocess.Popen(args=args, stderr=subprocess.PIPE, **kwargs)
+        _, stderr = process.communicate()
+        assert process.returncode != 0
+        assert expected in stderr, stderr.decode()
+
+    # The bar package should aggressively blow up in normal circumstances.
+    assert_stderr_contains(
+        b"I'm an evil package.",
+        venv.interpreter.binary,
+        "setup.py",
+        "bdist_wheel",
+        "--dist-dir",
+        os.path.join(bar_dir, "dist"),
+        cwd=bar_dir,
+    )
+
+    venv.interpreter.execute(
+        args=["setup.py", "bdist_wheel", "--dist-dir", os.path.join(bar_dir, "dist")],
+        cwd=bar_dir,
+        env=make_env(BEHAVE=1),
+    )
+    wheels = glob.glob(os.path.join(bar_dir, "dist", "*.whl"))
+    assert len(wheels) == 1
+    bar_whl = wheels[0]
+
+    venv.interpreter.execute(
+        args=["setup.py", "sdist", "--dist-dir", find_links], cwd=bar_dir, env=make_env(BEHAVE=1)
+    )
+
+    # Building a Pex that requires bar should (transitively) aggressively blow up in normal
+    # circumstances.
+    run_pex_command(
+        args=list(pip_options.iter_args()) + ["-f", find_links, "--no-pypi", "foo"]
+    ).assert_failure(expected_error_re=r".*I'm an evil package\..*", re_flags=re.DOTALL)
+
+    # But an `--exclude bar` should solve this by never resolving bar at all.
+    exe = os.path.join(str(tmpdir), "exe.py")
+    with safe_open(exe, "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                import json
+                import os
+                import sys
+
+                import bar
+                from foo import foo
+
+
+                json.dump({"foo": foo(), "bar": os.path.realpath(bar.__file__)}, sys.stdout)
+                """
+            )
+        )
+    pex = os.path.join(str(tmpdir), "pex")
+    run_pex_command(
+        args=list(pip_options.iter_args())
+        + ["-f", find_links, "--no-pypi", "foo", "--exclude", "bar", "-o", pex, "--exe", exe]
+    ).assert_success()
+
+    # The `--exclude bar` should hobble the PEX by default though, since bar is needed but missing.
+    assert_stderr_contains(
+        b"ImportError: No module named bar"
+        if PY2
+        else b"ModuleNotFoundError: No module named 'bar'",
+        pex,
+    )
+
+    # But leaking in an externally installed bar should solve things.
+    subprocess.check_call(args=[pip, "install", bar_whl])
+    data = json.loads(
+        subprocess.check_output(args=[pex], env=make_env(PEX_EXTRA_SYS_PATH=venv.site_packages_dir))
+    )
+    assert 42 == data.pop("foo")
+    bar_module_path = data.pop("bar")
+    assert venv.site_packages_dir == commonpath(
+        (venv.site_packages_dir, bar_module_path)
+    ), bar_module_path
+    assert not data

@@ -11,6 +11,7 @@ from functools import total_ordering
 from pex.common import pluralize
 from pex.dist_metadata import DistMetadata, Requirement
 from pex.enum import Enum
+from pex.exclude_configuration import ExcludeConfiguration
 from pex.orderedset import OrderedSet
 from pex.pep_425 import CompatibilityTags, TagRank
 from pex.pep_503 import ProjectName
@@ -27,6 +28,7 @@ from pex.resolve.resolver_configuration import BuildConfiguration
 from pex.result import Error
 from pex.sorted_tuple import SortedTuple
 from pex.targets import Target
+from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -602,6 +604,7 @@ class LockedResolve(object):
         transitive=True,  # type: bool
         build_configuration=BuildConfiguration(),  # type: BuildConfiguration
         include_all_matches=False,  # type: bool
+        exclude_configuration=ExcludeConfiguration(),  # type: ExcludeConfiguration
     ):
         # type: (...) -> Union[Resolved, Error]
 
@@ -625,6 +628,19 @@ class LockedResolve(object):
         request_resolve(_ResolveRequest.root(requirement) for requirement in requirements)
         while to_be_resolved:
             resolve_request = to_be_resolved.popleft()
+            excluded_by = exclude_configuration.excluded_by(resolve_request.requirement)
+            if excluded_by:
+                TRACER.log(
+                    "Locked requirement {requirement} from {platform} lock excluded by "
+                    "{exclude} {excluded_by}.".format(
+                        requirement=resolve_request.requirement,
+                        exclude=pluralize(excluded_by, "exclude"),
+                        excluded_by=" and ".join(map(str, excluded_by)),
+                        platform=self.target_platform,
+                    )
+                )
+                continue
+
             project_name = resolve_request.project_name
             required.setdefault(project_name, []).append(resolve_request)
 

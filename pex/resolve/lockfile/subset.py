@@ -7,6 +7,7 @@ import os
 from collections import OrderedDict
 
 from pex.common import pluralize
+from pex.exclude_configuration import ExcludeConfiguration
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.requirements import LocalProjectRequirement, parse_requirement_strings
@@ -49,6 +50,7 @@ def subset(
     build_configuration=BuildConfiguration(),  # type: BuildConfiguration
     transitive=True,  # type: bool
     include_all_matches=False,  # type: bool
+    exclude_configuration=ExcludeConfiguration(),  # type: ExcludeConfiguration
 ):
     # type: (...) -> Union[SubsetResult, Error]
 
@@ -89,6 +91,7 @@ def subset(
                     build_configuration=build_configuration,
                     transitive=transitive,
                     include_all_matches=include_all_matches,
+                    exclude_configuration=exclude_configuration,
                     # TODO(John Sirois): Plumb `--ignore-errors` to support desired but technically
                     #  invalid `pip-legacy-resolver` locks:
                     #  https://github.com/pex-tool/pex/issues/1652

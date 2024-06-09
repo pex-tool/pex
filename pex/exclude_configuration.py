@@ -3,7 +3,7 @@
 
 from __future__ import absolute_import
 
-from pex.dist_metadata import Distribution, ProjectNameAndVersion, Requirement
+from pex.dist_metadata import Distribution, Requirement
 from pex.pex_info import PexInfo
 from pex.typing import TYPE_CHECKING
 
@@ -30,7 +30,7 @@ class ExcludeConfiguration(object):
             pex_info.add_excluded(excluded)
 
     def excluded_by(self, item):
-        # type: (Union[Distribution, ProjectNameAndVersion, Requirement]) -> Tuple[Requirement, ...]
+        # type: (Union[Distribution, Requirement]) -> Tuple[Requirement, ...]
         return tuple(req for req in self._excluded if item in req)
 
     def __iter__(self):

@@ -18,11 +18,12 @@ from pex.atomic_directory import atomic_directory
 from pex.auth import PasswordEntry
 from pex.common import safe_mkdir, safe_mkdtemp
 from pex.compatibility import get_stderr_bytes_buffer, shlex_quote, urlparse
+from pex.exclude_configuration import ExcludeConfiguration
 from pex.interpreter import PythonInterpreter
 from pex.jobs import Job
 from pex.network_configuration import NetworkConfiguration
 from pex.pep_427 import install_wheel_interpreter
-from pex.pip import foreign_platform
+from pex.pip import excludes, foreign_platform
 from pex.pip.download_observer import DownloadObserver, PatchSet
 from pex.pip.log_analyzer import ErrorAnalyzer, ErrorMessage, LogAnalyzer, LogScrapeJob
 from pex.pip.tailer import Tailer
@@ -452,6 +453,7 @@ class Pip(object):
         package_index_configuration=None,  # type: Optional[PackageIndexConfiguration]
         build_configuration=BuildConfiguration(),  # type: BuildConfiguration
         observer=None,  # type: Optional[DownloadObserver]
+        exclude_configuration=ExcludeConfiguration(),  # type: ExcludeConfiguration
         preserve_log=False,  # type: bool
     ):
         # type: (...) -> Job
@@ -502,7 +504,7 @@ class Pip(object):
 
         log_analyzers = []  # type: List[LogAnalyzer]
         patch_set = PatchSet()
-        for obs in (foreign_platform_observer, observer):
+        for obs in (foreign_platform_observer, observer, excludes.patch(exclude_configuration)):
             if obs:
                 if obs.analyzer:
                     log_analyzers.append(obs.analyzer)

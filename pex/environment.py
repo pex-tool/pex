@@ -459,8 +459,12 @@ class PEXEnvironment(object):
             ):
                 yield not_found
 
-    def _root_requirements_iter(self, reqs):
-        # type: (Iterable[Requirement]) -> Iterator[QualifiedRequirementOrNotFound]
+    def _root_requirements_iter(
+        self,
+        reqs,  # type: Iterable[Requirement]
+        exclude_configuration,  # type: ExcludeConfiguration
+    ):
+        # type: (...) -> Iterator[QualifiedRequirementOrNotFound]
 
         # We want to pick one requirement for each key (required project) to then resolve
         # recursively.
@@ -477,6 +481,16 @@ class PEXEnvironment(object):
             OrderedDict()
         )  # type: OrderedDict[ProjectName, List[_QualifiedRequirement]]
         for req in reqs:
+            excluded_by = exclude_configuration.excluded_by(req)
+            if excluded_by:
+                TRACER.log(
+                    "Skipping resolving {requirement}: excluded by {excludes}".format(
+                        requirement=req,
+                        excludes=" and ".join(map(str, excluded_by)),
+                    )
+                )
+                continue
+
             required = self._evaluate_marker(req)
             if not required:
                 continue
@@ -591,7 +605,7 @@ class PEXEnvironment(object):
         resolved_dists_by_key = (
             OrderedDict()
         )  # type: OrderedDict[_RequirementKey, FingerprintedDistribution]
-        for qualified_req_or_not_found in self._root_requirements_iter(reqs):
+        for qualified_req_or_not_found in self._root_requirements_iter(reqs, exclude_configuration):
             if isinstance(qualified_req_or_not_found, _DistributionNotFound):
                 record_unresolved(qualified_req_or_not_found)
                 continue
