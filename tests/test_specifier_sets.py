@@ -5,8 +5,11 @@ from __future__ import absolute_import
 
 import sys
 
+import pytest
+
 from pex.pep_440 import Version
 from pex.specifier_sets import ExcludedRange, LowerBound, Range, UpperBound, as_range, includes
+from pex.third_party.packaging.specifiers import InvalidSpecifier
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -154,6 +157,9 @@ def test_includes():
         assert includes(">1", ">1.*")
         assert includes(">1.0", ">1.*")
         assert includes(">1.*", ">1.*")
+    else:
+        with pytest.raises(InvalidSpecifier):
+            as_range(">1.*")
 
     complex_requirement = ">=2.7,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,<3.13"
     assert includes(complex_requirement, "==2.7")
@@ -187,3 +193,112 @@ def test_includes():
     assert includes(">=2,!=3.*,<4", ">=1,!=1.*,<3")
     assert includes(">=2,!=3.*,<4", ">=1,!=1.*,<3,>0,<6")
     assert includes(">=2,!=3.*,<4,>=1,<=42", ">=1,!=1.*,<3")
+
+
+def test_compatible_release_version_suffix_handling():
+    # type: () -> None
+
+    # Dev-release specifiers.
+    assert (
+        Range(
+            lower=LowerBound(Version("1.4.5.dev4"), inclusive=True),
+            upper=UpperBound(Version("1.5"), inclusive=False),
+        )
+        == as_range("~=1.4.5.dev4")
+    )
+
+    # Pre-release specifiers.
+    assert (
+        Range(
+            lower=LowerBound(Version("1.4.5a4"), inclusive=True),
+            upper=UpperBound(Version("1.5"), inclusive=False),
+        )
+        == as_range("~=1.4.5a4")
+    )
+    assert (
+        Range(
+            lower=LowerBound(Version("1.4.5b4"), inclusive=True),
+            upper=UpperBound(Version("1.5"), inclusive=False),
+        )
+        == as_range("~=1.4.5b4")
+    )
+    assert (
+        Range(
+            lower=LowerBound(Version("1.4.5rc4"), inclusive=True),
+            upper=UpperBound(Version("1.5"), inclusive=False),
+        )
+        == as_range("~=1.4.5rc4")
+    )
+
+    # Post-release specifiers.
+    assert (
+        Range(
+            lower=LowerBound(Version("2.2.post3"), inclusive=True),
+            upper=UpperBound(Version("3"), inclusive=False),
+        )
+        == as_range("~=2.2.post3")
+    )
+
+    # Local-release specifiers.
+    with pytest.raises(InvalidSpecifier):
+        as_range("~=1.4.5+bob")
+
+
+def assert_wildcard_handling(version_suffix):
+    # type: (str) -> None
+
+    version_to_wildcard = "1.4.5{version_suffix}".format(version_suffix=version_suffix)
+
+    # N.B.: Newer versions of vendored packaging used for Python>=3.7 enforce the .* suffix is
+    # only used with un-suffixed versions, so we test both old and new vendored packaging
+    # expectations.
+
+    eq_specifier = "=={version_to_wildcard}.*".format(version_to_wildcard=version_to_wildcard)
+    if sys.version_info[:2] < (3, 7):
+        assert (
+            Range(
+                lower=LowerBound(Version(version_to_wildcard), inclusive=True),
+                upper=UpperBound(Version("1.4.6"), inclusive=False),
+            )
+            == as_range(eq_specifier)
+        )
+    else:
+        with pytest.raises(InvalidSpecifier):
+            as_range(eq_specifier)
+
+    ne_specifier = "!={version_to_wildcard}.*".format(version_to_wildcard=version_to_wildcard)
+    if sys.version_info[:2] < (3, 7):
+        assert (
+            Range(
+                excludes=tuple(
+                    [
+                        ExcludedRange(
+                            lower=LowerBound(Version(version_to_wildcard), inclusive=True),
+                            upper=UpperBound(Version("1.4.6"), inclusive=False),
+                        )
+                    ]
+                )
+            )
+            == as_range(ne_specifier)
+        )
+    else:
+        with pytest.raises(InvalidSpecifier):
+            as_range(ne_specifier)
+
+
+def test_wildcard_version_suffix_handling():
+    # type: () -> None
+
+    # Dev-release specifiers.
+    assert_wildcard_handling(".dev4")
+
+    # Pre-release specifiers.
+    assert_wildcard_handling("a4")
+    assert_wildcard_handling("b4")
+    assert_wildcard_handling("rc4")
+
+    # Post-release specifiers.
+    assert_wildcard_handling(".post3")
+
+    # Local-release specifiers.
+    assert_wildcard_handling("+bob")

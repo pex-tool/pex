@@ -179,17 +179,6 @@ def _increment_release(
         ceiling_release = list(parsed_version.release[:index])
         ceiling_release.append(parsed_version.release[index] + 1)
         parts.append(".".join(str(x) for x in ceiling_release))
-    if parsed_version.pre is not None:
-        parts.append("".join(str(x) for x in parsed_version.pre))
-    if parsed_version.post is not None:
-        parts.append(".post")
-        parts.append(str(parsed_version.post))
-    if parsed_version.dev is not None:
-        parts.append(".dev")
-        parts.append(str(parsed_version.dev))
-    if parsed_version.local is not None:
-        parts.append("+")
-        parts.append(parsed_version.local)
 
     return Version("".join(parts))
 
@@ -203,8 +192,6 @@ def _bounds(specifier_set):
             continue
 
         if spec.version.endswith(".*"):
-            if "~=" == spec.operator:
-                raise ValueError()
             version = Version(spec.version[:-2])
             if spec.operator in ("==", "!="):
                 lower = LowerBound(version, inclusive=True)
