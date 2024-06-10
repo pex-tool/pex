@@ -260,40 +260,25 @@ def as_range(specifier_set):
     lower = sorted(lower_bounds)[-1] if lower_bounds else None
     upper = sorted(upper_bounds)[0] if upper_bounds else None
 
-    # Further narrow bounds by any overlapping excludes.
+    # Discard excludes outside the bounds and further narrow bounds by merging any overlapping
+    # excludes.
     if lower:
         for exclude in sorted(excludes, key=lambda ex: ex.lower):
-            # MyPy fails to typecheck <= under Python 2.7 only, even though _LowerBound (via its
+            # MyPy fails to typecheck <= under Python 2.7 only, even though LowerBound (via its
             # _Bound base class) has @total_ordering applied.
             if exclude.lower <= lower:  # type: ignore[operator]
                 new_lower = LowerBound(exclude.upper.version, inclusive=not exclude.upper.inclusive)
                 if new_lower > lower:
                     lower = new_lower
-                    excludes.remove(exclude)
+                excludes.remove(exclude)
     if upper:
         for exclude in sorted(excludes, key=lambda ex: ex.upper, reverse=True):
-            # MyPy fails to typecheck >= under Python 2.7 only, even though _UpperBound (via its
+            # MyPy fails to typecheck >= under Python 2.7 only, even though UpperBound (via its
             # _Bound base class) has @total_ordering applied.
             if exclude.upper >= upper:  # type: ignore[operator]
                 new_upper = UpperBound(exclude.lower.version, inclusive=not exclude.lower.inclusive)
                 if new_upper < upper:
                     upper = new_upper
-                    excludes.remove(exclude)
-
-    # Only retain excludes whose range resides inside the final fully narrowed bounds.
-    for exclude in tuple(excludes):
-        if upper:
-            if exclude.lower.version > upper.version or (
-                exclude.lower.version == upper.version
-                and exclude.lower.inclusive
-                and upper.inclusive
-            ):
-                excludes.remove(exclude)
-                continue
-        if lower:
-            if exclude.upper.version < lower.version or (
-                exclude.upper.version == lower.version and lower.inclusive
-            ):
                 excludes.remove(exclude)
 
     return Range(
