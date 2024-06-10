@@ -95,7 +95,7 @@ class install_lib(orig.install_lib):
 
         # Exclude namespace package __init__.py* files from the output
 
-        if "__PEX_UNVENDORED__" in __import__("os").environ:
+        if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
           from setuptools.archive_util import unpack_directory  # vendor:skip
         else:
           from pex.third_party.setuptools.archive_util import unpack_directory

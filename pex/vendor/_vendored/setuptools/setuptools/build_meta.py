@@ -33,24 +33,24 @@ import tokenize
 import shutil
 import contextlib
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   import setuptools  # vendor:skip
 else:
   import pex.third_party.setuptools as setuptools
 
 import distutils
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from setuptools.py31compat import TemporaryDirectory  # vendor:skip
 else:
   from pex.third_party.setuptools.py31compat import TemporaryDirectory
 
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from pkg_resources import parse_requirements  # vendor:skip
 else:
   from pex.third_party.pkg_resources import parse_requirements
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from pkg_resources.py31compat import makedirs  # vendor:skip
 else:
   from pex.third_party.pkg_resources.py31compat import makedirs

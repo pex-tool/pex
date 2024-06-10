@@ -9,37 +9,37 @@ import posixpath
 import re
 import zipfile
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   import pkg_resources  # vendor:skip
 else:
   import pex.third_party.pkg_resources as pkg_resources
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   import setuptools  # vendor:skip
 else:
   import pex.third_party.setuptools as setuptools
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from pkg_resources import parse_version  # vendor:skip
 else:
   from pex.third_party.pkg_resources import parse_version
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from setuptools.extern.packaging.tags import sys_tags  # vendor:skip
 else:
   from pex.third_party.setuptools.extern.packaging.tags import sys_tags
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from setuptools.extern.packaging.utils import canonicalize_name  # vendor:skip
 else:
   from pex.third_party.setuptools.extern.packaging.utils import canonicalize_name
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from setuptools.extern.six import PY3  # vendor:skip
 else:
   from pex.third_party.setuptools.extern.six import PY3
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from setuptools.command.egg_info import write_requirements  # vendor:skip
 else:
   from pex.third_party.setuptools.command.egg_info import write_requirements

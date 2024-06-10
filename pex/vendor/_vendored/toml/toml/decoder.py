@@ -4,7 +4,7 @@ from os import linesep
 import re
 import sys
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "toml" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from toml.tz import TomlTz  # vendor:skip
 else:
   from pex.third_party.toml.tz import TomlTz

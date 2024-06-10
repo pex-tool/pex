@@ -5,7 +5,7 @@ import sys
 import io
 import contextlib
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from setuptools.extern import six, ordered_set  # vendor:skip
 else:
   from pex.third_party.setuptools.extern import six, ordered_set
@@ -13,7 +13,7 @@ else:
 
 from .py36compat import sdist_add_defaults
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   import pkg_resources  # vendor:skip
 else:
   import pex.third_party.pkg_resources as pkg_resources

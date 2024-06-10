@@ -1,7 +1,7 @@
 import unicodedata
 import sys
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from setuptools.extern import six  # vendor:skip
 else:
   from pex.third_party.setuptools.extern import six

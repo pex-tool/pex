@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "attrs" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from attr import (
     NOTHING,
     Attribute,
@@ -59,7 +59,7 @@ else:
     validate,
 )
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "attrs" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from attr._next_gen import asdict, astuple  # vendor:skip
 else:
   from pex.third_party.attr._next_gen import asdict, astuple

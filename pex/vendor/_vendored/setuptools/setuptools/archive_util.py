@@ -8,7 +8,7 @@ import posixpath
 import contextlib
 from distutils.errors import DistutilsError
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from pkg_resources import ensure_directory  # vendor:skip
 else:
   from pex.third_party.pkg_resources import ensure_directory

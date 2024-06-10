@@ -10,13 +10,13 @@ import functools
 from importlib import import_module
 import inspect
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from setuptools.extern import six  # vendor:skip
 else:
   from pex.third_party.setuptools.extern import six
 
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   import setuptools  # vendor:skip
 else:
   import pex.third_party.setuptools as setuptools

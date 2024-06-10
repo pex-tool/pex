@@ -5,22 +5,22 @@ import sys
 from distutils import log
 from distutils.errors import DistutilsError
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   import pkg_resources  # vendor:skip
 else:
   import pex.third_party.pkg_resources as pkg_resources
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from setuptools.command.easy_install import easy_install  # vendor:skip
 else:
   from pex.third_party.setuptools.command.easy_install import easy_install
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from setuptools.extern import six  # vendor:skip
 else:
   from pex.third_party.setuptools.extern import six
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from setuptools.wheel import Wheel  # vendor:skip
 else:
   from pex.third_party.setuptools.wheel import Wheel

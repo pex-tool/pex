@@ -7,7 +7,7 @@ import string
 import urllib.parse
 from typing import List, Optional as TOptional, Set
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "packaging" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from pyparsing import (  # noqa
     Combine,
     Literal as L,

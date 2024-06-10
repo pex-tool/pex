@@ -3,7 +3,7 @@ import distutils.command.install_scripts as orig
 import os
 import sys
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from pkg_resources import Distribution, PathMetadata, ensure_directory  # vendor:skip
 else:
   from pex.third_party.pkg_resources import Distribution, PathMetadata, ensure_directory
@@ -18,7 +18,7 @@ class install_scripts(orig.install_scripts):
         self.no_ep = False
 
     def run(self):
-        if "__PEX_UNVENDORED__" in __import__("os").environ:
+        if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
           import setuptools.command.easy_install as ei  # vendor:skip
         else:
           import pex.third_party.setuptools.command.easy_install as ei
@@ -61,7 +61,7 @@ class install_scripts(orig.install_scripts):
 
     def write_script(self, script_name, contents, mode="t", *ignored):
         """Write an executable file to the scripts directory"""
-        if "__PEX_UNVENDORED__" in __import__("os").environ:
+        if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
           from setuptools.command.easy_install import chmod, current_umask  # vendor:skip
         else:
           from pex.third_party.setuptools.command.easy_install import chmod, current_umask

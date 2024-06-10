@@ -25,22 +25,22 @@ from distutils.errors import (
 from distutils.util import rfc822_escape
 from distutils.version import StrictVersion
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from setuptools.extern import six  # vendor:skip
 else:
   from pex.third_party.setuptools.extern import six
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from setuptools.extern import packaging  # vendor:skip
 else:
   from pex.third_party.setuptools.extern import packaging
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from setuptools.extern import ordered_set  # vendor:skip
 else:
   from pex.third_party.setuptools.extern import ordered_set
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from setuptools.extern.six.moves import map, filter, filterfalse  # vendor:skip
 else:
   from pex.third_party.setuptools.extern.six.moves import map, filter, filterfalse
@@ -48,38 +48,38 @@ else:
 
 from . import SetuptoolsDeprecationWarning
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from setuptools.depends import Require  # vendor:skip
 else:
   from pex.third_party.setuptools.depends import Require
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from setuptools import windows_support  # vendor:skip
 else:
   from pex.third_party.setuptools import windows_support
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from setuptools.monkey import get_unpatched  # vendor:skip
 else:
   from pex.third_party.setuptools.monkey import get_unpatched
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from setuptools.config import parse_configuration  # vendor:skip
 else:
   from pex.third_party.setuptools.config import parse_configuration
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   import pkg_resources  # vendor:skip
 else:
   import pex.third_party.pkg_resources as pkg_resources
 
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   __import__('setuptools.extern.packaging.specifiers')  # vendor:skip
 else:
   __import__('pex.third_party.setuptools.extern.packaging.specifiers')
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   __import__('setuptools.extern.packaging.version')  # vendor:skip
 else:
   __import__('pex.third_party.setuptools.extern.packaging.version')
@@ -612,7 +612,7 @@ class Distribution(_Distribution):
         this method provides the same functionality in subtly-improved
         ways.
         """
-        if "__PEX_UNVENDORED__" in __import__("os").environ:
+        if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
           from setuptools.extern.six.moves.configparser import ConfigParser  # vendor:skip
         else:
           from pex.third_party.setuptools.extern.six.moves.configparser import ConfigParser
@@ -821,7 +821,7 @@ class Distribution(_Distribution):
 
     def fetch_build_egg(self, req):
         """Fetch an egg needed for building"""
-        if "__PEX_UNVENDORED__" in __import__("os").environ:
+        if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
           from setuptools.installer import fetch_build_egg  # vendor:skip
         else:
           from pex.third_party.setuptools.installer import fetch_build_egg

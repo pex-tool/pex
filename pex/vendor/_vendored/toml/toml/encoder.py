@@ -3,7 +3,7 @@ import re
 import sys
 from decimal import Decimal
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "toml" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from toml.decoder import InlineTableDict  # vendor:skip
 else:
   from pex.third_party.toml.decoder import InlineTableDict
@@ -290,7 +290,7 @@ class TomlNumpyEncoder(TomlEncoder):
 class TomlPreserveCommentEncoder(TomlEncoder):
 
     def __init__(self, _dict=dict, preserve=False):
-        if "__PEX_UNVENDORED__" in __import__("os").environ:
+        if "toml" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
           from toml.decoder import CommentValue  # vendor:skip
         else:
           from pex.third_party.toml.decoder import CommentValue

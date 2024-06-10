@@ -8,12 +8,12 @@ from distutils.sysconfig import customize_compiler, get_config_var
 from distutils.errors import DistutilsError
 from distutils import log
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from setuptools.extension import Library  # vendor:skip
 else:
   from pex.third_party.setuptools.extension import Library
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from setuptools.extern import six  # vendor:skip
 else:
   from pex.third_party.setuptools.extern import six

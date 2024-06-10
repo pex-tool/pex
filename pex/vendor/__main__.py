@@ -64,15 +64,17 @@ class ImportRewriter(object):
             return call_argument.value
 
     @staticmethod
-    def _modify_import(original, modified):
+    def _modify_import(project_name, original, modified):
         indent = " " * (modified.absolute_bounding_box.top_left.column - 1)
         return os.linesep.join(
             indent + line
             for line in (
-                'if "__PEX_UNVENDORED__" in __import__("os").environ:',
-                "  {}  # vendor:skip".format(original),
+                'if "{project_name}" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):'.format(
+                    project_name=project_name
+                ),
+                "  {original_import}  # vendor:skip".format(original_import=original),
                 "else:",
-                "  {}".format(modified),
+                "  {modified_import}".format(modified_import=modified),
             )
         )
 
@@ -85,20 +87,22 @@ class ImportRewriter(object):
         self._prefix = prefix
         self._packages = packages
 
-    def rewrite(self, python_file):
+    def rewrite(self, project_name, python_file):
         modififications = OrderedDict()
 
         red_baron = self._parse(python_file)
-        modififications.update(self._modify__import__calls(red_baron))
-        modififications.update(self._modify_import_statements(red_baron))
-        modififications.update(self._modify_from_import_statements(red_baron))
+        modififications.update(self._modify__import__calls(red_baron, project_name))
+        modififications.update(self._modify_import_statements(red_baron, project_name))
+        modififications.update(self._modify_from_import_statements(red_baron, project_name))
 
         if modififications:
             with open(python_file, "w") as fp:
                 fp.write(red_baron.dumps())
             return modififications
 
-    def _modify__import__calls(self, red_baron):  # noqa: We want __import__ as part of the name.
+    def _modify__import__calls(
+        self, red_baron, project_name
+    ):  # noqa: We want __import__ as part of the name.
         for call_node in red_baron.find_all("CallNode"):
             if call_node.previous and call_node.previous.value == "__import__":
                 if self._skip(call_node):
@@ -114,10 +118,10 @@ class ImportRewriter(object):
                     if root_package in self._packages:
                         raw_value.replace("{!r}".format(self._prefix + "." + value))
 
-                        parent.replace(self._modify_import(original, parent))
+                        parent.replace(self._modify_import(project_name, original, parent))
                         yield original, parent
 
-    def _modify_import_statements(self, red_baron):
+    def _modify_import_statements(self, red_baron, project_name):
         for import_node in red_baron.find_all("ImportNode"):
             modified = False
             if self._skip(import_node):
@@ -167,10 +171,10 @@ class ImportRewriter(object):
                     import_module.target = root_package.value
 
             if modified:
-                import_node.replace(self._modify_import(original, import_node))
+                import_node.replace(self._modify_import(project_name, original, import_node))
                 yield original, import_node
 
-    def _modify_from_import_statements(self, red_baron):
+    def _modify_from_import_statements(self, red_baron, project_name):
         for from_import_node in red_baron.find_all("FromImportNode"):
             if self._skip(from_import_node):
                 continue
@@ -187,7 +191,9 @@ class ImportRewriter(object):
                     "{prefix}.{root}".format(prefix=self._prefix, root=root_package.value)
                 )
 
-                from_import_node.replace(self._modify_import(original, from_import_node))
+                from_import_node.replace(
+                    self._modify_import(project_name, original, from_import_node)
+                )
                 yield original, from_import_node
 
 
@@ -296,11 +302,17 @@ def vendorize(root_dir, vendor_specs, prefix, update):
 
         vendor_spec.create_packages()
 
-    vendored_path = [vendor_spec.target_dir for vendor_spec in vendor_specs if vendor_spec.rewrite]
-    import_rewriter = ImportRewriter.for_path_items(prefix=prefix, path_items=vendored_path)
+    vendored_path = [
+        (vendor_spec.key, vendor_spec.target_dir)
+        for vendor_spec in vendor_specs
+        if vendor_spec.rewrite
+    ]
+    import_rewriter = ImportRewriter.for_path_items(
+        prefix=prefix, path_items=[rewrite_path for _, rewrite_path in vendored_path]
+    )
 
-    rewrite_paths = [os.path.join(root_dir, c) for c in ("pex", "tests")] + vendored_path
-    for rewrite_path in rewrite_paths:
+    rewrite_paths = [(c, os.path.join(root_dir, c)) for c in ("pex", "tests")] + vendored_path
+    for project_name, rewrite_path in rewrite_paths:
         for root, dirs, files in os.walk(rewrite_path, followlinks=True):
             if root == os.path.join(root_dir, "pex", "vendor"):
                 dirs[:] = [d for d in dirs if d != "_vendored"]
@@ -308,7 +320,7 @@ def vendorize(root_dir, vendor_specs, prefix, update):
                 if f.endswith(".py"):
                     python_file = os.path.join(root, f)
                     print(green("Examining {python_file}...".format(python_file=python_file)))
-                    modifications = import_rewriter.rewrite(python_file)
+                    modifications = import_rewriter.rewrite(project_name, python_file)
                     if modifications:
                         num_mods = len(modifications)
                         print(

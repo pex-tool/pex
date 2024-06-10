@@ -12,28 +12,28 @@ import re
 import textwrap
 import marshal
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from setuptools.extern import six  # vendor:skip
 else:
   from pex.third_party.setuptools.extern import six
 
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from pkg_resources import get_build_platform, Distribution, ensure_directory  # vendor:skip
 else:
   from pex.third_party.pkg_resources import get_build_platform, Distribution, ensure_directory
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from pkg_resources import EntryPoint  # vendor:skip
 else:
   from pex.third_party.pkg_resources import EntryPoint
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from setuptools.extension import Library  # vendor:skip
 else:
   from pex.third_party.setuptools.extension import Library
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from setuptools import Command  # vendor:skip
 else:
   from pex.third_party.setuptools import Command
