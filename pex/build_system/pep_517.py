@@ -53,7 +53,7 @@ def _default_build_system(
                     )
                 )
                 resolved_reqs.add("setuptools")
-                extra_env.update(__PEX_UNVENDORED__="1")
+                extra_env.update(__PEX_UNVENDORED__="setuptools")
             else:
                 requires = [
                     selected_pip_version.setuptools_requirement,

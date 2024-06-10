@@ -6,9 +6,9 @@ from __future__ import absolute_import, print_function
 import os
 import pkgutil
 
+from pex import third_party
 from pex.common import safe_mkdtemp
 from pex.pip.log_analyzer import LogAnalyzer
-from pex.third_party import isolated
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -77,7 +77,9 @@ class PatchSet(object):
                 "Given: {package!r}".format(package=package)
             )
 
+        import_paths = list(third_party.expose(["pex"]))
         patches_dir = safe_mkdtemp()
+        import_paths.append(patches_dir)
         patches_package = os.path.join(patches_dir, package)
         os.mkdir(patches_package)
 
@@ -92,7 +94,7 @@ class PatchSet(object):
                 print("from . import {module}".format(module=patch.module), file=fp)
                 print("{module}.patch()".format(module=patch.module), file=fp)
 
-        return patches_dir, isolated().chroot_path
+        return tuple(import_paths)
 
     def add(self, patch_set):
         # type: (PatchSet) -> PatchSet

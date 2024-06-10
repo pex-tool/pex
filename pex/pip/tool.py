@@ -358,7 +358,7 @@ class Pip(object):
         with ENV.strip().patch(
             PEX_ROOT=ENV.PEX_ROOT,
             PEX_VERBOSE=str(ENV.PEX_VERBOSE),
-            __PEX_UNVENDORED__="1",
+            __PEX_UNVENDORED__="setuptools",
             **extra_env
         ) as env:
             # Guard against API calls from environment with ambient PYTHONPATH preventing pip PEX
