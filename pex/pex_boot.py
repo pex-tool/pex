@@ -148,6 +148,7 @@ def boot(
     hermetic_venv_scripts,  # type: bool
     pex_path,  # type: Tuple[str, ...]
     is_venv,  # type: bool
+    inject_python_args,  # type: Tuple[str, ...]
 ):
     # type: (...) -> int
 
@@ -170,7 +171,7 @@ def boot(
         sys.stderr.write("Could not launch python executable!\\n")
         return 2
 
-    python_args = []  # type: List[str]
+    python_args = list(inject_python_args)  # type: List[str]
     orig_args = orig_argv()
     if orig_args:
         for index, arg in enumerate(orig_args[1:], start=1):

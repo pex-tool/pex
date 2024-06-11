@@ -513,6 +513,18 @@ def configure_clp_pex_entry_points(parser):
             self.default.extend(shlex.split(value))
 
     group.add_argument(
+        "--inject-python-args",
+        dest="inject_python_args",
+        default=[],
+        action=InjectArgAction,
+        help=(
+            "Command line arguments to the Python interpreter to freeze in. For example, `-u` to "
+            "disable buffering of `sys.stdout` and `sys.stderr` or `-W <arg>` to control Python "
+            "warnings."
+        ),
+    )
+
+    group.add_argument(
         "--inject-args",
         dest="inject_args",
         default=[],
@@ -867,6 +879,7 @@ def build_pex(
             seen.add((src, dst))
 
     pex_info = pex_builder.info
+    pex_info.inject_python_args = options.inject_python_args
     pex_info.inject_env = dict(options.inject_env)
     pex_info.inject_args = options.inject_args
     pex_info.venv = bool(options.venv)

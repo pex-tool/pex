@@ -171,6 +171,16 @@ class PexInfo(object):
         self._pex_info["build_properties"].update(value)
 
     @property
+    def inject_python_args(self):
+        # type: () -> Tuple[str, ...]
+        return tuple(self._pex_info.get("inject_python_args", ()))
+
+    @inject_python_args.setter
+    def inject_python_args(self, value):
+        # type: (Iterable[str]) -> None
+        self._pex_info["inject_python_args"] = tuple(value)
+
+    @property
     def inject_env(self):
         # type: () -> Dict[str, str]
         return dict(self._pex_info.get("inject_env", {}))

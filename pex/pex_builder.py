@@ -500,6 +500,7 @@ class PEXBuilder(object):
                 hermetic_venv_scripts={hermetic_venv_scripts!r},
                 pex_path={pex_path!r},
                 is_venv={is_venv!r},
+                inject_python_args={inject_python_args!r},
             )
             if __SHOULD_EXECUTE__:
                 sys.exit(result)
@@ -512,6 +513,7 @@ class PEXBuilder(object):
             hermetic_venv_scripts=self._pex_info.venv_hermetic_scripts,
             pex_path=self._pex_info.pex_path,
             is_venv=self._pex_info.venv,
+            inject_python_args=self._pex_info.inject_python_args,
         )
         bootstrap = pex_boot + "\n" + pex_main
 
