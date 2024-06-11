@@ -1,7 +1,7 @@
 # Copyright 2014 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-from __future__ import absolute_import
+from __future__ import absolute_import, print_function
 
 import hashlib
 import logging
@@ -116,114 +116,6 @@ class Check(Enum["Check.Value"]):
     NONE = Value("none")
     WARN = Value("warn")
     ERROR = Value("error")
-
-
-BOOTSTRAP_ENVIRONMENT = """\
-import os
-import sys
-
-
-__INSTALLED_FROM__ = '__PEX_EXE__'
-
-
-def __re_exec__(argv0, *extra_launch_args):
-    os.execv(argv0, [argv0] + list(extra_launch_args) + sys.argv[1:])
-
-
-__execute__ = __name__ == "__main__"
-
-def __ensure_pex_installed__(pex, pex_root, pex_hash):
-    from pex.layout import ensure_installed
-    from pex.tracer import TRACER
-
-    installed_location = ensure_installed(pex, pex_root, pex_hash)
-    if not __execute__ or pex == installed_location:
-        return installed_location
-
-    # N.B.: This is read upon re-exec below to point sys.argv[0] back to the original pex before
-    # unconditionally scrubbing the env var and handing off to user code.
-    os.environ[__INSTALLED_FROM__] = pex
-
-    TRACER.log('Executing installed PEX for {{}} at {{}}'.format(pex, installed_location))
-    __re_exec__(sys.executable, installed_location)
-
-
-def __maybe_run_venv__(pex, pex_root, pex_path):
-    from pex.common import is_exe
-    from pex.tracer import TRACER
-    from pex.variables import venv_dir
-
-    venv_dir = venv_dir(
-        pex_file=pex,
-        pex_root=pex_root,
-        pex_hash={pex_hash!r},
-        has_interpreter_constraints={has_interpreter_constraints!r},
-        pex_path=pex_path,
-    )
-    venv_pex = os.path.join(venv_dir, 'pex')
-    if not __execute__ or not is_exe(venv_pex):
-        # Code in bootstrap_pex will (re)create the venv after selecting the correct interpreter.
-        return venv_dir
-
-    TRACER.log('Executing venv PEX for {{}} at {{}}'.format(pex, venv_pex))
-    venv_python = os.path.join(venv_dir, 'bin', 'python')
-    if {hermetic_venv_scripts!r}:
-        __re_exec__(venv_python, '-sE', venv_pex)
-    else:
-        __re_exec__(venv_python, venv_pex)
-
-
-def __entry_point_from_filename__(filename):
-    # Either the entry point is "__main__" and we're in execute mode or "__pex__/__init__.py" and
-    # we're in import hook mode.
-    entry_point = os.path.dirname(filename)
-    if __execute__:
-        return entry_point
-    return os.path.dirname(entry_point)
-
-
-__entry_point__ = None
-if '__file__' in locals() and __file__ is not None and os.path.exists(__file__):
-    __entry_point__ = __entry_point_from_filename__(__file__)
-elif '__loader__' in locals():
-    if hasattr(__loader__, 'archive'):
-        __entry_point__ = __loader__.archive
-    elif hasattr(__loader__, 'get_filename'):
-        # The source of the loader interface has changed over the course of Python history from
-        # `pkgutil.ImpLoader` to `importlib.abc.Loader`, but the existence and semantics of
-        # `get_filename` has remained constant; so we just check for the method.
-        __entry_point__ = __entry_point_from_filename__(__loader__.get_filename())
-
-if __entry_point__ is None:
-    sys.stderr.write('Could not launch python executable!\\n')
-    sys.exit(2)
-
-__installed_from__ = os.environ.pop(__INSTALLED_FROM__, None)
-sys.argv[0] = __installed_from__ or sys.argv[0]
-
-sys.path[0] = os.path.abspath(sys.path[0])
-sys.path.insert(0, os.path.abspath(os.path.join(__entry_point__, {bootstrap_dir!r})))
-
-__venv_dir__ = None
-if not __installed_from__:
-    os.environ['PEX'] = os.path.realpath(__entry_point__)
-    from pex.variables import ENV, Variables
-    __pex_root__ = Variables.PEX_ROOT.value_or(ENV, {pex_root!r})
-    if not ENV.PEX_TOOLS and Variables.PEX_VENV.value_or(ENV, {is_venv!r}):
-        __venv_dir__ = __maybe_run_venv__(
-            __entry_point__,
-            pex_root=__pex_root__,
-            pex_path=ENV.PEX_PATH or {pex_path!r},
-        )
-    __entry_point__ = __ensure_pex_installed__(
-        __entry_point__, pex_root=__pex_root__, pex_hash={pex_hash!r}
-    )
-else:
-    os.environ['PEX'] = os.path.realpath(__installed_from__)
-
-from pex.pex_bootstrapper import bootstrap_pex
-bootstrap_pex(__entry_point__, execute=__execute__, venv_dir=__venv_dir__)
-"""
 
 
 class PEXBuilder(object):
@@ -595,7 +487,24 @@ class PEXBuilder(object):
         self._pex_info.pex_hash = hashlib.sha1(self._pex_info.dump().encode("utf-8")).hexdigest()
         self._chroot.write(self._pex_info.dump().encode("utf-8"), PexInfo.PATH, label="manifest")
 
-        bootstrap = BOOTSTRAP_ENVIRONMENT.format(
+        with open(os.path.join(_ABS_PEX_PACKAGE_DIR, "pex_boot.py")) as fp:
+            pex_boot = fp.read()
+
+        pex_main = dedent(
+            """
+            result = boot(
+                bootstrap_dir={bootstrap_dir!r},
+                pex_root={pex_root!r},
+                pex_hash={pex_hash!r},
+                has_interpreter_constraints={has_interpreter_constraints!r},
+                hermetic_venv_scripts={hermetic_venv_scripts!r},
+                pex_path={pex_path!r},
+                is_venv={is_venv!r},
+            )
+            if __SHOULD_EXECUTE__:
+                sys.exit(result)
+            """
+        ).format(
             bootstrap_dir=self._pex_info.bootstrap,
             pex_root=self._pex_info.raw_pex_root,
             pex_hash=self._pex_info.pex_hash,
@@ -604,6 +513,8 @@ class PEXBuilder(object):
             pex_path=self._pex_info.pex_path,
             is_venv=self._pex_info.venv,
         )
+        bootstrap = pex_boot + "\n" + pex_main
+
         self._chroot.write(
             data=to_bytes(self._shebang + "\n" + self._preamble + "\n" + bootstrap),
             dst="__main__.py",
