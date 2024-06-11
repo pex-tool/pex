@@ -233,9 +233,9 @@ def test_issue_2422(
     assert b"BufferedWriter\n" == subprocess.check_output(
         args=[pex]
     ), "Expected cold run to use buffered io."
-    # assert b"BufferedWriter\n" == subprocess.check_output(
-    #     args=[pex]
-    # ), "Expected warm run to use buffered io."
+    assert b"BufferedWriter\n" == subprocess.check_output(
+        args=[pex]
+    ), "Expected warm run to use buffered io."
 
     assert b"FileIO\n" == subprocess.check_output(
         args=[sys.executable, "-u", pex]

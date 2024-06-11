@@ -20,7 +20,7 @@ else:
     try:
         import ctypes
 
-        # N.B.: Of the PyPy versions we support, only PyPy>=3.10 supports the pythonapi.
+        # N.B.: None of the PyPy versions we support <3.10 supports the pythonapi.
         from ctypes import pythonapi
 
         def orig_argv():
