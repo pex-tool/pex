@@ -7,16 +7,57 @@ import sys
 TYPE_CHECKING = False
 
 if TYPE_CHECKING:
-    from typing import NoReturn, Optional, Tuple
+    from typing import List, NoReturn, Optional, Tuple
+
+
+if sys.version_info >= (3, 10):
+
+    def orig_argv():
+        # type: () -> List[str]
+        return sys.orig_argv
+
+else:
+    try:
+        import ctypes
+
+        # N.B.: Of the PyPy versions we support, only PyPy>=3.10 supports the pythonapi.
+        from ctypes import pythonapi
+
+        def orig_argv():
+            # type: () -> List[str]
+
+            # Under MyPy for Python 3.5, ctypes.POINTER is incorrectly typed. This code is tested
+            # to work correctly in practice on all Pythons Pex supports.
+            argv = ctypes.POINTER(  # type: ignore[call-arg]
+                ctypes.c_char_p if sys.version_info[0] == 2 else ctypes.c_wchar_p
+            )()
+
+            argc = ctypes.c_int()
+            pythonapi.Py_GetArgcArgv(ctypes.byref(argc), ctypes.byref(argv))
+
+            # Under MyPy for Python 3.5, argv[i] has its type incorrectly evaluated. This code
+            # is tested to work correctly in practice on all Pythons Pex supports.
+            return [argv[i] for i in range(argc.value)]  # type: ignore[misc]
+
+    except ImportError:
+        # N.B.: This handles the older PyPy case.
+        def orig_argv():
+            # type: () -> List[str]
+            return []
 
 
 def __re_exec__(
-    argv0,  # type: str
-    *extra_launch_args  # type: str
+    python,  # type: str
+    python_args,  # type: List[str]
+    *extra_python_args  # type: str
 ):
     # type: (...) -> NoReturn
 
-    os.execv(argv0, [argv0] + list(extra_launch_args) + sys.argv[1:])
+    argv = [python]
+    argv.extend(python_args)
+    argv.extend(extra_python_args)
+
+    os.execv(python, argv + sys.argv[1:])
 
 
 __SHOULD_EXECUTE__ = __name__ == "__main__"
@@ -40,6 +81,7 @@ def __ensure_pex_installed__(
     pex,  # type: str
     pex_root,  # type: str
     pex_hash,  # type: str
+    python_args,  # type: List[str]
 ):
     # type: (...) -> Optional[str]
 
@@ -59,7 +101,7 @@ def __ensure_pex_installed__(
             pex=pex, installed_location=installed_location
         )
     )
-    __re_exec__(sys.executable, installed_location)
+    __re_exec__(sys.executable, python_args, installed_location)
 
 
 def __maybe_run_venv__(
@@ -69,6 +111,7 @@ def __maybe_run_venv__(
     has_interpreter_constraints,  # type: bool
     hermetic_venv_scripts,  # type: bool
     pex_path,  # type: Tuple[str, ...]
+    python_args,  # type: List[str]
 ):
     # type: (...) -> Optional[str]
 
@@ -92,9 +135,9 @@ def __maybe_run_venv__(
     TRACER.log("Executing venv PEX for {pex} at {venv_pex}".format(pex=pex, venv_pex=venv_pex))
     venv_python = os.path.join(venv_root_dir, "bin", "python")
     if hermetic_venv_scripts:
-        __re_exec__(venv_python, "-sE", venv_pex)
+        __re_exec__(venv_python, python_args, "-sE", venv_pex)
     else:
-        __re_exec__(venv_python, venv_pex)
+        __re_exec__(venv_python, python_args, venv_pex)
 
 
 def boot(
@@ -127,6 +170,14 @@ def boot(
         sys.stderr.write("Could not launch python executable!\\n")
         return 2
 
+    python_args = []  # type: List[str]
+    orig_args = orig_argv()
+    if orig_args:
+        for index, arg in enumerate(orig_args[1:], start=1):
+            if os.path.exists(arg) and os.path.samefile(entry_point, arg):
+                python_args.extend(orig_args[1:index])
+                break
+
     installed_from = os.environ.pop(__INSTALLED_FROM__, None)
     sys.argv[0] = installed_from or sys.argv[0]
 
@@ -148,9 +199,10 @@ def boot(
                 has_interpreter_constraints=has_interpreter_constraints,
                 hermetic_venv_scripts=hermetic_venv_scripts,
                 pex_path=ENV.PEX_PATH or pex_path,
+                python_args=python_args,
             )
         entry_point = __ensure_pex_installed__(
-            pex=entry_point, pex_root=pex_root, pex_hash=pex_hash
+            pex=entry_point, pex_root=pex_root, pex_hash=pex_hash, python_args=python_args
         )
         if entry_point is None:
             # This means we re-exec'd ourselves already; so this just appeases type checking.
@@ -160,5 +212,7 @@ def boot(
 
     from pex.pex_bootstrapper import bootstrap_pex
 
-    bootstrap_pex(entry_point, execute=__SHOULD_EXECUTE__, venv_dir=venv_dir)
+    bootstrap_pex(
+        entry_point, python_args=python_args, execute=__SHOULD_EXECUTE__, venv_dir=venv_dir
+    )
     return 0
