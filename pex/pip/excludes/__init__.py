@@ -22,8 +22,6 @@ class PatchContext(object):
     def load_exclude_configuration(cls):
         # type: () -> ExcludeConfiguration
 
-        # N.B.: The following environment variable is used by the Pex runtime to control Pip and
-        # must be kept in-sync with `__init__.py`.
         excludes_file = os.environ.pop(cls._PEX_EXCLUDES_FILE_ENV_VAR_NAME)
         with open(excludes_file) as fp:
             return ExcludeConfiguration.create(json.load(fp))
