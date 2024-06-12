@@ -1,5 +1,29 @@
 # Release Notes
 
+## 2.4.0
+
+This release brings new support for preserving arguments passed to the
+Python interpreter (like `-u` or `-W ignore`) either via running a PEX
+via Python from the command line like `python -u my.pex` or via a
+shebang with embedded Python arguments like `#!/usr/bin/python -u`.
+
+In addition, PEXes can now be built with `--inject-python-args` similar
+to the existing `--inject-args` but sealing in arguments to pass to
+Python instead. When both explicitly passed Python interpreter arguments
+and injected Python interpreter arguments are specified, the injected
+arguments appear first on the synthesized command line and the
+explicitly passed arguments appear last so that the explicit arguments
+can trump (which is how Python handles this).
+
+Finally, several bugs existing in the `--exclude` implementation since
+its introduction are now fixed and the feature is greatly improved to
+act on excludes eagerly, never traversing them in the resolve process;
+thus avoiding downloads associated with them as well as potentially
+failing metadata extraction & wheel builds for ill-behaved sdists.
+
+* Implement support for preserving and injecting Python args. (#2427)
+* Fix `--exclude`. (#2409)
+
 ## 2.3.3
 
 This release fixes `pex3 lock create` support for `--pip-version`s
