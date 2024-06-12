@@ -9,6 +9,7 @@ import shlex
 from textwrap import dedent
 
 from pex import dist_metadata, variables
+from pex.compatibility import shlex_quote
 from pex.dist_metadata import Distribution
 from pex.interpreter import PythonInterpreter, calculate_binary_name
 from pex.interpreter_constraints import InterpreterConstraints, iter_compatible_versions
@@ -20,7 +21,7 @@ from pex.typing import TYPE_CHECKING
 from pex.version import __version__
 
 if TYPE_CHECKING:
-    from typing import Iterable, Optional, Tuple
+    from typing import Iterable, List, Optional, Tuple
 
     import attr  # vendor:skip
 else:
@@ -142,13 +143,16 @@ def create_sh_boot_script(
     `sh` interpreter at `/bin/sh`, and it reduces re-exec overhead to ~2ms in the warm case (and
     adds ~2ms in the cold case).
     """
-    python = None  # type: Optional[str]
-    python_args = None  # type: Optional[str]
+    python = ""  # type: str
+    python_args = list(pex_info.inject_python_args)  # type: List[str]
     if python_shebang:
         shebang = python_shebang[2:] if python_shebang.startswith("#!") else python_shebang
         args = shlex.split(shebang)
         python = args[0]
-        python_args = " ".join(args[1:])
+        python_args.extend(args[1:])
+    venv_python_args = python_args[:]
+    if pex_info.venv_hermetic_scripts:
+        venv_python_args.append("-sE")
 
     python_names = tuple(
         _calculate_applicable_binary_names(
@@ -181,7 +185,7 @@ def create_sh_boot_script(
         DEFAULT_PEX_ROOT="$(echo {pex_root})"
 
         DEFAULT_PYTHON="{python}"
-        DEFAULT_PYTHON_ARGS="{python_args}"
+        PYTHON_ARGS="{python_args}"
 
         PEX_ROOT="${{PEX_ROOT:-${{DEFAULT_PEX_ROOT}}}}"
         INSTALLED_PEX="${{PEX_ROOT}}/{pex_installed_relpath}"
@@ -191,12 +195,8 @@ def create_sh_boot_script(
             # interpreter to use is embedded in the shebang of our venv pex script; so just
             # execute that script directly.
             export PEX="$0"
-            if [ -n "${{VENV_PYTHON_ARGS}}" ]; then
-                exec "${{INSTALLED_PEX}}/bin/python" "${{VENV_PYTHON_ARGS}}" "${{INSTALLED_PEX}}" \\
-                    "$@"
-            else
-                exec "${{INSTALLED_PEX}}/bin/python" "${{INSTALLED_PEX}}" "$@"
-            fi
+            exec "${{INSTALLED_PEX}}/bin/python" ${{VENV_PYTHON_ARGS}} "${{INSTALLED_PEX}}" \\
+                "$@"
         fi
 
         find_python() {{
@@ -210,7 +210,7 @@ def create_sh_boot_script(
         }}
 
         if [ -x "${{DEFAULT_PYTHON}}" ]; then
-            python_exe="${{DEFAULT_PYTHON}} ${{DEFAULT_PYTHON_ARGS}}"
+            python_exe="${{DEFAULT_PYTHON}}"
         else
             python_exe="$(find_python)"
         fi
@@ -223,14 +223,14 @@ def create_sh_boot_script(
                 # __main__.py in our top-level directory; so execute Python against that
                 # directory.
                 export __PEX_EXE__="$0"
-                exec ${{python_exe}} "${{INSTALLED_PEX}}" "$@"
+                exec "${{python_exe}}" ${{PYTHON_ARGS}} "${{INSTALLED_PEX}}" "$@"
             else
                 # The slow path: this PEX zipapp is not installed yet. Run the PEX zipapp so it
                 # can install itself, rebuilding its fast path layout under the PEX_ROOT.
                 if [ -n "${{PEX_VERBOSE:-}}" ]; then
                     echo >&2 "Running zipapp pex to lay itself out under PEX_ROOT."
                 fi
-                exec ${{python_exe}} "$0" "$@"
+                exec "${{python_exe}}" ${{PYTHON_ARGS}} "$0" "$@"
             fi
         fi
 
@@ -249,9 +249,11 @@ def create_sh_boot_script(
     ).format(
         venv="1" if pex_info.venv else "",
         python=python,
-        python_args=python_args,
+        python_args=" ".join(shlex_quote(python_arg) for python_arg in python_args),
         pythons=" \\\n".join('"{python}"'.format(python=python) for python in python_names),
         pex_root=pex_info.raw_pex_root,
         pex_installed_relpath=os.path.relpath(pex_installed_path, pex_info.raw_pex_root),
-        venv_python_args="-sE" if pex_info.venv_hermetic_scripts else "",
+        venv_python_args=" ".join(
+            shlex_quote(venv_python_arg) for venv_python_arg in venv_python_args
+        ),
     )

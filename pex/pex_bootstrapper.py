@@ -27,7 +27,7 @@ from pex.variables import ENV
 from pex.venv import installer
 
 if TYPE_CHECKING:
-    from typing import Iterable, Iterator, List, NoReturn, Optional, Set, Tuple, Union
+    from typing import Iterable, Iterator, List, NoReturn, Optional, Sequence, Set, Tuple, Union
 
     import attr  # vendor:skip
 
@@ -344,8 +344,11 @@ def find_compatible_interpreter(interpreter_test=None):
         return target
 
 
-def maybe_reexec_pex(interpreter_test):
-    # type: (InterpreterTest) -> Union[None, NoReturn]
+def maybe_reexec_pex(
+    interpreter_test,  # type: InterpreterTest
+    python_args=(),  # type: Sequence[str]
+):
+    # type: (...) -> Union[None, NoReturn]
     """Handle environment overrides for the Python interpreter to use when executing this pex.
 
     This function supports interpreter filtering based on interpreter constraints stored in PEX-INFO
@@ -360,6 +363,7 @@ def maybe_reexec_pex(interpreter_test):
     constraints against these interpreters.
 
     :param interpreter_test: Optional test to verify selected interpreters can boot a given PEX.
+    :param python_args: Any args to pass to python when re-execing.
     """
 
     current_interpreter = PythonInterpreter.get()
@@ -411,7 +415,7 @@ def maybe_reexec_pex(interpreter_test):
         return None
 
     target_binary = target.binary
-    cmdline = [target_binary] + sys.argv
+    cmdline = [target_binary] + list(python_args) + sys.argv
     TRACER.log(
         "Re-executing: "
         "cmdline={cmdline!r}, "
@@ -461,18 +465,29 @@ class VenvPex(object):
         object.__setattr__(self, "pex", os.path.join(self.venv_dir, "pex"))
         object.__setattr__(self, "python", self.bin_file("python"))
 
-    def execute_args(self, *additional_args):
-        # type: (*str) -> List[str]
+    def execute_args(
+        self,
+        python_args=(),  # type: Sequence[str]
+        additional_args=(),  # type: Sequence[str]
+    ):
+        # type: (...) -> List[str]
         argv = [self.python]
+        argv.extend(python_args)
         if self.hermetic_scripts:
             argv.append("-sE")
         argv.append(self.pex)
         argv.extend(additional_args)
         return argv
 
-    def execv(self, *additional_args):
-        # type: (*str) -> NoReturn
-        os.execv(self.python, self.execute_args(*additional_args))
+    def execv(
+        self,
+        python_args=(),  # type: Sequence[str]
+        additional_args=(),  # type: Sequence[str]
+    ):
+        # type: (...) -> NoReturn
+        os.execv(
+            self.python, self.execute_args(python_args=python_args, additional_args=additional_args)
+        )
 
 
 def ensure_venv(
@@ -586,6 +601,7 @@ def bootstrap_pex(
     entry_point,  # type: str
     execute=True,  # type: bool
     venv_dir=None,  # type: Optional[str]
+    python_args=(),  # type: Sequence[str]
 ):
     # type: (...) -> None
 
@@ -619,9 +635,9 @@ def bootstrap_pex(
             except UnsatisfiableInterpreterConstraintsError as e:
                 die(str(e))
             venv_pex = _bootstrap_venv(entry_point, interpreter=target)
-            venv_pex.execv(*sys.argv[1:])
+            venv_pex.execv(python_args=python_args, additional_args=sys.argv[1:])
         else:
-            maybe_reexec_pex(interpreter_test=interpreter_test)
+            maybe_reexec_pex(interpreter_test=interpreter_test, python_args=python_args)
             from . import pex
 
             pex.PEX(entry_point).execute()

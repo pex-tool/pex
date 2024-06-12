@@ -150,31 +150,33 @@ def _invoke_build_hook(
     build_backend_object = build_system.build_backend.replace(":", ".")
     with named_temporary_file(mode="r") as fp:
         args = build_system.venv_pex.execute_args(
-            "-c",
-            dedent(
-                """\
-                import json
-                import sys
+            additional_args=(
+                "-c",
+                dedent(
+                    """\
+                    import json
+                    import sys
 
-                import {build_backend_module}
+                    import {build_backend_module}
 
 
-                if not hasattr({build_backend_object}, {hook_method!r}):
-                    sys.exit({hook_unavailable_exit_code})
+                    if not hasattr({build_backend_object}, {hook_method!r}):
+                        sys.exit({hook_unavailable_exit_code})
 
-                result = {build_backend_object}.{hook_method}(*{hook_args!r}, **{hook_kwargs!r})
-                with open({result_file!r}, "w") as fp:
-                    json.dump(result, fp)
-                """
-            ).format(
-                build_backend_module=build_backend_module,
-                build_backend_object=build_backend_object,
-                hook_method=hook_method,
-                hook_args=tuple(hook_args),
-                hook_kwargs=dict(hook_kwargs) if hook_kwargs else {},
-                hook_unavailable_exit_code=_HOOK_UNAVAILABLE_EXIT_CODE,
-                result_file=fp.name,
-            ),
+                    result = {build_backend_object}.{hook_method}(*{hook_args!r}, **{hook_kwargs!r})
+                    with open({result_file!r}, "w") as fp:
+                        json.dump(result, fp)
+                    """
+                ).format(
+                    build_backend_module=build_backend_module,
+                    build_backend_object=build_backend_object,
+                    hook_method=hook_method,
+                    hook_args=tuple(hook_args),
+                    hook_kwargs=dict(hook_kwargs) if hook_kwargs else {},
+                    hook_unavailable_exit_code=_HOOK_UNAVAILABLE_EXIT_CODE,
+                    result_file=fp.name,
+                ),
+            )
         )
         process = subprocess.Popen(
             args=args,
