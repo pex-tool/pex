@@ -69,10 +69,9 @@ def assert_exe_output(
     error = stderr.decode("utf-8")
     assert 0 == process.returncode, error
     assert ["--foo", "bar"] == json.loads(stdout)
-    if warning_expected:
-        assert "If you don't eat your meat, you can't have any pudding!" in error, error
-    else:
-        assert "" == error
+    assert warning_expected == (
+        "If you don't eat your meat, you can't have any pudding!" in error
+    ), error
 
 
 @pytest.mark.skipif(
