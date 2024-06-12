@@ -1594,7 +1594,7 @@ def spawn_python_job(
     if expose:
         # In order to expose vendored distributions with their un-vendored import paths in-tact, we
         # need to set `__PEX_UNVENDORED__`. See: vendor.__main__.ImportRewriter._modify_import.
-        subprocess_env["__PEX_UNVENDORED__"] = "1"
+        subprocess_env["__PEX_UNVENDORED__"] = ",".join(expose)
 
         pythonpath.extend(third_party.expose(expose, interpreter=interpreter))
 

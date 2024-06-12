@@ -14,6 +14,7 @@ from pex.atomic_directory import FileLockStyle
 from pex.auth import PasswordDatabase, PasswordEntry
 from pex.common import pluralize
 from pex.compatibility import cpu_count
+from pex.exclude_configuration import ExcludeConfiguration
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.pep_427 import InstallableType
@@ -247,6 +248,7 @@ def resolve_from_lock(
     pip_version=None,  # type: Optional[PipVersionValue]
     use_pip_config=False,  # type: bool
     result_type=InstallableType.INSTALLED_WHEEL_CHROOT,  # type: InstallableType.Value
+    exclude_configuration=ExcludeConfiguration(),  # type: ExcludeConfiguration
 ):
     # type: (...) -> Union[ResolveResult, Error]
 
@@ -262,6 +264,7 @@ def resolve_from_lock(
             network_configuration=network_configuration,
             build_configuration=build_configuration,
             transitive=transitive,
+            exclude_configuration=exclude_configuration,
         )
     )
     downloadable_artifacts_and_targets = OrderedSet(
@@ -439,6 +442,7 @@ def resolve_from_lock(
             verify_wheels=verify_wheels,
             pip_version=pip_version,
             resolver=resolver,
+            exclude_configuration=exclude_configuration,
         )
 
         local_project_directory_to_sdist = {

@@ -12,33 +12,33 @@ from fnmatch import fnmatchcase
 
 from ._deprecation_warning import SetuptoolsDeprecationWarning
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from setuptools.extern.six import PY3, string_types  # vendor:skip
 else:
   from pex.third_party.setuptools.extern.six import PY3, string_types
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from setuptools.extern.six.moves import filter, map  # vendor:skip
 else:
   from pex.third_party.setuptools.extern.six.moves import filter, map
 
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   import setuptools.version  # vendor:skip
 else:
   import pex.third_party.setuptools.version, pex.third_party.setuptools as setuptools
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from setuptools.extension import Extension  # vendor:skip
 else:
   from pex.third_party.setuptools.extension import Extension
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from setuptools.dist import Distribution, Feature  # vendor:skip
 else:
   from pex.third_party.setuptools.dist import Distribution, Feature
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from setuptools.depends import Require  # vendor:skip
 else:
   from pex.third_party.setuptools.depends import Require

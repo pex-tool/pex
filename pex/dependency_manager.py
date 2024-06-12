@@ -6,8 +6,10 @@ from __future__ import absolute_import
 from collections import defaultdict
 
 from pex import pex_warnings
+from pex.common import pluralize
 from pex.dist_metadata import Requirement
 from pex.environment import PEXEnvironment
+from pex.exceptions import production_assert
 from pex.exclude_configuration import ExcludeConfiguration
 from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.orderedset import OrderedSet
@@ -15,11 +17,10 @@ from pex.pep_503 import ProjectName
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
 from pex.resolve.resolvers import ResolveResult
-from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import DefaultDict, Iterable, Iterator
+    from typing import DefaultDict
 
     import attr  # vendor:skip
 else:
@@ -58,18 +59,11 @@ class DependencyManager(object):
     def configure(
         self,
         pex_builder,  # type: PEXBuilder
-        excluded=(),  # type: Iterable[str]
+        exclude_configuration=ExcludeConfiguration(),  # type: ExcludeConfiguration
     ):
         # type: (...) -> None
 
-        exclude_configuration = ExcludeConfiguration.create(excluded)
         exclude_configuration.configure(pex_builder.info)
-
-        dists_by_project_name = defaultdict(
-            OrderedSet
-        )  # type: DefaultDict[ProjectName, OrderedSet[FingerprintedDistribution]]
-        for dist in self._distributions:
-            dists_by_project_name[dist.distribution.metadata.project_name].add(dist)
 
         root_requirements_by_project_name = defaultdict(
             OrderedSet
@@ -77,45 +71,30 @@ class DependencyManager(object):
         for root_req in self._requirements:
             root_requirements_by_project_name[root_req.project_name].add(root_req)
 
-        def iter_non_excluded_distributions(requirements):
-            # type: (Iterable[Requirement]) -> Iterator[FingerprintedDistribution]
-            for req in requirements:
-                candidate_dists = dists_by_project_name[req.project_name]
-                for candidate_dist in tuple(candidate_dists):
-                    if candidate_dist.distribution not in req:
-                        continue
-                    candidate_dists.discard(candidate_dist)
-
-                    excluded_by = exclude_configuration.excluded_by(candidate_dist.distribution)
-                    if excluded_by:
-                        excludes = " and ".join(map(str, excluded_by))
-                        TRACER.log(
-                            "Skipping adding {candidate}: excluded by {excludes}".format(
-                                candidate=candidate_dist.distribution, excludes=excludes
-                            )
-                        )
-                        for root_req in root_requirements_by_project_name[
-                            candidate_dist.distribution.metadata.project_name
-                        ]:
-                            if candidate_dist.distribution in root_req:
-                                pex_warnings.warn(
-                                    "The distribution {dist} was required by the input requirement "
-                                    "{root_req} but excluded by configured excludes: "
-                                    "{excludes}".format(
-                                        dist=candidate_dist.distribution,
-                                        root_req=root_req,
-                                        excludes=excludes,
-                                    )
-                                )
-                        continue
-
-                    yield candidate_dist
-                    for dep in iter_non_excluded_distributions(
-                        candidate_dist.distribution.requires()
-                    ):
-                        yield dep
-
-        for fingerprinted_dist in iter_non_excluded_distributions(self._requirements):
+        for fingerprinted_dist in self._distributions:
+            excluded_by = exclude_configuration.excluded_by(fingerprinted_dist.distribution)
+            if excluded_by:
+                excludes = " and ".join(map(str, excluded_by))
+                root_reqs = root_requirements_by_project_name[fingerprinted_dist.project_name]
+                production_assert(
+                    len(root_reqs) > 0,
+                    "The deep --exclude mechanism failed to exclude {dist} from transitive "
+                    "requirements. It should have been excluded by configured excludes: "
+                    "{excludes} but was not.".format(
+                        dist=fingerprinted_dist.distribution, excludes=excludes
+                    ),
+                )
+                pex_warnings.warn(
+                    "The distribution {dist} was required by the input {requirements} "
+                    "{root_reqs} but ultimately excluded by configured excludes: "
+                    "{excludes}".format(
+                        dist=fingerprinted_dist.distribution,
+                        requirements=pluralize(root_reqs, "requirement"),
+                        root_reqs=" and ".join(map(str, root_reqs)),
+                        excludes=excludes,
+                    )
+                )
+                continue
             pex_builder.add_distribution(
                 dist=fingerprinted_dist.distribution, fingerprint=fingerprinted_dist.fingerprint
             )

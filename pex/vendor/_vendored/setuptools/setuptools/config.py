@@ -11,17 +11,17 @@ from functools import wraps
 from importlib import import_module
 
 from distutils.errors import DistutilsOptionError, DistutilsFileError
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from setuptools.extern.packaging.version import LegacyVersion, parse  # vendor:skip
 else:
   from pex.third_party.setuptools.extern.packaging.version import LegacyVersion, parse
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from setuptools.extern.packaging.specifiers import SpecifierSet  # vendor:skip
 else:
   from pex.third_party.setuptools.extern.packaging.specifiers import SpecifierSet
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from setuptools.extern.six import string_types, PY3  # vendor:skip
 else:
   from pex.third_party.setuptools.extern.six import string_types, PY3
@@ -48,7 +48,7 @@ def read_configuration(
 
     :rtype: dict
     """
-    if "__PEX_UNVENDORED__" in __import__("os").environ:
+    if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
       from setuptools.dist import Distribution, _Distribution  # vendor:skip
     else:
       from pex.third_party.setuptools.dist import Distribution, _Distribution
@@ -597,13 +597,13 @@ class ConfigOptionsHandler(ConfigHandler):
             self.sections.get('packages.find', {}))
 
         if findns:
-            if "__PEX_UNVENDORED__" in __import__("os").environ:
+            if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
               from setuptools import find_namespace_packages as find_packages  # vendor:skip
             else:
               from pex.third_party.setuptools import find_namespace_packages as find_packages
 
         else:
-            if "__PEX_UNVENDORED__" in __import__("os").environ:
+            if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
               from setuptools import find_packages  # vendor:skip
             else:
               from pex.third_party.setuptools import find_packages

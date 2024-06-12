@@ -27,6 +27,7 @@ from pex.common import die, is_pyc_dir, is_pyc_file, safe_mkdtemp
 from pex.dependency_manager import DependencyManager
 from pex.docs.command import serve_html_docs
 from pex.enum import Enum
+from pex.exclude_configuration import ExcludeConfiguration
 from pex.inherit_path import InheritPath
 from pex.interpreter_constraints import InterpreterConstraints
 from pex.layout import Layout, ensure_installed
@@ -897,6 +898,7 @@ def build_pex(
             )
             excluded.extend(requirements_pex_info.excluded)
 
+    exclude_configuration = ExcludeConfiguration.create(excluded)
     with TRACER.timed(
         "Resolving distributions for requirements: {}".format(
             " ".join(
@@ -922,13 +924,14 @@ def build_pex(
                         if options.pre_install_wheels
                         else InstallableType.WHEEL_FILE
                     ),
-                )
+                    exclude_configuration=exclude_configuration,
+                ),
             )
         except Unsatisfiable as e:
             die(str(e))
 
     with TRACER.timed("Configuring PEX dependencies"):
-        dependency_manager.configure(pex_builder, excluded=excluded)
+        dependency_manager.configure(pex_builder, exclude_configuration=exclude_configuration)
 
     if options.entry_point:
         pex_builder.set_entry_point(options.entry_point)

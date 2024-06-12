@@ -8,19 +8,19 @@ import io
 import distutils.errors
 import itertools
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from setuptools.extern import six  # vendor:skip
 else:
   from pex.third_party.setuptools.extern import six
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from setuptools.extern.six.moves import map, filter, filterfalse  # vendor:skip
 else:
   from pex.third_party.setuptools.extern.six.moves import map, filter, filterfalse
 
 
 try:
-    if "__PEX_UNVENDORED__" in __import__("os").environ:
+    if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
       from setuptools.lib2to3_ex import Mixin2to3  # vendor:skip
     else:
       from pex.third_party.setuptools.lib2to3_ex import Mixin2to3

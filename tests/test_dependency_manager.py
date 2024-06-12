@@ -9,6 +9,8 @@ import pytest
 
 from pex.dependency_manager import DependencyManager
 from pex.dist_metadata import Distribution, Requirement
+from pex.exceptions import reportable_unexpected_error_msg
+from pex.exclude_configuration import ExcludeConfiguration
 from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.orderedset import OrderedSet
 from pex.pep_503 import ProjectName
@@ -109,31 +111,36 @@ def test_exclude_root_reqs(dist_graph):
     pex_builder = PEXBuilder(pex_info=pex_info)
 
     with warnings.catch_warnings(record=True) as events:
-        dependency_manager.configure(pex_builder, excluded=["a", "b"])
+        dependency_manager.configure(
+            pex_builder, exclude_configuration=ExcludeConfiguration.create(["a", "b"])
+        )
     assert 2 == len(events)
 
     warning = events[0]
     assert PEXWarning == warning.category
     assert (
-        "The distribution A 0.1.0 was required by the input requirement a but excluded by "
-        "configured excludes: a"
+        "The distribution A 0.1.0 was required by the input requirement a but ultimately excluded "
+        "by configured excludes: a"
     ) == str(warning.message)
 
     warning = events[1]
     assert PEXWarning == warning.category
     assert (
-        "The distribution B 0.1.0 was required by the input requirement b but excluded by "
-        "configured excludes: b"
+        "The distribution B 0.1.0 was required by the input requirement b but ultimately excluded "
+        "by configured excludes: b"
     ) == str(warning.message)
 
     pex_builder.freeze()
 
     assert ["a", "b"] == list(pex_info.requirements)
     assert ["a", "b"] == list(pex_info.excluded)
-    assert {} == pex_info.distributions
+    assert sorted(("C", "D", "E", "F")) == sorted(pex_info.distributions), (
+        "The dependency manager should have excluded the root reqs itself but relied on deep "
+        "excludes plumbed to Pip to exclude transitive dependencies of the roots."
+    )
 
 
-def test_exclude_complex(dist_graph):
+def test_exclude_transitive_assert(dist_graph):
     # type: (DistGraph) -> None
 
     dependency_manager = DependencyManager(
@@ -142,7 +149,22 @@ def test_exclude_complex(dist_graph):
 
     pex_info = PexInfo.default()
     pex_builder = PEXBuilder(pex_info=pex_info)
-    dependency_manager.configure(pex_builder, excluded=["c"])
+    with pytest.raises(AssertionError) as exec_info:
+        dependency_manager.configure(
+            pex_builder, exclude_configuration=ExcludeConfiguration.create(["c"])
+        )
+    assert reportable_unexpected_error_msg(
+        "The deep --exclude mechanism failed to exclude C 0.1.0 from transitive requirements. "
+        "It should have been excluded by configured excludes: c but was not."
+    ) in str(exec_info.value), str(exec_info.value)
+
+    dependency_manager = DependencyManager(
+        requirements=OrderedSet(dist_graph.root_reqs),
+        distributions=OrderedSet((dist_graph.dist(name) for name in ("A", "B", "D", "F"))),
+    )
+    dependency_manager.configure(
+        pex_builder, exclude_configuration=ExcludeConfiguration.create(["c"])
+    )
     pex_builder.freeze()
 
     assert ["a", "b"] == list(pex_info.requirements)

@@ -18,12 +18,13 @@ from pex.atomic_directory import atomic_directory
 from pex.auth import PasswordEntry
 from pex.common import safe_mkdir, safe_mkdtemp
 from pex.compatibility import get_stderr_bytes_buffer, shlex_quote, urlparse
+from pex.exclude_configuration import ExcludeConfiguration
 from pex.interpreter import PythonInterpreter
 from pex.jobs import Job
 from pex.network_configuration import NetworkConfiguration
 from pex.pep_427 import install_wheel_interpreter
-from pex.pip import foreign_platform
-from pex.pip.download_observer import DownloadObserver
+from pex.pip import excludes, foreign_platform
+from pex.pip.download_observer import DownloadObserver, PatchSet
 from pex.pip.log_analyzer import ErrorAnalyzer, ErrorMessage, LogAnalyzer, LogScrapeJob
 from pex.pip.tailer import Tailer
 from pex.pip.version import PipVersion, PipVersionValue
@@ -357,7 +358,7 @@ class Pip(object):
         with ENV.strip().patch(
             PEX_ROOT=ENV.PEX_ROOT,
             PEX_VERBOSE=str(ENV.PEX_VERBOSE),
-            __PEX_UNVENDORED__="1",
+            __PEX_UNVENDORED__="setuptools",
             **extra_env
         ) as env:
             # Guard against API calls from environment with ambient PYTHONPATH preventing pip PEX
@@ -452,6 +453,7 @@ class Pip(object):
         package_index_configuration=None,  # type: Optional[PackageIndexConfiguration]
         build_configuration=BuildConfiguration(),  # type: BuildConfiguration
         observer=None,  # type: Optional[DownloadObserver]
+        exclude_configuration=ExcludeConfiguration(),  # type: ExcludeConfiguration
         preserve_log=False,  # type: bool
     ):
         # type: (...) -> Job
@@ -501,15 +503,19 @@ class Pip(object):
             )
 
         log_analyzers = []  # type: List[LogAnalyzer]
-        for obs in (foreign_platform_observer, observer):
+        patch_set = PatchSet()
+        for obs in (foreign_platform_observer, observer, excludes.patch(exclude_configuration)):
             if obs:
                 if obs.analyzer:
                     log_analyzers.append(obs.analyzer)
-                extra_env.update(obs.patch_set.env)
-                extra_sys_path = obs.patch_set.emit_patches(package=self._PATCHES_PACKAGE_NAME)
-                if extra_sys_path:
-                    pex_extra_sys_path.append(extra_sys_path)
-                    extra_env[self._PATCHES_PACKAGE_ENV_VAR_NAME] = self._PATCHES_PACKAGE_NAME
+                patch_set = patch_set + obs.patch_set
+
+        if patch_set:
+            extra_env.update(patch_set.env)
+            extra_sys_path = patch_set.emit_patches(package=self._PATCHES_PACKAGE_NAME)
+            if extra_sys_path:
+                pex_extra_sys_path.extend(extra_sys_path)
+                extra_env[self._PATCHES_PACKAGE_ENV_VAR_NAME] = self._PATCHES_PACKAGE_NAME
 
         if pex_extra_sys_path:
             extra_env["PEX_EXTRA_SYS_PATH"] = os.pathsep.join(pex_extra_sys_path)

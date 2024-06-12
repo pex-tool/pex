@@ -24,7 +24,9 @@ if TYPE_CHECKING:
     [
         pytest.param(pip_version, id=str(pip_version))
         for pip_version in PipVersion.values()
-        if Version("20.3.2") <= pip_version.version < Version("22")
+        # MyPy fails to typecheck <= under Python 2.7 only, even though Version has @total_ordering
+        # applied.
+        if Version("20.3.2") <= pip_version.version < Version("22")  # type: ignore[operator]
     ],
 )
 def test_backtracking(

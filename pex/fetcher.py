@@ -11,7 +11,6 @@ import threading
 import time
 from contextlib import closing, contextmanager
 
-from pex import asserts
 from pex.auth import PasswordDatabase, PasswordEntry
 from pex.compatibility import (
     PY2,
@@ -30,6 +29,7 @@ from pex.compatibility import (
     in_main_thread,
     urlparse,
 )
+from pex.exceptions import production_assert
 from pex.network_configuration import NetworkConfiguration
 from pex.typing import TYPE_CHECKING, cast
 from pex.version import __version__
@@ -107,7 +107,7 @@ class _CertConfig(object):
         # [^5]: https://github.com/openssl/openssl/blob/c3cc0f1386b0544383a61244a4beeb762b67498f/ssl/ssl_init.c#L86-L116
         # [^6]: https://github.com/indygreg/python-build-standalone/releases/tag/20240107
         # [^7]: https://gitlab.com/redhat-crypto/fedora-crypto-policies/-/merge_requests/110/diffs#269a48e71ac25ad1d07ff00db2390834c8ba7596_11_16
-        asserts.production_assert(
+        production_assert(
             in_main_thread(),
             msg=(
                 "An SSLContext must be initialized from the main thread. An attempt was made to "

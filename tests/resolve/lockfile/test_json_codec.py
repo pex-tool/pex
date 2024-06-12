@@ -30,10 +30,7 @@ if TYPE_CHECKING:
 
     import attr  # vendor:skip
 else:
-    if "__PEX_UNVENDORED__" in __import__("os").environ:
-        import attr  # vendor:skip
-    else:
-        import pex.third_party.attr as attr
+    import pex.third_party.attr as attr
 
 
 def test_roundtrip(tmpdir):

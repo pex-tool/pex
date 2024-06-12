@@ -20,7 +20,7 @@ from email.parser import Parser
 from io import StringIO
 from textwrap import dedent
 
-from pex import pex_warnings
+from pex import pex_warnings, specifier_sets
 from pex.common import open_zip, pluralize
 from pex.compatibility import to_unicode
 from pex.enum import Enum
@@ -681,7 +681,7 @@ class Constraint(object):
         return self.project_name.normalized
 
     def __contains__(self, item):
-        # type: (Union[str, Version, Distribution, ProjectNameAndVersion]) -> bool
+        # type: (Union[str, Version, Distribution, ProjectNameAndVersion, Constraint]) -> bool
 
         # We emulate pkg_resources.Requirement.__contains__ pre-release behavior here since the
         # codebase expects it.
@@ -689,11 +689,15 @@ class Constraint(object):
 
     def contains(
         self,
-        item,  # type: Union[str, Version, Distribution, ProjectNameAndVersion]
+        item,  # type: Union[str, Version, Distribution, ProjectNameAndVersion, Constraint]
         prereleases=None,  # type: Optional[bool]
     ):
         # type: (...) -> bool
-        if isinstance(item, ProjectNameAndVersion):
+        if isinstance(item, Constraint):
+            return item.project_name == self.project_name and specifier_sets.includes(
+                self.specifier, item.specifier
+            )
+        elif isinstance(item, ProjectNameAndVersion):
             if item.canonicalized_project_name != self.project_name:
                 return False
             version = (

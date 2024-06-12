@@ -6,12 +6,13 @@ from __future__ import absolute_import, print_function
 import os
 import pkgutil
 
+from pex import third_party
 from pex.common import safe_mkdtemp
 from pex.pip.log_analyzer import LogAnalyzer
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Dict, Mapping, Optional, Text, Tuple
+    from typing import Any, Dict, Mapping, Optional, Text, Tuple
 
     import attr  # vendor:skip
 else:
@@ -65,10 +66,10 @@ class PatchSet(object):
         return env
 
     def emit_patches(self, package):
-        # type: (str) -> Optional[str]
+        # type: (str) -> Tuple[str, ...]
 
         if not self.patches:
-            return None
+            return ()
 
         if not package or "." in package:
             raise ValueError(
@@ -76,7 +77,9 @@ class PatchSet(object):
                 "Given: {package!r}".format(package=package)
             )
 
+        import_paths = list(third_party.expose(["pex"]))
         patches_dir = safe_mkdtemp()
+        import_paths.append(patches_dir)
         patches_package = os.path.join(patches_dir, package)
         os.mkdir(patches_package)
 
@@ -91,7 +94,24 @@ class PatchSet(object):
                 print("from . import {module}".format(module=patch.module), file=fp)
                 print("{module}.patch()".format(module=patch.module), file=fp)
 
-        return patches_dir
+        return tuple(import_paths)
+
+    def add(self, patch_set):
+        # type: (PatchSet) -> PatchSet
+        return PatchSet(self.patches + patch_set.patches)
+
+    def __add__(self, other):
+        # type: (Any) -> PatchSet
+        if type(other) is not type(self):
+            return NotImplemented
+        return self.add(other)
+
+    def __bool__(self):
+        # type: () -> bool
+        return bool(self.patches)
+
+    # N.B.: For Python 2.7.
+    __nonzero__ = __bool__
 
 
 @attr.s(frozen=True)

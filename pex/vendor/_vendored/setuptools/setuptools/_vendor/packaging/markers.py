@@ -8,17 +8,17 @@ import os
 import platform
 import sys
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from setuptools.extern.pyparsing import ParseException, ParseResults, stringStart, stringEnd  # vendor:skip
 else:
   from pex.third_party.setuptools.extern.pyparsing import ParseException, ParseResults, stringStart, stringEnd
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from setuptools.extern.pyparsing import ZeroOrMore, Group, Forward, QuotedString  # vendor:skip
 else:
   from pex.third_party.setuptools.extern.pyparsing import ZeroOrMore, Group, Forward, QuotedString
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from setuptools.extern.pyparsing import Literal as L  # vendor:skip
 else:
   from pex.third_party.setuptools.extern.pyparsing import Literal as L

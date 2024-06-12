@@ -8,7 +8,7 @@ __all__ = [
 from distutils.command.bdist import bdist
 import sys
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from setuptools.command import install_scripts  # vendor:skip
 else:
   from pex.third_party.setuptools.command import install_scripts

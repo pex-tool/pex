@@ -3,12 +3,12 @@
 Released under the MIT license.
 """
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "toml" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from toml import encoder  # vendor:skip
 else:
   from pex.third_party.toml import encoder
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "toml" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from toml import decoder  # vendor:skip
 else:
   from pex.third_party.toml import decoder

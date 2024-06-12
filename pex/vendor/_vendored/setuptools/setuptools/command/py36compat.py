@@ -3,7 +3,7 @@ from glob import glob
 from distutils.util import convert_path
 from distutils.command import sdist
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
+if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
   from setuptools.extern.six.moves import filter  # vendor:skip
 else:
   from pex.third_party.setuptools.extern.six.moves import filter
