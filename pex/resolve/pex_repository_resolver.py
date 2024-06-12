@@ -7,9 +7,9 @@ import itertools
 from collections import OrderedDict, defaultdict
 
 from pex import environment
+from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import Requirement
 from pex.environment import PEXEnvironment
-from pex.exclude_configuration import ExcludeConfiguration
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.pep_427 import InstallableType
@@ -35,7 +35,7 @@ def resolve_from_pex(
     transitive=True,  # type: bool
     ignore_errors=False,  # type: bool
     result_type=InstallableType.INSTALLED_WHEEL_CHROOT,  # type: InstallableType.Value
-    exclude_configuration=ExcludeConfiguration(),  # type: ExcludeConfiguration
+    dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
 ):
     # type: (...) -> ResolveResult
 
@@ -78,7 +78,7 @@ def resolve_from_pex(
         pex_env = PEXEnvironment.mount(pex, target=target)
         try:
             fingerprinted_distributions = pex_env.resolve_dists(
-                all_reqs, result_type=result_type, exclude_configuration=exclude_configuration
+                all_reqs, result_type=result_type, dependency_configuration=dependency_configuration
             )
         except environment.ResolveError as e:
             raise Unsatisfiable(str(e))

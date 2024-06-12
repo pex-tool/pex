@@ -18,8 +18,8 @@ from pex.atomic_directory import AtomicDirectory, atomic_directory
 from pex.auth import PasswordEntry
 from pex.common import safe_mkdir, safe_mkdtemp
 from pex.compatibility import url_unquote, urlparse
+from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import DistMetadata, Distribution, ProjectNameAndVersion, Requirement
-from pex.exclude_configuration import ExcludeConfiguration
 from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.jobs import Raise, SpawnedJob, execute_parallel, iter_map_parallel
 from pex.network_configuration import NetworkConfiguration
@@ -90,7 +90,9 @@ class DownloadRequest(object):
     preserve_log = attr.ib(default=False)  # type: bool
     pip_version = attr.ib(default=None)  # type: Optional[PipVersionValue]
     resolver = attr.ib(default=None)  # type: Optional[Resolver]
-    exclude_configuration = attr.ib(default=ExcludeConfiguration())  # type: ExcludeConfiguration
+    dependency_configuration = attr.ib(
+        default=DependencyConfiguration()
+    )  # type: DependencyConfiguration
 
     def iter_local_projects(self):
         # type: () -> Iterator[BuildRequest]
@@ -152,7 +154,7 @@ class DownloadRequest(object):
             package_index_configuration=self.package_index_configuration,
             build_configuration=self.build_configuration,
             observer=observer,
-            exclude_configuration=self.exclude_configuration,
+            dependency_configuration=self.dependency_configuration,
             preserve_log=self.preserve_log,
         )
 
@@ -726,7 +728,7 @@ class BuildAndInstallRequest(object):
         verify_wheels=True,  # type: bool
         pip_version=None,  # type: Optional[PipVersionValue]
         resolver=None,  # type: Optional[Resolver]
-        exclude_configuration=ExcludeConfiguration(),  # type: ExcludeConfiguration
+        dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
     ):
         # type: (...) -> None
         self._build_requests = tuple(build_requests)
@@ -742,7 +744,7 @@ class BuildAndInstallRequest(object):
         )
         self._pip_version = pip_version
         self._resolver = resolver
-        self._exclude_configuration = exclude_configuration
+        self._dependency_configuration = dependency_configuration
 
     @staticmethod
     def _categorize_install_requests(
@@ -972,9 +974,12 @@ class BuildAndInstallRequest(object):
             dist = resolved_distribution.distribution
             target = resolved_distribution.target
             for requirement in dist.requires():
-                if not target.requirement_applies(
-                    requirement
-                ) or self._exclude_configuration.excluded_by(requirement):
+                if self._dependency_configuration.excluded_by(requirement):
+                    continue
+                requirement = (
+                    self._dependency_configuration.overridden_by(requirement) or requirement
+                )
+                if not target.requirement_applies(requirement):
                     continue
 
                 installed_requirement_dist = resolved_distribution_by_project_name.get(
@@ -1042,7 +1047,7 @@ def resolve(
     resolver=None,  # type: Optional[Resolver]
     use_pip_config=False,  # type: bool
     result_type=InstallableType.INSTALLED_WHEEL_CHROOT,  # type: InstallableType.Value
-    exclude_configuration=ExcludeConfiguration(),  # type: ExcludeConfiguration
+    dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
 ):
     # type: (...) -> ResolveResult
     """Resolves all distributions needed to meet requirements for multiple distribution targets.
@@ -1140,7 +1145,7 @@ def resolve(
         preserve_log=preserve_log,
         pip_version=pip_version,
         resolver=resolver,
-        exclude_configuration=exclude_configuration,
+        dependency_configuration=dependency_configuration,
     )
 
     install_requests = []  # type: List[InstallRequest]
@@ -1158,7 +1163,7 @@ def resolve(
         verify_wheels=verify_wheels,
         pip_version=pip_version,
         resolver=resolver,
-        exclude_configuration=exclude_configuration,
+        dependency_configuration=dependency_configuration,
     )
 
     ignore_errors = ignore_errors or not transitive
@@ -1190,7 +1195,7 @@ def _download_internal(
     preserve_log=False,  # type: bool
     pip_version=None,  # type: Optional[PipVersionValue]
     resolver=None,  # type: Optional[Resolver]
-    exclude_configuration=ExcludeConfiguration(),  # type: ExcludeConfiguration
+    dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
 ):
     # type: (...) -> Tuple[List[BuildRequest], List[DownloadResult]]
 
@@ -1209,7 +1214,7 @@ def _download_internal(
         preserve_log=preserve_log,
         pip_version=pip_version,
         resolver=resolver,
-        exclude_configuration=exclude_configuration,
+        dependency_configuration=dependency_configuration,
     )
 
     local_projects = list(download_request.iter_local_projects())
@@ -1270,7 +1275,7 @@ def download(
     pip_version=None,  # type: Optional[PipVersionValue]
     resolver=None,  # type: Optional[Resolver]
     use_pip_config=False,  # type: bool
-    exclude_configuration=ExcludeConfiguration(),  # type: ExcludeConfiguration
+    dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
 ):
     # type: (...) -> Downloaded
     """Downloads all distributions needed to meet requirements for multiple distribution targets.
@@ -1332,7 +1337,7 @@ def download(
         preserve_log=preserve_log,
         pip_version=pip_version,
         resolver=resolver,
-        exclude_configuration=exclude_configuration,
+        dependency_configuration=dependency_configuration,
     )
 
     local_distributions = []

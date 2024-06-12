@@ -7,10 +7,10 @@ import warnings
 
 import pytest
 
+from pex.dependency_configuration import DependencyConfiguration
 from pex.dependency_manager import DependencyManager
 from pex.dist_metadata import Distribution, Requirement
 from pex.exceptions import reportable_unexpected_error_msg
-from pex.exclude_configuration import ExcludeConfiguration
 from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.orderedset import OrderedSet
 from pex.pep_503 import ProjectName
@@ -112,7 +112,7 @@ def test_exclude_root_reqs(dist_graph):
 
     with warnings.catch_warnings(record=True) as events:
         dependency_manager.configure(
-            pex_builder, exclude_configuration=ExcludeConfiguration.create(["a", "b"])
+            pex_builder, dependency_configuration=DependencyConfiguration.create(["a", "b"])
         )
     assert 2 == len(events)
 
@@ -151,7 +151,7 @@ def test_exclude_transitive_assert(dist_graph):
     pex_builder = PEXBuilder(pex_info=pex_info)
     with pytest.raises(AssertionError) as exec_info:
         dependency_manager.configure(
-            pex_builder, exclude_configuration=ExcludeConfiguration.create(["c"])
+            pex_builder, dependency_configuration=DependencyConfiguration.create(["c"])
         )
     assert reportable_unexpected_error_msg(
         "The deep --exclude mechanism failed to exclude C 0.1.0 from transitive requirements. "
@@ -163,7 +163,7 @@ def test_exclude_transitive_assert(dist_graph):
         distributions=OrderedSet((dist_graph.dist(name) for name in ("A", "B", "D", "F"))),
     )
     dependency_manager.configure(
-        pex_builder, exclude_configuration=ExcludeConfiguration.create(["c"])
+        pex_builder, dependency_configuration=DependencyConfiguration.create(["c"])
     )
     pex_builder.freeze()
 
