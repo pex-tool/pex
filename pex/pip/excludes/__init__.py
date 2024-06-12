@@ -12,7 +12,30 @@ from pex.pip.download_observer import DownloadObserver, Patch, PatchSet
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Optional
+    from typing import Mapping, Optional
+
+
+class PatchContext(object):
+    _PEX_EXCLUDES_FILE_ENV_VAR_NAME = "_PEX_EXCLUDES_FILE"
+
+    @classmethod
+    def load_exclude_configuration(cls):
+        # type: () -> ExcludeConfiguration
+
+        # N.B.: The following environment variable is used by the Pex runtime to control Pip and
+        # must be kept in-sync with `__init__.py`.
+        excludes_file = os.environ.pop(cls._PEX_EXCLUDES_FILE_ENV_VAR_NAME)
+        with open(excludes_file) as fp:
+            return ExcludeConfiguration.create(json.load(fp))
+
+    @classmethod
+    def dump_exclude_configuration(cls, exclude_configuration):
+        # type: (ExcludeConfiguration) -> Mapping[str, str]
+
+        patches_file = os.path.join(safe_mkdtemp(), "excludes.json")
+        with open(patches_file, "w") as excludes_fp:
+            json.dump([str(req) for req in exclude_configuration], excludes_fp)
+        return {cls._PEX_EXCLUDES_FILE_ENV_VAR_NAME: patches_file}
 
 
 def patch(exclude_configuration):
@@ -21,13 +44,13 @@ def patch(exclude_configuration):
     if not exclude_configuration:
         return None
 
-    patches_dir = safe_mkdtemp()
-    with open(os.path.join(patches_dir, "excludes.json"), "w") as excludes_fp:
-        json.dump([str(req) for req in exclude_configuration], excludes_fp)
-
     return DownloadObserver(
         analyzer=None,
         patch_set=PatchSet.create(
-            Patch.from_code_resource(__name__, "requires.py", _PEX_EXCLUDES_FILE=excludes_fp.name)
+            Patch.from_code_resource(
+                __name__,
+                "requires.py",
+                **PatchContext.dump_exclude_configuration(exclude_configuration)
+            )
         ),
     )
