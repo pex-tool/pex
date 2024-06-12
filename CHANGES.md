@@ -8,7 +8,7 @@ via Python from the command line like `python -u my.pex` or via a
 shebang with embedded Python arguments like `#!/usr/bin/python -u`.
 
 In addition, PEXes can now be built with `--inject-python-args` similar
-to the existing `--inject-args` but sealing in arguments to pass tp
+to the existing `--inject-args` but sealing in arguments to pass to
 Python instead. When both explicitly passed Python interpreter arguments
 and injected Python interpreter arguments are specified, the injected
 arguments appear first on the synthesized command line and the
