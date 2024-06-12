@@ -15,14 +15,24 @@ arguments appear first on the synthesized command line and the
 explicitly passed arguments appear last so that the explicit arguments
 can trump (which is how Python handles this).
 
-Finally, several bugs existing in the `--exclude` implementation since
-its introduction are now fixed and the feature is greatly improved to
-act on excludes eagerly, never traversing them in the resolve process;
-thus avoiding downloads associated with them as well as potentially
-failing metadata extraction & wheel builds for ill-behaved sdists.
+Several bugs existing in the `--exclude` implementation since its
+introduction are now fixed and the feature is greatly improved to act on
+excludes eagerly, never traversing them in the resolve process; thus
+avoiding downloads associated with them as well as potentially failing
+metadata extraction & wheel builds for ill-behaved sdists.
+
+Finally, a bug was fixed in `pex3 lock export` for lock files containing
+either locked VCS requirements or locked local project directories.
+Previously, these were exported with a `<project name>==<version>`
+requirement, which lost fidelity with the input requirement. Now they
+are exported with their original requirement form. Further, since the
+`--hash` of these styles of locked requirement are unuseable outside
+Pex, a new `--format` option of `pip-no-hashes` is introduced for the
+adventurous.
 
 * Implement support for preserving and injecting Python args. (#2427)
 * Fix `--exclude`. (#2409)
+* Fix `pex3 lock export` handling of exotic reqs. (#2423)
 
 ## 2.3.3
 

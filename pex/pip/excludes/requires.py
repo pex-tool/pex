@@ -3,22 +3,16 @@
 
 from __future__ import absolute_import, print_function
 
-import json
 import logging
-import os
 
 logger = logging.getLogger(__name__)
 
 
 def patch():
     from pex.dist_metadata import Requirement
-    from pex.exclude_configuration import ExcludeConfiguration
+    from pex.pip.excludes import PatchContext
 
-    # N.B.: The following environment variable is used by the Pex runtime to control Pip and must
-    # be kept in-sync with `__init__.py`.
-    excludes_file = os.environ.pop("_PEX_EXCLUDES_FILE")
-    with open(excludes_file) as fp:
-        exclude_configuration = ExcludeConfiguration.create(json.load(fp))
+    exclude_configuration = PatchContext.load_exclude_configuration()
 
     def create_requires(orig_requires):
         def requires(self, *args, **kwargs):
@@ -28,7 +22,7 @@ def patch():
                 if excluded_by:
                     logger.debug(
                         "[{type}: patched {orig_requires}] Excluded {dep} from {dist} due to "
-                        "configured excludes: {excludes}".format(
+                        "Pex-configured excludes: {excludes}".format(
                             orig_requires=orig_requires,
                             type=type(self),
                             dep=repr(str(req)),
