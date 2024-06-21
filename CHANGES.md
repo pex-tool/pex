@@ -1,5 +1,14 @@
 # Release Notes
 
+## 2.4.1
+
+This release fixes `pex --only-binary X --lock ...` to work with lock
+files also created with `--only-binary X`. The known case here is a
+`--style universal` lock created with `--only-binary X` to achieve a
+partially wheel-only universal lock.
+
+* Fix `pex --only-binary X --lock ...`. (#2433)
+
 ## 2.4.0
 
 This release brings new support for preserving arguments passed to the
