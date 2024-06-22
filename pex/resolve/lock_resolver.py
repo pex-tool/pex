@@ -103,9 +103,13 @@ class VCSArtifactDownloadManager(DownloadManager[VCSArtifact]):
         self._network_configuration = network_configuration
         self._password_entries = password_entries
         self._cache = cache
+
+        # Since a VCSArtifactDownloadManager is only used for VCS requirements, a build is both
+        # required and preferred by the user.
         self._build_configuration = attr.evolve(
-            build_configuration, allow_wheels=False, allow_builds=True, prefer_older_binary=False
+            build_configuration, allow_builds=True, prefer_older_binary=False
         )
+
         self._pip_version = pip_version
         self._resolver = resolver
         self._use_pip_config = use_pip_config
