@@ -101,7 +101,7 @@ def test_lock_uncompilable_sdist(
 
 
                 setup_kwargs = dict(
-                    name="pex.tests.bad-c-extension",
+                    name="pex_tests_bad_c_extension",
                     version="0.1.0+test",
                     author="John Sirois",
                     author_email="js@example.com",
@@ -122,7 +122,7 @@ def test_lock_uncompilable_sdist(
         "create",
         "-f",
         repo.find_links,
-        "pex.tests.bad-c-extension",
+        "pex_tests_bad_c_extension",
         "--path-mapping",
         repo.path_mapping_arg,
         "--indent",
@@ -143,7 +143,7 @@ def test_lock_uncompilable_sdist(
         locked_requirement.pin.project_name: locked_requirement
         for locked_requirement in locked_resolve.locked_requirements
     }  # type: Dict[ProjectName, LockedRequirement]
-    bad = locked_requirements.pop(ProjectName("pex.tests.bad-c-extension"))
+    bad = locked_requirements.pop(ProjectName("pex_tests_bad_c_extension"))
     assert Version("0.1.0+test") == bad.pin.version
     assert SpecifierSet(">=3.5") == bad.requires_python
     assert SortedTuple([Requirement.parse("ansicolors==1.1.8")]) == bad.requires_dists
@@ -152,7 +152,7 @@ def test_lock_uncompilable_sdist(
 
     result = run_pex_command(args=["--lock", lock, "--path-mapping", repo.path_mapping_arg])
     result.assert_failure()
-    assert "pex.tests.bad-c-extension-0.1.0+test.tar.gz" in result.error, result.error
+    assert "pex_tests_bad_c_extension-0.1.0+test.tar.gz" in result.error, result.error
     assert "ERROR: Failed to build one or more wheels" in result.error, result.error
 
 

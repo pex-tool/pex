@@ -231,21 +231,23 @@ def test_download_platform_markers_issue_1366_indeterminate(
     python310_interpreter = PythonInterpreter.from_binary(ensure_python_interpreter(PY310))
     pip = create_pip(python310_interpreter, version=version)
 
-    python27_platform = Platform.create("manylinux_2_33_x86_64-cp-27-cp27mu")
+    target = AbbreviatedPlatform.create(Platform.create("manylinux_2_33_x86_64-cp-27-cp27mu"))
     download_dir = os.path.join(str(tmpdir), "downloads")
 
     with pytest.raises(Job.Error) as exc_info:
         pip.spawn_download_distributions(
-            target=AbbreviatedPlatform.create(python27_platform),
+            target=target,
             requirements=["typing_extensions==3.7.4.2; python_full_version < '3.8'"],
             download_dir=download_dir,
             transitive=False,
         ).wait()
     assert (
-        "Failed to resolve for platform manylinux_2_33_x86_64-cp-27-cp27mu. Resolve requires "
+        "Failed to resolve for {target_description}. Resolve requires "
         "evaluation of unknown environment marker: 'python_full_version' does not exist in "
         "evaluation environment."
-    ) in str(exc_info.value)
+    ).format(target_description=target.render_description()) in str(exc_info.value), str(
+        exc_info.value
+    )
 
 
 @applicable_pip_versions
