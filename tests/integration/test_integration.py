@@ -1733,9 +1733,15 @@ def test_pip_issues_9420_workaround():
 
     # N.B.: isort 5.7.0 needs Python >=3.6
     python = ensure_python_interpreter(PY310)
-
     results = run_pex_command(
-        args=["--resolver-version", "pip-2020-resolver", "isort[colors]==5.7.0", "colorama==0.4.1"],
+        args=[
+            "--pip-version",
+            "24.1",
+            "--resolver-version",
+            "pip-2020-resolver",
+            "isort[colors]==5.7.0",
+            "colorama==0.4.1",
+        ],
         python=python,
         quiet=True,
     )
@@ -1760,7 +1766,7 @@ def test_pip_issues_9420_workaround():
 
             To fix this you could try to:
             1. loosen the range of package versions you've specified
-            2. remove package versions to allow pip attempt to solve the dependency conflict
+            2. remove package versions to allow pip to attempt to solve the dependency conflict
             """
         ).strip()
     )

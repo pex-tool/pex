@@ -47,6 +47,8 @@ def test_interpreter_constraints_range_coverage(
         "create",
         "--style",
         "universal",
+        "--pip-version",
+        "24.0",
         "--resolver-version",
         "pip-2020-resolver",
         "--interpreter-constraint",

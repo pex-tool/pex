@@ -39,36 +39,101 @@ if target_systems_file:
 def patch_marker_evaluate():
     from pip._vendor.packaging import markers  # type: ignore[import]
 
-    original_get_env = markers._get_env
+    from pex.exceptions import production_assert
+    from pex.typing import TYPE_CHECKING
+
+    if TYPE_CHECKING:
+        from typing import Any, Callable, Dict, Iterable, List, Tuple, Type
+
     original_eval_op = markers._eval_op
 
-    skip = object()
+    # N.B.: The `packaging` distribution vendored with Pip>=24.1 has a patch that tests the
+    # `python_full_version` marker environment value to see if it ends with "+", in which case it
+    # appends "local" to it (see: https://github.com/pypa/packaging/pull/802). We support this test
+    # by ensuring our value for `python_full_version`, either a `skip` sentinel or a list value,
+    # both support the `endswith(value)` test and always return `False`.
+    class NeverEndsWithMixin(object):
+        def endswith(self, _):
+            # type: (str) -> bool
+            return False
 
-    def versions_to_string(versions):
-        return [".".join(map(str, version)) for version in versions]
+    skip = NeverEndsWithMixin()
 
+    class EndsWithList(NeverEndsWithMixin, list):
+        pass
+
+    def versions_to_string(
+        versions,  # type: Iterable[Tuple[int, ...]]
+        version_modifier=lambda version: version,  # type: Callable[[str], str]
+        list_type=list,  # type: Type[List]
+    ):
+        # type: (...) -> List[str]
+        return list_type(version_modifier(".".join(map(str, version))) for version in versions)
+
+    original_extra = markers.default_environment().get("extra")
     python_versions_strings = versions_to_string(python_versions) or skip
-    python_full_versions_strings = versions_to_string(python_full_versions) or skip
+    python_full_versions_strings = (
+        versions_to_string(
+            python_full_versions,
+            # N.B.: We replicate the logic `packaging` vendored with Pip>=24.1 has for dealing with
+            # non-tagged CPython builds, which is fine to apply across all versions of Pip and its
+            # vendored packaging that we support.
+            version_modifier=lambda version: (
+                version + "local" if version.endswith("+") else version
+            ),
+            list_type=EndsWithList,
+        )
+        or skip
+    )
     os_names_strings = os_names or skip
     platform_systems_strings = platform_systems or skip
     sys_platforms_strings = sys_platforms or skip
 
-    def _get_env(environment, name):
-        if name == "extra":
-            return original_get_env(environment, name)
-        if name == "python_version":
-            return python_versions_strings
-        if name == "python_full_version":
-            return python_full_versions_strings
-        if name == "os_name":
-            return os_names_strings
-        if name == "platform_system":
-            return platform_systems_strings
-        if name == "sys_platform":
-            return sys_platforms_strings
-        return skip
+    class EvaluationEnvironment(dict):
+        @classmethod
+        def get_env(
+            cls,
+            environment,  # type: Dict[Any, Any]
+            name,  # type: Any
+        ):
+            # type: (...) -> Any
+            production_assert(
+                isinstance(environment, cls),
+                "Expected environment to come from the {function} function, "
+                "which we patch to return {expected_type}, but was {actual_type}".format(
+                    function=markers.default_environment,
+                    expected_type=cls,
+                    actual_type=type(environment),
+                ),
+            )
+            return environment[name]
 
-    def _eval_op(lhs, op, rhs):
+        def __missing__(self, name):
+            # type: (Any) -> Any
+            if name == "extra":
+                if original_extra is None:
+                    raise markers.UndefinedEnvironmentName(
+                        "'extra' does not exist in evaluation environment."
+                    )
+                return original_extra
+            if name == "python_version":
+                return python_versions_strings
+            if name == "python_full_version":
+                return python_full_versions_strings
+            if name == "os_name":
+                return os_names_strings
+            if name == "platform_system":
+                return platform_systems_strings
+            if name == "sys_platform":
+                return sys_platforms_strings
+            return skip
+
+    def _eval_op(
+        lhs,  # type: Any
+        op,  # type: Any
+        rhs,  # type: Any
+    ):
+        # type: (...) -> bool
         if lhs is skip or rhs is skip:
             return True
         return any(
@@ -77,7 +142,11 @@ def patch_marker_evaluate():
             for right in (rhs if isinstance(rhs, list) else [rhs])
         )
 
-    markers._get_env = _get_env
+    # Works with all Pip vendored packaging distributions.
+    markers.default_environment = EvaluationEnvironment
+    # Covers Pip<24.1 vendored packaging.
+    markers._get_env = EvaluationEnvironment.get_env
+
     markers._eval_op = _eval_op
 
 
