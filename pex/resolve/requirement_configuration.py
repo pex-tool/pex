@@ -55,3 +55,8 @@ class RequirementConfiguration(object):
                     if isinstance(requirement_or_constraint, Constraint)
                 )
         return parsed_constraints
+
+    @property
+    def has_requirements(self):
+        # type: () -> bool
+        return bool(self.requirements) or bool(self.requirement_files)

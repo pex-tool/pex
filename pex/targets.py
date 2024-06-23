@@ -16,7 +16,7 @@ from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from typing import Iterable, Iterator, Optional, Tuple, Union
+    from typing import Any, Iterable, Iterator, Optional, Tuple, Union
 
     import attr  # vendor:skip
 else:
@@ -78,7 +78,7 @@ class Target(object):
     def requires_python_applies(
         self,
         requires_python,  # type: SpecifierSet
-        source,  # type: Requirement
+        source,  # type: Any
     ):
         # type: (...) -> bool
         """Determines if the given python requirement applies to this target.
