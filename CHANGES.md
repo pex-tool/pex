@@ -7,7 +7,7 @@ https://peps.python.org/pep-0723) script metadata in `--exe`s. For such
 a script with metadata describing its dependencies or Python version
 requirements, running the script is as simple as
 `pex --exe <script> -- <script args>` and building a PEX encapsulating
-it as simple `pex --exe <script> --output <PEX file>`.
+it as simple as `pex --exe <script> --output <PEX file>`.
 
 *  Add support for PEP-723 script metadata to `--exe`. (#2436)
 
