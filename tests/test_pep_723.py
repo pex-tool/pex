@@ -284,7 +284,7 @@ def test_parse_invalid_dependencies_value_type():
 @pytest.mark.skipif(
     PY_VER < (3, 7),
     reason=(
-        "The version of vendored packaging used for Python>=2.7 is required for the precise error "
+        "The version of vendored packaging used for Python>=3.7 is required for the precise error "
         "message being tested against."
     ),
 )
