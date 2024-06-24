@@ -1,6 +1,6 @@
 # Copyright 2021 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
-
+import difflib
 import json
 import os
 import re
@@ -880,15 +880,16 @@ def test_update_targeted_impossible(
         ),
         error_lines[11],
     )
-    assert (
-        [
+    pip_version = json_codec.load(lock_file_path).pip_version
+    if pip_version == PipVersion.v20_3_4_patched:
+        expected_lines = [
             "ERROR: Could not find a version that satisfies the requirement urllib3<1.27,>=1.21.1 "
             "(from requests)",
             "ERROR: No matching distribution found for urllib3<1.27,>=1.21.1",
             "",
         ]
-        if json_codec.load(lock_file_path).pip_version == PipVersion.v20_3_4_patched
-        else [
+    else:
+        expected_lines = [
             "ERROR: Cannot install requests==2.26.0 because these package versions have "
             "conflicting dependencies.",
             "ERROR: ResolutionImpossible: for help visit "
@@ -901,10 +902,14 @@ def test_update_targeted_impossible(
             " ",
             " To fix this you could try to:",
             " 1. loosen the range of package versions you've specified",
-            " 2. remove package versions to allow pip attempt to solve the dependency " "conflict",
+            " 2. remove package versions to allow {pip_to} attempt to solve the dependency "
+            "conflict".format(
+                pip_to="pip" if pip_version.version < PipVersion.v24_1.version else "pip to"
+            ),
             "",
         ]
-        == error_lines[12:]
+    assert expected_lines == error_lines[12:], os.linesep.join(
+        difflib.unified_diff(os.linesep.join(expected_lines), os.linesep.join(error_lines[12:]))
     )
 
     # The pip legacy resolver, though is not strict and will let us get away with this.
@@ -976,15 +981,16 @@ def test_update_add_impossible(
         ),
         error_lines[12],
     )
-    assert (
-        [
+    pip_version = json_codec.load(lock_file_path).pip_version
+    if pip_version == PipVersion.v20_3_4_patched:
+        expected_lines = [
             "ERROR: Could not find a version that satisfies the requirement certifi<2017.4.17 "
             "(from conflicting-certifi-requirement)",
             "ERROR: No matching distribution found for certifi<2017.4.17",
             "",
         ]
-        if json_codec.load(lock_file_path).pip_version == PipVersion.v20_3_4_patched
-        else [
+    else:
+        expected_lines = [
             "ERROR: Cannot install conflicting-certifi-requirement==1.2.3 and requests==2.26.0 "
             "because these package versions have conflicting dependencies.",
             "ERROR: ResolutionImpossible: for help visit "
@@ -998,10 +1004,14 @@ def test_update_add_impossible(
             " ",
             " To fix this you could try to:",
             " 1. loosen the range of package versions you've specified",
-            " 2. remove package versions to allow pip attempt to solve the dependency " "conflict",
+            " 2. remove package versions to allow {pip_to} attempt to solve the dependency "
+            "conflict".format(
+                pip_to="pip" if pip_version.version < PipVersion.v24_1.version else "pip to"
+            ),
             "",
         ]
-        == error_lines[13:]
+    assert expected_lines == error_lines[13:], os.linesep.join(
+        difflib.unified_diff(os.linesep.join(expected_lines), os.linesep.join(error_lines[12:]))
     )
 
     # The pip legacy resolver, though is not strict and will let us get away with this.

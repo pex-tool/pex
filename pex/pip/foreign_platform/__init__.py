@@ -5,26 +5,18 @@ from __future__ import absolute_import
 
 import json
 import os
-import re
 
 from pex.common import safe_mkdtemp
 from pex.interpreter_constraints import iter_compatible_versions
 from pex.pep_425 import CompatibilityTags
 from pex.pip.download_observer import DownloadObserver, Patch, PatchSet
-from pex.pip.log_analyzer import ErrorAnalyzer, ErrorMessage
 from pex.platforms import Platform
 from pex.targets import AbbreviatedPlatform, CompletePlatform, Target
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Iterable, Iterator, Optional
-
-    import attr  # vendor:skip
-
-    from pex.pip.log_analyzer import ErrorAnalysis
-else:
-    from pex.third_party import attr
+    from typing import Any, Iterable, Iterator, Mapping, Optional
 
 
 def iter_platform_args(
@@ -66,29 +58,77 @@ def iter_platform_args(
     yield platform.abi
 
 
-@attr.s(frozen=True)
-class _Issue10050Analyzer(ErrorAnalyzer):
-    # Part of the workaround for: https://github.com/pypa/pip/issues/10050
+class EvaluationEnvironment(dict):
+    class _Missing(str):
+        pass
 
-    _platform = attr.ib()  # type: Platform
+    class UndefinedName(Exception):
+        pass
 
-    def analyze(self, line):
-        # type: (str) -> ErrorAnalysis
-        # N.B.: Pip --log output looks like:
-        # 2021-06-20T19:06:00,981 pip._vendor.packaging.markers.UndefinedEnvironmentName: 'python_full_version' does not exist in evaluation environment.
-        match = re.match(
-            r"^[^ ]+ pip._vendor.packaging.markers.UndefinedEnvironmentName: "
-            r"(?P<missing_marker>.*)\.$",
-            line,
-        )
-        if match:
-            return self.Complete(
-                ErrorMessage(
-                    "Failed to resolve for platform {}. Resolve requires evaluation of unknown "
-                    "environment marker: {}.".format(self._platform, match.group("missing_marker"))
-                )
+    def __init__(
+        self,
+        target_description,  # type: str
+        *args,  # type: Any
+        **kwargs  # type: Any
+    ):
+        # type: (...) -> None
+        self._target_description = target_description
+        super(EvaluationEnvironment, self).__init__(*args, **kwargs)
+
+    def __missing__(self, key):
+        # type: (Any) -> Any
+        return self._Missing(
+            "Failed to resolve for {target_description}. Resolve requires evaluation of unknown "
+            "environment marker: {marker!r} does not exist in evaluation environment.".format(
+                target_description=self._target_description, marker=key
             )
-        return self.Continue()
+        )
+
+    def raise_if_missing(self, value):
+        # type: (Any) -> None
+        if isinstance(value, self._Missing):
+            raise self.UndefinedName(value)
+
+    def default(self):
+        # type: () -> EvaluationEnvironment
+        return EvaluationEnvironment(self._target_description, self.copy())
+
+
+class PatchContext(object):
+    _PEX_PATCHED_MARKERS_FILE_ENV_VAR_NAME = "_PEX_PATCHED_MARKERS_FILE"
+
+    @classmethod
+    def load_evaluation_environment(cls):
+        # type: () -> EvaluationEnvironment
+
+        patched_markers_file = os.environ.pop(cls._PEX_PATCHED_MARKERS_FILE_ENV_VAR_NAME)
+        with open(patched_markers_file) as fp:
+            data = json.load(fp)
+        return EvaluationEnvironment(data["target_description"], data["patched_environment"])
+
+    @classmethod
+    def dump_marker_environment(cls, target):
+        # type: (Target) -> Mapping[str, str]
+
+        target_description = target.render_description()
+        patched_environment = target.marker_environment.as_dict()
+        patches_file = os.path.join(safe_mkdtemp(), "markers.json")
+        with open(patches_file, "w") as markers_fp:
+            json.dump(
+                {
+                    "target_description": target_description,
+                    "patched_environment": patched_environment,
+                },
+                markers_fp,
+            )
+        TRACER.log(
+            "Patching environment markers for {target_description} with "
+            "{patched_environment}".format(
+                target_description=target_description, patched_environment=patched_environment
+            ),
+            V=3,
+        )
+        return {cls._PEX_PATCHED_MARKERS_FILE_ENV_VAR_NAME: patches_file}
 
 
 def patch(target):
@@ -96,16 +136,13 @@ def patch(target):
     if not isinstance(target, (AbbreviatedPlatform, CompletePlatform)):
         return None
 
-    analyzer = _Issue10050Analyzer(target.platform)
-
     patches = []
     patches_dir = safe_mkdtemp()
 
-    patched_environment = target.marker_environment.as_dict()
-    with open(os.path.join(patches_dir, "markers.json"), "w") as markers_fp:
-        json.dump(patched_environment, markers_fp)
     patches.append(
-        Patch.from_code_resource(__name__, "markers.py", _PEX_PATCHED_MARKERS_FILE=markers_fp.name)
+        Patch.from_code_resource(
+            __name__, "markers.py", **PatchContext.dump_marker_environment(target)
+        )
     )
 
     compatible_tags = target.supported_tags
@@ -128,11 +165,7 @@ def patch(target):
         patch_requires_python(requires_python=[requires_python], patches_dir=patches_dir)
     )
 
-    TRACER.log(
-        "Patching environment markers for {} with {}".format(target, patched_environment),
-        V=3,
-    )
-    return DownloadObserver(analyzer=analyzer, patch_set=PatchSet(patches=tuple(patches)))
+    return DownloadObserver(analyzer=None, patch_set=PatchSet(patches=tuple(patches)))
 
 
 def patch_tags(

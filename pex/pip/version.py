@@ -257,21 +257,13 @@ class PipVersion(Enum["PipVersionValue"]):
         requires_python=">=3.7,<3.13",
     )
 
-    # This is https://github.com/pypa/pip/pull/12462 which is approved but not yet merged or
-    # released. It allows testing Python 3.13 pre-releases but should not be used by the public; so
-    # we keep it hidden.
-    v24_0_dev0_patched = PipVersionValue(
-        name="24.0.dev0-patched",
-        version="24.0.dev0+patched",
-        requirement=(
-            "pip @ git+https://github.com/jsirois/pip@0257c9422f7bb99a6f319b54f808a5c50339be6c"
-        ),
-        setuptools_version="69.0.3",
-        wheel_version="0.42.0",
-        requires_python=">=3.7",
-        hidden=True,
+    v24_1 = PipVersionValue(
+        version="24.1",
+        setuptools_version="70.1.0",
+        wheel_version="0.43.0",
+        requires_python=">=3.8,<3.14",
     )
 
     VENDORED = v20_3_4_patched
     LATEST = LatestPipVersion()
-    DEFAULT = DefaultPipVersion(preferred=(VENDORED, v23_2))
+    DEFAULT = DefaultPipVersion(preferred=(VENDORED, v23_2, v24_1))

@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.5.0
+
+This release brings support for Python 3.13 and `--pip-version 24.1`,
+which is the first Pip version to support it.
+
+* Support `--pip-version 24.1` and Python 3.13. (#2434)
+
 ## 2.4.1
 
 This release fixes `pex --only-binary X --lock ...` to work with lock

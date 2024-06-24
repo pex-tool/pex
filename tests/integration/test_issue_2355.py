@@ -1,11 +1,17 @@
 # Copyright 2024 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
-
+import json
 import os
 import subprocess
-import sys
 from textwrap import dedent
 
+from pex.interpreter import PythonInterpreter
+from pex.pep_425 import CompatibilityTags
+from pex.pep_508 import MarkerEnvironment
+from pex.pip.installation import compatible_version
+from pex.pip.version import PipVersion
+from pex.result import try_
+from pex.targets import CompletePlatform, Targets
 from pex.typing import TYPE_CHECKING
 from testing import IS_X86_64, run_pex_command
 from testing.docker import skip_unless_docker
@@ -30,8 +36,6 @@ def test_ssl_context(
                 ARG PBS_RELEASE
                 ARG PBS_ARCHIVE
 
-                {extra_instructions}
-
                 RUN \
                 curl --fail -sSL -O $PBS_RELEASE/$PBS_ARCHIVE && \
                 curl --fail -sSL -O $PBS_RELEASE/$PBS_ARCHIVE.sha256 && \
@@ -40,16 +44,6 @@ def test_ssl_context(
                 ]] && \
                 tar -xzf $PBS_ARCHIVE
                 """
-            ).format(
-                extra_instructions="\n".join(
-                    # Git is needed for the git VCS URL the patched Pip needed for Python 3.13
-                    # pre-releases is resolved by.
-                    # TODO(John sirois): Remove once a Pip with Python 3.13 support is released:
-                    #   https://github.com/pex-tool/pex/issues/2406
-                    ["RUN dnf install -y git"]
-                    if sys.version_info[:2] == (3, 13)
-                    else []
-                )
             )
         )
 
@@ -73,28 +67,47 @@ def test_ssl_context(
 
     work_dir = os.path.join(str(tmpdir), "work_dir")
     os.mkdir(work_dir)
+    docker_run_args = [
+        "docker",
+        "run",
+        "--rm",
+        "-v",
+        "{pex_project_dir}:/code".format(pex_project_dir=pex_project_dir),
+        "-v",
+        "{work_dir}:/work".format(work_dir=work_dir),
+        "-w",
+        "/code",
+        "test_issue_2355",
+        "/python/bin/python3.9",
+        "-mpex.cli",
+    ]
+    complete_platform_data = json.loads(
+        subprocess.check_output(
+            args=docker_run_args + ["interpreter", "inspect", "--markers", "--tags"]
+        )
+    )
+    container_interpreter = CompletePlatform.create(
+        marker_environment=MarkerEnvironment(**complete_platform_data["marker_environment"]),
+        supported_tags=CompatibilityTags.from_strings(complete_platform_data["compatible_tags"]),
+    )
+    pip_version = try_(
+        compatible_version(
+            targets=Targets(
+                interpreters=tuple([PythonInterpreter.get()]),
+                complete_platforms=tuple([container_interpreter]),
+            ),
+            requested_version=PipVersion.DEFAULT,
+            context=__name__ + ".test_ssl_context",
+        )
+    )
+
     subprocess.check_call(
-        args=[
-            "docker",
-            "run",
-            "--rm",
-            "-v",
-            "{pex_project_dir}:/code".format(pex_project_dir=pex_project_dir),
-            "-v",
-            "{work_dir}:/work".format(work_dir=work_dir),
-            "-w",
-            "/code",
-            # This env var propagation is needed to support patched Pip 24.0 for Python 3.13
-            # pre-release testing.
-            # TODO(John sirois): Remove once a Pip with Python 3.13 support is released:
-            #   https://github.com/pex-tool/pex/issues/2406
-            "--env",
-            "_PEX_PIP_VERSION",
-            "test_issue_2355",
-            "/python/bin/python3.9",
-            "-mpex.cli",
+        args=docker_run_args
+        + [
             "lock",
             "create",
+            "--pip-version",
+            str(pip_version),
             "--style",
             "universal",
             "cowsay==5.0",

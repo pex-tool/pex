@@ -18,7 +18,7 @@ requires = ["hatchling"]
 expand = {"pex_version" = "version"}
 
 [tool.hatch.metadata.hooks.pex-adjust-metadata.project]
-requires-python = ">=2.7,<3.13,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*"
+requires-python = ">=2.7,<3.14,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*"
 
 [tool.hatch.metadata.hooks.pex-adjust-metadata.project.urls]
 Changelog = "https://github.com/pex-tool/pex/blob/v{pex_version}/CHANGES.md"
@@ -59,6 +59,7 @@ classifiers = [
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
   "Topic :: Software Development :: Build Tools",
