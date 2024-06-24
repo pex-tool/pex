@@ -1,11 +1,22 @@
 # Release Notes
 
+## 2.6.0
+
+This release adds support for [PEP-723](
+https://peps.python.org/pep-0723) script metadata in `--exe`s. For such
+a script with metadata describing its dependencies or Python version
+requirements, running the script is as simple as
+`pex --exe <script> -- <script args>` and building a PEX encapsulating
+it as simple as `pex --exe <script> --output <PEX file>`.
+
+*  Add support for PEP-723 script metadata to `--exe`. (#2436)
+
 ## 2.5.0
 
 This release brings support for Python 3.13 and `--pip-version 24.1`,
 which is the first Pip version to support it.
 
-* Support `--pip-version 24.1` and Python 3.13. (#2434)
+* Support `--pip-version 24.1` and Python 3.13. (#2435)
 
 ## 2.4.1
 
