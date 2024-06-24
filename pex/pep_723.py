@@ -6,7 +6,6 @@ from __future__ import absolute_import
 import os
 import re
 from collections import OrderedDict
-from typing import Any, Mapping
 
 from pex.common import pluralize
 from pex.compatibility import string
@@ -15,7 +14,7 @@ from pex.third_party.packaging.specifiers import InvalidSpecifier, SpecifierSet
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from typing import List, Tuple
+    from typing import Any, List, Mapping, Tuple
 
     import attr  # vendor:skip
     import toml  # vendor:skip
