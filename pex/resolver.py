@@ -109,7 +109,11 @@ class DownloadRequest(object):
             prefix="resolver_download.", dir=safe_mkdir(get_downloads_dir())
         )
         spawn_download = functools.partial(self._spawn_download, dest)
-        with TRACER.timed("Resolving for:\n  {}".format("\n  ".join(map(str, self.targets)))):
+        with TRACER.timed(
+            "Resolving for:\n  {}".format(
+                "\n  ".join(target.render_description() for target in self.targets)
+            )
+        ):
             return list(
                 execute_parallel(
                     inputs=self.targets,

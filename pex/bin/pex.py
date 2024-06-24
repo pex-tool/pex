@@ -29,10 +29,11 @@ from pex.docs.command import serve_html_docs
 from pex.enum import Enum
 from pex.exclude_configuration import ExcludeConfiguration
 from pex.inherit_path import InheritPath
-from pex.interpreter_constraints import InterpreterConstraints
+from pex.interpreter_constraints import InterpreterConstraint, InterpreterConstraints
 from pex.layout import Layout, ensure_installed
 from pex.orderedset import OrderedSet
 from pex.pep_427 import InstallableType
+from pex.pep_723 import ScriptMetadata
 from pex.pex import PEX
 from pex.pex_bootstrapper import ensure_venv
 from pex.pex_builder import Check, CopyMode, PEXBuilder
@@ -52,7 +53,7 @@ from pex.version import __version__
 
 if TYPE_CHECKING:
     from argparse import Namespace
-    from typing import Dict, Iterable, Iterator, List, NoReturn, Optional, Set, Text, Tuple
+    from typing import Dict, Iterable, Iterator, List, NoReturn, Optional, Set, Text, Tuple, Union
 
     import attr  # vendor:skip
 
@@ -477,7 +478,27 @@ def configure_clp_pex_entry_points(parser):
         metavar="EXECUTABLE",
         help=(
             "Set the entry point to an existing local python script. For example: "
-            '"pex --exe bin/my-python-script".'
+            "`pex --exe bin/my-python-script`. If the script contains PEP-723 `dependencies` "
+            "metadata, add these dependencies as requirements, which will be combined with other "
+            "requirements specified on the command line as positional arguments or via "
+            "`-r` / `--requirement` files (if any). If the script contains PEP-723 "
+            "`requires-python` metadata, treat this as the primary `--interpreter-constraint` and "
+            "ensure all interpreters selected via explicit `--python`, `--interpreter-constraint`, "
+            "`--platform` and `--complete-platform` command line arguments comply or else fail."
+        ),
+    )
+    group.add_argument(
+        "--pep723",
+        "--enable-script-metadata",
+        "--no-pep723",
+        "--no-enable-script-metadata",
+        dest="enable_script_metadata",
+        default=True,
+        action=HandleBoolAction,
+        help=(
+            "Enable parsing PEP-723 script metadata from an `--exe` for requirements and "
+            "interpreter constraints. See the `--exe` help for more details. This is enabled by "
+            "default but can be disabled to work around undesired script metadata."
         ),
     )
     group.add_argument(
@@ -955,24 +976,25 @@ def build_pex(
             filename=options.executable, env_filename="__pex_executable__.py"
         )
 
-    specific_shebang = options.python_shebang or targets.compatible_shebang()
-    if specific_shebang:
-        pex_builder.set_shebang(specific_shebang)
-    else:
-        # TODO(John Sirois): Consider changing fallback to `#!/usr/bin/env python` in Pex 3.x.
-        pex_warnings.warn(
-            "Could not calculate a targeted shebang for:\n"
-            "{targets}\n"
-            "\n"
-            "Using shebang: {default_shebang}\n"
-            "If this is not appropriate, you can specify a custom shebang using the "
-            "--python-shebang option.".format(
-                targets="\n".join(
-                    sorted(target.render_description() for target in targets.unique_targets())
-                ),
-                default_shebang=pex_builder.shebang,
+    if not options.sh_boot:
+        specific_shebang = options.python_shebang or targets.compatible_shebang()
+        if specific_shebang:
+            pex_builder.set_shebang(specific_shebang)
+        else:
+            # TODO(John Sirois): Consider changing fallback to `#!/usr/bin/env python` in Pex 3.x.
+            pex_warnings.warn(
+                "Could not calculate a targeted shebang for:\n"
+                "{targets}\n"
+                "\n"
+                "Using shebang: {default_shebang}\n"
+                "If this is not appropriate, you can specify a custom shebang using the "
+                "--python-shebang option.".format(
+                    targets="\n".join(
+                        sorted(target.render_description() for target in targets.unique_targets())
+                    ),
+                    default_shebang=pex_builder.shebang,
+                )
             )
-        )
 
     return pex_builder
 
@@ -995,6 +1017,89 @@ def _compatible_with_current_platform(interpreter, platforms):
     return current_platforms.intersection(platforms)
 
 
+def configure_requirements_and_targets(options):
+    # type: (Namespace) -> Union[Tuple[RequirementConfiguration, InterpreterConstraints, Targets], Error]
+
+    requirement_configuration = requirement_options.configure(options)
+    target_config = target_options.configure(options)
+    script_metadata = ScriptMetadata()
+
+    if options.executable and options.enable_script_metadata:
+        with open(options.executable) as fp:
+            script_metadata = ScriptMetadata.parse(fp.read(), source=fp.name)
+
+        if script_metadata.dependencies:
+            requirements = OrderedSet(str(req) for req in script_metadata.dependencies)
+            TRACER.log(
+                "Will resolve dependencies discovered in PEP-723 script metadata from {source}"
+                "{in_addition_to}: {dependencies}".format(
+                    source=script_metadata.source,
+                    in_addition_to=(
+                        " in addition to explicitly provided requirements"
+                        if requirement_configuration.has_requirements
+                        else ""
+                    ),
+                    dependencies=" ".join(requirements),
+                )
+            )
+            if requirement_configuration.requirements:
+                requirements.update(requirement_configuration.requirements)
+            requirement_configuration = attr.evolve(
+                requirement_configuration,
+                requirements=requirements,
+            )
+
+        if (
+            script_metadata.requires_python
+            and not target_config.interpreter_configuration.interpreter_constraints
+        ):
+            interpreter_constraint = InterpreterConstraint(script_metadata.requires_python)
+            TRACER.log(
+                "Will target interpreters matching requires-python discovered in PEP-723 script "
+                "metadata from {source}: {interpreter_constraint}".format(
+                    source=script_metadata.source, interpreter_constraint=interpreter_constraint
+                )
+            )
+            target_config = attr.evolve(
+                target_config,
+                interpreter_configuration=attr.evolve(
+                    target_config.interpreter_configuration,
+                    interpreter_constraints=InterpreterConstraints((interpreter_constraint,)),
+                ),
+            )
+
+    try:
+        targets = target_config.resolve_targets()
+    except target_configuration.InterpreterNotFound as e:
+        return Error(str(e))
+    except target_configuration.InterpreterConstraintsNotSatisfied as e:
+        return Error(str(e), exit_code=CANNOT_SETUP_INTERPRETER)
+
+    if script_metadata.requires_python:
+        incompatible_targets = []  # type: List[str]
+        for target in targets.unique_targets():
+            if not target.requires_python_applies(
+                requires_python=script_metadata.requires_python, source=script_metadata.source
+            ):
+                incompatible_targets.append(target.render_description())
+        if incompatible_targets:
+            return Error(
+                "The script metadata from {source} specifies a requires-python of "
+                "{requires_python} but the following configured targets are incompatible with "
+                "that constraint: {incompatible_targets}".format(
+                    source=script_metadata.source,
+                    requires_python=script_metadata.requires_python,
+                    incompatible_targets=", ".join(incompatible_targets),
+                )
+            )
+
+    return (
+        requirement_configuration,
+        target_config.interpreter_configuration.interpreter_constraints,
+        targets,
+    )
+
+
 def main(args=None):
     args = args[:] if args else sys.argv[1:]
     args = [transform_legacy_arg(arg) for arg in args]
@@ -1015,20 +1120,14 @@ def main(args=None):
 
     try:
         with global_environment(options) as env:
-            requirement_configuration = requirement_options.configure(options)
+            requirement_configuration, interpreter_constraints, targets = try_(
+                configure_requirements_and_targets(options)
+            )
 
             try:
                 resolver_configuration = resolver_options.configure(options)
             except resolver_options.InvalidConfigurationError as e:
                 die(str(e))
-
-            target_config = target_options.configure(options)
-            try:
-                targets = target_config.resolve_targets()
-            except target_configuration.InterpreterNotFound as e:
-                die(str(e))
-            except target_configuration.InterpreterConstraintsNotSatisfied as e:
-                die(str(e), exit_code=CANNOT_SETUP_INTERPRETER)
 
             resolver_configuration = try_(
                 finalize_resolve_config(resolver_configuration, targets, context="PEX building")
@@ -1040,7 +1139,7 @@ def main(args=None):
                     options=options,
                     requirement_configuration=requirement_configuration,
                     resolver_configuration=resolver_configuration,
-                    interpreter_constraints=target_config.interpreter_constraints,
+                    interpreter_constraints=interpreter_constraints,
                     targets=targets,
                     cmdline=cmdline,
                     env=env,

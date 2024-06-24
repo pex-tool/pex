@@ -134,6 +134,9 @@ class InterpreterConstraints(object):
         # type: () -> bool
         return bool(self.constraints)
 
+    # N.B.: For Python 2.7.
+    __nonzero__ = __bool__
+
     def __len__(self):
         # type: () -> int
         return len(self.constraints)
