@@ -790,13 +790,19 @@ class DistMetadata(object):
     @classmethod
     def from_metadata_files(cls, metadata_files):
         # type: (MetadataFiles) -> DistMetadata
-        return cls(
-            files=metadata_files,
-            project_name=metadata_files.metadata.project_name,
-            version=metadata_files.metadata.version,
-            requires_dists=tuple(requires_dists(metadata_files)),
-            requires_python=requires_python(metadata_files),
-        )
+        project_name = metadata_files.metadata.project_name
+        version = metadata_files.metadata.version
+        try:
+            return cls(
+                files=metadata_files,
+                project_name=project_name,
+                version=version,
+                requires_dists=tuple(requires_dists(metadata_files)),
+                requires_python=requires_python(metadata_files),
+            )
+        except RequirementParseError as e:
+            error_message = "Error parsing requirements for project {} version {}: {}".format(project_name, version, str(e))
+            raise RequirementParseError(error_message)
 
     @classmethod
     def load(
