@@ -1,5 +1,13 @@
 # Release Notes
 
+## 2.6.1
+
+This release improves error messages when attempting to read invalid
+metadata from distributions such that the problematic distribution is
+always identified.
+
+* Improve errors for invalid distribution metadata. (#2443)
+
 ## 2.6.0
 
 This release adds support for [PEP-723](
@@ -9,7 +17,7 @@ requirements, running the script is as simple as
 `pex --exe <script> -- <script args>` and building a PEX encapsulating
 it as simple as `pex --exe <script> --output <PEX file>`.
 
-*  Add support for PEP-723 script metadata to `--exe`. (#2436)
+* Add support for PEP-723 script metadata to `--exe`. (#2436)
 
 ## 2.5.0
 
