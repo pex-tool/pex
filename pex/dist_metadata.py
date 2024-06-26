@@ -29,7 +29,7 @@ from pex.pep_503 import ProjectName
 from pex.third_party.packaging.markers import Marker
 from pex.third_party.packaging.requirements import InvalidRequirement
 from pex.third_party.packaging.requirements import Requirement as PackagingRequirement
-from pex.third_party.packaging.specifiers import SpecifierSet
+from pex.third_party.packaging.specifiers import InvalidSpecifier, SpecifierSet
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
@@ -71,6 +71,10 @@ class MetadataNotFoundError(MetadataError):
     """Indicates an expected metadata file could not be found for a given distribution."""
 
 
+class InvalidMetadataError(MetadataError):
+    """Indicates a metadata value that is invalid."""
+
+
 def _strip_sdist_path(sdist_path):
     # type: (Text) -> Optional[Text]
     if not sdist_path.endswith((".tar.gz", ".tgz", ".tar.bz2", ".tbz2", ".tar.xz", ".txz", ".zip")):
@@ -96,6 +100,15 @@ class DistMetadataFile(object):
     project_name = attr.ib()  # type: ProjectName
     version = attr.ib()  # type: Version
     pkg_info = attr.ib(eq=False)  # type: Message
+
+    def render_description(self):
+        # type: () -> str
+        return "{project_name} {version} metadata from {rel_path} at {location}".format(
+            project_name=self.project_name,
+            version=self.version,
+            rel_path=self.rel_path,
+            location=self.location,
+        )
 
 
 @attr.s(frozen=True)
@@ -371,20 +384,6 @@ def load_metadata(
     return None
 
 
-_PKG_INFO_BY_DIST_LOCATION = {}  # type: Dict[Text, Optional[Message]]
-
-
-def _parse_pkg_info(location):
-    # type: (Text) -> Optional[Message]
-    if location not in _PKG_INFO_BY_DIST_LOCATION:
-        pkg_info = None  # type: Optional[Message]
-        metadata_files = load_metadata(location)
-        if metadata_files:
-            pkg_info = metadata_files.metadata.pkg_info
-        _PKG_INFO_BY_DIST_LOCATION[location] = pkg_info
-    return _PKG_INFO_BY_DIST_LOCATION[location]
-
-
 @attr.s(frozen=True)
 class ProjectNameAndVersion(object):
     @classmethod
@@ -487,7 +486,7 @@ def project_name_and_version(
 
 
 def requires_python(location):
-    # type: (Union[Text, Distribution, Message, MetadataFiles]) -> Optional[SpecifierSet]
+    # type: (Union[Distribution, MetadataFiles, Text]) -> Optional[SpecifierSet]
     """Examines dist for `Python-Requires` metadata and returns version constraints if any.
 
     See: https://www.python.org/dev/peps/pep-0345/#requires-python
@@ -498,33 +497,39 @@ def requires_python(location):
     if isinstance(location, Distribution):
         return location.metadata.requires_python
 
-    pkg_info = None  # type: Optional[Message]
-    if isinstance(location, Message):
-        pkg_info = location
-    elif isinstance(location, MetadataFiles):
-        pkg_info = location.metadata.pkg_info
+    metadata_files = None  # type: Optional[MetadataFiles]
+    if isinstance(location, MetadataFiles):
+        metadata_files = location
     else:
+        # N.B.: This load can fail, but the source is the location of the metadata files, which
+        # contains useful information in the path name for identifying the problem project and
+        # version.
         metadata_files = load_metadata(location)
-        if metadata_files:
-            pkg_info = metadata_files.metadata.pkg_info
-    if pkg_info is None:
+    if metadata_files is None:
         return None
 
-    python_requirement = pkg_info.get("Requires-Python", None)
+    python_requirement = metadata_files.metadata.pkg_info.get("Requires-Python", None)
     if python_requirement is None:
         return None
-    return SpecifierSet(python_requirement)
+    try:
+        return SpecifierSet(python_requirement)
+    except InvalidSpecifier as e:
+        raise InvalidMetadataError(
+            "Invalid Requires-Python metadata found in {source} {value!r}: {err}".format(
+                source=metadata_files.metadata.render_description(), value=python_requirement, err=e
+            )
+        )
 
 
 def _parse_requires_txt(content):
-    # type: (bytes) -> Iterator[Requirement]
+    # type: (bytes) -> Iterator[Union[Requirement, Tuple[int, Text, RequirementParseError]]]
     # See:
     # + High level: https://setuptools.pypa.io/en/latest/deprecated/python_eggs.html#requires-txt
     # + Low level:
     #   + https://github.com/pypa/setuptools/blob/fbe0d7962822c2a1fdde8dd179f2f8b8c8bf8892/pkg_resources/__init__.py#L3256-L3279
     #   + https://github.com/pypa/setuptools/blob/fbe0d7962822c2a1fdde8dd179f2f8b8c8bf8892/pkg_resources/__init__.py#L2792-L2818
     marker = ""
-    for line in content.decode("utf-8").splitlines():
+    for line_no, line in enumerate(content.decode("utf-8").splitlines(), start=1):
         line = line.strip()
         if not line:
             continue
@@ -539,11 +544,15 @@ def _parse_requires_txt(content):
             if markers:
                 marker = "; {markers}".format(markers=" and ".join(markers))
         else:
-            yield Requirement.parse(line + marker)
+            req = line + marker
+            try:
+                yield Requirement.parse(req)
+            except RequirementParseError as e:
+                yield line_no, req, e
 
 
 def requires_dists(location):
-    # type: (Union[Text, Distribution, Message, MetadataFiles]) -> Iterator[Requirement]
+    # type: (Union[Distribution, MetadataFiles, Text]) -> Iterator[Requirement]
     """Examines dist for and returns any declared requirements.
 
     Looks for `Requires-Dist` metadata.
@@ -564,37 +573,61 @@ def requires_dists(location):
             yield requirement
         return
 
-    pkg_info = None  # type: Optional[Message]
-    if isinstance(location, Message):
-        pkg_info = location
-    elif isinstance(location, MetadataFiles):
-        pkg_info = location.metadata.pkg_info
+    metadata_files = None  # type: Optional[MetadataFiles]
+    if isinstance(location, MetadataFiles):
+        metadata_files = location
     else:
+        # N.B.: This load can fail, but the source is the location of the metadata files, which
+        # contains useful information in the path name for identifying the problem project and
+        # version.
         metadata_files = load_metadata(location)
-        if metadata_files:
-            pkg_info = metadata_files.metadata.pkg_info
-    if pkg_info is None:
+    if metadata_files is None:
         return
 
-    requires_dists = pkg_info.get_all("Requires-Dist", ())
-    if (
-        not requires_dists
-        and isinstance(location, MetadataFiles)
-        and MetadataType.EGG_INFO is location.metadata.type
-    ):
+    invalid_values = []  # type: List[str]
+    requires_dists = metadata_files.metadata.pkg_info.get_all("Requires-Dist", ())
+    if not requires_dists and MetadataType.EGG_INFO is metadata_files.metadata.type:
         for metadata_file in "requires.txt", "depends.txt":
-            content = location.read(metadata_file)
+            content = metadata_files.read(metadata_file)
             if content:
-                for requirement in _parse_requires_txt(content):
-                    yield requirement
+                for requirement_or_error in _parse_requires_txt(content):
+                    if isinstance(requirement_or_error, Requirement):
+                        yield requirement_or_error
+                    else:
+                        line_no, req, err = requirement_or_error
+                        invalid_values.append(
+                            "{file}:{line_no} {req!r}: {err}".format(
+                                file=(
+                                    metadata_files.metadata_file_rel_path(metadata_file)
+                                    or metadata_file
+                                ),
+                                line_no=line_no,
+                                req=req,
+                                err=err,
+                            )
+                        )
     else:
         for requires_dist in requires_dists:
-            yield Requirement.parse(requires_dist)
+            try:
+                yield Requirement.parse(requires_dist)
+            except RequirementParseError as e:
+                invalid_values.append("{req!r}: {err}".format(req=requires_dist, err=e))
+    if invalid_values:
+        raise InvalidMetadataError(
+            "Found {count} invalid Requires-Dist metadata {values} in {source}:\n"
+            "{invalid_values}".format(
+                count=len(invalid_values),
+                values=pluralize(invalid_values, "value"),
+                source=metadata_files.metadata.render_description(),
+                invalid_values="\n".join(
+                    "{index}. {invalid_value}".format(index=index, invalid_value=invalid_value)
+                    for index, invalid_value in enumerate(invalid_values, start=1)
+                ),
+            )
+        )
 
-    legacy_requires = pkg_info.get_all("Requires", [])  # type: List[str]
+    legacy_requires = metadata_files.metadata.pkg_info.get_all("Requires", [])  # type: List[str]
     if legacy_requires:
-        name_and_version = project_name_and_version(location)
-        project_name = name_and_version.project_name if name_and_version else location
         pex_warnings.warn(
             dedent(
                 """\
@@ -607,7 +640,7 @@ def requires_dists(location):
                 """
             ).format(
                 dist=location,
-                project_name=project_name,
+                project_name=metadata_files.metadata.project_name,
                 count=len(legacy_requires),
                 field=pluralize(legacy_requires, "field"),
                 requires=os.linesep.join(

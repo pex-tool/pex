@@ -4,6 +4,7 @@
 from __future__ import absolute_import, print_function
 
 import os
+import re
 import tarfile
 import warnings
 from contextlib import contextmanager
@@ -14,6 +15,7 @@ import pytest
 from pex.common import open_zip, safe_open, temporary_dir, touch
 from pex.dist_metadata import (
     Distribution,
+    InvalidMetadataError,
     MetadataError,
     MetadataType,
     ProjectNameAndVersion,
@@ -29,6 +31,8 @@ from pex.pip.installation import get_pip
 from pex.resolve.resolver_configuration import BuildConfiguration
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.typing import TYPE_CHECKING
+from testing import PY_VER
+from testing.dist_metadata import create_dist_metadata
 
 if TYPE_CHECKING:
     from typing import Any, Iterator, Tuple
@@ -263,7 +267,7 @@ def test_requires_dists_none(pygoogleearth_zip_sdist):
                 Ignoring 1 `Requires` field in {sdist} metadata:
                 1.) Requires: python (>=2.6.0)
 
-                You may have issues using the 'et_xmlfile' distribution as a result.
+                You may have issues using the 'et-xmlfile' distribution as a result.
                 More information on this workaround can be found here:
                   https://github.com/pex-tool/pex/issues/1201#issuecomment-791715585
                 """
@@ -383,3 +387,92 @@ def test_requirement_contains_requirement():
     assert req("foo==2") in req("foo>1,<3")
     assert req("foo>=1,<3") not in req("foo>1,<3")
     assert req("foo>1,<=2") in req("foo>1,<3")
+
+
+def test_invalid_metadata_requires_python_error():
+    with pytest.raises(
+        InvalidMetadataError,
+        match=re.escape(
+            "Invalid Requires-Python metadata found in foo 0.1 metadata from "
+            "foo-0.1.0.dist-info/METADATA at /right/here 'not a valid specifier': "
+            "Invalid specifier: 'not a valid specifier'"
+        ),
+    ):
+        create_dist_metadata(
+            project_name="foo",
+            version="0.1.0",
+            requires_python="not a valid specifier",
+            location="/right/here",
+        )
+
+
+@pytest.mark.skipif(
+    PY_VER < (3, 7),
+    reason=(
+        "The vendored packaging for Python < 3.7 does not complain about use of `*` for operators "
+        "other than `==` and `!=`."
+    ),
+)
+def test_invalid_metadata_requires_dists_error_issue_2441(tmpdir):
+    with pytest.raises(
+        InvalidMetadataError,
+        match=re.escape(
+            "Found 2 invalid Requires-Dist metadata values in foo 0.1 metadata from "
+            "foo-0.1.0.dist-info/METADATA at /right/here:\n"
+            "1. \"scikit-learn (>=1.0.*) ; extra == 'pipelines'\": "
+            ".* suffix can only be used with `==` or `!=` operators\n"
+            "    scikit-learn (>=1.0.*) ; extra == 'pipelines'\n"
+            "                  ~~~~~~^\n"
+            "2. \"pyarrow (>=7.0.*) ; extra == 'pipelines'\": "
+            ".* suffix can only be used with `==` or `!=` operators\n"
+            "    pyarrow (>=7.0.*) ; extra == 'pipelines'\n"
+            "             ~~~~~~^"
+        ),
+    ):
+        create_dist_metadata(
+            project_name="foo",
+            version="0.1.0",
+            requires_dists=(
+                "cowsay<6",
+                "scikit-learn (>=1.0.*) ; extra == 'pipelines'",
+                "ansicolors==1.1.8",
+                "pyarrow (>=7.0.*) ; extra == 'pipelines'",
+            ),
+            location="/right/here",
+        )
+
+    location = str(tmpdir)
+    with safe_open(os.path.join(location, "foo-0.1.0.egg-info", "requires.txt"), "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                cowsay<6
+                ansicolors==1.1.8
+
+                [pipelines]
+                scikit-learn>=1.0.*
+                pyarrow>=7.0.*
+                """
+            )
+        )
+    with pytest.raises(
+        InvalidMetadataError,
+        match=re.escape(
+            "Found 2 invalid Requires-Dist metadata values in foo 0.1 metadata from "
+            "foo-0.1.0.egg-info/PKG-INFO at {location}:\n"
+            "1. foo-0.1.0.egg-info/requires.txt:5 'scikit-learn>=1.0.*; extra == \"pipelines\"': "
+            ".* suffix can only be used with `==` or `!=` operators\n"
+            '    scikit-learn>=1.0.*; extra == "pipelines"\n'
+            "                ~~~~~~^\n"
+            "2. foo-0.1.0.egg-info/requires.txt:6 'pyarrow>=7.0.*; extra == \"pipelines\"': "
+            ".* suffix can only be used with `==` or `!=` operators\n"
+            '    pyarrow>=7.0.*; extra == "pipelines"'
+            "\n           ~~~~~~^".format(location=location)
+        ),
+    ):
+        create_dist_metadata(
+            project_name="foo",
+            version="0.1.0",
+            location=location,
+            metadata_type=MetadataType.EGG_INFO,
+        )
