@@ -24,25 +24,25 @@ EXPECTED_ERROR_HEADER_LEAD_IN = (
 EXPECTED_WHEEL = "mlflow-1.27.0-py3-none-any.whl"
 
 EXPECTED_ERROR_FOOTER = """\
-"scikit-learn (>=1.0.*) ; extra == 'pipelines'": .* suffix can only be used with `==` or `!=` operators
+1. "scikit-learn (>=1.0.*) ; extra == 'pipelines'": .* suffix can only be used with `==` or `!=` operators
     scikit-learn (>=1.0.*) ; extra == 'pipelines'
                   ~~~~~~^
-"pyarrow (>=7.0.*) ; extra == 'pipelines'": .* suffix can only be used with `==` or `!=` operators
+2. "pyarrow (>=7.0.*) ; extra == 'pipelines'": .* suffix can only be used with `==` or `!=` operators
     pyarrow (>=7.0.*) ; extra == 'pipelines'
              ~~~~~~^
-"shap (>=0.40.*) ; extra == 'pipelines'": .* suffix can only be used with `==` or `!=` operators
+3. "shap (>=0.40.*) ; extra == 'pipelines'": .* suffix can only be used with `==` or `!=` operators
     shap (>=0.40.*) ; extra == 'pipelines'
           ~~~~~~~^
-"pandas-profiling (>=3.1.*) ; extra == 'pipelines'": .* suffix can only be used with `==` or `!=` operators
+4. "pandas-profiling (>=3.1.*) ; extra == 'pipelines'": .* suffix can only be used with `==` or `!=` operators
     pandas-profiling (>=3.1.*) ; extra == 'pipelines'
                       ~~~~~~^
-"ipython (>=7.0.*) ; extra == 'pipelines'": .* suffix can only be used with `==` or `!=` operators
+5. "ipython (>=7.0.*) ; extra == 'pipelines'": .* suffix can only be used with `==` or `!=` operators
     ipython (>=7.0.*) ; extra == 'pipelines'
              ~~~~~~^
-"markdown (>=3.3.*) ; extra == 'pipelines'": .* suffix can only be used with `==` or `!=` operators
+6. "markdown (>=3.3.*) ; extra == 'pipelines'": .* suffix can only be used with `==` or `!=` operators
     markdown (>=3.3.*) ; extra == 'pipelines'
               ~~~~~~^
-"Jinja2 (>=3.0.*) ; extra == 'pipelines'": .* suffix can only be used with `==` or `!=` operators
+7. "Jinja2 (>=3.0.*) ; extra == 'pipelines'": .* suffix can only be used with `==` or `!=` operators
     Jinja2 (>=3.0.*) ; extra == 'pipelines'
             ~~~~~~^
 """
@@ -56,7 +56,7 @@ def test_invalid_metadata_error_messages_under_old_pip(tmpdir):
     # type: (Any) -> None
 
     run_pex3("lock", "create", "mlflow==1.27.0", "--intransitive").assert_failure(
-        expected_error_re=r"^{header_lead_in} .*/{expected_wheel}:\n{footer}".format(
+        expected_error_re=r"^{header_lead_in} .*/{expected_wheel}:\n{footer}$".format(
             header_lead_in=re.escape(EXPECTED_ERROR_HEADER_LEAD_IN),
             expected_wheel=re.escape(EXPECTED_WHEEL),
             footer=re.escape(EXPECTED_ERROR_FOOTER),

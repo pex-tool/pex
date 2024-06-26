@@ -619,7 +619,10 @@ def requires_dists(location):
                 count=len(invalid_values),
                 values=pluralize(invalid_values, "value"),
                 source=metadata_files.metadata.render_description(),
-                invalid_values="\n".join(invalid_values),
+                invalid_values="\n".join(
+                    "{index}. {invalid_value}".format(index=index, invalid_value=invalid_value)
+                    for index, invalid_value in enumerate(invalid_values, start=1)
+                ),
             )
         )
 

@@ -419,11 +419,11 @@ def test_invalid_metadata_requires_dists_error_issue_2441(tmpdir):
         match=re.escape(
             "Found 2 invalid Requires-Dist metadata values in foo 0.1 metadata from "
             "foo-0.1.0.dist-info/METADATA at /right/here:\n"
-            "\"scikit-learn (>=1.0.*) ; extra == 'pipelines'\": "
+            "1. \"scikit-learn (>=1.0.*) ; extra == 'pipelines'\": "
             ".* suffix can only be used with `==` or `!=` operators\n"
             "    scikit-learn (>=1.0.*) ; extra == 'pipelines'\n"
             "                  ~~~~~~^\n"
-            "\"pyarrow (>=7.0.*) ; extra == 'pipelines'\": "
+            "2. \"pyarrow (>=7.0.*) ; extra == 'pipelines'\": "
             ".* suffix can only be used with `==` or `!=` operators\n"
             "    pyarrow (>=7.0.*) ; extra == 'pipelines'\n"
             "             ~~~~~~^"
@@ -460,11 +460,11 @@ def test_invalid_metadata_requires_dists_error_issue_2441(tmpdir):
         match=re.escape(
             "Found 2 invalid Requires-Dist metadata values in foo 0.1 metadata from "
             "foo-0.1.0.egg-info/PKG-INFO at {location}:\n"
-            "foo-0.1.0.egg-info/requires.txt:5 'scikit-learn>=1.0.*; extra == \"pipelines\"': "
+            "1. foo-0.1.0.egg-info/requires.txt:5 'scikit-learn>=1.0.*; extra == \"pipelines\"': "
             ".* suffix can only be used with `==` or `!=` operators\n"
             '    scikit-learn>=1.0.*; extra == "pipelines"\n'
             "                ~~~~~~^\n"
-            "foo-0.1.0.egg-info/requires.txt:6 'pyarrow>=7.0.*; extra == \"pipelines\"': "
+            "2. foo-0.1.0.egg-info/requires.txt:6 'pyarrow>=7.0.*; extra == \"pipelines\"': "
             ".* suffix can only be used with `==` or `!=` operators\n"
             '    pyarrow>=7.0.*; extra == "pipelines"'
             "\n           ~~~~~~^".format(location=location)
