@@ -391,17 +391,24 @@ class _ResolveRequest(object):
             )
         return bool(excluded_by)
 
-    def request_dependencies(self, locked_requirement):
-        # type: (LockedRequirement) -> Iterator[_ResolveRequest]
+    def request_dependencies(
+        self,
+        locked_requirement,  # type: LockedRequirement
+        target,  # type: Target
+    ):
+        # type: (...) -> Iterator[_ResolveRequest]
         for requires_dist in locked_requirement.requires_dists:
             if self.is_excluded(requires_dist):
                 continue
-            override = self.dependency_configuration.overridden_by(requires_dist)
+            override = self.dependency_configuration.overridden_by(requires_dist, target=target)
             if override:
                 TRACER.log(
-                    "Locked requirement {requirement} from {platform} lock overridden by "
-                    "{override}.".format(
-                        requirement=requires_dist, platform=self.target_platform, override=override
+                    "Dependency {requirement} of locked project {project} from {platform} lock "
+                    "overridden by {override}.".format(
+                        requirement=requires_dist,
+                        project=locked_requirement.pin,
+                        platform=self.target_platform,
+                        override=override,
                     )
                 )
                 requires_dist = override
@@ -698,7 +705,9 @@ class LockedResolve(object):
                 resolved_extras.update(required_extras)
 
             for locked_requirement in repository[project_name]:
-                request_resolve(resolve_request.request_dependencies(locked_requirement))
+                request_resolve(
+                    resolve_request.request_dependencies(locked_requirement, target=target)
+                )
 
         # 2. Select either the best fit artifact for each requirement or collect an error.
         constraints_by_project_name = {

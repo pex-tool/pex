@@ -397,15 +397,6 @@ class PEXEnvironment(object):
             )
             return
 
-        override = dependency_configuration.overridden_by(requirement)
-        if override:
-            TRACER.log(
-                "Resolving {override}: overrides {requirement}".format(
-                    override=override, requirement=requirement
-                )
-            )
-            requirement = override
-
         requirement_key = _RequirementKey.create(requirement)
         if requirement_key in resolved_dists_by_key:
             return
@@ -440,6 +431,17 @@ class PEXEnvironment(object):
         )
 
         for dep_requirement in dist_metadata.requires_dists(resolved_distribution.distribution):
+            override = dependency_configuration.overridden_by(dep_requirement, target=self._target)
+            if override:
+                TRACER.log(
+                    "Resolving {override}: overrides {requirement} from {dist}".format(
+                        override=override,
+                        requirement=dep_requirement,
+                        dist=os.path.basename(resolved_distribution.distribution.location),
+                    )
+                )
+                dep_requirement = override
+
             # A note regarding extras and why they're passed down one level (we don't pass / use
             # dep_requirement.extras for example):
             #

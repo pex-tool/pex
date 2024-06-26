@@ -39,7 +39,7 @@ class PatchContext(object):
                 {
                     "excluded": [str(exclude) for exclude in dependency_configuration.excluded],
                     "overridden": [
-                        str(override) for override in dependency_configuration.overridden.values()
+                        str(override) for override in dependency_configuration.all_overrides()
                     ],
                 },
                 fp,

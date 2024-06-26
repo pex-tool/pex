@@ -10,6 +10,7 @@ from collections import OrderedDict
 from contextlib import contextmanager
 
 from pex.common import pluralize
+from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import Constraint, Requirement
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
@@ -223,6 +224,7 @@ class ResolveUpdater(object):
         lock_file,  # type: Lockfile
         lock_configuration,  # type: LockConfiguration
         pip_configuration,  # type: PipConfiguration
+        dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
     ):
         # type: (...) -> Union[ResolveUpdater, Error]
 
@@ -279,6 +281,7 @@ class ResolveUpdater(object):
             deletes=frozenset(deletes),
             lock_configuration=lock_configuration,
             pip_configuration=pip_configuration,
+            dependency_configuration=dependency_configuration,
         )
 
     @classmethod
@@ -290,6 +293,7 @@ class ResolveUpdater(object):
         lock_file,  # type: Lockfile
         lock_configuration,  # type: LockConfiguration
         pip_configuration,  # type: PipConfiguration
+        dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
     ):
         # type: (...) -> ResolveUpdater
 
@@ -328,6 +332,7 @@ class ResolveUpdater(object):
             deletes=frozenset(deletes),
             lock_configuration=lock_configuration,
             pip_configuration=pip_configuration,
+            dependency_configuration=dependency_configuration,
         )
 
     requirement_configuration = attr.ib()  # type: RequirementConfiguration
@@ -336,6 +341,9 @@ class ResolveUpdater(object):
     deletes = attr.ib()  # type: Container[ProjectName]
     lock_configuration = attr.ib()  # type: LockConfiguration
     pip_configuration = attr.ib()  # type: PipConfiguration
+    dependency_configuration = attr.ib(
+        default=DependencyConfiguration()
+    )  # type: DependencyConfiguration
     update_requirements_by_project_name = attr.ib(
         factory=dict
     )  # type: Mapping[ProjectName, Requirement]
@@ -418,6 +426,7 @@ class ResolveUpdater(object):
                         requirement_configuration=requirement_configuration,
                         targets=Targets.from_target(target),
                         pip_configuration=self.pip_configuration,
+                        dependency_configuration=self.dependency_configuration,
                     )
                 )
                 assert 1 == len(updated_lock_file.locked_resolves)

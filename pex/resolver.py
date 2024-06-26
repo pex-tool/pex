@@ -964,41 +964,59 @@ class BuildAndInstallRequest(object):
 
     def _check(self, resolved_distributions):
         # type: (Iterable[ResolvedDistribution]) -> None
-        resolved_distribution_by_project_name = OrderedDict(
-            (resolved_distribution.distribution.metadata.project_name, resolved_distribution)
-            for resolved_distribution in resolved_distributions
-        )  # type: OrderedDict[ProjectName, ResolvedDistribution]
+        resolved_distributions_by_project_name = (
+            OrderedDict()
+        )  # type: OrderedDict[ProjectName, List[ResolvedDistribution]]
+        for resolved_distribution in resolved_distributions:
+            resolved_distributions_by_project_name.setdefault(
+                resolved_distribution.distribution.metadata.project_name, []
+            ).append(resolved_distribution)
 
         unsatisfied = []
-        for resolved_distribution in resolved_distribution_by_project_name.values():
+        for resolved_distribution in itertools.chain.from_iterable(
+            resolved_distributions_by_project_name.values()
+        ):
             dist = resolved_distribution.distribution
             target = resolved_distribution.target
             for requirement in dist.requires():
                 if self._dependency_configuration.excluded_by(requirement):
                     continue
                 requirement = (
-                    self._dependency_configuration.overridden_by(requirement) or requirement
+                    self._dependency_configuration.overridden_by(requirement, target=target)
+                    or requirement
                 )
                 if not target.requirement_applies(requirement):
                     continue
 
-                installed_requirement_dist = resolved_distribution_by_project_name.get(
+                installed_requirement_dists = resolved_distributions_by_project_name.get(
                     requirement.project_name
                 )
-                if not installed_requirement_dist:
+                if not installed_requirement_dists:
                     unsatisfied.append(
                         "{dist} requires {requirement} but no version was resolved".format(
                             dist=dist.as_requirement(), requirement=requirement
                         )
                     )
                 else:
-                    resolved_dist = installed_requirement_dist.distribution
-                    if not requirement.specifier.contains(resolved_dist.version, prereleases=True):
+                    resolved_dists = [
+                        installed_requirement_dist.distribution
+                        for installed_requirement_dist in installed_requirement_dists
+                    ]
+                    if not any(
+                        requirement.specifier.contains(resolved_dist.version, prereleases=True)
+                        for resolved_dist in resolved_dists
+                    ):
                         unsatisfied.append(
-                            "{dist} requires {requirement} but {resolved_dist} was resolved".format(
+                            "{dist} requires {requirement} but {count} incompatible {dists_were} "
+                            "resolved: {dists}".format(
                                 dist=dist.as_requirement(),
                                 requirement=requirement,
-                                resolved_dist=resolved_dist,
+                                count=len(resolved_dists),
+                                dists_were="dists were" if len(resolved_dists) > 1 else "dist was",
+                                dists=" ".join(
+                                    os.path.basename(resolved_dist.location)
+                                    for resolved_dist in resolved_dists
+                                ),
                             )
                         )
 
@@ -1006,8 +1024,8 @@ class BuildAndInstallRequest(object):
             raise Unsatisfiable(
                 "Failed to resolve compatible distributions:\n{failures}".format(
                     failures="\n".join(
-                        "{index}: {failure}".format(index=index + 1, failure=failure)
-                        for index, failure in enumerate(unsatisfied)
+                        "{index}: {failure}".format(index=index, failure=failure)
+                        for index, failure in enumerate(unsatisfied, start=1)
                     )
                 )
             )

@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 def patch():
     from pip._vendor.pkg_resources import Requirement  # type: ignore[import]
 
+    from pex.common import pluralize
     from pex.dist_metadata import Requirement as PexRequirement
     from pex.pip.dependencies import PatchContext
 
@@ -35,19 +36,26 @@ def patch():
                         )
                     )
                     continue
-                override = dependency_configuration.overridden_by(requirement)
-                if override:
+                overrides = dependency_configuration.overrides_for(requirement)
+                if overrides:
                     logger.debug(
                         "[{type}: patched {orig_requires}] Overrode {dep} from {dist} with "
-                        "Pex-configured override: {override}".format(
+                        "{count} Pex-configured {overrides}:\n{requirements}".format(
                             orig_requires=orig_requires,
                             type=type(self),
                             dep=repr(str(req)),
                             dist=self,
-                            override=repr(str(override)),
+                            count=len(overrides),
+                            overrides=pluralize(overrides, "override"),
+                            requirements="\n".join(
+                                "{index}. {override!r}".format(index=index, override=str(override))
+                                for index, override in enumerate(overrides, start=1)
+                            ),
                         )
                     )
-                    modified_requires.append(Requirement.parse(str(override)))
+                    modified_requires.extend(
+                        Requirement.parse(str(override)) for override in overrides
+                    )
                 else:
                     modified_requires.append(req)
             return modified_requires
