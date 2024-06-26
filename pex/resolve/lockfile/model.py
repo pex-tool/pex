@@ -5,6 +5,7 @@ from __future__ import absolute_import, print_function
 
 import os
 
+from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import Constraint, Requirement
 from pex.orderedset import OrderedSet
 from pex.pep_503 import ProjectName
@@ -40,6 +41,8 @@ class Lockfile(object):
         allow_prereleases,  # type: bool
         build_configuration,  # type: BuildConfiguration
         transitive,  # type: bool
+        excluded,  # type: Iterable[Requirement]
+        overridden,  # type: Iterable[Requirement]
         locked_resolves,  # type: Iterable[LockedResolve]
         source=None,  # type: Optional[str]
         pip_version=None,  # type: Optional[PipVersionValue]
@@ -104,6 +107,8 @@ class Lockfile(object):
             use_pep517=build_configuration.use_pep517,
             build_isolation=build_configuration.build_isolation,
             transitive=transitive,
+            excluded=SortedTuple(excluded),
+            overridden=SortedTuple(overridden),
             locked_resolves=SortedTuple(locked_resolves),
             local_project_requirement_mapping=requirement_by_local_project_directory,
             source=source,
@@ -126,6 +131,8 @@ class Lockfile(object):
     use_pep517 = attr.ib()  # type: Optional[bool]
     build_isolation = attr.ib()  # type: bool
     transitive = attr.ib()  # type: bool
+    excluded = attr.ib()  # type: SortedTuple[Requirement]
+    overridden = attr.ib()  # type: SortedTuple[Requirement]
     locked_resolves = attr.ib()  # type: SortedTuple[LockedResolve]
     local_project_requirement_mapping = attr.ib(eq=False)  # type: Mapping[str, Requirement]
     source = attr.ib(default=None, eq=False)  # type: Optional[str]
@@ -141,3 +148,7 @@ class Lockfile(object):
             use_pep517=self.use_pep517,
             build_isolation=self.build_isolation,
         )
+
+    def dependency_configuration(self):
+        # type: () -> DependencyConfiguration
+        return DependencyConfiguration.create(excluded=self.excluded, overridden=self.overridden)

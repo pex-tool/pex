@@ -344,6 +344,8 @@ def loads(
             build_isolation=get("build_isolation", bool),
         ),
         transitive=get("transitive", bool),
+        excluded=get("excluded", list, optional=True) or (),
+        overridden=get("overridden", list, optional=True) or (),
         locked_resolves=locked_resolves,
         source=source,
     )
@@ -388,6 +390,8 @@ def as_json_data(
         "use_pep517": lockfile.use_pep517,
         "build_isolation": lockfile.build_isolation,
         "transitive": lockfile.transitive,
+        "excluded": [str(exclude) for exclude in lockfile.excluded],
+        "overridden": [str(override) for override in lockfile.overridden],
         "locked_resolves": [
             {
                 "platform_tag": [
