@@ -69,6 +69,9 @@ jobs:
     needs: determine-tag
     runs-on: ubuntu-22.04
     environment: Release
+    permissions:
+      id-token: write
+      attestations: write
     steps:
       - name: Checkout Pex ${{ needs.determine-tag.outputs.release-tag }}
         uses: actions/checkout@v4
@@ -88,6 +91,12 @@ jobs:
         uses: pantsbuild/actions/run-tox@b16b9cf47cd566acfe217b1dafc5b452e27e6fd7
         with:
           tox-env: docs -- --no-html --pdf
+      - name: Generate Pex ${{ needs.determine-tag.outputs.release-tag }} Artifact Attestations
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: |
+            dist/pex
+            dist/docs/pdf/pex.pdf
       - name: Prepare Changelog
         id: prepare-changelog
         uses: a-scie/actions/changelog@v1.5
