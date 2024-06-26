@@ -267,7 +267,7 @@ def test_requires_dists_none(pygoogleearth_zip_sdist):
                 Ignoring 1 `Requires` field in {sdist} metadata:
                 1.) Requires: python (>=2.6.0)
 
-                You may have issues using the 'et_xmlfile' distribution as a result.
+                You may have issues using the 'et-xmlfile' distribution as a result.
                 More information on this workaround can be found here:
                   https://github.com/pex-tool/pex/issues/1201#issuecomment-791715585
                 """
