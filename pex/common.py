@@ -105,7 +105,6 @@ def safe_copy(source, dest, overwrite=False):
         os.rename(temp_dest, dest)
 
     # If the platform supports hard-linking, use that and fall back to copying.
-    # Windows does not support hard-linking.
     if hasattr(os, "link"):
         try:
             os.link(source, dest)
@@ -126,6 +125,10 @@ def safe_copy(source, dest, overwrite=False):
                 # we can fall back to copying in that case.
                 #
                 # See also https://github.com/pex-tool/pex/issues/850 where this was discovered.
+                do_copy()
+            elif getattr(e, 'winerror', None) == 1142:
+                # OSError: [WinError 1142] An attempt was made to create more links on a file than
+                # the file system supports
                 do_copy()
             else:
                 raise
