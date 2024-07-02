@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.7.0
+
+This release adds support for Pip 24.1.1.
+
+* Add support for `--pip-version 24.1.1`. (#2451)
+
 ## 2.6.3
 
 There are no changes to Pex code or released artifacts over 2.6.1 or
