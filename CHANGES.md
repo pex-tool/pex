@@ -1,6 +1,21 @@
 # Release Notes
 
+## 2.6.3
+
+There are no changes to Pex code or released artifacts over 2.6.1 or
+2.6.2, just a further fix to the GitHub Releases release process which
+#2442 broke and #2444 only partially fixed.
+
+* Fix GitHub Releases deployment. (#2445)
+
 ## 2.6.2
+
+> [!NOTE]
+> Although 2.6.2 successfully released to [PyPI](
+> https://pypi.org/project/pex/2.6.2/), it failed to release to GitHub
+> Releases (neither the Pex PEX nor the pex.pdf were published.) You
+> can use Pex 2.6.3 instead which has no Pex code changes over this
+> release.
 
 There are no changes to Pex code or released artifacts over 2.6.1, just
 a fix to the GitHub Releases release process which #2442 broke.
@@ -13,7 +28,8 @@ a fix to the GitHub Releases release process which #2442 broke.
 > Although 2.6.1 successfully released to [PyPI](
 > https://pypi.org/project/pex/2.6.1/), it failed to release to GitHub
 > Releases (neither the Pex PEX nor the pex.pdf were published.) You
-> can use Pex 2.6.2 instead which has no Pex code changes.
+> can use Pex 2.6.3 instead which has no Pex code changes over this
+> release.
 
 This release improves error messages when attempting to read invalid
 metadata from distributions such that the problematic distribution is
