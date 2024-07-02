@@ -73,8 +73,8 @@ jobs:
           - py311-pip20
           - py311-pip22_3_1
           - py311-pip23_1_2
-          - py312-pip24_1
-          - py313-pip24_1
+          - py312-pip24_1_1
+          - py313-pip24_1_1
           - pypy310-pip20
           - pypy310-pip22_3_1
           - pypy310-pip23_1_2
@@ -84,8 +84,8 @@ jobs:
           - py311-pip20-integration
           - py311-pip22_3_1-integration
           - py311-pip23_1_2-integration
-          - py312-pip24_1-integration
-          - py313-pip24_1-integration
+          - py312-pip24_1_1-integration
+          - py313-pip24_1_1-integration
           - pypy310-pip20-integration
           - pypy310-pip22_3_1-integration
           - pypy310-pip23_1_2-integration
@@ -129,10 +129,10 @@ jobs:
       matrix:
         include:
           - python-version: [ 3, 12 ]
-            tox-env: py312-pip24_1
+            tox-env: py312-pip24_1_1
             tox-env-python: python3.11
           - python-version: [ 3, 12 ]
-            tox-env: py312-pip24_1-integration
+            tox-env: py312-pip24_1_1-integration
             tox-env-python: python3.11
     steps:
       - name: Calculate Pythons to Expose
