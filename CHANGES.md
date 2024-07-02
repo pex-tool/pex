@@ -6,7 +6,7 @@ There are no changes to Pex code or released artifacts over 2.6.1 or
 2.6.2, just a further fix to the GitHub Releases release process which
 #2442 broke and #2444 only partially fixed.
 
-* Fix GitHub Releases deployment. (#2445)
+* Fix GitHub Releases deployment. (#2448)
 
 ## 2.6.2
 
