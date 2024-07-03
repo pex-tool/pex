@@ -79,7 +79,7 @@ def ensure_pip_installed(
         )
     else:
         try:
-            venv.install_pip()
+            venv.ensure_pip()
         except PipUnavailableError as e:
             return Error(
                 "The virtual environment was successfully created, but Pip was not "

@@ -11,7 +11,7 @@ import pytest
 from pex.common import touch
 from pex.interpreter import PythonInterpreter
 from pex.typing import TYPE_CHECKING
-from pex.venv.virtualenv import Virtualenv
+from pex.venv.virtualenv import InstallationChoice, Virtualenv
 from testing import PY27, ensure_python_interpreter, run_pex_command
 from testing.cli import run_pex3
 
@@ -57,9 +57,9 @@ def test_fingerprint_stability(
     tox_venv = Virtualenv.create(
         venv_dir=os.path.join(str(tmpdir), "tox.venv"),
         interpreter=PythonInterpreter.from_binary(ensure_python_interpreter(PY27)),
+        install_pip=InstallationChoice.YES,
     )
-    tox_venv.install_pip()
-    subprocess.check_call(args=[tox_venv.bin_path("pip"), "install", "tox"])
+    subprocess.check_call(args=[(tox_venv.bin_path("pip")), "install", "tox"])
     subprocess.check_call(args=[tox_venv.bin_path("tox"), "-e", "py27"], cwd=ansicolors_1_1_8)
     run_pex_command(args=print_colors_version_args).assert_success()
 

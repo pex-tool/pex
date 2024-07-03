@@ -23,7 +23,7 @@ from pex.pex_info import PexInfo
 from pex.pip.version import PipVersion, PipVersionValue
 from pex.resolve.resolver_configuration import ResolverVersion
 from pex.typing import TYPE_CHECKING
-from pex.venv.virtualenv import Virtualenv
+from pex.venv.virtualenv import InstallationChoice, Virtualenv
 from testing import PY_VER, data, make_env, run_pex_command
 
 if TYPE_CHECKING:
@@ -74,8 +74,10 @@ EXPECTED_IMPORT_ERROR_MSG = "ModuleNotFoundError: No module named 'certifi'"
 def certifi_venv(tmpdir_factory):
     # type: (Any) -> Virtualenv
 
-    venv = Virtualenv.create(venv_dir=str(tmpdir_factory.mktemp("venv")))
-    pip = venv.install_pip()
+    venv = Virtualenv.create(
+        venv_dir=str(tmpdir_factory.mktemp("venv")), install_pip=InstallationChoice.YES
+    )
+    pip = venv.bin_path("pip")
 
     # N.B.: The constraining lock requirement is the one expressed by requests: certifi>=2017.4.17
     # The actual locked version is 2023.7.22; so we stress this crease and use a different, but
@@ -211,9 +213,13 @@ def test_exclude_deep(
             args=list(pip_options.iter_args()) + ["ansicolors==1.1.8", "--", "-c", ""]
         ).assert_success()
 
-    venv = Virtualenv.create(os.path.join(str(tmpdir), "venv"))
-    pip = venv.install_pip(upgrade=True)
-    subprocess.check_call(args=[pip, "install", "-U", "setuptools", "wheel"])
+    venv = Virtualenv.create(
+        os.path.join(str(tmpdir), "venv"),
+        install_pip=InstallationChoice.UPGRADED,
+        install_setuptools=InstallationChoice.UPGRADED,
+        install_wheel=InstallationChoice.UPGRADED,
+    )
+    pip = venv.bin_path("pip")
 
     find_links = os.path.join(str(tmpdir), "find_links")
     project_dir = os.path.join(str(tmpdir), "projects")

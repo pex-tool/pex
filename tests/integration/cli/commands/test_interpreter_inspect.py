@@ -8,7 +8,7 @@ from pex.interpreter import PythonInterpreter
 from pex.pep_425 import CompatibilityTags
 from pex.pep_508 import MarkerEnvironment
 from pex.typing import TYPE_CHECKING, cast
-from pex.venv.virtualenv import Virtualenv
+from pex.venv.virtualenv import InstallationChoice, Virtualenv
 from testing import IntegResults
 from testing.cli import run_pex3
 
@@ -140,8 +140,9 @@ def test_inspect_interpreter_selection(
 def test_inspect_distributions(tmpdir):
     # type: (Any) -> None
 
-    venv = Virtualenv.create(venv_dir=os.path.join(str(tmpdir), "venv"))
-    venv.install_pip()
+    venv = Virtualenv.create(
+        venv_dir=os.path.join(str(tmpdir), "venv"), install_pip=InstallationChoice.YES
+    )
     venv.interpreter.execute(args=["-mpip", "install", "ansicolors==1.1.8", "cowsay==5.0"])
 
     data = assert_verbose_data(venv.interpreter, "-vd", "--python", venv.interpreter.binary)

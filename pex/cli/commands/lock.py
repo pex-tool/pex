@@ -305,7 +305,7 @@ class SyncTarget(object):
                     os.rmdir(parent_dir)
 
         if retain_pip and not resolved_pip and not installed_pip:
-            self.venv.install_pip(upgrade=True)
+            self.venv.ensure_pip(upgrade=True)
 
         if to_install:
             for distribution in to_install:

@@ -31,7 +31,7 @@ from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.resolver_configuration import PipConfiguration
 from pex.typing import TYPE_CHECKING
 from pex.util import named_temporary_file
-from pex.venv.virtualenv import Virtualenv
+from pex.venv.virtualenv import InstallationChoice, Virtualenv
 
 try:
     from unittest import mock
@@ -647,8 +647,8 @@ def python_venv(
         venv_dir=venv_dir or safe_mkdtemp(),
         interpreter=PythonInterpreter.from_binary(python),
         system_site_packages=system_site_packages,
+        install_pip=InstallationChoice.YES,
     )
-    venv.install_pip()
     return venv.interpreter.binary, venv.bin_path("pip")
 
 

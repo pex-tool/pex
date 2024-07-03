@@ -23,7 +23,7 @@ from pex.third_party import isolated
 from pex.typing import TYPE_CHECKING
 from pex.util import named_temporary_file
 from pex.variables import ENV
-from pex.venv.virtualenv import Virtualenv
+from pex.venv.virtualenv import InstallationChoice, Virtualenv
 
 if TYPE_CHECKING:
     from typing import Callable, Dict, Iterator, Optional, Union
@@ -99,8 +99,11 @@ def _bootstrap_pip(
         # type: () -> Iterator[str]
 
         chroot = safe_mkdtemp()
-        venv = Virtualenv.create(venv_dir=os.path.join(chroot, "pip"), interpreter=interpreter)
-        venv.install_pip(upgrade=True)
+        venv = Virtualenv.create(
+            venv_dir=os.path.join(chroot, "pip"),
+            interpreter=interpreter,
+            install_pip=InstallationChoice.UPGRADED,
+        )
 
         for req in version.requirements:
             project_name = Requirement.parse(req).name

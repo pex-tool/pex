@@ -12,7 +12,7 @@ from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pex import PEX
 from pex.typing import TYPE_CHECKING
-from pex.venv.virtualenv import Virtualenv
+from pex.venv.virtualenv import InstallationChoice, Virtualenv
 from testing import make_env, run_pex_command
 
 if TYPE_CHECKING:
@@ -37,8 +37,9 @@ def index_distributions(dists):
 @pytest.fixture(scope="module")
 def baseline_venv_with_pip(td):
     # type: (Any) -> Mapping[ProjectName, Version]
-    baseline_venv = Virtualenv.create(venv_dir=str(td.join("baseline.venv")))
-    baseline_venv.install_pip()
+    baseline_venv = Virtualenv.create(
+        venv_dir=str(td.join("baseline.venv")), install_pip=InstallationChoice.YES
+    )
     baseline_venv_distributions = index_distributions(baseline_venv.iter_distributions())
     assert PIP_PROJECT_NAME in baseline_venv_distributions
     return baseline_venv_distributions

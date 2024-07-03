@@ -35,7 +35,7 @@ from pex.resolve.resolved_requirement import Pin
 from pex.sorted_tuple import SortedTuple
 from pex.third_party.packaging.tags import Tag
 from pex.typing import TYPE_CHECKING, cast
-from pex.venv.virtualenv import Virtualenv
+from pex.venv.virtualenv import InstallationChoice, Virtualenv
 from testing import (
     IS_PYPY,
     IS_X86_64,
@@ -998,8 +998,7 @@ def test_sync_venv_run_no_retain_pip_preinstalled(
     # type: (...) -> None
 
     venv_dir = os.path.join(str(tmpdir), "venv")
-    venv = Virtualenv.create(venv_dir)
-    venv.install_pip()
+    venv = Virtualenv.create(venv_dir, install_pip=InstallationChoice.YES)
     pip = find_distribution("pip", search_path=venv.sys_path)
     assert pip is not None
 
@@ -1037,8 +1036,7 @@ def test_sync_venv_run_retain_pip_preinstalled(
     # type: (...) -> None
 
     venv_dir = os.path.join(str(tmpdir), "venv")
-    venv = Virtualenv.create(venv_dir)
-    venv.install_pip()
+    venv = Virtualenv.create(venv_dir, install_pip=InstallationChoice.YES)
     pip = find_distribution("pip", search_path=venv.sys_path)
     assert pip is not None
     pip_pin = pin("pip", pip.version)
@@ -1149,8 +1147,7 @@ def test_sync_venv_run_retain_user_pip(
     # type: (...) -> None
 
     venv_dir = os.path.join(str(tmpdir), "venv")
-    venv = Virtualenv.create(venv_dir)
-    venv.install_pip()
+    venv = Virtualenv.create(venv_dir, install_pip=InstallationChoice.YES)
     original_pip = find_distribution("pip", search_path=venv.sys_path)
     assert original_pip is not None
 

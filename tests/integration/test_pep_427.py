@@ -11,7 +11,7 @@ from pex.common import is_exe, safe_open
 from pex.pep_427 import install_wheel_interpreter
 from pex.pip.installation import get_pip
 from pex.typing import TYPE_CHECKING
-from pex.venv.virtualenv import Virtualenv
+from pex.venv.virtualenv import InstallationChoice, Virtualenv
 from testing import WheelBuilder, make_env
 
 if TYPE_CHECKING:
@@ -22,7 +22,7 @@ def test_install_wheel_interpreter(tmpdir):
     # type: (Any) -> None
 
     venv_dir = os.path.join(str(tmpdir), "venv")
-    venv = Virtualenv.create(venv_dir)
+    venv = Virtualenv.create(venv_dir, install_pip=InstallationChoice.YES)
     cowsay_script = venv.bin_path("cowsay")
     assert not os.path.exists(cowsay_script)
 
@@ -43,7 +43,7 @@ def test_install_wheel_interpreter(tmpdir):
     assert is_exe(cowsay_script)
     assert b"5.0\n" == subprocess.check_output(args=[cowsay_script, "--version"])
 
-    pip = venv.install_pip()
+    pip = venv.bin_path("pip")
     subprocess.check_call(args=[pip, "uninstall", "--yes", "cowsay"])
     assert not os.path.exists(cowsay_script)
 

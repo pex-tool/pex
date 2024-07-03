@@ -1,5 +1,13 @@
 # Release Notes
 
+## 2.7.1
+
+This releases fixes the `bdist_pex` distutils command that ships with
+Pex to work when run under `tox` and Python 3.12 by improving Pex venv
+creation robustness when creating venvs that include Pip.
+
+* Improve venv creation robustness when adding Pip. (#2454)
+
 ## 2.7.0
 
 This release adds support for Pip 24.1.1.

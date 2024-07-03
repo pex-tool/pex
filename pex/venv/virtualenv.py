@@ -18,6 +18,7 @@ from pex.atomic_directory import AtomicDirectory, atomic_directory
 from pex.common import is_exe, safe_mkdir, safe_open
 from pex.compatibility import commonpath, get_stdout_bytes_buffer
 from pex.dist_metadata import Distribution, find_distributions
+from pex.enum import Enum
 from pex.executor import Executor
 from pex.fetcher import URLFetcher
 from pex.interpreter import (
@@ -138,6 +139,15 @@ def _find_preferred_site_packages_dir(
     )
 
 
+class InstallationChoice(Enum["InstallationChoice.Value"]):
+    class Value(Enum.Value):
+        pass
+
+    NO = Value("no")
+    YES = Value("yes")
+    UPGRADED = Value("upgraded")
+
+
 class Virtualenv(object):
     VIRTUALENV_VERSION = "16.7.12"
 
@@ -168,8 +178,29 @@ class Virtualenv(object):
         copies=False,  # type: bool
         system_site_packages=False,  # type: bool
         prompt=None,  # type: Optional[str]
+        install_pip=InstallationChoice.NO,  # type: InstallationChoice.Value
+        install_setuptools=InstallationChoice.NO,  # type: InstallationChoice.Value
+        install_wheel=InstallationChoice.NO,  # type: InstallationChoice.Value
     ):
         # type: (...) -> Virtualenv
+
+        installations = {
+            "pip": install_pip,
+            "setuptools": install_setuptools,
+            "wheel": install_wheel,
+        }
+        project_upgrades = [
+            project
+            for project, installation_choice in installations.items()
+            if installation_choice is InstallationChoice.UPGRADED
+        ]
+        if project_upgrades and install_pip is InstallationChoice.NO:
+            raise ValueError(
+                "Installation of Pip is required in order to upgrade {projects}.".format(
+                    projects=" and ".join(project_upgrades)
+                )
+            )
+
         venv_dir = os.path.abspath(venv_dir)
         safe_mkdir(venv_dir, clean=force)
 
@@ -182,6 +213,31 @@ class Virtualenv(object):
                 V=3,
             )
             interpreter = base_interpreter
+
+        # N.B.: PyPy3.6 and PyPy3.7 come equipped with a venv module but it does not seem to
+        # work.
+        py_major_minor = interpreter.version[:2]
+        use_virtualenv = py_major_minor[0] == 2 or (
+            interpreter.is_pypy and py_major_minor[:2] <= (3, 7)
+        )
+
+        installations.pop("pip")
+        if install_pip is not InstallationChoice.NO and py_major_minor < (3, 12):
+            # The ensure_pip module, get_pip.py and the venv module all install setuptools when
+            # they install Pip for all Pythons older than 3.12.
+            installations.pop("setuptools")
+
+        project_installs = [
+            project
+            for project, installation_choice in installations.items()
+            if installation_choice is InstallationChoice.YES
+        ]
+        if project_installs and install_pip is InstallationChoice.NO:
+            raise ValueError(
+                "Installation of Pip is required in order to install {projects}.".format(
+                    projects=" and ".join(project_installs)
+                )
+            )
 
         # Guard against API calls from environment with ambient PYTHONPATH preventing pip virtualenv
         # creation. See: https://github.com/pex-tool/pex/issues/1451
@@ -196,10 +252,7 @@ class Virtualenv(object):
             )
 
         custom_prompt = None  # type: Optional[str]
-        py_major_minor = interpreter.version[:2]
-        if py_major_minor[0] == 2 or (interpreter.is_pypy and py_major_minor[:2] <= (3, 7)):
-            # N.B.: PyPy3.6 and PyPy3.7 come equipped with a venv module but it does not seem to
-            # work.
+        if use_virtualenv:
             virtualenv_py = pkgutil.get_data(
                 __name__, "virtualenv_{version}_py".format(version=cls.VIRTUALENV_VERSION)
             )
@@ -243,7 +296,9 @@ class Virtualenv(object):
                         )
                     )
         else:
-            args = ["-m", "venv", "--without-pip", venv_dir]
+            args = ["-m", "venv", venv_dir]
+            if install_pip is InstallationChoice.NO:
+                args.append("--without-pip")
             if copies:
                 args.append("--copies")
             if system_site_packages:
@@ -253,7 +308,20 @@ class Virtualenv(object):
                 custom_prompt = prompt
             interpreter.execute(args=args, env=env)
 
-        return cls(venv_dir, custom_prompt=custom_prompt)
+        venv = cls(venv_dir, custom_prompt=custom_prompt)
+        if use_virtualenv and (
+            install_pip is not InstallationChoice.NO or project_upgrades or project_installs
+        ):
+            # Our vendored virtualenv does not support installing Pip, setuptool or wheel; so we
+            # use the ensurepip module / get_pip.py bootstrapping for Pip that `ensure_pip` does.
+            venv.ensure_pip(upgrade=install_pip is InstallationChoice.UPGRADED)
+        if project_upgrades:
+            venv.interpreter.execute(
+                args=["-m", "pip", "install", "-U"] + project_upgrades, env=env
+            )
+        if project_installs:
+            venv.interpreter.execute(args=["-m", "pip", "install"] + project_installs, env=env)
+        return venv
 
     @classmethod
     def create_atomic(
@@ -263,6 +331,9 @@ class Virtualenv(object):
         force=False,  # type: bool
         copies=False,  # type: bool
         prompt=None,  # type: Optional[str]
+        install_pip=InstallationChoice.NO,  # type: InstallationChoice.Value
+        install_setuptools=InstallationChoice.NO,  # type: InstallationChoice.Value
+        install_wheel=InstallationChoice.NO,  # type: InstallationChoice.Value
     ):
         # type: (...) -> Virtualenv
         virtualenv = cls.create(
@@ -271,6 +342,9 @@ class Virtualenv(object):
             force=force,
             copies=copies,
             prompt=prompt,
+            install_pip=install_pip,
+            install_setuptools=install_setuptools,
+            install_wheel=install_wheel,
         )
         for script in virtualenv._rewrite_base_scripts(real_venv_dir=venv_dir.target_dir):
             TRACER.log("Re-writing {}".format(script))
@@ -456,8 +530,11 @@ class Virtualenv(object):
                         # N.B.: These lines include the newline already.
                         buffer.write(cast(bytes, line))
 
-    def install_pip(self, upgrade=False):
+    def ensure_pip(self, upgrade=False):
         # type: (bool) -> str
+        pip_script = self.bin_path("pip")
+        if is_exe(pip_script) and not upgrade:
+            return pip_script
         try:
             self._interpreter.execute(args=["-m", "ensurepip", "-U", "--default-pip"])
         except Executor.NonZeroExit:
@@ -487,4 +564,4 @@ class Virtualenv(object):
             self._interpreter.execute(args=[get_pip, "--no-wheel"])
         if upgrade:
             self._interpreter.execute(args=["-m", "pip", "install", "-U", "pip"])
-        return self.bin_path("pip")
+        return pip_script

@@ -7,7 +7,7 @@ import subprocess
 
 from pex.common import safe_rmtree
 from pex.typing import TYPE_CHECKING
-from pex.venv.virtualenv import Virtualenv
+from pex.venv.virtualenv import InstallationChoice, Virtualenv
 
 if TYPE_CHECKING:
     from typing import Any
@@ -20,8 +20,7 @@ def test_read_only_venv(
     # type: (...) -> None
 
     venv_dir = os.path.join(str(tmpdir), "venv")
-    venv = Virtualenv.create(venv_dir)
-    venv.install_pip(upgrade=True)
+    venv = Virtualenv.create(venv_dir, install_pip=InstallationChoice.UPGRADED)
     subprocess.check_call(args=[venv.bin_path("pip"), "install", pex_project_dir])
 
     pex_root = os.path.join(str(tmpdir), "pex_root")

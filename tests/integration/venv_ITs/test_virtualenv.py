@@ -12,7 +12,7 @@ import pytest
 from pex.dist_metadata import Distribution
 from pex.pep_503 import ProjectName
 from pex.typing import TYPE_CHECKING
-from pex.venv.virtualenv import InvalidVirtualenvError, Virtualenv
+from pex.venv.virtualenv import InstallationChoice, InvalidVirtualenvError, Virtualenv
 from testing import VenvFactory, all_python_venvs
 from testing.docker import DockerVirtualenvRunner
 
@@ -98,12 +98,12 @@ def test_iter_distributions_spaces(tmpdir):
     # type: (Any) -> None
 
     venv_dir = os.path.join(str(tmpdir), "face palm")
-    venv = Virtualenv.create(venv_dir=venv_dir)
+    venv = Virtualenv.create(venv_dir=venv_dir, install_pip=InstallationChoice.NO)
     dists = index_distributions(venv)
     pip_dist = dists.get(ProjectName("pip"))
     assert pip_dist is None, "Expected venv to not have Pip installed."
 
-    venv.install_pip()
+    venv.ensure_pip()
     dists = index_distributions(venv)
     pip_dist = dists.get(ProjectName("pip"))
     assert pip_dist is not None, "Expected venv to have Pip installed."
