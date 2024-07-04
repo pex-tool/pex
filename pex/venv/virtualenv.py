@@ -401,7 +401,6 @@ class Virtualenv(object):
             elif isinstance(entry, Platlib):
                 self._platlib = entry.path
 
-        self._base_bin = frozenset(_iter_files(self._bin_dir))
         self._sys_path = None  # type: Optional[Tuple[str, ...]]
 
     @property
@@ -489,7 +488,7 @@ class Virtualenv(object):
         # type: (str) -> Iterator[str]
         scripts = [
             path
-            for path in self._base_bin
+            for path in _iter_files(self._bin_dir)
             if _is_python_script(path) or re.search(r"^[Aa]ctivate", os.path.basename(path))
         ]
         if scripts:
