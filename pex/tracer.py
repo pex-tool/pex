@@ -86,46 +86,46 @@ class TraceLogger(object):
             self._output.flush()
             self._length = (len(self._prefix) + len(msg)) if end == "\r" else 0
 
-    def print_trace_snippet(self):
-        # type: () -> None
-        parent = self._local.parent
-        parent_verbosity = parent.verbosity
-        if not self.should_log(parent_verbosity):
+    def _print_trace_snippet(self, node):
+        # type: (Trace) -> None
+        node_verbosity = node.verbosity
+        if not self.should_log(node_verbosity):
             return
         traces = []
+        parent = node  # type: Optional[Trace]
         while parent:
             if self.should_log(parent.verbosity):
                 traces.append(parent.msg)
             parent = parent.parent
-        self.log(" :: ".join(reversed(traces)), V=parent_verbosity, end="\r")
+        self.log(" :: ".join(reversed(traces)), V=node_verbosity, end="\r")
 
-    def print_trace(self, indent=0, node=None):
-        # type: (int, Optional[Trace]) -> None
-        node = node or self._local.parent
+    def _print_trace(self, node, indent=0):
+        # type: (Trace, int) -> None
         with self._lock:
             self.log(
                 " " * indent + ("%s: %.1fms" % (node.msg, 1000.0 * node.duration())),
                 V=node.verbosity,
             )
             for child in node.children:
-                self.print_trace(indent=indent + 2, node=child)
+                self._print_trace(indent=indent + 2, node=child)
 
     @contextmanager
     def timed(self, msg, V=1):
         # type: (str, int) -> Iterator[None]
-        if not hasattr(self._local, "parent"):
-            self._local.parent = Trace(msg, verbosity=V, clock=self._clock)
-        else:
-            parent = self._local.parent
-            self._local.parent = Trace(msg, parent=parent, verbosity=V, clock=self._clock)
-        self.print_trace_snippet()
-        yield
-        self._local.parent.stop()
-        if self._local.parent.parent is not None:
-            self._local.parent = self._local.parent.parent
-        else:
-            self.print_trace()
-            self._local.parent = None
+        parent = Trace(
+            msg, parent=getattr(self._local, "parent", None), verbosity=V, clock=self._clock
+        )
+        self._local.parent = parent
+        self._print_trace_snippet(parent)
+        try:
+            yield
+        finally:
+            parent.stop()
+            if parent.parent is not None:
+                self._local.parent = parent.parent
+            else:
+                self._print_trace(parent)
+                self._local.parent = None
 
 
 TRACER = TraceLogger(
