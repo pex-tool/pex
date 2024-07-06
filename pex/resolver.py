@@ -227,21 +227,6 @@ class BuildRequest(object):
         fingerprint = fingerprint_path(source_path)
         return cls(target=target, source_path=source_path, fingerprint=fingerprint)
 
-    @classmethod
-    def from_local_distribution(cls, local_distribution):
-        # type: (LocalDistribution) -> BuildRequest
-        request = cls.create(target=local_distribution.target, source_path=local_distribution.path)
-        if local_distribution.fingerprint and request.fingerprint != local_distribution.fingerprint:
-            raise IntegrityError(
-                "Source at {source_path} was expected to have fingerprint {expected_fingerprint} "
-                "but found to have fingerprint {actual_fingerprint}.".format(
-                    source_path=request.source_path,
-                    expected_fingerprint=local_distribution.fingerprint,
-                    actual_fingerprint=request.fingerprint,
-                )
-            )
-        return request
-
     target = attr.ib()  # type: Target
     source_path = attr.ib()  # type: str
     fingerprint = attr.ib()  # type: str
@@ -350,21 +335,6 @@ class BuildResult(object):
 
 @attr.s(frozen=True)
 class InstallRequest(object):
-    @classmethod
-    def from_local_distribution(cls, local_distribution):
-        # type: (LocalDistribution) -> InstallRequest
-        request = cls.create(target=local_distribution.target, wheel_path=local_distribution.path)
-        if local_distribution.fingerprint and request.fingerprint != local_distribution.fingerprint:
-            raise IntegrityError(
-                "Wheel at {wheel_path} was expected to have fingerprint {expected_fingerprint} "
-                "but found to have fingerprint {actual_fingerprint}.".format(
-                    wheel_path=request.wheel_path,
-                    expected_fingerprint=local_distribution.fingerprint,
-                    actual_fingerprint=request.fingerprint,
-                )
-            )
-        return request
-
     @classmethod
     def create(
         cls,
