@@ -397,8 +397,10 @@ class PEXBuilder(object):
                 copy_mode=CopyMode.LINK if is_wheel_file else None,
             )
         else:
-            for root, _, files in os.walk(path):
+            for root, _, files in deterministic_walk(path):
                 for f in files:
+                    if is_pyc_file(f):
+                        continue
                     filename = os.path.join(root, f)
                     relpath = os.path.relpath(filename, path)
                     target = os.path.join(target_dir, relpath)
@@ -647,16 +649,24 @@ class PEXBuilder(object):
                 shutil.rmtree(tmp_pex, True)
 
         if layout == Layout.LOOSE:
-            shutil.copytree(self.path(), tmp_pex)
+            shutil.copytree(
+                self.path(),
+                tmp_pex,
+                ignore=None if bytecode_compile else lambda _, names: filter(is_pyc_file, names),
+            )
         elif layout == Layout.PACKED:
             self._build_packedapp(
                 dirname=tmp_pex,
                 deterministic_timestamp=deterministic_timestamp,
                 compress=compress,
+                bytecode_compile=bytecode_compile,
             )
         else:
             self._build_zipapp(
-                filename=tmp_pex, deterministic_timestamp=deterministic_timestamp, compress=compress
+                filename=tmp_pex,
+                deterministic_timestamp=deterministic_timestamp,
+                compress=compress,
+                bytecode_compile=bytecode_compile,
             )
 
         if os.path.isdir(path):
@@ -690,6 +700,7 @@ class PEXBuilder(object):
         dirname,  # type: str
         deterministic_timestamp=False,  # type: bool
         compress=True,  # type: bool
+        bytecode_compile=False,  # type: bool
     ):
         # type: (...) -> None
 
@@ -729,7 +740,7 @@ class PEXBuilder(object):
                     self._chroot.zip(
                         os.path.join(atomic_bootstrap_zip_dir.work_dir, pex_info.bootstrap),
                         deterministic_timestamp=deterministic_timestamp,
-                        exclude_file=is_pyc_temporary_file,
+                        exclude_file=is_pyc_temporary_file if bytecode_compile else is_pyc_file,
                         strip_prefix=pex_info.bootstrap,
                         labels=("bootstrap",),
                         compress=compress,
@@ -764,7 +775,9 @@ class PEXBuilder(object):
                                 self._chroot.zip(
                                     os.path.join(atomic_zip_dir.work_dir, location),
                                     deterministic_timestamp=deterministic_timestamp,
-                                    exclude_file=is_pyc_temporary_file,
+                                    exclude_file=is_pyc_temporary_file
+                                    if bytecode_compile
+                                    else is_pyc_file,
                                     strip_prefix=os.path.join(pex_info.internal_cache, location),
                                     labels=(location,),
                                     compress=compress,
@@ -776,6 +789,7 @@ class PEXBuilder(object):
         filename,  # type: str
         deterministic_timestamp=False,  # type: bool
         compress=True,  # type: bool
+        bytecode_compile=False,  # type: bool
     ):
         # type: (...) -> None
         with safe_open(filename, "wb") as pexfile:
@@ -795,7 +809,7 @@ class PEXBuilder(object):
                 # attempt to zip up our chroot. Bytecode compilation produces ephemeral temporary
                 # pyc files that we should avoid copying since they are useless and inherently
                 # racy.
-                exclude_file=is_pyc_temporary_file,
+                exclude_file=is_pyc_temporary_file if bytecode_compile else is_pyc_file,
                 compress=compress,
             )
         chmod_plus_x(filename)
