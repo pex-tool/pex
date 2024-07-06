@@ -26,11 +26,12 @@ from pex.dist_metadata import (
 from pex.enum import Enum
 from pex.exceptions import production_assert
 from pex.interpreter import PythonInterpreter
+from pex.orderedset import OrderedSet
 from pex.pep_376 import InstalledWheel, Record
 from pex.pep_427 import InstallableType
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
-from pex.resolve import requirement_options, resolver_options, target_options
+from pex.resolve import project, requirement_options, resolver_options, target_options
 from pex.resolve.config import finalize as finalize_resolve_config
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.lock_resolver import resolve_from_lock
@@ -59,7 +60,7 @@ from pex.resolve.lockfile.updater import (
 from pex.resolve.path_mappings import PathMappings
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolved_requirement import Fingerprint, Pin
-from pex.resolve.resolver_configuration import LockRepositoryConfiguration
+from pex.resolve.resolver_configuration import LockRepositoryConfiguration, PipConfiguration
 from pex.resolve.resolver_options import parse_lockfile
 from pex.resolve.target_configuration import InterpreterConstraintsNotSatisfied, TargetConfiguration
 from pex.result import Error, Ok, Result, try_
@@ -327,6 +328,7 @@ class SyncTarget(object):
 
 @attr.s(frozen=True)
 class LockUpdateRequest(object):
+    targets = attr.ib()  # type: Targets
     _lock_file_path = attr.ib()  # type: str
     _lock_updater = attr.ib()  # type: LockUpdater
     _update_requests = attr.ib()  # type: Iterable[ResolveUpdateRequest]
@@ -406,11 +408,17 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
     @classmethod
     def _add_resolve_options(cls, parser):
         # type: (_ActionsContainer) -> None
-        requirement_options.register(
-            parser.add_argument_group(
-                title="Requirement options",
-                description="Indicate which third party distributions should be resolved",
-            )
+        options_group = parser.add_argument_group(
+            title="Requirement options",
+            description="Indicate which distributions should be resolved",
+        )
+        requirement_options.register(options_group)
+        project.register_options(
+            options_group,
+            help=(
+                "Add the transitive dependencies of the local project at the specified path to "
+                "the lock but do not lock project itself."
+            ),
         )
         cls._add_target_options(parser)
         resolver_options.register(
@@ -818,6 +826,34 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             assume_manylinux=target_config.assume_manylinux,
         )
 
+    def _gather_requirements(
+        self,
+        pip_configuration,  # type: PipConfiguration
+        targets,  # type: Targets
+    ):
+        # type: (...) -> RequirementConfiguration
+        requirement_configuration = requirement_options.configure(self.options)
+        projects = project.get_projects(self.options)
+        if not projects:
+            return requirement_configuration
+
+        requirements = OrderedSet(requirement_configuration.requirements)
+        with TRACER.timed(
+            "Collecting requirements from {count} local {projects}".format(
+                count=len(projects), projects=pluralize(projects, "project")
+            )
+        ):
+            requirements.update(
+                str(req)
+                for req in projects.collect_requirements(
+                    resolver=ConfiguredResolver(pip_configuration),
+                    interpreter=targets.interpreter,
+                    pip_version=pip_configuration.version,
+                    max_jobs=pip_configuration.max_jobs,
+                )
+            )
+        return attr.evolve(requirement_configuration, requirements=requirements)
+
     def _create(self):
         # type: () -> Result
         target_configuration = target_options.configure(self.options)
@@ -839,7 +875,6 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         else:
             lock_configuration = LockConfiguration(style=self.options.style)
 
-        requirement_configuration = requirement_options.configure(self.options)
         targets = try_(
             self._resolve_targets(
                 action="creating",
@@ -854,6 +889,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 context="lock creation",
             )
         )
+        requirement_configuration = self._gather_requirements(pip_configuration, targets)
         self._dump_lockfile(
             try_(
                 create(
@@ -1134,7 +1170,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                     )
                 )
 
-        return LockUpdateRequest(lock_file_path, lock_updater, update_requests)
+        return LockUpdateRequest(targets, lock_file_path, lock_updater, update_requests)
 
     def _process_lock_update(
         self,
@@ -1446,7 +1482,6 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
     def _sync(self):
         # type: () -> Result
 
-        requirement_configuration = requirement_options.configure(self.options)
         resolver_configuration = cast(
             LockRepositoryConfiguration, resolver_options.configure(self.options)
         )
@@ -1496,7 +1531,9 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             lock_update_request = try_(
                 self._create_lock_update_request(lock_file_path=lock_file_path, lock_file=lock_file)
             )
-
+            requirement_configuration = self._gather_requirements(
+                pip_configuration, lock_update_request.targets
+            )
             lock_update = lock_update_request.sync(
                 requirement_configuration=requirement_configuration,
             )
@@ -1512,6 +1549,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                     target_configuration=target_configuration,
                 )
             )
+            requirement_configuration = self._gather_requirements(pip_configuration, targets)
             lockfile = try_(
                 create(
                     lock_configuration=lock_configuration,

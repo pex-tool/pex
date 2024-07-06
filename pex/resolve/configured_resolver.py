@@ -79,6 +79,7 @@ class ConfiguredResolver(Resolver):
         requirements,  # type: Iterable[str]
         targets=Targets(),  # type: Targets
         pip_version=None,  # type: Optional[PipVersionValue]
+        transitive=None,  # type: Optional[bool]
         result_type=InstallableType.INSTALLED_WHEEL_CHROOT,  # type: InstallableType.Value
     ):
         # type: (...) -> ResolveResult
@@ -86,7 +87,7 @@ class ConfiguredResolver(Resolver):
             targets=targets,
             requirements=requirements,
             allow_prereleases=False,
-            transitive=self.pip_configuration.transitive,
+            transitive=transitive if transitive is not None else self.pip_configuration.transitive,
             indexes=self.pip_configuration.repos_configuration.indexes,
             find_links=self.pip_configuration.repos_configuration.find_links,
             resolver_version=self.pip_configuration.resolver_version,

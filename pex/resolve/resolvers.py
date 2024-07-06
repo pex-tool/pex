@@ -39,7 +39,7 @@ class Unsatisfiable(ResolveError):
     pass
 
 
-def _sorted_requirements(requirements):
+def sorted_requirements(requirements):
     # type: (Optional[Iterable[Requirement]]) -> SortedTuple[Requirement]
     return SortedTuple(requirements, key=lambda req: str(req)) if requirements else SortedTuple()
 
@@ -55,7 +55,7 @@ class ResolvedDistribution(object):
     target = attr.ib()  # type: Target
     fingerprinted_distribution = attr.ib()  # type: FingerprintedDistribution
     direct_requirements = attr.ib(
-        converter=_sorted_requirements, factory=SortedTuple
+        converter=sorted_requirements, factory=SortedTuple
     )  # type: SortedTuple[Requirement]
 
     @property
@@ -70,7 +70,7 @@ class ResolvedDistribution(object):
 
     def with_direct_requirements(self, direct_requirements=None):
         # type: (Optional[Iterable[Requirement]]) -> ResolvedDistribution
-        direct_requirements = _sorted_requirements(direct_requirements)
+        direct_requirements = sorted_requirements(direct_requirements)
         if direct_requirements == self.direct_requirements:
             return self
         return ResolvedDistribution(
@@ -108,6 +108,7 @@ class Resolver(object):
         requirements,  # type: Iterable[str]
         targets=Targets(),  # type: Targets
         pip_version=None,  # type: Optional[PipVersionValue]
+        transitive=None,  # type: Optional[bool]
         result_type=InstallableType.INSTALLED_WHEEL_CHROOT,  # type: InstallableType.Value
     ):
         # type: (...) -> ResolveResult
