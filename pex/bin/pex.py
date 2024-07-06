@@ -25,6 +25,7 @@ from pex.commands.command import (
 )
 from pex.common import die, is_pyc_dir, is_pyc_file, safe_mkdtemp
 from pex.dependency_manager import DependencyManager
+from pex.dist_metadata import Requirement
 from pex.docs.command import serve_html_docs
 from pex.enum import Enum
 from pex.exclude_configuration import ExcludeConfiguration
@@ -38,11 +39,22 @@ from pex.pex import PEX
 from pex.pex_bootstrapper import ensure_venv
 from pex.pex_builder import Check, CopyMode, PEXBuilder
 from pex.pex_info import PexInfo
-from pex.resolve import requirement_options, resolver_options, target_configuration, target_options
+from pex.resolve import (
+    project,
+    requirement_options,
+    resolver_options,
+    target_configuration,
+    target_options,
+)
 from pex.resolve.config import finalize as finalize_resolve_config
 from pex.resolve.configured_resolve import resolve
 from pex.resolve.requirement_configuration import RequirementConfiguration
-from pex.resolve.resolvers import Unsatisfiable
+from pex.resolve.resolver_configuration import (
+    LockRepositoryConfiguration,
+    PexRepositoryConfiguration,
+)
+from pex.resolve.resolver_options import create_pip_configuration
+from pex.resolve.resolvers import Unsatisfiable, sorted_requirements
 from pex.result import Error, ResultError, catch, try_
 from pex.targets import Targets
 from pex.tracer import TRACER
@@ -719,6 +731,14 @@ def configure_clp_sources(parser):
         ),
     )
 
+    project.register_options(
+        parser,
+        help=(
+            "Add the local project at the specified path to the generated .pex file along with "
+            "its transitive dependencies."
+        ),
+    )
+
 
 def configure_clp():
     # type: () -> ArgumentParser
@@ -933,6 +953,49 @@ def build_pex(
             excluded.extend(requirements_pex_info.excluded)
 
     exclude_configuration = ExcludeConfiguration.create(excluded)
+
+    project_dependencies = OrderedSet()  # type: OrderedSet[Requirement]
+    with TRACER.timed(
+        "Adding distributions built from local projects and collecting their requirements: "
+        "{projects}".format(projects=" ".join(options.projects))
+    ):
+        if isinstance(resolver_configuration, LockRepositoryConfiguration):
+            pip_configuration = resolver_configuration.pip_configuration
+        elif isinstance(resolver_configuration, PexRepositoryConfiguration):
+            # TODO(John Sirois): Consider finding a way to support custom --index and --find-links in this case.
+            #  I.E.: I use a corporate index to build a PEX repository and now I want to build a --project PEX
+            #  whose pyproject.toml build-system.requires should be resolved from that corporate index.
+            pip_configuration = try_(
+                finalize_resolve_config(
+                    create_pip_configuration(options), targets=targets, context="--project building"
+                )
+            )
+        else:
+            pip_configuration = resolver_configuration
+
+        built_projects = project.get_projects(options).build(
+            targets=targets,
+            pip_configuration=pip_configuration,
+            compile_pyc=options.compile,
+            ignore_errors=options.ignore_errors,
+            result_type=(
+                InstallableType.INSTALLED_WHEEL_CHROOT
+                if options.pre_install_wheels
+                else InstallableType.WHEEL_FILE
+            ),
+            exclude_configuration=exclude_configuration,
+        )
+        for built_project in built_projects:
+            dependency_manager.add_requirement(built_project.as_requirement())
+            dependency_manager.add_distribution(built_project.fingerprinted_distribution)
+            project_dependencies.update(built_project.requires_dists)
+
+        requirements = OrderedSet(requirement_configuration.requirements)
+        requirements.update(str(req) for req in project_dependencies)
+        requirement_configuration = attr.evolve(
+            requirement_configuration, requirements=requirements
+        )
+
     with TRACER.timed(
         "Resolving distributions for requirements: {}".format(
             " ".join(
@@ -946,21 +1009,34 @@ def build_pex(
         )
     ):
         try:
-            dependency_manager.add_from_resolved(
-                resolve(
-                    targets=targets,
-                    requirement_configuration=requirement_configuration,
-                    resolver_configuration=resolver_configuration,
-                    compile_pyc=options.compile,
-                    ignore_errors=options.ignore_errors,
-                    result_type=(
-                        InstallableType.INSTALLED_WHEEL_CHROOT
-                        if options.pre_install_wheels
-                        else InstallableType.WHEEL_FILE
-                    ),
-                    exclude_configuration=exclude_configuration,
+            resolve_result = resolve(
+                targets=targets,
+                requirement_configuration=requirement_configuration,
+                resolver_configuration=resolver_configuration,
+                compile_pyc=options.compile,
+                ignore_errors=options.ignore_errors,
+                result_type=(
+                    InstallableType.INSTALLED_WHEEL_CHROOT
+                    if options.pre_install_wheels
+                    else InstallableType.WHEEL_FILE
+                ),
+                exclude_configuration=exclude_configuration,
+            )
+            resolve_result = attr.evolve(
+                resolve_result,
+                distributions=tuple(
+                    attr.evolve(
+                        resolved_dist,
+                        direct_requirements=sorted_requirements(
+                            req
+                            for req in resolved_dist.direct_requirements
+                            if req not in project_dependencies
+                        ),
+                    )
+                    for resolved_dist in resolve_result.distributions
                 ),
             )
+            dependency_manager.add_from_resolved(resolve_result)
         except Unsatisfiable as e:
             die(str(e))
 

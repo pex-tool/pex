@@ -32,6 +32,14 @@ class DependencyManager(object):
     _requirements = attr.ib(factory=OrderedSet)  # type: OrderedSet[Requirement]
     _distributions = attr.ib(factory=OrderedSet)  # type: OrderedSet[FingerprintedDistribution]
 
+    def add_requirement(self, requirement):
+        # type: (Requirement) -> None
+        self._requirements.add(requirement)
+
+    def add_distribution(self, fingerprinted_distribution):
+        # type: (FingerprintedDistribution) -> None
+        self._distributions.add(fingerprinted_distribution)
+
     def add_from_pex(
         self,
         pex,  # type: str
@@ -40,12 +48,14 @@ class DependencyManager(object):
         # type: (...) -> PexInfo
 
         pex_info = PexInfo.from_pex(pex)
-        self._requirements.update(Requirement.parse(req) for req in pex_info.requirements)
+        for req in pex_info.requirements:
+            self.add_requirement(Requirement.parse(req))
 
         pex_environment = PEXEnvironment.mount(pex, pex_info=pex_info)
-        self._distributions.update(
-            pex_environment.iter_distributions(result_type_wheel_file=result_type_wheel_file)
-        )
+        for dist in pex_environment.iter_distributions(
+            result_type_wheel_file=result_type_wheel_file
+        ):
+            self.add_distribution(dist)
 
         return pex_info
 
@@ -53,8 +63,9 @@ class DependencyManager(object):
         # type: (ResolveResult) -> None
 
         for resolved_dist in resolved.distributions:
-            self._requirements.update(resolved_dist.direct_requirements)
-            self._distributions.add(resolved_dist.fingerprinted_distribution)
+            for req in resolved_dist.direct_requirements:
+                self.add_requirement(req)
+            self.add_distribution(resolved_dist.fingerprinted_distribution)
 
     def configure(
         self,
