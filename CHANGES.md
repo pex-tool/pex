@@ -1,11 +1,17 @@
 # Release Notes
 
-## 2.7.1
+## 2.8.0
 
-This releases fixes the `bdist_pex` distutils command that ships with
-Pex to work when run under `tox` and Python 3.12 by improving Pex venv
-creation robustness when creating venvs that include Pip.
+This release adds a new `--project` option to `pex` and
+`pex3 lock {create,sync}` that improves the ergonomics of locking a
+local Python project and then creating PEX executables for that project
+using its locked requirements.
 
+In addition, this releases fixes the `bdist_pex` distutils command that
+ships with Pex to work when run under `tox` and Python 3.12 by improving
+Pex venv creation robustness when creating venvs that include Pip.
+
+* Support `--project` locking and PEX building. (#2455)
 * Improve venv creation robustness when adding Pip. (#2454)
 
 ## 2.7.0
