@@ -7,8 +7,8 @@ import os.path
 from argparse import Namespace, _ActionsContainer
 
 from pex.build_system import pep_517
+from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import DistMetadata, Requirement
-from pex.exclude_configuration import ExcludeConfiguration
 from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.interpreter import PythonInterpreter
 from pex.jobs import Raise, SpawnedJob, execute_parallel
@@ -82,7 +82,7 @@ class Projects(object):
         compile_pyc=False,  # type: bool
         ignore_errors=False,  # type: bool
         result_type=InstallableType.INSTALLED_WHEEL_CHROOT,  # type: InstallableType.Value
-        exclude_configuration=ExcludeConfiguration(),  # type: ExcludeConfiguration
+        dependency_config=DependencyConfiguration(),  # type: DependencyConfiguration
     ):
         # type: (...) -> Iterator[BuiltProject]
 
@@ -93,7 +93,7 @@ class Projects(object):
             compile_pyc=compile_pyc,
             ignore_errors=ignore_errors,
             result_type=result_type,
-            exclude_configuration=exclude_configuration,
+            dependency_configuration=dependency_config,
         )
         for resolved_distribution in resolve_result.distributions:
             yield BuiltProject(

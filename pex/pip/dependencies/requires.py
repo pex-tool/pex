@@ -9,16 +9,21 @@ logger = logging.getLogger(__name__)
 
 
 def patch():
-    from pex.dist_metadata import Requirement
-    from pex.pip.excludes import PatchContext
+    from pip._vendor.pkg_resources import Requirement  # type: ignore[import]
 
-    exclude_configuration = PatchContext.load_exclude_configuration()
+    from pex.common import pluralize
+    from pex.dist_metadata import Requirement as PexRequirement
+    from pex.pip.dependencies import PatchContext
+
+    dependency_configuration = PatchContext.load_dependency_configuration()
 
     def create_requires(orig_requires):
         def requires(self, *args, **kwargs):
-            unexcluded_requires = []
-            for req in orig_requires(self, *args, **kwargs):
-                excluded_by = exclude_configuration.excluded_by(Requirement.parse(str(req)))
+            modified_requires = []
+            orig = orig_requires(self, *args, **kwargs)
+            for req in orig:
+                requirement = PexRequirement.parse(str(req))
+                excluded_by = dependency_configuration.excluded_by(requirement)
                 if excluded_by:
                     logger.debug(
                         "[{type}: patched {orig_requires}] Excluded {dep} from {dist} due to "
@@ -31,8 +36,29 @@ def patch():
                         )
                     )
                     continue
-                unexcluded_requires.append(req)
-            return unexcluded_requires
+                overrides = dependency_configuration.overrides_for(requirement)
+                if overrides:
+                    logger.debug(
+                        "[{type}: patched {orig_requires}] Overrode {dep} from {dist} with "
+                        "{count} Pex-configured {overrides}:\n{requirements}".format(
+                            orig_requires=orig_requires,
+                            type=type(self),
+                            dep=repr(str(req)),
+                            dist=self,
+                            count=len(overrides),
+                            overrides=pluralize(overrides, "override"),
+                            requirements="\n".join(
+                                "{index}. {override!r}".format(index=index, override=str(override))
+                                for index, override in enumerate(overrides, start=1)
+                            ),
+                        )
+                    )
+                    modified_requires.extend(
+                        Requirement.parse(str(override)) for override in overrides
+                    )
+                else:
+                    modified_requires.append(req)
+            return modified_requires
 
         return requires
 

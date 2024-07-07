@@ -699,8 +699,8 @@ def _populate_first_party(
                     # These are used by Pex's Pip venv to implement universal locks.
                     "_PEX_PYTHON_VERSIONS_FILE",
                     "_PEX_TARGET_SYSTEMS_FILE",
-                    # This is used to implement Pex --exclude support.
-                    "_PEX_EXCLUDES_FILE",
+                    # This is used to implement Pex --exclude and --override support.
+                    "_PEX_DEP_CONFIG_FILE",
                     # This is used as an experiment knob for atomic_directory locking.
                     "_PEX_FILE_LOCK_STYLE",
                 )

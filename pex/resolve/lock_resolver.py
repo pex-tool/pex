@@ -14,7 +14,7 @@ from pex.atomic_directory import FileLockStyle
 from pex.auth import PasswordDatabase, PasswordEntry
 from pex.common import pluralize
 from pex.compatibility import cpu_count
-from pex.exclude_configuration import ExcludeConfiguration
+from pex.dependency_configuration import DependencyConfiguration
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.pep_427 import InstallableType
@@ -252,10 +252,11 @@ def resolve_from_lock(
     pip_version=None,  # type: Optional[PipVersionValue]
     use_pip_config=False,  # type: bool
     result_type=InstallableType.INSTALLED_WHEEL_CHROOT,  # type: InstallableType.Value
-    exclude_configuration=ExcludeConfiguration(),  # type: ExcludeConfiguration
+    dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
 ):
     # type: (...) -> Union[ResolveResult, Error]
 
+    dependency_configuration = lock.dependency_configuration().merge(dependency_configuration)
     subset_result = try_(
         subset(
             targets=targets,
@@ -268,7 +269,7 @@ def resolve_from_lock(
             network_configuration=network_configuration,
             build_configuration=build_configuration,
             transitive=transitive,
-            exclude_configuration=exclude_configuration,
+            dependency_configuration=dependency_configuration,
         )
     )
     downloadable_artifacts_and_targets = OrderedSet(
@@ -446,7 +447,7 @@ def resolve_from_lock(
             verify_wheels=verify_wheels,
             pip_version=pip_version,
             resolver=resolver,
-            exclude_configuration=exclude_configuration,
+            dependency_configuration=dependency_configuration,
         )
 
         local_project_directory_to_sdist = {
@@ -474,4 +475,8 @@ def resolve_from_lock(
                 local_project_directory_to_sdist=local_project_directory_to_sdist,
             )
         )
-    return ResolveResult(distributions=tuple(distributions), type=result_type)
+    return ResolveResult(
+        dependency_configuration=dependency_configuration,
+        distributions=tuple(distributions),
+        type=result_type,
+    )

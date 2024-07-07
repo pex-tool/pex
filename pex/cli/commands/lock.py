@@ -10,12 +10,13 @@ from argparse import Action, ArgumentError, ArgumentParser, ArgumentTypeError, _
 from collections import OrderedDict
 from operator import attrgetter
 
-from pex import pex_warnings
+from pex import dependency_configuration, pex_warnings
 from pex.argparse import HandleBoolAction
 from pex.cli.command import BuildTimeCommand
 from pex.commands.command import JsonMixin, OutputMixin
 from pex.common import is_exe, pluralize, safe_delete, safe_open
 from pex.compatibility import commonpath, shlex_quote
+from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import (
     Constraint,
     Distribution,
@@ -420,6 +421,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 "the lock but do not lock project itself."
             ),
         )
+        dependency_configuration.register(options_group)
         cls._add_target_options(parser)
         resolver_options.register(
             cls._create_resolver_options_group(parser),
@@ -890,6 +892,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             )
         )
         requirement_configuration = self._gather_requirements(pip_configuration, targets)
+        dependency_config = dependency_configuration.configure(self.options)
         self._dump_lockfile(
             try_(
                 create(
@@ -897,6 +900,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                     requirement_configuration=requirement_configuration,
                     targets=targets,
                     pip_configuration=pip_configuration,
+                    dependency_configuration=dependency_config,
                 )
             )
         )
@@ -1069,6 +1073,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         self,
         lock_file_path,  # type: str
         lock_file,  # type: Lockfile
+        dependency_config=DependencyConfiguration(),  # type: DependencyConfiguration
     ):
         # type: (...) -> Union[LockUpdateRequest, Error]
 
@@ -1079,6 +1084,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             network_configuration=network_configuration,
             max_jobs=resolver_options.get_max_jobs_value(self.options),
             use_pip_config=resolver_options.get_use_pip_config_value(self.options),
+            dependency_configuration=dependency_config,
         )
 
         target_configuration = target_options.configure(self.options)
@@ -1487,6 +1493,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         )
         production_assert(isinstance(resolver_configuration, LockRepositoryConfiguration))
         pip_configuration = resolver_configuration.pip_configuration
+        dependency_config = dependency_configuration.configure(self.options)
 
         target_configuration = target_options.configure(self.options)
         if self.options.style == LockStyle.UNIVERSAL:
@@ -1527,9 +1534,15 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 use_pep517=build_configuration.use_pep517,
                 build_isolation=build_configuration.build_isolation,
                 transitive=pip_configuration.transitive,
+                excluded=SortedTuple(dependency_config.excluded),
+                overridden=SortedTuple(dependency_config.all_overrides()),
             )
             lock_update_request = try_(
-                self._create_lock_update_request(lock_file_path=lock_file_path, lock_file=lock_file)
+                self._create_lock_update_request(
+                    lock_file_path=lock_file_path,
+                    lock_file=lock_file,
+                    dependency_config=dependency_config,
+                )
             )
             requirement_configuration = self._gather_requirements(
                 pip_configuration, lock_update_request.targets
@@ -1556,6 +1569,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                     requirement_configuration=requirement_configuration,
                     targets=targets,
                     pip_configuration=pip_configuration,
+                    dependency_configuration=dependency_config,
                 )
             )
             if self.options.dry_run:

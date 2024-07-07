@@ -5,6 +5,7 @@ from __future__ import absolute_import
 
 from abc import abstractmethod
 
+from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import Distribution, Requirement
 from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.pep_427 import InstallableType
@@ -82,6 +83,7 @@ class ResolvedDistribution(object):
 
 @attr.s(frozen=True)
 class ResolveResult(object):
+    dependency_configuration = attr.ib()  # type: DependencyConfiguration
     distributions = attr.ib()  # type: Tuple[ResolvedDistribution, ...]
     type = attr.ib()  # type: InstallableType.Value
 
