@@ -1,5 +1,16 @@
 # Release Notes
 
+## 2.8.1
+
+This release fixes the `bdist_pex` distutils command to use the
+`--project` option introduced by #2455 in the 2.8.0 release. This
+change produces the same results for existing invocations of
+`python setup.py bdist_pex` but allows new uses passing locked project
+requirements (either hashed requirement files or Pex lock files) via
+`--pex-args`.
+
+* Fix `bdist_pex` to use `--project`. (#2457)
+
 ## 2.8.0
 
 This release adds a new `--override` option to resolves that ultimately
