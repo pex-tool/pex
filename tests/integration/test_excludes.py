@@ -30,7 +30,7 @@ from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import Virtualenv
 from testing import PY_VER, data, make_env, run_pex_command
 from testing.cli import run_pex3
-from testing.lock import index_lock_artifacts
+from testing.lock import extract_lock_option_args, index_lock_artifacts
 
 if TYPE_CHECKING:
     from typing import Any
@@ -194,7 +194,9 @@ def test_lock_exclude(
     lock = os.path.join(str(tmpdir), "lock.json")
     shutil.copy(REQUESTS_LOCK, lock)
 
-    run_pex3("lock", "sync", "--exclude", "certifi", "--lock", lock).assert_success(
+    run_pex3(
+        *(["lock", "sync", "--exclude", "certifi", "--lock", lock] + extract_lock_option_args(lock))
+    ).assert_success(
         expected_error_re=r"^.*{expected_message}.*$".format(
             expected_message=re.escape(
                 dedent(
