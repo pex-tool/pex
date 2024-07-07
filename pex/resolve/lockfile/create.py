@@ -13,6 +13,7 @@ from pex import hashing, resolver
 from pex.auth import PasswordDatabase
 from pex.build_system import pep_517
 from pex.common import open_zip, pluralize, safe_mkdtemp
+from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import DistMetadata, ProjectNameAndVersion
 from pex.fetcher import URLFetcher
 from pex.jobs import Job, Retain, SpawnedJob, execute_parallel
@@ -349,6 +350,7 @@ def create(
     requirement_configuration,  # type: RequirementConfiguration
     targets,  # type: Targets
     pip_configuration,  # type: PipConfiguration
+    dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
 ):
     # type: (...) -> Union[Lockfile, Error]
     """Create a lock file for the given resolve configurations."""
@@ -417,6 +419,7 @@ def create(
             pip_version=pip_configuration.version,
             resolver=configured_resolver,
             use_pip_config=pip_configuration.use_pip_config,
+            dependency_configuration=dependency_configuration,
         )
     except resolvers.ResolveError as e:
         return Error(str(e))
@@ -442,6 +445,8 @@ def create(
         allow_prereleases=pip_configuration.allow_prereleases,
         build_configuration=pip_configuration.build_configuration,
         transitive=pip_configuration.transitive,
+        excluded=dependency_configuration.excluded,
+        overridden=dependency_configuration.all_overrides(),
         locked_resolves=locked_resolves,
     )
 

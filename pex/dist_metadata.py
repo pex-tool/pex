@@ -769,6 +769,10 @@ class Constraint(object):
         # type: () -> str
         return self._str
 
+    def as_requirement(self):
+        # type: () -> Requirement
+        return Requirement(name=self.name, specifier=self.specifier, marker=self.marker)
+
 
 @attr.s(frozen=True)
 class Requirement(Constraint):

@@ -9,9 +9,9 @@ from collections import OrderedDict, defaultdict, deque
 from functools import total_ordering
 
 from pex.common import pluralize
+from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import DistMetadata, Requirement
 from pex.enum import Enum
-from pex.exclude_configuration import ExcludeConfiguration
 from pex.orderedset import OrderedSet
 from pex.pep_425 import CompatibilityTags, TagRank
 from pex.pep_503 import ProjectName
@@ -344,26 +344,80 @@ class LockedRequirement(object):
 @attr.s(frozen=True)
 class _ResolveRequest(object):
     @classmethod
-    def root(cls, requirement):
-        # type: (Requirement) -> _ResolveRequest
-        return cls(required_by=(requirement,), requirement=requirement)
+    def root(
+        cls,
+        target_platform,  # type: str
+        requirement,  # type: Requirement
+        dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
+    ):
+        # type: (...) -> _ResolveRequest
+        return cls(
+            target_platform=target_platform,
+            required_by=(requirement,),
+            requirement=requirement,
+            dependency_configuration=dependency_configuration,
+        )
 
+    target_platform = attr.ib()  # type: str
     required_by = attr.ib()  # type: Tuple[Requirement, ...]
     requirement = attr.ib()  # type: Requirement
     extras = attr.ib(default=())  # type: Iterable[str]
+    dependency_configuration = attr.ib(
+        default=DependencyConfiguration()
+    )  # type: DependencyConfiguration
 
     @property
     def project_name(self):
         # type: () -> ProjectName
         return self.requirement.project_name
 
-    def request_dependencies(self, locked_requirement):
-        # type: (LockedRequirement) -> Iterator[_ResolveRequest]
+    @property
+    def excluded(self):
+        # type: () -> bool
+        return self.is_excluded(self.requirement)
+
+    def is_excluded(self, requirement):
+        # type: (Requirement) -> bool
+        excluded_by = self.dependency_configuration.excluded_by(requirement)
+        if excluded_by:
+            TRACER.log(
+                "Locked requirement {requirement} from {platform} lock excluded by "
+                "{exclude} {excluded_by}.".format(
+                    requirement=requirement,
+                    exclude=pluralize(excluded_by, "exclude"),
+                    excluded_by=" and ".join(map(str, excluded_by)),
+                    platform=self.target_platform,
+                )
+            )
+        return bool(excluded_by)
+
+    def request_dependencies(
+        self,
+        locked_requirement,  # type: LockedRequirement
+        target,  # type: Target
+    ):
+        # type: (...) -> Iterator[_ResolveRequest]
         for requires_dist in locked_requirement.requires_dists:
+            if self.is_excluded(requires_dist):
+                continue
+            override = self.dependency_configuration.overridden_by(requires_dist, target=target)
+            if override:
+                TRACER.log(
+                    "Dependency {requirement} of locked project {project} from {platform} lock "
+                    "overridden by {override}.".format(
+                        requirement=requires_dist,
+                        project=locked_requirement.pin,
+                        platform=self.target_platform,
+                        override=override,
+                    )
+                )
+                requires_dist = override
             yield _ResolveRequest(
+                target_platform=self.target_platform,
                 required_by=self.required_by + (requires_dist,),
                 requirement=requires_dist,
                 extras=self.requirement.extras,
+                dependency_configuration=self.dependency_configuration,
             )
 
     def render_via(self):
@@ -604,7 +658,7 @@ class LockedResolve(object):
         transitive=True,  # type: bool
         build_configuration=BuildConfiguration(),  # type: BuildConfiguration
         include_all_matches=False,  # type: bool
-        exclude_configuration=ExcludeConfiguration(),  # type: ExcludeConfiguration
+        dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
     ):
         # type: (...) -> Union[Resolved, Error]
 
@@ -621,26 +675,20 @@ class LockedResolve(object):
             to_be_resolved.extend(
                 request
                 for request in requests
-                if target.requirement_applies(request.requirement, extras=request.extras)
+                if not request.excluded
+                and target.requirement_applies(request.requirement, extras=request.extras)
             )
 
         resolved = {}  # type: Dict[ProjectName, Set[str]]
-        request_resolve(_ResolveRequest.root(requirement) for requirement in requirements)
+
+        request_resolve(
+            _ResolveRequest.root(
+                self.target_platform, requirement, dependency_configuration=dependency_configuration
+            )
+            for requirement in requirements
+        )
         while to_be_resolved:
             resolve_request = to_be_resolved.popleft()
-            excluded_by = exclude_configuration.excluded_by(resolve_request.requirement)
-            if excluded_by:
-                TRACER.log(
-                    "Locked requirement {requirement} from {platform} lock excluded by "
-                    "{exclude} {excluded_by}.".format(
-                        requirement=resolve_request.requirement,
-                        exclude=pluralize(excluded_by, "exclude"),
-                        excluded_by=" and ".join(map(str, excluded_by)),
-                        platform=self.target_platform,
-                    )
-                )
-                continue
-
             project_name = resolve_request.project_name
             required.setdefault(project_name, []).append(resolve_request)
 
@@ -657,7 +705,9 @@ class LockedResolve(object):
                 resolved_extras.update(required_extras)
 
             for locked_requirement in repository[project_name]:
-                request_resolve(resolve_request.request_dependencies(locked_requirement))
+                request_resolve(
+                    resolve_request.request_dependencies(locked_requirement, target=target)
+                )
 
         # 2. Select either the best fit artifact for each requirement or collect an error.
         constraints_by_project_name = {

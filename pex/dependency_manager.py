@@ -7,10 +7,10 @@ from collections import defaultdict
 
 from pex import pex_warnings
 from pex.common import pluralize
+from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import Requirement
 from pex.environment import PEXEnvironment
 from pex.exceptions import production_assert
-from pex.exclude_configuration import ExcludeConfiguration
 from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.orderedset import OrderedSet
 from pex.pep_503 import ProjectName
@@ -70,11 +70,11 @@ class DependencyManager(object):
     def configure(
         self,
         pex_builder,  # type: PEXBuilder
-        exclude_configuration=ExcludeConfiguration(),  # type: ExcludeConfiguration
+        dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
     ):
         # type: (...) -> None
 
-        exclude_configuration.configure(pex_builder.info)
+        dependency_configuration.configure(pex_builder.info)
 
         root_requirements_by_project_name = defaultdict(
             OrderedSet
@@ -83,7 +83,7 @@ class DependencyManager(object):
             root_requirements_by_project_name[root_req.project_name].add(root_req)
 
         for fingerprinted_dist in self._distributions:
-            excluded_by = exclude_configuration.excluded_by(fingerprinted_dist.distribution)
+            excluded_by = dependency_configuration.excluded_by(fingerprinted_dist.distribution)
             if excluded_by:
                 excludes = " and ".join(map(str, excluded_by))
                 root_reqs = root_requirements_by_project_name[fingerprinted_dist.project_name]

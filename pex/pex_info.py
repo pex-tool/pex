@@ -148,6 +148,7 @@ class PexInfo(object):
         self._requirements = OrderedSet(self._parse_requirement_tuple(req) for req in requirements)
 
         self._excluded = OrderedSet(self._pex_info.get("excluded", ()))  # type: OrderedSet[str]
+        self._overridden = OrderedSet(self._pex_info.get("overridden", ()))  # type: OrderedSet[str]
 
     def _get_safe(self, key):
         if key not in self._pex_info:
@@ -460,7 +461,7 @@ class PexInfo(object):
     def requirements(self):
         return self._requirements
 
-    def add_excluded(self, requirement):
+    def add_exclude(self, requirement):
         # type: (Requirement) -> None
         self._excluded.add(str(requirement))
 
@@ -468,6 +469,15 @@ class PexInfo(object):
     def excluded(self):
         # type: () -> Iterable[str]
         return self._excluded
+
+    def add_override(self, requirement):
+        # type: (Requirement) -> None
+        self._overridden.add(str(requirement))
+
+    @property
+    def overridden(self):
+        # type: () -> Iterable[str]
+        return self._overridden
 
     def add_distribution(self, location, sha):
         self._distributions[location] = sha
@@ -585,17 +595,19 @@ class PexInfo(object):
         data["inherit_path"] = self.inherit_path.value
         data["requirements"] = list(self._requirements)
         data["excluded"] = list(self._excluded)
+        data["overridden"] = list(self._overridden)
         data["interpreter_constraints"] = [str(ic) for ic in self.interpreter_constraints]
         data["distributions"] = self._distributions.copy()
         return data
 
-    def dump(self):
-        # type: (...) -> str
+    def dump(self, **extra_json_dumps_kwargs):
+        # type: (**Any) -> str
         data = self.as_json_dict()
         data["requirements"].sort()
         data["excluded"].sort()
+        data["overridden"].sort()
         data["interpreter_constraints"].sort()
-        return json.dumps(data, sort_keys=True)
+        return json.dumps(data, sort_keys=True, **extra_json_dumps_kwargs)
 
     def copy(self):
         # type: () -> PexInfo

@@ -10,6 +10,7 @@ from collections import OrderedDict
 from contextlib import contextmanager
 
 from pex.common import pluralize
+from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import Constraint, Requirement
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
@@ -223,6 +224,7 @@ class ResolveUpdater(object):
         lock_file,  # type: Lockfile
         lock_configuration,  # type: LockConfiguration
         pip_configuration,  # type: PipConfiguration
+        dependency_configuration,  # type: DependencyConfiguration
     ):
         # type: (...) -> Union[ResolveUpdater, Error]
 
@@ -279,6 +281,7 @@ class ResolveUpdater(object):
             deletes=frozenset(deletes),
             lock_configuration=lock_configuration,
             pip_configuration=pip_configuration,
+            dependency_configuration=dependency_configuration,
         )
 
     @classmethod
@@ -290,6 +293,7 @@ class ResolveUpdater(object):
         lock_file,  # type: Lockfile
         lock_configuration,  # type: LockConfiguration
         pip_configuration,  # type: PipConfiguration
+        dependency_configuration,  # type: DependencyConfiguration
     ):
         # type: (...) -> ResolveUpdater
 
@@ -328,6 +332,7 @@ class ResolveUpdater(object):
             deletes=frozenset(deletes),
             lock_configuration=lock_configuration,
             pip_configuration=pip_configuration,
+            dependency_configuration=dependency_configuration,
         )
 
     requirement_configuration = attr.ib()  # type: RequirementConfiguration
@@ -336,6 +341,9 @@ class ResolveUpdater(object):
     deletes = attr.ib()  # type: Container[ProjectName]
     lock_configuration = attr.ib()  # type: LockConfiguration
     pip_configuration = attr.ib()  # type: PipConfiguration
+    dependency_configuration = attr.ib(
+        default=DependencyConfiguration()
+    )  # type: DependencyConfiguration
     update_requirements_by_project_name = attr.ib(
         factory=dict
     )  # type: Mapping[ProjectName, Requirement]
@@ -362,8 +370,18 @@ class ResolveUpdater(object):
         update_constraints_by_project_name = OrderedDict(self.update_constraints_by_project_name)
         for locked_requirement in locked_resolve.locked_requirements:
             pin = locked_requirement.pin
+            pinned_requirement = pin.as_requirement()
+
+            # Don't constrain an already locked requirement that has an incompatible override
+            # (which implies a new `--override`); i.e: let the override freely resolve.
+            if any(
+                pinned_requirement not in override
+                for override in self.dependency_configuration.overrides_for(pinned_requirement)
+            ):
+                continue
+
             constraint = update_constraints_by_project_name.pop(
-                pin.project_name, pin.as_requirement()
+                pin.project_name, pinned_requirement
             )
             constraints.append(str(constraint))
 
@@ -418,6 +436,7 @@ class ResolveUpdater(object):
                         requirement_configuration=requirement_configuration,
                         targets=Targets.from_target(target),
                         pip_configuration=self.pip_configuration,
+                        dependency_configuration=self.dependency_configuration,
                     )
                 )
                 assert 1 == len(updated_lock_file.locked_resolves)
@@ -428,21 +447,28 @@ class ResolveUpdater(object):
             OrderedDict()
         )  # type: OrderedDict[ProjectName, Optional[Union[DeleteUpdate, VersionUpdate, ArtifactsUpdate]]]
 
-        if self.deletes:
+        if self.deletes or self.dependency_configuration.excluded:
             reduced_requirements = [
                 requirement
                 for requirement in updated_requirements
-                if requirement.project_name not in self.deletes
+                if (
+                    requirement.project_name not in self.deletes
+                    and not self.dependency_configuration.excluded_by(requirement)
+                )
             ]
             resolve = try_(
-                updated_resolve.resolve(target=target, requirements=reduced_requirements)
+                updated_resolve.resolve(
+                    target=target,
+                    requirements=reduced_requirements,
+                    dependency_configuration=self.dependency_configuration,
+                )
             )
             included_projects = frozenset(
                 artifact.pin.project_name for artifact in resolve.downloadable_artifacts
             )
             updates.update(
                 (locked_requirement.pin.project_name, DeleteUpdate(locked_requirement.pin.version))
-                for locked_requirement in updated_resolve.locked_requirements
+                for locked_requirement in locked_resolve.locked_requirements
                 if locked_requirement.pin.project_name not in included_projects
             )
             updated_resolve = attr.evolve(
@@ -592,6 +618,7 @@ class LockUpdater(object):
         network_configuration,  # type: NetworkConfiguration
         max_jobs,  # type: int
         use_pip_config,  # type: bool
+        dependency_configuration,  # type: DependencyConfiguration
     ):
         # type: (...) -> LockUpdater
 
@@ -615,11 +642,13 @@ class LockUpdater(object):
             lock_file=lock_file,
             lock_configuration=lock_configuration,
             pip_configuration=pip_configuration,
+            dependency_configuration=dependency_configuration,
         )
 
     lock_file = attr.ib()  # type: Lockfile
     lock_configuration = attr.ib()  # type: LockConfiguration
     pip_configuration = attr.ib()  # type: PipConfiguration
+    dependency_configuration = attr.ib()  # type: DependencyConfiguration
 
     def sync(
         self,
@@ -640,6 +669,7 @@ class LockUpdater(object):
                 lock_file=self.lock_file,
                 lock_configuration=self.lock_configuration,
                 pip_configuration=self.pip_configuration,
+                dependency_configuration=self.dependency_configuration,
             )
         )
         return self._perform_update(
@@ -674,6 +704,7 @@ class LockUpdater(object):
             lock_file=self.lock_file,
             lock_configuration=self.lock_configuration,
             pip_configuration=self.pip_configuration,
+            dependency_configuration=self.dependency_configuration,
         )
         return self._perform_update(
             update_requests=update_requests,

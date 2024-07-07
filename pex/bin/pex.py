@@ -16,7 +16,7 @@ import sys
 from argparse import Action, ArgumentDefaultsHelpFormatter, ArgumentError, ArgumentParser
 from textwrap import TextWrapper
 
-from pex import pex_warnings
+from pex import dependency_configuration, pex_warnings
 from pex.argparse import HandleBoolAction
 from pex.commands.command import (
     GlobalConfigurationError,
@@ -24,11 +24,11 @@ from pex.commands.command import (
     register_global_arguments,
 )
 from pex.common import die, is_pyc_dir, is_pyc_file, safe_mkdtemp
+from pex.dependency_configuration import DependencyConfiguration
 from pex.dependency_manager import DependencyManager
 from pex.dist_metadata import Requirement
 from pex.docs.command import serve_html_docs
 from pex.enum import Enum
-from pex.exclude_configuration import ExcludeConfiguration
 from pex.inherit_path import InheritPath
 from pex.interpreter_constraints import InterpreterConstraint, InterpreterConstraints
 from pex.layout import Layout, ensure_installed
@@ -346,22 +346,6 @@ def configure_clp_pex_options(parser):
         "before packaged dependencies), No value (alias for prefer, for backwards "
         "compatibility).".format(
             false=InheritPath.FALSE, fallback=InheritPath.FALLBACK, prefer=InheritPath.PREFER
-        ),
-    )
-
-    group.add_argument(
-        "--exclude",
-        dest="excluded",
-        default=[],
-        type=str,
-        action="append",
-        help=(
-            "Specifies a requirement to exclude from the built PEX. Any distribution included in "
-            "the PEX's resolve that matches the requirement is excluded from the built PEX along "
-            "with all of its transitive dependencies that are not also required by other "
-            "non-excluded distributions. At runtime, the PEX will boot without checking the "
-            "excluded dependencies are available (say, via `--inherit-path`). This option can be "
-            "used multiple times."
         ),
     )
 
@@ -785,6 +769,7 @@ def configure_clp():
 
     configure_clp_sources(parser)
     requirement_options.register(parser)
+    dependency_configuration.register(parser)
 
     parser.add_argument(
         "--requirements-pex",
@@ -940,9 +925,22 @@ def build_pex(
     pex_info.deps_are_wheel_files = not options.pre_install_wheels
     pex_info.max_install_jobs = options.max_install_jobs
 
-    dependency_manager = DependencyManager()
-    excluded = list(options.excluded)  # type: List[str]
+    dependency_config = dependency_configuration.configure(options)
+    if dependency_config.overridden and isinstance(
+        resolver_configuration, (PexRepositoryConfiguration, LockRepositoryConfiguration)
+    ):
+        raise ValueError(
+            "The --override option cannot be used when resolving against a {repository}. "
+            "Only overrides already present in the {repository} will be applied.".format(
+                repository=(
+                    "PEX repository"
+                    if isinstance(resolver_configuration, PexRepositoryConfiguration)
+                    else "lock file"
+                )
+            )
+        )
 
+    dependency_manager = DependencyManager()
     with TRACER.timed(
         "Adding distributions from pexes: {}".format(" ".join(options.requirements_pexes))
     ):
@@ -950,9 +948,9 @@ def build_pex(
             requirements_pex_info = dependency_manager.add_from_pex(
                 requirements_pex, result_type_wheel_file=pex_info.deps_are_wheel_files
             )
-            excluded.extend(requirements_pex_info.excluded)
-
-    exclude_configuration = ExcludeConfiguration.create(excluded)
+            dependency_config = dependency_config.merge(
+                DependencyConfiguration.from_pex_info(requirements_pex_info)
+            )
 
     project_dependencies = OrderedSet()  # type: OrderedSet[Requirement]
     with TRACER.timed(
@@ -983,7 +981,7 @@ def build_pex(
                 if options.pre_install_wheels
                 else InstallableType.WHEEL_FILE
             ),
-            exclude_configuration=exclude_configuration,
+            dependency_config=dependency_config,
         )
         for built_project in built_projects:
             dependency_manager.add_requirement(built_project.as_requirement())
@@ -1020,7 +1018,7 @@ def build_pex(
                     if options.pre_install_wheels
                     else InstallableType.WHEEL_FILE
                 ),
-                exclude_configuration=exclude_configuration,
+                dependency_configuration=dependency_config,
             )
             resolve_result = attr.evolve(
                 resolve_result,
@@ -1037,11 +1035,12 @@ def build_pex(
                 ),
             )
             dependency_manager.add_from_resolved(resolve_result)
+            dependency_config = resolve_result.dependency_configuration
         except Unsatisfiable as e:
             die(str(e))
 
     with TRACER.timed("Configuring PEX dependencies"):
-        dependency_manager.configure(pex_builder, exclude_configuration=exclude_configuration)
+        dependency_manager.configure(pex_builder, dependency_configuration=dependency_config)
 
     if options.entry_point:
         pex_builder.set_entry_point(options.entry_point)

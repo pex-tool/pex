@@ -231,6 +231,16 @@ def loads(
         for index, constraint in enumerate(get("constraints", list))
     ]
 
+    excluded = [
+        parse_requirement(req, path=".excluded[{index}]".format(index=index))
+        for index, req in enumerate(get("excluded", list, optional=True) or ())
+    ]
+
+    overridden = [
+        parse_requirement(req, path=".overridden[{index}]".format(index=index))
+        for index, req in enumerate(get("overridden", list, optional=True) or ())
+    ]
+
     def assemble_tag(
         components,  # type: List[str]
         path,  # type: str
@@ -344,6 +354,8 @@ def loads(
             build_isolation=get("build_isolation", bool),
         ),
         transitive=get("transitive", bool),
+        excluded=excluded,
+        overridden=overridden,
         locked_resolves=locked_resolves,
         source=source,
     )
@@ -388,6 +400,8 @@ def as_json_data(
         "use_pep517": lockfile.use_pep517,
         "build_isolation": lockfile.build_isolation,
         "transitive": lockfile.transitive,
+        "excluded": [str(exclude) for exclude in lockfile.excluded],
+        "overridden": [str(override) for override in lockfile.overridden],
         "locked_resolves": [
             {
                 "platform_tag": [

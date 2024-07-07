@@ -51,6 +51,8 @@ def test_roundtrip(tmpdir):
         allow_prereleases=True,
         build_configuration=BuildConfiguration(),
         transitive=False,
+        excluded=(),
+        overridden=(),
         locked_resolves=[
             LockedResolve(
                 platform_tag=tags.Tag("cp36", "cp36m", "macosx_10_13_x86_64"),

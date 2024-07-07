@@ -11,8 +11,8 @@ from collections import OrderedDict, defaultdict
 
 from pex import dist_metadata, pex_warnings, targets
 from pex.common import pluralize
+from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import Distribution, Requirement
-from pex.exclude_configuration import ExcludeConfiguration
 from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.inherit_path import InheritPath
 from pex.interpreter import PythonInterpreter
@@ -380,17 +380,14 @@ class PEXEnvironment(object):
     def _resolve_requirement(
         self,
         requirement,  # type: Requirement
-        exclude_configuration,  # type: ExcludeConfiguration
+        dependency_configuration,  # type: DependencyConfiguration
         resolved_dists_by_key,  # type: MutableMapping[_RequirementKey, FingerprintedDistribution]
         required,  # type: bool
         required_by=None,  # type: Optional[Distribution]
     ):
         # type: (...) -> Iterator[_DistributionNotFound]
-        requirement_key = _RequirementKey.create(requirement)
-        if requirement_key in resolved_dists_by_key:
-            return
 
-        excluded_by = exclude_configuration.excluded_by(requirement)
+        excluded_by = dependency_configuration.excluded_by(requirement)
         if excluded_by:
             TRACER.log(
                 "Skipping resolving {requirement}: excluded by {excludes}".format(
@@ -398,6 +395,10 @@ class PEXEnvironment(object):
                     excludes=" and ".join(map(str, excluded_by)),
                 )
             )
+            return
+
+        requirement_key = _RequirementKey.create(requirement)
+        if requirement_key in resolved_dists_by_key:
             return
 
         available_distributions = [
@@ -430,6 +431,17 @@ class PEXEnvironment(object):
         )
 
         for dep_requirement in dist_metadata.requires_dists(resolved_distribution.distribution):
+            override = dependency_configuration.overridden_by(dep_requirement, target=self._target)
+            if override:
+                TRACER.log(
+                    "Resolving {override}: overrides {requirement} from {dist}".format(
+                        override=override,
+                        requirement=dep_requirement,
+                        dist=os.path.basename(resolved_distribution.distribution.location),
+                    )
+                )
+                dep_requirement = override
+
             # A note regarding extras and why they're passed down one level (we don't pass / use
             # dep_requirement.extras for example):
             #
@@ -452,7 +464,7 @@ class PEXEnvironment(object):
 
             for not_found in self._resolve_requirement(
                 dep_requirement,
-                exclude_configuration,
+                dependency_configuration,
                 resolved_dists_by_key,
                 required,
                 required_by=resolved_distribution.distribution,
@@ -462,7 +474,7 @@ class PEXEnvironment(object):
     def _root_requirements_iter(
         self,
         reqs,  # type: Iterable[Requirement]
-        exclude_configuration,  # type: ExcludeConfiguration
+        dependency_configuration,  # type: DependencyConfiguration
     ):
         # type: (...) -> Iterator[QualifiedRequirementOrNotFound]
 
@@ -481,7 +493,7 @@ class PEXEnvironment(object):
             OrderedDict()
         )  # type: OrderedDict[ProjectName, List[_QualifiedRequirement]]
         for req in reqs:
-            excluded_by = exclude_configuration.excluded_by(req)
+            excluded_by = dependency_configuration.excluded_by(req)
             if excluded_by:
                 TRACER.log(
                     "Skipping resolving {requirement}: excluded by {excludes}".format(
@@ -563,11 +575,11 @@ class PEXEnvironment(object):
         # type: () -> Iterable[Distribution]
         if self._resolved_dists is None:
             all_reqs = [Requirement.parse(req) for req in self._pex_info.requirements]
-            exclude_configuration = ExcludeConfiguration.create(excluded=self._pex_info.excluded)
+            dependency_configuration = DependencyConfiguration.from_pex_info(self._pex_info)
             self._resolved_dists = tuple(
                 fingerprinted_distribution.distribution
                 for fingerprinted_distribution in self.resolve_dists(
-                    all_reqs, exclude_configuration=exclude_configuration
+                    all_reqs, dependency_configuration=dependency_configuration
                 )
             )
         return self._resolved_dists
@@ -575,7 +587,7 @@ class PEXEnvironment(object):
     def resolve_dists(
         self,
         reqs,  # type: Iterable[Requirement]
-        exclude_configuration=ExcludeConfiguration(),  # type: ExcludeConfiguration
+        dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
         result_type=None,  # type: Optional[InstallableType.Value]
     ):
         # type: (...) -> Iterable[FingerprintedDistribution]
@@ -605,7 +617,9 @@ class PEXEnvironment(object):
         resolved_dists_by_key = (
             OrderedDict()
         )  # type: OrderedDict[_RequirementKey, FingerprintedDistribution]
-        for qualified_req_or_not_found in self._root_requirements_iter(reqs, exclude_configuration):
+        for qualified_req_or_not_found in self._root_requirements_iter(
+            reqs, dependency_configuration
+        ):
             if isinstance(qualified_req_or_not_found, _DistributionNotFound):
                 record_unresolved(qualified_req_or_not_found)
                 continue
@@ -613,7 +627,7 @@ class PEXEnvironment(object):
             with TRACER.timed("Resolving {}".format(qualified_req_or_not_found.requirement), V=2):
                 for not_found in self._resolve_requirement(
                     requirement=qualified_req_or_not_found.requirement,
-                    exclude_configuration=exclude_configuration,
+                    dependency_configuration=dependency_configuration,
                     required=qualified_req_or_not_found.required,
                     resolved_dists_by_key=resolved_dists_by_key,
                 ):
