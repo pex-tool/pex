@@ -14,7 +14,7 @@ from pex.pep_427 import InstallableType
 from pex.pip.version import PipVersion
 from pex.resolver import resolve
 from pex.typing import TYPE_CHECKING
-from pex.venv.virtualenv import Virtualenv
+from pex.venv.virtualenv import InstallationChoice, Virtualenv
 from testing import WheelBuilder, make_project, pex_project_dir, temporary_content
 
 if TYPE_CHECKING:
@@ -47,8 +47,8 @@ def bdist_pex_venv():
     global BDIST_PEX_VENV
     if BDIST_PEX_VENV is None:
         venv_dir = safe_mkdtemp()
-        venv = Virtualenv.create(venv_dir)
-        pip = venv.install_pip()
+        venv = Virtualenv.create(venv_dir, install_pip=InstallationChoice.YES)
+        pip = venv.bin_path("pip")
         # N.B.: The setuptools version is not important, but there is a break introduced by pip
         # 22.1; so we must pin that low.
         subprocess.check_call(args=[pip, "install", "-U", "pip<22.1"])

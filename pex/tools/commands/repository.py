@@ -34,7 +34,7 @@ from pex.result import Error, Ok, Result
 from pex.tools.command import PEXCommand
 from pex.typing import TYPE_CHECKING, cast
 from pex.variables import ENV
-from pex.venv.virtualenv import Virtualenv
+from pex.venv.virtualenv import InstallationChoice, Virtualenv
 
 if TYPE_CHECKING:
     from typing import IO, Any, Callable, Iterable, Iterator, List, Text, Tuple
@@ -58,9 +58,13 @@ def spawn_python_job_with_setuptools_and_wheel(
     venv_dir = os.path.join(ENV.PEX_ROOT, "tools", "repository", str(interpreter.platform))
     with atomic_directory(venv_dir) as atomic_dir:
         if not atomic_dir.is_finalized():
-            venv = Virtualenv.create_atomic(venv_dir=atomic_dir, interpreter=interpreter)
-            venv.install_pip(upgrade=True)
-            venv.interpreter.execute(args=["-m", "pip", "install", "-U", "setuptools", "wheel"])
+            Virtualenv.create_atomic(
+                venv_dir=atomic_dir,
+                interpreter=interpreter,
+                install_pip=InstallationChoice.UPGRADED,
+                install_setuptools=InstallationChoice.UPGRADED,
+                install_wheel=InstallationChoice.UPGRADED,
+            )
 
     execute_python_args = [Virtualenv(venv_dir=venv_dir).interpreter.binary]
     execute_python_args.extend(args)

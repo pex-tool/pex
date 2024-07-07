@@ -110,7 +110,7 @@ class BuildSystem(object):
             # work well enough for our test cases and, in general, they should work well enough with
             # the Python they come paired with.
             upgrade_pip = virtualenv.interpreter.version[:2] == (3, 5)
-            virtualenv.install_pip(upgrade=upgrade_pip)
+            virtualenv.ensure_pip(upgrade=upgrade_pip)
             with open(os.devnull, "wb") as dev_null:
                 _, process = virtualenv.interpreter.open_process(
                     args=[
