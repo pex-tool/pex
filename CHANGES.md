@@ -2,7 +2,14 @@
 
 ## 2.8.0
 
-This release adds a new `--project` option to `pex` and
+This release adds a new `--override` option to resolves that ultimately
+use an `--index` or `--find-links`. This allows you to override
+transitive dependencies when you have determined they are too narrow and
+that expanding their range is safe to do. The new `--override`s and the
+existing `--exclude`s can now also be specified when creating or syncing
+a lock file to seal these dependency modifications into the lock.
+
+This release also adds a new `--project` option to `pex` and
 `pex3 lock {create,sync}` that improves the ergonomics of locking a
 local Python project and then creating PEX executables for that project
 using its locked requirements.
@@ -11,6 +18,7 @@ In addition, this releases fixes the `bdist_pex` distutils command that
 ships with Pex to work when run under `tox` and Python 3.12 by improving
 Pex venv creation robustness when creating venvs that include Pip.
 
+* Add support for `--override`. (#2431)
 * Support `--project` locking and PEX building. (#2455)
 * Improve venv creation robustness when adding Pip. (#2454)
 
