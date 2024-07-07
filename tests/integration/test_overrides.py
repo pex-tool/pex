@@ -57,11 +57,8 @@ skip_unless_compatible_with_requests_2_31_0 = pytest.mark.skipif(
 
 
 @skip_unless_compatible_with_requests_2_31_0
-def test_override(
-    tmpdir,  # type: Any
-    complex_requests_override_pex,  # type: str
-):
-    # type: (...) -> None
+def test_override(tmpdir):
+    # type: (Any) -> None
 
     pex = os.path.join(str(tmpdir), "pex")
     run_pex_command(
