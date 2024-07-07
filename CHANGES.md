@@ -14,7 +14,7 @@ This release also adds a new `--project` option to `pex` and
 local Python project and then creating PEX executables for that project
 using its locked requirements.
 
-In addition, this releases fixes the `bdist_pex` distutils command that
+In addition, this release fixes the `bdist_pex` distutils command that
 ships with Pex to work when run under `tox` and Python 3.12 by improving
 Pex venv creation robustness when creating venvs that include Pip.
 
