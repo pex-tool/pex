@@ -51,13 +51,6 @@ def assert_overrides(
     }, pex_info.dump(indent=2)
 
 
-@pytest.fixture
-def complex_requests_override_pex(tmpdir):
-    # type: (Any) -> str
-
-    pass
-
-
 skip_unless_compatible_with_requests_2_31_0 = pytest.mark.skipif(
     PY_VER < (3, 7), reason="The requests version tested requires Python `>=3.7`."
 )
