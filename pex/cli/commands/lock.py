@@ -1668,6 +1668,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 max_parallel_jobs=pip_configuration.max_jobs,
                 pip_version=pip_configuration.version,
                 use_pip_config=pip_configuration.use_pip_config,
+                extra_pip_requirements=pip_configuration.extra_requirements,
                 result_type=InstallableType.INSTALLED_WHEEL_CHROOT,
             )
         )

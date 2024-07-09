@@ -4,6 +4,7 @@
 from __future__ import absolute_import
 
 from pex import resolver
+from pex.dist_metadata import Requirement
 from pex.pep_427 import InstallableType
 from pex.pip.version import PipVersion, PipVersionValue
 from pex.resolve import lock_resolver
@@ -15,7 +16,7 @@ from pex.targets import Targets
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Iterable, Optional
+    from typing import Iterable, Optional, Tuple
 
     import attr  # vendor:skip
 else:
@@ -70,6 +71,7 @@ class ConfiguredResolver(Resolver):
                 max_parallel_jobs=self.pip_configuration.max_jobs,
                 pip_version=pip_version or self.pip_configuration.version,
                 use_pip_config=self.pip_configuration.use_pip_config,
+                extra_pip_requirements=self.pip_configuration.extra_requirements,
                 result_type=result_type,
             )
         )
@@ -80,6 +82,7 @@ class ConfiguredResolver(Resolver):
         targets=Targets(),  # type: Targets
         pip_version=None,  # type: Optional[PipVersionValue]
         transitive=None,  # type: Optional[bool]
+        extra_resolver_requirements=None,  # type: Optional[Tuple[Requirement, ...]]
         result_type=InstallableType.INSTALLED_WHEEL_CHROOT,  # type: InstallableType.Value
     ):
         # type: (...) -> ResolveResult
@@ -100,5 +103,8 @@ class ConfiguredResolver(Resolver):
             pip_version=pip_version or self.pip_configuration.version,
             resolver=self,
             use_pip_config=self.pip_configuration.use_pip_config,
+            extra_pip_requirements=extra_resolver_requirements
+            if extra_resolver_requirements is not None
+            else self.pip_configuration.extra_requirements,
             result_type=result_type,
         )

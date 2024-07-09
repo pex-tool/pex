@@ -368,10 +368,13 @@ def create(
         network_configuration=network_configuration,
         find_links=pip_configuration.repos_configuration.find_links,
         indexes=pip_configuration.repos_configuration.indexes,
-        password_entries=PasswordDatabase.from_netrc()
-        .append(pip_configuration.repos_configuration.password_entries)
-        .entries,
+        password_entries=(
+            PasswordDatabase.from_netrc()
+            .append(pip_configuration.repos_configuration.password_entries)
+            .entries
+        ),
         use_pip_config=pip_configuration.use_pip_config,
+        extra_pip_requirements=pip_configuration.extra_requirements,
     )
 
     configured_resolver = ConfiguredResolver(pip_configuration=pip_configuration)
@@ -419,6 +422,7 @@ def create(
             pip_version=pip_configuration.version,
             resolver=configured_resolver,
             use_pip_config=pip_configuration.use_pip_config,
+            extra_pip_requirements=pip_configuration.extra_requirements,
             dependency_configuration=dependency_configuration,
         )
     except resolvers.ResolveError as e:
@@ -476,6 +480,7 @@ def create(
                     max_parallel_jobs=pip_configuration.max_jobs,
                     pip_version=pip_configuration.version,
                     use_pip_config=pip_configuration.use_pip_config,
+                    extra_pip_requirements=pip_configuration.extra_requirements,
                 )
             )
 

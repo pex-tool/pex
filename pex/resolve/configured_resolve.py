@@ -59,6 +59,7 @@ def resolve(
                     max_parallel_jobs=pip_configuration.max_jobs,
                     pip_version=lock.pip_version,
                     use_pip_config=pip_configuration.use_pip_config,
+                    extra_pip_requirements=pip_configuration.extra_requirements,
                     result_type=result_type,
                     dependency_configuration=dependency_configuration,
                 )
@@ -103,6 +104,7 @@ def resolve(
                 pip_version=resolver_configuration.version,
                 resolver=ConfiguredResolver(pip_configuration=resolver_configuration),
                 use_pip_config=resolver_configuration.use_pip_config,
+                extra_pip_requirements=resolver_configuration.extra_requirements,
                 result_type=result_type,
                 dependency_configuration=dependency_configuration,
             )

@@ -3,12 +3,13 @@
 
 from __future__ import absolute_import
 
+import hashlib
 import os
 from textwrap import dedent
 
 from pex import pex_warnings, third_party
 from pex.atomic_directory import atomic_directory
-from pex.common import safe_mkdtemp
+from pex.common import pluralize, safe_mkdtemp
 from pex.dist_metadata import Requirement
 from pex.interpreter import PythonInterpreter
 from pex.orderedset import OrderedSet
@@ -26,7 +27,7 @@ from pex.variables import ENV
 from pex.venv.virtualenv import InstallationChoice, Virtualenv
 
 if TYPE_CHECKING:
-    from typing import Callable, Dict, Iterator, Optional, Union
+    from typing import Callable, Dict, Iterator, Optional, Tuple, Union
 
     import attr  # vendor:skip
 else:
@@ -36,13 +37,14 @@ else:
 def _pip_installation(
     version,  # type: PipVersionValue
     iter_distribution_locations,  # type: Callable[[], Iterator[str]]
+    fingerprint,  # type: str
     interpreter=None,  # type: Optional[PythonInterpreter]
 ):
     # type: (...) -> Pip
     pip_root = os.path.join(ENV.PEX_ROOT, "pip", str(version))
     path = os.path.join(pip_root, "pip.pex")
     pip_interpreter = interpreter or PythonInterpreter.get()
-    pip_pex_path = os.path.join(path, isolated().pex_hash)
+    pip_pex_path = os.path.join(path, isolated().pex_hash, fingerprint)
     with atomic_directory(pip_pex_path) as chroot:
         if not chroot.is_finalized():
             from pex.pex_builder import PEXBuilder
@@ -77,15 +79,63 @@ def _pip_installation(
     return Pip(pip=pip_venv, version=version, pip_cache=pip_cache)
 
 
-def _vendored_installation(interpreter=None):
-    # type: (Optional[PythonInterpreter]) -> Pip
+def _fingerprint(requirements):
+    # type: (Tuple[Requirement, ...]) -> str
+    if not requirements:
+        return "no-extra-requirements"
+    return hashlib.sha1("\n".join(sorted(map(str, requirements))).encode("utf-8")).hexdigest()
+
+
+def _vendored_installation(
+    interpreter=None,  # type: Optional[PythonInterpreter]
+    resolver=None,  # type: Optional[Resolver]
+    extra_requirements=(),  # type: Tuple[Requirement, ...]
+):
+    # type: (...) -> Pip
+
+    def expose_vendored():
+        # type: () -> Iterator[str]
+        return third_party.expose(("pip", "setuptools"), interpreter=interpreter)
+
+    if not extra_requirements:
+        return _pip_installation(
+            version=PipVersion.VENDORED,
+            iter_distribution_locations=expose_vendored,
+            interpreter=interpreter,
+            fingerprint=_fingerprint(extra_requirements),
+        )
+
+    if not resolver:
+        raise ValueError(
+            "A resolver is required to install extra {requirements} for vendored Pip: "
+            "{extra_requirements}".format(
+                requirements=pluralize(extra_requirements, "requirement"),
+                extra_requirements=" ".join(map(str, extra_requirements)),
+            )
+        )
+
+    # This indirection works around MyPy type inference failing to see that
+    # `iter_distribution_locations` is only successfully defined when resolve is not None.
+    extra_requirement_resolver = resolver
+
+    def iter_distribution_locations():
+        # type: () -> Iterator[str]
+        for location in expose_vendored():
+            yield location
+
+        for resolved_distribution in extra_requirement_resolver.resolve_requirements(
+            requirements=tuple(map(str, extra_requirements)),
+            targets=Targets.from_target(LocalInterpreter.create(interpreter)),
+            pip_version=PipVersion.VENDORED,
+            extra_resolver_requirements=(),
+        ).distributions:
+            yield resolved_distribution.distribution.location
 
     return _pip_installation(
         version=PipVersion.VENDORED,
-        iter_distribution_locations=lambda: third_party.expose(
-            ("pip", "setuptools"), interpreter=interpreter
-        ),
+        iter_distribution_locations=iter_distribution_locations,
         interpreter=interpreter,
+        fingerprint=_fingerprint(extra_requirements),
     )
 
 
@@ -102,7 +152,7 @@ def _bootstrap_pip(
         venv = Virtualenv.create(
             venv_dir=os.path.join(chroot, "pip"),
             interpreter=interpreter,
-            install_pip=InstallationChoice.UPGRADED,
+            install_pip=InstallationChoice.YES,
         )
 
         for req in version.requirements:
@@ -118,6 +168,7 @@ def _resolved_installation(
     version,  # type: PipVersionValue
     resolver=None,  # type: Optional[Resolver]
     interpreter=None,  # type: Optional[PythonInterpreter]
+    extra_requirements=(),  # type: Tuple[Requirement, ...]
 ):
     # type: (...) -> Pip
     targets = Targets.from_target(LocalInterpreter.create(interpreter))
@@ -130,25 +181,31 @@ def _resolved_installation(
             warn=False,
         )
     )
-    if bootstrap_pip_version is not PipVersion.VENDORED:
+    if bootstrap_pip_version is not PipVersion.VENDORED and not extra_requirements:
         return _pip_installation(
             version=version,
             iter_distribution_locations=_bootstrap_pip(version, interpreter=interpreter),
             interpreter=interpreter,
+            fingerprint=_fingerprint(extra_requirements),
         )
 
-    if resolver is None:
+    requirements = list(version.requirements)
+    requirements.extend(map(str, extra_requirements))
+    if not resolver:
         raise ValueError(
-            "A resolver is required to install {requirement}".format(
-                requirement=version.requirement
+            "A resolver is required to install {requirements} for Pip {version}: {reqs}".format(
+                requirements=pluralize(requirements, "requirement"),
+                version=version,
+                reqs=" ".join(map(str, extra_requirements)),
             )
         )
 
     def resolve_distribution_locations():
         for resolved_distribution in resolver.resolve_requirements(
-            requirements=version.requirements,
+            requirements=requirements,
             targets=targets,
-            pip_version=PipVersion.VENDORED,
+            pip_version=bootstrap_pip_version,
+            extra_resolver_requirements=(),
         ).distributions:
             yield resolved_distribution.distribution.location
 
@@ -156,6 +213,7 @@ def _resolved_installation(
         version=version,
         iter_distribution_locations=resolve_distribution_locations,
         interpreter=interpreter,
+        fingerprint=_fingerprint(extra_requirements),
     )
 
 
@@ -163,6 +221,7 @@ def _resolved_installation(
 class PipInstallation(object):
     interpreter = attr.ib()  # type: PythonInterpreter
     version = attr.ib()  # type: PipVersionValue
+    extra_requirements = attr.ib()  # type: Tuple[Requirement, ...]
 
     def check_python_applies(self):
         # type: () -> None
@@ -257,6 +316,7 @@ def get_pip(
     interpreter=None,
     version=None,  # type: Optional[PipVersionValue]
     resolver=None,  # type: Optional[Resolver]
+    extra_requirements=(),  # type: Tuple[Requirement, ...]
 ):
     # type: (...) -> Pip
     """Returns a lazily instantiated global Pip object that is safe for un-coordinated use."""
@@ -280,15 +340,23 @@ def get_pip(
     installation = PipInstallation(
         interpreter=interpreter or PythonInterpreter.get(),
         version=calculated_version,
+        extra_requirements=extra_requirements,
     )
     pip = _PIP.get(installation)
     if pip is None:
         installation.check_python_applies()
         if installation.version is PipVersion.VENDORED:
-            pip = _vendored_installation(interpreter=interpreter)
+            pip = _vendored_installation(
+                interpreter=interpreter,
+                resolver=resolver,
+                extra_requirements=installation.extra_requirements,
+            )
         else:
             pip = _resolved_installation(
-                version=installation.version, resolver=resolver, interpreter=interpreter
+                version=installation.version,
+                resolver=resolver,
+                interpreter=interpreter,
+                extra_requirements=installation.extra_requirements,
             )
         _PIP[installation] = pip
     return pip
