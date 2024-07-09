@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.9.0
+
+This release adds support for Pip 24.1.2.
+
+* Add support for `--pip-version 24.1.2`. (#2459)
+
 ## 2.8.1
 
 This release fixes the `bdist_pex` distutils command to use the
