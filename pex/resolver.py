@@ -143,6 +143,11 @@ class DownloadRequest(object):
             interpreter=target.get_interpreter(),
             version=self.pip_version,
             resolver=self.resolver,
+            extra_requirements=(
+                self.package_index_configuration.extra_pip_requirements
+                if self.package_index_configuration
+                else ()
+            ),
         ).spawn_download_distributions(
             download_dir=download_dir,
             requirements=self.requirements,
@@ -548,6 +553,11 @@ class WheelBuilder(object):
             interpreter=build_request.target.get_interpreter(),
             version=self._pip_version,
             resolver=self._resolver,
+            extra_requirements=(
+                self._package_index_configuration.extra_pip_requirements
+                if self._package_index_configuration is not None
+                else ()
+            ),
         ).spawn_build_wheels(
             distributions=[build_request.source_path],
             wheel_dir=build_result.build_dir,
@@ -1034,6 +1044,7 @@ def resolve(
     pip_version=None,  # type: Optional[PipVersionValue]
     resolver=None,  # type: Optional[Resolver]
     use_pip_config=False,  # type: bool
+    extra_pip_requirements=(),  # type: Tuple[Requirement, ...]
     result_type=InstallableType.INSTALLED_WHEEL_CHROOT,  # type: InstallableType.Value
     dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
 ):
@@ -1118,6 +1129,7 @@ def resolve(
         network_configuration=network_configuration,
         password_entries=password_entries,
         use_pip_config=use_pip_config,
+        extra_pip_requirements=extra_pip_requirements,
     )
     build_requests, download_results = _download_internal(
         targets=targets,
@@ -1267,6 +1279,7 @@ def download(
     pip_version=None,  # type: Optional[PipVersionValue]
     resolver=None,  # type: Optional[Resolver]
     use_pip_config=False,  # type: bool
+    extra_pip_requirements=(),  # type: Tuple[Requirement, ...]
     dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
 ):
     # type: (...) -> Downloaded
@@ -1312,6 +1325,7 @@ def download(
         network_configuration=network_configuration,
         password_entries=password_entries,
         use_pip_config=use_pip_config,
+        extra_pip_requirements=extra_pip_requirements,
     )
     build_requests, download_results = _download_internal(
         targets=targets,

@@ -4,11 +4,8 @@
 from __future__ import absolute_import
 
 import glob
-import json
 import os
 import subprocess
-from contextlib import contextmanager
-from textwrap import dedent
 
 import pytest
 
@@ -18,9 +15,10 @@ from pex.interpreter import PythonInterpreter
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import Virtualenv
 from testing import PY310, data, ensure_python_interpreter, make_env, run_pex_command
+from testing.mitmproxy import Proxy
 
 if TYPE_CHECKING:
-    from typing import Any, Callable, ContextManager, Iterator, Optional, Tuple
+    from typing import Any, Callable, Iterator
 
 
 @pytest.fixture(scope="session")
@@ -119,61 +117,11 @@ def mitmdump_venv(shared_integration_test_tmpdir):
 
 
 @pytest.fixture
-def run_proxy(
-    mitmdump_venv,  # type: Virtualenv
-    tmpdir,  # type: Any
-):
-    # type: (...) -> Callable[[Optional[str]], ContextManager[Tuple[int, str]]]
-    confdir = os.path.join(str(tmpdir), "confdir")
-    messages = os.path.join(str(tmpdir), "messages")
-    addon = os.path.join(str(tmpdir), "addon.py")
-    with open(addon, "w") as fp:
-        fp.write(
-            dedent(
-                """\
-                import json
-
-                from mitmproxy import ctx
-
-
-                def running() -> None:
-                    port = ctx.master.addons.get("proxyserver").listen_addrs()[0][1]
-                    with open({msg_channel!r}, "w") as fp:
-                        json.dump({{"port": port}}, fp)
-                """.format(
-                    msg_channel=messages
-                )
-            )
-        )
-
-    @contextmanager
-    def _run_proxy(
-        proxy_auth=None,  # type: Optional[str]
-    ):
-        # type: (...) -> Iterator[Tuple[int, str]]
-        os.mkfifo(messages)
-        args = [
-            mitmdump_venv.interpreter.binary,
-            mitmdump_venv.bin_path("mitmdump"),
-            "--set",
-            "confdir={confdir}".format(confdir=confdir),
-            "-p",
-            "0",
-            "-s",
-            addon,
-        ]
-        if proxy_auth:
-            args.extend(["--proxyauth", proxy_auth])
-        proxy_process = subprocess.Popen(args)
-        try:
-            with open(messages, "r") as fp:
-                data = json.load(fp)
-            yield data["port"], os.path.join(confdir, "mitmproxy-ca.pem")
-        finally:
-            proxy_process.kill()
-            os.unlink(messages)
-
-    return _run_proxy
+def proxy(tmpdir):
+    # type: (Any) -> Proxy
+    config_dir = os.path.join(str(tmpdir), "mitmdump-cfg")
+    os.mkdir(config_dir)
+    return Proxy.configured(config_dir=config_dir)
 
 
 @pytest.fixture

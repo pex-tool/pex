@@ -3,6 +3,7 @@
 
 from __future__ import absolute_import
 
+import functools
 import os
 import sys
 from textwrap import dedent
@@ -18,6 +19,7 @@ if TYPE_CHECKING:
     from typing import Iterable, Optional, Tuple, Union
 
 
+@functools.total_ordering
 class PipVersionValue(Enum.Value):
     @classmethod
     def overridden(cls):
@@ -86,6 +88,11 @@ class PipVersionValue(Enum.Value):
             requires_python=self.requires_python,
             source=Requirement.parse(self.requirement),
         )
+
+    def __lt__(self, other):
+        if not isinstance(other, PipVersionValue):
+            return NotImplemented
+        return self.version < other.version
 
 
 class LatestPipVersion(object):

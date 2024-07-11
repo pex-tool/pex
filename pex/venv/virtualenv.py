@@ -37,7 +37,7 @@ from pex.variables import ENV
 from pex.version import __version__
 
 if TYPE_CHECKING:
-    from typing import DefaultDict, Iterator, Optional, Tuple, Type, Union
+    from typing import DefaultDict, Iterable, Iterator, Optional, Tuple, Type, Union
 
 logger = logging.getLogger(__name__)
 
@@ -181,6 +181,7 @@ class Virtualenv(object):
         install_pip=InstallationChoice.NO,  # type: InstallationChoice.Value
         install_setuptools=InstallationChoice.NO,  # type: InstallationChoice.Value
         install_wheel=InstallationChoice.NO,  # type: InstallationChoice.Value
+        other_installs=(),  # type: Iterable[str]
     ):
         # type: (...) -> Virtualenv
 
@@ -227,11 +228,12 @@ class Virtualenv(object):
             # they install Pip for all Pythons older than 3.12.
             installations.pop("setuptools")
 
-        project_installs = [
+        project_installs = OrderedSet(
             project
             for project, installation_choice in installations.items()
             if installation_choice is InstallationChoice.YES
-        ]
+        )
+        project_installs.update(other_installs)
         if project_installs and install_pip is InstallationChoice.NO:
             raise ValueError(
                 "Installation of Pip is required in order to install {projects}.".format(
@@ -320,7 +322,9 @@ class Virtualenv(object):
                 args=["-m", "pip", "install", "-U"] + project_upgrades, env=env
             )
         if project_installs:
-            venv.interpreter.execute(args=["-m", "pip", "install"] + project_installs, env=env)
+            venv.interpreter.execute(
+                args=["-m", "pip", "install"] + list(project_installs), env=env
+            )
         return venv
 
     @classmethod
@@ -334,6 +338,7 @@ class Virtualenv(object):
         install_pip=InstallationChoice.NO,  # type: InstallationChoice.Value
         install_setuptools=InstallationChoice.NO,  # type: InstallationChoice.Value
         install_wheel=InstallationChoice.NO,  # type: InstallationChoice.Value
+        other_installs=(),  # type: Iterable[str]
     ):
         # type: (...) -> Virtualenv
         virtualenv = cls.create(
@@ -345,6 +350,7 @@ class Virtualenv(object):
             install_pip=install_pip,
             install_setuptools=install_setuptools,
             install_wheel=install_wheel,
+            other_installs=other_installs,
         )
         for script in virtualenv._rewrite_base_scripts(real_venv_dir=venv_dir.target_dir):
             TRACER.log("Re-writing {}".format(script))

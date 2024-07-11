@@ -1,5 +1,31 @@
 # Release Notes
 
+## 2.10.0
+
+This release adds support for injecting requirements into the isolated
+Pip PEXes Pex uses to resolve distributions. The motivating use case
+for this is to use the feature Pip 23.1 introduced for forcing
+`--keyring-provider import`.
+
+Pex already supported using a combination of the following to force
+non-interactive use of the keyring:
+1. A `keyring` script installation that was on the `PATH`
+2. A `--pip-version` 23.1 or newer.
+3. Specifying `--use-pip-config` to pass `--keyring-provider subprocess`
+   to Pip.
+
+You could not force `--keyring-provider import` though, since the Pips
+Pex uses are themselves hermetic PEXes without access to extra
+installed  keyring requirements elsewhere on the system. With
+`--extra-pip-requirement` you can now do this with the primary benefit
+over `--keyring-provider subprocess` being that you do not need to add
+the username to index URLs. This is ultimately because the keyring CLI
+requires username whereas the API does not; but see
+https://pip.pypa.io/en/stable/topics/authentication/#keyring-support for
+more information.
+
+* Add support for `--extra-pip-requirement`. (#2461)
+
 ## 2.9.0
 
 This release adds support for Pip 24.1.2.

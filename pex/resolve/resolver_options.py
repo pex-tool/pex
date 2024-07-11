@@ -8,6 +8,7 @@ from argparse import Action, ArgumentTypeError, Namespace, _ActionsContainer
 
 from pex import pex_warnings
 from pex.argparse import HandleBoolAction
+from pex.dist_metadata import Requirement
 from pex.fetcher import initialize_ssl_context
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
@@ -110,6 +111,21 @@ def register(
             "compatible with all of the selected interpreters. If fallback is allowed, a warning "
             "will be emitted when fallback is necessary. If fallback is not allowed, Pex will fail "
             "fast indicating the problematic selected interpreters."
+        ),
+    )
+    parser.add_argument(
+        "--extra-pip-requirement",
+        dest="extra_pip_requirements",
+        type=Requirement.parse,
+        default=list(default_resolver_configuration.extra_requirements),
+        action="append",
+        help=(
+            "Add this extra requirement to the Pip PEX uses by Pex to resolve distributions. "
+            "Notably, this can be used to install keyring and keyring plugins for Pip to use. "
+            "There is obviously a bootstrap issue here if your only available index is secured; "
+            "so you may need to use an additional --find-links repo or --index that is not "
+            "secured in order to bootstrap keyring. "
+            "See: https://pip.pypa.io/en/stable/topics/authentication/#keyring-support"
         ),
     )
     register_use_pip_config(parser)
@@ -543,6 +559,7 @@ def create_pip_configuration(options):
         resolver_version=resolver_version,
         allow_version_fallback=options.allow_pip_version_fallback,
         use_pip_config=get_use_pip_config_value(options),
+        extra_requirements=tuple(options.extra_pip_requirements),
     )
 
 

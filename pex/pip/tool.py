@@ -19,6 +19,7 @@ from pex.auth import PasswordEntry
 from pex.common import safe_mkdir, safe_mkdtemp
 from pex.compatibility import get_stderr_bytes_buffer, shlex_quote, urlparse
 from pex.dependency_configuration import DependencyConfiguration
+from pex.dist_metadata import Requirement
 from pex.interpreter import PythonInterpreter
 from pex.jobs import Job
 from pex.network_configuration import NetworkConfiguration
@@ -148,6 +149,7 @@ class PackageIndexConfiguration(object):
         network_configuration=None,  # type: Optional[NetworkConfiguration]
         password_entries=(),  # type: Iterable[PasswordEntry]
         use_pip_config=False,  # type: bool
+        extra_pip_requirements=(),  # type: Tuple[Requirement, ...]
     ):
         # type: (...) -> PackageIndexConfiguration
         resolver_version = resolver_version or ResolverVersion.default(pip_version)
@@ -169,6 +171,7 @@ class PackageIndexConfiguration(object):
                 network_configuration=network_configuration, use_pip_config=use_pip_config
             ),
             use_pip_config=use_pip_config,
+            extra_pip_requirements=extra_pip_requirements,
             password_entries=password_entries,
         )
 
@@ -181,6 +184,7 @@ class PackageIndexConfiguration(object):
         use_pip_config,  # type: bool
         password_entries=(),  # type: Iterable[PasswordEntry]
         pip_version=None,  # type: Optional[PipVersionValue]
+        extra_pip_requirements=(),  # type: Tuple[Requirement, ...]
     ):
         # type: (...) -> None
         self.resolver_version = resolver_version  # type: ResolverVersion.Value
@@ -190,6 +194,7 @@ class PackageIndexConfiguration(object):
         self.use_pip_config = use_pip_config  # type: bool
         self.password_entries = password_entries  # type: Iterable[PasswordEntry]
         self.pip_version = pip_version  # type: Optional[PipVersionValue]
+        self.extra_pip_requirements = extra_pip_requirements  # type: Tuple[Requirement, ...]
 
 
 if TYPE_CHECKING:

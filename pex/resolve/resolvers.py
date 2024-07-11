@@ -105,12 +105,14 @@ class Resolver(object):
         # type: (...) -> ResolveResult
         raise NotImplementedError()
 
+    @abstractmethod
     def resolve_requirements(
         self,
         requirements,  # type: Iterable[str]
         targets=Targets(),  # type: Targets
         pip_version=None,  # type: Optional[PipVersionValue]
         transitive=None,  # type: Optional[bool]
+        extra_resolver_requirements=None,  # type: Optional[Tuple[Requirement, ...]]
         result_type=InstallableType.INSTALLED_WHEEL_CHROOT,  # type: InstallableType.Value
     ):
         # type: (...) -> ResolveResult

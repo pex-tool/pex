@@ -190,6 +190,7 @@ class PipConfiguration(object):
     resolver_version = attr.ib(default=None)  # type: Optional[ResolverVersion.Value]
     allow_version_fallback = attr.ib(default=True)  # type: bool
     use_pip_config = attr.ib(default=False)  # type: bool
+    extra_requirements = attr.ib(default=())  # type Tuple[Requirement, ...]
 
 
 @attr.s(frozen=True)

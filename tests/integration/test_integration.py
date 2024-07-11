@@ -51,10 +51,11 @@ from testing import (
     run_simple_pex_test,
     temporary_content,
 )
+from testing.mitmproxy import Proxy
 from testing.pep_427 import get_installable_type_flag
 
 if TYPE_CHECKING:
-    from typing import Any, Callable, ContextManager, Iterator, List, Optional, Text, Tuple
+    from typing import Any, Callable, Iterator, List, Optional, Text, Tuple
 
 
 def test_pex_execute():
@@ -1533,8 +1534,8 @@ EXAMPLE_PYTHON_REQUIREMENTS_URL = (
 )
 
 
-def test_requirements_network_configuration(run_proxy, tmp_workdir):
-    # type: (Callable[[Optional[str]], ContextManager[Tuple[int, str]]], str) -> None
+def test_requirements_network_configuration(proxy, tmp_workdir):
+    # type: (Proxy, str) -> None
     def req(
         contents,  # type: str
         line_no,  # type: int
@@ -1551,7 +1552,7 @@ def test_requirements_network_configuration(run_proxy, tmp_workdir):
         )
 
     proxy_auth = "jake:jones"
-    with run_proxy(proxy_auth) as (port, ca_cert):
+    with proxy.run(proxy_auth) as (port, ca_cert):
         reqs = parse_requirement_file(
             EXAMPLE_PYTHON_REQUIREMENTS_URL,
             fetcher=URLFetcher(

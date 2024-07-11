@@ -65,6 +65,7 @@ class ArtifactDownloader(object):
             interpreter=self.target.get_interpreter(),
             version=self.package_index_configuration.pip_version,
             resolver=self.resolver,
+            extra_requirements=self.package_index_configuration.extra_pip_requirements,
         )
 
     @staticmethod

@@ -4,6 +4,7 @@
 from __future__ import absolute_import, print_function
 
 import contextlib
+import glob
 import itertools
 import os
 import platform
@@ -217,12 +218,14 @@ class WheelBuilder(object):
             interpreter=self._interpreter,
             verify=self._verify,
         ).wait()
-        dists = os.listdir(self._wheel_dir)
+        dists = glob.glob(os.path.join(self._wheel_dir, "*.whl"))
         if len(dists) == 0:
             raise self.BuildFailure("No distributions were produced!")
         if len(dists) > 1:
-            raise self.BuildFailure("Ambiguous source distributions found: %s" % (" ".join(dists)))
-        return os.path.join(self._wheel_dir, dists[0])
+            raise self.BuildFailure(
+                "Ambiguous wheel distributions found: {dists}".format(dists=" ".join(dists))
+            )
+        return dists[0]
 
 
 @contextlib.contextmanager
