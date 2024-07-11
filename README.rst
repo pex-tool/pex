@@ -71,7 +71,7 @@ Or instead freeze your current virtualenv via requirements.txt and execute it an
 
 .. code-block:: bash
 
-    $ pex $(pip freeze) -o my_virtualenv.pex
+    $ pex -o my_virtualenv.pex -- $(pip freeze) 
     $ deactivate
     $ ./my_virtualenv.pex
 
