@@ -278,8 +278,8 @@ def test_parse_requirements_stress(chroot):
                 hg+http://hg.example.com/MyProject@da39a3ee5e6b\\
                     #egg=AnotherProject[extra,more] ; python_version=="3.9.*"&subdirectory=foo/bar
 
-                ftp://a/${PROJECT_NAME}-1.0.tar.gz
-                http://a/${PROJECT_NAME}-1.0.zip
+                ftp://a/${{PROJECT_NAME}}-1.0.tar.gz
+                http://a/${{PROJECT_NAME}}-1.0.zip
                 https://a/numpy-1.9.2-cp34-none-win32.whl
                 https://a/numpy-1.9.2-cp34-none-win32.whl;\\
                     python_version=="3.4.*" and sys_platform=='win32'
@@ -295,8 +295,14 @@ def test_parse_requirements_stress(chroot):
 
                 # Wheel with local version
                 http://download.pytorch.org/whl/cpu/torch-1.12.1%2Bcpu-cp310-cp310-linux_x86_64.whl
+
+                # Editable
+                -e file://{chroot}/extra/a/local/project
+                --editable file://{chroot}/extra/a/local/project/
+                -e ./another/local/project
+                --editable ./another/local/project/
                 """
-            )
+            ).format(chroot=chroot)
         )
     touch("extra/pyproject.toml")
     touch("extra/a/local/project/pyproject.toml")
@@ -470,6 +476,10 @@ def test_parse_requirements_stress(chroot):
             url="http://download.pytorch.org/whl/cpu/torch-1.12.1%2Bcpu-cp310-cp310-linux_x86_64.whl",
             specifier="==1.12.1+cpu",
         ),
+        local_req(path=os.path.join(chroot, "extra/a/local/project"), editable=True),
+        local_req(path=os.path.join(chroot, "extra/a/local/project"), editable=True),
+        local_req(path=os.path.join(chroot, "extra/another/local/project"), editable=True),
+        local_req(path=os.path.join(chroot, "extra/another/local/project"), editable=True),
         url_req(
             project_name="numpy",
             url=os.path.realpath("./downloads/numpy-1.9.2-cp34-none-win32.whl"),
