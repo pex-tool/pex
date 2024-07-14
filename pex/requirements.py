@@ -652,7 +652,7 @@ def parse_requirements(
                         yield requirement
                 continue
 
-            # Skip empty lines, comment lines and all other Pip options.
+            # Skip empty lines, comment lines and all Pip global options.
             if not processed_text or (
                 processed_text.startswith("-")
                 and not re.match(r"^(?:-e|--editable)\s.*", processed_text)
