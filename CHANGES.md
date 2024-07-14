@@ -1,5 +1,14 @@
 # Release Notes
 
+## 2.10.1
+
+This release fixes a long-standing bug in Pex parsing of editable
+requirements. This bug caused PEXes containing local editable project
+requirements to fail to import those local editable projects despite
+the fact the PEX itself contained them.
+
+* Fix editable requirement parsing. (#2464)
+
 ## 2.10.0
 
 This release adds support for injecting requirements into the isolated

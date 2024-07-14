@@ -418,7 +418,9 @@ def _try_parse_pip_local_formats(
     directory_name, requirement_parts = match.groups()
     stripped_path = os.path.join(os.path.dirname(path), directory_name)
     abs_stripped_path = (
-        os.path.join(basepath, stripped_path) if basepath else os.path.abspath(stripped_path)
+        os.path.join(basepath, stripped_path)
+        if basepath and not os.path.isabs(stripped_path)
+        else os.path.abspath(stripped_path)
     )
     if not os.path.exists(abs_stripped_path):
         return None
@@ -650,8 +652,11 @@ def parse_requirements(
                         yield requirement
                 continue
 
-            # Skip empty lines, comment lines and all other Pip options.
-            if not processed_text or processed_text.startswith("-"):
+            # Skip empty lines, comment lines and all Pip global options.
+            if not processed_text or (
+                processed_text.startswith("-")
+                and not re.match(r"^(?:-e|--editable)\s.*", processed_text)
+            ):
                 continue
 
             # Only requirement lines remain.
