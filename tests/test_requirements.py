@@ -51,7 +51,7 @@ def chroot():
         curdir = os.getcwd()
         try:
             os.chdir(chroot)
-            yield chroot
+            yield os.path.realpath(chroot)
         finally:
             os.chdir(curdir)
 
