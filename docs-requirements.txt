@@ -3,3 +3,7 @@ httpx
 myst-parser[linkify]
 sphinx
 sphinx-simplepdf
+
+# The 0.11.0 release removes deprecated API parameters which breaks weasyprint (62.3 depends on
+# `pydyf>=0.10.0`) which is a dependency of sphinx-simplepdf.
+pydyf<0.11.0
