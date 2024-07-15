@@ -199,9 +199,24 @@ class PexRepositoryConfiguration(object):
     network_configuration = attr.ib(default=NetworkConfiguration())  # type: NetworkConfiguration
     transitive = attr.ib(default=True)  # type: bool
 
+    @property
+    def repos_configuration(self):
+        # type: () -> ReposConfiguration
+        return ReposConfiguration()
+
 
 @attr.s(frozen=True)
 class LockRepositoryConfiguration(object):
     parse_lock = attr.ib()  # type: Callable[[], Union[Lockfile, Error]]
     lock_file_path = attr.ib()  # type: str
     pip_configuration = attr.ib()  # type: PipConfiguration
+
+    @property
+    def repos_configuration(self):
+        # type: () -> ReposConfiguration
+        return self.pip_configuration.repos_configuration
+
+    @property
+    def network_configuration(self):
+        # type: () -> NetworkConfiguration
+        return self.pip_configuration.network_configuration

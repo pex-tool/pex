@@ -29,7 +29,7 @@ else:
 
 def _normalize_platform(platform):
     # type: (str) -> str
-    return platform.replace("-", "_").replace(".", "_")
+    return platform.lower().replace("-", "_").replace(".", "_")
 
 
 @attr.s(frozen=True)
