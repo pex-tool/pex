@@ -76,7 +76,7 @@ def test_basic(
             expected_error_re=(
                 r".*"
                 r"^Failed to build 1 scie:$"
-                r".*XXX"
+                r".*"
                 r"^Provider: No released assets found for release [0-9]{{8}} Python {version} "
                 r"of flavor install_only\.$".format(version=".".join(map(str, PY_VER)))
             ),
