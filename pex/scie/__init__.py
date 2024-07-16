@@ -34,6 +34,9 @@ __all__ = (
     "ScieStyle",
     "ScieTarget",
     "build",
+    "extract_options",
+    "register_options",
+    "render_options",
 )
 
 
