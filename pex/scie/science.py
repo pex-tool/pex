@@ -11,7 +11,7 @@ from collections import OrderedDict
 from subprocess import CalledProcessError
 
 from pex.atomic_directory import atomic_directory
-from pex.common import is_exe, pluralize, safe_mkdtemp, safe_open
+from pex.common import chmod_plus_x, is_exe, pluralize, safe_mkdtemp, safe_open
 from pex.compatibility import shlex_quote
 from pex.exceptions import production_assert
 from pex.fetcher import URLFetcher
@@ -19,14 +19,17 @@ from pex.hashing import Sha256
 from pex.layout import Layout
 from pex.pep_440 import Version
 from pex.pex_info import PexInfo
+from pex.result import Error, try_
 from pex.scie.model import ScieConfiguration, ScieInfo, SciePlatform, ScieStyle, ScieTarget
+from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.third_party.packaging.version import InvalidVersion
+from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
 from pex.util import CacheHelper
 from pex.variables import ENV, Variables, unzip_dir_relpath
 
 if TYPE_CHECKING:
-    from typing import Any, Dict, Iterator, Optional, cast
+    from typing import Any, Dict, Iterator, Optional, Union, cast
 
     import attr  # vendor:skip
     import toml  # vendor:skip
@@ -48,7 +51,21 @@ class Manifest(object):
         return self.target.platform.qualified_binary_name(binary_name)
 
 
+SCIENCE_RELEASES_URL = "https://github.com/a-scie/lift/releases"
 MIN_SCIENCE_VERSION = Version("0.3.0")
+SCIENCE_REQUIREMENT = SpecifierSet("~={min_version}".format(min_version=MIN_SCIENCE_VERSION))
+
+
+def _science_binary_url(suffix=""):
+    # type: (str) -> str
+    return "{science_releases_url}/download/v{version}/{binary}{suffix}".format(
+        science_releases_url=SCIENCE_RELEASES_URL,
+        version=MIN_SCIENCE_VERSION.raw,
+        binary=_qualified_science_fat_binary_name(),
+        suffix=suffix,
+    )
+
+
 PTEX_VERSION = "1.1.1"
 SCIE_JUMP_VERSION = "1.1.1"
 
@@ -149,18 +166,47 @@ def _science_dir(
     *components  # type: str
 ):
     # type: (...) -> str
-    return os.path.join(env.PEX_ROOT, "scies", "science", str(MIN_SCIENCE_VERSION), *components)
+    return os.path.join(env.PEX_ROOT, "scies", "science", MIN_SCIENCE_VERSION.raw, *components)
 
 
-def _qualified_science_binary_name():
+def _qualified_science_fat_binary_name():
     # type: () -> str
-    return SciePlatform.current().qualified_binary_name("science")
+    return SciePlatform.current().qualified_binary_name("science-fat")
 
 
 def _science_binary_names():
     # type: () -> Iterator[str]
     yield "science"
-    yield _qualified_science_binary_name()
+    yield _qualified_science_fat_binary_name()
+    yield SciePlatform.current().qualified_binary_name("science")
+
+
+def _is_compatible_science_binary(
+    binary,  # type: str
+    source=None,  # type: Optional[str]
+):
+    # type: (...) -> Union[Version, Error]
+    try:
+        version = Version(
+            subprocess.check_output(args=[binary, "--version"]).decode("utf-8").strip()
+        )
+    except (CalledProcessError, InvalidVersion) as e:
+        return Error(
+            "Failed to determine --version of science binary at {source}: {err}".format(
+                source=source or binary, err=e
+            )
+        )
+    else:
+        if version.raw in SCIENCE_REQUIREMENT:
+            return version
+        return Error(
+            "The science binary at {source} is version {version} which does not match Pex's "
+            "science requirement of {science_requirement}.".format(
+                source=source or binary,
+                version=version.raw,
+                science_requirement=SCIENCE_REQUIREMENT,
+            )
+        )
 
 
 def _path_science():
@@ -171,29 +217,15 @@ def _path_science():
         ):
             if not is_exe(binary):
                 continue
-            try:
-                if (
-                    Version(subprocess.check_output(args=[binary, "--version"]).decode("utf-8"))
-                    < MIN_SCIENCE_VERSION
-                ):
-                    continue
-            except (CalledProcessError, InvalidVersion):
+            if isinstance(_is_compatible_science_binary(binary), Error):
                 continue
             return binary
     return None
 
 
-def _science_binary_url(suffix=""):
-    # type: (str) -> str
-    return "https://github.com/a-scie/science/releases/download/v{version}/{binary}{suffix}".format(
-        version=MIN_SCIENCE_VERSION,
-        binary=_qualified_science_binary_name(),
-        suffix=suffix,
-    )
-
-
 def _ensure_science(
     url_fetcher=None,  # type: Optional[URLFetcher]
+    science_binary_url=None,  # type: Optional[str]
     env=ENV,  # type: Variables
 ):
     # type: (...) -> str
@@ -207,27 +239,40 @@ def _ensure_science(
                 shutil.copy(path_science, target_science)
             else:
                 fetcher = url_fetcher or URLFetcher()
-                science_binary_url = _science_binary_url()
                 with open(target_science, "wb") as write_fp, fetcher.get_body_stream(
-                    science_binary_url
+                    science_binary_url or _science_binary_url()
                 ) as read_fp:
                     shutil.copyfileobj(read_fp, write_fp)
+                chmod_plus_x(target_science)
 
-                science_sha256_url = _science_binary_url(".sha256")
-                with fetcher.get_body_stream(science_sha256_url) as fp:
-                    expected_sha256, _, _ = fp.read().decode("utf-8").partition(" ")
-                actual_sha256 = CacheHelper.hash(target_science, hasher=Sha256)
-                if expected_sha256 != actual_sha256:
-                    raise ValueError(
-                        "The science binary downloaded from {science_binary_url} does not match "
-                        "the expected SHA-256 fingerprint recorded in {science_sha256_url}.\n"
-                        "Expected {expected_sha256} but found {actual_sha256}.".format(
-                            science_binary_url=science_binary_url,
-                            science_sha256_url=science_sha256_url,
-                            expected_sha256=expected_sha256,
-                            actual_sha256=actual_sha256,
+                if science_binary_url:
+                    custom_science_binary_version = try_(
+                        _is_compatible_science_binary(target_science, source=science_binary_url)
+                    )
+                    TRACER.log(
+                        "Using custom science binary from {source} with version {version}.".format(
+                            source=science_binary_url, version=custom_science_binary_version.raw
                         )
                     )
+                else:
+                    # Since we used the canonical GitHub Releases URL, we know a checksum file is
+                    # available we can use to verify.
+                    science_sha256_url = _science_binary_url(".sha256")
+                    with fetcher.get_body_stream(science_sha256_url) as fp:
+                        expected_sha256, _, _ = fp.read().decode("utf-8").partition(" ")
+                    actual_sha256 = CacheHelper.hash(target_science, hasher=Sha256)
+                    if expected_sha256 != actual_sha256:
+                        raise ValueError(
+                            "The science binary downloaded from {science_binary_url} does not "
+                            "match the expected SHA-256 fingerprint recorded in "
+                            "{science_sha256_url}.\n"
+                            "Expected {expected_sha256} but found {actual_sha256}.".format(
+                                science_binary_url=science_binary_url,
+                                science_sha256_url=science_sha256_url,
+                                expected_sha256=expected_sha256,
+                                actual_sha256=actual_sha256,
+                            )
+                        )
     return os.path.join(target_dir, "science")
 
 
@@ -243,7 +288,11 @@ def build(
 ):
     # type: (...) -> Iterator[ScieInfo]
 
-    science = _ensure_science(url_fetcher=url_fetcher, env=env)
+    science = _ensure_science(
+        url_fetcher=url_fetcher,
+        science_binary_url=configuration.options.science_binary_url,
+        env=env,
+    )
     name = re.sub(r"\.pex$", "", os.path.basename(pex_file), flags=re.IGNORECASE)
     pex_info = PexInfo.from_pex(pex_file)
     layout = Layout.identify(pex_file)

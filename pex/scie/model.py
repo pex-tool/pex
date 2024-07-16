@@ -133,6 +133,7 @@ class ScieOptions(object):
     python_version = attr.ib(
         default=None
     )  # type: Optional[Union[Tuple[int, int], Tuple[int, int, int]]]
+    science_binary_url = attr.ib(default=None)  # type: Optional[str]
 
     def create_configuration(self, targets):
         # type: (Targets) -> ScieConfiguration

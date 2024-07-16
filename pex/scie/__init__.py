@@ -3,8 +3,10 @@
 
 from __future__ import absolute_import
 
+import os.path
 from argparse import Namespace, _ActionsContainer
 
+from pex.compatibility import urlparse
 from pex.fetcher import URLFetcher
 from pex.orderedset import OrderedSet
 from pex.pep_440 import Version
@@ -17,6 +19,7 @@ from pex.scie.model import (
     ScieStyle,
     ScieTarget,
 )
+from pex.scie.science import SCIENCE_RELEASES_URL, SCIENCE_REQUIREMENT
 from pex.typing import TYPE_CHECKING, cast
 from pex.variables import ENV, Variables
 
@@ -39,6 +42,7 @@ def register_options(parser):
 
     parser.add_argument(
         "--scie",
+        "--par",
         dest="scie_style",
         default=None,
         type=ScieStyle.for_value,
@@ -106,6 +110,19 @@ def register_options(parser):
             "to the patch level."
         ),
     )
+    parser.add_argument(
+        "--scie-science-binary",
+        dest="scie_science_binary",
+        default=None,
+        type=str,
+        help=(
+            "The file path of a `science` binary or a URL to use to fetch the `science` binary "
+            "when there is no `science` on the PATH with a version matching {science_requirement}. "
+            "Pex uses the official `science` releases at {science_releases_url} by default.".format(
+                science_requirement=SCIENCE_REQUIREMENT, science_releases_url=SCIENCE_RELEASES_URL
+            )
+        ),
+    )
 
 
 def render_options(options):
@@ -121,6 +138,9 @@ def render_options(options):
     if options.python_version:
         args.append("--scie-python-version")
         args.append(".".join(map(str, options.python_version)))
+    if options.science_binary_url:
+        args.append("--scie-science-binary")
+        args.append(options.science_binary_url)
     return " ".join(args)
 
 
@@ -138,7 +158,7 @@ def extract_options(options):
         ):
             raise ValueError(
                 "Invalid Python version: '{python_version}'.\n"
-                "Must be in the form `<major>.<minor>` or `<major>.<minor>.<release>`".format(
+                "Must be in the form `<major>.<minor>` or `<major>.<minor>.<patch>`".format(
                     python_version=options.scie_python_version
                 )
             )
@@ -156,11 +176,18 @@ def extract_options(options):
                 )
             )
 
+    science_binary_url = options.scie_science_binary
+    if science_binary_url:
+        url_info = urlparse.urlparse(options.scie_science_binary)
+        if not url_info.scheme and url_info.path and os.path.isfile(url_info.path):
+            science_binary_url = "file://{path}".format(path=os.path.abspath(url_info.path))
+
     return ScieOptions(
         style=options.scie_style,
         platforms=tuple(OrderedSet(options.scie_platforms)),
         pbs_release=options.scie_pbs_release,
         python_version=python_version,
+        science_binary_url=science_binary_url,
     )
 
 

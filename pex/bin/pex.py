@@ -1305,6 +1305,7 @@ def do_main(
             url_fetcher = URLFetcher(
                 network_configuration=resolver_configuration.network_configuration,
                 password_entries=resolver_configuration.repos_configuration.password_entries,
+                handle_file_urls=True,
             )
             with TRACER.timed("Building scie(s)"):
                 for par_info in scie.build(
