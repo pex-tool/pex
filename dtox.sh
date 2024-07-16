@@ -117,11 +117,21 @@ if [[ -n "${TERM:-}" ]]; then
   )
 fi
 
+if [[ -f "${HOME}/.netrc" ]]; then
+  DOCKER_ARGS+=(
+    --volume "${HOME}/.netrc:${CONTAINER_HOME}/.netrc"
+  )
+fi
+
+if [[ -d "${HOME}/.ssh" ]]; then
+  DOCKER_ARGS+=(
+    --volume "${HOME}/.ssh:${CONTAINER_HOME}/.ssh"
+  )
+fi
+
 exec docker run \
   --rm \
   --volume pex-tmp:/tmp \
-  --volume "${HOME}/.netrc:${CONTAINER_HOME}/.netrc" \
-  --volume "${HOME}/.ssh:${CONTAINER_HOME}/.ssh" \
   --volume "pex-root:${CONTAINER_HOME}/.pex" \
   --volume pex-caches:/development/pex_dev \
   --volume "${ROOT}:/development/pex" \
