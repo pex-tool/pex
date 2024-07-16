@@ -11,6 +11,9 @@ env:
   # importing builtins like `fcntl` as outlined in https://github.com/pex-tool/pex/issues/1391.
   _PEX_TEST_PYENV_VERSIONS: "2.7 3.7 3.10"
   _PEX_PEXPECT_TIMEOUT: 10
+  # We have integration tests that exercise `--scie` support and these can trigger downloads from
+  # GitHub Releases that needed elevated rate limit quota, which this gives.
+  SCIENCE_AUTH_API_GITHUB_COM_BEARER: ${{ secrets.GITHUB_TOKEN }}
 concurrency:
   group: CI-${{ github.ref }}
   # Queue on all branches and tags, but only cancel overlapping PR burns.

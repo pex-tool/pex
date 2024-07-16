@@ -182,9 +182,12 @@ class ScieConfiguration(object):
             elif len(plat.version_info) < 2:
                 continue
             else:
+                # Here were guessing an available PBS CPython version. Since a triple is unlikely to
+                # hit, we just use major / minor. If the user wants control they can specify
+                # options.python_version via `--scie-python-version`.
                 plat_python_version = cast(
                     "Union[Tuple[int, int], Tuple[int, int, int]]", plat.version_info
-                )
+                )[:2]
 
             # We use Python Build Standalone to create scies, and we know it does not support
             # CPython<3.8.

@@ -16,6 +16,7 @@ from pex.compatibility import shlex_quote
 from pex.exceptions import production_assert
 from pex.fetcher import URLFetcher
 from pex.hashing import Sha256
+from pex.layout import Layout
 from pex.pep_440 import Version
 from pex.pex_info import PexInfo
 from pex.scie.model import ScieConfiguration, ScieInfo, SciePlatform, ScieStyle, ScieTarget
@@ -56,6 +57,7 @@ def create_manifests(
     configuration,  # type: ScieConfiguration
     name,  # type: str
     pex_info,  # type: PexInfo
+    layout,  # type: Layout.Value
 ):
     # type: (...) -> Iterator[Manifest]
 
@@ -64,6 +66,8 @@ def create_manifests(
         # We let the configure-binding calculate the venv dir at runtime since it depends on the
         # interpreter executing the venv PEX.
         installed_pex_dir = ""
+    elif layout is Layout.LOOSE:
+        installed_pex_dir = "{pex}"
     else:
         production_assert(pex_info.pex_hash is not None)
         pex_hash = cast(str, pex_info.pex_hash)
@@ -242,9 +246,10 @@ def build(
     science = _ensure_science(url_fetcher=url_fetcher, env=env)
     name = re.sub(r"\.pex$", "", os.path.basename(pex_file), flags=re.IGNORECASE)
     pex_info = PexInfo.from_pex(pex_file)
+    layout = Layout.identify(pex_file)
     use_platform_suffix = len(configuration.targets) > 1
     errors = OrderedDict()  # type: OrderedDict[Manifest, str]
-    for manifest in create_manifests(configuration, name, pex_info):
+    for manifest in create_manifests(configuration, name, pex_info, layout):
         args = [science, "--cache-dir", _science_dir(env, "cache")]
         if env.PEX_VERBOSE:
             args.append("-{verbosity}".format(verbosity="v" * env.PEX_VERBOSE))
