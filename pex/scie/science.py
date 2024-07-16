@@ -90,12 +90,8 @@ def create_manifests(
         pex_hash = cast(str, pex_info.pex_hash)
         installed_pex_dir = os.path.join(pex_root, unzip_dir_relpath(pex_hash))
 
-    env_replace = {
+    env_default = {
         "PEX_ROOT": pex_root,
-    }
-    env = {
-        "remove_re": {"PEX_.*"},
-        "replace": env_replace,
     }
 
     lift = {
@@ -109,24 +105,24 @@ def create_manifests(
         "files": [{"name": "configure-binding.py"}, {"name": "pex"}],
         "commands": [
             {
-                "env": env,
+                "env": {"default": env_default},
                 "exe": "{scie.bindings.configure:PYTHON}",
                 "args": ["{scie.bindings.configure:PEX}"],
             }
         ],
         "bindings": [
             {
-                "env": dict(
-                    env,
-                    replace=dict(
-                        env_replace,
-                        PEX_INTERPRETER="1",
-                        _PEX_SCIE_INSTALLED_PEX_DIR=installed_pex_dir,
+                "env": {
+                    "default": env_default,
+                    "remove_re": ["PEX_.*"],
+                    "replace": {
+                        "PEX_INTERPRETER": "1",
+                        "_PEX_SCIE_INSTALLED_PEX_DIR": installed_pex_dir,
                         # We can get a warning about too-long script shebangs, but this is not
                         # relevant since we above run the PEX via python and not via shebang.
-                        PEX_EMIT_WARNINGS="0",
-                    ),
-                ),
+                        "PEX_EMIT_WARNINGS": "0",
+                    },
+                },
                 "name": "configure",
                 "exe": "#{cpython:python}",
                 "args": ["{pex}", "{configure-binding.py}"],
@@ -297,6 +293,7 @@ def build(
     pex_info = PexInfo.from_pex(pex_file)
     layout = Layout.identify(pex_file)
     use_platform_suffix = len(configuration.targets) > 1
+
     errors = OrderedDict()  # type: OrderedDict[Manifest, str]
     for manifest in create_manifests(configuration, name, pex_info, layout):
         args = [science, "--cache-dir", _science_dir(env, "cache")]
@@ -350,8 +347,8 @@ def build(
                         else manifest.binary_name(name),
                     ),
                 )
-    if errors:
 
+    if errors:
         raise ScienceError(
             "Failed to build {count} {scies}:\n\n{errors}".format(
                 count=len(errors),
