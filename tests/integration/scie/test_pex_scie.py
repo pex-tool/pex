@@ -355,7 +355,7 @@ def test_custom_lazy_urls(tmpdir):
         expected_platform = "aarch64-unknown-linux-gnu"
     elif SciePlatform.current() is SciePlatform.LINUX_X86_64:
         expected_platform = "x86_64-unknown-linux-gnu"
-    elif SciePlatform.current() is SciePlatform.MACOS_X86_64:
+    elif SciePlatform.current() is SciePlatform.MACOS_AARCH64:
         expected_platform = "aarch64-apple-darwin"
     elif SciePlatform.current() is SciePlatform.MACOS_X86_64:
         expected_platform = "x86_64-apple-darwin"
