@@ -61,7 +61,7 @@ def _science_binary_url(suffix=""):
     return "{science_releases_url}/download/v{version}/{binary}{suffix}".format(
         science_releases_url=SCIENCE_RELEASES_URL,
         version=MIN_SCIENCE_VERSION.raw,
-        binary=_qualified_science_fat_binary_name(),
+        binary=SciePlatform.CURRENT.qualified_binary_name("science-fat"),
         suffix=suffix,
     )
 
@@ -165,16 +165,12 @@ def _science_dir(
     return os.path.join(env.PEX_ROOT, "scies", "science", MIN_SCIENCE_VERSION.raw, *components)
 
 
-def _qualified_science_fat_binary_name():
-    # type: () -> str
-    return SciePlatform.current().qualified_binary_name("science-fat")
-
-
 def _science_binary_names():
     # type: () -> Iterator[str]
-    yield "science"
-    yield _qualified_science_fat_binary_name()
-    yield SciePlatform.current().qualified_binary_name("science")
+    yield SciePlatform.CURRENT.binary_name("science-fat")
+    yield SciePlatform.CURRENT.qualified_binary_name("science-fat")
+    yield SciePlatform.CURRENT.binary_name("science")
+    yield SciePlatform.CURRENT.qualified_binary_name("science")
 
 
 def _is_compatible_science_binary(

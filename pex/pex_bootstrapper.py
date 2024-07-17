@@ -314,7 +314,7 @@ def find_compatible_interpreter(interpreter_test=None):
                         path=(
                             os.pathsep.join(ENV.PEX_PYTHON_PATH)
                             if ENV.PEX_PYTHON_PATH
-                            else os.getenv("PATH")
+                            else os.getenv("PATH", "(The PATH is empty!)")
                         )
                     )
                 )

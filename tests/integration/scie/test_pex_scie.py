@@ -130,7 +130,7 @@ def test_multiple_platforms(tmpdir):
         SciePlatform.MACOS_AARCH64: "3.11",
         SciePlatform.MACOS_X86_64: "3.12",
     }
-    assert SciePlatform.current() in python_version_by_platform
+    assert SciePlatform.CURRENT in python_version_by_platform
 
     def assert_platforms(
         output_dir,  # type: str
@@ -152,7 +152,7 @@ def test_multiple_platforms(tmpdir):
             assert is_exe(scie), "Expected --scie build to produce a {binary} binary.".format(
                 binary=binary
             )
-            if platform is SciePlatform.current():
+            if platform is SciePlatform.CURRENT:
                 assert b"| PEX-scie wabbit! |" in subprocess.check_output(
                     args=[scie, "PEX-scie wabbit!"], env=make_env(PATH=None)
                 )
@@ -195,7 +195,7 @@ def test_multiple_platforms(tmpdir):
         output_dir=restricted_platforms_output_dir,
         extra_args=[
             "--scie-platform",
-            str(SciePlatform.current()),
+            "current",
             "--scie-platform",
             str(SciePlatform.LINUX_AARCH64),
             "--scie-platform",
@@ -205,7 +205,7 @@ def test_multiple_platforms(tmpdir):
     assert_platforms(
         output_dir=restricted_platforms_output_dir,
         expected_platforms=(
-            SciePlatform.current(),
+            SciePlatform.CURRENT,
             SciePlatform.LINUX_AARCH64,
             SciePlatform.LINUX_X86_64,
         ),
@@ -272,7 +272,7 @@ def test_specified_science_binary(tmpdir):
             # we can prove we downloaded the custom version via this URL by checking the version
             # below since our next floor bump will be from 0.3.0 to at least 0.4.3.
             "https://github.com/a-scie/lift/releases/download/v0.4.0/{binary}".format(
-                binary=SciePlatform.current().qualified_binary_name("science")
+                binary=SciePlatform.CURRENT.qualified_binary_name("science")
             ),
         ],
         env=make_env(PATH=None),
@@ -351,13 +351,13 @@ def test_custom_lazy_urls(tmpdir):
     )
 
     expected_platform = None  # type: Optional[str]
-    if SciePlatform.current() is SciePlatform.LINUX_AARCH64:
+    if SciePlatform.CURRENT is SciePlatform.LINUX_AARCH64:
         expected_platform = "aarch64-unknown-linux-gnu"
-    elif SciePlatform.current() is SciePlatform.LINUX_X86_64:
+    elif SciePlatform.CURRENT is SciePlatform.LINUX_X86_64:
         expected_platform = "x86_64-unknown-linux-gnu"
-    elif SciePlatform.current() is SciePlatform.MACOS_AARCH64:
+    elif SciePlatform.CURRENT is SciePlatform.MACOS_AARCH64:
         expected_platform = "aarch64-apple-darwin"
-    elif SciePlatform.current() is SciePlatform.MACOS_X86_64:
+    elif SciePlatform.CURRENT is SciePlatform.MACOS_X86_64:
         expected_platform = "x86_64-apple-darwin"
     assert expected_platform is not None
 

@@ -1308,14 +1308,14 @@ def do_main(
                 handle_file_urls=True,
             )
             with TRACER.timed("Building scie(s)"):
-                for par_info in scie.build(
+                for scie_info in scie.build(
                     configuration=scie_configuration, pex_file=pex_file, url_fetcher=url_fetcher
                 ):
                     log(
                         "Saved PEX scie for CPython {version} on {platform} to {scie}".format(
-                            version=par_info.target.version_str,
-                            platform=par_info.platform,
-                            scie=os.path.relpath(par_info.file),
+                            version=scie_info.target.version_str,
+                            platform=scie_info.platform,
+                            scie=os.path.relpath(scie_info.file),
                         ),
                         V=options.verbosity,
                     )

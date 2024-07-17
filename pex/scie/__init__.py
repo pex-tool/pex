@@ -77,11 +77,19 @@ def register_options(parser):
         dest="scie_platforms",
         default=[],
         action="append",
-        type=SciePlatform.for_value,
-        choices=SciePlatform.values(),
+        type=SciePlatform.parse,
+        choices=[
+            platform
+            for platform in SciePlatform.values()
+            if platform not in (SciePlatform.WINDOWS_AARCH64, SciePlatform.WINDOWS_X86_64)
+        ],
         help=(
             "The platform to produce the native PEX scie executable for. Can be specified multiple "
-            "times."
+            "times. You can use a value of 'current' to select the current platform. If left "
+            "unspecified, the platforms implied by the targets selected to build the PEX with are "
+            "used. Those targets are influenced by the current interpreter running Pex as well as "
+            "use of `--python`, `--interpreter-constraint`, `--platform` or `--complete-platform` "
+            "options."
         ),
     )
     parser.add_argument(

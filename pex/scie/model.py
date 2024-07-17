@@ -30,6 +30,35 @@ class ScieStyle(Enum["ScieStyle.Value"]):
     EAGER = Value("eager")
 
 
+class _CurrentPlatform(object):
+    def __get__(self, obj, objtype=None):
+        # type: (...) -> SciePlatform.Value
+        if not hasattr(self, "_current"):
+            system = platform.system().lower()
+            machine = platform.machine().lower()
+            if "linux" == system:
+                if machine in ("aarch64", "arm64"):
+                    self._current = SciePlatform.LINUX_AARCH64
+                elif machine in ("amd64", "x86_64"):
+                    self._current = SciePlatform.LINUX_X86_64
+            elif "darwin" == system:
+                if machine in ("aarch64", "arm64"):
+                    self._current = SciePlatform.MACOS_AARCH64
+                elif machine in ("amd64", "x86_64"):
+                    self._current = SciePlatform.MACOS_X86_64
+            elif "windows" == system:
+                if machine in ("aarch64", "arm64"):
+                    self._current = SciePlatform.WINDOWS_AARCH64
+                elif machine in ("amd64", "x86_64"):
+                    self._current = SciePlatform.WINDOWS_X86_64
+            if not hasattr(self, "_current"):
+                raise ValueError(
+                    "The current operating system / machine pair is not supported!: "
+                    "{system} / {machine}".format(system=system, machine=machine)
+                )
+        return self._current
+
+
 class SciePlatform(Enum["SciePlatform.Value"]):
     class Value(Enum.Value):
         @property
@@ -64,36 +93,12 @@ class SciePlatform(Enum["SciePlatform.Value"]):
     MACOS_X86_64 = Value("macos-x86_64")
     WINDOWS_AARCH64 = Value("windows-x86_64")
     WINDOWS_X86_64 = Value("windows-aarch64")
+    CURRENT = _CurrentPlatform()
 
     @classmethod
     def parse(cls, value):
         # type: (str) -> SciePlatform.Value
-        return cls.current() if "current" == value else cls.for_value(value)
-
-    @classmethod
-    def current(cls):
-        # type: () -> SciePlatform.Value
-        system = platform.system().lower()
-        machine = platform.machine().lower()
-        if "linux" == system:
-            if machine in ("aarch64", "arm64"):
-                return cls.LINUX_AARCH64
-            elif machine in ("amd64", "x86_64"):
-                return cls.LINUX_X86_64
-        elif "darwin" == system:
-            if machine in ("aarch64", "arm64"):
-                return cls.MACOS_AARCH64
-            elif machine in ("amd64", "x86_64"):
-                return cls.MACOS_X86_64
-        elif "windows" == system:
-            if machine in ("aarch64", "arm64"):
-                return cls.WINDOWS_AARCH64
-            elif machine in ("amd64", "x86_64"):
-                return cls.WINDOWS_X86_64
-        raise ValueError(
-            "The current operating system / machine pair is not supported!: "
-            "{system} / {machine}".format(system=system, machine=machine)
-        )
+        return cls.CURRENT if "current" == value else cls.for_value(value)
 
 
 @attr.s(frozen=True)
