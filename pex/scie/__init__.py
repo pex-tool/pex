@@ -12,6 +12,8 @@ from pex.orderedset import OrderedSet
 from pex.pep_440 import Version
 from pex.scie import science
 from pex.scie.model import (
+    BusyBoxEntryPoints,
+    ModuleEntryPoint,
     ScieConfiguration,
     ScieInfo,
     ScieOptions,
@@ -24,8 +26,7 @@ from pex.typing import TYPE_CHECKING, cast
 from pex.variables import ENV, Variables
 
 if TYPE_CHECKING:
-    from typing import Iterator, Optional, Tuple, Union
-
+    from typing import Iterator, List, Optional, Tuple, Union
 
 __all__ = (
     "ScieConfiguration",
@@ -70,6 +71,28 @@ def register_options(parser):
             "customization needs not addressed by the Pex `--scie*` options, consider using "
             "`science` to build your scies (which is what Pex uses behind the scenes); see: "
             "https://science.scie.app.".format(lazy=ScieStyle.LAZY, eager=ScieStyle.EAGER)
+        ),
+    )
+    parser.add_argument(
+        "--scie-busybox",
+        dest="scie_busybox",
+        type=str,
+        default=[],
+        action="append",
+        help=(
+            "Make the PEX scie a BusyBox over the specified entry points. The entry points can be"
+            "the name of a console script embedded in one of the PEX distributions or else an "
+            "entry point specifier, which is a string of the form '<name>:<module>(:<function>)'; "
+            "e.g.: 'run-baz:foo.bar:baz' to execute the baz function in the foo.bar module as the "
+            "entry point named 'run-baz'. Multiple entry points can be specified at once using a "
+            "comma-separated list or the option can be specified multiple times. A BusyBox scie "
+            "has no default entrypoint; instead, when run it inspects argv0; if that matches one "
+            "of its embedded entry points, it runs that entry point; if not, it lists all"
+            " available entrypoints for you to pick from. To run a given entry point, you specify "
+            "it as the argument and all other arguments after that are forwarded to that entry "
+            "point. BusyBox PEX scies allow you to install all their contained entry points into a "
+            "given directory. For more information, run `SCIE=help <your PEX scie>` and review the "
+            "`install` command help."
         ),
     )
     parser.add_argument(
@@ -140,6 +163,11 @@ def render_options(options):
     # type: (ScieOptions) -> str
 
     args = ["--scie", str(options.style)]
+    if options.busybox_entrypoints:
+        args.append("--scie-busybox")
+        entrypoints = list(options.busybox_entrypoints.console_scripts)
+        entrypoints.extend(map(str, options.busybox_entrypoints.module_entry_points))
+        args.append(",".join(entrypoints))
     for platform in options.platforms:
         args.append("--scie-platform")
         args.append(str(platform))
@@ -160,6 +188,28 @@ def extract_options(options):
 
     if not options.scie_style:
         return None
+
+    entry_points = None
+    if options.scie_busybox:
+        eps = []  # type: List[str]
+        for value in options.scie_busybox:
+            eps.extend(ep.strip() for ep in value.split(","))
+        if len(eps) == 1:
+            raise ValueError(
+                "A BusyBox PEX scie requires two or more entry points, you only supplied 1: "
+                "{ep!r}".format(ep=eps[0])
+            )
+        console_scripts = []  # type: List[str]
+        modules = []  # type: List[ModuleEntryPoint]
+        for ep in eps:
+            entry_point = ModuleEntryPoint.try_parse(ep)
+            if entry_point:
+                modules.append(entry_point)
+            else:
+                console_scripts.append(ep)
+        entry_points = BusyBoxEntryPoints(
+            console_scripts=tuple(console_scripts), module_entry_points=tuple(modules)
+        )
 
     python_version = None  # type: Optional[Union[Tuple[int, int], Tuple[int, int, int]]]
     if options.scie_python_version:
@@ -195,6 +245,7 @@ def extract_options(options):
 
     return ScieOptions(
         style=options.scie_style,
+        busybox_entrypoints=entry_points,
         platforms=tuple(OrderedSet(options.scie_platforms)),
         pbs_release=options.scie_pbs_release,
         python_version=python_version,

@@ -30,6 +30,28 @@ class ScieStyle(Enum["ScieStyle.Value"]):
     EAGER = Value("eager")
 
 
+@attr.s(frozen=True)
+class ModuleEntryPoint(object):
+    @classmethod
+    def try_parse(cls, value):
+        # type: (str) -> Optional[ModuleEntryPoint]
+        name, _, entry_point = value.partition(":")
+        return cls(name, entry_point) if entry_point else None
+
+    name = attr.ib()  # type: str
+    entry_point = attr.ib()  # type: str
+
+    def __str__(self):
+        # type: () -> str
+        return "{name}:{entry_point}".format(name=self.name, entry_point=self.entry_point)
+
+
+@attr.s(frozen=True)
+class BusyBoxEntryPoints(object):
+    console_scripts = attr.ib()  # type: Tuple[str, ...]
+    module_entry_points = attr.ib()  # type: Tuple[ModuleEntryPoint, ...]
+
+
 class _CurrentPlatform(object):
     def __get__(self, obj, objtype=None):
         # type: (...) -> SciePlatform.Value
@@ -133,6 +155,7 @@ class ScieInfo(object):
 @attr.s(frozen=True)
 class ScieOptions(object):
     style = attr.ib(default=ScieStyle.LAZY)  # type: ScieStyle.Value
+    busybox_entrypoints = attr.ib(default=None)  # type: Optional[BusyBoxEntryPoints]
     platforms = attr.ib(default=())  # type: Tuple[SciePlatform.Value, ...]
     pbs_release = attr.ib(default=None)  # type: Optional[str]
     python_version = attr.ib(

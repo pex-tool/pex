@@ -18,7 +18,7 @@ from pex.fetcher import URLFetcher
 from pex.hashing import Sha256
 from pex.layout import Layout
 from pex.pep_440 import Version
-from pex.pex_info import PexInfo
+from pex.pex import PEX
 from pex.result import Error, try_
 from pex.scie.model import ScieConfiguration, ScieInfo, SciePlatform, ScieStyle, ScieTarget
 from pex.third_party.packaging.specifiers import SpecifierSet
@@ -29,7 +29,7 @@ from pex.util import CacheHelper
 from pex.variables import ENV, Variables, unzip_dir_relpath
 
 if TYPE_CHECKING:
-    from typing import Any, Dict, Iterator, Optional, Union, cast
+    from typing import Any, Dict, Iterator, List, Optional, Union, cast
 
     import attr  # vendor:skip
     import toml  # vendor:skip
@@ -73,17 +73,17 @@ SCIE_JUMP_VERSION = "1.1.1"
 def create_manifests(
     configuration,  # type: ScieConfiguration
     name,  # type: str
-    pex_info,  # type: PexInfo
-    layout,  # type: Layout.Value
+    pex,  # type: PEX
 ):
     # type: (...) -> Iterator[Manifest]
 
+    pex_info = pex.pex_info(include_env_overrides=False)
     pex_root = "{scie.bindings}/pex_root"
     if pex_info.venv:
         # We let the configure-binding calculate the venv dir at runtime since it depends on the
         # interpreter executing the venv PEX.
         installed_pex_dir = ""
-    elif layout is Layout.LOOSE:
+    elif pex.layout is Layout.LOOSE:
         installed_pex_dir = "{pex}"
     else:
         production_assert(pex_info.pex_hash is not None)
@@ -94,6 +94,43 @@ def create_manifests(
         "PEX_ROOT": pex_root,
     }
 
+    commands = []  # type: List[Dict[str, Any]]
+    if configuration.options.busybox_entrypoints:
+        commands.extend(
+            {
+                "name": console_script,
+                "env": {
+                    "default": env_default,
+                    "replace": {"PEX_SCRIPT": console_script},
+                    "remove_exact": ["PEX_INTERPRETER", "PEX_MODULE"],
+                },
+                "exe": "{scie.bindings.configure:PYTHON}",
+                "args": ["{scie.bindings.configure:PEX}"],
+            }
+            for console_script in configuration.options.busybox_entrypoints.console_scripts
+        )
+        commands.extend(
+            {
+                "name": mep.name,
+                "env": {
+                    "default": env_default,
+                    "replace": {"PEX_MODULE": mep.entry_point},
+                    "remove_exact": ["PEX_INTERPRETER", "PEX_SCRIPT"],
+                },
+                "exe": "{scie.bindings.configure:PYTHON}",
+                "args": ["{scie.bindings.configure:PEX}"],
+            }
+            for mep in configuration.options.busybox_entrypoints.module_entry_points
+        )
+    else:
+        commands.append(
+            {
+                "env": {"default": env_default},
+                "exe": "{scie.bindings.configure:PYTHON}",
+                "args": ["{scie.bindings.configure:PEX}"],
+            }
+        )
+
     lift = {
         "name": name,
         "ptex": {
@@ -103,13 +140,7 @@ def create_manifests(
         },
         "scie_jump": {"version": SCIE_JUMP_VERSION},
         "files": [{"name": "configure-binding.py"}, {"name": "pex"}],
-        "commands": [
-            {
-                "env": {"default": env_default},
-                "exe": "{scie.bindings.configure:PYTHON}",
-                "args": ["{scie.bindings.configure:PEX}"],
-            }
-        ],
+        "commands": commands,
         "bindings": [
             {
                 "env": {
@@ -287,12 +318,11 @@ def build(
         env=env,
     )
     name = re.sub(r"\.pex$", "", os.path.basename(pex_file), flags=re.IGNORECASE)
-    pex_info = PexInfo.from_pex(pex_file)
-    layout = Layout.identify(pex_file)
+    pex = PEX(pex_file)
     use_platform_suffix = len(configuration.targets) > 1
 
     errors = OrderedDict()  # type: OrderedDict[Manifest, str]
-    for manifest in create_manifests(configuration, name, pex_info, layout):
+    for manifest in create_manifests(configuration, name, pex):
         args = [science, "--cache-dir", _science_dir(env, "cache")]
         if env.PEX_VERBOSE:
             args.append("-{verbosity}".format(verbosity="v" * env.PEX_VERBOSE))
