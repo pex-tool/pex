@@ -114,6 +114,7 @@ def create_manifests(
             {
                 "env": {
                     "default": env_default,
+                    "remove_exact": ["PATH"],
                     "remove_re": ["PEX_.*"],
                     "replace": {
                         "PEX_INTERPRETER": "1",
