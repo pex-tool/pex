@@ -703,6 +703,8 @@ def _populate_first_party(
                     "_PEX_DEP_CONFIG_FILE",
                     # This is used as an experiment knob for atomic_directory locking.
                     "_PEX_FILE_LOCK_STYLE",
+                    # This is used in the scie binding command for ZIPAPP PEXes.
+                    "_PEX_SCIE_INSTALLED_PEX_DIR",
                 )
             ]
             if ignored_pex_env_vars:

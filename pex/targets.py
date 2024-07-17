@@ -44,13 +44,14 @@ class Target(object):
 
     @property
     def python_version(self):
-        # type: () -> Optional[Tuple[int, int]]
+        # type: () -> Optional[Union[Tuple[int, int], Tuple[int, int, int]]]
+        python_full_version = self.marker_environment.python_full_version
+        if python_full_version:
+            return cast("Tuple[int, int, int]", tuple(map(int, python_full_version.split(".")))[:3])
         python_version = self.marker_environment.python_version
-        return (
-            cast("Tuple[int, int]", tuple(map(int, python_version.split(".")))[:2])
-            if python_version
-            else None
-        )
+        if python_version:
+            return cast("Tuple[int, int]", tuple(map(int, python_version.split(".")))[:2])
+        return None
 
     @property
     def supported_tags(self):
@@ -181,8 +182,8 @@ class LocalInterpreter(Target):
 
     @property
     def python_version(self):
-        # type: () -> Tuple[int, int]
-        return self.interpreter.identity.version[:2]
+        # type: () -> Tuple[int, int, int]
+        return self.interpreter.identity.version[:3]
 
     @property
     def is_foreign(self):

@@ -789,6 +789,11 @@ def _expand_pex_root(pex_root):
     return os.path.expanduser(Variables.PEX_ROOT.value_or(ENV, fallback=fallback))
 
 
+def unzip_dir_relpath(pex_hash):
+    # type: (str) -> str
+    return os.path.join("unzipped_pexes", pex_hash)
+
+
 def unzip_dir(
     pex_root,  # type: str
     pex_hash,  # type: str
@@ -796,7 +801,7 @@ def unzip_dir(
 ):
     # type: (...) -> str
     pex_root = _expand_pex_root(pex_root) if expand_pex_root else pex_root
-    return os.path.join(pex_root, "unzipped_pexes", pex_hash)
+    return os.path.join(pex_root, unzip_dir_relpath(pex_hash))
 
 
 def venv_dir(

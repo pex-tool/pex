@@ -1,5 +1,22 @@
 # Release Notes
 
+## 2.11.0
+
+This release adds support for creating native PEX executables that
+contain their own hermetic CPython interpreter courtesy of
+[Python Standalone Builds][PBS] and the [Science project][scie].
+
+You can now specify `--scie {eager,lazy}` when building a PEX file and
+one or more native executable PEX scies will be produced (one for each
+platform the PEX supports). These PEX scies are single file
+executables that look and behave like traditional PEXes, but unlike
+PEXes they can run on a machine with no Python interpreter available.
+
+[PBS]: https://github.com/indygreg/python-build-standalone
+[scie]: https://github.com/a-scie
+
+* Add `--scie` option to produce native PEX exes. (#2466)
+
 ## 2.10.1
 
 This release fixes a long-standing bug in Pex parsing of editable

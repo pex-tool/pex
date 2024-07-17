@@ -16,7 +16,7 @@ import sys
 from argparse import Action, ArgumentDefaultsHelpFormatter, ArgumentError, ArgumentParser
 from textwrap import TextWrapper
 
-from pex import dependency_configuration, pex_warnings
+from pex import dependency_configuration, pex_warnings, scie
 from pex.argparse import HandleBoolAction
 from pex.commands.command import (
     GlobalConfigurationError,
@@ -29,6 +29,7 @@ from pex.dependency_manager import DependencyManager
 from pex.dist_metadata import Requirement
 from pex.docs.command import serve_html_docs
 from pex.enum import Enum
+from pex.fetcher import URLFetcher
 from pex.inherit_path import InheritPath
 from pex.interpreter_constraints import InterpreterConstraint, InterpreterConstraints
 from pex.layout import Layout, ensure_installed
@@ -56,6 +57,7 @@ from pex.resolve.resolver_configuration import (
 from pex.resolve.resolver_options import create_pip_configuration
 from pex.resolve.resolvers import Unsatisfiable, sorted_requirements
 from pex.result import Error, ResultError, catch, try_
+from pex.scie import ScieConfiguration
 from pex.targets import Targets
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
@@ -313,6 +315,8 @@ def configure_clp_pex_options(parser):
             "Python scripts with a custom `PYTHONPATH`."
         ),
     )
+
+    scie.register_options(group)
 
     group.add_argument(
         "--always-write-cache",
@@ -1233,6 +1237,27 @@ def do_main(
     cmdline,  # type: List[str]
     env,  # type: Dict[str, str]
 ):
+    scie_options = scie.extract_options(options)
+    if scie_options and not options.pex_name:
+        raise ValueError(
+            "You must specify `-o`/`--output-file` to use `{scie_options}`.".format(
+                scie_options=scie.render_options(scie_options)
+            )
+        )
+    scie_configuration = None  # type: Optional[ScieConfiguration]
+    if scie_options:
+        scie_configuration = scie_options.create_configuration(targets=targets)
+        if not scie_configuration:
+            raise ValueError(
+                "You selected `{scie_options}`, but none of the selected targets have "
+                "compatible interpreters that can be embedded to form a scie:\n{targets}".format(
+                    scie_options=scie.render_options(scie_options),
+                    targets="\n".join(
+                        target.render_description() for target in targets.unique_targets()
+                    ),
+                )
+            )
+
     with TRACER.timed("Building pex"):
         pex_builder = build_pex(
             requirement_configuration=requirement_configuration,
@@ -1276,6 +1301,24 @@ def do_main(
                 verbose=options.seed == Seed.VERBOSE,
             )
             print(seed_info)
+        if scie_configuration:
+            url_fetcher = URLFetcher(
+                network_configuration=resolver_configuration.network_configuration,
+                password_entries=resolver_configuration.repos_configuration.password_entries,
+                handle_file_urls=True,
+            )
+            with TRACER.timed("Building scie(s)"):
+                for scie_info in scie.build(
+                    configuration=scie_configuration, pex_file=pex_file, url_fetcher=url_fetcher
+                ):
+                    log(
+                        "Saved PEX scie for CPython {version} on {platform} to {scie}".format(
+                            version=scie_info.target.version_str,
+                            platform=scie_info.platform,
+                            scie=os.path.relpath(scie_info.file),
+                        ),
+                        V=options.verbosity,
+                    )
     else:
         if not _compatible_with_current_platform(interpreter, targets.platforms):
             log("WARNING: attempting to run PEX with incompatible platforms!", V=1)
