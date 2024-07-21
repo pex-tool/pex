@@ -32,7 +32,14 @@ def write_bindings(
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("--installed-pex-dir")
+    parser.add_argument(
+        "--installed-pex-dir",
+        help=(
+            "The final resting install directory of the PEX if it is a zipapp PEX. If left unset, "
+            "this indicates the PEX is a venv PEX whose resting venv directory should be "
+            "determined dynamically."
+        )
+    )
     options = parser.parse_args()
 
     if options.installed_pex_dir:
@@ -40,6 +47,8 @@ if __name__ == "__main__":
         venv_dir = None
     else:
         venv_dir = os.path.realpath(
+            # N.B.: In practice, VIRTUAL_ENV should always be set by the PEX venv __main__.py
+            # script.
             os.environ.get("VIRTUAL_ENV", os.path.dirname(os.path.dirname(sys.executable)))
         )
         pex = venv_dir
