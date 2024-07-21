@@ -18,6 +18,7 @@ from pex.dist_metadata import CallableEntryPoint, Distribution, EntryPoint
 from pex.environment import PEXEnvironment
 from pex.executor import Executor
 from pex.finders import get_entry_point_from_console_script, get_script_from_distributions
+from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.inherit_path import InheritPath
 from pex.interpreter import PythonIdentity, PythonInterpreter
 from pex.layout import Layout
@@ -216,6 +217,19 @@ class PEX(object):  # noqa: T000
         seen = set()
         for env in self._loaded_envs:
             for dist in env.resolve():
+                # N.B.: Since there can be more than one PEX env on the PEX_PATH we take care to
+                # de-dup distributions they have in common.
+                if dist in seen:
+                    continue
+                seen.add(dist)
+                yield dist
+
+    def iter_distributions(self, result_type_wheel_file=False):
+        # type: (bool) -> Iterator[FingerprintedDistribution]
+        """Iterates all distributions loadable from this PEX."""
+        seen = set()
+        for env in self._loaded_envs:
+            for dist in env.iter_distributions(result_type_wheel_file=result_type_wheel_file):
                 # N.B.: Since there can be more than one PEX env on the PEX_PATH we take care to
                 # de-dup distributions they have in common.
                 if dist in seen:

@@ -79,16 +79,18 @@ def create_manifests(
 
     pex_info = pex.pex_info(include_env_overrides=False)
     pex_root = "{scie.bindings}/pex_root"
-    if pex_info.venv:
-        # We let the configure-binding calculate the venv dir at runtime since it depends on the
-        # interpreter executing the venv PEX.
-        installed_pex_dir = ""
-    elif pex.layout is Layout.LOOSE:
-        installed_pex_dir = "{pex}"
-    else:
-        production_assert(pex_info.pex_hash is not None)
-        pex_hash = cast(str, pex_info.pex_hash)
-        installed_pex_dir = os.path.join(pex_root, unzip_dir_relpath(pex_hash))
+
+    configure_binding_args = ["{pex}", "{configure-binding.py}"]
+    # N.B.: For the venv case, we let the configure-binding calculate the installed PEX dir
+    # (venv dir) at runtime since it depends on the interpreter executing the venv PEX.
+    if not pex_info.venv:
+        configure_binding_args.append("--installed-pex-dir")
+        if pex.layout is Layout.LOOSE:
+            configure_binding_args.append("{pex}")
+        else:
+            production_assert(pex_info.pex_hash is not None)
+            pex_hash = cast(str, pex_info.pex_hash)
+            configure_binding_args.append(os.path.join(pex_root, unzip_dir_relpath(pex_hash)))
 
     env_default = {
         "PEX_ROOT": pex_root,
@@ -97,26 +99,43 @@ def create_manifests(
     commands = []  # type: List[Dict[str, Any]]
     entrypoints = configuration.options.busybox_entrypoints
     if entrypoints:
-        commands.extend(
-            {
-                "name": console_script,
-                "env": {
-                    "default": env_default,
-                    "replace": {"PEX_SCRIPT": console_script},
-                    "remove_exact": ["PEX_INTERPRETER", "PEX_MODULE"],
-                },
-                "exe": "{scie.bindings.configure:PYTHON}",
-                "args": ["{scie.bindings.configure:PEX}"],
-            }
-            for console_script in entrypoints.console_scripts_manifest.collect(pex)
-        )
+        if pex_info.venv:
+            # N.B.: Executing the console script directly instead of bouncing through the PEX
+            # __main__.py using PEX_SCRIPT saves ~10ms of re-exec overhead in informal testing; so
+            # it's worth specializing here.
+            commands.extend(
+                {
+                    "name": console_script,
+                    "env": {
+                        "default": env_default,
+                        "remove_exact": ["PEX_INTERPRETER", "PEX_MODULE", "PEX_SCRIPT", "PEX_VENV"],
+                    },
+                    "exe": "{scie.bindings.configure:PYTHON}",
+                    "args": ["{scie.bindings.configure:VENV_BIN_DIR_PLUS_SEP}" + console_script],
+                }
+                for console_script in entrypoints.console_scripts_manifest.collect(pex)
+            )
+        else:
+            commands.extend(
+                {
+                    "name": console_script,
+                    "env": {
+                        "default": env_default,
+                        "replace": {"PEX_SCRIPT": console_script},
+                        "remove_exact": ["PEX_INTERPRETER", "PEX_MODULE", "PEX_VENV"],
+                    },
+                    "exe": "{scie.bindings.configure:PYTHON}",
+                    "args": ["{scie.bindings.configure:PEX}"],
+                }
+                for console_script in entrypoints.console_scripts_manifest.collect(pex)
+            )
         commands.extend(
             {
                 "name": module_entry_point.name,
                 "env": {
                     "default": env_default,
                     "replace": {"PEX_MODULE": module_entry_point.entry_point},
-                    "remove_exact": ["PEX_INTERPRETER", "PEX_SCRIPT"],
+                    "remove_exact": ["PEX_INTERPRETER", "PEX_SCRIPT", "PEX_VENV"],
                 },
                 "exe": "{scie.bindings.configure:PYTHON}",
                 "args": ["{scie.bindings.configure:PEX}"],
@@ -126,7 +145,10 @@ def create_manifests(
     else:
         commands.append(
             {
-                "env": {"default": env_default},
+                "env": {
+                    "default": env_default,
+                    "remove_exact": ["PEX_VENV"],
+                },
                 "exe": "{scie.bindings.configure:PYTHON}",
                 "args": ["{scie.bindings.configure:PEX}"],
             }
@@ -150,7 +172,6 @@ def create_manifests(
                     "remove_re": ["PEX_.*"],
                     "replace": {
                         "PEX_INTERPRETER": "1",
-                        "_PEX_SCIE_INSTALLED_PEX_DIR": installed_pex_dir,
                         # We can get a warning about too-long script shebangs, but this is not
                         # relevant since we above run the PEX via python and not via shebang.
                         "PEX_EMIT_WARNINGS": "0",
@@ -158,7 +179,7 @@ def create_manifests(
                 },
                 "name": "configure",
                 "exe": "#{cpython:python}",
-                "args": ["{pex}", "{configure-binding.py}"],
+                "args": configure_binding_args,
             }
         ],
     }  # type: Dict[str, Any]

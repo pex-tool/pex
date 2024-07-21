@@ -73,23 +73,26 @@ class ConsoleScriptsManifest(object):
     def collect(self, pex):
         # type: (PEX) -> Iterable[Text]
 
-        # TODO(John Sirois): XXX: We don't want a resolve, we just want _all_ distributions in the
-        #  Pex.
         console_scripts = OrderedSet()  # type: OrderedSet[Text]
         console_scripts.update(self.add_individual)
+
         if self.add_distribution or self.remove_distribution or self.add_all:
-            for dist in pex.resolve():
-                remove = dist.metadata.project_name in self.remove_distribution
-                add = self.add_all or dist.metadata.project_name in self.add_distribution
+            for fingerprinted_dist in pex.iter_distributions():
+                remove = fingerprinted_dist.project_name in self.remove_distribution
+                add = self.add_all or fingerprinted_dist.project_name in self.add_distribution
                 if not remove and not add:
                     continue
-                for script in dist.get_entry_map().get("console_scripts", {}):
+                for script in fingerprinted_dist.distribution.get_entry_map().get(
+                    "console_scripts", {}
+                ):
                     if remove:
                         console_scripts.discard(script)
                     else:
                         console_scripts.add(script)
+
         for script in self.remove_individual:
             console_scripts.discard(script)
+
         return console_scripts
 
 
