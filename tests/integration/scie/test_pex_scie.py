@@ -9,11 +9,12 @@ import os.path
 import re
 import subprocess
 import sys
+from textwrap import dedent
 from typing import Optional
 
 import pytest
 
-from pex.common import is_exe
+from pex.common import is_exe, safe_open
 from pex.layout import Layout
 from pex.orderedset import OrderedSet
 from pex.scie import SciePlatform, ScieStyle
@@ -369,3 +370,299 @@ def test_custom_lazy_urls(tmpdir):
         stderr.decode("utf-8"),
         flags=re.DOTALL | re.MULTILINE,
     ), stderr.decode("utf-8")
+
+
+def make_project(
+    tmpdir,  # type: Any
+    name,  # type: str
+):
+    # type: (...) -> str
+
+    project_dir = os.path.join(str(tmpdir), name)
+    with safe_open(os.path.join(project_dir, "{name}.py".format(name=name)), "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                from __future__ import print_function
+
+                import sys
+
+
+                def one():
+                    print("{name}1:", *sys.argv[1:])
+
+
+                def two():
+                    print("{name}2:", *sys.argv[1:])
+
+
+                def three():
+                    print("{name}3:", *sys.argv[1:])
+
+
+                if __name__ == "__main__":
+                    print("{name}:", *sys.argv[1:])
+                """
+            ).format(name=name)
+        )
+    with safe_open(os.path.join(project_dir, "setup.py"), "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                from setuptools import setup
+
+
+                setup(
+                    name={name!r},
+                    version="0.1.0",
+                    entry_points={{
+                        "console_scripts": [
+                            "{name}-script1 = {name}:one",
+                            "{name}-script2 = {name}:two",
+                        ],
+                    }},
+                    py_modules=[{name!r}],
+                )
+                """
+            ).format(name=name)
+        )
+    return project_dir
+
+
+@pytest.fixture
+def foo(tmpdir):
+    # type: (Any) -> str
+    return make_project(tmpdir, "foo")
+
+
+@pytest.fixture
+def bar(tmpdir):
+    # type: (Any) -> str
+    return make_project(tmpdir, "bar")
+
+
+skip_if_no_pbs = pytest.mark.skipif(
+    PY_VER < (3, 8) or PY_VER >= (3, 13),
+    reason="A PBS release must be available for the current interpreter to run this test.",
+)
+
+
+@skip_if_pypy
+@skip_if_no_pbs
+@pytest.mark.parametrize(
+    "execution_mode_args",
+    [
+        pytest.param([], id="ZIPAPP"),
+        pytest.param(["--venv"], id="VENV"),
+    ],
+)
+def test_scie_busybox_console_scripts_all(
+    tmpdir,  # type: Any
+    foo,  # type: str
+    bar,  # type: str
+    execution_mode_args,  # type: List[str]
+):
+    # type: (...) -> None
+
+    busybox = os.path.join(str(tmpdir), "busybox")
+    run_pex_command(
+        args=[foo, bar, "--scie", "lazy", "--scie-busybox", "*:*", "-o", busybox]
+        + execution_mode_args
+    ).assert_success()
+
+    assert b"foo1: all\n" == subprocess.check_output(args=[busybox, "foo-script1", "all"])
+    assert b"foo2: all\n" == subprocess.check_output(args=[busybox, "foo-script2", "all"])
+    assert b"bar1: all\n" == subprocess.check_output(args=[busybox, "bar-script1", "all"])
+    assert b"bar2: all\n" == subprocess.check_output(args=[busybox, "bar-script2", "all"])
+
+    bin_dir = os.path.join(str(tmpdir), "bin_dir")
+    subprocess.check_call(args=[busybox, bin_dir], env=make_env(SCIE="install"))
+    assert sorted(["foo-script1", "foo-script2", "bar-script1", "bar-script2"]) == sorted(
+        os.listdir(bin_dir)
+    )
+
+    assert b"foo1: all\n" == subprocess.check_output(
+        args=[os.path.join(bin_dir, "foo-script1"), "all"]
+    )
+    assert b"foo2: all\n" == subprocess.check_output(
+        args=[os.path.join(bin_dir, "foo-script2"), "all"]
+    )
+    assert b"bar1: all\n" == subprocess.check_output(
+        args=[os.path.join(bin_dir, "bar-script1"), "all"]
+    )
+    assert b"bar2: all\n" == subprocess.check_output(
+        args=[os.path.join(bin_dir, "bar-script2"), "all"]
+    )
+
+
+@skip_if_pypy
+@skip_if_no_pbs
+def test_scie_busybox_console_scripts_add_distribution(
+    tmpdir,  # type: Any
+    foo,  # type: str
+    bar,  # type: str
+):
+    # type: (...) -> None
+
+    busybox = os.path.join(str(tmpdir), "busybox")
+    run_pex_command(
+        args=[foo, bar, "--scie", "lazy", "--scie-busybox", "foo:*", "-o", busybox]
+    ).assert_success()
+
+    assert b"foo1: add-dist\n" == subprocess.check_output(args=[busybox, "foo-script1", "add-dist"])
+    assert b"foo2: add-dist\n" == subprocess.check_output(args=[busybox, "foo-script2", "add-dist"])
+
+    bin_dir = os.path.join(str(tmpdir), "bin_dir")
+    subprocess.check_call(args=[busybox, bin_dir], env=make_env(SCIE="install"))
+    assert sorted(["foo-script1", "foo-script2"]) == sorted(os.listdir(bin_dir))
+
+    assert b"foo1: add-dist\n" == subprocess.check_output(
+        args=[os.path.join(bin_dir, "foo-script1"), "add-dist"]
+    )
+    assert b"foo2: add-dist\n" == subprocess.check_output(
+        args=[os.path.join(bin_dir, "foo-script2"), "add-dist"]
+    )
+
+
+@skip_if_pypy
+@skip_if_no_pbs
+def test_scie_busybox_console_scripts_remove_distribution(
+    tmpdir,  # type: Any
+    foo,  # type: str
+    bar,  # type: str
+):
+    # type: (...) -> None
+
+    busybox = os.path.join(str(tmpdir), "busybox")
+    run_pex_command(
+        args=[
+            foo,
+            bar,
+            "--scie",
+            "lazy",
+            "--scie-busybox",
+            "*:*",
+            "--scie-busybox",
+            "!foo:*",
+            "-o",
+            busybox,
+        ],
+        quiet=True,
+    ).assert_success()
+
+    assert b"bar1: del-dist\n" == subprocess.check_output(args=[busybox, "bar-script1", "del-dist"])
+    assert b"bar2: del-dist\n" == subprocess.check_output(args=[busybox, "bar-script2", "del-dist"])
+
+    bin_dir = os.path.join(str(tmpdir), "bin_dir")
+    subprocess.check_call(args=[busybox, bin_dir], env=make_env(SCIE="install"))
+    assert sorted(["bar-script1", "bar-script2"]) == sorted(os.listdir(bin_dir))
+
+    assert b"bar1: del-dist\n" == subprocess.check_output(
+        args=[os.path.join(bin_dir, "bar-script1"), "del-dist"]
+    )
+    assert b"bar2: del-dist\n" == subprocess.check_output(
+        args=[os.path.join(bin_dir, "bar-script2"), "del-dist"]
+    )
+
+
+@skip_if_pypy
+@skip_if_no_pbs
+def test_scie_busybox_console_scripts_remove_script(
+    tmpdir,  # type: Any
+    foo,  # type: str
+    bar,  # type: str
+):
+    # type: (...) -> None
+
+    busybox = os.path.join(str(tmpdir), "busybox")
+    run_pex_command(
+        args=[foo, bar, "--scie", "lazy", "--scie-busybox", "foo:*,!foo-script1", "-o", busybox],
+        quiet=True,
+    ).assert_success()
+
+    assert b"foo2: del-script\n" == subprocess.check_output(
+        args=[busybox, "foo-script2", "del-script"]
+    )
+
+    bin_dir = os.path.join(str(tmpdir), "bin_dir")
+    subprocess.check_call(args=[busybox, bin_dir], env=make_env(SCIE="install"))
+    assert ["foo-script2"] == os.listdir(bin_dir)
+
+    assert b"foo2: del-script\n" == subprocess.check_output(
+        args=[os.path.join(bin_dir, "foo-script2"), "del-script"]
+    )
+
+
+@skip_if_pypy
+@skip_if_no_pbs
+def test_scie_busybox_console_scripts_add_script(
+    tmpdir,  # type: Any
+    foo,  # type: str
+    bar,  # type: str
+):
+    # type: (...) -> None
+
+    busybox = os.path.join(str(tmpdir), "busybox")
+    run_pex_command(
+        args=[foo, bar, "--scie", "lazy", "--scie-busybox", "bar:*,foo-script1", "-o", busybox],
+        quiet=True,
+    ).assert_success()
+
+    assert b"foo1: add-script\n" == subprocess.check_output(
+        args=[busybox, "foo-script1", "add-script"]
+    )
+    assert b"bar1: add-script\n" == subprocess.check_output(
+        args=[busybox, "bar-script1", "add-script"]
+    )
+    assert b"bar2: add-script\n" == subprocess.check_output(
+        args=[busybox, "bar-script2", "add-script"]
+    )
+
+    bin_dir = os.path.join(str(tmpdir), "bin_dir")
+    subprocess.check_call(args=[busybox, bin_dir], env=make_env(SCIE="install"))
+    assert sorted(["foo-script1", "bar-script1", "bar-script2"]) == sorted(os.listdir(bin_dir))
+
+    assert b"foo1: add-script\n" == subprocess.check_output(
+        args=[os.path.join(bin_dir, "foo-script1"), "add-script"]
+    )
+    assert b"bar1: add-script\n" == subprocess.check_output(
+        args=[os.path.join(bin_dir, "bar-script1"), "add-script"]
+    )
+    assert b"bar2: add-script\n" == subprocess.check_output(
+        args=[os.path.join(bin_dir, "bar-script2"), "add-script"]
+    )
+
+
+@skip_if_pypy
+@skip_if_no_pbs
+def test_scie_busybox_module_entry_points(
+    tmpdir,  # type: Any
+    foo,  # type: str
+    bar,  # type: str
+):
+    # type: (...) -> None
+
+    busybox = os.path.join(str(tmpdir), "busybox")
+    run_pex_command(
+        args=[
+            foo,
+            bar,
+            "--scie",
+            "lazy",
+            "--scie-busybox",
+            "bar-mod:bar,foo:foo:three",
+            "-o",
+            busybox,
+        ],
+        quiet=True,
+    ).assert_success()
+
+    assert b"bar: mep\n" == subprocess.check_output(args=[busybox, "bar-mod", "mep"])
+    assert b"foo3: mep\n" == subprocess.check_output(args=[busybox, "foo", "mep"])
+
+    bin_dir = os.path.join(str(tmpdir), "bin_dir")
+    subprocess.check_call(args=[busybox, bin_dir], env=make_env(SCIE="install"))
+    assert sorted(["bar-mod", "foo"]) == sorted(os.listdir(bin_dir))
+
+    assert b"bar: mep\n" == subprocess.check_output(args=[os.path.join(bin_dir, "bar-mod"), "mep"])
+    assert b"foo3: mep\n" == subprocess.check_output(args=[os.path.join(bin_dir, "foo"), "mep"])

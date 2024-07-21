@@ -40,14 +40,14 @@ class ConsoleScriptsManifest(object):
         # type: (str) -> Optional[ConsoleScriptsManifest]
         name, sep, suffix = value.partition(":")
         if not sep and not suffix:
-            if name.startswith("-"):
+            if name.startswith("!"):
                 return cls(remove_individual=(name[1:],))
             else:
                 return cls(add_individual=(name,))
         elif sep and "*" == suffix:
             if "*" == name:
                 return cls(add_all=True)
-            elif name.startswith("-"):
+            elif name.startswith("!"):
                 return cls(remove_distribution=(ProjectName(name[1:]),))
             else:
                 return cls(add_distribution=(ProjectName(name),))

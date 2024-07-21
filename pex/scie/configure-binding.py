@@ -38,7 +38,7 @@ if __name__ == "__main__":
             "The final resting install directory of the PEX if it is a zipapp PEX. If left unset, "
             "this indicates the PEX is a venv PEX whose resting venv directory should be "
             "determined dynamically."
-        )
+        ),
     )
     options = parser.parse_args()
 
