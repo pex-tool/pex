@@ -9,13 +9,16 @@ import platform
 from collections import defaultdict
 
 from pex.enum import Enum
+from pex.orderedset import OrderedSet
+from pex.pep_503 import ProjectName
+from pex.pex import PEX
 from pex.platforms import Platform
 from pex.targets import Targets
 from pex.third_party.packaging import tags  # noqa
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from typing import DefaultDict, Iterable, Optional, Set, Tuple, Union
+    from typing import DefaultDict, Iterable, Optional, Set, Text, Tuple, Union
 
     import attr  # vendor:skip
 else:
@@ -28,6 +31,66 @@ class ScieStyle(Enum["ScieStyle.Value"]):
 
     LAZY = Value("lazy")
     EAGER = Value("eager")
+
+
+@attr.s(frozen=True)
+class ConsoleScriptsManifest(object):
+    @classmethod
+    def try_parse(cls, value):
+        # type: (str) -> Optional[ConsoleScriptsManifest]
+        name, sep, suffix = value.partition(":")
+        if not sep and not suffix:
+            if name.startswith("-"):
+                return cls(remove_individual=(name[1:],))
+            else:
+                return cls(add_individual=(name,))
+        elif sep and "*" == suffix:
+            if "*" == name:
+                return cls(add_all=True)
+            elif name.startswith("-"):
+                return cls(remove_distribution=(ProjectName(name[1:]),))
+            else:
+                return cls(add_distribution=(ProjectName(name),))
+        else:
+            return None
+
+    add_individual = attr.ib(default=())  # type: Tuple[Text, ...]
+    remove_individual = attr.ib(default=())  # type: Tuple[Text, ...]
+    add_distribution = attr.ib(default=())  # type: Tuple[ProjectName, ...]
+    remove_distribution = attr.ib(default=())  # type: Tuple[ProjectName, ...]
+    add_all = attr.ib(default=False)  # type: bool
+
+    def merge(self, other):
+        # type: (ConsoleScriptsManifest) -> ConsoleScriptsManifest
+        return ConsoleScriptsManifest(
+            add_individual=self.add_individual + other.add_individual,
+            remove_individual=self.remove_individual + other.remove_individual,
+            add_distribution=self.add_distribution + other.add_distribution,
+            remove_distribution=self.remove_distribution + other.remove_distribution,
+            add_all=self.add_all or other.add_all,
+        )
+
+    def collect(self, pex):
+        # type: (PEX) -> Iterable[Text]
+
+        # TODO(John Sirois): XXX: We don't want a resolve, we just want _all_ distributions in the
+        #  Pex.
+        console_scripts = OrderedSet()  # type: OrderedSet[Text]
+        console_scripts.update(self.add_individual)
+        if self.add_distribution or self.remove_distribution or self.add_all:
+            for dist in pex.resolve():
+                remove = dist.metadata.project_name in self.remove_distribution
+                add = self.add_all or dist.metadata.project_name in self.add_distribution
+                if not remove and not add:
+                    continue
+                for script in dist.get_entry_map().get("console_scripts", {}):
+                    if remove:
+                        console_scripts.discard(script)
+                    else:
+                        console_scripts.add(script)
+        for script in self.remove_individual:
+            console_scripts.discard(script)
+        return console_scripts
 
 
 @attr.s(frozen=True)
@@ -48,7 +111,7 @@ class ModuleEntryPoint(object):
 
 @attr.s(frozen=True)
 class BusyBoxEntryPoints(object):
-    console_scripts = attr.ib()  # type: Tuple[str, ...]
+    console_scripts_manifest = attr.ib()  # type: ConsoleScriptsManifest
     module_entry_points = attr.ib()  # type: Tuple[ModuleEntryPoint, ...]
 
 

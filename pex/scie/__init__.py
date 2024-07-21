@@ -13,6 +13,7 @@ from pex.pep_440 import Version
 from pex.scie import science
 from pex.scie.model import (
     BusyBoxEntryPoints,
+    ConsoleScriptsManifest,
     ModuleEntryPoint,
     ScieConfiguration,
     ScieInfo,
@@ -26,7 +27,7 @@ from pex.typing import TYPE_CHECKING, cast
 from pex.variables import ENV, Variables
 
 if TYPE_CHECKING:
-    from typing import Iterator, List, Optional, Tuple, Union
+    from typing import Iterator, List, Optional, Text, Tuple, Union
 
 __all__ = (
     "ScieConfiguration",
@@ -160,12 +161,21 @@ def register_options(parser):
 
 
 def render_options(options):
-    # type: (ScieOptions) -> str
+    # type: (ScieOptions) -> Text
 
-    args = ["--scie", str(options.style)]
+    args = ["--scie", str(options.style)]  # type: List[Text]
     if options.busybox_entrypoints:
         args.append("--scie-busybox")
-        entrypoints = list(options.busybox_entrypoints.console_scripts)
+        entrypoints = []  # type: List[Text]
+        if options.busybox_entrypoints.console_scripts_manifest.add_all:
+            entrypoints.append("*:*")
+        for dist in options.busybox_entrypoints.console_scripts_manifest.add_distribution:
+            entrypoints.append("{dist}:*".format(dist=dist))
+        entrypoints.extend(options.busybox_entrypoints.console_scripts_manifest.add_individual)
+        for dist in options.busybox_entrypoints.console_scripts_manifest.remove_distribution:
+            entrypoints.append("-{dist}:*".format(dist=dist))
+        for script in options.busybox_entrypoints.console_scripts_manifest.remove_individual:
+            entrypoints.append("-{script}".format(script=script))
         entrypoints.extend(map(str, options.busybox_entrypoints.module_entry_points))
         args.append(",".join(entrypoints))
     for platform in options.platforms:
@@ -194,21 +204,27 @@ def extract_options(options):
         eps = []  # type: List[str]
         for value in options.scie_busybox:
             eps.extend(ep.strip() for ep in value.split(","))
-        if len(eps) == 1:
-            raise ValueError(
-                "A BusyBox PEX scie requires two or more entry points, you only supplied 1: "
-                "{ep!r}".format(ep=eps[0])
-            )
-        console_scripts = []  # type: List[str]
+
+        console_scripts_manifest = ConsoleScriptsManifest()
         modules = []  # type: List[ModuleEntryPoint]
+        bad_entry_points = []  # type: List[str]
         for ep in eps:
-            entry_point = ModuleEntryPoint.try_parse(ep)
-            if entry_point:
-                modules.append(entry_point)
+            csm = ConsoleScriptsManifest.try_parse(ep)
+            if csm:
+                console_scripts_manifest = console_scripts_manifest.merge(csm)
             else:
-                console_scripts.append(ep)
+                entry_point = ModuleEntryPoint.try_parse(ep)
+                if entry_point:
+                    modules.append(entry_point)
+                else:
+                    bad_entry_points.append(ep)
+        if bad_entry_points:
+            raise ValueError(
+                "The following --scie-busybox entry point specifications were not understood:\n"
+                "{bad_entry_points}".format(bad_entry_points="\n".join(bad_entry_points))
+            )
         entry_points = BusyBoxEntryPoints(
-            console_scripts=tuple(console_scripts), module_entry_points=tuple(modules)
+            console_scripts_manifest=console_scripts_manifest, module_entry_points=tuple(modules)
         )
 
     python_version = None  # type: Optional[Union[Tuple[int, int], Tuple[int, int, int]]]

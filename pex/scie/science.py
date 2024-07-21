@@ -95,7 +95,8 @@ def create_manifests(
     }
 
     commands = []  # type: List[Dict[str, Any]]
-    if configuration.options.busybox_entrypoints:
+    entrypoints = configuration.options.busybox_entrypoints
+    if entrypoints:
         commands.extend(
             {
                 "name": console_script,
@@ -107,20 +108,20 @@ def create_manifests(
                 "exe": "{scie.bindings.configure:PYTHON}",
                 "args": ["{scie.bindings.configure:PEX}"],
             }
-            for console_script in configuration.options.busybox_entrypoints.console_scripts
+            for console_script in entrypoints.console_scripts_manifest.collect(pex)
         )
         commands.extend(
             {
-                "name": mep.name,
+                "name": module_entry_point.name,
                 "env": {
                     "default": env_default,
-                    "replace": {"PEX_MODULE": mep.entry_point},
+                    "replace": {"PEX_MODULE": module_entry_point.entry_point},
                     "remove_exact": ["PEX_INTERPRETER", "PEX_SCRIPT"],
                 },
                 "exe": "{scie.bindings.configure:PYTHON}",
                 "args": ["{scie.bindings.configure:PEX}"],
             }
-            for mep in configuration.options.busybox_entrypoints.module_entry_points
+            for module_entry_point in entrypoints.module_entry_points
         )
     else:
         commands.append(
