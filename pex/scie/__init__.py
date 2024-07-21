@@ -180,9 +180,9 @@ def render_options(options):
             entrypoints.append("{dist}:*".format(dist=dist))
         entrypoints.extend(options.busybox_entrypoints.console_scripts_manifest.add_individual)
         for dist in options.busybox_entrypoints.console_scripts_manifest.remove_distribution:
-            entrypoints.append("-{dist}:*".format(dist=dist))
+            entrypoints.append("!{dist}:*".format(dist=dist))
         for script in options.busybox_entrypoints.console_scripts_manifest.remove_individual:
-            entrypoints.append("-{script}".format(script=script))
+            entrypoints.append("!{script}".format(script=script))
         entrypoints.extend(map(str, options.busybox_entrypoints.module_entry_points))
         args.append(",".join(entrypoints))
     for platform in options.platforms:
