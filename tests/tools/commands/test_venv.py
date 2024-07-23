@@ -15,12 +15,12 @@ from textwrap import dedent
 
 import pytest
 
-from pex.common import safe_mkdtemp, safe_open, temporary_dir, touch
+from pex.common import CopyMode, safe_mkdtemp, safe_open, temporary_dir, touch
 from pex.compatibility import PY2
 from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
 from pex.layout import Layout
-from pex.pex_builder import CopyMode, PEXBuilder
+from pex.pex_builder import PEXBuilder
 from pex.typing import TYPE_CHECKING, cast
 from pex.util import named_temporary_file
 from pex.venv.virtualenv import Virtualenv

@@ -13,12 +13,12 @@ from zipfile import ZipFile
 
 import pytest
 
-from pex.common import open_zip, safe_open, temporary_dir, touch
+from pex.common import CopyMode, open_zip, safe_open, temporary_dir, touch
 from pex.compatibility import WINDOWS, commonpath
 from pex.executor import Executor
 from pex.layout import Layout
 from pex.pex import PEX
-from pex.pex_builder import Check, CopyMode, InvalidZipAppError, PEXBuilder
+from pex.pex_builder import Check, InvalidZipAppError, PEXBuilder
 from pex.pex_warnings import PEXWarning
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV

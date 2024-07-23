@@ -9,7 +9,7 @@ from collections import Counter, OrderedDict, defaultdict
 from textwrap import dedent
 
 from pex import layout, pex_warnings
-from pex.common import chmod_plus_x, iter_copytree, pluralize
+from pex.common import CopyMode, chmod_plus_x, iter_copytree, pluralize
 from pex.compatibility import is_valid_python_identifier
 from pex.dist_metadata import Distribution
 from pex.environment import PEXEnvironment
@@ -250,17 +250,19 @@ def _script_python_args(hermetic):
 def _populate_flat_deps(
     dest_dir,  # type: str
     distributions,  # type: Iterable[Distribution]
-    symlink=False,  # type: bool
+    copy_mode=CopyMode.LINK,  # type: CopyMode.Value
 ):
     # type: (...) -> Iterator[Tuple[Text, Text]]
     for dist in distributions:
         try:
             installed_wheel = InstalledWheel.load(dist.location)
-            for src, dst in installed_wheel.reinstall_flat(target_dir=dest_dir, symlink=symlink):
+            for src, dst in installed_wheel.reinstall_flat(
+                target_dir=dest_dir, copy_mode=copy_mode
+            ):
                 yield src, dst
         except InstalledWheel.LoadError:
             for src, dst in _populate_legacy_dist(
-                dest_dir=dest_dir, bin_dir=dest_dir, dist=dist, symlink=symlink
+                dest_dir=dest_dir, bin_dir=dest_dir, dist=dist, copy_mode=copy_mode
             ):
                 yield src, dst
 
@@ -269,12 +271,12 @@ def populate_flat_distributions(
     dest_dir,  # type: str
     distributions,  # type: Iterable[Distribution]
     provenance,  # type: Provenance
-    symlink=False,  # type: bool
+    copy_mode=CopyMode.LINK,  # type: CopyMode.Value
 ):
     # type: (...) -> None
 
     provenance.record(
-        _populate_flat_deps(dest_dir=dest_dir, distributions=distributions, symlink=symlink)
+        _populate_flat_deps(dest_dir=dest_dir, distributions=distributions, copy_mode=copy_mode)
     )
 
 
@@ -282,7 +284,7 @@ def populate_venv_distributions(
     venv,  # type: Virtualenv
     distributions,  # type: Iterable[Distribution]
     provenance,  # type: Provenance
-    symlink=False,  # type: bool
+    copy_mode=CopyMode.LINK,  # type: CopyMode.Value
     hermetic_scripts=True,  # type: bool
     top_level_source_packages=(),  # type: Iterable[str]
 ):
@@ -293,7 +295,7 @@ def populate_venv_distributions(
             venv=venv,
             distributions=distributions,
             venv_python=provenance.target_python,
-            symlink=symlink,
+            copy_mode=copy_mode,
             hermetic_scripts=hermetic_scripts,
             top_level_source_packages=top_level_source_packages,
         )
@@ -358,7 +360,7 @@ def populate_venv_from_pex(
     bin_path=BinPath.FALSE,  # type: BinPath.Value
     python=None,  # type: Optional[str]
     collisions_ok=True,  # type: bool
-    symlink=False,  # type: bool
+    copy_mode=CopyMode.LINK,  # type: CopyMode.Value
     scope=InstallScope.ALL,  # type: InstallScope.Value
     hermetic_scripts=True,  # type: bool
 ):
@@ -372,7 +374,7 @@ def populate_venv_from_pex(
         populate_venv_distributions(
             venv=venv,
             distributions=pex.resolve(),
-            symlink=symlink,
+            copy_mode=copy_mode,
             hermetic_scripts=hermetic_scripts,
             provenance=provenance,
             top_level_source_packages=top_level_source_packages,
@@ -397,7 +399,7 @@ def _populate_legacy_dist(
     dest_dir,  # type: str
     bin_dir,  # type: str
     dist,  # type: Distribution
-    symlink=False,  # type: bool
+    copy_mode=CopyMode.LINK,  # type: CopyMode.Value
 ):
     # N.B.: We do not include the top_level __pycache__ for a dist since there may be
     # multiple dists with top-level modules. In that case, one dists top-level __pycache__
@@ -406,13 +408,13 @@ def _populate_legacy_dist(
     # just 1 top-level module, we keep .pyc anchored to their associated dists when shared
     # and accept the cost of re-compiling top-level modules in each venv that uses them.
     for src, dst in iter_copytree(
-        src=dist.location, dst=dest_dir, exclude=("bin", "__pycache__"), symlink=symlink
+        src=dist.location, dst=dest_dir, exclude=("bin", "__pycache__"), copy_mode=copy_mode
     ):
         yield src, dst
 
     dist_bin_dir = os.path.join(dist.location, "bin")
     if os.path.isdir(dist_bin_dir):
-        for src, dst in iter_copytree(src=dist_bin_dir, dst=bin_dir, symlink=symlink):
+        for src, dst in iter_copytree(src=dist_bin_dir, dst=bin_dir, copy_mode=copy_mode):
             yield src, dst
 
 
@@ -420,7 +422,7 @@ def _populate_venv_deps(
     venv,  # type: Virtualenv
     distributions,  # type: Iterable[Distribution]
     venv_python,  # type: str
-    symlink=False,  # type: bool
+    copy_mode=CopyMode.LINK,  # type: CopyMode.Value
     hermetic_scripts=True,  # type: bool
     top_level_source_packages=(),  # type: Iterable[str]
 ):
@@ -433,7 +435,7 @@ def _populate_venv_deps(
     rel_extra_paths = OrderedSet()  # type: OrderedSet[str]
     for dist in distributions:
         rel_extra_path = None
-        if symlink:
+        if copy_mode is CopyMode.SYMLINK:
             # In the symlink case, in order to share all generated *.pyc files for a given
             # distribution, we need to be able to have each contribution to a namespace package get
             # its own top-level symlink. This requires adjoining extra sys.path entries beyond
@@ -468,7 +470,7 @@ def _populate_venv_deps(
         try:
             installed_wheel = InstalledWheel.load(dist.location)
             for src, dst in installed_wheel.reinstall_venv(
-                venv, symlink=symlink, rel_extra_path=rel_extra_path
+                venv, copy_mode=copy_mode, rel_extra_path=rel_extra_path
             ):
                 yield src, dst
         except InstalledWheel.LoadError:
@@ -484,7 +486,7 @@ def _populate_venv_deps(
                 else site_packages_dir
             )
             for src, dst in _populate_legacy_dist(
-                dest_dir=dst, bin_dir=venv.bin_dir, dist=dist, symlink=symlink
+                dest_dir=dst, bin_dir=venv.bin_dir, dist=dist, copy_mode=copy_mode
             ):
                 yield src, dst
 
@@ -548,7 +550,7 @@ def _populate_sources(
         src=pex_sources.path,
         dst=dst,
         exclude=pex_sources.excludes,
-        symlink=False,
+        copy_mode=CopyMode.COPY,
     ):
         yield src, dest
 

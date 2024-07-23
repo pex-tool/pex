@@ -9,7 +9,7 @@ import sys
 
 from pex import pex_warnings
 from pex.atomic_directory import atomic_directory
-from pex.common import die, pluralize
+from pex.common import CopyMode, die, pluralize
 from pex.environment import ResolveError
 from pex.inherit_path import InheritPath
 from pex.interpreter import PythonInterpreter
@@ -555,7 +555,11 @@ def ensure_venv(
                     # so we'll not have a stable base there to symlink from. As such, always copy
                     # for loose PEXes to ensure the PEX_ROOT venv is stable in the face of
                     # modification of the source loose PEX.
-                    symlink = pex.layout != Layout.LOOSE and not pex_info.venv_site_packages_copies
+                    copy_mode = (
+                        CopyMode.SYMLINK
+                        if (pex.layout != Layout.LOOSE and not pex_info.venv_site_packages_copies)
+                        else CopyMode.LINK
+                    )
 
                     shebang = installer.populate_venv_from_pex(
                         virtualenv,
@@ -568,7 +572,7 @@ def ensure_venv(
                             os.path.basename(virtualenv.interpreter.binary),
                         ),
                         collisions_ok=collisions_ok,
-                        symlink=symlink,
+                        copy_mode=copy_mode,
                         hermetic_scripts=pex_info.venv_hermetic_scripts,
                     )
 

@@ -14,7 +14,7 @@ import shutil
 from fileinput import FileInput
 
 from pex import hashing
-from pex.common import is_pyc_dir, is_pyc_file, safe_mkdir, safe_open
+from pex.common import CopyMode, is_pyc_dir, is_pyc_file, safe_mkdir, safe_open
 from pex.interpreter import PythonInterpreter
 from pex.typing import TYPE_CHECKING, cast
 from pex.util import CacheHelper
@@ -280,7 +280,7 @@ class InstalledWheel(object):
     def reinstall_flat(
         self,
         target_dir,  # type: str
-        symlink=False,  # type: bool
+        copy_mode=CopyMode.LINK,  # type: CopyMode.Value
     ):
         # type: (...) -> Iterator[Tuple[Text, Text]]
         """Re-installs the installed wheel in a flat target directory.
@@ -296,8 +296,8 @@ class InstalledWheel(object):
         """
         installed_files = [InstalledFile(self.record_relpath)]
         for src, dst in itertools.chain(
-            self._reinstall_stash(dest_dir=target_dir),
-            self._reinstall_site_packages(target_dir, symlink=symlink),
+            self._reinstall_stash(dest_dir=target_dir, link=copy_mode is not CopyMode.COPY),
+            self._reinstall_site_packages(target_dir, copy_mode=copy_mode),
         ):
             installed_files.append(self.create_installed_file(path=dst, dest_dir=target_dir))
             yield src, dst
@@ -307,7 +307,7 @@ class InstalledWheel(object):
     def reinstall_venv(
         self,
         venv,  # type: Virtualenv
-        symlink=False,  # type: bool
+        copy_mode=CopyMode.LINK,  # type: CopyMode.Value
         rel_extra_path=None,  # type: Optional[str]
     ):
         # type: (...) -> Iterator[Tuple[Text, Text]]
@@ -330,8 +330,12 @@ class InstalledWheel(object):
 
         installed_files = [InstalledFile(self.record_relpath)]
         for src, dst in itertools.chain(
-            self._reinstall_stash(dest_dir=venv.venv_dir, interpreter=venv.interpreter),
-            self._reinstall_site_packages(site_packages_dir, symlink=symlink),
+            self._reinstall_stash(
+                dest_dir=venv.venv_dir,
+                interpreter=venv.interpreter,
+                link=copy_mode is not CopyMode.COPY,
+            ),
+            self._reinstall_site_packages(site_packages_dir, copy_mode=copy_mode),
         ):
             installed_files.append(self.create_installed_file(path=dst, dest_dir=site_packages_dir))
             yield src, dst
@@ -342,10 +346,10 @@ class InstalledWheel(object):
         self,
         dest_dir,  # type: str
         interpreter=None,  # type: Optional[PythonInterpreter]
+        link=True,  # type: bool
     ):
         # type: (...) -> Iterator[Tuple[Text, Text]]
 
-        link = True
         stash_abs_path = os.path.join(self.prefix_dir, self.stash_dir)
         for root, dirs, files in os.walk(stash_abs_path, topdown=True, followlinks=True):
             dir_created = False
@@ -380,11 +384,11 @@ class InstalledWheel(object):
     def _reinstall_site_packages(
         self,
         site_packages_dir,  # type: str
-        symlink=False,  # type: bool
+        copy_mode=CopyMode.LINK,  # type: CopyMode.Value
     ):
         # type: (...) -> Iterator[Tuple[Text, Text]]
 
-        link = True
+        link = copy_mode is CopyMode.LINK
         for root, dirs, files in os.walk(self.prefix_dir, topdown=True, followlinks=True):
             if root == self.prefix_dir:
                 dirs[:] = [d for d in dirs if not is_pyc_dir(d) and d != self.stash_dir]
@@ -401,7 +405,7 @@ class InstalledWheel(object):
                     site_packages_dir, os.path.relpath(src_entry, self.prefix_dir)
                 )
                 try:
-                    if symlink and not (
+                    if copy_mode is CopyMode.SYMLINK and not (
                         src_entry.endswith(".dist-info") and os.path.isdir(src_entry)
                     ):
                         dst_parent = os.path.dirname(dst_entry)
