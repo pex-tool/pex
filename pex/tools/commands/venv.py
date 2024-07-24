@@ -9,7 +9,7 @@ import os
 from argparse import ArgumentParser
 
 from pex import pex_warnings
-from pex.common import safe_delete, safe_rmtree
+from pex.common import CopyMode, safe_delete, safe_rmtree
 from pex.enum import Enum
 from pex.executor import Executor
 from pex.pex import PEX
@@ -143,7 +143,9 @@ class Venv(PEXCommand):
             pex,
             bin_path=installer_configuration.bin_path,
             collisions_ok=installer_configuration.collisions_ok,
-            symlink=False,
+            copy_mode=(
+                CopyMode.COPY if installer_configuration.site_packages_copies else CopyMode.LINK
+            ),
             scope=installer_configuration.scope,
             hermetic_scripts=installer_configuration.hermetic_scripts,
         )

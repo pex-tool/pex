@@ -8,11 +8,12 @@ from textwrap import dedent
 
 from colors import cyan
 
-from pex.common import is_pyc_file, safe_open
+from pex.common import CopyMode, is_pyc_file, safe_open
 from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper
 from pex.venv.virtualenv import Virtualenv
 from testing import IntegResults, make_env, run_pex_command
+from testing.venv import assert_venv_site_packages_copy_mode
 
 if TYPE_CHECKING:
     from typing import Any, Set, Text
@@ -342,3 +343,48 @@ def test_non_hermetic_issue_2004(
 
     assert "Hermetic" in str(hermetic_check)
     assert "Not hermetic" in str(non_hermetic_check)
+
+
+def test_site_packages_copies(tmpdir):
+    # type: (Any) -> None
+
+    pex = os.path.join(str(tmpdir), "pex")
+    pex_root = os.path.join(str(tmpdir), "pex_root")
+    run_pex_command(
+        args=[
+            "--pex-root",
+            pex_root,
+            "--runtime-pex-root",
+            pex_root,
+            "ansicolors==1.1.8",
+            "--include-tools",
+            "-o",
+            pex,
+        ]
+    ).assert_success()
+
+    def assert_venv(
+        venv_dir,  # type: str
+        expect_copies,  # type: bool
+    ):
+        # type: (...) -> None
+        assert_venv_site_packages_copy_mode(
+            venv_dir,
+            expected_copy_mode=CopyMode.COPY if expect_copies else CopyMode.LINK,
+            expected_files=[
+                os.path.join("colors", "__init__.py"),
+                os.path.join("colors", "colors.py"),
+                os.path.join("colors", "csscolors.py"),
+                os.path.join("colors", "version.py"),
+            ],
+        )
+
+    venv = os.path.join(str(tmpdir), "venv")
+    subprocess.check_call(args=[pex, "venv", venv], env=make_env(PEX_TOOLS=1))
+    assert_venv(venv, expect_copies=False)
+
+    venv_copies = os.path.join(str(tmpdir), "venv-copies")
+    subprocess.check_call(
+        args=[pex, "venv", "--site-packages-copies", venv_copies], env=make_env(PEX_TOOLS=1)
+    )
+    assert_venv(venv_copies, expect_copies=True)

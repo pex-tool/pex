@@ -78,6 +78,12 @@ def register(
         help="Create the venv using copies of system files instead of symlinks",
     )
     parser.add_argument(
+        "--site-packages-copies",
+        action="store_true",
+        default=False,
+        help="Create the venv using copies of distributions instead of links or symlinks",
+    )
+    parser.add_argument(
         "--compile",
         action="store_true",
         default=False,
@@ -109,6 +115,7 @@ def configure(options):
         collisions_ok=options.collisions_ok,
         pip=options.pip,
         copies=options.copies,
+        site_packages_copies=options.site_packages_copies,
         compile=options.compile,
         prompt=options.prompt,
         hermetic_scripts=options.hermetic_scripts,

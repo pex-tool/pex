@@ -11,7 +11,7 @@ from argparse import ArgumentParser, _ActionsContainer
 from pex import pex_warnings
 from pex.cli.command import BuildTimeCommand
 from pex.commands.command import JsonMixin, OutputMixin
-from pex.common import DETERMINISTIC_DATETIME, is_script, open_zip, pluralize
+from pex.common import DETERMINISTIC_DATETIME, CopyMode, is_script, open_zip, pluralize
 from pex.dist_metadata import Distribution
 from pex.enum import Enum
 from pex.executor import Executor
@@ -311,7 +311,11 @@ class Venv(OutputMixin, JsonMixin, BuildTimeCommand):
                     venv=venv,
                     distributions=distributions,
                     provenance=provenance,
-                    symlink=False,
+                    copy_mode=(
+                        CopyMode.COPY
+                        if installer_configuration.site_packages_copies
+                        else CopyMode.LINK
+                    ),
                     hermetic_scripts=hermetic_scripts,
                 )
             else:
@@ -319,7 +323,11 @@ class Venv(OutputMixin, JsonMixin, BuildTimeCommand):
                     dest_dir=dest_dir,
                     distributions=distributions,
                     provenance=provenance,
-                    symlink=False,
+                    copy_mode=(
+                        CopyMode.COPY
+                        if installer_configuration.site_packages_copies
+                        else CopyMode.LINK
+                    ),
                 )
             source = (
                 "PEX at {pex}".format(pex=pex.path())
@@ -388,7 +396,9 @@ def _install_from_pex(
                 venv=venv,
                 distributions=distributions,
                 provenance=provenance,
-                symlink=False,
+                copy_mode=(
+                    CopyMode.COPY if installer_configuration.site_packages_copies else CopyMode.LINK
+                ),
                 hermetic_scripts=hermetic_scripts,
                 top_level_source_packages=top_level_source_packages,
             )
@@ -397,7 +407,9 @@ def _install_from_pex(
                 dest_dir=dest_dir,
                 distributions=distributions,
                 provenance=provenance,
-                symlink=False,
+                copy_mode=(
+                    CopyMode.COPY if installer_configuration.site_packages_copies else CopyMode.LINK
+                ),
             )
 
     if installer_configuration.scope in (InstallScope.ALL, InstallScope.SOURCE_ONLY):
