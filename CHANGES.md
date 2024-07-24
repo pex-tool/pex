@@ -1,5 +1,24 @@
 # Release Notes
 
+## 2.12.0
+
+This release adds support for passing `--site-packages-copies` to both
+`pex3 venv create ...` and `PEX_TOOLS=1 ./my.pex venv ...`. This is
+similar to `pex --venv --venv-site-packages-copies ...` except that
+instead of preferring hard links, a copy is always performed. This is
+useful to disassociate venvs you create using Pex from Pex's underlying
+`PEX_ROOT` cache.
+
+This release also adds partial support for statically linked CPython. If
+the statically linked CPython is `<3.12`, the default Pip (
+`--pip-version vendored`) used by Pex will work. All newer Pips will not
+though, until Pip 24.2 is released with the fix in
+https://github.com/pypa/pip/pull/12716 and Pex releases with support for
+`--pip-version 24.2`.
+
+* Add `--site-packages-copies` for external venvs. (#2470)
+* Support statically linked CPython. (#2472)
+
 ## 2.11.0
 
 This release adds support for creating native PEX executables that
