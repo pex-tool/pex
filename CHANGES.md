@@ -12,7 +12,7 @@ https://nvd.nist.gov/vuln/detail/CVE-2023-37920) and was spearheaded by
 a contribution from [Nash Kaminski](https://github.com/gs-kamnas) in
 https://github.com/pex-tool/pip/pull/12. Thank you, Nash!
 
-* Updated vendored Pip's CA cert bundle. (#2476)
+* Update vendored Pip's CA cert bundle. (#2476)
 
 ## 2.12.0
 
