@@ -207,7 +207,7 @@ def iter_vendor_specs(filter_requires_python=None):
     # We shell out to pip at buildtime to resolve and install dependencies.
     # N.B.: We're currently using a patched version of Pip 20.3.4 housed at
     # https://github.com/pex-tool/pip/tree/pex/patches/generation-2.
-    # It has 3 patches:
+    # It has 4 patches:
     # 1.) https://github.com/pex-tool/pip/commit/06f462537c981116c763c1ba40cf40e9dd461bcf
     #     The patch works around a bug in `pip download --constraint...` tracked at
     #     https://github.com/pypa/pip/issues/9283 and fixed by https://github.com/pypa/pip/pull/9301
@@ -222,9 +222,12 @@ def iter_vendor_specs(filter_requires_python=None):
     #     https://github.com/pypa/pip/commit/601bcf82eccfbc15c1ff6cc735aafb2c9dab81a5
     #     (https://github.com/pypa/pip/pull/12716) from upstream that fixes glibc version probing on
     #     musl libc systems.
+    # 4.) https://github.com/pex-tool/pip/commit/48508331d331a1c326b0eccf4aac7476bc7ccca8
+    #     This sets up and runs the 1st semi-automated update of Pip's vendored certifi's cacert.pem
+    #     bringing it up to date with certifi 2024.7.4.
     yield VendorSpec.git(
         repo="https://github.com/pex-tool/pip",
-        commit="00827ec9f4275a7786425cf006466c56f4cbd862",
+        commit="48508331d331a1c326b0eccf4aac7476bc7ccca8",
         project_name="pip",
         rewrite=False,
     )
