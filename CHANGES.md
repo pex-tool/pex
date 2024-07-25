@@ -1,5 +1,19 @@
 # Release Notes
 
+## 2.12.1
+
+This release refreshes the root CA cert bundle used by
+`--pip-version vendored` (which is the default Pip Pex uses for
+Python `<3.12`) from [certifi 2019.9.11](
+https://pypi.org/project/certifi/2019.9.11/)'s `cacert.pem` to
+[certifi 2024.7.4](https://pypi.org/project/certifi/2024.7.4/)'s
+`cacert.pem`. This refresh addresses at least [CVE-2023-37920](
+https://nvd.nist.gov/vuln/detail/CVE-2023-37920) and was spearheaded by
+a contribution from [Nash Kaminski](https://github.com/gs-kamnas) in
+https://github.com/pex-tool/pip/pull/12. Thank you, Nash!
+
+* Updated vendored Pip's CA cert bundle. (#2476)
+
 ## 2.12.0
 
 This release adds support for passing `--site-packages-copies` to both
