@@ -186,7 +186,13 @@ def _invoke_build_hook(
             stderr=subprocess.PIPE,
         )
         return SpawnedJob.file(
-            Job(command=args, process=process),
+            Job(
+                command=args,
+                process=process,
+                context="PEP-517:{hook_method} at {project_directory}".format(
+                    hook_method=hook_method, project_directory=project_directory
+                ),
+            ),
             output_file=fp.name,
             result_func=lambda file_content: json.loads(file_content.decode("utf-8")),
         )

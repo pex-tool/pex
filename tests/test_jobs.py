@@ -1,6 +1,8 @@
 # Copyright 2019 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+from __future__ import absolute_import
+
 import json
 import os
 import subprocess
@@ -8,12 +10,12 @@ from textwrap import dedent
 
 import pytest
 
-from pex.interpreter import spawn_python_job
+from pex.interpreter import PythonInterpreter
 from pex.jobs import _ABSOLUTE_MAX_JOBS, DEFAULT_MAX_JOBS, Job, SpawnedJob, _sanitize_max_jobs
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from typing import Any, Dict
+    from typing import Any, Dict, Iterable
 
 
 def test_sanitize_max_jobs_none():
@@ -38,6 +40,15 @@ def test_sanitize_max_jobs_too_large():
     assert _ABSOLUTE_MAX_JOBS == _sanitize_max_jobs(_ABSOLUTE_MAX_JOBS)
     assert _ABSOLUTE_MAX_JOBS == _sanitize_max_jobs(_ABSOLUTE_MAX_JOBS + 1)
     assert _ABSOLUTE_MAX_JOBS == _sanitize_max_jobs(_ABSOLUTE_MAX_JOBS + 5)
+
+
+def spawn_python_job(
+    args,  # type: Iterable[str]
+    **subprocess_kwargs  # type: Any
+):
+    # type: (...) -> Job
+    cmd, process = PythonInterpreter.get().open_process(args=args, **subprocess_kwargs)
+    return Job(command=cmd, process=process)
 
 
 def create_error_job(exit_code):

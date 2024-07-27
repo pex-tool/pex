@@ -651,22 +651,40 @@ def requires_dists(location):
         )
 
 
+# Frozen exception types don't work under 3.11+ where the `__traceback__` attribute can be set
+# after construction in some cases.
+@attr.s
 class RequirementParseError(Exception):
     """Indicates and invalid requirement string.
 
     See PEP-508: https://www.python.org/dev/peps/pep-0508
     """
 
+    error = attr.ib()  # type: Any
+    source = attr.ib(default=None)  # type: Optional[str]
+
+    def __str__(self):
+        # type: () -> str
+        if not self.source:
+            return str(self.error)
+        return "Failed to parse a requirement of {source}: {err}".format(
+            err=self.error, source=self.source
+        )
+
 
 @attr.s(frozen=True)
 class Constraint(object):
     @classmethod
-    def parse(cls, constraint):
-        # type: (Text) -> Constraint
+    def parse(
+        cls,
+        constraint,  # type: Text
+        source=None,  # type: Optional[str]
+    ):
+        # type: (...) -> Constraint
         try:
             return cls.from_packaging_requirement(PackagingRequirement(constraint))
         except InvalidRequirement as e:
-            raise RequirementParseError(str(e))
+            raise RequirementParseError(str(e), source=source)
 
     @classmethod
     def from_packaging_requirement(cls, requirement):
@@ -777,12 +795,16 @@ class Constraint(object):
 @attr.s(frozen=True)
 class Requirement(Constraint):
     @classmethod
-    def parse(cls, requirement):
-        # type: (Text) -> Requirement
+    def parse(
+        cls,
+        requirement,  # type: Text
+        source=None,  # type: Optional[str]
+    ):
+        # type: (...) -> Requirement
         try:
             return cls.from_packaging_requirement(PackagingRequirement(requirement))
         except InvalidRequirement as e:
-            raise RequirementParseError(str(e))
+            raise RequirementParseError(str(e), source=source)
 
     @classmethod
     def from_packaging_requirement(cls, requirement):

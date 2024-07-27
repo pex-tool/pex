@@ -50,6 +50,7 @@ if TYPE_CHECKING:
         Iterator,
         List,
         Mapping,
+        Match,
         Optional,
         Sequence,
         Tuple,
@@ -230,6 +231,42 @@ class _Issue9420Analyzer(ErrorAnalyzer):
                 return self.Complete()
             else:
                 return self.Continue(ErrorMessage(line[self._strip :]))
+        return self.Continue()
+
+
+@attr.s
+class _PexIssue2113Analyzer(ErrorAnalyzer):
+    # Improves obscure error output described in: https://github.com/pex-tool/pex/issues/2113
+
+    _strip = attr.ib(default=0, init=False)  # type: Optional[int]
+    _command = attr.ib(default=None, init=False)  # type: Optional[str]
+    _command_output = attr.ib(factory=list, init=False)  # type: List[str]
+    _command_errored = attr.ib(default=None, init=False)  # type: Optional[Match]
+
+    def analyze(self, line):
+        # type: (str) -> ErrorAnalysis
+
+        if self._command_errored:
+            return self.Complete()
+
+        match = re.match(r"^(?P<timestamp>\S+)\s+Running command (?P<command>.*)$", line)
+        if match:
+            self._strip = len(match.group("timestamp"))
+            self._command = match.group("command")
+            del self._command_output[:]
+            self._command_output.append(line[self._strip :])
+            return self.Continue()
+
+        if self._command:
+            self._command_errored = re.match(
+                r"^\S+\s+ERROR:.*{command}".format(command=re.escape(self._command)), line
+            )
+            if self._command_errored:
+                return self.Continue(
+                    ErrorMessage("".join(self._command_output + [line[self._strip :]]))
+                )
+            self._command_output.append(line[self._strip :])
+
         return self.Continue()
 
 
@@ -414,7 +451,7 @@ class Pip(object):
             extra_env=extra_env,
             **popen_kwargs
         )
-        return Job(command=command, process=process, finalizer=finalizer)
+        return Job(command=command, process=process, finalizer=finalizer, context="pip")
 
     @staticmethod
     def _iter_build_configuration_options(build_configuration):
@@ -540,56 +577,52 @@ class Pip(object):
         ):
             log_analyzers.append(_Issue9420Analyzer())
 
-        log = None
+        # Most versions of Pip hide useful information when a metadata build command fails; this
+        # analyzer brings that build failure information to the fore.
+        log_analyzers.append(_PexIssue2113Analyzer())
+
         popen_kwargs = {}
         finalizer = None
-        if log_analyzers:
-            prefix = "pex-pip-log."
-            log = os.path.join(
-                mkdtemp(prefix=prefix) if preserve_log else safe_mkdtemp(prefix=prefix), "pip.log"
-            )
-            if preserve_log:
-                TRACER.log(
-                    "Preserving `pip download` log at {log_path}".format(log_path=log),
-                    V=ENV.PEX_VERBOSE,
-                )
 
-            download_cmd = ["--log", log] + download_cmd
-            # N.B.: The `pip -q download ...` command is quiet but
-            # `pip -q --log log.txt download ...` leaks download progress bars to stdout. We work
-            # around this by sending stdout to the bit bucket.
-            popen_kwargs["stdout"] = open(os.devnull, "wb")
-
-            if ENV.PEX_VERBOSE > 0:
-                tailer = Tailer.tail(
-                    path=log,
-                    output=get_stderr_bytes_buffer(),
-                    filters=(
-                        re.compile(
-                            r"^.*(pip is looking at multiple versions of [^\s+] to determine "
-                            r"which version is compatible with other requirements\. This could "
-                            r"take a while\.).*$"
-                        ),
-                        re.compile(
-                            r"^.*(This is taking longer than usual. You might need to provide "
-                            r"the dependency resolver with stricter constraints to reduce "
-                            r"runtime\. If you want to abort this run, you can press "
-                            r"Ctrl \+ C to do so\. To improve how pip performs, tell us what "
-                            r"happened here: https://pip\.pypa\.io/surveys/backtracking).*$"
-                        ),
-                    ),
-                )
-
-                def finalizer(_):
-                    # type: (int) -> None
-                    tailer.stop()
-
-        elif preserve_log:
+        prefix = "pex-pip-log."
+        log = os.path.join(
+            mkdtemp(prefix=prefix) if preserve_log else safe_mkdtemp(prefix=prefix), "pip.log"
+        )
+        if preserve_log:
             TRACER.log(
-                "The `pip download` log is not being utilized, to see more `pip download` "
-                "details, re-run with more Pex verbosity (more `-v`s).",
+                "Preserving `pip download` log at {log_path}".format(log_path=log),
                 V=ENV.PEX_VERBOSE,
             )
+
+        download_cmd = ["--log", log] + download_cmd
+        # N.B.: The `pip -q download ...` command is quiet but
+        # `pip -q --log log.txt download ...` leaks download progress bars to stdout. We work
+        # around this by sending stdout to the bit bucket.
+        popen_kwargs["stdout"] = open(os.devnull, "wb")
+
+        if ENV.PEX_VERBOSE > 0:
+            tailer = Tailer.tail(
+                path=log,
+                output=get_stderr_bytes_buffer(),
+                filters=(
+                    re.compile(
+                        r"^.*(pip is looking at multiple versions of [^\s+] to determine "
+                        r"which version is compatible with other requirements\. This could "
+                        r"take a while\.).*$"
+                    ),
+                    re.compile(
+                        r"^.*(This is taking longer than usual. You might need to provide "
+                        r"the dependency resolver with stricter constraints to reduce "
+                        r"runtime\. If you want to abort this run, you can press "
+                        r"Ctrl \+ C to do so\. To improve how pip performs, tell us what "
+                        r"happened here: https://pip\.pypa\.io/surveys/backtracking).*$"
+                    ),
+                ),
+            )
+
+            def finalizer(_):
+                # type: (int) -> None
+                tailer.stop()
 
         command, process = self._spawn_pip_isolated(
             download_cmd,
@@ -604,7 +637,7 @@ class Pip(object):
                 command, process, log, log_analyzers, preserve_log=preserve_log, finalizer=finalizer
             )
         else:
-            return Job(command, process)
+            return Job(command, process, context="pip")
 
     def _ensure_wheel_installed(self, package_index_configuration=None):
         # type: (Optional[PackageIndexConfiguration]) -> None

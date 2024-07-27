@@ -29,7 +29,6 @@ from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
 from pex.pip.installation import get_pip
 from pex.resolve.configured_resolver import ConfiguredResolver
-from pex.resolve.resolver_configuration import PipConfiguration
 from pex.typing import TYPE_CHECKING
 from pex.util import named_temporary_file
 from pex.venv.virtualenv import InstallationChoice, Virtualenv
@@ -211,7 +210,7 @@ class WheelBuilder(object):
         # type: () -> str
         get_pip(
             interpreter=self._interpreter,
-            resolver=ConfiguredResolver(pip_configuration=PipConfiguration()),
+            resolver=ConfiguredResolver.default(),
         ).spawn_build_wheels(
             distributions=[self._source_dir],
             wheel_dir=self._wheel_dir,

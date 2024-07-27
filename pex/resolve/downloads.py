@@ -186,6 +186,11 @@ class ArtifactDownloader(object):
             try:
                 self._download(url=artifact.url, download_dir=dest_dir).wait()
             except Job.Error as e:
-                return Error((e.stderr or str(e)).splitlines()[-1])
+                error_lines = list(e.contextualized_stderr()) or str(e).splitlines()
+                return Error(
+                    os.linesep.join(error_lines)
+                    if "See above for details" in error_lines[-1]
+                    else error_lines[-1]
+                )
         hashing.file_hash(dest_file, digest)
         return artifact.filename

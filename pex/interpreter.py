@@ -46,7 +46,6 @@ if TYPE_CHECKING:
         Mapping,
         MutableMapping,
         Optional,
-        Sequence,
         Text,
         Tuple,
         Union,
@@ -1564,45 +1563,6 @@ class PythonInterpreter(object):
         return "{type}({binary!r}, {identity!r})".format(
             type=self.__class__.__name__, binary=self._binary, identity=self._identity
         )
-
-
-def spawn_python_job(
-    args,  # type: Iterable[str]
-    env=None,  # type: Optional[Mapping[str, str]]
-    interpreter=None,  # type: Optional[PythonInterpreter]
-    expose=None,  # type: Optional[Sequence[str]]
-    pythonpath=None,  # type: Optional[Iterable[str]]
-    **subprocess_kwargs  # type: Any
-):
-    # type: (...) -> Job
-    """Spawns a python job.
-
-    :param args: The arguments to pass to the python interpreter.
-    :param env: The environment to spawn the python interpreter process in. Defaults to the ambient
-                environment.
-    :param interpreter: The interpreter to use to spawn the python job. Defaults to the current
-                        interpreter.
-    :param expose: The names of any vendored distributions to expose to the spawned python process.
-                   These will be appended to `pythonpath` if passed.
-    :param pythonpath: The PYTHONPATH to expose to the spawned python process. These will be
-                       pre-pended to the `expose` path if passed.
-    :param subprocess_kwargs: Any additional :class:`subprocess.Popen` kwargs to pass through.
-    :returns: A job handle to the spawned python process.
-    """
-    pythonpath = list(pythonpath or ())
-    subprocess_env = dict(env or os.environ)
-    if expose:
-        # In order to expose vendored distributions with their un-vendored import paths in-tact, we
-        # need to set `__PEX_UNVENDORED__`. See: vendor.__main__.ImportRewriter._modify_import.
-        subprocess_env["__PEX_UNVENDORED__"] = ",".join(expose)
-
-        pythonpath.extend(third_party.expose(expose, interpreter=interpreter))
-
-    interpreter = interpreter or PythonInterpreter.get()
-    cmd, process = interpreter.open_process(
-        args=args, pythonpath=pythonpath, env=subprocess_env, **subprocess_kwargs
-    )
-    return Job(command=cmd, process=process)
 
 
 # See the "Test results from various systems" table here:
