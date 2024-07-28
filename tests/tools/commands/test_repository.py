@@ -17,6 +17,7 @@ from pex.common import DETERMINISTIC_DATETIME, open_zip, safe_open, temporary_di
 from pex.dist_metadata import Distribution, Requirement
 from pex.pip.installation import get_pip
 from pex.pip.version import PipVersion
+from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.resolver_configuration import BuildConfiguration
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.typing import TYPE_CHECKING
@@ -218,7 +219,7 @@ def test_extract_lifecycle(pex, pex_tools_env, tmpdir):
     # Since we'll be locking down indexes to just find-links, we need to include the wheel .whl
     # needed by vendored Pip.
     vendored_pip_dists_dir = os.path.join(str(tmpdir), "vendored-pip-dists")
-    get_pip().spawn_download_distributions(
+    get_pip(resolver=ConfiguredResolver.default()).spawn_download_distributions(
         download_dir=vendored_pip_dists_dir,
         requirements=[PipVersion.VENDORED.wheel_requirement],
         build_configuration=BuildConfiguration.create(allow_builds=False),

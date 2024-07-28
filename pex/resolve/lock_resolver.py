@@ -400,7 +400,7 @@ def resolve_from_lock(
                             index=index,
                             pin=downloadable_artifact.pin,
                             url=downloadable_artifact.artifact.url.download_url,
-                            error=error,
+                            error="\n    ".join(str(error).splitlines()),
                         )
                         for index, (downloadable_artifact, error) in enumerate(
                             download_errors.items(), start=1

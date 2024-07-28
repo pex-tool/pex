@@ -7,6 +7,7 @@ import os
 import subprocess
 from abc import abstractmethod
 
+from pex.common import safe_delete
 from pex.jobs import Job
 from pex.typing import TYPE_CHECKING, Generic
 
@@ -81,7 +82,7 @@ class LogScrapeJob(Job):
         self._log = log
         self._log_analyzers = list(log_analyzers)
         self._preserve_log = preserve_log
-        super(LogScrapeJob, self).__init__(command, process, finalizer=finalizer)
+        super(LogScrapeJob, self).__init__(command, process, finalizer=finalizer, context="pip")
 
     def _check_returncode(self, stderr=None):
         # type: (Optional[bytes]) -> None
@@ -90,6 +91,7 @@ class LogScrapeJob(Job):
             for analyzer in self._log_analyzers
             if analyzer.should_collect(self._process.returncode)
         ]
+        analyzed_stderr = b""  # type: bytes
         if activated_analyzers:
             collected = []
             # A process may fail so early that there is no log file to analyze.
@@ -100,7 +102,7 @@ class LogScrapeJob(Job):
                     for line in fp:
                         if not activated_analyzers:
                             break
-                        for index, analyzer in enumerate(activated_analyzers):
+                        for index, analyzer in tuple(enumerate(activated_analyzers)):
                             result = analyzer.analyze(line)
                             if isinstance(result.data, ErrorMessage):
                                 collected.append(result.data)
@@ -110,7 +112,21 @@ class LogScrapeJob(Job):
                                     break
                 for analyzer in activated_analyzers:
                     analyzer.analysis_completed()
-                if not self._preserve_log:
-                    os.unlink(self._log)
-                stderr = (stderr or b"") + "".join(collected).encode("utf-8")
-        super(LogScrapeJob, self)._check_returncode(stderr=stderr)
+            if collected:
+                analyzed_stderr = "".join(collected).encode("utf-8")
+
+        # Fall back to displaying the Pip logs in full if we have no stderr output or analysis. It's
+        # likely overwhelming, but better than silence and useful for debugging.
+        if (
+            not stderr
+            and not analyzed_stderr
+            and self._process.returncode != 0
+            and os.path.isfile(self._log)
+        ):
+            with open(self._log, "rb") as fp:
+                analyzed_stderr = fp.read()
+
+        if not self._preserve_log:
+            safe_delete(self._log)
+
+        super(LogScrapeJob, self)._check_returncode(stderr=(stderr or b"") + analyzed_stderr)

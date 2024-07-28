@@ -63,19 +63,33 @@ class Job(object):
             exitcode,  # type: int
             stderr,  # type: Optional[Text]
             message,  # type: str
+            context=None,  # type: Optional[str]
         ):
             # type: (...) -> None
-            super(Job.Error, self).__init__(message)
+            super(Job.Error, self).__init__(
+                "{ctx}: {msg}".format(ctx=context, msg=message) if context else message
+            )
             self.pid = pid
             self.command = command
             self.exitcode = exitcode
             self.stderr = stderr
+            self._context = context
+
+        def contextualized_stderr(self):
+            # type: () -> Iterator[Text]
+            if self.stderr:
+                for line in self.stderr.splitlines():
+                    if not self._context:
+                        yield line
+                    else:
+                        yield "{ctx}: {line}".format(ctx=self._context, line=line)
 
     def __init__(
         self,
         command,  # type: Iterable[str]
         process,  # type: subprocess.Popen
         finalizer=None,  # type: Optional[Callable[[int], None]]
+        context=None,  # type: Optional[str]
     ):
         # type: (...) -> None
         """
@@ -84,10 +98,13 @@ class Job(object):
         :param finalizer: An optional cleanup function to call exactly once with the process return
                           code when the underlying process terminates in the course of calling this
                           job's public methods.
+        :param context: An optional context labeling the job that will be used to decorate error
+                        information.
         """
         self._command = tuple(command)
         self._process = process
         self._finalizer = finalizer
+        self._context = context
 
     def wait(self):
         # type: () -> None
@@ -153,6 +170,7 @@ class Job(object):
             exitcode=self._process.returncode,
             stderr=err,
             message=msg,
+            context=self._context,
         )
 
     def _finalize_job(self):
@@ -407,7 +425,7 @@ class ErrorHandler(Generic["_I", "_SE", "_JE"]):
             pid=job_error.pid,
             command=" ".join(job_error.command),
             exitcode=job_error.exitcode,
-            stderr=job_error.stderr,
+            stderr="\n".join(job_error.contextualized_stderr()),
         )
 
     @abstractmethod

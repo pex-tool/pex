@@ -1753,24 +1753,24 @@ def test_pip_issues_9420_workaround():
     assert normalized_stderr.startswith(
         dedent(
             """\
-            ERROR: Cannot install colorama==0.4.1 and isort[colors]==5.7.0 because these package versions have conflicting dependencies.
-            ERROR: ResolutionImpossible: for help visit https://pip.pypa.io/
+            pip: ERROR: Cannot install colorama==0.4.1 and isort[colors]==5.7.0 because these package versions have conflicting dependencies.
+            pip: ERROR: ResolutionImpossible: for help visit https://pip.pypa.io/
             """
         ).strip()
     ), normalized_stderr
     assert normalized_stderr.endswith(
         dedent(
             """\
-            The conflict is caused by:
-            The user requested colorama==0.4.1
-            isort[colors] 5.7.0 depends on colorama<0.5.0 and >=0.4.3; extra == "colors"
-
-            To fix this you could try to:
-            1. loosen the range of package versions you've specified
-            2. remove package versions to allow pip to attempt to solve the dependency conflict
+            pip:  The conflict is caused by:
+            pip:      The user requested colorama==0.4.1
+            pip:      isort[colors] 5.7.0 depends on colorama<0.5.0 and >=0.4.3; extra == "colors"
+            pip:
+            pip:  To fix this you could try to:
+            pip:  1. loosen the range of package versions you've specified
+            pip:  2. remove package versions to allow pip to attempt to solve the dependency conflict
             """
         ).strip()
-    )
+    ), normalized_stderr
 
 
 @pytest.mark.skipif(
@@ -1970,30 +1970,30 @@ def test_require_hashes(tmpdir):
         re.sub(r"\s+", " ", line.strip()): index
         for index, line in enumerate(as_constraints_result.error.splitlines())
     }
-    index = error_lines["Expected sha512 worse"]
+    index = error_lines["pip: Expected sha512 worse"]
     assert (
         index + 1
         == error_lines[
-            "Got ca602ae6dd925648c8ff87ef00bcef2d0ebebf1090b44e8dd43b75403f07db50269e5078f709cbce8e"
-            "7cfaedaf1b754d02dda08b6970b6a157cbf4c31ebc16a7"
+            "pip: Got ca602ae6dd925648c8ff87ef00bcef2d0ebebf1090b44e8dd43b75403f07db50269e5078f709c"
+            "bce8e7cfaedaf1b754d02dda08b6970b6a157cbf4c31ebc16a7"
         ]
     )
 
-    index = error_lines["Expected sha384 bad"]
+    index = error_lines["pip: Expected sha384 bad"]
     assert (
         index + 1
         == error_lines[
-            "Got 64ec6b63f74b7bdf161a9b38fabf59c0a691ba9ed325f0864fea984e0deabe648cbd12d619d3989b64"
-            "24488349df3b30"
+            "pip: Got 64ec6b63f74b7bdf161a9b38fabf59c0a691ba9ed325f0864fea984e0deabe648cbd12d619d39"
+            "89b6424488349df3b30"
         ]
     )
 
     index = error_lines[
-        "Expected sha256 2f4da4594db7e1e110a944bb1b551fdf4e6c136ad42e4234131391e21eb5b0d0"
+        "pip: Expected sha256 2f4da4594db7e1e110a944bb1b551fdf4e6c136ad42e4234131391e21eb5b0d0"
     ]
     assert (
         index + 1
-        == error_lines["Got 2f4da4594db7e1e110a944bb1b551fdf4e6c136ad42e4234131391e21eb5b0df"]
+        == error_lines["pip: Got 2f4da4594db7e1e110a944bb1b551fdf4e6c136ad42e4234131391e21eb5b0df"]
     )
 
 
