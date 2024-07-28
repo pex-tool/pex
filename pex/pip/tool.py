@@ -632,12 +632,9 @@ class Pip(object):
             extra_env=extra_env,
             **popen_kwargs
         )
-        if log:
-            return LogScrapeJob(
-                command, process, log, log_analyzers, preserve_log=preserve_log, finalizer=finalizer
-            )
-        else:
-            return Job(command, process, context="pip")
+        return LogScrapeJob(
+            command, process, log, log_analyzers, preserve_log=preserve_log, finalizer=finalizer
+        )
 
     def _ensure_wheel_installed(self, package_index_configuration=None):
         # type: (Optional[PackageIndexConfiguration]) -> None
