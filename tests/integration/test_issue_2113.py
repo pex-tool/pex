@@ -58,16 +58,23 @@ def assert_local_project_build_failure_message(result):
     result.assert_failure(
         expected_error_re=(
             r".*"
-            r"^\s*pip:.*(?:{cause_distribution_hint_old}|{cause_distribution_hint_new}).*{reason}$"
+            r"^\s*pip:.*(?:{cause_distribution_hint_one}|{cause_distribution_hint_two}).*"
+            r"(?:{reason_one}|{reason_two}).*$"
             r".*"
             r"^\s*pip:.*{requirement}$"
             r".*"
         ).format(
-            cause_distribution_hint_old=re.escape(
+            # N.B.: We have two versions of cause and reason to account for permutations of Pip,
+            # setuptools and package resources messages which all intermix here.
+            cause_distribution_hint_one=re.escape(
                 "Failed to parse a requirement of feast-simulator 0.1.0"
             ),
-            cause_distribution_hint_new=re.escape("error in feast-simulator setup command:"),
-            reason=re.escape(".* suffix can only be used with `==` or `!=` operators"),
+            cause_distribution_hint_two=re.escape("error in feast-simulator setup command:"),
+            reason_one=re.escape(
+                "'install_requires' must be a string or list of strings containing valid "
+                "project/version requirement specifiers"
+            ),
+            reason_two=re.escape(".* suffix can only be used with `==` or `!=` operators"),
             requirement=re.escape("ansicolors<1.1.9,>=1.0.*"),
         ),
         re_flags=re.DOTALL | re.MULTILINE,
