@@ -19,6 +19,7 @@ from pex.orderedset import OrderedSet
 from pex.scie import SciePlatform, ScieStyle
 from pex.targets import LocalInterpreter
 from pex.typing import TYPE_CHECKING
+from pex.version import __version__
 from testing import IS_PYPY, PY_VER, make_env, run_pex_command
 
 if TYPE_CHECKING:
@@ -369,3 +370,21 @@ def test_custom_lazy_urls(tmpdir):
         stderr.decode("utf-8"),
         flags=re.DOTALL | re.MULTILINE,
     ), stderr.decode("utf-8")
+
+
+def test_pex_pex_scie(
+    tmpdir,  # type: Any
+    pex_project_dir,  # type: Any
+):
+    # type: (...) -> None
+
+    pex = os.path.join(str(tmpdir), "pex")
+    run_pex_command(
+        args=[pex_project_dir, "-c", "pex", "--scie", "lazy", "-o", pex]
+    ).assert_success()
+    assert (
+        __version__
+        == subprocess.check_output(args=[pex, "-V"], env=make_env(PATH=None))
+        .decode("utf-8")
+        .strip()
+    )
