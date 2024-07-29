@@ -52,12 +52,11 @@ def assert_certifi_is_excluded(pex):
     )
 
 
-@pytest.fixture(scope="module")
-def requests_certifi_excluded_pex(tmpdir_factory):
+def requests_certifi_excluded_pex(tmpdir):
     # type: (Any) -> str
 
-    pex_root = str(tmpdir_factory.mktemp("pex_root"))
-    pex = str(tmpdir_factory.mktemp("pex"))
+    pex_root = os.path.join(str(tmpdir), "pex_root")
+    pex = os.path.join(str(tmpdir), "pex")
     run_pex_command(
         args=[
             "--lock",
@@ -147,28 +146,28 @@ def assert_requests_certifi_excluded_pex(
 @skip_unless_compatible_with_requests_lock
 def test_exclude(
     tmpdir,  # type: Any
-    requests_certifi_excluded_pex,  # type: str
     certifi_venv,  # type: Virtualenv
 ):
     # type: (...) -> None
 
-    assert_requests_certifi_excluded_pex(requests_certifi_excluded_pex, certifi_venv)
+    pex = requests_certifi_excluded_pex(tmpdir)
+    assert_requests_certifi_excluded_pex(pex, certifi_venv)
 
 
 @skip_unless_compatible_with_requests_lock
 def test_requirements_pex_exclude(
     tmpdir,  # type: Any
-    requests_certifi_excluded_pex,  # type: str
     certifi_venv,  # type: Virtualenv
 ):
     # type: (...) -> None
 
-    pex_root = PexInfo.from_pex(requests_certifi_excluded_pex).pex_root
+    requirements_pex = requests_certifi_excluded_pex(tmpdir)
+    pex_root = PexInfo.from_pex(requirements_pex).pex_root
     pex = os.path.join(str(tmpdir), "pex")
     run_pex_command(
         args=[
             "--requirements-pex",
-            requests_certifi_excluded_pex,
+            requirements_pex,
             "ansicolors==1.1.8",
             "-o",
             pex,
