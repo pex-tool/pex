@@ -1,5 +1,17 @@
 # Release Notes
 
+## 2.13.0
+
+This release improves error message detail when there are failures in
+Pex sub-processes. In particular, errors that occur in `pip download`
+when building a PEX or creating a lock file now give more clear
+indication of what went wrong.
+
+Additionally, this release adds support for `--pip-version 24.2`.
+
+* Add more context for Job errors. (#2479)
+* Add support for `--pip-version 24.2`. (#2481)
+
 ## 2.12.1
 
 This release refreshes the root CA cert bundle used by
