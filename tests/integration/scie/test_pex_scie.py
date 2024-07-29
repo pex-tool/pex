@@ -380,7 +380,17 @@ def test_pex_pex_scie(
 
     pex = os.path.join(str(tmpdir), "pex")
     run_pex_command(
-        args=[pex_project_dir, "-c", "pex", "--scie", "lazy", "-o", pex]
+        args=[
+            pex_project_dir,
+            "-c",
+            "pex",
+            "--scie",
+            "lazy",
+            "--scie-python-version",
+            "3.12",
+            "-o",
+            pex,
+        ]
     ).assert_success()
     assert (
         __version__
