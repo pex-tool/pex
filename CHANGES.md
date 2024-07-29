@@ -2,7 +2,7 @@
 
 ## 2.13.0
 
-This release add `--scie-busybox` to turn a `--scie {eager,lazy}` PEX
+This release adds `--scie-busybox` to turn a `--scie {eager,lazy}` PEX
 into a [BusyBox](https://www.busybox.net/) style binary with support for
 running multiple entry points as commands and even installing all these
 commands in a directory on the `PATH` for convenient use.
@@ -12,8 +12,11 @@ in Pex sub-processes. In particular, errors that occur in `pip download`
 when building a PEX or creating a lock file now give more clear
 indication of what went wrong.
 
+Finally, this release adds support for `--pip-version 24.2`.
+
 * Add support for `--scie-busybox`. (#2468)
 * Add more context for Job errors. (#2479)
+* Add support for `--pip-version 24.2`. (#2481)
 
 ## 2.12.1
 
