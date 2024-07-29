@@ -11,54 +11,83 @@ from textwrap import dedent
 
 import pytest
 
+from pex.atomic_directory import atomic_directory
 from pex.common import is_exe, safe_open
 from pex.compatibility import urlparse
 from pex.fetcher import URLFetcher
-from pex.pep_440 import Version
-from pex.pip.version import PipVersion
+from pex.pip.version import PipVersion, PipVersionValue
 from pex.typing import TYPE_CHECKING
 from testing import IS_LINUX, run_pex_command
 
 if TYPE_CHECKING:
-    from typing import Any
+    from typing import Any, Iterator
 
 
-# TODO(John Sirois): Include a test of >= Pip 24.2 when Pex adds support for it.
-#  See: https://github.com/pex-tool/pex/issues/2471
+def musl_libc_capable_pip_versions():
+    # type: () -> Iterator[PipVersionValue]
+
+    for version in PipVersion.values():
+        if not version.requires_python_applies():
+            continue
+        if version is PipVersion.VENDORED or version >= PipVersion.v24_2:
+            yield version
+
+
+MUSL_LIBC_CAPABLE_PIP_VERSIONS = tuple(musl_libc_capable_pip_versions())
+
+
+@pytest.fixture
+def statically_linked_musl_libc_cpython(shared_integration_test_tmpdir):
+    # type: (str) -> str
+    pbs_distribution_url = (
+        "https://github.com/indygreg/python-build-standalone/releases/download/20221220/"
+        "cpython-3.10.9+20221220-x86_64_v3-unknown-linux-musl-install_only.tar.gz"
+    )
+    tarball_name = os.path.basename(urlparse.urlparse(pbs_distribution_url).path)
+    pbs_distribution = os.path.join(shared_integration_test_tmpdir, "PBS-dists", tarball_name)
+    with atomic_directory(pbs_distribution) as chroot:
+        if not chroot.is_finalized():
+            tarball_dest = os.path.join(chroot.work_dir, tarball_name)
+            with URLFetcher().get_body_stream(pbs_distribution_url) as read_fp, open(
+                tarball_dest, "wb"
+            ) as write_fp:
+                shutil.copyfileobj(read_fp, write_fp)
+            with tarfile.open(tarball_dest) as tf:
+                tf.extractall(chroot.work_dir)
+            statically_linked_musl_libc_cpython = os.path.join(
+                chroot.work_dir, "python", "bin", "python3"
+            )
+            assert is_exe(statically_linked_musl_libc_cpython)
+
+    return os.path.join(pbs_distribution, "python", "bin", "python3")
+
+
 @pytest.mark.skipif(
-    PipVersion.DEFAULT > PipVersion.VENDORED and PipVersion.DEFAULT.version < Version("24.2"),
+    not MUSL_LIBC_CAPABLE_PIP_VERSIONS,
     reason=(
         "Although Pex's vendored Pip is patched to handle statically linked musl libc CPython, no "
-        "version of Pip Pex supports handles these Pythons until Pip 24.2"
+        "version of Pip Pex supports handles these Pythons until Pip 24.2 and none of these "
+        "versions are supported by the current interpreter."
     ),
 )
 @pytest.mark.skipif(
     not IS_LINUX,
     reason="This test tests statically linked musl libc CPython which is only available for Linux.",
 )
-def test_statically_linked_musl_libc_cpython_support(tmpdir):
-    # type: (Any) -> None
-
-    pbs_distribution_url = (
-        "https://github.com/indygreg/python-build-standalone/releases/download/20221220/"
-        "cpython-3.10.9+20221220-x86_64_v3-unknown-linux-musl-install_only.tar.gz"
-    )
-    pbs_distribution = os.path.join(
-        str(tmpdir),
-        os.path.basename(urlparse.urlparse(pbs_distribution_url).path),
-    )
-    with URLFetcher().get_body_stream(pbs_distribution_url) as read_fp, open(
-        pbs_distribution, "wb"
-    ) as write_fp:
-        shutil.copyfileobj(read_fp, write_fp)
-    with tarfile.open(pbs_distribution) as tf:
-        tf.extractall(str(tmpdir))
-    statically_linked_musl_libc_cpython = os.path.join(str(tmpdir), "python", "bin", "python3")
-    assert is_exe(statically_linked_musl_libc_cpython)
+@pytest.mark.parametrize(
+    "pip_version",
+    [pytest.param(version, id=str(version)) for version in MUSL_LIBC_CAPABLE_PIP_VERSIONS],
+)
+def test_statically_linked_musl_libc_cpython_support(
+    tmpdir,  # type: Any
+    pip_version,  # type: PipVersionValue
+    statically_linked_musl_libc_cpython,  # type: str
+):
+    # type: (...) -> None
 
     pex = os.path.join(str(tmpdir), "pex")
     run_pex_command(
-        args=["fortune==1.1.1", "-c", "fortune", "-o", pex],
+        args=["fortune==1.1.1", "-c", "fortune", "--pip-version", str(pip_version), "-o", pex],
         python=statically_linked_musl_libc_cpython,
     ).assert_success()
 
