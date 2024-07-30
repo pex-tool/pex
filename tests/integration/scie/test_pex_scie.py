@@ -372,6 +372,7 @@ def test_custom_lazy_urls(tmpdir):
     ), stderr.decode("utf-8")
 
 
+@skip_if_pypy
 def test_pex_pex_scie(
     tmpdir,  # type: Any
     pex_project_dir,  # type: Any
