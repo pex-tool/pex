@@ -7,14 +7,20 @@ import ast
 import os
 
 from pex.common import is_python_script, open_zip, safe_mkdtemp
-from pex.dist_metadata import Distribution, DistributionType, EntryPoint
+from pex.dist_metadata import (
+    CallableEntryPoint,
+    Distribution,
+    DistributionType,
+    ModuleEntryPoint,
+    NamedEntryPoint,
+)
 from pex.pep_376 import InstalledWheel
 from pex.pep_503 import ProjectName
 from pex.typing import TYPE_CHECKING, cast
 from pex.wheel import Wheel
 
 if TYPE_CHECKING:
-    from typing import Dict, Iterable, Optional
+    from typing import Dict, Iterable, Optional, Union
 
     import attr  # vendor:skip
 else:
@@ -97,7 +103,14 @@ def get_script_from_distributions(
 @attr.s(frozen=True)
 class DistributionEntryPoint(object):
     dist = attr.ib()  # type: Distribution
-    entry_point = attr.ib()  # type: EntryPoint
+    name = attr.ib()  # type: str
+    entry_point = attr.ib()  # type: Union[ModuleEntryPoint, CallableEntryPoint]
+
+    def render_description(self):
+        # type: () -> str
+        return "console script {name} = {entry_point} in {dist}".format(
+            name=self.name, entry_point=self.entry_point, dist=self.dist
+        )
 
 
 def get_entry_point_from_console_script(
@@ -109,14 +122,16 @@ def get_entry_point_from_console_script(
     # duplicate console script IFF the distribution is platform-specific and this is a
     # multi-platform pex.
     def get_entrypoint(dist):
-        # type: (Distribution) -> Optional[EntryPoint]
+        # type: (Distribution) -> Optional[NamedEntryPoint]
         return dist.get_entry_map().get("console_scripts", {}).get(script)
 
     entries = {}  # type: Dict[ProjectName, DistributionEntryPoint]
     for dist in dists:
-        entry_point = get_entrypoint(dist)
-        if entry_point is not None:
-            entries[dist.metadata.project_name] = DistributionEntryPoint(dist, entry_point)
+        named_entry_point = get_entrypoint(dist)
+        if named_entry_point is not None:
+            entries[dist.metadata.project_name] = DistributionEntryPoint(
+                dist=dist, name=named_entry_point.name, entry_point=named_entry_point.entry_point
+            )
 
     if len(entries) > 1:
         raise RuntimeError(

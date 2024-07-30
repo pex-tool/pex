@@ -6,10 +6,11 @@ from __future__ import absolute_import
 import itertools
 import os
 import platform
-from collections import defaultdict
+from collections import OrderedDict, defaultdict
 
+from pex.dist_metadata import Distribution, NamedEntryPoint
 from pex.enum import Enum
-from pex.orderedset import OrderedSet
+from pex.finders import get_entry_point_from_console_script
 from pex.pep_503 import ProjectName
 from pex.pex import PEX
 from pex.platforms import Platform
@@ -18,7 +19,7 @@ from pex.third_party.packaging import tags  # noqa
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from typing import DefaultDict, Iterable, Optional, Set, Text, Tuple, Union
+    from typing import DefaultDict, Iterable, Iterator, List, Optional, Set, Text, Tuple, Union
 
     import attr  # vendor:skip
 else:
@@ -34,88 +35,165 @@ class ScieStyle(Enum["ScieStyle.Value"]):
 
 
 @attr.s(frozen=True)
+class ConsoleScript(object):
+    name = attr.ib()  # type: str
+    project_name = attr.ib(default=None)  # type: Optional[ProjectName]
+
+
+@attr.s(frozen=True)
 class ConsoleScriptsManifest(object):
     @classmethod
     def try_parse(cls, value):
         # type: (str) -> Optional[ConsoleScriptsManifest]
-        name, sep, suffix = value.partition(":")
-        if not sep and not suffix:
-            if name.startswith("!"):
-                return cls(remove_individual=(name[1:],))
+        script_name, sep, project_name = value.partition("@")
+        if not sep and all(script_name.partition("=")):
+            # This is an ad-hoc entrypoint; not a console script specification.
+            return None
+
+        if sep and not script_name and not project_name:
+            return cls(add_all=True)
+        elif script_name and script_name != "!":
+            if script_name.startswith("!"):
+                return cls(
+                    remove_individual=(
+                        ConsoleScript(
+                            name=script_name[1:],
+                            project_name=ProjectName(project_name) if project_name else None,
+                        ),
+                    )
+                )
             else:
-                return cls(add_individual=(name,))
-        elif sep and "*" == suffix:
-            if "*" == name:
-                return cls(add_all=True)
-            elif name.startswith("!"):
-                return cls(remove_distribution=(ProjectName(name[1:]),))
+                return cls(
+                    add_individual=(
+                        ConsoleScript(
+                            name=script_name,
+                            project_name=ProjectName(project_name) if project_name else None,
+                        ),
+                    )
+                )
+        elif sep and project_name and (not script_name or script_name == "!"):
+            if script_name == "!":
+                return cls(remove_project=(ProjectName(project_name),))
             else:
-                return cls(add_distribution=(ProjectName(name),))
+                return cls(add_project=(ProjectName(project_name),))
         else:
             return None
 
-    add_individual = attr.ib(default=())  # type: Tuple[Text, ...]
-    remove_individual = attr.ib(default=())  # type: Tuple[Text, ...]
-    add_distribution = attr.ib(default=())  # type: Tuple[ProjectName, ...]
-    remove_distribution = attr.ib(default=())  # type: Tuple[ProjectName, ...]
+    add_individual = attr.ib(default=())  # type: Tuple[ConsoleScript, ...]
+    remove_individual = attr.ib(default=())  # type: Tuple[ConsoleScript, ...]
+    add_project = attr.ib(default=())  # type: Tuple[ProjectName, ...]
+    remove_project = attr.ib(default=())  # type: Tuple[ProjectName, ...]
     add_all = attr.ib(default=False)  # type: bool
+
+    def iter_specs(self):
+        # type: () -> Iterator[Text]
+        if self.add_all:
+            yield "@"
+        for project_name in self.add_project:
+            yield "@{dist}".format(dist=project_name.raw)
+        for script in self.add_individual:
+            if script.project_name:
+                yield "{script_name}@{project_name}".format(
+                    script_name=script.name, project_name=script.project_name.raw
+                )
+            else:
+                yield script.name
+        for project_name in self.remove_project:
+            yield "!@{dist}".format(dist=project_name.raw)
+        for script in self.remove_individual:
+            if script.project_name:
+                yield "!{script_name}@{project_name}".format(
+                    script_name=script.name, project_name=script.project_name.raw
+                )
+            else:
+                yield "!{script}".format(script=script.name)
 
     def merge(self, other):
         # type: (ConsoleScriptsManifest) -> ConsoleScriptsManifest
         return ConsoleScriptsManifest(
             add_individual=self.add_individual + other.add_individual,
             remove_individual=self.remove_individual + other.remove_individual,
-            add_distribution=self.add_distribution + other.add_distribution,
-            remove_distribution=self.remove_distribution + other.remove_distribution,
+            add_project=self.add_project + other.add_project,
+            remove_project=self.remove_project + other.remove_project,
             add_all=self.add_all or other.add_all,
         )
 
     def collect(self, pex):
-        # type: (PEX) -> Iterable[Text]
+        # type: (PEX) -> Iterable[NamedEntryPoint]
 
-        console_scripts = OrderedSet()  # type: OrderedSet[Text]
-        console_scripts.update(self.add_individual)
+        dists = tuple(
+            fingerprinted_distribution.distribution
+            for fingerprinted_distribution in pex.iter_distributions()
+        )
 
-        if self.add_distribution or self.remove_distribution or self.add_all:
-            for fingerprinted_dist in pex.iter_distributions():
-                remove = fingerprinted_dist.project_name in self.remove_distribution
-                add = self.add_all or fingerprinted_dist.project_name in self.add_distribution
+        console_scripts = OrderedDict(
+            (console_script, None) for console_script in self.add_individual
+        )  # type: OrderedDict[ConsoleScript, Optional[NamedEntryPoint]]
+
+        if self.add_project or self.remove_project or self.add_all:
+            for dist in dists:
+                remove = dist.metadata.project_name in self.remove_project
+                add = self.add_all or dist.metadata.project_name in self.add_project
                 if not remove and not add:
                     continue
-                for script in fingerprinted_dist.distribution.get_entry_map().get(
-                    "console_scripts", {}
+                for name, named_entry_point in (
+                    dist.get_entry_map().get("console_scripts", {}).items()
                 ):
                     if remove:
-                        console_scripts.discard(script)
+                        console_scripts.pop(ConsoleScript(name=name), None)
+                        console_scripts.pop(
+                            ConsoleScript(name=name, project_name=dist.metadata.project_name), None
+                        )
                     else:
-                        console_scripts.add(script)
+                        console_scripts[
+                            ConsoleScript(name=name, project_name=dist.metadata.project_name)
+                        ] = named_entry_point
 
-        for script in self.remove_individual:
-            console_scripts.discard(script)
+        for console_script in self.remove_individual:
+            console_scripts.pop(console_script, None)
+            if not console_script.project_name:
+                for cs in tuple(console_scripts):
+                    if console_script.name == cs.name:
+                        console_scripts.pop(cs)
 
-        return console_scripts
+        def iter_entry_points():
+            # type: () -> Iterator[NamedEntryPoint]
+            not_found = []  # type: List[ConsoleScript]
+            wrong_project = []  # type: List[Tuple[ConsoleScript, Distribution]]
+            for script, ep in console_scripts.items():
+                if ep:
+                    yield ep
+                else:
+                    dist_entry_point = get_entry_point_from_console_script(script.name, dists)
+                    if not dist_entry_point:
+                        not_found.append(script)
+                    elif (
+                        script.project_name
+                        and dist_entry_point.dist.metadata.project_name != script.project_name
+                    ):
+                        wrong_project.append((script, dist_entry_point.dist))
+                    else:
+                        yield NamedEntryPoint(
+                            name=dist_entry_point.name, entry_point=dist_entry_point.entry_point
+                        )
 
+            if not_found or wrong_project:
+                raise ValueError(
+                    # TODO(John Sirois): XXX: Craft an error message.
+                    "not found: {not_found}\n"
+                    "wrong project: {wrong_project}".format(
+                        not_found=" ".join(map(str, not_found)),
+                        wrong_project=" ".join(map(str, wrong_project)),
+                    )
+                )
 
-@attr.s(frozen=True)
-class ModuleEntryPoint(object):
-    @classmethod
-    def try_parse(cls, value):
-        # type: (str) -> Optional[ModuleEntryPoint]
-        name, _, entry_point = value.partition(":")
-        return cls(name, entry_point) if entry_point else None
-
-    name = attr.ib()  # type: str
-    entry_point = attr.ib()  # type: str
-
-    def __str__(self):
-        # type: () -> str
-        return "{name}:{entry_point}".format(name=self.name, entry_point=self.entry_point)
+        return tuple(iter_entry_points())
 
 
 @attr.s(frozen=True)
 class BusyBoxEntryPoints(object):
     console_scripts_manifest = attr.ib()  # type: ConsoleScriptsManifest
-    module_entry_points = attr.ib()  # type: Tuple[ModuleEntryPoint, ...]
+    ad_hoc_entry_points = attr.ib()  # type: Tuple[NamedEntryPoint, ...]
 
 
 class _CurrentPlatform(object):

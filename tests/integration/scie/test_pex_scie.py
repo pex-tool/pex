@@ -466,7 +466,7 @@ def test_scie_busybox_console_scripts_all(
 
     busybox = os.path.join(str(tmpdir), "busybox")
     run_pex_command(
-        args=[foo, bar, "--scie", "lazy", "--scie-busybox", "*:*", "-o", busybox]
+        args=[foo, bar, "--scie", "lazy", "--scie-busybox", "@", "-o", busybox]
         + execution_mode_args
     ).assert_success()
 
@@ -506,7 +506,7 @@ def test_scie_busybox_console_scripts_add_distribution(
 
     busybox = os.path.join(str(tmpdir), "busybox")
     run_pex_command(
-        args=[foo, bar, "--scie", "lazy", "--scie-busybox", "foo:*", "-o", busybox]
+        args=[foo, bar, "--scie", "lazy", "--scie-busybox", "@foo", "-o", busybox]
     ).assert_success()
 
     assert b"foo1: add-dist\n" == subprocess.check_output(args=[busybox, "foo-script1", "add-dist"])
@@ -541,9 +541,9 @@ def test_scie_busybox_console_scripts_remove_distribution(
             "--scie",
             "lazy",
             "--scie-busybox",
-            "*:*",
+            "@",
             "--scie-busybox",
-            "!foo:*",
+            "!@foo",
             "-o",
             busybox,
         ],
@@ -576,7 +576,7 @@ def test_scie_busybox_console_scripts_remove_script(
 
     busybox = os.path.join(str(tmpdir), "busybox")
     run_pex_command(
-        args=[foo, bar, "--scie", "lazy", "--scie-busybox", "foo:*,!foo-script1", "-o", busybox],
+        args=[foo, bar, "--scie", "lazy", "--scie-busybox", "@foo,!foo-script1", "-o", busybox],
         quiet=True,
     ).assert_success()
 
@@ -604,7 +604,7 @@ def test_scie_busybox_console_scripts_add_script(
 
     busybox = os.path.join(str(tmpdir), "busybox")
     run_pex_command(
-        args=[foo, bar, "--scie", "lazy", "--scie-busybox", "bar:*,foo-script1", "-o", busybox],
+        args=[foo, bar, "--scie", "lazy", "--scie-busybox", "@bar,foo-script1", "-o", busybox],
         quiet=True,
     ).assert_success()
 
@@ -635,6 +635,46 @@ def test_scie_busybox_console_scripts_add_script(
 
 @skip_if_pypy
 @skip_if_no_pbs
+def test_scie_busybox_console_script_injections(
+    tmpdir,  # type: Any
+    foo,  # type: str
+    bar,  # type: str
+):
+    # type: (...) -> None
+
+    busybox = os.path.join(str(tmpdir), "busybox")
+    run_pex_command(
+        args=[foo, bar, "-c", "foo-script1", "--inject-args", "--injected yes", "--scie", "lazy", "--scie-busybox", "@bar,foo-script1", "-o", busybox],
+        quiet=True,
+    ).assert_success()
+
+    assert b"foo1: --injected yes injected?\n" == subprocess.check_output(
+        args=[busybox, "foo-script1", "injected?"]
+    )
+    assert b"bar1: injected?\n" == subprocess.check_output(
+        args=[busybox, "bar-script1", "injected?"]
+    )
+    assert b"bar2: injected?\n" == subprocess.check_output(
+        args=[busybox, "bar-script2", "injected?"]
+    )
+
+    bin_dir = os.path.join(str(tmpdir), "bin_dir")
+    subprocess.check_call(args=[busybox, bin_dir], env=make_env(SCIE="install"))
+    assert sorted(["foo-script1", "bar-script1", "bar-script2"]) == sorted(os.listdir(bin_dir))
+
+    assert b"foo1: --injected yes injected?\n" == subprocess.check_output(
+        args=[os.path.join(bin_dir, "foo-script1"), "injected?"]
+    )
+    assert b"bar1: injected?\n" == subprocess.check_output(
+        args=[os.path.join(bin_dir, "bar-script1"), "injected?"]
+    )
+    assert b"bar2: injected?\n" == subprocess.check_output(
+        args=[os.path.join(bin_dir, "bar-script2"), "injected?"]
+    )
+
+
+@skip_if_pypy
+@skip_if_no_pbs
 def test_scie_busybox_module_entry_points(
     tmpdir,  # type: Any
     foo,  # type: str
@@ -650,7 +690,7 @@ def test_scie_busybox_module_entry_points(
             "--scie",
             "lazy",
             "--scie-busybox",
-            "bar-mod:bar,foo:foo:three",
+            "bar-mod=bar,foo=foo:three",
             "-o",
             busybox,
         ],
@@ -666,3 +706,42 @@ def test_scie_busybox_module_entry_points(
 
     assert b"bar: mep\n" == subprocess.check_output(args=[os.path.join(bin_dir, "bar-mod"), "mep"])
     assert b"foo3: mep\n" == subprocess.check_output(args=[os.path.join(bin_dir, "foo"), "mep"])
+
+
+@skip_if_pypy
+@skip_if_no_pbs
+def test_scie_busybox_module_entry_point_injections(
+    tmpdir,  # type: Any
+    foo,  # type: str
+    bar,  # type: str
+):
+    # type: (...) -> None
+
+    busybox = os.path.join(str(tmpdir), "busybox")
+    run_pex_command(
+        args=[
+            foo,
+            bar,
+            "-m",
+            "bar",
+            "--inject-args",
+            "--injected yes",
+            "--scie",
+            "lazy",
+            "--scie-busybox",
+            "bar-mod=bar,foo=foo:three",
+            "-o",
+            busybox,
+        ],
+        quiet=True,
+    ).assert_success()
+
+    assert b"bar: --injected yes injected?\n" == subprocess.check_output(args=[busybox, "bar-mod", "injected?"])
+    assert b"foo3: injected?\n" == subprocess.check_output(args=[busybox, "foo", "injected?"])
+
+    bin_dir = os.path.join(str(tmpdir), "bin_dir")
+    subprocess.check_call(args=[busybox, bin_dir], env=make_env(SCIE="install"))
+    assert sorted(["bar-mod", "foo"]) == sorted(os.listdir(bin_dir))
+
+    assert b"bar: --injected yes injected?\n" == subprocess.check_output(args=[os.path.join(bin_dir, "bar-mod"), "injected?"])
+    assert b"foo3: injected?\n" == subprocess.check_output(args=[os.path.join(bin_dir, "foo"), "injected?"])

@@ -13,6 +13,7 @@ from subprocess import CalledProcessError
 from pex.atomic_directory import atomic_directory
 from pex.common import chmod_plus_x, is_exe, pluralize, safe_mkdtemp, safe_open
 from pex.compatibility import shlex_quote
+from pex.dist_metadata import NamedEntryPoint, parse_entry_point
 from pex.exceptions import production_assert
 from pex.fetcher import URLFetcher
 from pex.hashing import Sha256
@@ -99,49 +100,71 @@ def create_manifests(
     commands = []  # type: List[Dict[str, Any]]
     entrypoints = configuration.options.busybox_entrypoints
     if entrypoints:
+        pex_entry_point = parse_entry_point(pex_info.entry_point)
+
+        def replace_env(
+            named_entry_point,  # type: NamedEntryPoint
+            **env  # type: str
+        ):
+            # type: (...) -> Dict[str, str]
+            return dict(
+                pex_info.inject_env if named_entry_point.entry_point == pex_entry_point else {},
+                **env
+            )
+
+        def args(
+            named_entry_point,  # type: NamedEntryPoint
+            *args  # type: str
+        ):
+            # type: (...) -> List[str]
+            all_args = (
+                list(pex_info.inject_python_args)
+                if named_entry_point.entry_point == pex_entry_point
+                else []
+            )
+            all_args.extend(args)
+            if named_entry_point.entry_point == pex_entry_point:
+                all_args.extend(pex_info.inject_args)
+            return all_args
+
+        def create_cmd(named_entry_point):
+            # type: (NamedEntryPoint) -> Dict[str, Any]
+            return {
+                "name": named_entry_point.name,
+                "env": {
+                    "default": env_default,
+                    "replace": replace_env(
+                        named_entry_point, PEX_MODULE=str(named_entry_point.entry_point)
+                    ),
+                    "remove_exact": ["PEX_INTERPRETER", "PEX_SCRIPT", "PEX_VENV"],
+                },
+                "exe": "{scie.bindings.configure:PYTHON}",
+                "args": args(named_entry_point, "{scie.bindings.configure:PEX}"),
+            }
+
         if pex_info.venv:
             # N.B.: Executing the console script directly instead of bouncing through the PEX
             # __main__.py using PEX_SCRIPT saves ~10ms of re-exec overhead in informal testing; so
             # it's worth specializing here.
             commands.extend(
                 {
-                    "name": console_script,
+                    "name": named_entry_point.name,
                     "env": {
                         "default": env_default,
+                        "replace": replace_env(named_entry_point),
                         "remove_exact": ["PEX_INTERPRETER", "PEX_MODULE", "PEX_SCRIPT", "PEX_VENV"],
                     },
                     "exe": "{scie.bindings.configure:PYTHON}",
-                    "args": ["{scie.bindings.configure:VENV_BIN_DIR_PLUS_SEP}" + console_script],
+                    "args": args(
+                        named_entry_point,
+                        "{scie.bindings.configure:VENV_BIN_DIR_PLUS_SEP}" + named_entry_point.name,
+                    ),
                 }
-                for console_script in entrypoints.console_scripts_manifest.collect(pex)
+                for named_entry_point in entrypoints.console_scripts_manifest.collect(pex)
             )
         else:
-            commands.extend(
-                {
-                    "name": console_script,
-                    "env": {
-                        "default": env_default,
-                        "replace": {"PEX_SCRIPT": console_script},
-                        "remove_exact": ["PEX_INTERPRETER", "PEX_MODULE", "PEX_VENV"],
-                    },
-                    "exe": "{scie.bindings.configure:PYTHON}",
-                    "args": ["{scie.bindings.configure:PEX}"],
-                }
-                for console_script in entrypoints.console_scripts_manifest.collect(pex)
-            )
-        commands.extend(
-            {
-                "name": module_entry_point.name,
-                "env": {
-                    "default": env_default,
-                    "replace": {"PEX_MODULE": module_entry_point.entry_point},
-                    "remove_exact": ["PEX_INTERPRETER", "PEX_SCRIPT", "PEX_VENV"],
-                },
-                "exe": "{scie.bindings.configure:PYTHON}",
-                "args": ["{scie.bindings.configure:PEX}"],
-            }
-            for module_entry_point in entrypoints.module_entry_points
-        )
+            commands.extend(map(create_cmd, entrypoints.console_scripts_manifest.collect(pex)))
+        commands.extend(map(create_cmd, entrypoints.ad_hoc_entry_points))
     else:
         commands.append(
             {

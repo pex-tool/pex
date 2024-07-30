@@ -16,7 +16,7 @@ from textwrap import dedent
 from pex import pex_warnings
 from pex.common import chmod_plus_x, is_pyc_file, iter_copytree, open_zip, safe_open, touch
 from pex.compatibility import commonpath, get_stdout_bytes_buffer
-from pex.dist_metadata import Distribution, ProjectNameAndVersion
+from pex.dist_metadata import CallableEntryPoint, Distribution, ProjectNameAndVersion
 from pex.enum import Enum
 from pex.interpreter import PythonInterpreter
 from pex.pep_376 import InstalledFile, InstalledWheel, Record
@@ -282,34 +282,49 @@ def install_wheel(
 
     dist = Distribution(location=dest, metadata=wheel.dist_metadata())
     entry_points = dist.get_entry_map()
-    for entry_point in itertools.chain.from_iterable(
+    for named_entry_point in itertools.chain.from_iterable(
         entry_points.get(key, {}).values() for key in ("console_scripts", "gui_scripts")
     ):
-        script_abspath = os.path.join(install_paths.scripts, entry_point.name)
-        with safe_open(script_abspath, "w") as fp:
-            fp.write(
-                dedent(
-                    """\
-                    {shebang}
-                    # -*- coding: utf-8 -*-
-                    import importlib
-                    import sys
+        entry_point = named_entry_point.entry_point
+        if isinstance(entry_point, CallableEntryPoint):
+            script = dedent(
+                """\
+                {shebang}
+                # -*- coding: utf-8 -*-
+                import importlib
+                import sys
 
-                    object_ref = "{object_ref}"
-                    modname, qualname_separator, qualname = object_ref.partition(':')
-                    entry_point = importlib.import_module(modname)
-                    if qualname_separator:
-                        for attr in qualname.split('.'):
-                            entry_point = getattr(entry_point, attr)
+                entry_point = importlib.import_module({modname!r})
+                for attr in {attrs!r}:
+                    entry_point = getattr(entry_point, attr)
 
-                    if __name__ == '__main__':
-                        sys.exit(entry_point())
-                    """
-                ).format(
-                    shebang=interpreter.shebang() if interpreter else "#!python",
-                    object_ref=str(entry_point),
-                )
+                if __name__ == "__main__":
+                    sys.exit(entry_point())
+                """
+            ).format(
+                shebang=interpreter.shebang() if interpreter else "#!python",
+                modname=entry_point.module,
+                attrs=entry_point.attrs,
             )
+        else:
+            script = dedent(
+                """\
+                {shebang}
+                # -*- coding: utf-8 -*-
+                import runpy
+                import sys
+
+                if __name__ == "__main__":
+                    runpy.run_module({modname!r}, run_name="__main__", alter_sys=True)
+                    sys.exit(0)
+                """
+            ).format(
+                shebang=interpreter.shebang() if interpreter else "#!python",
+                modname=entry_point.module,
+            )
+        script_abspath = os.path.join(install_paths.scripts, named_entry_point.name)
+        with safe_open(script_abspath, "w") as fp:
+            fp.write(script)
         chmod_plus_x(fp.name)
         installed_files.append(
             InstalledWheel.create_installed_file(path=script_abspath, dest_dir=dest)

@@ -7,6 +7,7 @@ import os.path
 from argparse import Namespace, _ActionsContainer
 
 from pex.compatibility import urlparse
+from pex.dist_metadata import NamedEntryPoint
 from pex.fetcher import URLFetcher
 from pex.orderedset import OrderedSet
 from pex.pep_440 import Version
@@ -14,7 +15,6 @@ from pex.scie import science
 from pex.scie.model import (
     BusyBoxEntryPoints,
     ConsoleScriptsManifest,
-    ModuleEntryPoint,
     ScieConfiguration,
     ScieInfo,
     ScieOptions,
@@ -173,17 +173,8 @@ def render_options(options):
     args = ["--scie", str(options.style)]  # type: List[Text]
     if options.busybox_entrypoints:
         args.append("--scie-busybox")
-        entrypoints = []  # type: List[Text]
-        if options.busybox_entrypoints.console_scripts_manifest.add_all:
-            entrypoints.append("*:*")
-        for dist in options.busybox_entrypoints.console_scripts_manifest.add_distribution:
-            entrypoints.append("{dist}:*".format(dist=dist))
-        entrypoints.extend(options.busybox_entrypoints.console_scripts_manifest.add_individual)
-        for dist in options.busybox_entrypoints.console_scripts_manifest.remove_distribution:
-            entrypoints.append("!{dist}:*".format(dist=dist))
-        for script in options.busybox_entrypoints.console_scripts_manifest.remove_individual:
-            entrypoints.append("!{script}".format(script=script))
-        entrypoints.extend(map(str, options.busybox_entrypoints.module_entry_points))
+        entrypoints = list(options.busybox_entrypoints.console_scripts_manifest.iter_specs())
+        entrypoints.extend(map(str, options.busybox_entrypoints.ad_hoc_entry_points))
         args.append(",".join(entrypoints))
     for platform in options.platforms:
         args.append("--scie-platform")
@@ -213,25 +204,28 @@ def extract_options(options):
             eps.extend(ep.strip() for ep in value.split(","))
 
         console_scripts_manifest = ConsoleScriptsManifest()
-        modules = []  # type: List[ModuleEntryPoint]
+        ad_hoc_entry_points = []  # type: List[NamedEntryPoint]
         bad_entry_points = []  # type: List[str]
         for ep in eps:
             csm = ConsoleScriptsManifest.try_parse(ep)
             if csm:
                 console_scripts_manifest = console_scripts_manifest.merge(csm)
             else:
-                entry_point = ModuleEntryPoint.try_parse(ep)
-                if entry_point:
-                    modules.append(entry_point)
-                else:
+                try:
+                    ad_hoc_entry_point = NamedEntryPoint.parse(ep)
+                except ValueError:
                     bad_entry_points.append(ep)
+                else:
+                    ad_hoc_entry_points.append(ad_hoc_entry_point)
+
         if bad_entry_points:
             raise ValueError(
                 "The following --scie-busybox entry point specifications were not understood:\n"
                 "{bad_entry_points}".format(bad_entry_points="\n".join(bad_entry_points))
             )
         entry_points = BusyBoxEntryPoints(
-            console_scripts_manifest=console_scripts_manifest, module_entry_points=tuple(modules)
+            console_scripts_manifest=console_scripts_manifest,
+            ad_hoc_entry_points=tuple(ad_hoc_entry_points),
         )
 
     python_version = None  # type: Optional[Union[Tuple[int, int], Tuple[int, int, int]]]

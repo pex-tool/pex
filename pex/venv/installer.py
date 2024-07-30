@@ -705,6 +705,8 @@ def _populate_first_party(
                     "_PEX_FILE_LOCK_STYLE",
                     # This is used in the scie binding command for ZIPAPP PEXes.
                     "_PEX_SCIE_INSTALLED_PEX_DIR",
+                    # This is used to override PBS distribution URLs in lazy PEX scies.
+                    "PEX_BOOTSTRAP_URLS",
                 )
             ]
             if ignored_pex_env_vars:
