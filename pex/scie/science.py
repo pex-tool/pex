@@ -71,23 +71,52 @@ PTEX_VERSION = "1.1.1"
 SCIE_JUMP_VERSION = "1.1.1"
 
 
+@attr.s(frozen=True)
+class Filename(object):
+    name = attr.ib()  # type: str
+
+    @property
+    def placeholder(self):
+        # type: () -> str
+        return "{{{name}}}".format(name=self.name)
+
+
+@attr.s(frozen=True)
+class Filenames(object):
+    @classmethod
+    def avoid_collisions_with(cls, scie_name):
+        # type: (str) -> Filenames
+        return cls(
+            pex=Filename("_pex" if scie_name == "pex" else "pex"),
+            configure_binding=Filename(
+                "_configure-binding.py"
+                if scie_name == "configure-binding.py"
+                else "configure-binding.py"
+            ),
+        )
+
+    pex = attr.ib()  # type: Filename
+    configure_binding = attr.ib()  # type: Filename
+
+
 def create_manifests(
     configuration,  # type: ScieConfiguration
     name,  # type: str
     pex,  # type: PEX
+    filenames,  # type: Filenames
 ):
     # type: (...) -> Iterator[Manifest]
 
     pex_info = pex.pex_info(include_env_overrides=False)
     pex_root = "{scie.bindings}/pex_root"
 
-    configure_binding_args = ["{pex}", "{configure-binding.py}"]
+    configure_binding_args = [filenames.pex.placeholder, filenames.configure_binding.placeholder]
     # N.B.: For the venv case, we let the configure-binding calculate the installed PEX dir
     # (venv dir) at runtime since it depends on the interpreter executing the venv PEX.
     if not pex_info.venv:
         configure_binding_args.append("--installed-pex-dir")
         if pex.layout is Layout.LOOSE:
-            configure_binding_args.append("{pex}")
+            configure_binding_args.append(filenames.pex.placeholder)
         else:
             production_assert(pex_info.pex_hash is not None)
             pex_hash = cast(str, pex_info.pex_hash)
@@ -185,7 +214,7 @@ def create_manifests(
             "argv1": "{scie.env.PEX_BOOTSTRAP_URLS={scie.lift}}",
         },
         "scie_jump": {"version": SCIE_JUMP_VERSION},
-        "files": [{"name": "configure-binding.py"}, {"name": "pex"}],
+        "files": [{"name": filenames.configure_binding.name}, {"name": filenames.pex.name}],
         "commands": commands,
         "bindings": [
             {
@@ -365,9 +394,10 @@ def build(
     name = re.sub(r"\.pex$", "", os.path.basename(pex_file), flags=re.IGNORECASE)
     pex = PEX(pex_file)
     use_platform_suffix = len(configuration.targets) > 1
+    filenames = Filenames.avoid_collisions_with(name)
 
     errors = OrderedDict()  # type: OrderedDict[Manifest, str]
-    for manifest in create_manifests(configuration, name, pex):
+    for manifest in create_manifests(configuration, name, pex, filenames):
         args = [science, "--cache-dir", _science_dir(env, "cache")]
         if env.PEX_VERBOSE:
             args.append("-{verbosity}".format(verbosity="v" * env.PEX_VERBOSE))
@@ -376,12 +406,13 @@ def build(
             [
                 "lift",
                 "--file",
-                "pex={pex_file}".format(pex_file=pex_file),
+                "{name}={pex_file}".format(name=filenames.pex.name, pex_file=pex_file),
                 "--file",
-                "configure-binding.py={configure_binding}".format(
+                "{name}={configure_binding}".format(
+                    name=filenames.configure_binding.name,
                     configure_binding=os.path.join(
                         os.path.dirname(__file__), "configure-binding.py"
-                    )
+                    ),
                 ),
                 "build",
                 "--dest-dir",

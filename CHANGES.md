@@ -1,5 +1,14 @@
 # Release Notes
 
+## 2.13.1
+
+This release fixes the `--scie` option to support building a Pex PEX
+scie with something like `pex pex -c pex --venv --scie eager -o pex`.
+Previously, due to the output filename of `pex` colliding with fixed
+internal scie lift manifest file names, this would fail.
+
+* Handle all output file names when building scies. (#2484)
+
 ## 2.13.0
 
 This release improves error message detail when there are failures in
