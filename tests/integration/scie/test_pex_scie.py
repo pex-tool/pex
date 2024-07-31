@@ -644,7 +644,20 @@ def test_scie_busybox_console_script_injections(
 
     busybox = os.path.join(str(tmpdir), "busybox")
     run_pex_command(
-        args=[foo, bar, "-c", "foo-script1", "--inject-args", "--injected yes", "--scie", "lazy", "--scie-busybox", "@bar,foo-script1", "-o", busybox],
+        args=[
+            foo,
+            bar,
+            "-c",
+            "foo-script1",
+            "--inject-args",
+            "--injected yes",
+            "--scie",
+            "lazy",
+            "--scie-busybox",
+            "@bar,foo-script1",
+            "-o",
+            busybox,
+        ],
         quiet=True,
     ).assert_success()
 
@@ -736,12 +749,18 @@ def test_scie_busybox_module_entry_point_injections(
         quiet=True,
     ).assert_success()
 
-    assert b"bar: --injected yes injected?\n" == subprocess.check_output(args=[busybox, "bar-mod", "injected?"])
+    assert b"bar: --injected yes injected?\n" == subprocess.check_output(
+        args=[busybox, "bar-mod", "injected?"]
+    )
     assert b"foo3: injected?\n" == subprocess.check_output(args=[busybox, "foo", "injected?"])
 
     bin_dir = os.path.join(str(tmpdir), "bin_dir")
     subprocess.check_call(args=[busybox, bin_dir], env=make_env(SCIE="install"))
     assert sorted(["bar-mod", "foo"]) == sorted(os.listdir(bin_dir))
 
-    assert b"bar: --injected yes injected?\n" == subprocess.check_output(args=[os.path.join(bin_dir, "bar-mod"), "injected?"])
-    assert b"foo3: injected?\n" == subprocess.check_output(args=[os.path.join(bin_dir, "foo"), "injected?"])
+    assert b"bar: --injected yes injected?\n" == subprocess.check_output(
+        args=[os.path.join(bin_dir, "bar-mod"), "injected?"]
+    )
+    assert b"foo3: injected?\n" == subprocess.check_output(
+        args=[os.path.join(bin_dir, "foo"), "injected?"]
+    )
