@@ -764,3 +764,40 @@ def test_scie_busybox_module_entry_point_injections(
     assert b"foo3: injected?\n" == subprocess.check_output(
         args=[os.path.join(bin_dir, "foo"), "injected?"]
     )
+
+
+@skip_if_pypy
+@skip_if_no_pbs
+def test_script_not_found(
+    tmpdir,  # type: Any
+    foo,  # type: str
+    bar,  # type: str
+):
+    # type: (...) -> None
+
+    busybox = os.path.join(str(tmpdir), "busybox")
+    run_pex_command(
+        args=[
+            foo,
+            bar,
+            "--scie",
+            "lazy",
+            "--scie-busybox",
+            "foo-script1@foo,foo-script2@bar,bar-script1@foo,bar-script2@bar,baz",
+            "-o",
+            busybox,
+        ],
+        quiet=True,
+    ).assert_failure(
+        expected_error_re=re.escape(
+            dedent(
+                """\
+                Failed to resolve some console scripts:
+                + Could not find script: baz
+                + Found scripts in the wrong projects:
+                  foo-script2@bar found in foo
+                  bar-script1@foo found in bar
+                """
+            )
+        )
+    )

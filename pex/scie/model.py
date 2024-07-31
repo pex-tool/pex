@@ -8,6 +8,7 @@ import os
 import platform
 from collections import OrderedDict, defaultdict
 
+from pex.common import pluralize
 from pex.dist_metadata import Distribution, NamedEntryPoint
 from pex.enum import Enum
 from pex.finders import get_entry_point_from_console_script
@@ -38,6 +39,16 @@ class ScieStyle(Enum["ScieStyle.Value"]):
 class ConsoleScript(object):
     name = attr.ib()  # type: str
     project_name = attr.ib(default=None)  # type: Optional[ProjectName]
+
+    def __str__(self):
+        # type: () -> str
+        return (
+            "{script_name}@{project_name}".format(
+                script_name=self.name, project_name=self.project_name.raw
+            )
+            if self.project_name
+            else self.name
+        )
 
 
 @attr.s(frozen=True)
@@ -92,21 +103,11 @@ class ConsoleScriptsManifest(object):
         for project_name in self.add_project:
             yield "@{dist}".format(dist=project_name.raw)
         for script in self.add_individual:
-            if script.project_name:
-                yield "{script_name}@{project_name}".format(
-                    script_name=script.name, project_name=script.project_name.raw
-                )
-            else:
-                yield script.name
+            yield str(script)
         for project_name in self.remove_project:
             yield "!@{dist}".format(dist=project_name.raw)
         for script in self.remove_individual:
-            if script.project_name:
-                yield "!{script_name}@{project_name}".format(
-                    script_name=script.name, project_name=script.project_name.raw
-                )
-            else:
-                yield "!{script}".format(script=script.name)
+            yield "!{script}".format(script=script)
 
     def merge(self, other):
         # type: (ConsoleScriptsManifest) -> ConsoleScriptsManifest
@@ -158,32 +159,50 @@ class ConsoleScriptsManifest(object):
 
         def iter_entry_points():
             # type: () -> Iterator[NamedEntryPoint]
-            not_found = []  # type: List[ConsoleScript]
-            wrong_project = []  # type: List[Tuple[ConsoleScript, Distribution]]
+            not_founds = []  # type: List[ConsoleScript]
+            wrong_projects = []  # type: List[Tuple[ConsoleScript, Distribution]]
             for script, ep in console_scripts.items():
                 if ep:
                     yield ep
                 else:
                     dist_entry_point = get_entry_point_from_console_script(script.name, dists)
                     if not dist_entry_point:
-                        not_found.append(script)
+                        not_founds.append(script)
                     elif (
                         script.project_name
                         and dist_entry_point.dist.metadata.project_name != script.project_name
                     ):
-                        wrong_project.append((script, dist_entry_point.dist))
+                        wrong_projects.append((script, dist_entry_point.dist))
                     else:
                         yield NamedEntryPoint(
                             name=dist_entry_point.name, entry_point=dist_entry_point.entry_point
                         )
 
-            if not_found or wrong_project:
+            if not_founds or wrong_projects:
+                failures = []  # type: List[str]
+                if not_founds:
+                    failures.append(
+                        "Could not find {scripts}: {script_names}".format(
+                            scripts=pluralize(not_founds, "script"),
+                            script_names=" ".join(map(str, not_founds)),
+                        )
+                    )
+                if wrong_projects:
+                    failures.append(
+                        "Found {scripts} in the wrong {projects}:\n  {wrong_projects}".format(
+                            scripts=pluralize(wrong_projects, "script"),
+                            projects=pluralize(wrong_projects, "project"),
+                            wrong_projects="\n  ".join(
+                                "{script} found in {project}".format(
+                                    script=script, project=dist.project_name
+                                )
+                                for script, dist in wrong_projects
+                            ),
+                        )
+                    )
                 raise ValueError(
-                    # TODO(John Sirois): XXX: Craft an error message.
-                    "not found: {not_found}\n"
-                    "wrong project: {wrong_project}".format(
-                        not_found=" ".join(map(str, not_found)),
-                        wrong_project=" ".join(map(str, wrong_project)),
+                    "Failed to resolve some console scripts:\n+ {failures}".format(
+                        failures="\n+ ".join(failures)
                     )
                 )
 
