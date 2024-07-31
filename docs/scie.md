@@ -1,8 +1,8 @@
-# PEX scies
+# PEX with included Python interpreter
 
-You can create a PEX scie by adding `--scie eager` to your `pex` command line. Instead of a
-traditional [PEP-441](https://peps.python.org/pep-0441/) PEX zip file, you'll get a native
-executable that contains both a CPython interpreter and your PEX'd code.
+You can include a CPython interpreter in your PEX by adding `--scie eager` to your `pex` command
+line. Instead of a traditional [PEP-441](https://peps.python.org/pep-0441/) PEX zip file, you'll
+get a native executable that contains both a CPython interpreter and your PEX'd code.
 
 ## Background
 
