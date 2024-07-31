@@ -14,7 +14,7 @@ to be able to run. Complicating things further, when executing the PEX file dire
 machine. If the shebang is looking for `python` but the machine only has `python3` - even if the
 underlying Python interpreter would be compatible - the operating system will fail to launch the PEX
 file. This usually can be mitigated by using `--sh-boot` to alter the boot mechanism from Python to
-a Posix-compatible shell at `/bin/sh`.  Although, almost all Posix-compatible systems have a
+a Posix-compatible shell at `/bin/sh`.  Although almost all Posix-compatible systems have a
 `/bin/sh` shell, that still leaves the problem of having a compatible Python pre-installed on that
 system as well.
 
@@ -242,10 +242,10 @@ Scies support multiple commands, but, by default, `pex --scie ...` generates a P
 executes the entry point you configured for your PEX. You can, of course, run the scie using
 `PEX_INTERPRETER`, `PEX_MODULE` and `PEX_SCRIPT` to modify the entry point just like you can with
 a normal PEX, but sometimes it can be convenient to seal in a small set of commands you wish to use
-for more convenient access. You do this by adding `--scie-busybox` to your `pex` command line with a
-list of entry points you wish to expose. These entry points can be arbitrary modules or functions
-within a module. They can also be console scripts from distributions in the PEX. The BusyBox entry
-point specifications accepted are detailed below:
+for easier access. You do this by adding `--scie-busybox` to your `pex` command line with a list of
+entry points you wish to expose. These entry points can be arbitrary modules or functions within a
+module. They can also be console scripts from distributions in the PEX. The BusyBox entry point
+specifications accepted are detailed below:
 
 | Form                     | Example                 | Effect                                                                                                                            |
 |--------------------------|-------------------------|-----------------------------------------------------------------------------------------------------------------------------------|
