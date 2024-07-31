@@ -883,33 +883,31 @@ def test_update_targeted_impossible(
     pip_version = json_codec.load(lock_file_path).pip_version
     if pip_version == PipVersion.v20_3_4_patched:
         expected_lines = [
-            "ERROR: Could not find a version that satisfies the requirement urllib3<1.27,>=1.21.1 "
-            "(from requests)",
-            "ERROR: No matching distribution found for urllib3<1.27,>=1.21.1",
-            "",
+            "pip: ERROR: Could not find a version that satisfies the requirement "
+            "urllib3<1.27,>=1.21.1 (from requests)",
+            "pip: ERROR: No matching distribution found for urllib3<1.27,>=1.21.1",
         ]
     else:
         expected_lines = [
-            "ERROR: Cannot install requests==2.26.0 because these package versions have "
+            "pip: ERROR: Cannot install requests==2.26.0 because these package versions have "
             "conflicting dependencies.",
-            "ERROR: ResolutionImpossible: for help visit "
+            "pip: ERROR: ResolutionImpossible: for help visit "
             "https://pip.pypa.io/en/latest/topics/dependency-resolution/"
             "#dealing-with-dependency-conflicts",
-            " ",
-            " The conflict is caused by:",
-            "     requests 2.26.0 depends on urllib3<1.27 and >=1.21.1",
-            "     The user requested (constraint) urllib3<1.16",
-            " ",
-            " To fix this you could try to:",
-            " 1. loosen the range of package versions you've specified",
-            " 2. remove package versions to allow {pip_to} attempt to solve the dependency "
+            "pip:  ",
+            "pip:  The conflict is caused by:",
+            "pip:      requests 2.26.0 depends on urllib3<1.27 and >=1.21.1",
+            "pip:      The user requested (constraint) urllib3<1.16",
+            "pip:  ",
+            "pip:  To fix this you could try to:",
+            "pip:  1. loosen the range of package versions you've specified",
+            "pip:  2. remove package versions to allow {pip_to} attempt to solve the dependency "
             "conflict".format(
                 pip_to="pip" if pip_version.version < PipVersion.v24_1.version else "pip to"
             ),
-            "",
         ]
     assert expected_lines == error_lines[12:], os.linesep.join(
-        difflib.unified_diff(os.linesep.join(expected_lines), os.linesep.join(error_lines[12:]))
+        difflib.unified_diff(expected_lines, error_lines[12:])
     )
 
     # The pip legacy resolver, though is not strict and will let us get away with this.
@@ -984,34 +982,32 @@ def test_update_add_impossible(
     pip_version = json_codec.load(lock_file_path).pip_version
     if pip_version == PipVersion.v20_3_4_patched:
         expected_lines = [
-            "ERROR: Could not find a version that satisfies the requirement certifi<2017.4.17 "
+            "pip: ERROR: Could not find a version that satisfies the requirement certifi<2017.4.17 "
             "(from conflicting-certifi-requirement)",
-            "ERROR: No matching distribution found for certifi<2017.4.17",
-            "",
+            "pip: ERROR: No matching distribution found for certifi<2017.4.17",
         ]
     else:
         expected_lines = [
-            "ERROR: Cannot install conflicting-certifi-requirement==1.2.3 and requests==2.26.0 "
-            "because these package versions have conflicting dependencies.",
-            "ERROR: ResolutionImpossible: for help visit "
+            "pip: ERROR: Cannot install conflicting-certifi-requirement==1.2.3 and "
+            "requests==2.26.0 because these package versions have conflicting dependencies.",
+            "pip: ERROR: ResolutionImpossible: for help visit "
             "https://pip.pypa.io/en/latest/topics/dependency-resolution/"
             "#dealing-with-dependency-conflicts",
-            " ",
-            " The conflict is caused by:",
-            "     requests 2.26.0 depends on certifi>=2017.4.17",
-            "     conflicting-certifi-requirement 1.2.3 depends on certifi<2017.4.17",
-            "     The user requested (constraint) certifi==2021.5.30",
-            " ",
-            " To fix this you could try to:",
-            " 1. loosen the range of package versions you've specified",
-            " 2. remove package versions to allow {pip_to} attempt to solve the dependency "
+            "pip:  ",
+            "pip:  The conflict is caused by:",
+            "pip:      requests 2.26.0 depends on certifi>=2017.4.17",
+            "pip:      conflicting-certifi-requirement 1.2.3 depends on certifi<2017.4.17",
+            "pip:      The user requested (constraint) certifi==2021.5.30",
+            "pip:  ",
+            "pip:  To fix this you could try to:",
+            "pip:  1. loosen the range of package versions you've specified",
+            "pip:  2. remove package versions to allow {pip_to} attempt to solve the dependency "
             "conflict".format(
                 pip_to="pip" if pip_version.version < PipVersion.v24_1.version else "pip to"
             ),
-            "",
         ]
     assert expected_lines == error_lines[13:], os.linesep.join(
-        difflib.unified_diff(os.linesep.join(expected_lines), os.linesep.join(error_lines[12:]))
+        difflib.unified_diff(expected_lines, error_lines[12:])
     )
 
     # The pip legacy resolver, though is not strict and will let us get away with this.

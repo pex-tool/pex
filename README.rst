@@ -2,15 +2,22 @@
 PEX
 ***
 .. image:: https://github.com/pex-tool/pex/workflows/CI/badge.svg?branch=main
-    :target: https://github.com/pex-tool/pex/actions?query=branch%3Amain+workflow%3ACI
+   :target: https://github.com/pex-tool/pex/actions?query=branch%3Amain+workflow%3ACI
+
 .. image:: https://img.shields.io/pypi/l/pex.svg
-    :target: https://pypi.org/project/pex/
+   :target: https://pypi.org/project/pex/
+
 .. image:: https://img.shields.io/pypi/v/pex.svg
-    :target: https://pypi.org/project/pex/
+   :target: https://pypi.org/project/pex/
+
 .. image:: https://img.shields.io/pypi/pyversions/pex.svg
-    :target: https://pypi.org/project/pex/
+   :target: https://pypi.org/project/pex/
+
 .. image:: https://img.shields.io/pypi/wheel/pex.svg
-    :target: https://pypi.org/project/pex/#files
+   :target: https://pypi.org/project/pex/#files
+
+.. image:: https://img.shields.io/discord/1205942638763573358
+   :target: https://pex-tool.org/discord
 
 .. contents:: **Contents**
 

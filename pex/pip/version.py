@@ -16,11 +16,16 @@ from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from typing import Iterable, Optional, Tuple, Union
+    from typing import Iterable, Iterator, Optional, Tuple, Union
 
 
 @functools.total_ordering
 class PipVersionValue(Enum.Value):
+    @classmethod
+    def _iter_values(cls):
+        # type: () -> Iterator[PipVersionValue]
+        return cast("Iterator[PipVersionValue]", super(PipVersionValue, cls)._iter_values())
+
     @classmethod
     def overridden(cls):
         # type: () -> Optional[PipVersionValue]
@@ -94,9 +99,15 @@ class PipVersionValue(Enum.Value):
             return NotImplemented
         return self.version < other.version
 
+    def __ge__(self, other):
+        if not isinstance(other, PipVersionValue):
+            return NotImplemented
+        return self.version >= other.version
+
 
 class LatestPipVersion(object):
     def __get__(self, obj, objtype=None):
+        # type: (...) -> PipVersionValue
         if not hasattr(self, "_latest"):
             self._latest = max(
                 (version for version in PipVersionValue._iter_values() if not version.hidden),
@@ -111,17 +122,16 @@ class DefaultPipVersion(object):
         self._preferred = preferred
 
     def __get__(self, obj, objtype=None):
+        # type: (...) -> PipVersionValue
         if not hasattr(self, "_default"):
-            self._default = None
             current_version = Version(".".join(map(str, sys.version_info[:3])))
-            preferred_versions = (
-                [PipVersionValue.overridden()] if PipVersionValue.overridden() else self._preferred
-            )
+            overridden = PipVersionValue.overridden()
+            preferred_versions = [overridden] if overridden is not None else self._preferred
             for preferred_version in preferred_versions:
                 if preferred_version.requires_python_applies(current_version):
                     self._default = preferred_version
                     break
-            if self._default is None:
+            if not hasattr(self, "_default"):
                 applicable_versions = tuple(
                     version
                     for version in PipVersionValue._iter_values()
@@ -281,6 +291,13 @@ class PipVersion(Enum["PipVersionValue"]):
     v24_1_2 = PipVersionValue(
         version="24.1.2",
         setuptools_version="70.2.0",
+        wheel_version="0.43.0",
+        requires_python=">=3.8,<3.14",
+    )
+
+    v24_2 = PipVersionValue(
+        version="24.2",
+        setuptools_version="71.1.0",
         wheel_version="0.43.0",
         requires_python=">=3.8,<3.14",
     )

@@ -1,5 +1,50 @@
 # Release Notes
 
+## 2.13.0
+
+This release improves error message detail when there are failures in
+Pex sub-processes. In particular, errors that occur in `pip download`
+when building a PEX or creating a lock file now give more clear
+indication of what went wrong.
+
+Additionally, this release adds support for `--pip-version 24.2`.
+
+* Add more context for Job errors. (#2479)
+* Add support for `--pip-version 24.2`. (#2481)
+
+## 2.12.1
+
+This release refreshes the root CA cert bundle used by
+`--pip-version vendored` (which is the default Pip Pex uses for
+Python `<3.12`) from [certifi 2019.9.11](
+https://pypi.org/project/certifi/2019.9.11/)'s `cacert.pem` to
+[certifi 2024.7.4](https://pypi.org/project/certifi/2024.7.4/)'s
+`cacert.pem`. This refresh addresses at least [CVE-2023-37920](
+https://nvd.nist.gov/vuln/detail/CVE-2023-37920) and was spearheaded by
+a contribution from [Nash Kaminski](https://github.com/gs-kamnas) in
+https://github.com/pex-tool/pip/pull/12. Thank you, Nash!
+
+* Update vendored Pip's CA cert bundle. (#2476)
+
+## 2.12.0
+
+This release adds support for passing `--site-packages-copies` to both
+`pex3 venv create ...` and `PEX_TOOLS=1 ./my.pex venv ...`. This is
+similar to `pex --venv --venv-site-packages-copies ...` except that
+instead of preferring hard links, a copy is always performed. This is
+useful to disassociate venvs you create using Pex from Pex's underlying
+`PEX_ROOT` cache.
+
+This release also adds partial support for statically linked CPython. If
+the statically linked CPython is `<3.12`, the default Pip (
+`--pip-version vendored`) used by Pex will work. All newer Pips will not
+though, until Pip 24.2 is released with the fix in
+https://github.com/pypa/pip/pull/12716 and Pex releases with support for
+`--pip-version 24.2`.
+
+* Add `--site-packages-copies` for external venvs. (#2470)
+* Support statically linked CPython. (#2472)
+
 ## 2.11.0
 
 This release adds support for creating native PEX executables that

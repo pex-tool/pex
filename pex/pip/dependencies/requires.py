@@ -22,7 +22,7 @@ def patch():
             modified_requires = []
             orig = orig_requires(self, *args, **kwargs)
             for req in orig:
-                requirement = PexRequirement.parse(str(req))
+                requirement = PexRequirement.parse(str(req), source=repr(self))
                 excluded_by = dependency_configuration.excluded_by(requirement)
                 if excluded_by:
                     logger.debug(

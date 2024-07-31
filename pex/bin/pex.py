@@ -23,7 +23,7 @@ from pex.commands.command import (
     global_environment,
     register_global_arguments,
 )
-from pex.common import die, is_pyc_dir, is_pyc_file, safe_mkdtemp
+from pex.common import CopyMode, die, is_pyc_dir, is_pyc_file, safe_mkdtemp
 from pex.dependency_configuration import DependencyConfiguration
 from pex.dependency_manager import DependencyManager
 from pex.dist_metadata import Requirement
@@ -38,7 +38,7 @@ from pex.pep_427 import InstallableType
 from pex.pep_723 import ScriptMetadata
 from pex.pex import PEX
 from pex.pex_bootstrapper import ensure_venv
-from pex.pex_builder import Check, CopyMode, PEXBuilder
+from pex.pex_builder import Check, PEXBuilder
 from pex.pex_info import PexInfo
 from pex.resolve import (
     project,

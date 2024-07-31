@@ -20,6 +20,7 @@ from collections import defaultdict, namedtuple
 from datetime import datetime
 from uuid import uuid4
 
+from pex.enum import Enum
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -767,11 +768,20 @@ def relative_symlink(
     os.symlink(rel_src, dst)
 
 
+class CopyMode(Enum["CopyMode.Value"]):
+    class Value(Enum.Value):
+        pass
+
+    COPY = Value("copy")
+    LINK = Value("link")
+    SYMLINK = Value("symlink")
+
+
 def iter_copytree(
     src,  # type: Text
     dst,  # type: Text
     exclude=(),  # type: Container[Text]
-    symlink=False,  # type: bool
+    copy_mode=CopyMode.LINK,  # type: CopyMode.Value
 ):
     # type: (...) -> Iterator[Tuple[Text, Text]]
     """Copies the directory tree rooted at `src` to `dst` yielding a tuple for each copied file.
@@ -784,11 +794,11 @@ def iter_copytree(
     :param src: The source directory tree to copy.
     :param dst: The destination location to copy the source tree to.
     :param exclude: Names (basenames) of files and directories to exclude from copying.
-    :param symlink: Whether to use symlinks instead of copies (or hard links).
+    :param copy_mode: How to copy files.
     :return: An iterator over tuples identifying the copied files of the form `(src, dst)`.
     """
     safe_mkdir(dst)
-    link = True
+    link = copy_mode is CopyMode.LINK
     for root, dirs, files in os.walk(src, topdown=True, followlinks=True):
         if src == root:
             dirs[:] = [d for d in dirs if d not in exclude]
@@ -802,7 +812,7 @@ def iter_copytree(
             if not is_dir:
                 yield src_entry, dst_entry
             try:
-                if symlink:
+                if copy_mode is CopyMode.SYMLINK:
                     relative_symlink(src_entry, dst_entry)
                 elif is_dir:
                     os.mkdir(dst_entry)
@@ -823,6 +833,6 @@ def iter_copytree(
                 if e.errno != errno.EEXIST:
                     raise e
 
-        if symlink:
+        if copy_mode is CopyMode.SYMLINK:
             # Once we've symlinked the top-level directories and files, we've "copied" everything.
             return

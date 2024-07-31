@@ -73,6 +73,12 @@ class Version(object):
             return NotImplemented
         return self.parsed_version < other.parsed_version
 
+    def __ge__(self, other):
+        # type: (Any) -> bool
+        if not isinstance(other, Version):
+            return NotImplemented
+        return self.parsed_version >= other.parsed_version
+
     @property
     def is_legacy(self):
         # type: () -> bool

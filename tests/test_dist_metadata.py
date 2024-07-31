@@ -28,6 +28,7 @@ from pex.pep_427 import install_wheel_chroot
 from pex.pep_503 import ProjectName
 from pex.pex_warnings import PEXWarning
 from pex.pip.installation import get_pip
+from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.resolver_configuration import BuildConfiguration
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.typing import TYPE_CHECKING
@@ -59,7 +60,7 @@ def downloaded_sdist(requirement):
     # type: (str) -> Iterator[str]
     with temporary_dir() as td:
         download_dir = os.path.join(td, "download")
-        get_pip().spawn_download_distributions(
+        get_pip(resolver=ConfiguredResolver.default()).spawn_download_distributions(
             download_dir=download_dir,
             requirements=[requirement],
             transitive=False,
@@ -103,7 +104,9 @@ def pip_tgz_sdist():
 def pip_wheel(pip_tgz_sdist):
     # type: (str) -> Iterator[str]
     with temporary_dir() as wheel_dir:
-        get_pip().spawn_build_wheels([pip_tgz_sdist], wheel_dir=wheel_dir).wait()
+        get_pip(resolver=ConfiguredResolver.default()).spawn_build_wheels(
+            [pip_tgz_sdist], wheel_dir=wheel_dir
+        ).wait()
         wheels = os.listdir(wheel_dir)
         assert len(wheels) == 1, "Expected 1 wheel to be built for {}.".format(pip_tgz_sdist)
         wheel = os.path.join(wheel_dir, wheels[0])

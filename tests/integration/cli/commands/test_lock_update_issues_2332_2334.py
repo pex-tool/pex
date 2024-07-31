@@ -290,9 +290,9 @@ def test_lock_update_conflict(
                 else re.escape(
                     dedent(
                         """\
-                        The conflict is caused by:
-                             The user requested proj-b==1.*
-                             The user requested (constraint) proj-b>=2
+                        pip:  The conflict is caused by:
+                        pip:      The user requested proj-b==1.*
+                        pip:      The user requested (constraint) proj-b>=2
                         """
                     )
                 )

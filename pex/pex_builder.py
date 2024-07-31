@@ -15,6 +15,7 @@ from pex import pex_warnings
 from pex.atomic_directory import atomic_directory
 from pex.common import (
     Chroot,
+    CopyMode,
     chmod_plus_x,
     deterministic_walk,
     is_pyc_file,
@@ -49,15 +50,6 @@ if TYPE_CHECKING:
 # path here at import time before any cd'ing occurs in test code that might interfere with our
 # attempts to locate Pex files later below.
 _ABS_PEX_PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-
-class CopyMode(Enum["CopyMode.Value"]):
-    class Value(Enum.Value):
-        pass
-
-    COPY = Value("copy")
-    LINK = Value("link")
-    SYMLINK = Value("symlink")
 
 
 class InvalidZipAppError(Exception):
