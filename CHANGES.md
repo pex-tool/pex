@@ -13,7 +13,7 @@ Finally, support is added for `--scie-busybox` to turn your PEX into a
 multi-entrypoint [BusyBox][BusyBox]-like scie. This support is
 documented in depth at https://docs.pex-tool.org/scie.html
 
-* Support `--scie` for PyPy and stripped CPython. (#2488)
+* Support `--scie` for PyPy & support stripped CPython. (#2488)
 * Add support for `--scie-busybox`. (#2468)
 
 [PyPy]: https://pypy.org/
