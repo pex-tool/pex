@@ -300,8 +300,8 @@ class PEXBuilder(object):
         if dist_entry_point:
             self.set_entry_point(str(dist_entry_point.entry_point))
             TRACER.log(
-                "Set entrypoint to console_script {!r} in {!r}".format(
-                    dist_entry_point.entry_point, dist_entry_point.dist
+                "Set entrypoint to {console_script}".format(
+                    console_script=dist_entry_point.render_description()
                 )
             )
             return

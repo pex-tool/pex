@@ -67,7 +67,19 @@ from pex.version import __version__
 
 if TYPE_CHECKING:
     from argparse import Namespace
-    from typing import Dict, Iterable, Iterator, List, NoReturn, Optional, Set, Text, Tuple, Union
+    from typing import (
+        Dict,
+        Iterable,
+        Iterator,
+        List,
+        NoReturn,
+        Optional,
+        Sequence,
+        Set,
+        Text,
+        Tuple,
+        Union,
+    )
 
     import attr  # vendor:skip
 
@@ -728,8 +740,44 @@ def configure_clp_sources(parser):
     )
 
 
+@attr.s(frozen=True)
+class PositionalArgumentFromFileParser(object):
+    parser = attr.ib()  # type: ArgumentParser
+    positional_option_name = attr.ib()  # type: str
+
+    def parse_args(
+        self,
+        args=None,  # type: Optional[Sequence[str]]
+        namespace=None,  # type: Optional[Namespace]
+    ):
+        # type: (...) -> Namespace
+
+        options = self.parser.parse_args(args=args, namespace=namespace)
+
+        extra_args = []
+        positionals = []
+        for positional in getattr(options, self.positional_option_name):
+            if positional.startswith("@"):
+                with open(positional[1:]) as fp:
+                    extra_args.extend(fp.read().splitlines())
+            else:
+                positionals.append(positional)
+        setattr(options, self.positional_option_name, positionals)
+
+        if extra_args:
+            extra_options = self.parser.parse_args(extra_args)
+            for name, value in vars(extra_options).items():
+                existing_value = getattr(options, name, None)
+                if isinstance(existing_value, list) and value:
+                    existing_value.extend(value)
+                elif existing_value is None or value is not None:
+                    setattr(options, name, value)
+
+        return options
+
+
 def configure_clp():
-    # type: () -> ArgumentParser
+    # type: () -> PositionalArgumentFromFileParser
     usage = (
         "%(prog)s [-o OUTPUT.PEX] [options] [-- arg1 arg2 ...]\n\n"
         "%(prog)s builds a PEX (Python Executable) file based on the given specifications: "
@@ -739,12 +787,7 @@ def configure_clp():
         "with an @ symbol. These files must contain one argument per line."
     )
 
-    parser = ArgumentParser(
-        usage=usage,
-        formatter_class=ArgumentDefaultsHelpFormatter,
-        fromfile_prefix_chars="@",
-    )
-
+    parser = ArgumentParser(usage=usage, formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument("-V", "--version", action="version", version=__version__)
 
     configure_clp_pex_resolution(parser)
@@ -831,7 +874,7 @@ def configure_clp():
         ),
     )
 
-    return parser
+    return PositionalArgumentFromFileParser(parser, positional_option_name="requirements")
 
 
 def _iter_directory_sources(directories):

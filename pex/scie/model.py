@@ -6,16 +6,21 @@ from __future__ import absolute_import
 import itertools
 import os
 import platform
-from collections import defaultdict
+from collections import OrderedDict, defaultdict
 
+from pex.common import pluralize
+from pex.dist_metadata import Distribution, NamedEntryPoint
 from pex.enum import Enum
+from pex.finders import get_entry_point_from_console_script
+from pex.pep_503 import ProjectName
+from pex.pex import PEX
 from pex.platforms import Platform
 from pex.targets import Targets
 from pex.third_party.packaging import tags  # noqa
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from typing import DefaultDict, Iterable, Optional, Set, Tuple, Union
+    from typing import DefaultDict, Iterable, Iterator, List, Optional, Set, Text, Tuple, Union
 
     import attr  # vendor:skip
 else:
@@ -28,6 +33,186 @@ class ScieStyle(Enum["ScieStyle.Value"]):
 
     LAZY = Value("lazy")
     EAGER = Value("eager")
+
+
+@attr.s(frozen=True)
+class ConsoleScript(object):
+    name = attr.ib()  # type: str
+    project_name = attr.ib(default=None)  # type: Optional[ProjectName]
+
+    def __str__(self):
+        # type: () -> str
+        return (
+            "{script_name}@{project_name}".format(
+                script_name=self.name, project_name=self.project_name.raw
+            )
+            if self.project_name
+            else self.name
+        )
+
+
+@attr.s(frozen=True)
+class ConsoleScriptsManifest(object):
+    @classmethod
+    def try_parse(cls, value):
+        # type: (str) -> Optional[ConsoleScriptsManifest]
+        script_name, sep, project_name = value.partition("@")
+        if not sep and all(script_name.partition("=")):
+            # This is an ad-hoc entrypoint; not a console script specification.
+            return None
+
+        if sep and not script_name and not project_name:
+            return cls(add_all=True)
+        elif script_name and script_name != "!":
+            if script_name.startswith("!"):
+                return cls(
+                    remove_individual=(
+                        ConsoleScript(
+                            name=script_name[1:],
+                            project_name=ProjectName(project_name) if project_name else None,
+                        ),
+                    )
+                )
+            else:
+                return cls(
+                    add_individual=(
+                        ConsoleScript(
+                            name=script_name,
+                            project_name=ProjectName(project_name) if project_name else None,
+                        ),
+                    )
+                )
+        elif sep and project_name and (not script_name or script_name == "!"):
+            if script_name == "!":
+                return cls(remove_project=(ProjectName(project_name),))
+            else:
+                return cls(add_project=(ProjectName(project_name),))
+        else:
+            return None
+
+    add_individual = attr.ib(default=())  # type: Tuple[ConsoleScript, ...]
+    remove_individual = attr.ib(default=())  # type: Tuple[ConsoleScript, ...]
+    add_project = attr.ib(default=())  # type: Tuple[ProjectName, ...]
+    remove_project = attr.ib(default=())  # type: Tuple[ProjectName, ...]
+    add_all = attr.ib(default=False)  # type: bool
+
+    def iter_specs(self):
+        # type: () -> Iterator[Text]
+        if self.add_all:
+            yield "@"
+        for project_name in self.add_project:
+            yield "@{dist}".format(dist=project_name.raw)
+        for script in self.add_individual:
+            yield str(script)
+        for project_name in self.remove_project:
+            yield "!@{dist}".format(dist=project_name.raw)
+        for script in self.remove_individual:
+            yield "!{script}".format(script=script)
+
+    def merge(self, other):
+        # type: (ConsoleScriptsManifest) -> ConsoleScriptsManifest
+        return ConsoleScriptsManifest(
+            add_individual=self.add_individual + other.add_individual,
+            remove_individual=self.remove_individual + other.remove_individual,
+            add_project=self.add_project + other.add_project,
+            remove_project=self.remove_project + other.remove_project,
+            add_all=self.add_all or other.add_all,
+        )
+
+    def collect(self, pex):
+        # type: (PEX) -> Iterable[NamedEntryPoint]
+
+        dists = tuple(
+            fingerprinted_distribution.distribution
+            for fingerprinted_distribution in pex.iter_distributions()
+        )
+
+        console_scripts = OrderedDict(
+            (console_script, None) for console_script in self.add_individual
+        )  # type: OrderedDict[ConsoleScript, Optional[NamedEntryPoint]]
+
+        if self.add_project or self.remove_project or self.add_all:
+            for dist in dists:
+                remove = dist.metadata.project_name in self.remove_project
+                add = self.add_all or dist.metadata.project_name in self.add_project
+                if not remove and not add:
+                    continue
+                for name, named_entry_point in (
+                    dist.get_entry_map().get("console_scripts", {}).items()
+                ):
+                    if remove:
+                        console_scripts.pop(ConsoleScript(name=name), None)
+                        console_scripts.pop(
+                            ConsoleScript(name=name, project_name=dist.metadata.project_name), None
+                        )
+                    else:
+                        console_scripts[
+                            ConsoleScript(name=name, project_name=dist.metadata.project_name)
+                        ] = named_entry_point
+
+        for console_script in self.remove_individual:
+            console_scripts.pop(console_script, None)
+            if not console_script.project_name:
+                for cs in tuple(console_scripts):
+                    if console_script.name == cs.name:
+                        console_scripts.pop(cs)
+
+        def iter_entry_points():
+            # type: () -> Iterator[NamedEntryPoint]
+            not_founds = []  # type: List[ConsoleScript]
+            wrong_projects = []  # type: List[Tuple[ConsoleScript, Distribution]]
+            for script, ep in console_scripts.items():
+                if ep:
+                    yield ep
+                else:
+                    dist_entry_point = get_entry_point_from_console_script(script.name, dists)
+                    if not dist_entry_point:
+                        not_founds.append(script)
+                    elif (
+                        script.project_name
+                        and dist_entry_point.dist.metadata.project_name != script.project_name
+                    ):
+                        wrong_projects.append((script, dist_entry_point.dist))
+                    else:
+                        yield NamedEntryPoint(
+                            name=dist_entry_point.name, entry_point=dist_entry_point.entry_point
+                        )
+
+            if not_founds or wrong_projects:
+                failures = []  # type: List[str]
+                if not_founds:
+                    failures.append(
+                        "Could not find {scripts}: {script_names}".format(
+                            scripts=pluralize(not_founds, "script"),
+                            script_names=" ".join(map(str, not_founds)),
+                        )
+                    )
+                if wrong_projects:
+                    failures.append(
+                        "Found {scripts} in the wrong {projects}:\n  {wrong_projects}".format(
+                            scripts=pluralize(wrong_projects, "script"),
+                            projects=pluralize(wrong_projects, "project"),
+                            wrong_projects="\n  ".join(
+                                "{script} found in {project}".format(
+                                    script=script, project=dist.project_name
+                                )
+                                for script, dist in wrong_projects
+                            ),
+                        )
+                    )
+                raise ValueError(
+                    "Failed to resolve some console scripts:\n+ {failures}".format(
+                        failures="\n+ ".join(failures)
+                    )
+                )
+
+        return tuple(iter_entry_points())
+
+
+@attr.s(frozen=True)
+class BusyBoxEntryPoints(object):
+    console_scripts_manifest = attr.ib()  # type: ConsoleScriptsManifest
+    ad_hoc_entry_points = attr.ib()  # type: Tuple[NamedEntryPoint, ...]
 
 
 class _CurrentPlatform(object):
@@ -162,6 +347,7 @@ class File(str):
 @attr.s(frozen=True)
 class ScieOptions(object):
     style = attr.ib(default=ScieStyle.LAZY)  # type: ScieStyle.Value
+    busybox_entrypoints = attr.ib(default=None)  # type: Optional[BusyBoxEntryPoints]
     platforms = attr.ib(default=())  # type: Tuple[SciePlatform.Value, ...]
     pbs_release = attr.ib(default=None)  # type: Optional[str]
     pypy_release = attr.ib(default=None)  # type: Optional[str]

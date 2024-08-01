@@ -14,10 +14,11 @@ from types import ModuleType
 from pex import bootstrap, pex_warnings
 from pex.bootstrap import Bootstrap
 from pex.common import die
-from pex.dist_metadata import CallableEntryPoint, Distribution, EntryPoint
+from pex.dist_metadata import CallableEntryPoint, Distribution, ModuleEntryPoint, parse_entry_point
 from pex.environment import PEXEnvironment
 from pex.executor import Executor
 from pex.finders import get_entry_point_from_console_script, get_script_from_distributions
+from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.inherit_path import InheritPath
 from pex.interpreter import PythonIdentity, PythonInterpreter
 from pex.layout import Layout
@@ -216,6 +217,19 @@ class PEX(object):  # noqa: T000
         seen = set()
         for env in self._loaded_envs:
             for dist in env.resolve():
+                # N.B.: Since there can be more than one PEX env on the PEX_PATH we take care to
+                # de-dup distributions they have in common.
+                if dist in seen:
+                    continue
+                seen.add(dist)
+                yield dist
+
+    def iter_distributions(self, result_type_wheel_file=False):
+        # type: (bool) -> Iterator[FingerprintedDistribution]
+        """Iterates all distributions loadable from this PEX."""
+        seen = set()
+        for env in self._loaded_envs:
+            for dist in env.iter_distributions(result_type_wheel_file=result_type_wheel_file):
                 # N.B.: Since there can be more than one PEX env on the PEX_PATH we take care to
                 # de-dup distributions they have in common.
                 if dist in seen:
@@ -594,18 +608,14 @@ class PEX(object):  # noqa: T000
         if self._pex_info_overrides.script:
             return self.execute_script(self._pex_info_overrides.script)
         if self._pex_info_overrides.entry_point:
-            return self.execute_entry(
-                EntryPoint.parse("run = {}".format(self._pex_info_overrides.entry_point))
-            )
+            return self.execute_entry(parse_entry_point(self._pex_info_overrides.entry_point))
 
         sys.argv[1:1] = list(self._pex_info.inject_args)
 
         if self._pex_info.script:
             return self.execute_script(self._pex_info.script)
         else:
-            return self.execute_entry(
-                EntryPoint.parse("run = {}".format(self._pex_info.entry_point))
-            )
+            return self.execute_entry(parse_entry_point(self._pex_info.entry_point))
 
     def execute_interpreter(self):
         # type: () -> Any
@@ -743,8 +753,8 @@ class PEX(object):  # noqa: T000
         dist_entry_point = get_entry_point_from_console_script(script_name, dists)
         if dist_entry_point:
             TRACER.log(
-                "Found console_script {!r} in {!r}.".format(
-                    dist_entry_point.entry_point, dist_entry_point.dist
+                "Found {console_script}.".format(
+                    console_script=dist_entry_point.render_description()
                 )
             )
             return self.execute_entry(dist_entry_point.entry_point)
@@ -803,7 +813,7 @@ class PEX(object):  # noqa: T000
         return None
 
     def execute_entry(self, entry_point):
-        # type: (EntryPoint) -> Any
+        # type: (Union[ModuleEntryPoint, CallableEntryPoint]) -> Any
         if isinstance(entry_point, CallableEntryPoint):
             return self.execute_entry_point(entry_point)
 

@@ -240,7 +240,7 @@ def create_sh_boot_script(
         ; do
             echo >&2 "${{python}}"
         done
-        echo >&2 "Either adjust your $PATH which is currently:"
+        echo >&2 'Either adjust your $PATH which is currently:'
         echo >&2 "${{PATH}}"
         echo >&2 -n "Or else install an appropriate Python that provides one of the binaries in "
         echo >&2 "this list."

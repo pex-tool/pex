@@ -13,12 +13,13 @@ from subprocess import CalledProcessError
 from pex.atomic_directory import atomic_directory
 from pex.common import chmod_plus_x, is_exe, pluralize, safe_mkdtemp, safe_open
 from pex.compatibility import shlex_quote
+from pex.dist_metadata import NamedEntryPoint, parse_entry_point
 from pex.exceptions import production_assert
 from pex.fetcher import URLFetcher
 from pex.hashing import Sha256
 from pex.layout import Layout
 from pex.pep_440 import Version
-from pex.pex_info import PexInfo
+from pex.pex import PEX
 from pex.result import Error, try_
 from pex.scie.model import (
     File,
@@ -38,7 +39,7 @@ from pex.util import CacheHelper
 from pex.variables import ENV, Variables, unzip_dir_relpath
 
 if TYPE_CHECKING:
-    from typing import Any, Dict, Iterator, Optional, Union, cast
+    from typing import Any, Dict, Iterator, List, Optional, Union, cast
 
     import attr  # vendor:skip
     import toml  # vendor:skip
@@ -110,27 +111,109 @@ class Filenames(object):
 def create_manifests(
     configuration,  # type: ScieConfiguration
     name,  # type: str
-    pex_info,  # type: PexInfo
-    layout,  # type: Layout.Value
+    pex,  # type: PEX
     filenames,  # type: Filenames
 ):
     # type: (...) -> Iterator[Manifest]
 
+    pex_info = pex.pex_info(include_env_overrides=False)
     pex_root = "{scie.bindings}/pex_root"
-    if pex_info.venv:
-        # We let the configure-binding calculate the venv dir at runtime since it depends on the
-        # interpreter executing the venv PEX.
-        installed_pex_dir = ""
-    elif layout is Layout.LOOSE:
-        installed_pex_dir = filenames.pex.placeholder
-    else:
-        production_assert(pex_info.pex_hash is not None)
-        pex_hash = cast(str, pex_info.pex_hash)
-        installed_pex_dir = os.path.join(pex_root, unzip_dir_relpath(pex_hash))
+
+    configure_binding_args = [filenames.pex.placeholder, filenames.configure_binding.placeholder]
+    # N.B.: For the venv case, we let the configure-binding calculate the installed PEX dir
+    # (venv dir) at runtime since it depends on the interpreter executing the venv PEX.
+    if not pex_info.venv:
+        configure_binding_args.append("--installed-pex-dir")
+        if pex.layout is Layout.LOOSE:
+            configure_binding_args.append(filenames.pex.placeholder)
+        else:
+            production_assert(pex_info.pex_hash is not None)
+            pex_hash = cast(str, pex_info.pex_hash)
+            configure_binding_args.append(os.path.join(pex_root, unzip_dir_relpath(pex_hash)))
 
     env_default = {
         "PEX_ROOT": pex_root,
     }
+
+    commands = []  # type: List[Dict[str, Any]]
+    entrypoints = configuration.options.busybox_entrypoints
+    if entrypoints:
+        pex_entry_point = parse_entry_point(pex_info.entry_point)
+
+        def replace_env(
+            named_entry_point,  # type: NamedEntryPoint
+            **env  # type: str
+        ):
+            # type: (...) -> Dict[str, str]
+            return dict(
+                pex_info.inject_env if named_entry_point.entry_point == pex_entry_point else {},
+                **env
+            )
+
+        def args(
+            named_entry_point,  # type: NamedEntryPoint
+            *args  # type: str
+        ):
+            # type: (...) -> List[str]
+            all_args = (
+                list(pex_info.inject_python_args)
+                if named_entry_point.entry_point == pex_entry_point
+                else []
+            )
+            all_args.extend(args)
+            if named_entry_point.entry_point == pex_entry_point:
+                all_args.extend(pex_info.inject_args)
+            return all_args
+
+        def create_cmd(named_entry_point):
+            # type: (NamedEntryPoint) -> Dict[str, Any]
+            return {
+                "name": named_entry_point.name,
+                "env": {
+                    "default": env_default,
+                    "replace": replace_env(
+                        named_entry_point, PEX_MODULE=str(named_entry_point.entry_point)
+                    ),
+                    "remove_exact": ["PEX_INTERPRETER", "PEX_SCRIPT", "PEX_VENV"],
+                },
+                "exe": "{scie.bindings.configure:PYTHON}",
+                "args": args(named_entry_point, "{scie.bindings.configure:PEX}"),
+            }
+
+        if pex_info.venv:
+            # N.B.: Executing the console script directly instead of bouncing through the PEX
+            # __main__.py using PEX_SCRIPT saves ~10ms of re-exec overhead in informal testing; so
+            # it's worth specializing here.
+            commands.extend(
+                {
+                    "name": named_entry_point.name,
+                    "env": {
+                        "default": env_default,
+                        "replace": replace_env(named_entry_point),
+                        "remove_exact": ["PEX_INTERPRETER", "PEX_MODULE", "PEX_SCRIPT", "PEX_VENV"],
+                    },
+                    "exe": "{scie.bindings.configure:PYTHON}",
+                    "args": args(
+                        named_entry_point,
+                        "{scie.bindings.configure:VENV_BIN_DIR_PLUS_SEP}" + named_entry_point.name,
+                    ),
+                }
+                for named_entry_point in entrypoints.console_scripts_manifest.collect(pex)
+            )
+        else:
+            commands.extend(map(create_cmd, entrypoints.console_scripts_manifest.collect(pex)))
+        commands.extend(map(create_cmd, entrypoints.ad_hoc_entry_points))
+    else:
+        commands.append(
+            {
+                "env": {
+                    "default": env_default,
+                    "remove_exact": ["PEX_VENV"],
+                },
+                "exe": "{scie.bindings.configure:PYTHON}",
+                "args": ["{scie.bindings.configure:PEX}"],
+            }
+        )
 
     lift = {
         "name": name,
@@ -141,13 +224,7 @@ def create_manifests(
         },
         "scie_jump": {"version": SCIE_JUMP_VERSION},
         "files": [{"name": filenames.configure_binding.name}, {"name": filenames.pex.name}],
-        "commands": [
-            {
-                "env": {"default": env_default},
-                "exe": "{scie.bindings.configure:PYTHON}",
-                "args": ["{scie.bindings.configure:PEX}"],
-            }
-        ],
+        "commands": commands,
         "bindings": [
             {
                 "env": {
@@ -156,7 +233,6 @@ def create_manifests(
                     "remove_re": ["PEX_.*"],
                     "replace": {
                         "PEX_INTERPRETER": "1",
-                        "_PEX_SCIE_INSTALLED_PEX_DIR": installed_pex_dir,
                         # We can get a warning about too-long script shebangs, but this is not
                         # relevant since we above run the PEX via python and not via shebang.
                         "PEX_EMIT_WARNINGS": "0",
@@ -164,7 +240,7 @@ def create_manifests(
                 },
                 "name": "configure",
                 "exe": "#{cpython:python}",
-                "args": [filenames.pex.placeholder, filenames.configure_binding.placeholder],
+                "args": configure_binding_args,
             }
         ],
     }  # type: Dict[str, Any]
@@ -350,13 +426,12 @@ def build(
         env=env,
     )
     name = re.sub(r"\.pex$", "", os.path.basename(pex_file), flags=re.IGNORECASE)
-    pex_info = PexInfo.from_pex(pex_file)
-    layout = Layout.identify(pex_file)
+    pex = PEX(pex_file)
     use_platform_suffix = len(configuration.interpreters) > 1
     filenames = Filenames.avoid_collisions_with(name)
 
     errors = OrderedDict()  # type: OrderedDict[Manifest, str]
-    for manifest in create_manifests(configuration, name, pex_info, layout, filenames):
+    for manifest in create_manifests(configuration, name, pex, filenames):
         args = [science, "--cache-dir", _science_dir(env, "cache")]
         if env.PEX_VERBOSE:
             args.append("-{verbosity}".format(verbosity="v" * env.PEX_VERBOSE))
