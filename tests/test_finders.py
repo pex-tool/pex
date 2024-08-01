@@ -5,7 +5,7 @@ import os
 
 import pytest
 
-from pex.dist_metadata import CallableEntryPoint, Distribution, EntryPoint
+from pex.dist_metadata import CallableEntryPoint, Distribution, NamedEntryPoint
 from pex.finders import (
     DistributionScript,
     get_entry_point_from_console_script,
@@ -17,7 +17,7 @@ from pex.typing import TYPE_CHECKING
 from testing.dist_metadata import create_dist_metadata
 
 if TYPE_CHECKING:
-    from typing import Any, Dict, Text, Tuple
+    from typing import Any, Dict, Tuple
 
     import attr  # vendor:skip
 else:
@@ -59,12 +59,12 @@ def create_dist(
     console_script_entry,  # type: str
 ):
     # type: (...) -> Distribution
-    entry_point = EntryPoint.parse(console_script_entry)
+    entry_point = NamedEntryPoint.parse(console_script_entry)
 
     @attr.s(frozen=True)
     class FakeDist(Distribution):
         def get_entry_map(self):
-            # type: () -> Dict[Text, Dict[Text, EntryPoint]]
+            # type: () -> Dict[str, Dict[str, NamedEntryPoint]]
             return {"console_scripts": {entry_point.name: entry_point}}
 
     location = os.getcwd()
@@ -83,10 +83,8 @@ def test_get_entry_point_from_console_script():
 
     dist_entrypoint = get_entry_point_from_console_script("bob", dists)
     assert dist_entrypoint is not None
-    assert (
-        CallableEntryPoint(name="bob", module="bob.main", attrs=("run",))
-        == dist_entrypoint.entry_point
-    )
+    assert "bob" == dist_entrypoint.name
+    assert CallableEntryPoint(module="bob.main", attrs=("run",)) == dist_entrypoint.entry_point
     assert dist_entrypoint.dist in dists
 
 

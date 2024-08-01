@@ -7,11 +7,14 @@ import os.path
 from argparse import Namespace, _ActionsContainer
 
 from pex.compatibility import urlparse
+from pex.dist_metadata import NamedEntryPoint
 from pex.fetcher import URLFetcher
 from pex.orderedset import OrderedSet
 from pex.pep_440 import Version
 from pex.scie import science
 from pex.scie.model import (
+    BusyBoxEntryPoints,
+    ConsoleScriptsManifest,
     ScieConfiguration,
     ScieInfo,
     ScieOptions,
@@ -24,8 +27,7 @@ from pex.typing import TYPE_CHECKING, cast
 from pex.variables import ENV, Variables
 
 if TYPE_CHECKING:
-    from typing import Iterator, Optional, Tuple, Union
-
+    from typing import Iterator, List, Optional, Text, Tuple, Union
 
 __all__ = (
     "ScieConfiguration",
@@ -70,6 +72,35 @@ def register_options(parser):
             "customization needs not addressed by the Pex `--scie*` options, consider using "
             "`science` to build your scies (which is what Pex uses behind the scenes); see: "
             "https://science.scie.app.".format(lazy=ScieStyle.LAZY, eager=ScieStyle.EAGER)
+        ),
+    )
+    parser.add_argument(
+        "--scie-busybox",
+        dest="scie_busybox",
+        type=str,
+        default=[],
+        action="append",
+        help=(
+            "Make the PEX scie a BusyBox over the specified entry points. The entry points can "
+            "either be console scripts or entry point specifiers. To select all console scripts in "
+            "all distributions contained in the PEX, use `@`. To just pick all the console scripts "
+            "from a particular project name's distributions in the PEX, use `@<project name>`; "
+            "e.g.: `@ansible-core`. To exclude all the console scripts from a project, prefix with "
+            "a `!`; e.g.: `@,!@ansible-core` selects all console scripts except those provided by "
+            "the `ansible-core` project. To select an individual console script, just use its name "
+            "or prefix the name with `!` to exclude that individual console script. To specify an "
+            "arbitrary entry point in a module contained within one of the distributions in the "
+            "PEX, use a string of the form `<name>=<module>(:<function>)`; e.g.: "
+            "'run-baz=foo.bar:baz' to execute the `baz` function in the `foo.bar` module as the "
+            "entry point named `run-baz`. Multiple entry points can be specified at once using a "
+            "comma-separated list or the option can be specified multiple times. A BusyBox scie "
+            "has no default entrypoint; instead, when run, it inspects argv0; if that matches one "
+            "of its embedded entry points, it runs that entry point; if not, it lists all "
+            "available entrypoints for you to pick from. To run a given entry point, you specify "
+            "it as the first argument and all other arguments after that are forwarded to that "
+            "entry point. BusyBox PEX scies allow you to install all their contained entry points "
+            "into a given directory. For more information, run `SCIE=help <your PEX scie>` and "
+            "review the `install` command help."
         ),
     )
     parser.add_argument(
@@ -137,9 +168,14 @@ def register_options(parser):
 
 
 def render_options(options):
-    # type: (ScieOptions) -> str
+    # type: (ScieOptions) -> Text
 
-    args = ["--scie", str(options.style)]
+    args = ["--scie", str(options.style)]  # type: List[Text]
+    if options.busybox_entrypoints:
+        args.append("--scie-busybox")
+        entrypoints = list(options.busybox_entrypoints.console_scripts_manifest.iter_specs())
+        entrypoints.extend(map(str, options.busybox_entrypoints.ad_hoc_entry_points))
+        args.append(",".join(entrypoints))
     for platform in options.platforms:
         args.append("--scie-platform")
         args.append(str(platform))
@@ -160,6 +196,37 @@ def extract_options(options):
 
     if not options.scie_style:
         return None
+
+    entry_points = None
+    if options.scie_busybox:
+        eps = []  # type: List[str]
+        for value in options.scie_busybox:
+            eps.extend(ep.strip() for ep in value.split(","))
+
+        console_scripts_manifest = ConsoleScriptsManifest()
+        ad_hoc_entry_points = []  # type: List[NamedEntryPoint]
+        bad_entry_points = []  # type: List[str]
+        for ep in eps:
+            csm = ConsoleScriptsManifest.try_parse(ep)
+            if csm:
+                console_scripts_manifest = console_scripts_manifest.merge(csm)
+            else:
+                try:
+                    ad_hoc_entry_point = NamedEntryPoint.parse(ep)
+                except ValueError:
+                    bad_entry_points.append(ep)
+                else:
+                    ad_hoc_entry_points.append(ad_hoc_entry_point)
+
+        if bad_entry_points:
+            raise ValueError(
+                "The following --scie-busybox entry point specifications were not understood:\n"
+                "{bad_entry_points}".format(bad_entry_points="\n".join(bad_entry_points))
+            )
+        entry_points = BusyBoxEntryPoints(
+            console_scripts_manifest=console_scripts_manifest,
+            ad_hoc_entry_points=tuple(ad_hoc_entry_points),
+        )
 
     python_version = None  # type: Optional[Union[Tuple[int, int], Tuple[int, int, int]]]
     if options.scie_python_version:
@@ -195,6 +262,7 @@ def extract_options(options):
 
     return ScieOptions(
         style=options.scie_style,
+        busybox_entrypoints=entry_points,
         platforms=tuple(OrderedSet(options.scie_platforms)),
         pbs_release=options.scie_pbs_release,
         python_version=python_version,

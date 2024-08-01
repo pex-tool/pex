@@ -31,5 +31,6 @@ Guide:
 
    whatispex
    buildingpex
+   scie
    recipes
    api/vars

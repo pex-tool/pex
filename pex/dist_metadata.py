@@ -22,7 +22,7 @@ from textwrap import dedent
 
 from pex import pex_warnings, specifier_sets
 from pex.common import open_zip, pluralize
-from pex.compatibility import to_unicode
+from pex.compatibility import PY2, to_unicode
 from pex.enum import Enum
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
@@ -912,23 +912,26 @@ class DistributionType(Enum["DistributionType.Value"]):
 class Distribution(object):
     @staticmethod
     def _read_metadata_lines(metadata_bytes):
-        # type: (bytes) -> Iterator[Text]
+        # type: (bytes) -> Iterator[str]
         for line in metadata_bytes.splitlines():
             # This is pkg_resources.IMetadataProvider.get_metadata_lines behavior, which our
             # code expects.
-            normalized = line.decode("utf-8").strip()
+            if PY2:
+                normalized = line.strip()
+            else:
+                normalized = line.decode("utf-8").strip()
             if normalized and not normalized.startswith("#"):
                 yield normalized
 
     @classmethod
     def parse_entry_map(cls, entry_points_contents):
-        # type: (bytes) -> Dict[Text, Dict[Text, EntryPoint]]
+        # type: (bytes) -> Dict[str, Dict[str, NamedEntryPoint]]
 
         # This file format is defined here:
         #   https://packaging.python.org/en/latest/specifications/entry-points/#file-format
 
-        entry_map = defaultdict(dict)  # type: DefaultDict[Text, Dict[Text, EntryPoint]]
-        group = None  # type: Optional[Text]
+        entry_map = defaultdict(dict)  # type: DefaultDict[str, Dict[str, NamedEntryPoint]]
+        group = None  # type: Optional[str]
         for index, line in enumerate(cls._read_metadata_lines(entry_points_contents), start=1):
             if line.startswith("[") and line.endswith("]"):
                 group = line[1:-1]
@@ -938,7 +941,7 @@ class Distribution(object):
                     "group on line {index}: {line}".format(index=index, line=line)
                 )
             else:
-                entry_point = EntryPoint.parse(line)
+                entry_point = NamedEntryPoint.parse(line)
                 entry_map[group][entry_point.name] = entry_point
         return entry_map
 
@@ -1008,7 +1011,7 @@ class Distribution(object):
                 yield line
 
     def get_entry_map(self):
-        # type: () -> Dict[Text, Dict[Text, EntryPoint]]
+        # type: () -> Dict[str, Dict[str, NamedEntryPoint]]
         entry_points_metadata_file = self._read_metadata_file("entry_points.txt")
         if entry_points_metadata_file is None:
             return defaultdict(dict)
@@ -1022,10 +1025,61 @@ class Distribution(object):
 
 
 @attr.s(frozen=True)
-class EntryPoint(object):
+class ModuleEntryPoint(object):
+    module = attr.ib()  # type: str
+
+    def __str__(self):
+        # type: () -> str
+        return self.module
+
+
+@attr.s(frozen=True)
+class CallableEntryPoint(object):
+    module = attr.ib()  # type: str
+    attrs = attr.ib()  # type: Tuple[str, ...]
+
+    @attrs.validator
+    def _validate_attrs(self, _, value):
+        if not value:
+            raise ValueError("A callable entry point must select a callable item from the module.")
+
+    def resolve(self):
+        # type: () -> Callable[[], Any]
+        module = importlib.import_module(self.module)
+        try:
+            return cast("Callable[[], Any]", functools.reduce(getattr, self.attrs, module))
+        except AttributeError as e:
+            raise ImportError(
+                "Could not resolve {attrs} in {module}: {err}".format(
+                    attrs=".".join(self.attrs), module=module, err=e
+                )
+            )
+
+    def __str__(self):
+        # type: () -> str
+        return "{module}:{attrs}".format(module=self.module, attrs=".".join(self.attrs))
+
+
+def parse_entry_point(value):
+    # type: (str) -> Union[ModuleEntryPoint, CallableEntryPoint]
+
+    # The format of the value of an entry point (minus the name part), is specified here:
+    #   https://packaging.python.org/en/latest/specifications/entry-points/#file-format
+
+    # N.B.: Python identifiers must be ascii.
+    module, sep, attrs = str(value).strip().partition(":")
+    if sep:
+        if not attrs:
+            raise ValueError("Invalid entry point specification: {value}.".format(value=value))
+        return CallableEntryPoint(module=module, attrs=tuple(attrs.split(".")))
+    return ModuleEntryPoint(module=module)
+
+
+@attr.s(frozen=True)
+class NamedEntryPoint(object):
     @classmethod
     def parse(cls, spec):
-        # type: (Text) -> EntryPoint
+        # type: (str) -> NamedEntryPoint
 
         # This file format is defined here:
         #   https://packaging.python.org/en/latest/specifications/entry-points/#file-format
@@ -1035,51 +1089,15 @@ class EntryPoint(object):
             raise ValueError("Invalid entry point specification: {spec}.".format(spec=spec))
 
         name, value = components
-        # N.B.: Python identifiers must be ascii.
-        module, sep, attrs = str(value).strip().partition(":")
-        if sep and not attrs:
-            raise ValueError("Invalid entry point specification: {spec}.".format(spec=spec))
+        entry_point = parse_entry_point(value)
+        return cls(name=name.strip(), entry_point=entry_point)
 
-        entry_point_name = name.strip()
-        if sep:
-            return CallableEntryPoint(
-                name=entry_point_name, module=module, attrs=tuple(attrs.split("."))
-            )
-
-        return cls(name=entry_point_name, module=module)
-
-    name = attr.ib()  # type: Text
-    module = attr.ib()  # type: str
+    name = attr.ib()  # type: str
+    entry_point = attr.ib()  # type: Union[ModuleEntryPoint, CallableEntryPoint]
 
     def __str__(self):
         # type: () -> str
-        return self.module
-
-
-@attr.s(frozen=True)
-class CallableEntryPoint(EntryPoint):
-    _attrs = attr.ib()  # type: Tuple[str, ...]
-
-    @_attrs.validator
-    def _validate_attrs(self, _, value):
-        if not value:
-            raise ValueError("A callable entry point must select a callable item from the module.")
-
-    def resolve(self):
-        # type: () -> Callable[[], Any]
-        module = importlib.import_module(self.module)
-        try:
-            return cast("Callable[[], Any]", functools.reduce(getattr, self._attrs, module))
-        except AttributeError as e:
-            raise ImportError(
-                "Could not resolve {attrs} in {module}: {err}".format(
-                    attrs=".".join(self._attrs), module=module, err=e
-                )
-            )
-
-    def __str__(self):
-        # type: () -> str
-        return "{module}:{attrs}".format(module=self.module, attrs=".".join(self._attrs))
+        return "{name}={entry_point}".format(name=self.name, entry_point=self.entry_point)
 
 
 def find_distribution(
