@@ -1,8 +1,8 @@
 # PEX with included Python interpreter
 
-You can include a CPython interpreter in your PEX by adding `--scie eager` to your `pex` command
+You can include a Python interpreter in your PEX by adding `--scie eager` to your `pex` command
 line. Instead of a traditional [PEP-441](https://peps.python.org/pep-0441/) PEX zip file, you'll
-get a native executable that contains both a CPython interpreter and your PEX'd code.
+get a native executable that contains both a Python interpreter and your PEX'd code.
 
 ## Background
 
@@ -21,9 +21,10 @@ system as well.
 When you add the `--scie eager` option to your `pex` command line, Pex uses the [science](
 https://science.scie.app/) [projects](https://github.com/a-scie/) to produce what is known as a
 `scie` (pronounced like "ski") binary powered by the [Python Standalone Builds](
-https://github.com/indygreg/python-build-standalone) CPython distributions. The end product looks
-and behaves like a traditional PEX except in two aspects:
-+ The PEX scie file is larger than the equivalent PEX file since it contains a CPython distribution.
+https://github.com/indygreg/python-build-standalone) CPython distributions or the distributions
+released by [PyPy](https://pypy.org/download.html) depending on which interpreter your PEX targets.
+The end product looks and behaves like a traditional PEX except in two aspects:
++ The PEX scie file is larger than the equivalent PEX file since it contains a Python distribution.
 + The PEX scie file is a native executable binary.
 
 For example, here we create a traditional PEX, a `--sh-boot` PEX and a PEX scie and examine the
@@ -148,7 +149,7 @@ Or else install an appropriate Python that provides one of the binaries in this 
 
 ## Lazy scies
 
-Specifying `--scie eager` includes a full CPython distribution in your PEX scie. If you ship more
+Specifying `--scie eager` includes a full Python distribution in your PEX scie. If you ship more 
 than one PEX scie to a machine using the same Python version, this can be wasteful in transfer
 bandwidth and disk space. If your deployment machines have internet access, you can specify
 `--scie lazy` and the Python distribution will then be fetched from the internet, but only if
