@@ -1312,9 +1312,8 @@ def do_main(
                     configuration=scie_configuration, pex_file=pex_file, url_fetcher=url_fetcher
                 ):
                     log(
-                        "Saved PEX scie for CPython {version} on {platform} to {scie}".format(
-                            version=scie_info.target.version_str,
-                            platform=scie_info.platform,
+                        "Saved PEX scie for {python_description} to {scie}".format(
+                            python_description=scie_info.interpreter.render_description(),
                             scie=os.path.relpath(scie_info.file),
                         ),
                         V=options.verbosity,

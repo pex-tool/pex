@@ -20,7 +20,16 @@ from pex.layout import Layout
 from pex.pep_440 import Version
 from pex.pex_info import PexInfo
 from pex.result import Error, try_
-from pex.scie.model import ScieConfiguration, ScieInfo, SciePlatform, ScieStyle, ScieTarget
+from pex.scie.model import (
+    File,
+    InterpreterDistribution,
+    Provider,
+    ScieConfiguration,
+    ScieInfo,
+    SciePlatform,
+    ScieStyle,
+    Url,
+)
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.third_party.packaging.version import InvalidVersion
 from pex.tracer import TRACER
@@ -39,20 +48,20 @@ else:
 
 @attr.s(frozen=True)
 class Manifest(object):
-    target = attr.ib()  # type: ScieTarget
+    interpreter = attr.ib()  # type: InterpreterDistribution
     path = attr.ib()  # type: str
 
     def binary_name(self, binary_name):
         # type: (str) -> str
-        return self.target.platform.binary_name(binary_name)
+        return self.interpreter.platform.binary_name(binary_name)
 
     def qualified_binary_name(self, binary_name):
         # type: (str) -> str
-        return self.target.platform.qualified_binary_name(binary_name)
+        return self.interpreter.platform.qualified_binary_name(binary_name)
 
 
 SCIENCE_RELEASES_URL = "https://github.com/a-scie/lift/releases"
-MIN_SCIENCE_VERSION = Version("0.3.0")
+MIN_SCIENCE_VERSION = Version("0.6.0")
 SCIENCE_REQUIREMENT = SpecifierSet("~={min_version}".format(min_version=MIN_SCIENCE_VERSION))
 
 
@@ -160,31 +169,40 @@ def create_manifests(
         ],
     }  # type: Dict[str, Any]
 
-    for target in configuration.targets:
+    for interpreter in configuration.interpreters:
         manifest_path = os.path.join(
             safe_mkdtemp(),
-            target.platform.qualified_file_name("{name}-lift.toml".format(name=name)),
+            interpreter.platform.qualified_file_name("{name}-lift.toml".format(name=name)),
         )
+
+        interpreter_config = {
+            "id": "cpython",
+            "provider": interpreter.provider.value,
+            "release": interpreter.release,
+            "version": interpreter.version_str,
+            "lazy": configuration.options.style is ScieStyle.LAZY,
+        }
+        if Provider.PythonBuildStandalone is interpreter.provider:
+            interpreter_config.update(
+                flavor=(
+                    "install_only_stripped"
+                    if configuration.options.pbs_stripped
+                    else "install_only"
+                )
+            )
+
         with safe_open(manifest_path, "w") as fp:
             toml.dump(
                 {
                     "lift": dict(
                         lift,
-                        platforms=[target.platform.value],
-                        interpreters=[
-                            {
-                                "id": "cpython",
-                                "provider": "PythonBuildStandalone",
-                                "release": target.pbs_release,
-                                "version": target.version_str,
-                                "lazy": configuration.options.style is ScieStyle.LAZY,
-                            }
-                        ],
+                        platforms=[interpreter.platform.value],
+                        interpreters=[interpreter_config],
                     )
                 },
                 fp,
             )
-        yield Manifest(target=target, path=manifest_path)
+        yield Manifest(interpreter=interpreter, path=manifest_path)
 
 
 def _science_dir(
@@ -247,33 +265,49 @@ def _path_science():
 
 def _ensure_science(
     url_fetcher=None,  # type: Optional[URLFetcher]
-    science_binary_url=None,  # type: Optional[str]
+    science_binary=None,  # type: Optional[Union[File, Url]]
     env=ENV,  # type: Variables
 ):
     # type: (...) -> str
+
+    if isinstance(science_binary, File):
+        if not is_exe(science_binary):
+            raise ValueError(
+                "The --scie-science-binary at {source} is not an executable.".format(
+                    source=science_binary
+                )
+            )
+        custom_science_binary_version = try_(_is_compatible_science_binary(science_binary))
+        TRACER.log(
+            "Using custom science binary from {source} with version "
+            "{version}.".format(source=science_binary, version=custom_science_binary_version.raw)
+        )
+        return science_binary
 
     target_dir = _science_dir(env, "bin")
     with atomic_directory(target_dir=target_dir) as atomic_dir:
         if not atomic_dir.is_finalized():
             target_science = os.path.join(atomic_dir.work_dir, "science")
-            path_science = _path_science()
-            if path_science:
-                shutil.copy(path_science, target_science)
-            else:
+            if not science_binary:
+                path_science = _path_science()
+                if path_science:
+                    shutil.copy(path_science, target_science)
+            if not os.path.exists(target_science):
                 fetcher = url_fetcher or URLFetcher()
                 with open(target_science, "wb") as write_fp, fetcher.get_body_stream(
-                    science_binary_url or _science_binary_url()
+                    science_binary or _science_binary_url()
                 ) as read_fp:
                     shutil.copyfileobj(read_fp, write_fp)
                 chmod_plus_x(target_science)
 
-                if science_binary_url:
+                if science_binary:
                     custom_science_binary_version = try_(
-                        _is_compatible_science_binary(target_science, source=science_binary_url)
+                        _is_compatible_science_binary(target_science, source=science_binary)
                     )
                     TRACER.log(
-                        "Using custom science binary from {source} with version {version}.".format(
-                            source=science_binary_url, version=custom_science_binary_version.raw
+                        "Using custom science binary from {source} with version "
+                        "{version}.".format(
+                            source=science_binary, version=custom_science_binary_version.raw
                         )
                     )
                 else:
@@ -289,7 +323,7 @@ def _ensure_science(
                             "match the expected SHA-256 fingerprint recorded in "
                             "{science_sha256_url}.\n"
                             "Expected {expected_sha256} but found {actual_sha256}.".format(
-                                science_binary_url=science_binary_url,
+                                science_binary_url=science_binary,
                                 science_sha256_url=science_sha256_url,
                                 expected_sha256=expected_sha256,
                                 actual_sha256=actual_sha256,
@@ -312,13 +346,13 @@ def build(
 
     science = _ensure_science(
         url_fetcher=url_fetcher,
-        science_binary_url=configuration.options.science_binary_url,
+        science_binary=configuration.options.science_binary,
         env=env,
     )
     name = re.sub(r"\.pex$", "", os.path.basename(pex_file), flags=re.IGNORECASE)
     pex_info = PexInfo.from_pex(pex_file)
     layout = Layout.identify(pex_file)
-    use_platform_suffix = len(configuration.targets) > 1
+    use_platform_suffix = len(configuration.interpreters) > 1
     filenames = Filenames.avoid_collisions_with(name)
 
     errors = OrderedDict()  # type: OrderedDict[Manifest, str]
@@ -367,7 +401,7 @@ def build(
             else:
                 yield ScieInfo(
                     style=configuration.options.style,
-                    target=manifest.target,
+                    interpreter=manifest.interpreter,
                     file=os.path.join(
                         dest_dir,
                         manifest.qualified_binary_name(name)
@@ -382,10 +416,9 @@ def build(
                 count=len(errors),
                 scies=pluralize(errors, "scie"),
                 errors="\n\n".join(
-                    "{index}. For CPython {version} on {platform}: {err}".format(
+                    "{index}. For {python_description}: {err}".format(
                         index=index,
-                        platform=manifest.target.platform,
-                        version=manifest.target.version_str,
+                        python_description=manifest.interpreter.render_description(),
                         err=err,
                     )
                     for index, (manifest, err) in enumerate(errors.items(), start=1)

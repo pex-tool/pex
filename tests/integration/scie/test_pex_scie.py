@@ -7,13 +7,15 @@ import glob
 import json
 import os.path
 import re
+import shutil
 import subprocess
 import sys
 from typing import Optional
 
 import pytest
 
-from pex.common import is_exe
+from pex.common import chmod_plus_x, is_exe
+from pex.fetcher import URLFetcher
 from pex.layout import Layout
 from pex.orderedset import OrderedSet
 from pex.scie import SciePlatform, ScieStyle
@@ -64,7 +66,7 @@ def test_basic(
         ]
         + execution_mode_args
     )
-    if PY_VER < (3, 8) or IS_PYPY:
+    if PY_VER < (3, 8) and not IS_PYPY:
         result.assert_failure(
             expected_error_re=r".*^{message}$".format(
                 message=re.escape(
@@ -216,27 +218,27 @@ def test_multiple_platforms(tmpdir):
 PRINT_VERSION_SCRIPT = "import sys; print('.'.join(map(str, sys.version_info[:3])))"
 
 
-skip_if_pypy = pytest.mark.skipif(IS_PYPY, reason="PyPy targeted PEXes do not support --scie.")
-
-
-@skip_if_pypy
 def test_specified_interpreter(tmpdir):
     # type: (Any) -> None
 
     pex = os.path.join(str(tmpdir), "empty.pex")
+
+    # We pick a specific version that is not in the latest release but is known to provide
+    # distributions for all platforms Pex tests run on.
+    if IS_PYPY:
+        release_args = ["--scie-pypy-release", "v7.3.12"]
+    else:
+        release_args = ["--scie-pbs-release", "20230726"]
     run_pex_command(
         args=[
             "-o",
             pex,
             "--scie",
             "lazy",
-            # We pick a specific version that is not in the latest release but is known to provide
-            # distributions for all platforms Pex tests run on.
-            "--scie-pbs-release",
-            "20221002",
             "--scie-python-version",
-            "3.10.7",
-        ],
+            "3.10.12",
+        ]
+        + release_args,
     ).assert_success()
 
     assert (
@@ -245,12 +247,20 @@ def test_specified_interpreter(tmpdir):
     )
 
     scie = os.path.join(str(tmpdir), "empty")
-    assert b"3.10.7\n" == subprocess.check_output(args=[scie, "-c", PRINT_VERSION_SCRIPT])
+    assert b"3.10.12\n" == subprocess.check_output(args=[scie, "-c", PRINT_VERSION_SCRIPT])
 
 
-@skip_if_pypy
 def test_specified_science_binary(tmpdir):
     # type: (Any) -> None
+
+    local_science_binary = os.path.join(str(tmpdir), "science")
+    with open(local_science_binary, "wb") as write_fp, URLFetcher().get_body_stream(
+        "https://github.com/a-scie/lift/releases/download/v0.6.0/{binary}".format(
+            binary=SciePlatform.CURRENT.qualified_binary_name("science")
+        )
+    ) as read_fp:
+        shutil.copyfileobj(read_fp, write_fp)
+    chmod_plus_x(local_science_binary)
 
     pex_root = os.path.join(str(tmpdir), "pex_root")
     scie = os.path.join(str(tmpdir), "cowsay")
@@ -264,17 +274,11 @@ def test_specified_science_binary(tmpdir):
             "--scie",
             "lazy",
             "--scie-python-version",
-            "3.12",
+            "3.10",
             "-o",
             scie,
             "--scie-science-binary",
-            # N.B.: This custom version is both lower than the latest available version (0.4.2
-            # at the time of writing) and higher than the minimum supported version of 0.3.0; so
-            # we can prove we downloaded the custom version via this URL by checking the version
-            # below since our next floor bump will be from 0.3.0 to at least 0.4.3.
-            "https://github.com/a-scie/lift/releases/download/v0.4.0/{binary}".format(
-                binary=SciePlatform.CURRENT.qualified_binary_name("science")
-            ),
+            local_science_binary,
         ],
         env=make_env(PATH=None),
     ).assert_success()
@@ -283,13 +287,19 @@ def test_specified_science_binary(tmpdir):
         args=[scie, "-t", "Alternative SCIENCE Facts!"]
     )
 
-    science_binaries = glob.glob(os.path.join(pex_root, "scies", "science", "*", "bin", "science"))
-    assert 1 == len(science_binaries)
-    science = science_binaries[0]
-    assert "0.4.0" == subprocess.check_output(args=[science, "--version"]).decode("utf-8").strip()
+    cached_science_binaries = glob.glob(
+        os.path.join(pex_root, "scies", "science", "*", "bin", "science")
+    )
+    assert 0 == len(
+        cached_science_binaries
+    ), "Expected the local science binary to be used but not cached."
+    assert (
+        "0.6.0"
+        == subprocess.check_output(args=[local_science_binary, "--version"]).decode("utf-8").strip()
+    )
 
 
-@skip_if_pypy
+@pytest.mark.skipif(IS_PYPY, reason="This test relies on PBS distribution URLs")
 def test_custom_lazy_urls(tmpdir):
     # type: (Any) -> None
 
@@ -372,7 +382,6 @@ def test_custom_lazy_urls(tmpdir):
     ), stderr.decode("utf-8")
 
 
-@skip_if_pypy
 def test_pex_pex_scie(
     tmpdir,  # type: Any
     pex_project_dir,  # type: Any
@@ -388,7 +397,7 @@ def test_pex_pex_scie(
             "--scie",
             "lazy",
             "--scie-python-version",
-            "3.12",
+            "3.10",
             "-o",
             pex,
         ]
@@ -398,4 +407,41 @@ def test_pex_pex_scie(
         == subprocess.check_output(args=[pex, "-V"], env=make_env(PATH=None))
         .decode("utf-8")
         .strip()
+    )
+
+
+@pytest.mark.skipif(IS_PYPY, reason="The --scie-pbs-stripped option only applies to CPython scies.")
+def test_pbs_stripped(tmpdir):
+    # type: (Any) -> None
+
+    def create_python_scie(
+        scie_path,  # type: str
+        *extra_args  # type: str
+    ):
+        # type: (...) -> int
+
+        run_pex_command(
+            args=["-o", scie_path, "--scie", "eager", "--scie-python-version", "3.12"]
+            + list(extra_args)
+        ).assert_success()
+        assert b"3.12\n" == subprocess.check_output(
+            args=[scie_path, "-c", "import sys; print('.'.join(map(str, sys.version_info[:2])))"]
+        )
+        return os.path.getsize(scie_path)
+
+    pex_scie_stripped = os.path.join(str(tmpdir), "pex-scie-stripped")
+    pex_scie_stripped_size = create_python_scie(pex_scie_stripped, "--scie-pbs-stripped")
+
+    pex_scie = os.path.join(str(tmpdir), "pex-scie")
+    pex_scie_size = create_python_scie(pex_scie)
+
+    assert pex_scie_stripped_size < pex_scie_size, (
+        "Expected the stripped scie to be smaller, but found:\n"
+        "{pex_scie_stripped}: {pex_scie_stripped_size} bytes\n"
+        "{pex_scie}: {pex_scie_size} bytes\n"
+    ).format(
+        pex_scie_stripped=pex_scie_stripped,
+        pex_scie_stripped_size=pex_scie_stripped_size,
+        pex_scie=pex_scie,
+        pex_scie_size=pex_scie_size,
     )
