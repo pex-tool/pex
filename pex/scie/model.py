@@ -286,33 +286,62 @@ class SciePlatform(Enum["SciePlatform.Value"]):
         return cls.CURRENT if "current" == value else cls.for_value(value)
 
 
+class Provider(Enum["Provider.Value"]):
+    class Value(Enum.Value):
+        pass
+
+    PythonBuildStandalone = Value("PythonBuildStandalone")
+    PyPy = Value("PyPy")
+
+
 @attr.s(frozen=True)
-class ScieTarget(object):
+class InterpreterDistribution(object):
+    provider = attr.ib()  # type: Provider.Value
     platform = attr.ib()  # type: SciePlatform.Value
-    python_version = attr.ib()  # type: Union[Tuple[int, int], Tuple[int, int, int]]
-    pbs_release = attr.ib(default=None)  # type: Optional[str]
+    version = attr.ib()  # type: Union[Tuple[int, int], Tuple[int, int, int]]
+    release = attr.ib(default=None)  # type: Optional[str]
 
     @property
     def version_str(self):
         # type: () -> str
-        return ".".join(map(str, self.python_version))
+
+        # N.B.: PyPy distribution archives only advertise a major and minor version.
+        return ".".join(
+            map(str, self.version[:2] if Provider.PyPy is self.provider else self.version)
+        )
+
+    def render_description(self):
+        # type: () -> str
+        return "{python_type} {version} on {platform}".format(
+            python_type="PyPy" if Provider.PyPy is self.provider else "CPython",
+            version=self.version_str,
+            platform=self.platform,
+        )
 
 
 @attr.s(frozen=True)
 class ScieInfo(object):
     style = attr.ib()  # type: ScieStyle.Value
-    target = attr.ib()  # type: ScieTarget
+    interpreter = attr.ib()  # type: InterpreterDistribution
     file = attr.ib()  # type: str
 
     @property
     def platform(self):
         # type: () -> SciePlatform.Value
-        return self.target.platform
+        return self.interpreter.platform
 
     @property
     def python_version(self):
         # type: () -> Union[Tuple[int, int], Tuple[int, int, int]]
-        return self.target.python_version
+        return self.interpreter.version
+
+
+class Url(str):
+    pass
+
+
+class File(str):
+    pass
 
 
 @attr.s(frozen=True)
@@ -321,10 +350,12 @@ class ScieOptions(object):
     busybox_entrypoints = attr.ib(default=None)  # type: Optional[BusyBoxEntryPoints]
     platforms = attr.ib(default=())  # type: Tuple[SciePlatform.Value, ...]
     pbs_release = attr.ib(default=None)  # type: Optional[str]
+    pypy_release = attr.ib(default=None)  # type: Optional[str]
     python_version = attr.ib(
         default=None
     )  # type: Optional[Union[Tuple[int, int], Tuple[int, int, int]]]
-    science_binary_url = attr.ib(default=None)  # type: Optional[str]
+    pbs_stripped = attr.ib(default=False)  # type: bool
+    science_binary = attr.ib(default=None)  # type: Optional[Union[File, Url]]
 
     def create_configuration(self, targets):
         # type: (Targets) -> ScieConfiguration
@@ -381,16 +412,6 @@ class ScieConfiguration(object):
                     "Union[Tuple[int, int], Tuple[int, int, int]]", plat.version_info
                 )[:2]
 
-            # We use Python Build Standalone to create scies, and we know it does not support
-            # CPython<3.8.
-            if plat_python_version < (3, 8):
-                continue
-
-            # We use Python Build Standalone to create scies, and we know it only provides CPython
-            # interpreters.
-            if plat.impl not in ("py", "cp"):
-                continue
-
             platform_str = plat.platform
             is_aarch64 = "arm64" in platform_str or "aarch64" in platform_str
             is_x86_64 = "amd64" in platform_str or "x86_64" in platform_str
@@ -412,6 +433,32 @@ class ScieConfiguration(object):
             else:
                 continue
 
+            if plat.impl in ("py", "cp"):
+                # Python Build Standalone does not support CPython<3.8.
+                if plat_python_version < (3, 8):
+                    continue
+                provider = Provider.PythonBuildStandalone
+            elif "pp" == plat.impl:
+                # PyPy distributions for Linux aarch64 start with 3.7 (and PyPy always releases for
+                # 2.7).
+                if (
+                    SciePlatform.LINUX_AARCH64 is scie_platform
+                    and plat_python_version[0] == 3
+                    and plat_python_version < (3, 7)
+                ):
+                    continue
+                # PyPy distributions for Mac arm64 start with 3.8 (and PyPy always releases for 2.7).
+                if (
+                    SciePlatform.MACOS_AARCH64 is scie_platform
+                    and plat_python_version[0] == 3
+                    and plat_python_version < (3, 8)
+                ):
+                    continue
+                provider = Provider.PyPy
+            else:
+                # Pex only supports platform independent Python, CPython and PyPy.
+                continue
+
             python_versions_by_platform[scie_platform].add(plat_python_version)
 
         for explicit_platform in options.platforms:
@@ -428,18 +475,23 @@ class ScieConfiguration(object):
                     python_versions_by_platform.pop(configured_platform, None)
 
         scie_targets = tuple(
-            ScieTarget(
+            InterpreterDistribution(
+                provider=provider,
                 platform=scie_platform,
-                pbs_release=options.pbs_release,
-                python_version=max(python_versions),
+                release=(
+                    options.pbs_release
+                    if Provider.PythonBuildStandalone is provider
+                    else options.pypy_release
+                ),
+                version=max(python_versions),
             )
             for scie_platform, python_versions in sorted(python_versions_by_platform.items())
         )
-        return cls(options=options, targets=tuple(scie_targets))
+        return cls(options=options, interpreters=tuple(scie_targets))
 
     options = attr.ib()  # type: ScieOptions
-    targets = attr.ib()  # type: Tuple[ScieTarget, ...]
+    interpreters = attr.ib()  # type: Tuple[InterpreterDistribution, ...]
 
     def __len__(self):
         # type: () -> int
-        return len(self.targets)
+        return len(self.interpreters)

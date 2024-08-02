@@ -1,5 +1,24 @@
 # Release Notes
 
+## 2.14.0
+
+This release brings support for creating PEX scies for PEXes targeting
+[PyPy][PyPy]. In addition, for PEX scies targeting CPython, you can now
+specify `--scie-pbs-stripped` to select a stripped version of the
+[Python Standalone Builds][PBS] CPython distribution embedded in your
+scie to save transfer bandwidth and disk space at the cost of losing
+Python debug symbols.
+
+Finally, support is added for `--scie-busybox` to turn your PEX into a
+multi-entrypoint [BusyBox][BusyBox]-like scie. This support is
+documented in depth at https://docs.pex-tool.org/scie.html
+
+* Support `--scie` for PyPy & support stripped CPython. (#2488)
+* Add support for `--scie-busybox`. (#2468)
+
+[PyPy]: https://pypy.org/
+[BusyBox]: https://www.busybox.net/
+
 ## 2.13.1
 
 This release fixes the `--scie` option to support building a Pex PEX

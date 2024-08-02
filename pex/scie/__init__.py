@@ -6,6 +6,7 @@ from __future__ import absolute_import
 import os.path
 from argparse import Namespace, _ActionsContainer
 
+from pex.argparse import HandleBoolAction
 from pex.compatibility import urlparse
 from pex.dist_metadata import NamedEntryPoint
 from pex.fetcher import URLFetcher
@@ -15,12 +16,15 @@ from pex.scie import science
 from pex.scie.model import (
     BusyBoxEntryPoints,
     ConsoleScriptsManifest,
+    File,
+    InterpreterDistribution,
+    Provider,
     ScieConfiguration,
     ScieInfo,
     ScieOptions,
     SciePlatform,
     ScieStyle,
-    ScieTarget,
+    Url,
 )
 from pex.scie.science import SCIENCE_RELEASES_URL, SCIENCE_REQUIREMENT
 from pex.typing import TYPE_CHECKING, cast
@@ -30,11 +34,13 @@ if TYPE_CHECKING:
     from typing import Iterator, List, Optional, Text, Tuple, Union
 
 __all__ = (
+    "InterpreterDistribution",
+    "Provider",
     "ScieConfiguration",
     "ScieInfo",
+    "ScieOptions",
     "SciePlatform",
     "ScieStyle",
-    "ScieTarget",
     "build",
     "extract_options",
     "register_options",
@@ -129,10 +135,26 @@ def register_options(parser):
         default=None,
         type=str,
         help=(
-            "The Python Standalone Builds release to use. Currently releases are dates of the form "
-            "YYYYMMDD, e.g.: '20240713'. See their GitHub releases page at "
+            "The Python Standalone Builds release to use when a CPython interpreter distribution "
+            "is needed for the PEX scie. Currently, releases are dates of the form YYYYMMDD, "
+            "e.g.: '20240713'. See their GitHub releases page at"
             "https://github.com/indygreg/python-build-standalone/releases to discover available "
             "releases. If left unspecified the latest release is used. N.B.: The latest lookup is "
+            "cached for 5 days. To force a fresh lookup you can remove the cache at "
+            "<USER CACHE DIR>/science/downloads."
+        ),
+    )
+    parser.add_argument(
+        "--scie-pypy-release",
+        dest="scie_pypy_release",
+        default=None,
+        type=str,
+        help=(
+            "The PyPy release to use when a PyPy interpreter distribution is needed for the PEX "
+            "scie. Currently, stable releases are of the form `v<major>.<minor>.<patch>`, "
+            "e.g.: 'v7.3.16'. See their download page at https://pypy.org/download.html for the "
+            "latest release and https://downloads.python.org/pypy/ to discover all available "
+            "releases. If left unspecified, the latest release is used. N.B.: The latest lookup is "
             "cached for 5 days. To force a fresh lookup you can remove the cache at "
             "<USER CACHE DIR>/science/downloads."
         ),
@@ -150,6 +172,19 @@ def register_options(parser):
             "so you should check their releases at "
             "https://github.com/indygreg/python-build-standalone/releases if you wish to pin down "
             "to the patch level."
+        ),
+    )
+    parser.add_argument(
+        "--scie-pbs-stripped",
+        "--no-scie-pbs-stripped",
+        dest="scie_pbs_stripped",
+        default=False,
+        type=bool,
+        action=HandleBoolAction,
+        help=(
+            "Should the Python Standalone Builds CPython distributions used be stripped of debug "
+            "symbols or not. For Linux and Windows particularly, the stripped distributions are "
+            "less than half the size of the distributions that ship with debug symbols."
         ),
     )
     parser.add_argument(
@@ -182,12 +217,17 @@ def render_options(options):
     if options.pbs_release:
         args.append("--scie-pbs-release")
         args.append(options.pbs_release)
+    if options.pypy_release:
+        args.append("--scie-pypy-release")
+        args.append(options.pypy_release)
     if options.python_version:
         args.append("--scie-python-version")
         args.append(".".join(map(str, options.python_version)))
-    if options.science_binary_url:
+    if options.pbs_stripped:
+        args.append("--scie-pbs-stripped")
+    if options.science_binary:
         args.append("--scie-science-binary")
-        args.append(options.science_binary_url)
+        args.append(options.science_binary)
     return " ".join(args)
 
 
@@ -254,19 +294,23 @@ def extract_options(options):
                 )
             )
 
-    science_binary_url = options.scie_science_binary
-    if science_binary_url:
+    science_binary = None  # type: Optional[Union[File, Url]]
+    if options.scie_science_binary:
         url_info = urlparse.urlparse(options.scie_science_binary)
         if not url_info.scheme and url_info.path and os.path.isfile(url_info.path):
-            science_binary_url = "file://{path}".format(path=os.path.abspath(url_info.path))
+            science_binary = File(os.path.abspath(url_info.path))
+        else:
+            science_binary = Url(options.scie_science_binary)
 
     return ScieOptions(
         style=options.scie_style,
         busybox_entrypoints=entry_points,
         platforms=tuple(OrderedSet(options.scie_platforms)),
         pbs_release=options.scie_pbs_release,
+        pypy_release=options.scie_pypy_release,
         python_version=python_version,
-        science_binary_url=science_binary_url,
+        pbs_stripped=options.scie_pbs_stripped,
+        science_binary=science_binary,
     )
 
 
