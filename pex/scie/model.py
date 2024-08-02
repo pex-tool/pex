@@ -305,7 +305,7 @@ class InterpreterDistribution(object):
     def version_str(self):
         # type: () -> str
 
-        # N.B.: PyPy distribution archives only advertise a major and minot version.
+        # N.B.: PyPy distribution archives only advertise a major and minor version.
         return ".".join(
             map(str, self.version[:2] if Provider.PyPy is self.provider else self.version)
         )
