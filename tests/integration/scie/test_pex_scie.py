@@ -424,23 +424,31 @@ def make_project(
                 """\
                 from __future__ import print_function
 
+                import functools
+                import os
                 import sys
 
 
-                def one():
-                    print("{name}1:", *sys.argv[1:])
+                def _print(label=""):
+                    env_var = {name!r}.upper()
+                    env_value = os.environ.get(env_var)
+                    if env_value:
+                        print(
+                            "{{env_var}}={{env_value}} ".format(
+                                env_var=env_var, env_value=env_value
+                            ),
+                            end="",
+                        )
+                    print("{name}{{label}}:".format(label=label), *sys.argv[1:])
 
 
-                def two():
-                    print("{name}2:", *sys.argv[1:])
-
-
-                def three():
-                    print("{name}3:", *sys.argv[1:])
+                one = functools.partial(_print, "1")
+                two = functools.partial(_print, "2")
+                three = functools.partial(_print, "3")
 
 
                 if __name__ == "__main__":
-                    print("{name}:", *sys.argv[1:])
+                    _print()
                 """
             ).format(name=name)
         )
@@ -685,11 +693,18 @@ def test_scie_busybox_console_scripts_add_script(
     )
 
 
+execution_mode_args = pytest.mark.parametrize(
+    "execution_mode_args", [pytest.param([], id="ZIPAPP"), pytest.param(["--venv"], id="VENV")]
+)
+
+
 @skip_if_no_provider
-def test_scie_busybox_console_script_injections(
+@execution_mode_args
+def test_scie_busybox_console_script_inject_args(
     tmpdir,  # type: Any
     foo,  # type: str
     bar,  # type: str
+    execution_mode_args,  # type: List[str]
 ):
     # type: (...) -> None
 
@@ -708,7 +723,8 @@ def test_scie_busybox_console_script_injections(
             "@bar,foo-script1",
             "-o",
             busybox,
-        ],
+        ]
+        + execution_mode_args,
         quiet=True,
     ).assert_success()
 
@@ -734,6 +750,151 @@ def test_scie_busybox_console_script_injections(
     )
     assert b"bar2: injected?\n" == subprocess.check_output(
         args=[os.path.join(bin_dir, "bar-script2"), "injected?"]
+    )
+
+
+@skip_if_no_provider
+@execution_mode_args
+def test_scie_busybox_console_script_inject_env(
+    tmpdir,  # type: Any
+    foo,  # type: str
+    bar,  # type: str
+    execution_mode_args,  # type: List[str]
+):
+    # type: (...) -> None
+
+    busybox = os.path.join(str(tmpdir), "busybox")
+    run_pex_command(
+        args=[
+            foo,
+            bar,
+            "-m",
+            "foo:one",
+            "--inject-env",
+            "FOO=bar",
+            "--scie",
+            "lazy",
+            "--scie-busybox",
+            "@bar,foo-script1",
+            "-o",
+            busybox,
+        ]
+        + execution_mode_args,
+        quiet=True,
+    ).assert_success()
+
+    assert b"FOO=bar foo1: injected?\n" == subprocess.check_output(
+        args=[busybox, "foo-script1", "injected?"]
+    )
+    assert b"FOO=baz foo1: injected?\n" == subprocess.check_output(
+        args=[busybox, "foo-script1", "injected?"], env=make_env(FOO="baz")
+    )
+    assert b"bar1: injected?\n" == subprocess.check_output(
+        args=[busybox, "bar-script1", "injected?"]
+    )
+    assert b"bar2: injected?\n" == subprocess.check_output(
+        args=[busybox, "bar-script2", "injected?"]
+    )
+
+    bin_dir = os.path.join(str(tmpdir), "bin_dir")
+    subprocess.check_call(args=[busybox, bin_dir], env=make_env(SCIE="install"))
+    assert sorted(["foo-script1", "bar-script1", "bar-script2"]) == sorted(os.listdir(bin_dir))
+
+    assert b"FOO=bar foo1: injected?\n" == subprocess.check_output(
+        args=[os.path.join(bin_dir, "foo-script1"), "injected?"]
+    )
+    assert b"FOO=baz foo1: injected?\n" == subprocess.check_output(
+        args=[os.path.join(bin_dir, "foo-script1"), "injected?"], env=make_env(FOO="baz")
+    )
+    assert b"bar1: injected?\n" == subprocess.check_output(
+        args=[os.path.join(bin_dir, "bar-script1"), "injected?"]
+    )
+    assert b"bar2: injected?\n" == subprocess.check_output(
+        args=[os.path.join(bin_dir, "bar-script2"), "injected?"]
+    )
+
+
+@skip_if_no_provider
+@execution_mode_args
+def test_scie_busybox_console_script_inject_python_args(
+    tmpdir,  # type: Any
+    foo,  # type: str
+    bar,  # type: str
+    execution_mode_args,  # type: List[str]
+):
+    # type: (...) -> None
+
+    busybox = os.path.join(str(tmpdir), "busybox")
+    run_pex_command(
+        args=[
+            foo,
+            bar,
+            "-c",
+            "foo-script1",
+            "--inject-python-args=-v",
+            "--scie",
+            "lazy",
+            "--scie-busybox",
+            "@bar,foo-script-ad-hoc=foo:one",
+            "-o",
+            busybox,
+        ]
+        + execution_mode_args,
+        quiet=True,
+    ).assert_success()
+
+    def assert_output(
+        args,  # type: List[str]
+        expected_output_prefix,  # type: str
+        expect_python_verbose,  # type: bool
+    ):
+        # type: (...) -> None
+        output_lines = (
+            subprocess.check_output(args=args + ["injected?"], stderr=subprocess.STDOUT)
+            .decode("utf-8")
+            .splitlines()
+        )
+        assert (
+            "{expected_output_prefix}: injected?".format(
+                expected_output_prefix=expected_output_prefix
+            )
+            in output_lines
+        )
+        stderr_import_logging = any(line.startswith("import ") for line in output_lines)
+        assert expect_python_verbose is stderr_import_logging, os.linesep.join(output_lines)
+
+    assert_output(
+        args=[busybox, "foo-script-ad-hoc"],
+        expected_output_prefix="foo1",
+        expect_python_verbose=True,
+    )
+    assert_output(
+        args=[busybox, "bar-script1"], expected_output_prefix="bar1", expect_python_verbose=False
+    )
+    assert_output(
+        args=[busybox, "bar-script2"], expected_output_prefix="bar2", expect_python_verbose=False
+    )
+
+    bin_dir = os.path.join(str(tmpdir), "bin_dir")
+    subprocess.check_call(args=[busybox, bin_dir], env=make_env(SCIE="install"))
+    assert sorted(["foo-script-ad-hoc", "bar-script1", "bar-script2"]) == sorted(
+        os.listdir(bin_dir)
+    )
+
+    assert_output(
+        args=[os.path.join(bin_dir, "foo-script-ad-hoc")],
+        expected_output_prefix="foo1",
+        expect_python_verbose=True,
+    )
+    assert_output(
+        args=[os.path.join(bin_dir, "bar-script1")],
+        expected_output_prefix="bar1",
+        expect_python_verbose=False,
+    )
+    assert_output(
+        args=[os.path.join(bin_dir, "bar-script2")],
+        expected_output_prefix="bar2",
+        expect_python_verbose=False,
     )
 
 

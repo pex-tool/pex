@@ -1,5 +1,13 @@
 # Release Notes
 
+## 2.14.1
+
+This release fixes `--inject-env` when used in combination with a
+`--scie-busybox` so that the injected environment variable can be
+overridden at runtime like it can form a traditional PEX.
+
+* Allow `--inject-env` overrides for `--scie-busybox`. (#YYY)
+
 ## 2.14.0
 
 This release brings support for creating PEX scies for PEXes targeting
