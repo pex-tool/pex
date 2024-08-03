@@ -497,7 +497,7 @@ class PEXBuilder(object):
                 inject_python_args={inject_python_args!r},
             )
             if should_exit:
-                sys.exit(result)
+                sys.exit(0 if is_globals else result)
             elif is_globals:
                 globals().update(result)
             """

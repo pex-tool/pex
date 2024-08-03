@@ -576,7 +576,7 @@ class PEX(object):  # noqa: T000
 
         result = self._wrap_coverage(self._wrap_profiling, self._execute)
         if "PYTHONINSPECT" not in os.environ:
-            sys.exit(result)
+            sys.exit(0 if isinstance(result, Globals) else result)
         else:
             return result
 
