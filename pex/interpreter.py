@@ -938,6 +938,10 @@ class PythonInterpreter(object):
         pythonpath = list(pythonpath or ())
         if pythonpath:
             env["PYTHONPATH"] = os.pathsep.join(pythonpath)
+
+            # If we're being forced into interactive mode, we don't want that to apply to any
+            # Pex internal interpreter executions ever.
+            env.pop("PYTHONINSPECT", None)
         else:
             # Turn off reading of PYTHON* environment variables.
             cmd.append("-E")

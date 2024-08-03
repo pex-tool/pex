@@ -593,6 +593,9 @@ def _populate_first_party(
         """\
         {shebang}
 
+        from __future__ import print_function
+
+
         if __name__ == "__main__":
             import os
             import sys
@@ -629,12 +632,16 @@ def _populate_first_party(
                         break
                 return executables
 
+            def maybe_log(*message):
+                if "PEX_VERBOSE" in os.environ:
+                    print(*message, file=sys.stderr)
+
             current_interpreter_blessed_env_var = "_PEX_SHOULD_EXIT_VENV_REEXEC"
             if (
                 not os.environ.pop(current_interpreter_blessed_env_var, None)
                 and sys_executable_paths().isdisjoint(iter_valid_venv_pythons())
             ):
-                sys.stderr.write("Re-execing from {{}}\\n".format(sys.executable))
+                maybe_log("Re-exec'ing from", sys.executable)
                 os.environ[current_interpreter_blessed_env_var] = "1"
                 argv = [python]
                 if {hermetic_re_exec!r}:
@@ -712,9 +719,9 @@ def _populate_first_party(
                 )
             ]
             if ignored_pex_env_vars:
-                sys.stderr.write(
+                maybe_log(
                     "Ignoring the following environment variables in Pex venv mode:\\n"
-                    "{{}}\\n\\n".format(
+                    "{{}}\\n".format(
                         os.linesep.join(sorted(ignored_pex_env_vars))
                     )
                 )
@@ -859,21 +866,27 @@ def _populate_first_party(
 
                 # The pex was called with Python interpreter options, so we need to re-exec to
                 # respect those:
-                if python_options:
-                    # Find the installed (unzipped) PEX entry point.
-                    main = sys.modules.get("__main__")
-                    if not main or not main.__file__:
-                        # N.B.: This should never happen.
-                        sys.stderr.write(
-                            "Unable to resolve PEX __main__ module file: {{}}\\n".format(main)
-                        )
-                        sys.exit(1)
-
+                if python_options or "PYTHONINSPECT" in os.environ:
                     python = sys.executable
-                    cmdline = [python] + python_options + [main.__file__] + args
-                    sys.stderr.write(
+                    cmdline = [python] + python_options
+                    inspect = "PYTHONINSPECT" in os.environ or any(
+                        arg.startswith("-") and not arg.startswith("--") and "i" in arg
+                        for arg in python_options
+                    )
+                    if not inspect:
+                        # We're not interactive; so find the installed (unzipped) PEX entry point.
+                        main = sys.modules.get("__main__")
+                        if not main or not main.__file__:
+                            # N.B.: This should never happen.
+                            sys.stderr.write(
+                                "Unable to resolve PEX __main__ module file: {{}}\\n".format(main)
+                            )
+                            sys.exit(1)
+                        cmdline.append(main.__file__)
+                    cmdline.extend(args)
+                    maybe_log(
                         "Re-executing with Python interpreter options: "
-                        "cmdline={{cmdline!r}}\\n".format(cmdline=" ".join(cmdline))
+                        "cmdline={{cmdline!r}}".format(cmdline=" ".join(cmdline))
                     )
                     os.execv(python, cmdline)
 

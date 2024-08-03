@@ -230,7 +230,7 @@ def create_manifests(
                 "env": {
                     "default": env_default,
                     "remove_exact": ["PATH"],
-                    "remove_re": ["PEX_.*"],
+                    "remove_re": ["PEX_.*", "PYTHON.*"],
                     "replace": {
                         "PEX_INTERPRETER": "1",
                         # We can get a warning about too-long script shebangs, but this is not

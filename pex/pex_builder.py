@@ -486,7 +486,7 @@ class PEXBuilder(object):
 
         pex_main = dedent(
             """
-            result = boot(
+            result, should_exit, is_globals = boot(
                 bootstrap_dir={bootstrap_dir!r},
                 pex_root={pex_root!r},
                 pex_hash={pex_hash!r},
@@ -496,8 +496,10 @@ class PEXBuilder(object):
                 is_venv={is_venv!r},
                 inject_python_args={inject_python_args!r},
             )
-            if __SHOULD_EXECUTE__:
+            if should_exit:
                 sys.exit(result)
+            elif is_globals:
+                globals().update(result)
             """
         ).format(
             bootstrap_dir=self._pex_info.bootstrap,

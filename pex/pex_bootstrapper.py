@@ -27,7 +27,18 @@ from pex.variables import ENV
 from pex.venv import installer
 
 if TYPE_CHECKING:
-    from typing import Iterable, Iterator, List, NoReturn, Optional, Sequence, Set, Tuple, Union
+    from typing import (
+        Any,
+        Iterable,
+        Iterator,
+        List,
+        NoReturn,
+        Optional,
+        Sequence,
+        Set,
+        Tuple,
+        Union,
+    )
 
     import attr  # vendor:skip
 
@@ -607,7 +618,7 @@ def bootstrap_pex(
     venv_dir=None,  # type: Optional[str]
     python_args=(),  # type: Sequence[str]
 ):
-    # type: (...) -> None
+    # type: (...) -> Any
 
     pex_info = _bootstrap(entry_point)
 
@@ -644,7 +655,7 @@ def bootstrap_pex(
             maybe_reexec_pex(interpreter_test=interpreter_test, python_args=python_args)
             from . import pex
 
-            pex.PEX(entry_point).execute()
+            return pex.PEX(entry_point).execute()
 
 
 def _activate_pex(
