@@ -140,15 +140,12 @@ def create_manifests(
     if entrypoints:
         pex_entry_point = parse_entry_point(pex_info.entry_point)
 
-        def replace_env(
-            named_entry_point,  # type: NamedEntryPoint
-            **env  # type: str
-        ):
+        def default_env(named_entry_point):
             # type: (...) -> Dict[str, str]
-            return dict(
-                pex_info.inject_env if named_entry_point.entry_point == pex_entry_point else {},
-                **env
-            )
+            env = env_default.copy()
+            if named_entry_point.entry_point == pex_entry_point:
+                env.update(pex_info.inject_env)
+            return env
 
         def args(
             named_entry_point,  # type: NamedEntryPoint
@@ -170,10 +167,8 @@ def create_manifests(
             return {
                 "name": named_entry_point.name,
                 "env": {
-                    "default": env_default,
-                    "replace": replace_env(
-                        named_entry_point, PEX_MODULE=str(named_entry_point.entry_point)
-                    ),
+                    "default": default_env(named_entry_point),
+                    "replace": {"PEX_MODULE": str(named_entry_point.entry_point)},
                     "remove_exact": ["PEX_INTERPRETER", "PEX_SCRIPT", "PEX_VENV"],
                 },
                 "exe": "{scie.bindings.configure:PYTHON}",
@@ -188,8 +183,7 @@ def create_manifests(
                 {
                     "name": named_entry_point.name,
                     "env": {
-                        "default": env_default,
-                        "replace": replace_env(named_entry_point),
+                        "default": default_env(named_entry_point),
                         "remove_exact": ["PEX_INTERPRETER", "PEX_MODULE", "PEX_SCRIPT", "PEX_VENV"],
                     },
                     "exe": "{scie.bindings.configure:PYTHON}",
