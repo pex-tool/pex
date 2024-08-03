@@ -93,8 +93,8 @@ def test_inspect(
             process.expect_exact(
                 "{green_hello} 42".format(green_hello=colors.green("hello")).encode("utf-8"),
                 # The PyPy venv scies are quite slow to set up; so we extend the initial timeout
-                # for those.
-                timeout=pexpect_timeout * (5 if IS_PYPY and scie_args else 1),
+                # for those even more.
+                timeout=pexpect_timeout * (6 if IS_PYPY and scie_args else 3),
             )
             process.expect_exact(b">>>", timeout=pexpect_timeout)
             process.sendline(b"print(colors.blue(bar))")
