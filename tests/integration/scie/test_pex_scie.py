@@ -23,7 +23,7 @@ from pex.scie import SciePlatform, ScieStyle
 from pex.targets import LocalInterpreter
 from pex.typing import TYPE_CHECKING
 from pex.version import __version__
-from testing import IS_PYPY, PY_VER, make_env, run_pex_command
+from testing import IS_PYPY, PY_VER, make_env, run_pex_command, scie
 
 if TYPE_CHECKING:
     from typing import Any, Iterable, List
@@ -488,24 +488,8 @@ def bar(tmpdir):
     return make_project(tmpdir, "bar")
 
 
-def has_provider():
-    # type: () -> bool
-    if IS_PYPY:
-        if PY_VER == (2, 7):
-            return True
-
-        if SciePlatform.LINUX_AARCH64 is SciePlatform.CURRENT:
-            return PY_VER >= (3, 7)
-        elif SciePlatform.MACOS_AARCH64 is SciePlatform.CURRENT:
-            return PY_VER >= (3, 8)
-        else:
-            return PY_VER >= (3, 6)
-    else:
-        return PY_VER >= (3, 8) and PY_VER < (3, 13)
-
-
 skip_if_no_provider = pytest.mark.skipif(
-    not has_provider(),
+    not scie.has_provider(),
     reason=(
         "Either A PBS or PyPy release must be available for the current interpreter to run this test."
     ),

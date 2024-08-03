@@ -19,6 +19,7 @@ from pex.environment import PEXEnvironment
 from pex.executor import Executor
 from pex.finders import get_entry_point_from_console_script, get_script_from_distributions
 from pex.fingerprinted_distribution import FingerprintedDistribution
+from pex.globals import Globals
 from pex.inherit_path import InheritPath
 from pex.interpreter import PythonIdentity, PythonInterpreter
 from pex.layout import Layout
@@ -536,7 +537,7 @@ class PEX(object):  # noqa: T000
         return self._pex
 
     def execute(self):
-        # type: () -> None
+        # type: () -> Any
         """Execute the PEX.
 
         This function makes assumptions that it is the last function called by the interpreter.
@@ -573,7 +574,11 @@ class PEX(object):  # noqa: T000
                     V=3,
                 )
 
-        sys.exit(self._wrap_coverage(self._wrap_profiling, self._execute))
+        result = self._wrap_coverage(self._wrap_profiling, self._execute)
+        if "PYTHONINSPECT" not in os.environ:
+            sys.exit(0 if isinstance(result, Globals) else result)
+        else:
+            return result
 
     def _execute(self):
         # type: () -> Any
@@ -719,11 +724,12 @@ class PEX(object):  # noqa: T000
 
             import code
 
-            code.interact()
-            return None
+            local = {}  # type: Dict[str, Any]
+            code.interact(local=local)
+            return Globals(local)
 
+    @staticmethod
     def execute_with_options(
-        self,
         python_options,  # type: List[str]
         args,  # List[str]
     ):
@@ -744,6 +750,11 @@ class PEX(object):  # noqa: T000
                 cmdline=" ".join(cmdline)
             )
         )
+        if any(
+            arg.startswith("-") and not arg.startswith("--") and "i" in arg
+            for arg in python_options
+        ):
+            os.environ["PYTHONINSPECT"] = "1"
         os.execv(python, cmdline)
 
     def execute_script(self, script_name):
@@ -786,7 +797,7 @@ class PEX(object):  # noqa: T000
         content,  # type: str
         argv0=None,  # type: Optional[str]
     ):
-        # type: (...) -> Optional[str]
+        # type: (...) -> Any
         try:
             program = compile(content, name, "exec", flags=0, dont_inherit=1)
         except SyntaxError as e:
@@ -800,7 +811,7 @@ class PEX(object):  # noqa: T000
         program,  # type: ast.AST
         argv0=None,  # type: Optional[str]
     ):
-        # type: (...) -> Optional[str]
+        # type: (...) -> Any
         bootstrap.demote()
 
         from pex.compatibility import exec_function
@@ -809,8 +820,7 @@ class PEX(object):  # noqa: T000
         globals_map = globals().copy()
         globals_map["__name__"] = "__main__"
         globals_map["__file__"] = name
-        exec_function(program, globals_map)
-        return None
+        return Globals(exec_function(program, globals_map))
 
     def execute_entry(self, entry_point):
         # type: (Union[ModuleEntryPoint, CallableEntryPoint]) -> Any
@@ -820,12 +830,12 @@ class PEX(object):  # noqa: T000
         return self.execute_module(entry_point.module)
 
     def execute_module(self, module_name):
-        # type: (str) -> None
+        # type: (str) -> Any
         bootstrap.demote()
 
         import runpy
 
-        runpy.run_module(module_name, run_name="__main__", alter_sys=True)
+        return Globals(runpy.run_module(module_name, run_name="__main__", alter_sys=True))
 
     @classmethod
     def execute_entry_point(cls, entry_point):

@@ -7,7 +7,7 @@ import sys
 TYPE_CHECKING = False
 
 if TYPE_CHECKING:
-    from typing import List, NoReturn, Optional, Tuple
+    from typing import Any, List, NoReturn, Optional, Tuple
 
 
 if sys.version_info >= (3, 10):
@@ -150,7 +150,7 @@ def boot(
     is_venv,  # type: bool
     inject_python_args,  # type: Tuple[str, ...]
 ):
-    # type: (...) -> int
+    # type: (...) -> Tuple[Any, bool, bool]
 
     entry_point = None  # type: Optional[str]
     __file__ = globals().get("__file__")
@@ -169,7 +169,7 @@ def boot(
 
     if entry_point is None:
         sys.stderr.write("Could not launch python executable!\\n")
-        return 2
+        return 2, True, False
 
     python_args = list(inject_python_args)  # type: List[str]
     orig_args = orig_argv()
@@ -207,13 +207,16 @@ def boot(
         )
         if entry_point is None:
             # This means we re-exec'd ourselves already; so this just appeases type checking.
-            return 0
+            return 0, True, False
     else:
         os.environ["PEX"] = os.path.realpath(installed_from)
 
+    from pex.globals import Globals
     from pex.pex_bootstrapper import bootstrap_pex
 
-    bootstrap_pex(
+    result = bootstrap_pex(
         entry_point, python_args=python_args, execute=__SHOULD_EXECUTE__, venv_dir=venv_dir
     )
-    return 0
+    should_exit = __SHOULD_EXECUTE__ and "PYTHONINSPECT" not in os.environ
+    is_globals = isinstance(result, Globals)
+    return result, should_exit, is_globals

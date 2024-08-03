@@ -691,7 +691,12 @@ def test_warn_unused_pex_env_vars():
         stdout, stderr = process.communicate()
         assert 0 == process.returncode
         assert not stdout
-        assert expected_stderr.strip() == stderr.decode("utf-8").strip()
+        expected = expected_stderr.strip()
+        error = stderr.decode("utf-8").strip()
+        if expected:
+            assert error.endswith(expected), error
+        else:
+            assert not error, error
 
     assert_execute_venv_pex(expected_stderr="")
     assert_execute_venv_pex(expected_stderr="", PEX_ROOT=os.path.join(tmpdir, "pex_root"))
@@ -699,6 +704,7 @@ def test_warn_unused_pex_env_vars():
     assert_execute_venv_pex(expected_stderr="", PEX_EXTRA_SYS_PATH="more")
     assert_execute_venv_pex(expected_stderr="", PEX_VERBOSE="0")
 
+    assert_execute_venv_pex(expected_stderr="", PEX_INHERIT_PATH="fallback")
     assert_execute_venv_pex(
         expected_stderr=dedent(
             """\
@@ -707,6 +713,7 @@ def test_warn_unused_pex_env_vars():
             """
         ),
         PEX_INHERIT_PATH="fallback",
+        PEX_VERBOSE="0",
     )
 
     assert_execute_venv_pex(
@@ -719,7 +726,7 @@ def test_warn_unused_pex_env_vars():
         ),
         PEX_COVERAGE="1",
         PEX_INHERIT_PATH="fallback",
-        PEX_VERBOSE="0",
+        PEX_VERBOSE="1",
     )
 
 
