@@ -1,5 +1,18 @@
 # Release Notes
 
+## 2.14.1
+
+This release fixes `--inject-env` when used in combination with a
+`--scie-busybox` so that the injected environment variable can be
+overridden at runtime like it can form a traditional PEX.
+
+In addition, running a PEX with the Python interpreter `-i` flag or
+`PYTHONINSPECT=x` in the environment causes the PEX to enter the
+Python REPL after evaluating the entry point, if any.
+
+* Allow `--inject-env` overrides for `--scie-busybox`. (#2490)
+* Fix PEXes for `-i` / `PYTHONINSPECT=x`. (#2491)
+
 ## 2.14.0
 
 This release brings support for creating PEX scies for PEXes targeting
