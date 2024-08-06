@@ -276,8 +276,8 @@ class SciePlatform(Enum["SciePlatform.Value"]):
     LINUX_X86_64 = Value("linux-x86_64")
     MACOS_AARCH64 = Value("macos-aarch64")
     MACOS_X86_64 = Value("macos-x86_64")
-    WINDOWS_AARCH64 = Value("windows-x86_64")
-    WINDOWS_X86_64 = Value("windows-aarch64")
+    WINDOWS_AARCH64 = Value("windows-aarch64")
+    WINDOWS_X86_64 = Value("windows-x86_64")
     CURRENT = _CurrentPlatform()
 
     @classmethod
