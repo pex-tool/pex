@@ -3,12 +3,11 @@
 
 from __future__ import absolute_import, print_function
 
-import os
 from argparse import ArgumentParser, Namespace
 
 from pex import pex_bootstrapper
+from pex.cli_util import prog_path
 from pex.commands.command import GlobalConfigurationError, Main
-from pex.compatibility import commonpath
 from pex.pex import PEX
 from pex.pex_bootstrapper import InterpreterTest
 from pex.pex_info import PexInfo
@@ -24,26 +23,11 @@ if TYPE_CHECKING:
     CommandFunc = Callable[[PEX, Namespace], Result]
 
 
-def simplify_pex_path(pex_path):
-    # type: (str) -> str
-    # Generate the most concise path possible that is still cut/paste-able to the command line.
-    pex_path = os.path.abspath(pex_path)
-    cwd = os.getcwd()
-    if commonpath((pex_path, cwd)) == cwd:
-        pex_path = os.path.relpath(pex_path, cwd)
-        # Handle users that do not have . as a PATH entry.
-        if not os.path.dirname(pex_path) and os.curdir not in os.environ.get("PATH", "").split(
-            os.pathsep
-        ):
-            pex_path = os.path.join(os.curdir, pex_path)
-    return pex_path
-
-
 class PexTools(Main[PEXCommand]):
     def __init__(self, pex=None):
         # type: (Optional[PEX]) -> None
 
-        pex_prog_path = simplify_pex_path(pex.path()) if pex else None
+        pex_prog_path = prog_path(pex.path()) if pex else None
 
         # By default, let argparse derive prog from sys.argv[0].
         prog = None  # type: Optional[str]
