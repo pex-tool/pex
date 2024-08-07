@@ -41,6 +41,7 @@ if TYPE_CHECKING:
         Mapping,
         NoReturn,
         Optional,
+        Sequence,
         Tuple,
         TypeVar,
         Union,
@@ -166,8 +167,8 @@ class PEX(object):  # noqa: T000
         self._pex_info = PexInfo.from_pex(self._pex)
         self._pex_info_overrides = PexInfo.from_env(env=env)
         self._vars = env
-        self._envs = None  # type: Optional[Iterable[PEXEnvironment]]
-        self._activated_dists = None  # type: Optional[Iterable[Distribution]]
+        self._envs = None  # type: Optional[Sequence[PEXEnvironment]]
+        self._activated_dists = None  # type: Optional[Sequence[Distribution]]
         self._layout = None  # type: Optional[Layout.Value]
         if verify_entry_point:
             self._do_entry_point_verification()
@@ -194,7 +195,7 @@ class PEX(object):  # noqa: T000
 
     @property
     def _loaded_envs(self):
-        # type: () -> Iterable[PEXEnvironment]
+        # type: () -> Sequence[PEXEnvironment]
         if self._envs is None:
             # set up the local .pex environment
             pex_info = self.pex_info()
@@ -209,7 +210,7 @@ class PEX(object):  # noqa: T000
                 pex_info = PexInfo.from_pex(pex_path)
                 pex_info.update(self._pex_info_overrides)
                 envs.append(PEXEnvironment.mount(pex_path, pex_info, target=target))
-            self._envs = tuple(envs)
+            self._envs = envs
         return self._envs
 
     def resolve(self):
@@ -239,7 +240,7 @@ class PEX(object):  # noqa: T000
                 yield dist
 
     def _activate(self):
-        # type: () -> Iterable[Distribution]
+        # type: () -> Sequence[Distribution]
 
         activated_dists = []  # type: List[Distribution]
         for env in self._loaded_envs:
@@ -251,7 +252,7 @@ class PEX(object):  # noqa: T000
         return activated_dists
 
     def activate(self):
-        # type: () -> Iterable[Distribution]
+        # type: () -> Sequence[Distribution]
         if self._activated_dists is None:
             # 1. Scrub the sys.path to present a minimal Python environment.
             self.patch_sys()
