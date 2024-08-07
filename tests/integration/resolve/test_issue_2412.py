@@ -10,7 +10,7 @@ import shutil
 import subprocess
 from textwrap import dedent
 
-from colors import color
+from colors import color  # vendor:skip
 
 from pex.common import safe_open, touch
 from pex.targets import LocalInterpreter

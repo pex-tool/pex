@@ -8,7 +8,7 @@ import os.path
 from contextlib import contextmanager
 from threading import Thread
 
-import colors
+import colors  # vendor:skip
 import pytest
 
 from pex.common import safe_rmtree

@@ -9,7 +9,7 @@ import subprocess
 import sys
 from textwrap import dedent
 
-import colors
+import colors  # vendor:skip
 
 from pex.targets import LocalInterpreter
 from pex.third_party.packaging.specifiers import SpecifierSet

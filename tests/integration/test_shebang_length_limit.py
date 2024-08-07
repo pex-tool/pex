@@ -10,7 +10,7 @@ import shutil
 import subprocess
 from textwrap import dedent
 
-import colors
+import colors  # vendor:skip
 import pytest
 
 from pex.common import chmod_plus_x, safe_open, touch

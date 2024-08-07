@@ -6,7 +6,7 @@ import subprocess
 import zipfile
 from textwrap import dedent
 
-import colors
+import colors  # vendor:skip
 
 from pex.common import open_zip, safe_open
 from pex.dist_metadata import ProjectNameAndVersion

@@ -12,7 +12,7 @@ import sys
 from argparse import ArgumentParser
 from collections import OrderedDict, defaultdict
 
-from colors import bold, green, yellow
+from colors import bold, green, yellow  # vendor:skip
 from redbaron import CommentNode, LiteralyEvaluable, NameNode, RedBaron
 
 from pex.common import safe_delete, safe_mkdir, safe_mkdtemp, safe_open, safe_rmtree
@@ -179,9 +179,12 @@ class ImportRewriter(object):
             if self._skip(from_import_node):
                 continue
 
-            if len(from_import_node) == 0:
-                # NB: `from . import ...` has length 0, but we don't care about relative imports which will
-                # point back into vendored code if the origin is within vendored code.
+            # We don't care about relative imports which will point back into vendored code if the
+            # origin is within vendored code.
+            # NB: `from . import ...` has length 0.
+            if len(from_import_node) == 0 or from_import_node.full_path_modules()[0].startswith(
+                "."
+            ):
                 continue
 
             original = from_import_node.copy()

@@ -4,7 +4,7 @@
 import os
 import subprocess
 
-import colors
+import colors  # vendor:skip
 import pytest
 
 from pex.inherit_path import InheritPath

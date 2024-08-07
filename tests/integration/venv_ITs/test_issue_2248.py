@@ -6,7 +6,7 @@ import subprocess
 from textwrap import dedent
 
 import pytest
-from colors import colors
+from colors import colors  # vendor:skip
 
 from pex.typing import TYPE_CHECKING
 from testing import IntegResults, run_pex_command

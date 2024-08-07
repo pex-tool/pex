@@ -174,6 +174,8 @@ def iter_vendor_specs(filter_requires_python=None):
             else filter_requires_python.version[:2]
         )
 
+    yield VendorSpec.pinned("ansicolors", "1.1.8")
+
     # We use this for a better @dataclass that is also Python2.7 and PyPy compatible.
     # N.B.: The `[testenv:typecheck]` section in `tox.ini` should have its deps list updated to
     # reflect this attrs version.
