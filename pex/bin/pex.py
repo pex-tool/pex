@@ -1375,7 +1375,7 @@ def do_main(
             "Running PEX file at %s with args %s" % (pex_builder.path(), cmdline),
             V=options.verbosity,
         )
-        sys.exit(pex.run(args=list(cmdline), env=repl.export_pex_cli_no_args_use(env=env)))
+        sys.exit(pex.run(args=list(cmdline), env=repl.export_pex_cli_run(env=env)))
 
 
 def seed_cache(
