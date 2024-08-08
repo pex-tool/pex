@@ -260,8 +260,8 @@ def create_pex_repl_exe(
         """
     ).format(
         shebang=shebang,
-        custom_module=inspect.getsource(custom),
-        create_pex_repl=inspect.getsource(_create_pex_repl),
+        custom_module=inspect.getsource(custom).strip(),
+        create_pex_repl=inspect.getsource(_create_pex_repl).strip(),
         banner=repl_data.banner,
         pex_info_summary=repl_data.pex_info_summary,
     )
