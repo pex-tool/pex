@@ -72,7 +72,9 @@ def create_pex(
     pex = os.path.join(str(tmpdir), "pex")
     pex_root = os.path.join(str(tmpdir), "pex_root")
     run_pex_command(
-        args=["--pex-root", pex_root, "--runtime-pex-root", pex_root, "-o", pex] + list(extra_args)
+        args=["--pex-root", pex_root, "--runtime-pex-root", pex_root, "-o", pex]
+        + list(extra_args)
+        + ["--seed"]
     ).assert_success()
     return pex
 
