@@ -83,7 +83,7 @@ def test_repl_python_options(
         """\
         Pex {pex_version} hermetic environment with 1 requirement and 1 activated distribution.
         Python {python_version} on {platform}
-        Type "help", "pex_info", "copyright", "credits" or "license" for more information.
+        Type "help", "pex", "copyright", "credits" or "license" for more information.
         """
     ).format(python_version=sys.version, platform=sys.platform, pex_version=__version__)
 

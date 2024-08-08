@@ -73,6 +73,8 @@ def _try_enable_readline(
 
 def repl_loop(
     banner=None,  # type: Optional[str]
+    ps1=None,  # type: Optional[str]
+    ps2=None,  # type: Optional[str]
     custom_commands=None,  # type: Optional[Mapping[str, Tuple[Callable, str]]]
     history=False,  # type: bool
     history_file=None,  # type: Optional[str]
@@ -110,6 +112,10 @@ def repl_loop(
 
     def loop():
         # type: () -> Dict[str, Any]
+        if ps1:
+            sys.ps1 = ps1
+        if ps2:
+            sys.ps2 = ps2
         repl.interact(banner=repl_banner, **extra_args)
         return local
 

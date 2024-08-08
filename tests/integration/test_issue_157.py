@@ -8,6 +8,7 @@ import subprocess
 import sys
 from contextlib import closing, contextmanager
 
+import colors  # vendor:skip
 import pexpect  # type: ignore[import]  # MyPy can't see the types under Python 2.7.
 import pytest
 from colors import color  # vendor:skip
@@ -15,29 +16,32 @@ from colors import color  # vendor:skip
 from pex.pex_info import PexInfo
 from pex.typing import TYPE_CHECKING
 from pex.version import __version__
-from testing import make_env, run_pex_command
+from testing import IS_PYPY, make_env, run_pex_command
 
 if TYPE_CHECKING:
     from typing import Any, Iterable, Iterator, List
 
 
-EXPECTED_COLOR = dict(fg="yellow", style="negative")
-
-
 def expect_banner_header(
     process,  # type: pexpect.spawn
     timeout,  # type: int
+    expected_ephemeral,  # type: bool
     expected_suffix,  # type: str
 ):
     # type: (...) -> None
     process.expect_exact(
         color(
-            "Pex {pex_version} hermetic environment with {expected_suffix}".format(
-                pex_version=__version__, expected_suffix=expected_suffix
+            "Pex {pex_version} {ephemeral}hermetic environment with {expected_suffix}".format(
+                pex_version=__version__,
+                ephemeral="ephemeral " if expected_ephemeral else "",
+                expected_suffix=expected_suffix,
             ),
-            **EXPECTED_COLOR
+            fg="yellow",
+            style="negative",
         ).encode("utf-8"),
-        timeout=timeout,
+        # We extend the timeout to read the initial header line and even more so for PyPy, which is
+        # slower to start up.
+        timeout=timeout * (6 if IS_PYPY else 3),
     )
 
 
@@ -57,11 +61,11 @@ def expect_banner_footer(
     ):
         process.expect_exact(line, timeout=timeout)
     process.expect_exact(
-        'Type "help", "{pex_info}", "copyright", "credits" or "license" for more '
-        "information.".format(pex_info=color("pex_info", **EXPECTED_COLOR)).encode("utf-8"),
+        'Type "help", "{pex}", "copyright", "credits" or "license" for more '
+        "information.".format(pex=colors.yellow("pex")).encode("utf-8"),
         timeout=timeout,
     )
-    process.expect_exact(b">>> ", timeout=timeout)
+    process.expect_exact(colors.yellow(">>> ").encode("utf-8"), timeout=timeout)
 
 
 def create_pex(
@@ -111,7 +115,12 @@ def test_empty_pex_no_args(
 
     pex = create_pex(tmpdir, extra_args=execution_mode_args)
     with pexpect_spawn(tmpdir, pex) as process:
-        expect_banner_header(process, timeout=pexpect_timeout, expected_suffix="no dependencies.")
+        expect_banner_header(
+            process,
+            timeout=pexpect_timeout,
+            expected_ephemeral=False,
+            expected_suffix="no dependencies.",
+        )
         expect_banner_footer(process, timeout=pexpect_timeout)
 
 
@@ -133,9 +142,15 @@ def test_pex_cli_no_args(
         expect_banner_header(
             process,
             timeout=pexpect_timeout,
-            expected_suffix="no dependencies. Run `{pex} -h` for Pex CLI help.".format(
-                pex=os.path.basename(pex)
-            ),
+            expected_ephemeral=True,
+            expected_suffix="no dependencies.",
+        )
+        process.expect_exact(
+            colors.yellow(
+                "Exit the repl (type quit()) and run `{pex} -h` for Pex CLI help.".format(
+                    pex=os.path.basename(pex)
+                )
+            ).encode("utf-8")
         )
         expect_banner_footer(process, timeout=pexpect_timeout)
 
@@ -153,6 +168,7 @@ def test_pex_with_deps(
         expect_banner_header(
             process,
             timeout=pexpect_timeout,
+            expected_ephemeral=False,
             expected_suffix="1 requirement and 1 activated distribution.",
         )
         expect_banner_footer(process, timeout=pexpect_timeout)
@@ -167,9 +183,11 @@ def expect_pex_info_response(
 ):
     # type: (...) -> Iterator[pexpect.spawn]
     with pexpect_spawn(tmpdir, pex) as process:
-        expect_banner_header(process, timeout=timeout, expected_suffix="no dependencies.")
+        expect_banner_header(
+            process, timeout=timeout, expected_ephemeral=False, expected_suffix="no dependencies."
+        )
         expect_banner_footer(process, timeout=timeout)
-        process.sendline("pex_info(json={json!r})".format(json=json).encode("utf-8"))
+        process.sendline("pex(json={json!r})".format(json=json).encode("utf-8"))
         yield process
 
 

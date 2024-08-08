@@ -96,7 +96,7 @@ else:
             raise ValueError("Cannot convert %s to a unicode string" % type(st))
 
 
-_PY3_EXEC_FUNCTION = """
+_PY2_EXEC_FUNCTION = """
 def exec_function(ast, globals_map):
   locals_map = globals_map
   exec ast in globals_map, locals_map
@@ -116,7 +116,7 @@ else:
         raise AssertionError("Expected this function to be re-defined at runtime.")
 
     # This will result in `exec_function` being re-defined at runtime.
-    eval(compile(_PY3_EXEC_FUNCTION, "<exec_function>", "exec"))
+    eval(compile(_PY2_EXEC_FUNCTION, "<exec_function>", "exec"))
 
 
 if PY3:

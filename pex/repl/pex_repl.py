@@ -18,6 +18,7 @@ from pex.layout import Layout
 from pex.pex_info import PexInfo
 from pex.repl import custom
 from pex.repl.custom import repl_loop
+from pex.third_party import colors
 from pex.third_party.colors import color
 from pex.typing import TYPE_CHECKING, cast
 from pex.variables import ENV, Variables
@@ -31,28 +32,35 @@ else:
     from pex.third_party import attr
 
 
-_PEX_CLI_NO_ARGS_IN_USE_ENV_VAR_NAME = "_PEX_CLI_NO_ARGS_IN_USE"
+_PEX_CLI_RUN_ENV_VAR_NAME = "_PEX_CLI_RUN"
+_PEX_CLI_RUN_NO_ARGS_ENV_VAR_NAME = "_PEX_CLI_RUN_NO_ARGS"
 
 
-def export_pex_cli_no_args_use(env=None):
+def export_pex_cli_run(env=None):
     # type: (Optional[Dict[str, str]]) -> Dict[str, str]
     """Records the fact that the Pex CLI executable is being run with no arguments."""
 
     _env = cast("Dict[str, str]", env or os.environ)
+    _env[_PEX_CLI_RUN_ENV_VAR_NAME] = sys.argv[0]
     if len(sys.argv) == 1:
-        _env[_PEX_CLI_NO_ARGS_IN_USE_ENV_VAR_NAME] = sys.argv[0]
+        _env[_PEX_CLI_RUN_NO_ARGS_ENV_VAR_NAME] = sys.argv[0]
     return _env
 
 
-def _pex_cli_no_args_in_use():
+def _pex_cli_run_in_use():
+    # type: () -> bool
+    return os.environ.pop(_PEX_CLI_RUN_ENV_VAR_NAME, None) is not None
+
+
+def _pex_cli_run_no_args_in_use():
     # type: () -> Optional[str]
-    return os.environ.pop(_PEX_CLI_NO_ARGS_IN_USE_ENV_VAR_NAME, None)
+    return os.environ.pop(_PEX_CLI_RUN_NO_ARGS_ENV_VAR_NAME, None)
 
 
 def _pex_cli_no_args_hint():
     # type: () -> Optional[str]
 
-    pex_cli = _pex_cli_no_args_in_use()
+    pex_cli = _pex_cli_run_no_args_in_use()
     if not pex_cli or len(sys.argv) > 1:
         return None
 
@@ -73,11 +81,15 @@ def _pex_cli_no_args_hint():
                 )
             ),
         )
-    return " Run `{pex} -h` for Pex CLI help.".format(pex=pex_cli_no_args)
+    return "Exit the repl (type quit()) and run `{pex} -h` for Pex CLI help.".format(
+        pex=pex_cli_no_args
+    )
 
 
 def _create_pex_repl(
     banner,  # type: str
+    ps1,  # type: str
+    ps2,  # type: str
     pex_info,  # type: Union[str, Dict[str, Any]]
     pex_info_summary,  # type: str
     history=False,  # type: bool
@@ -87,7 +99,7 @@ def _create_pex_repl(
 
     import json as stdlib_json
 
-    def pex_info_func(json=False):
+    def pex(json=False):
         # type: (bool) -> None
         """Print information about this PEX environment.
 
@@ -105,11 +117,13 @@ def _create_pex_repl(
 
     return repl_loop(
         banner=banner,
+        ps1=ps1,
+        ps2=ps2,
         custom_commands={
-            "pex_info": (
-                pex_info_func,
-                "Type pex_info() for information about this PEX, or pex_info(json=True) for even "
-                "more details.",
+            "pex": (
+                pex,
+                "Type pex() for information about this PEX, or pex(json=True) for even more "
+                "details.",
             )
         },
         history=history,
@@ -121,6 +135,8 @@ def _create_pex_repl(
 class _REPLData(object):
     banner = attr.ib()  # type: str
     pex_info_summary = attr.ib()  # type: str
+    ps1 = attr.ib()  # type: str
+    ps2 = attr.ib()  # type: str
 
 
 def _create_repl_data(
@@ -138,6 +154,9 @@ def _create_repl_data(
     venv = venv or pex_info.venv
     venv_pex = venv and pex_root == commonpath((os.path.abspath(pex), pex_root))
     pex_prog_path = prog_path(env.PEX if venv_pex else pex)
+    pex_cli_run_in_use = _pex_cli_run_in_use()
+    ephemeral = "ephemeral " if pex_cli_run_in_use else ""
+
     if venv and not venv_pex:
         pex_info_summary = [
             "Running in a PEX venv: {location}".format(location=os.path.dirname(pex_prog_path))
@@ -153,13 +172,15 @@ def _create_repl_data(
             pex_type = "{layout} {venv}PEX directory".format(layout=layout, venv=venv_indicator)
 
         pex_info_summary = [
-            "Running from {pex_type}: {location}".format(pex_type=pex_type, location=pex_prog_path)
+            "Running from {ephemeral}{pex_type}: {location}".format(
+                ephemeral=ephemeral, pex_type=pex_type, location=pex_prog_path
+            )
         ]
 
     if activated_dists:
         req_count = len(requirements)
         dist_count = len(activated_dists)
-        dep_info = "{req_count} {requirements} and {dist_count} activated {dists}.".format(
+        dep_info = "{req_count} {requirements} and {dist_count} activated {dists}".format(
             req_count=req_count,
             requirements=pluralize(req_count, "requirement"),
             dist_count=dist_count,
@@ -170,9 +191,9 @@ def _create_repl_data(
         pex_info_summary.append("Activated Distributions:")
         pex_info_summary.extend("  " + os.path.basename(dist.location) for dist in activated_dists)
     else:
-        dep_info = "no dependencies."
+        dep_info = "no dependencies"
 
-    if pex_info.includes_tools and (not venv or venv_pex):
+    if not pex_cli_run_in_use and pex_info.includes_tools and (not venv or venv_pex):
         pex_info_summary.append(
             "This PEX includes tools. Exit the repl (type quit()) and run "
             "`PEX_TOOLS=1 {pex} -h` for tools help.".format(
@@ -182,18 +203,22 @@ def _create_repl_data(
             )
         )
 
-    color_style = dict(fg="yellow", style="negative")
-    pex_header = color(
-        "Pex {pex_version} hermetic environment with {dep_info}{maybe_pex_cli_no_args_hint}".format(
-            pex_version=__version__,
-            dep_info=dep_info,
-            maybe_pex_cli_no_args_hint=_pex_cli_no_args_hint() or "",
-        ),
-        **color_style
-    )
+    pex_header = [
+        color(
+            "Pex {pex_version} {ephemeral}hermetic environment with {dep_info}.".format(
+                pex_version=__version__, ephemeral=ephemeral, dep_info=dep_info
+            ),
+            fg="yellow",
+            style="negative",
+        )
+    ]
+    pex_cli_no_args_hint = _pex_cli_no_args_hint()
+    if pex_cli_no_args_hint:
+        pex_header.append(color(pex_cli_no_args_hint, fg="yellow"))
+
     more_info_footer = (
-        'Type "help", "{pex_info}", "copyright", "credits" or "license" for more information.'
-    ).format(pex_info=color("pex_info", **color_style))
+        'Type "help", "{pex}", "copyright", "credits" or "license" for more information.'
+    ).format(pex=colors.yellow("pex"))
     banner = (
         dedent(
             """\
@@ -203,7 +228,7 @@ def _create_repl_data(
             """
         )
         .format(
-            pex_header=pex_header,
+            pex_header=os.linesep.join(pex_header),
             python_version=sys.version,
             platform=sys.platform,
             more_info_footer=more_info_footer,
@@ -211,7 +236,12 @@ def _create_repl_data(
         .strip()
     )
 
-    return _REPLData(banner=banner, pex_info_summary=os.linesep.join(pex_info_summary))
+    return _REPLData(
+        banner=banner,
+        pex_info_summary=os.linesep.join(pex_info_summary),
+        ps1=colors.yellow(">>> "),
+        ps2=colors.yellow("... "),
+    )
 
 
 def create_pex_repl_exe(
@@ -244,7 +274,8 @@ def create_pex_repl_exe(
 
         _BANNER = {banner!r}
         _PEX_INFO_SUMMARY = {pex_info_summary!r}
-
+        _PS1 = {ps1!r}
+        _PS2 = {ps2!r}
 
         if __name__ == "__main__":
             import os
@@ -252,6 +283,8 @@ def create_pex_repl_exe(
 
             _create_pex_repl(
                 banner=_BANNER,
+                ps1=_PS1,
+                ps2=_PS2,
                 pex_info=os.path.join(os.path.dirname(__file__), "PEX-INFO"),
                 pex_info_summary=_PEX_INFO_SUMMARY,
                 history=os.environ.get("PEX_INTERPRETER_HISTORY", "0").lower() in ("1", "true"),
@@ -260,10 +293,12 @@ def create_pex_repl_exe(
         """
     ).format(
         shebang=shebang,
-        custom_module=inspect.getsource(custom),
-        create_pex_repl=inspect.getsource(_create_pex_repl),
+        custom_module=inspect.getsource(custom).strip(),
+        create_pex_repl=inspect.getsource(_create_pex_repl).strip(),
         banner=repl_data.banner,
         pex_info_summary=repl_data.pex_info_summary,
+        ps1=repl_data.ps1,
+        ps2=repl_data.ps2,
     )
 
 
@@ -285,6 +320,8 @@ def create_pex_repl(
     )
     return _create_pex_repl(
         banner=repl_data.banner,
+        ps1=repl_data.ps1,
+        ps2=repl_data.ps2,
         pex_info=pex_info.as_json_dict(),
         pex_info_summary=repl_data.pex_info_summary,
         history=env.PEX_INTERPRETER_HISTORY,
