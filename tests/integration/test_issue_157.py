@@ -65,7 +65,7 @@ def expect_banner_footer(
         "information.".format(pex=colors.yellow("pex")).encode("utf-8"),
         timeout=timeout,
     )
-    process.expect_exact(b">>> ", timeout=timeout)
+    process.expect_exact(colors.yellow(">>> ").encode("utf-8"), timeout=timeout)
 
 
 def create_pex(

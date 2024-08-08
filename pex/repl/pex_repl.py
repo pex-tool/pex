@@ -18,6 +18,7 @@ from pex.layout import Layout
 from pex.pex_info import PexInfo
 from pex.repl import custom
 from pex.repl.custom import repl_loop
+from pex.third_party import colors
 from pex.third_party.colors import color
 from pex.typing import TYPE_CHECKING, cast
 from pex.variables import ENV, Variables
@@ -87,6 +88,8 @@ def _pex_cli_no_args_hint():
 
 def _create_pex_repl(
     banner,  # type: str
+    ps1,  # type: str
+    ps2,  # type: str
     pex_info,  # type: Union[str, Dict[str, Any]]
     pex_info_summary,  # type: str
     history=False,  # type: bool
@@ -114,6 +117,8 @@ def _create_pex_repl(
 
     return repl_loop(
         banner=banner,
+        ps1=ps1,
+        ps2=ps2,
         custom_commands={
             "pex": (
                 pex,
@@ -130,6 +135,8 @@ def _create_pex_repl(
 class _REPLData(object):
     banner = attr.ib()  # type: str
     pex_info_summary = attr.ib()  # type: str
+    ps1 = attr.ib()  # type: str
+    ps2 = attr.ib()  # type: str
 
 
 def _create_repl_data(
@@ -211,7 +218,7 @@ def _create_repl_data(
 
     more_info_footer = (
         'Type "help", "{pex}", "copyright", "credits" or "license" for more information.'
-    ).format(pex=color("pex", fg="yellow"))
+    ).format(pex=colors.yellow("pex"))
     banner = (
         dedent(
             """\
@@ -229,7 +236,12 @@ def _create_repl_data(
         .strip()
     )
 
-    return _REPLData(banner=banner, pex_info_summary=os.linesep.join(pex_info_summary))
+    return _REPLData(
+        banner=banner,
+        pex_info_summary=os.linesep.join(pex_info_summary),
+        ps1=colors.yellow(">>> "),
+        ps2=colors.yellow("... "),
+    )
 
 
 def create_pex_repl_exe(
@@ -262,7 +274,8 @@ def create_pex_repl_exe(
 
         _BANNER = {banner!r}
         _PEX_INFO_SUMMARY = {pex_info_summary!r}
-
+        _PS1 = {ps1!r}
+        _PS2 = {ps2!r}
 
         if __name__ == "__main__":
             import os
@@ -270,6 +283,8 @@ def create_pex_repl_exe(
 
             _create_pex_repl(
                 banner=_BANNER,
+                ps1=_PS1,
+                ps2=_PS2,
                 pex_info=os.path.join(os.path.dirname(__file__), "PEX-INFO"),
                 pex_info_summary=_PEX_INFO_SUMMARY,
                 history=os.environ.get("PEX_INTERPRETER_HISTORY", "0").lower() in ("1", "true"),
@@ -282,6 +297,8 @@ def create_pex_repl_exe(
         create_pex_repl=inspect.getsource(_create_pex_repl).strip(),
         banner=repl_data.banner,
         pex_info_summary=repl_data.pex_info_summary,
+        ps1=repl_data.ps1,
+        ps2=repl_data.ps2,
     )
 
 
@@ -303,6 +320,8 @@ def create_pex_repl(
     )
     return _create_pex_repl(
         banner=repl_data.banner,
+        ps1=repl_data.ps1,
+        ps2=repl_data.ps2,
         pex_info=pex_info.as_json_dict(),
         pex_info_summary=repl_data.pex_info_summary,
         history=env.PEX_INTERPRETER_HISTORY,
