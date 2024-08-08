@@ -5,7 +5,7 @@ import os.path
 import subprocess
 from textwrap import dedent
 
-import colors
+import colors  # vendor:skip
 import pytest
 
 from pex import targets

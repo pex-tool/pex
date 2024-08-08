@@ -25,6 +25,7 @@ from pex.pex_info import PexInfo
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.typing import TYPE_CHECKING
 from pex.util import named_temporary_file
+from pex.version import __version__
 from testing import (
     PY39,
     PY310,
@@ -785,6 +786,19 @@ def test_execute_interpreter_file_program():
             assert b"" == stderr
 
 
+EXPECTED_REPL_BANNER_NO_DEPS = (
+    dedent(
+        """\
+        Pex {pex_version} hermetic environment with no dependencies.
+        Python {python_version} on {platform}
+        Type "help", "pex_info", "copyright", "credits" or "license" for more information.
+        """
+    )
+    .format(python_version=sys.version, platform=sys.platform, pex_version=__version__)
+    .encode("utf-8")
+)
+
+
 def test_execute_repl():
     with temporary_dir() as pex_chroot:
         pex_builder = PEXBuilder(path=pex_chroot)
@@ -805,7 +819,7 @@ def test_execute_repl():
         )
         stdout, stderr = process.communicate(input=commands.encode("utf-8"))
 
-        assert b"(InteractiveConsole)" in stderr
+        assert stderr.startswith(EXPECTED_REPL_BANNER_NO_DEPS), stderr
         assert b"AssertionError" in stderr
         assert b">>> " in stdout
         assert b"123" in stdout
@@ -835,7 +849,7 @@ def test_execute_repl_with_python_options():
         )
         stdout, stderr = process.communicate(input=commands.encode("utf-8"))
 
-        assert b"(InteractiveConsole)" in stderr
+        assert stderr.startswith(EXPECTED_REPL_BANNER_NO_DEPS), stderr
         assert b"AssertionError" not in stderr
         assert b">>> " in stdout
         assert b"123" in stdout

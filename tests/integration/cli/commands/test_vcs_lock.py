@@ -9,7 +9,7 @@ import sys
 import tempfile
 from textwrap import dedent
 
-import colors
+import colors  # vendor:skip
 import pytest
 
 from pex.common import safe_open

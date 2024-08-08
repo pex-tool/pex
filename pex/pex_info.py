@@ -19,6 +19,8 @@ from pex.venv.bin_path import BinPath
 from pex.version import __version__ as pex_version
 
 if TYPE_CHECKING:
+    # MyPy run for 2.7 does not recognize the Collection type
+    from typing import Collection  # type: ignore[attr-defined]
     from typing import Any, Dict, Iterable, Mapping, Optional, Text, Tuple, Union
 
     from pex.dist_metadata import Requirement
@@ -459,6 +461,7 @@ class PexInfo(object):
 
     @property
     def requirements(self):
+        # type: () -> Collection[str]
         return self._requirements
 
     def add_exclude(self, requirement):
@@ -593,21 +596,16 @@ class PexInfo(object):
         # type: () -> Dict[str, Any]
         data = self._pex_info.copy()
         data["inherit_path"] = self.inherit_path.value
-        data["requirements"] = list(self._requirements)
-        data["excluded"] = list(self._excluded)
-        data["overridden"] = list(self._overridden)
-        data["interpreter_constraints"] = [str(ic) for ic in self.interpreter_constraints]
+        data["requirements"] = sorted(self._requirements)
+        data["excluded"] = sorted(self._excluded)
+        data["overridden"] = sorted(self._overridden)
+        data["interpreter_constraints"] = sorted(str(ic) for ic in self.interpreter_constraints)
         data["distributions"] = self._distributions.copy()
         return data
 
     def dump(self, **extra_json_dumps_kwargs):
         # type: (**Any) -> str
-        data = self.as_json_dict()
-        data["requirements"].sort()
-        data["excluded"].sort()
-        data["overridden"].sort()
-        data["interpreter_constraints"].sort()
-        return json.dumps(data, sort_keys=True, **extra_json_dumps_kwargs)
+        return json.dumps(self.as_json_dict(), sort_keys=True, **extra_json_dumps_kwargs)
 
     def copy(self):
         # type: () -> PexInfo

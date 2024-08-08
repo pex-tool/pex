@@ -5,7 +5,7 @@ import os.path
 import subprocess
 from textwrap import dedent
 
-from colors import crossed, red
+from colors import crossed, red  # vendor:skip
 
 from pex.common import safe_open
 from pex.typing import TYPE_CHECKING

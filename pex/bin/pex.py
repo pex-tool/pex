@@ -16,7 +16,7 @@ import sys
 from argparse import Action, ArgumentDefaultsHelpFormatter, ArgumentError, ArgumentParser
 from textwrap import TextWrapper
 
-from pex import dependency_configuration, pex_warnings, scie
+from pex import dependency_configuration, pex_warnings, repl, scie
 from pex.argparse import HandleBoolAction
 from pex.commands.command import (
     GlobalConfigurationError,
@@ -1375,7 +1375,7 @@ def do_main(
             "Running PEX file at %s with args %s" % (pex_builder.path(), cmdline),
             V=options.verbosity,
         )
-        sys.exit(pex.run(args=list(cmdline), env=env))
+        sys.exit(pex.run(args=list(cmdline), env=repl.export_pex_cli_no_args_use(env=env)))
 
 
 def seed_cache(

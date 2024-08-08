@@ -7,11 +7,10 @@ import ast
 import itertools
 import os
 import sys
-import warnings
 from site import USER_SITE
 from types import ModuleType
 
-from pex import bootstrap, pex_warnings
+from pex import bootstrap, repl
 from pex.bootstrap import Bootstrap
 from pex.common import die
 from pex.dist_metadata import CallableEntryPoint, Distribution, ModuleEntryPoint, parse_entry_point
@@ -41,6 +40,7 @@ if TYPE_CHECKING:
         Mapping,
         NoReturn,
         Optional,
+        Sequence,
         Tuple,
         TypeVar,
         Union,
@@ -166,8 +166,8 @@ class PEX(object):  # noqa: T000
         self._pex_info = PexInfo.from_pex(self._pex)
         self._pex_info_overrides = PexInfo.from_env(env=env)
         self._vars = env
-        self._envs = None  # type: Optional[Iterable[PEXEnvironment]]
-        self._activated_dists = None  # type: Optional[Iterable[Distribution]]
+        self._envs = None  # type: Optional[Sequence[PEXEnvironment]]
+        self._activated_dists = None  # type: Optional[Sequence[Distribution]]
         self._layout = None  # type: Optional[Layout.Value]
         if verify_entry_point:
             self._do_entry_point_verification()
@@ -194,7 +194,7 @@ class PEX(object):  # noqa: T000
 
     @property
     def _loaded_envs(self):
-        # type: () -> Iterable[PEXEnvironment]
+        # type: () -> Sequence[PEXEnvironment]
         if self._envs is None:
             # set up the local .pex environment
             pex_info = self.pex_info()
@@ -209,7 +209,7 @@ class PEX(object):  # noqa: T000
                 pex_info = PexInfo.from_pex(pex_path)
                 pex_info.update(self._pex_info_overrides)
                 envs.append(PEXEnvironment.mount(pex_path, pex_info, target=target))
-            self._envs = tuple(envs)
+            self._envs = envs
         return self._envs
 
     def resolve(self):
@@ -239,7 +239,7 @@ class PEX(object):  # noqa: T000
                 yield dist
 
     def _activate(self):
-        # type: () -> Iterable[Distribution]
+        # type: () -> Sequence[Distribution]
 
         activated_dists = []  # type: List[Distribution]
         for env in self._loaded_envs:
@@ -251,7 +251,7 @@ class PEX(object):  # noqa: T000
         return activated_dists
 
     def activate(self):
-        # type: () -> Iterable[Distribution]
+        # type: () -> Sequence[Distribution]
         if self._activated_dists is None:
             # 1. Scrub the sys.path to present a minimal Python environment.
             self.patch_sys()
@@ -672,61 +672,25 @@ class PEX(object):  # noqa: T000
                 sys.argv = args
                 return self.execute_content(arg, content)
         else:
-            try:
-                import readline
-            except ImportError:
-                if self._vars.PEX_INTERPRETER_HISTORY:
-                    pex_warnings.warn(
-                        "PEX_INTERPRETER_HISTORY was requested which requires the `readline` "
-                        "module, but the current interpreter at {python} does not have readline "
-                        "support.".format(python=sys.executable)
-                    )
-            else:
-                # This import is used for its side effects by the parse_and_bind lines below.
-                import rlcompleter  # NOQA
-
-                # N.B.: This hacky method of detecting use of libedit for the readline
-                # implementation is the recommended means.
-                # See https://docs.python.org/3/library/readline.html
-                if "libedit" in readline.__doc__:
-                    # Mac can use libedit, and libedit has different config syntax.
-                    readline.parse_and_bind("bind ^I rl_complete")
-                else:
-                    readline.parse_and_bind("tab: complete")
-
-                try:
-                    # Under current PyPy readline does not implement read_init_file and emits a
-                    # warning; so we squelch that noise.
-                    with warnings.catch_warnings():
-                        warnings.simplefilter("ignore")
-                        readline.read_init_file()
-                except (IOError, OSError):
-                    # No init file (~/.inputrc for readline or ~/.editrc for libedit).
-                    pass
-
-                if self._vars.PEX_INTERPRETER_HISTORY:
-                    import atexit
-
-                    histfile = os.path.expanduser(self._vars.PEX_INTERPRETER_HISTORY_FILE)
-                    try:
-                        readline.read_history_file(histfile)
-                        readline.set_history_length(1000)
-                    except (IOError, OSError) as e:
-                        sys.stderr.write(
-                            "Failed to read history file at {path} due to: {err}\n".format(
-                                path=histfile, err=e
+            pex_repl = repl.create_pex_repl(
+                pex_info=self.pex_info(),
+                requirements=(
+                    tuple(
+                        OrderedSet(
+                            itertools.chain.from_iterable(
+                                env.pex_info.requirements for env in self._envs
                             )
                         )
-
-                    atexit.register(readline.write_history_file, histfile)
+                    )
+                    if self._envs
+                    else ()
+                ),
+                activated_dists=self._activated_dists or (),
+            )
 
             bootstrap.demote()
 
-            import code
-
-            local = {}  # type: Dict[str, Any]
-            code.interact(local=local)
-            return Globals(local)
+            return Globals(pex_repl())
 
     @staticmethod
     def execute_with_options(

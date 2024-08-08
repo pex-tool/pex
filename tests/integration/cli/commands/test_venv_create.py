@@ -9,7 +9,7 @@ import subprocess
 import sys
 from textwrap import dedent
 
-import colors
+import colors  # vendor:skip
 import pytest
 
 from pex import dist_metadata

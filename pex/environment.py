@@ -275,6 +275,11 @@ class PEXEnvironment(object):
         return self._pex
 
     @property
+    def pex_info(self):
+        # type: () -> PexInfo
+        return self._pex_info
+
+    @property
     def source_pex(self):
         # type: () -> str
         return self._source_pex or self._pex

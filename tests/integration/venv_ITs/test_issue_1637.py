@@ -6,7 +6,7 @@ import subprocess
 from textwrap import dedent
 
 import pytest
-from colors import yellow
+from colors import yellow  # vendor:skip
 
 from pex.common import safe_open, touch
 from pex.typing import TYPE_CHECKING

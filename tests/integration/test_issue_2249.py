@@ -9,7 +9,7 @@ from contextlib import closing
 from textwrap import dedent
 from typing import Iterator
 
-import colors
+import colors  # vendor:skip
 import pexpect  # type: ignore[import]  # MyPy can't see the types under Python 2.7.
 import pytest
 

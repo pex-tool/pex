@@ -8,7 +8,7 @@ import sys
 from textwrap import dedent
 
 import pytest
-from colors import colors
+from colors import colors  # vendor:skip
 
 from pex.layout import Layout
 from pex.pep_427 import InstallableType

@@ -7,7 +7,7 @@ import subprocess
 import tempfile
 from textwrap import dedent
 
-import colors
+import colors  # vendor:skip
 import pytest
 
 from pex.resolve.lockfile import json_codec

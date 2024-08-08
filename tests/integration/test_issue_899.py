@@ -27,7 +27,7 @@ def test_top_level_environment_markers(tmpdir):
     results.assert_success()
     requirements = PexInfo.from_pex(pex_file).requirements
     assert len(requirements) == 1
-    assert Requirement.parse(requirement) == Requirement.parse(requirements.pop())
+    assert Requirement.parse(requirement) == Requirement.parse(next(iter(requirements)))
 
     output, returncode = run_simple_pex(
         pex_file,

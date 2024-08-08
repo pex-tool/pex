@@ -6,7 +6,7 @@ import subprocess
 import sys
 from textwrap import dedent
 
-from colors import cyan
+from colors import cyan  # vendor:skip
 
 from pex.common import CopyMode, is_pyc_file, safe_open
 from pex.typing import TYPE_CHECKING

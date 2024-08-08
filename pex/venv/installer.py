@@ -8,7 +8,7 @@ import subprocess
 from collections import Counter, OrderedDict, defaultdict
 from textwrap import dedent
 
-from pex import layout, pex_warnings
+from pex import layout, pex_warnings, repl
 from pex.common import CopyMode, chmod_plus_x, iter_copytree, pluralize
 from pex.compatibility import is_valid_python_identifier
 from pex.dist_metadata import Distribution
@@ -174,6 +174,11 @@ class Provenance(object):
         self._provenance = defaultdict(list)  # type: DefaultDict[Text, List[Text]]
 
     @property
+    def target_dir(self):
+        # type: () -> str
+        return self._target_dir
+
+    @property
     def target_python(self):
         # type: () -> str
         return self._target_python
@@ -323,6 +328,7 @@ def populate_venv_sources(
     shebang = shebang or provenance.calculate_shebang(hermetic_scripts=hermetic_scripts)
     provenance.record(
         _populate_first_party(
+            target_dir=provenance.target_dir,
             venv=venv,
             pex=pex,
             shebang=shebang,
@@ -556,6 +562,7 @@ def _populate_sources(
 
 
 def _populate_first_party(
+    target_dir,  # type: str
     venv,  # type: Virtualenv
     pex,  # type: PEX
     shebang,  # type: str
@@ -759,13 +766,8 @@ def _populate_first_party(
                 sys.exit(1)
             is_exec_override = len(pex_overrides) == 1
 
-            pex_interpreter_history = os.environ.get(
-                "PEX_INTERPRETER_HISTORY", "false"
-            ).lower() in ("1", "true")
-            pex_interpreter_history_file = os.environ.get(
-                "PEX_INTERPRETER_HISTORY_FILE", os.path.join("~", ".python_history")
-            )
-
+            pex_interpreter_history = os.environ.get("PEX_INTERPRETER_HISTORY")
+            pex_interpreter_history_file = os.environ.get("PEX_INTERPRETER_HISTORY_FILE")
             if {strip_pex_env!r}:
                 for key in list(os.environ):
                     if key.startswith("PEX_"):
@@ -799,63 +801,16 @@ def _populate_first_party(
                 # See https://docs.python.org/3/library/sys.html#sys.path
                 sys.path.insert(0, "")
 
-                try:
-                    import readline
-                except ImportError:
-                    if pex_interpreter_history:
-                        pex_warnings.warn(
-                            "PEX_INTERPRETER_HISTORY was requested which requires the `readline` "
-                            "module, but the current interpreter at {{python}} does not have readline "
-                            "support.".format(python=sys.executable)
-                        )
-                else:
-                    # This import is used for its side effects by the line below.
-                    import rlcompleter
-
-                    # N.B.: This hacky method of detecting use of libedit for the readline
-                    # implementation is the recommended means.
-                    # See https://docs.python.org/3/library/readline.html
-                    if "libedit" in readline.__doc__:
-                        # Mac can use libedit, and libedit has different config syntax.
-                        readline.parse_and_bind("bind ^I rl_complete")
-                    else:
-                        readline.parse_and_bind("tab: complete")
-
-                    try:
-                        # Under current PyPy readline does not implement read_init_file and emits a
-                        # warning; so we squelch that noise.
-                        import warnings
-
-                        with warnings.catch_warnings():
-                            warnings.simplefilter("ignore")
-                            readline.read_init_file()
-                    except (IOError, OSError):
-                        # No init file (~/.inputrc for readline or ~/.editrc for libedit).
-                        pass
-
-                    if pex_interpreter_history:
-                        import atexit
-
-                        histfile = os.path.expanduser(pex_interpreter_history_file)
-                        try:
-                            readline.read_history_file(histfile)
-                            readline.set_history_length(1000)
-                        except (IOError, OSError) as e:
-                            sys.stderr.write(
-                                "Failed to read history file at {{path}} due to: {{err}}\\n".format(
-                                    path=histfile, err=e
-                                )
-                            )
-
-                        atexit.register(readline.write_history_file, histfile)
-
-            if entry_point == PEX_INTERPRETER_ENTRYPOINT and len(sys.argv) > 1:
                 args = sys.argv[1:]
 
                 python_options = []
                 for index, arg in enumerate(args):
                     # Check if the arg is an expected startup arg
-                    if arg.startswith("-") and arg not in ("-", "-c", "-m"):
+                    if (
+                        arg != "-"
+                        and arg.startswith("-")
+                        and not arg.startswith(("--", "-c", "-m"))
+                    ):
                         python_options.append(arg)
                     else:
                         args = args[index:]
@@ -866,23 +821,22 @@ def _populate_first_party(
 
                 # The pex was called with Python interpreter options, so we need to re-exec to
                 # respect those:
-                if python_options or "PYTHONINSPECT" in os.environ:
+                if not args or python_options or "PYTHONINSPECT" in os.environ:
                     python = sys.executable
                     cmdline = [python] + python_options
                     inspect = "PYTHONINSPECT" in os.environ or any(
                         arg.startswith("-") and not arg.startswith("--") and "i" in arg
                         for arg in python_options
                     )
-                    if not inspect:
+                    if not args:
+                        if pex_interpreter_history:
+                            os.environ["PEX_INTERPRETER_HISTORY"] = pex_interpreter_history
+                        if pex_interpreter_history_file:
+                            os.environ["PEX_INTERPRETER_HISTORY_FILE"] = pex_interpreter_history_file
+                        cmdline.append(os.path.join(os.path.dirname(__file__), "pex-repl"))
+                    elif not inspect:
                         # We're not interactive; so find the installed (unzipped) PEX entry point.
-                        main = sys.modules.get("__main__")
-                        if not main or not main.__file__:
-                            # N.B.: This should never happen.
-                            sys.stderr.write(
-                                "Unable to resolve PEX __main__ module file: {{}}\\n".format(main)
-                            )
-                            sys.exit(1)
-                        cmdline.append(main.__file__)
+                        cmdline.append(__file__)
                     cmdline.extend(args)
                     maybe_log(
                         "Re-executing with Python interpreter options: "
@@ -961,3 +915,15 @@ def _populate_first_party(
         fp.write(main_contents)
     chmod_plus_x(fp.name)
     os.symlink(os.path.basename(fp.name), venv.join_path("pex"))
+
+    with open(venv.join_path("pex-repl"), "w") as fp:
+        fp.write(
+            repl.create_pex_repl_exe(
+                shebang=shebang,
+                pex_info=pex_info,
+                activated_dists=tuple(pex.resolve()),
+                pex=os.path.join(target_dir, "pex"),
+                venv=True,
+            )
+        )
+    chmod_plus_x(fp.name)
