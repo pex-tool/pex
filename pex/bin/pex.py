@@ -317,6 +317,14 @@ def configure_clp_pex_options(parser):
         ),
     )
     group.add_argument(
+        "--venv-system-site-packages",
+        "--no-venv-system-site-packages",
+        dest="venv_system_site_packages",
+        default=False,
+        action=HandleBoolAction,
+        help="If --venv is specified, give the venv access to the system site-packages dir.",
+    )
+    group.add_argument(
         "--non-hermetic-venv-scripts",
         dest="venv_hermetic_scripts",
         action="store_false",
@@ -960,6 +968,7 @@ def build_pex(
     pex_info.venv_bin_path = options.venv or BinPath.FALSE
     pex_info.venv_copies = options.venv_copies
     pex_info.venv_site_packages_copies = options.venv_site_packages_copies
+    pex_info.venv_system_site_packages = options.venv_system_site_packages
     pex_info.venv_hermetic_scripts = options.venv_hermetic_scripts
     pex_info.includes_tools = options.include_tools or options.venv
     pex_info.pex_path = options.pex_path.split(os.pathsep) if options.pex_path else ()

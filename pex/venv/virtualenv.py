@@ -334,6 +334,7 @@ class Virtualenv(object):
         interpreter=None,  # type: Optional[PythonInterpreter]
         force=False,  # type: bool
         copies=False,  # type: bool
+        system_site_packages=False,  # type: bool
         prompt=None,  # type: Optional[str]
         install_pip=InstallationChoice.NO,  # type: InstallationChoice.Value
         install_setuptools=InstallationChoice.NO,  # type: InstallationChoice.Value
@@ -346,6 +347,7 @@ class Virtualenv(object):
             interpreter=interpreter,
             force=force,
             copies=copies,
+            system_site_packages=system_site_packages,
             prompt=prompt,
             install_pip=install_pip,
             install_setuptools=install_setuptools,
