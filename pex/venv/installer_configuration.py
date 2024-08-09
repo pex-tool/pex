@@ -24,6 +24,7 @@ class InstallerConfiguration(object):
     pip = attr.ib(default=False)  # type: bool
     copies = attr.ib(default=False)  # type: bool
     site_packages_copies = attr.ib(default=False)  # type: bool
+    system_site_packages = attr.ib(default=False)  # type: bool
     compile = attr.ib(default=False)  # type: bool
     prompt = attr.ib(default=None)  # type: Optional[str]
     hermetic_scripts = attr.ib(default=False)  # type: bool

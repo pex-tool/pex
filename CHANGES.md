@@ -1,5 +1,17 @@
 # Release Notes
 
+## 2.16.0
+
+This release adds support for `--venv-system-site-packages` when
+creating a `--venv` PEX and `--system-site-packages` when creating a
+venv using the `pex-tools` / `PEX_TOOLS=1` `venv` command or when using
+the `pex3 venv create` command. Although this breaks PEX hermeticity, it
+can be the most efficient way to ship partial PEX venvs created with
+`--exclude`s to machines that have the excluded dependencies already
+installed in the site packages of a compatible system interpreter.
+
+* Support `--system-site-packages` when creating venvs. (#2500)
+
 ## 2.15.0
 
 This release enhances the REPL your PEX drops into when it either

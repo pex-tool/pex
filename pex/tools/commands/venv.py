@@ -117,6 +117,7 @@ class Venv(PEXCommand):
                 interpreter=pex.interpreter,
                 force=installer_configuration.force,
                 copies=installer_configuration.copies,
+                system_site_packages=installer_configuration.system_site_packages,
                 prompt=installer_configuration.prompt,
             )
 

@@ -525,6 +525,7 @@ def ensure_venv(
                 venv_dir=venv,
                 interpreter=pex.interpreter,
                 copies=pex_info.venv_copies,
+                system_site_packages=pex_info.venv_system_site_packages,
                 prompt=os.path.basename(ENV.PEX) if ENV.PEX else None,
             )
 

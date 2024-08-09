@@ -259,6 +259,7 @@ class Venv(OutputMixin, JsonMixin, BuildTimeCommand):
                     interpreter=target.get_interpreter(),
                     force=installer_configuration.force,
                     copies=installer_configuration.copies,
+                    system_site_packages=installer_configuration.system_site_packages,
                     prompt=installer_configuration.prompt,
                 )
 

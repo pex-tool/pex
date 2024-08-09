@@ -75,13 +75,19 @@ def register(
         "--copies",
         action="store_true",
         default=False,
-        help="Create the venv using copies of system files instead of symlinks",
+        help="Create the venv using copies of system files instead of symlinks.",
     )
     parser.add_argument(
         "--site-packages-copies",
         action="store_true",
         default=False,
-        help="Create the venv using copies of distributions instead of links or symlinks",
+        help="Create the venv using copies of distributions instead of links or symlinks.",
+    )
+    parser.add_argument(
+        "--system-site-packages",
+        action="store_true",
+        default=False,
+        help="Give the venv access to the system site-packages dir.",
     )
     parser.add_argument(
         "--compile",
@@ -116,6 +122,7 @@ def configure(options):
         pip=options.pip,
         copies=options.copies,
         site_packages_copies=options.site_packages_copies,
+        system_site_packages=options.system_site_packages,
         compile=options.compile,
         prompt=options.prompt,
         hermetic_scripts=options.hermetic_scripts,
