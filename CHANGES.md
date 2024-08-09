@@ -5,7 +5,7 @@
 This release enhances the REPL your PEX drops into when it either
 doesn't have an entry point or you force interpreter mode with the
 `PEX_INTERPRETER` environment variable. There is now clear indication
-you are running in a PEX hermetic environment and a `pex_info` command
+you are running in a PEX hermetic environment and a `pex` command
 added to the REPL that you can use to find out more details about the
 current PEX environment.
 
