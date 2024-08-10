@@ -22,6 +22,10 @@ def _try_enable_readline(
     history=False,  # type: bool
     history_file=None,  # type: Optional[str]
 ):
+    # type: (...) -> bool
+
+    libedit = False
+
     try:
         import readline
     except ImportError:
@@ -41,6 +45,7 @@ def _try_enable_readline(
         if "libedit" in readline.__doc__:
             # Mac can use libedit, and libedit has different config syntax.
             readline.parse_and_bind("bind ^I rl_complete")
+            libedit = True
         else:
             readline.parse_and_bind("tab: complete")
 
@@ -70,6 +75,8 @@ def _try_enable_readline(
 
             atexit.register(readline.write_history_file, histfile)
 
+    return libedit
+
 
 def repl_loop(
     banner=None,  # type: Optional[str]
@@ -81,7 +88,7 @@ def repl_loop(
 ):
     # type: (...) -> Callable[[], Dict[str, Any]]
 
-    _try_enable_readline(history=history, history_file=history_file)
+    libedit = _try_enable_readline(history=history, history_file=history_file)
 
     _custom_commands = custom_commands or {}
 
@@ -108,14 +115,38 @@ def repl_loop(
     repl = CustomREPL(locals=local)
     extra_args = {"exitmsg": ""} if sys.version_info[:2] >= (3, 6) else {}
 
-    repl_banner = _ANSI_RE.sub("", banner) if banner and not sys.stdout.isatty() else banner
+    def fixup_ansi(
+        text,  # type: str
+        prompt=False,  # type: bool
+    ):
+        # type: (...) -> str
+
+        if not sys.stdout.isatty():
+            text = _ANSI_RE.sub("", text)
+        elif prompt and libedit:
+            # Most versions of libedit do not support ansi terminal escape sequences, but they do
+            # support a readline back door where you can bracket characters that should be ignored
+            # for prompt width calculation but otherwise passed through unaltered to the terminal.
+            # This back door is defined in readline.h, which libedit implements, with the
+            # RL_PROMPT_START_IGNORE and RL_PROMPT_END_IGNORE character constants which we use
+            # below to bracket ansi terminal escape sequences.
+            #
+            # See:
+            # + https://tiswww.cwru.edu/php/chet/readline/readline.html#index-rl_005fexpand_005fprompt
+            # + https://git.savannah.gnu.org/cgit/readline.git/tree/readline.h?id=037d85f199a8c6e5b16689a46c8bc31b586a0c94#n884
+            text = _ANSI_RE.sub(
+                lambda match: "\001{ansi_sequence}\002".format(ansi_sequence=match.group(0)), text
+            )
+        return text + " " if prompt else text
+
+    repl_banner = fixup_ansi(banner) if banner else banner
 
     def loop():
         # type: () -> Dict[str, Any]
         if ps1:
-            sys.ps1 = ps1
+            sys.ps1 = fixup_ansi(ps1, prompt=True)
         if ps2:
-            sys.ps2 = ps2
+            sys.ps2 = fixup_ansi(ps2, prompt=True)
         repl.interact(banner=repl_banner, **extra_args)
         return local
 

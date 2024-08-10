@@ -1,5 +1,13 @@
 # Release Notes
 
+## 2.16.1
+
+This release fixes the PEX repl for Pythons that use some versions of
+libedit to support readline functionality. For those versions, ansi
+terminal escape sequences for prompt colorization were not working.
+
+* Fix PEX repl prompt for libedit. (#2503)
+
 ## 2.16.0
 
 This release adds support for `--venv-system-site-packages` when
