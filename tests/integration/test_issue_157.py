@@ -17,7 +17,7 @@ from colors import color  # vendor:skip
 from pex.pex_info import PexInfo
 from pex.typing import TYPE_CHECKING
 from pex.version import __version__
-from testing import IS_PYPY, make_env, run_pex_command
+from testing import IS_PYPY, make_env, run_pex_command, scie
 
 if TYPE_CHECKING:
     from typing import Any, Iterable, Iterator, List, Tuple
@@ -112,7 +112,7 @@ def create_pex(
             env=make_env(PEX_INTERPRETER=1),
         )
         .decode("utf-8")
-        .splitlines(keepends=False)
+        .splitlines()
     )
     return Pex(path=pex, expected_python_banner_lines=tuple(expected_python_banner_lines))
 
@@ -147,10 +147,8 @@ def pexpect_spawn(
 @execution_mode_args
 @pytest.mark.parametrize(
     "scie_args",
-    [
-        pytest.param([], id="traditional"),
-        pytest.param(["--scie", "eager"], id="scie"),
-    ],
+    [pytest.param([], id="traditional")]
+    + ([pytest.param(["--scie", "eager"], id="scie")] if scie.has_provider() else []),
 )
 def test_empty_pex_no_args(
     tmpdir,  # type: Any
