@@ -85,6 +85,7 @@ def repl_loop(
     custom_commands=None,  # type: Optional[Mapping[str, Tuple[Callable, str]]]
     history=False,  # type: bool
     history_file=None,  # type: Optional[str]
+    use_libedit_color_prompt_workaround=False,  # type: bool
 ):
     # type: (...) -> Callable[[], Dict[str, Any]]
 
@@ -123,7 +124,7 @@ def repl_loop(
 
         if not sys.stdout.isatty():
             text = _ANSI_RE.sub("", text)
-        elif prompt and libedit:
+        elif prompt and libedit and use_libedit_color_prompt_workaround:
             # Most versions of libedit do not support ansi terminal escape sequences, but they do
             # support a readline back door where you can bracket characters that should be ignored
             # for prompt width calculation but otherwise passed through unaltered to the terminal.
