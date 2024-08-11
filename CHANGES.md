@@ -3,11 +3,11 @@
 ## 2.16.1
 
 This release fixes the PEX repl for [Python Standalone Builds][PBS]
-CPython PEX scies. These PEXes ship using a version of libedit for
-readline support that does not support naive use of ansi terminal
+Linux CPython PEX scies. These PEXes ship using a version of libedit
+for readline support that does not support naive use of ansi terminal
 escape sequences for prompt colorization.
 
-* Fix PEX repl prompt for PBS libedit. (#2503)
+* Fix PEX repl prompt for Linux PBS libedit. (#2503)
 
 ## 2.16.0
 

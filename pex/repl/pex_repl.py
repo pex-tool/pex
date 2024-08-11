@@ -130,9 +130,11 @@ def _create_pex_repl(
         },
         history=history,
         history_file=history_file,
-        # The PBS CPythons used by PEX scies use a version of libedit that needs workarounds to
-        # support color prompts.
-        use_libedit_color_prompt_workaround=os.environ.get("SCIE") is not None,
+        # The PBS Linux CPythons used by PEX scies use a version of libedit that needs workarounds
+        # to support color prompts.
+        use_libedit_color_prompt_workaround=(
+            os.environ.get("SCIE") is not None and sys.platform.lower().startswith("linux")
+        ),
     )
 
 
