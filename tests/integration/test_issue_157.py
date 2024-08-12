@@ -5,8 +5,9 @@ from __future__ import absolute_import
 
 import os
 import subprocess
-import sys
 from contextlib import closing, contextmanager
+from textwrap import dedent
+from typing import Text
 
 import colors  # vendor:skip
 import pexpect  # type: ignore[import]  # MyPy can't see the types under Python 2.7.
@@ -16,10 +17,14 @@ from colors import color  # vendor:skip
 from pex.pex_info import PexInfo
 from pex.typing import TYPE_CHECKING
 from pex.version import __version__
-from testing import IS_PYPY, make_env, run_pex_command
+from testing import IS_PYPY, make_env, run_pex_command, scie
 
 if TYPE_CHECKING:
-    from typing import Any, Iterable, Iterator, List
+    from typing import Any, Iterable, Iterator, List, Tuple
+
+    import attr  # vendor:skip
+else:
+    from pex.third_party import attr
 
 
 def expect_banner_header(
@@ -46,41 +51,70 @@ def expect_banner_header(
 
 
 def expect_banner_footer(
+    pex,  # type: Pex
     process,  # type: pexpect.spawn
     timeout,  # type: int
 ):
     # type: (...) -> None
 
-    # N.B.: The sys.version can contain multiple lines for some distributions; so we split here.
-    for line in (
-        "Python {python_version} on {platform}".format(
-            python_version=sys.version, platform=sys.platform
-        )
-        .encode("utf-8")
-        .splitlines()
-    ):
+    for line in pex.expected_python_banner_lines:
         process.expect_exact(line, timeout=timeout)
     process.expect_exact(
         'Type "help", "{pex}", "copyright", "credits" or "license" for more '
         "information.".format(pex=colors.yellow("pex")).encode("utf-8"),
         timeout=timeout,
     )
-    process.expect_exact(colors.yellow(">>> ").encode("utf-8"), timeout=timeout)
+    process.expect_exact((colors.yellow(">>>") + " ").encode("utf-8"), timeout=timeout)
+
+
+@attr.s(frozen=True)
+class Pex(object):
+    path = attr.ib()  # type: str
+    expected_python_banner_lines = attr.ib()  # type: Tuple[Text, ...]
+
+    def venv(self, venv_dir):
+        # type: (str) -> Pex
+        return Pex(
+            path=os.path.join(venv_dir, "pex"),
+            expected_python_banner_lines=self.expected_python_banner_lines,
+        )
 
 
 def create_pex(
     tmpdir,  # type: Any
     extra_args=(),  # type: Iterable[str]
 ):
-    # type: (...) -> str
+    # type: (...) -> Pex
     pex = os.path.join(str(tmpdir), "pex")
     pex_root = os.path.join(str(tmpdir), "pex_root")
     run_pex_command(
-        args=["--pex-root", pex_root, "--runtime-pex-root", pex_root, "-o", pex]
-        + list(extra_args)
-        + ["--seed"]
+        args=["--pex-root", pex_root, "--runtime-pex-root", pex_root, "-o", pex] + list(extra_args)
     ).assert_success()
-    return pex
+
+    # N.B.: The sys.version can contain multiple lines for some distributions; so we split into
+    # multiple lines here.
+    expected_python_banner_lines = (
+        subprocess.check_output(
+            args=[
+                os.path.join(pex, "__main__.py") if os.path.isdir(pex) else pex,
+                "-c",
+                dedent(
+                    """\
+                from __future__ import print_function
+
+                import sys
+
+
+                print(sys.version, "on", sys.platform)
+                """
+                ),
+            ],
+            env=make_env(PEX_INTERPRETER=1),
+        )
+        .decode("utf-8")
+        .splitlines()
+    )
+    return Pex(path=pex, expected_python_banner_lines=tuple(expected_python_banner_lines))
 
 
 execution_mode_args = pytest.mark.parametrize(
@@ -95,25 +129,36 @@ execution_mode_args = pytest.mark.parametrize(
 @contextmanager
 def pexpect_spawn(
     tmpdir,  # type: Any
-    *args,  # type: Any
+    pex,  # type: Pex
     **kwargs  # type: Any
 ):
     # type: (...) -> Iterator[pexpect.spawn]
     with open(os.path.join(str(tmpdir), "pexpect.log"), "wb") as log:
         kwargs.update(dimensions=(24, 80), logfile=log)
-        with closing(pexpect.spawn(*args, **kwargs)) as process:
+        with closing(
+            pexpect.spawn(
+                os.path.join(pex.path, "__main__.py") if os.path.isdir(pex.path) else pex.path,
+                **kwargs
+            )
+        ) as process:
             yield process
 
 
 @execution_mode_args
+@pytest.mark.parametrize(
+    "scie_args",
+    [pytest.param([], id="traditional")]
+    + ([pytest.param(["--scie", "eager"], id="scie")] if scie.has_provider() else []),
+)
 def test_empty_pex_no_args(
     tmpdir,  # type: Any
     pexpect_timeout,  # type: int
     execution_mode_args,  # type: List[str]
+    scie_args,  # type: List[str]
 ):
     # type: (...) -> None
 
-    pex = create_pex(tmpdir, extra_args=execution_mode_args)
+    pex = create_pex(tmpdir, extra_args=execution_mode_args + scie_args)
     with pexpect_spawn(tmpdir, pex) as process:
         expect_banner_header(
             process,
@@ -121,7 +166,7 @@ def test_empty_pex_no_args(
             expected_ephemeral=False,
             expected_suffix="no dependencies.",
         )
-        expect_banner_footer(process, timeout=pexpect_timeout)
+        expect_banner_footer(pex, process, timeout=pexpect_timeout)
 
 
 @execution_mode_args
@@ -137,7 +182,7 @@ def test_pex_cli_no_args(
     with pexpect_spawn(
         tmpdir,
         pex,
-        env=make_env(PATH=os.pathsep.join((os.path.dirname(pex), os.environ.get("PATH", "")))),
+        env=make_env(PATH=os.pathsep.join((os.path.dirname(pex.path), os.environ.get("PATH", "")))),
     ) as process:
         expect_banner_header(
             process,
@@ -148,11 +193,11 @@ def test_pex_cli_no_args(
         process.expect_exact(
             colors.yellow(
                 "Exit the repl (type quit()) and run `{pex} -h` for Pex CLI help.".format(
-                    pex=os.path.basename(pex)
+                    pex=os.path.basename(pex.path)
                 )
             ).encode("utf-8")
         )
-        expect_banner_footer(process, timeout=pexpect_timeout)
+        expect_banner_footer(pex, process, timeout=pexpect_timeout)
 
 
 @execution_mode_args
@@ -171,13 +216,13 @@ def test_pex_with_deps(
             expected_ephemeral=False,
             expected_suffix="1 requirement and 1 activated distribution.",
         )
-        expect_banner_footer(process, timeout=pexpect_timeout)
+        expect_banner_footer(pex, process, timeout=pexpect_timeout)
 
 
 @contextmanager
 def expect_pex_info_response(
     tmpdir,  # type: Any
-    pex,  # type: str
+    pex,  # type: Pex
     timeout,  # type: int
     json=False,  # type: bool
 ):
@@ -186,7 +231,7 @@ def expect_pex_info_response(
         expect_banner_header(
             process, timeout=timeout, expected_ephemeral=False, expected_suffix="no dependencies."
         )
-        expect_banner_footer(process, timeout=timeout)
+        expect_banner_footer(pex, process, timeout=timeout)
         process.sendline("pex(json={json!r})".format(json=json).encode("utf-8"))
         yield process
 
@@ -198,7 +243,7 @@ def test_pex_info_command_pex_file(
     # type: (...) -> None
     pex = create_pex(tmpdir)
     with expect_pex_info_response(tmpdir, pex, pexpect_timeout) as process:
-        process.expect_exact("Running from PEX file: {pex}".format(pex=pex).encode("utf-8"))
+        process.expect_exact("Running from PEX file: {pex}".format(pex=pex.path).encode("utf-8"))
 
 
 def test_pex_info_command_packed_pex_directory(
@@ -207,11 +252,9 @@ def test_pex_info_command_packed_pex_directory(
 ):
     # type: (...) -> None
     pex = create_pex(tmpdir, extra_args=["--layout", "packed"])
-    with expect_pex_info_response(
-        tmpdir, os.path.join(pex, "__main__.py"), pexpect_timeout
-    ) as process:
+    with expect_pex_info_response(tmpdir, pex, pexpect_timeout) as process:
         process.expect_exact(
-            "Running from packed PEX directory: {pex}".format(pex=pex).encode("utf-8")
+            "Running from packed PEX directory: {pex}".format(pex=pex.path).encode("utf-8")
         )
 
 
@@ -222,7 +265,9 @@ def test_pex_info_command_venv_pex_file(
     # type: (...) -> None
     pex = create_pex(tmpdir, extra_args=["--venv"])
     with expect_pex_info_response(tmpdir, pex, pexpect_timeout) as process:
-        process.expect_exact("Running from --venv PEX file: {pex}".format(pex=pex).encode("utf-8"))
+        process.expect_exact(
+            "Running from --venv PEX file: {pex}".format(pex=pex.path).encode("utf-8")
+        )
 
 
 def test_pex_info_command_loose_venv_pex_directory(
@@ -231,11 +276,9 @@ def test_pex_info_command_loose_venv_pex_directory(
 ):
     # type: (...) -> None
     pex = create_pex(tmpdir, extra_args=["--layout", "loose", "--venv"])
-    with expect_pex_info_response(
-        tmpdir, os.path.join(pex, "__main__.py"), pexpect_timeout
-    ) as process:
+    with expect_pex_info_response(tmpdir, pex, pexpect_timeout) as process:
         process.expect_exact(
-            "Running from loose --venv PEX directory: {pex}".format(pex=pex).encode("utf-8")
+            "Running from loose --venv PEX directory: {pex}".format(pex=pex.path).encode("utf-8")
         )
 
 
@@ -246,8 +289,8 @@ def test_pex_info_command_pex_venv(
     # type: (...) -> None
     pex = create_pex(tmpdir, extra_args=["--include-tools"])
     venv = os.path.join(str(tmpdir), "venv")
-    subprocess.check_call(args=[pex, "venv", venv], env=make_env(PEX_TOOLS=1))
-    with expect_pex_info_response(tmpdir, os.path.join(venv, "pex"), pexpect_timeout) as process:
+    subprocess.check_call(args=[pex.path, "venv", venv], env=make_env(PEX_TOOLS=1))
+    with expect_pex_info_response(tmpdir, pex.venv(venv), pexpect_timeout) as process:
         process.expect_exact("Running in a PEX venv: {venv}".format(venv=venv).encode("utf-8"))
 
 
@@ -258,5 +301,5 @@ def test_pex_info_command_json(
     # type: (...) -> None
     pex = create_pex(tmpdir)
     with expect_pex_info_response(tmpdir, pex, pexpect_timeout, json=True) as process:
-        for line in PexInfo.from_pex(pex).dump(indent=2).encode("utf-8").splitlines():
+        for line in PexInfo.from_pex(pex.path).dump(indent=2).encode("utf-8").splitlines():
             process.expect_exact(line, timeout=pexpect_timeout)

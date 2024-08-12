@@ -32,6 +32,8 @@ else:
     from pex.third_party import attr
 
 
+_ARGV0 = os.environ.get("SCIE_ARGV0", sys.argv[0])
+
 _PEX_CLI_RUN_ENV_VAR_NAME = "_PEX_CLI_RUN"
 _PEX_CLI_RUN_NO_ARGS_ENV_VAR_NAME = "_PEX_CLI_RUN_NO_ARGS"
 
@@ -41,9 +43,9 @@ def export_pex_cli_run(env=None):
     """Records the fact that the Pex CLI executable is being run with no arguments."""
 
     _env = cast("Dict[str, str]", env or os.environ)
-    _env[_PEX_CLI_RUN_ENV_VAR_NAME] = sys.argv[0]
+    _env[_PEX_CLI_RUN_ENV_VAR_NAME] = _ARGV0
     if len(sys.argv) == 1:
-        _env[_PEX_CLI_RUN_NO_ARGS_ENV_VAR_NAME] = sys.argv[0]
+        _env[_PEX_CLI_RUN_NO_ARGS_ENV_VAR_NAME] = _ARGV0
     return _env
 
 
@@ -128,6 +130,11 @@ def _create_pex_repl(
         },
         history=history,
         history_file=history_file,
+        # The PBS Linux CPythons used by PEX scies use a version of libedit that needs workarounds
+        # to support color prompts.
+        use_libedit_color_prompt_workaround=(
+            os.environ.get("SCIE") is not None and sys.platform.lower().startswith("linux")
+        ),
     )
 
 
@@ -143,7 +150,7 @@ def _create_repl_data(
     pex_info,  # type: PexInfo
     requirements,  # type: Sequence[str]
     activated_dists,  # type: Sequence[Distribution]
-    pex=sys.argv[0],  # type: str
+    pex=_ARGV0,  # type: str
     env=ENV,  # type: Variables
     venv=False,  # type: bool
 ):
@@ -239,8 +246,8 @@ def _create_repl_data(
     return _REPLData(
         banner=banner,
         pex_info_summary=os.linesep.join(pex_info_summary),
-        ps1=colors.yellow(">>> "),
-        ps2=colors.yellow("... "),
+        ps1=colors.yellow(">>>"),
+        ps2=colors.yellow("..."),
     )
 
 
@@ -248,7 +255,7 @@ def create_pex_repl_exe(
     shebang,  # type: str
     pex_info,  # type: PexInfo
     activated_dists,  # type: Sequence[Distribution]
-    pex=sys.argv[0],  # type: str
+    pex=_ARGV0,  # type: str
     env=ENV,  # type: Variables
     venv=False,  # type: bool
 ):
@@ -306,7 +313,7 @@ def create_pex_repl(
     pex_info,  # type: PexInfo
     requirements,  # type: Sequence[str]
     activated_dists,  # type: Sequence[Distribution]
-    pex=sys.argv[0],  # type: str
+    pex=_ARGV0,  # type: str
     env=ENV,  # type: Variables
 ):
     # type: (...) -> Callable[[], Dict[str, Any]]
