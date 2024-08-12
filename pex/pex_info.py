@@ -45,7 +45,7 @@ class PexInfo(object):
     requirements: list                 # list of requirements for this environment
 
     # Environment options
-    pex_root: string                    # root of all pex-related files eg: ~/.pex
+    pex_root: string                    # root of all pex-related files eg: ~/.cache/pex
     entry_point: string                 # entry point into this pex
     script: string                      # script to execute in this pex environment
                                         # at most one of script/entry_point can be specified

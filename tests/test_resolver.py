@@ -91,7 +91,7 @@ def disabled_cache():
     # type: () -> Iterator[None]
 
     # N.B.: The resolve cache is never actually disabled, `--disable-cache` just switches the cache
-    # from ~/.pex to a temporary directory. We do the same here.
+    # from default PEX_ROOT to a temporary directory. We do the same here.
     with temporary_dir() as td, cache(td):
         yield
 

@@ -21,9 +21,9 @@ VOLUME /development/pex/.tox
 VOLUME /development/pex_dev
 ENV _PEX_TEST_DEV_ROOT=/development/pex_dev
 
-# This will be a named volume used to persist the Pex cache on the host but isolated from the nost
-# ~/.pex cache.
-VOLUME "/home/${USER}/.pex"
+# This will be a named volume used to persist the Pex cache on the host but isolated from the host
+# Pex cache.
+VOLUME "/home/${USER}/.cache/pex"
 
 # This will be a named volume used to persist the pytest tmp tree (/tmp/pytest-of-$USER/) for use \
 # in `./dtox inspect` sessions.

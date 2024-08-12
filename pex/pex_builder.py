@@ -797,8 +797,8 @@ class PEXBuilder(object):
                 mode="a",
                 deterministic_timestamp=deterministic_timestamp,
                 # When configured with a `copy_mode` of `CopyMode.SYMLINK`, we symlink distributions
-                # as pointers to installed wheel directories in ~/.pex/installed_wheels/... Since
-                # those installed wheels reside in a shared cache, they can be in-use by other
+                # as pointers to installed wheel directories in <PEX_ROOT>/installed_wheels/...
+                # Since those installed wheels reside in a shared cache, they can be in-use by other
                 # processes and so their code may be in the process of being bytecode compiled as we
                 # attempt to zip up our chroot. Bytecode compilation produces ephemeral temporary
                 # pyc files that we should avoid copying since they are useless and inherently

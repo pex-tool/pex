@@ -52,7 +52,7 @@ You'll see something like this as a result:
 
     $ ./my.pex --foo bar &
     $ ps -o command | grep pex
-    /home/jsirois/.pyenv/versions/3.10.2/bin/python3.10 /home/jsirois/.pex/unzipped_pexes/94790b07dc3768a9926dab999b41a87e399e0aa9 --foo bar
+    /home/jsirois/.pyenv/versions/3.10.2/bin/python3.10 /home/jsirois/.cache/pex/unzipped_pexes/94790b07dc3768a9926dab999b41a87e399e0aa9 --foo bar
 
 The original PEX file is not mentioned anywhere in the ``ps`` output. Worse, if you have many PEX
 processes it will be unclear which process corresponds to which PEX.
