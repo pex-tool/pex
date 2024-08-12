@@ -549,7 +549,7 @@ class PEXBuilder(object):
         # NB: We use pip here in the builder, but that's only at build time, and
         # although we don't use pyparsing directly, packaging.markers, which we
         # do use at runtime, does.
-        root_module_names = ["attr", "colors", "packaging", "pkg_resources", "pyparsing"]
+        root_module_names = ["appdirs", "attr", "colors", "packaging", "pkg_resources", "pyparsing"]
         prepared_sources = vendor.vendor_runtime(
             chroot=self._chroot,
             dest_basedir=self._pex_info.bootstrap,
