@@ -8,24 +8,13 @@ Do this within a virtualenv, then you can use pex to bootstrap itself:
 
 .. code-block:: console
 
-    $ pex pex requests -c pex -o ~/bin/pex
+    $ pex pex -c pex -o ~/bin/pex
 
-This command creates a pex file containing pex and requests, using the
-console script named "pex", saving it in ~/bin/pex.  At this point, assuming
-~/bin is on your $PATH, then you can use pex in or outside of any
-virtualenv.
+This command creates a pex file containing pex, using the console script named "pex", saving it in
+~/bin/pex.  At this point, assuming ~/bin is on your $PATH, then you can use pex in or outside of
+any virtualenv.
 
-The second easiest way to build .pex files is using the ``bdist_pex`` setuptools command
-which is available if you ``pip install pex``.  For example, to clone and build pip from source:
-
-.. code-block:: console
-
-    $ git clone https://github.com/pypa/pip && cd pip
-    $ python setup.py bdist_pex
-    running bdist_pex
-    Writing pip to dist/pip-7.2.0.dev0.pex
-
-Both are described in more detail below.
+This is described in more detail below.
 
 Invoking the ``pex`` utility
 ============================
@@ -36,10 +25,10 @@ and invoke it.  When no entry point is specified, "invocation" means starting an
 .. code-block:: console
 
     $ pex
-    Python 3.6.2 (default, Jul 20 2017, 03:52:27)
-    [GCC 7.1.1 20170630] on linux
-    Type "help", "copyright", "credits" or "license" for more information.
-    (InteractiveConsole)
+    Pex 2.16.1 ephemeral hermetic environment with no dependencies.
+    Exit the repl (type quit()) and run `pex -h` for Pex CLI help.
+    Python 3.11.9 (main, Apr 26 2024, 19:20:24) [GCC 13.2.0] on linux
+    Type "help", "pex", "copyright", "credits" or "license" for more information.
     >>>
 
 This creates an ephemeral environment that only exists for the duration of the ``pex`` command invocation
@@ -51,23 +40,24 @@ absolute path of a Python binary or the name of a Python interpreter within the 
 .. code-block:: console
 
     $ pex
-    Python 3.6.2 (default, Jul 20 2017, 03:52:27)
-    [GCC 7.1.1 20170630] on linux
-    Type "help", "copyright", "credits" or "license" for more information.
-    (InteractiveConsole)
+    Pex 2.16.1 ephemeral hermetic environment with no dependencies.
+    Exit the repl (type quit()) and run `pex -h` for Pex CLI help.
+    Python 3.11.9 (main, Apr 26 2024, 19:20:24) [GCC 13.2.0] on linux
+    Type "help", "pex", "copyright", "credits" or "license" for more information.
     >>> print "This won't work!"
       File "<console>", line 1
         print "This won't work!"
-                               ^
-    SyntaxError: Missing parentheses in call to 'print'
+        ^^^^^^^^^^^^^^^^^^^^^^^^
+    SyntaxError: Missing parentheses in call to 'print'. Did you mean print(...)?
     >>>
     $ pex --python=python2.7
-    Python 2.7.13 (default, Jul 21 2017, 03:24:34)
-    [GCC 7.1.1 20170630] on linux2
-    Type "help", "copyright", "credits" or "license" for more information.
-    (InteractiveConsole)
+    Pex 2.16.1 ephemeral hermetic environment with no dependencies.
+    Python 2.7.18 (default, Apr 26 2024, 19:14:20)
+    [GCC 13.2.0] on linux2
+    Type "help", "pex", "copyright", "credits" or "license" for more information.
     >>> print "This works."
     This works.
+    >>>
 
 
 Specifying requirements
@@ -81,10 +71,9 @@ and ``psutil>1``:
 .. code-block:: console
 
     $ pex flask 'psutil>1'
-    Python 3.6.2 (default, Jul 20 2017, 03:52:27)
-    [GCC 7.1.1 20170630] on linux
-    Type "help", "copyright", "credits" or "license" for more information.
-    (InteractiveConsole)
+    Pex 2.16.1 ephemeral hermetic environment with 2 requirements and 8 activated distributions.
+    Python 3.11.9 (main, Apr 26 2024, 19:20:24) [GCC 13.2.0] on linux
+    Type "help", "pex", "copyright", "credits" or "license" for more information.
     >>>
 
 You can then import and manipulate modules like you would otherwise:
@@ -122,22 +111,26 @@ interpreter.  First we create a simple flask application:
 .. code-block:: console
 
     $ cat <<EOF > flask_hello_world.py
-    > from flask import Flask
-    > app = Flask(__name__)
-    >
-    > @app.route('/')
-    > def hello_world():
-    >   return 'hello world!'
-    >
-    > app.run()
-    > EOF
+    from flask import Flask
+    app = Flask(__name__)
+
+    @app.route('/')
+    def hello_world():
+        return 'hello world!'
+
+    app.run()
+    EOF
 
 Then, like an interpreter, if a source file is specified as a parameter to pex, it is invoked:
 
 .. code-block:: console
 
     $ pex flask -- ./flask_hello_world.py
-    * Running on http://127.0.0.1:5000/
+     * Serving Flask app '__main__'
+     * Debug mode: off
+    WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+     * Running on http://127.0.0.1:5000
+    Press CTRL+C to quit
 
 pex -m
 ~~~~~~
@@ -151,7 +144,7 @@ within the standard library.  ``pex -m`` behaves very similarly to ``python -m``
     $ python -m pydoc
     pydoc - the Python documentation tool
 
-    pydoc.py <name> ...
+    pydoc <name> ...
         Show text documentation on something.  <name> may be the name of a
         Python keyword, topic, function, module, or package, or a dotted
         reference to a class or function within a module or module in a
@@ -164,7 +157,7 @@ This can be emulated using the ``pex`` tool using ``-m pydoc``:
     $ pex -m pydoc
     pydoc - the Python documentation tool
 
-    tmpInGItD <name> ...
+    pydoc <name> ...
         Show text documentation on something.  <name> may be the name of a
         Python keyword, topic, function, module, or package, or a dotted
         reference to a class or function within a module or module in a
@@ -175,19 +168,18 @@ get pydoc help on the ``flask.app`` package in Flask:
 
 .. code-block:: console
 
-    $ pex flask -m pydoc -- flask.app
-
+    $ TERM=dumb pex flask -m pydoc -- flask.app
     Help on module flask.app in flask:
 
     NAME
         flask.app
 
-    FILE
-        /private/var/folders/rd/_tjz8zts3g14md1kmf38z6w80000gn/T/tmp3PCy5a/.deps/Flask-0.10.1-py2-none-any.whl/flask/app.py
+    CLASSES
+        flask.sansio.app.App(flask.sansio.scaffold.Scaffold)
+            Flask
 
-    DESCRIPTION
-        flask.app
-        ~~~~~~~~~
+        class Flask(flask.sansio.app.App)
+    ...
 
 and so forth.
 
@@ -200,9 +192,9 @@ anything, for example a one-off invocation of Sphinx with the readthedocs theme 
 
 .. code-block:: console
 
-    $ pex sphinx==1.2.2 sphinx_rtd_theme -e sphinx:main -- --help
+    $ pex --python python2.7 sphinx==1.2.2 sphinx_rtd_theme==0.1.6 -e sphinx:main -- --help
     Sphinx v1.2.2
-    Usage: /tmp/tmpydcp6kox [options] sourcedir outdir [filenames...]
+    Usage: /tmp/tmp19tsy1r0 [options] sourcedir outdir [filenames...]
 
     General options
     ^^^^^^^^^^^^^^^
@@ -228,17 +220,18 @@ example, Fabric provides the ``fab`` tool when pip installed:
 .. code-block:: console
 
     $ pex Fabric -c fab -- --help
-    Fatal error: Couldn't find any fabfiles!
+    Usage: tmpm_gu_7vf [--core-opts] task1 [--task1-opts] ... taskN [--taskN-opts]
 
-    Remember that -f can be used to specify fabfile path, and use -h for help.
+    Core options:
 
-    Aborting.
+      --complete                         Print tab-completion candidates for given parse remainder.
+    ...
 
 Even scripts defined by the "scripts" section of a distribution can be used, e.g. with boto:
 
 .. code-block:: console
 
-    $ pex boto -c mturk
+    $ python2.7 -mpex boto -c mturk
     usage: mturk [-h] [-P] [--nicknames PATH]
                  {bal,hit,hits,new,extend,expire,rm,as,approve,reject,unreject,bonus,notify,give-qual,revoke-qual}
                  ...
@@ -264,63 +257,80 @@ we can package a standalone Sphinx as above:
 
 .. code-block:: console
 
-    $ pex sphinx sphinx_rtd_theme -c sphinx -o sphinx.pex
+    $ pex ansible -c ansible -o ansible.pex
 
 Instead of executing the environment, it is saved to disk:
 
 .. code-block:: console
 
-    $ ls -l sphinx.pex
-    -rwxr-xr-x  1 wickman  wheel  4988494 Mar 11 17:48 sphinx.pex
+    $ ls -l ansible.pex
+    -rwxr-xr-x 1 jsirois jsirois 58424496 Aug 13 11:39 ansible.pex
 
 This is an executable environment and can be executed as before:
 
 .. code-block:: console
 
-    $ ./sphinx.pex --help
-    Sphinx v1.2.2
-    Usage: ./sphinx.pex [options] sourcedir outdir [filenames...]
+    $ ./ansible.pex --help
+    usage: ansible [-h] [--version] [-v] [-b] [--become-method BECOME_METHOD]
+                   [--become-user BECOME_USER]
+                   [-K | --become-password-file BECOME_PASSWORD_FILE]
+                   [-i INVENTORY] [--list-hosts] [-l SUBSET] [-P POLL_INTERVAL]
+                   [-B SECONDS] [-o] [-t TREE] [--private-key PRIVATE_KEY_FILE]
+                   [-u REMOTE_USER] [-c CONNECTION] [-T TIMEOUT]
+                   [--ssh-common-args SSH_COMMON_ARGS]
+                   [--sftp-extra-args SFTP_EXTRA_ARGS]
+                   [--scp-extra-args SCP_EXTRA_ARGS]
+                   [--ssh-extra-args SSH_EXTRA_ARGS]
+                   [-k | --connection-password-file CONNECTION_PASSWORD_FILE] [-C]
+                   [-D] [-e EXTRA_VARS] [--vault-id VAULT_IDS]
+                   [-J | --vault-password-file VAULT_PASSWORD_FILES] [-f FORKS]
+                   [-M MODULE_PATH] [--playbook-dir BASEDIR]
+                   [--task-timeout TASK_TIMEOUT] [-a MODULE_ARGS] [-m MODULE_NAME]
+                   pattern
 
-    General options
-    ^^^^^^^^^^^^^^^
-    -b <builder>  builder to use; default is html
-    -a            write all files; default is to only write new and changed files
-    -E            don't use a saved environment, always read all files
+    Define and run a single task 'playbook' against a set of hosts
+
+    positional arguments:
+      pattern               host pattern
+
+    options:
+      --become-password-file BECOME_PASSWORD_FILE, --become-pass-file BECOME_PASSWORD_FILE
+                            Become password file
     ...
 
-
-As before, entry points are not required, and if not specified the PEX will default to just dropping into
-an interpreter.  If an alternate interpreter is specified with ``--python``, e.g. pypy, it will be the
-default hashbang in the PEX file:
+As before, entry points are not required, and if not specified the PEX will default to just dropping
+into an interpreter.  If an alternate interpreter is specified with ``--python``, e.g. pypy, it will
+be the default hashbang in the PEX file:
 
 .. code-block:: console
 
-    $ pex --python=pypy flask -o flask-pypy.pex
+    $ pex --python=pypy3.10 flask -o flask-pypy.pex
 
 The hashbang of the PEX file specifies PyPy:
 
 .. code-block:: console
 
     $ head -1 flask-pypy.pex
-    #!/usr/bin/env pypy
+    #!/usr/bin/env pypy3.10
 
 and when invoked uses the environment PyPy:
 
 .. code-block:: console
 
-    $ ./flask-pypy.pex
-    Python 2.7.3 (87aa9de10f9c, Nov 24 2013, 20:57:21)
-    [PyPy 2.2.1 with GCC 4.2.1 Compatible Apple LLVM 5.0 (clang-500.2.79)] on darwin
-    Type "help", "copyright", "credits" or "license" for more information.
-    (InteractiveConsole)
+    :; ./flask-pypy.pex
+    Pex 2.16.1 hermetic environment with 1 requirement and 7 activated distributions.
+    Python 3.10.14 (75b3de9d9035, Apr 21 2024, 10:54:48)
+    [PyPy 7.3.16 with GCC 10.2.1 20210130 (Red Hat 10.2.1-11)] on linux
+    Type "help", "pex", "copyright", "credits" or "license" for more information.
     >>> import flask
+    >>>
 
 To specify an explicit Python shebang line (e.g. from a non-standard location or not on $PATH),
 you can use the ``--python-shebang`` option:
 
 .. code-block:: console
 
-    $ dist/pex --python-shebang='/Users/wickman/Python/CPython-3.4.2/bin/python3.4' -o my.pex
+    $ pex --python-shebang='/Users/wickman/Python/CPython-3.4.2/bin/python3.4' -o my.pex
     $ head -1 my.pex
     #!/Users/wickman/Python/CPython-3.4.2/bin/python3.4
 
@@ -341,8 +351,8 @@ reason -- perhaps you're running a firewalled mirror -- but continue to package 
 
 .. code-block:: console
 
-    $ pip wheel -w /tmp/wheelhouse sphinx sphinx_rtd_theme
-    $ pex -f /tmp/wheelhouse --no-index -e sphinx:main -o sphinx.pex sphinx sphinx_rtd_theme
+    $ pip wheel -w /tmp/wheelhouse sphinx sphinx_rtd_theme setuptools
+    $ pex -f /tmp/wheelhouse --no-index -c sphinx-build -o sphinx.pex sphinx sphinx_rtd_theme setuptools
 
 
 Tailoring PEX execution at build time
@@ -352,24 +362,6 @@ There are a few options that can tailor how PEX environments are invoked.  These
 by running ``pex --help``.  Every flag mentioned here has a corresponding environment variable
 that can be used to override the runtime behavior which can be set directly in your environment,
 or sourced from a ``.pexrc`` file (checking for ``~/.pexrc`` first, then for a relative ``.pexrc``).
-
-
-``--zip-safe``/``--not-zip-safe``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Whether or not to treat the environment as zip-safe.  By default PEX files are listed as zip safe.
-If ``--not-zip-safe`` is specified, the source of the PEX will be written to disk prior to
-invocation rather than imported via the zipimporter.  NOTE: Distribution zip-safe bits will still
-be honored even if the PEX is marked as zip-safe.  For example, included .eggs may be marked as
-zip-safe and invoked without the need to write to disk.  Wheels are always marked as not-zip-safe
-and written to disk prior to PEX invocation.  ``--not-zip-safe`` forces ``--always-write-cache``.
-
-
-``--always-write-cache``
-~~~~~~~~~~~~~~~~~~~~~~~~
-
-Always write all packaged dependencies within the PEX to disk prior to invocation.  This forces the zip-safe
-bit of any dependency to be ignored.
 
 
 ``--inherit-path``
