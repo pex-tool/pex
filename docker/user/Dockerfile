@@ -23,7 +23,7 @@ ENV _PEX_TEST_DEV_ROOT=/development/pex_dev
 
 # This will be a named volume used to persist the Pex cache on the host but isolated from the host
 # Pex cache.
-VOLUME "/home/${USER}/.cache/pex"
+VOLUME /var/cache/pex
 
 # This will be a named volume used to persist the pytest tmp tree (/tmp/pytest-of-$USER/) for use \
 # in `./dtox inspect` sessions.
@@ -31,5 +31,6 @@ VOLUME /tmp
 
 WORKDIR /development/pex
 USER "${USER}":"${GROUP}"
+RUN mkdir "/home/${USER}/.cache" && ln -s /var/cache/pex "/home/${USER}/.cache/pex"
 
 ENTRYPOINT ["tox"]
