@@ -227,7 +227,7 @@ def test_lock_create_local_project_direct_reference(
         subprocess.check_call(args=["git", "apply", fp.name], cwd=clone_dir)
 
     # We patched the source but have a cached wheel built from it before the patch in
-    # ~/.pex/installed_wheels; so no "download" is performed.
+    # <PEX_ROOT>/installed_wheels; so no "download" is performed.
     assert_create_and_run_pex_from_lock()
 
     # But now we do need to "download" the project, build a wheel and install it. The hash check

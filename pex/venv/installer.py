@@ -436,9 +436,9 @@ def _populate_venv_deps(
 ):
     # type: (...) -> Iterator[Tuple[Text, Text]]
 
-    # Since the pex distributions are all materialized to ~/.pex/installed_wheels, which we control,
-    # we can optionally symlink to take advantage of sharing generated *.pyc files for auto-venvs
-    # created in ~/.pex/venvs.
+    # Since the pex distributions are all materialized to <PEX_ROOT>/installed_wheels, which we
+    # control, we can optionally symlink to take advantage of sharing generated *.pyc files for
+    # auto-venvs created in <PEX_ROOT>/venvs.
     top_level_packages = Counter(top_level_source_packages)  # type: typing.Counter[str]
     rel_extra_paths = OrderedSet()  # type: OrderedSet[str]
     for dist in distributions:
@@ -551,7 +551,7 @@ def _populate_sources(
 ):
     # type: (...) -> Iterator[Tuple[Text, Text]]
 
-    # Since the pex.path() is ~always outside our control (outside ~/.pex), we copy all PEX user
+    # Since the pex.path() is ~always outside our control (outside <PEX_ROOT>), we copy all PEX user
     # sources into the venv.
     pex_sources = PEXSources.mount(pex)
     for src, dest in iter_copytree(

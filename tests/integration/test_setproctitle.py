@@ -149,7 +149,8 @@ def test_setproctitle(
         assert "{pex_file} --some arguments here".format(pex_file=pex_file) == args
     elif venv:
         # A `--venv` mode PEX boot terminates in a final process of:
-        # ~/.pex/venvs/<venv long dir>/bin/python -sE ~/.pex/venvs/<venv long dir>/pex <args...>
+        # <PEX_ROOT>/venvs/<venv long dir>/bin/python -sE <PEX_ROOT>/venvs/<venv long dir>/pex
+        # <args...>
         python_args, installed_location, rest = args.split(" ", 2)
         assert "-sE" == python_args
         assert (
@@ -167,7 +168,7 @@ def test_setproctitle(
         assert "--some arguments here" == rest
     else:
         # All other PEX boots terminate in an unzipped execution that looks like:
-        # <python> ~/.pex/unzipped_pexes/<unzipped pex dir> <args...>
+        # <python> <PEX_ROOT>/unzipped_pexes/<unzipped pex dir> <args...>
         installed_location, rest = args.split(" ", 1)
         assert variables.unzip_dir(pex_info.pex_root, pex_info.pex_hash) == installed_location
         assert "--some arguments here" == rest

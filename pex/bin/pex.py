@@ -401,8 +401,11 @@ def configure_clp_pex_options(parser):
         "--runtime-pex-root",
         dest="runtime_pex_root",
         default=None,
-        help="Specify the pex root to be used in the generated .pex file (if unspecified, "
-        "uses ~/.pex).",
+        help=(
+            "Specify the pex root to be used in the generated .pex file (if unspecified, uses a "
+            "pex subdirectory of default user cache directory for the runtime OS; e.g.: "
+            "~/.cache/pex on Linux and ~/Library/Caches/pex on Mac)."
+        ),
     )
 
     group.add_argument(

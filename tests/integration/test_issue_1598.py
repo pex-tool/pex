@@ -3,6 +3,7 @@
 
 import os
 
+from pex import cache
 from pex.typing import TYPE_CHECKING
 from testing import make_env, run_pex_command
 
@@ -18,7 +19,8 @@ def test_mount_respects_env(
 
     home = os.path.join(str(tmpdir), "home")
 
-    pex_root = os.path.join(home, ".pex")
+    rel_pex_root = os.path.relpath(cache.cache_path(expand_user=False), "~")
+    pex_root = os.path.join(home, rel_pex_root)
     os.makedirs(pex_root)
     os.chmod(pex_root, 0o555)
     unwritable_pex_root_warning = "PEXWarning: PEX_ROOT is configured as {}".format(pex_root)

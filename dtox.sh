@@ -53,7 +53,7 @@ if [[ -z "$(user_image_id)" ]]; then
   docker run \
     --rm \
     --volume pex-caches:/development/pex_dev \
-    --volume "pex-root:${CONTAINER_HOME}/.pex" \
+    --volume pex-root:/var/cache/pex \
     --volume pex-tmp:/tmp \
     --volume pex-tox:/development/pex/.tox \
     --entrypoint bash \
@@ -62,7 +62,7 @@ if [[ -z "$(user_image_id)" ]]; then
     -c "
       chown -R $(id -un):$(id -gn) \
       /development/pex_dev \
-      ${CONTAINER_HOME}/.pex \
+      /var/cache/pex \
       /tmp \
       /development/pex/.tox
     "
@@ -132,7 +132,7 @@ fi
 exec docker run \
   --rm \
   --volume pex-tmp:/tmp \
-  --volume "pex-root:${CONTAINER_HOME}/.pex" \
+  --volume pex-root:/var/cache/pex \
   --volume pex-caches:/development/pex_dev \
   --volume "${ROOT}:/development/pex" \
   --volume pex-tox:/development/pex/.tox \

@@ -175,6 +175,7 @@ def iter_vendor_specs(filter_requires_python=None):
         )
 
     yield VendorSpec.pinned("ansicolors", "1.1.8")
+    yield VendorSpec.pinned("appdirs", "1.4.4")
 
     # We use this for a better @dataclass that is also Python2.7 and PyPy compatible.
     # N.B.: The `[testenv:typecheck]` section in `tox.ini` should have its deps list updated to

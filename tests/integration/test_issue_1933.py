@@ -52,7 +52,7 @@ def test_musllinux_wheels_resolved(
     assert (
         # N.B.: Since docker gives us a fixed user / home dir and pinned platform, and we use a
         # pinned wheel-only requirement, we can be assured this path is stable.
-        b"/root/.pex/installed_wheels/"
+        b"/root/.cache/pex/installed_wheels/"
         b"c3ae8e75eb7160851e59adc77b3a19a976e50622e44fd4fd47b8b18208189d42/"
         b"psycopg2_binary-2.9.3-cp310-cp310-musllinux_1_1_x86_64.whl/psycopg2/__init__.py"
     ) == stdout.strip()

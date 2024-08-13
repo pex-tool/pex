@@ -49,11 +49,11 @@ class DefaultedProperty(Generic["_O", "_P"]):
     def __init__(
         self,
         func,  # type: Callable[[_O], _P]
-        default,  # type: _P
+        default,  # type: Union[_P, Callable[[], _P]]
     ):
         # type: (...) -> None
         self._func = func  # type: Callable[[_O], _P]
-        self._default = default  # type: _P
+        self._default = default  # type: Union[_P, Callable[[], _P]]
         self._validator = None  # type: Optional[Callable[[_O, _P], _P]]
 
     @overload
@@ -85,7 +85,9 @@ class DefaultedProperty(Generic["_O", "_P"]):
         try:
             return self._validate(instance, self._func(instance))
         except NoValueError:
-            return self._validate(instance, self._default)
+            return self._validate(
+                instance, self._default() if callable(self._default) else self._default
+            )
 
     def strip_default(self, instance):
         # type: (_O) -> Optional[_P]
@@ -140,7 +142,8 @@ class DefaultedProperty(Generic["_O", "_P"]):
 
 
 def defaulted_property(
-    default,  # type: _P
+    default,  # type: Union[_P, Callable[[], _P]]
+    _type_hint=None,  # type: Optional[Type[_P]]  # N.B.: Can be used to help MyPy along.
 ):
     # type: (...) -> Callable[[Callable[[_O], _P]], DefaultedProperty[_O, _P]]
     """Creates a `@property` with a `default` value.
@@ -154,6 +157,17 @@ def defaulted_property(
         return DefaultedProperty(func, default)
 
     return wrapped
+
+
+def _default_pex_root():
+    # type: () -> str
+
+    # N.B.: We need lazy import gymnastics here since cache uses appdirs which is pex.third_party
+    # and the pex.third_party mechanism uses ENV.PEX_VERBOSE indirectly via TRACER to log certain
+    # third party import lifecycle events.
+    from pex import cache
+
+    return cache.cache_path(expand_user=False)
 
 
 class Variables(object):
@@ -631,15 +645,12 @@ class Variables(object):
         """
         return self._maybe_get_path_tuple("PEX_EXTRA_SYS_PATH") or ()
 
-    @defaulted_property(default=os.path.join("~", ".pex"))
+    @defaulted_property(default=_default_pex_root, _type_hint=str)
     def PEX_ROOT(self):
         # type: () -> str
         """Directory.
 
-        The directory location for PEX to cache any dependencies and code.  PEX must write not-zip-
-        safe eggs and all wheels to disk in order to activate them.
-
-        Default: ~/.pex
+        The directory location for PEX to cache any dependencies and code.
         """
         return self._get_path("PEX_ROOT")
 

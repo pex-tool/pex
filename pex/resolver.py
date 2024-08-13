@@ -418,10 +418,10 @@ class InstallResult(object):
         # machine.
         #
         # From a clean cache after building a simple pex this looks like:
-        # $ rm -rf ~/.pex
+        # $ rm -rf ~/.cache/pex
         # $ python -mpex -c pex -o /tmp/pex.pex .
-        # $ tree -L 4 ~/.pex/
-        # /home/jsirois/.pex/
+        # $ tree -L 4 ~/.cache/pex/
+        # /home/jsirois/.cache/pex/
         # ├── built_wheels
         # │ └── 1003685de2c3604dc6daab9540a66201c1d1f718
         # │     └── cp-38-cp38
@@ -433,7 +433,7 @@ class InstallResult(object):
         #     │     ├── pex
         #     │     └── pex-2.0.2.dist-info
         #     └── ae13cba3a8e50262f4d730699a11a5b79536e3e1
-        #         └── pex-2.0.2-py2.py3-none-any.whl -> /home/jsirois/.pex/installed_wheels/2a594cef34d2e9109bad847358d57ac4615f81f4/pex-2.0.2-py2.py3-none-any.whl  # noqa
+        #         └── pex-2.0.2-py2.py3-none-any.whl -> /home/jsirois/.cache/pex/installed_wheels/2a594cef34d2e9109bad847358d57ac4615f81f4/pex-2.0.2-py2.py3-none-any.whl  # noqa
         #
         # 11 directories, 1 file
         #
@@ -457,7 +457,7 @@ class InstallResult(object):
         # pex:   * /usr/lib/python38.zip
         # pex:     /usr/lib/python3.8
         # pex:     /usr/lib/python3.8/lib-dynload
-        # pex:     /home/jsirois/.pex/installed_wheels/2a594cef34d2e9109bad847358d57ac4615f81f4/pex-2.0.2-py2.py3-none-any.whl  # noqa
+        # pex:     /home/jsirois/.cache/pex/installed_wheels/2a594cef34d2e9109bad847358d57ac4615f81f4/pex-2.0.2-py2.py3-none-any.whl  # noqa
         # pex:   * /tmp/pex.pex/.bootstrap
         # pex:   * - paths that do not exist or will be imported via zipimport
         # pex.pex 2.0.2
