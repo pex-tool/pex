@@ -66,16 +66,13 @@ class DistributionScript(object):
     def python_script(self):
         # type: () -> Optional[ast.AST]
         path = self._maybe_extract()
-        if not is_python_script(path):
+        if not is_python_script(path, check_executable=False):
             return None
 
-        try:
-            return cast(
-                ast.AST,
-                compile(self.read_contents(path_hint=path), path, "exec", flags=0, dont_inherit=1),
-            )
-        except (SyntaxError, TypeError):
-            return None
+        return cast(
+            ast.AST,
+            compile(self.read_contents(path_hint=path), path, "exec", flags=0, dont_inherit=1),
+        )
 
     def _maybe_extract(self):
         # type: () -> str
