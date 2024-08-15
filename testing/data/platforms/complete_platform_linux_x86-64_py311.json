@@ -1,5 +1,4 @@
 {
-  "path": "/home/jsirois/dev/pex-tool/pex/.tox/py311-integration/bin/python",
   "compatible_tags": [
     "cp311-cp311-manylinux_2_35_x86_64",
     "cp311-cp311-manylinux_2_34_x86_64",

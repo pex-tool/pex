@@ -37,7 +37,7 @@ def test_download_incompatible_python(tmpdir):
         python=python,
     ).assert_success()
 
-    complete_platform = data.path("platforms", "complete_platform_linux_x86-64_py11.json")
+    complete_platform = data.path("platforms", "complete_platform_linux_x86-64_py311.json")
     pex = os.path.join(str(tmpdir), "pex")
     shutil.rmtree(pex_root)
     run_pex_command(
