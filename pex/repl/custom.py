@@ -78,6 +78,20 @@ def _try_enable_readline(
     return libedit
 
 
+def _use_color():
+    # type: () -> bool
+
+    # A common convention; see: https://no-color.org/
+    if "NO_COLOR" in os.environ:
+        return False
+
+    # A less common convention; see: https://force-color.org/
+    if "FORCE_COLOR" in os.environ:
+        return True
+
+    return sys.stdout.isatty() and "dumb" != os.environ.get("TERM")
+
+
 def repl_loop(
     banner=None,  # type: Optional[str]
     ps1=None,  # type: Optional[str]
@@ -115,6 +129,7 @@ def repl_loop(
 
     repl = CustomREPL(locals=local)
     extra_args = {"exitmsg": ""} if sys.version_info[:2] >= (3, 6) else {}
+    use_color = _use_color()
 
     def fixup_ansi(
         text,  # type: str
@@ -122,7 +137,7 @@ def repl_loop(
     ):
         # type: (...) -> str
 
-        if not sys.stdout.isatty():
+        if not use_color:
             text = _ANSI_RE.sub("", text)
         elif prompt and libedit and use_libedit_color_prompt_workaround:
             # Most versions of libedit do not support ansi terminal escape sequences, but they do

@@ -7,7 +7,7 @@ import os
 import subprocess
 from contextlib import closing, contextmanager
 from textwrap import dedent
-from typing import Text
+from typing import Mapping, Text
 
 import colors  # vendor:skip
 import pexpect  # type: ignore[import]  # MyPy can't see the types under Python 2.7.
@@ -17,7 +17,7 @@ from colors import color  # vendor:skip
 from pex.pex_info import PexInfo
 from pex.typing import TYPE_CHECKING
 from pex.version import __version__
-from testing import IS_PYPY, make_env, run_pex_command, scie
+from testing import IS_PYPY, environment_as, make_env, run_pex_command, scie
 
 if TYPE_CHECKING:
     from typing import Any, Iterable, Iterator, List, Tuple
@@ -32,18 +32,24 @@ def expect_banner_header(
     timeout,  # type: int
     expected_ephemeral,  # type: bool
     expected_suffix,  # type: str
+    expect_color=True,  # type: bool
 ):
     # type: (...) -> None
-    process.expect_exact(
-        color(
-            "Pex {pex_version} {ephemeral}hermetic environment with {expected_suffix}".format(
-                pex_version=__version__,
-                ephemeral="ephemeral " if expected_ephemeral else "",
-                expected_suffix=expected_suffix,
-            ),
+    expected_banner_header = (
+        "Pex {pex_version} {ephemeral}hermetic environment with {expected_suffix}".format(
+            pex_version=__version__,
+            ephemeral="ephemeral " if expected_ephemeral else "",
+            expected_suffix=expected_suffix,
+        )
+    )
+    if expect_color:
+        expected_banner_header = color(
+            expected_banner_header,
             fg="yellow",
             style="negative",
-        ).encode("utf-8"),
+        )
+    process.expect_exact(
+        expected_banner_header.encode("utf-8"),
         # We extend the timeout to read the initial header line and even more so for PyPy, which is
         # slower to start up.
         timeout=timeout * (6 if IS_PYPY else 3),
@@ -54,6 +60,7 @@ def expect_banner_footer(
     pex,  # type: Pex
     process,  # type: pexpect.spawn
     timeout,  # type: int
+    expect_color=True,  # type: bool
 ):
     # type: (...) -> None
 
@@ -61,10 +68,12 @@ def expect_banner_footer(
         process.expect_exact(line, timeout=timeout)
     process.expect_exact(
         'Type "help", "{pex}", "copyright", "credits" or "license" for more '
-        "information.".format(pex=colors.yellow("pex")).encode("utf-8"),
+        "information.".format(pex=colors.yellow("pex") if expect_color else "pex").encode("utf-8"),
         timeout=timeout,
     )
-    process.expect_exact((colors.yellow(">>>") + " ").encode("utf-8"), timeout=timeout)
+    process.expect_exact(
+        (colors.yellow(">>>") + " " if expect_color else ">>> ").encode("utf-8"), timeout=timeout
+    )
 
 
 @attr.s(frozen=True)
@@ -144,29 +153,63 @@ def pexpect_spawn(
             yield process
 
 
+@attr.s(frozen=True)
+class ColorConfig(object):
+    @classmethod
+    def create(
+        cls,
+        is_color,  # type: bool
+        **kwargs  # type: str
+    ):
+        # type: (...) -> ColorConfig
+        return cls(env=kwargs, is_color=is_color)
+
+    _env = attr.ib()  # type: Mapping[str, str]
+    _is_color = attr.ib()  # type: bool
+
+    @contextmanager
+    def env(self):
+        # type: () -> Iterator[bool]
+        with environment_as(**self._env):
+            yield self._is_color
+
+
 @execution_mode_args
 @pytest.mark.parametrize(
     "scie_args",
     [pytest.param([], id="traditional")]
     + ([pytest.param(["--scie", "eager"], id="scie")] if scie.has_provider() else []),
 )
+@pytest.mark.parametrize(
+    "color_config",
+    [
+        pytest.param(ColorConfig.create(is_color=True), id="IS_TTY"),
+        pytest.param(ColorConfig.create(is_color=False, NO_COLOR="1"), id="NO_COLOR"),
+        pytest.param(ColorConfig.create(is_color=False, TERM="dumb"), id="TERM=dumb"),
+        pytest.param(
+            ColorConfig.create(is_color=True, FORCE_COLOR="1", TERM="dumb"), id="FORCE_COLOR"
+        ),
+    ],
+)
 def test_empty_pex_no_args(
     tmpdir,  # type: Any
     pexpect_timeout,  # type: int
     execution_mode_args,  # type: List[str]
     scie_args,  # type: List[str]
+    color_config,  # type:ColorConfig
 ):
     # type: (...) -> None
 
     pex = create_pex(tmpdir, extra_args=execution_mode_args + scie_args)
-    with pexpect_spawn(tmpdir, pex) as process:
+    with color_config.env() as expect_color, pexpect_spawn(tmpdir, pex) as process:
         expect_banner_header(
             process,
             timeout=pexpect_timeout,
             expected_ephemeral=False,
             expected_suffix="no dependencies.",
+            expect_color=expect_color,
         )
-        expect_banner_footer(pex, process, timeout=pexpect_timeout)
+        expect_banner_footer(pex, process, timeout=pexpect_timeout, expect_color=expect_color)
 
 
 @execution_mode_args
