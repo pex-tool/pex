@@ -1,5 +1,36 @@
 # Release Notes
 
+## 2.16.2
+
+This release brings a slew of small fixes across the code base.
+
+When creating locks for foreign platforms,
+`pex3 lock {create,update,sync}` now allows locking sdists that use
+PEP-517 build backends that do not support the
+`prepare_metadata_for_build_wheel` hook and whose product is a wheel not
+compatible with the foreign platform. This is decidedly a corner case,
+but one encountered with the `mesonpy` build backend which seems to have
+traction in the scientific computing world in particular.
+
+The recent re-vamp of the PEX REPL is now fixed to respect common
+conventions for controlling terminal output via the `NO_COLOR`,
+`FORCE_COLOR` and `TERM` environment variables.
+
+The examples in the [buildingpex docs](
+https://docs.pex-tool.org/buildingpex.html) had bit-rotted. They have
+been refreshed and now all work.
+
+Finally, both the Pex CLI and PEX files support the ambient OS standards
+for user cache directories. Instead of using `~/.pex` as the default
+`PEX_ROOT` cache location, the default is now `~/.cache/pex` on Linux (
+but respecting `XDG_CACHE_HOME` when set) and `~/Library/Caches/pex` on
+Mac.
+
+* Lock sdists in more cases for foreign platforms. (#2508)
+* Respect `NO_COLOR`, `FORCE_COLOR` & `TERM=dumb`. (#2507)
+* Fix `buildingpex.rst` examples. (#2506)
+* Respect OS user cache location conventions. (#2505)
+
 ## 2.16.1
 
 This release fixes the PEX repl for [Python Standalone Builds][PBS]
