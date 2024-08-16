@@ -16,7 +16,7 @@ from collections import OrderedDict, defaultdict
 from pex import targets
 from pex.atomic_directory import AtomicDirectory, atomic_directory
 from pex.auth import PasswordEntry
-from pex.common import safe_mkdir, safe_mkdtemp
+from pex.common import pluralize, safe_mkdir, safe_mkdtemp
 from pex.compatibility import url_unquote, urlparse
 from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import DistMetadata, Distribution, ProjectNameAndVersion, Requirement
@@ -44,7 +44,7 @@ from pex.resolve.resolvers import (
     Unsatisfiable,
     Untranslatable,
 )
-from pex.targets import Target, Targets
+from pex.targets import LocalInterpreter, Target, Targets
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper
@@ -302,8 +302,8 @@ class BuildResult(object):
         # type: () -> str
         return self._atomic_dir.target_dir
 
-    def finalize_build(self):
-        # type: () -> InstallRequest
+    def finalize_build(self, check_compatible=True):
+        # type: (bool) -> InstallRequest
         self._atomic_dir.finalize()
         wheels = glob.glob(os.path.join(self.dist_dir, "*.whl"))
         if len(wheels) != 1:
@@ -318,7 +318,7 @@ class BuildResult(object):
                 )
             )
         wheel_path = wheels[0]
-        if self.request.target.is_foreign:
+        if check_compatible and self.request.target.is_foreign:
             wheel_tags = CompatibilityTags.from_wheel(wheel_path)
             if not self.request.target.supported_tags.compatible_tags(wheel_tags):
                 project_name_and_version = ProjectNameAndVersion.from_filename(wheel_path)
@@ -520,6 +520,7 @@ class WheelBuilder(object):
     def _categorize_build_requests(
         build_requests,  # type: Iterable[BuildRequest]
         dist_root,  # type: str
+        check_compatible=True,  # type: bool
     ):
         # type: (...) -> Tuple[Iterable[BuildRequest], DefaultDict[str, OrderedSet[InstallRequest]]]
         unsatisfied_build_requests = []
@@ -539,7 +540,9 @@ class WheelBuilder(object):
                         build_request.source_path, build_result.dist_dir
                     )
                 )
-                build_results[build_request.source_path].add(build_result.finalize_build())
+                build_results[build_request.source_path].add(
+                    build_result.finalize_build(check_compatible=check_compatible)
+                )
         return unsatisfied_build_requests, build_results
 
     def _spawn_wheel_build(
@@ -572,6 +575,7 @@ class WheelBuilder(object):
         self,
         build_requests,  # type: Iterable[BuildRequest]
         max_parallel_jobs=None,  # type: Optional[int]
+        check_compatible=True,  # type: bool
     ):
         # type: (...) -> Mapping[str, OrderedSet[InstallRequest]]
 
@@ -586,7 +590,9 @@ class WheelBuilder(object):
             "Building distributions for:" "\n  {}".format("\n  ".join(map(str, build_requests)))
         ):
             build_requests, build_results = self._categorize_build_requests(
-                build_requests=build_requests, dist_root=built_wheels_dir
+                build_requests=build_requests,
+                dist_root=built_wheels_dir,
+                check_compatible=check_compatible,
             )
 
             for build_result in execute_parallel(
@@ -595,7 +601,9 @@ class WheelBuilder(object):
                 error_handler=Raise[BuildRequest, BuildResult](Untranslatable),
                 max_jobs=max_parallel_jobs,
             ):
-                build_results[build_result.request.source_path].add(build_result.finalize_build())
+                build_results[build_result.request.source_path].add(
+                    build_result.finalize_build(check_compatible=check_compatible)
+                )
 
         return build_results
 
@@ -1131,6 +1139,24 @@ def resolve(
         use_pip_config=use_pip_config,
         extra_pip_requirements=extra_pip_requirements,
     )
+
+    if not build_configuration.allow_wheels:
+        foreign_targets = [
+            target
+            for target in targets.unique_targets()
+            if not isinstance(target, LocalInterpreter)
+        ]
+        if foreign_targets:
+            raise ValueError(
+                "Cannot ignore wheels (use_wheel=False) when resolving for foreign {platforms}: "
+                "{foreign_platforms}".format(
+                    platforms=pluralize(foreign_targets, "platform"),
+                    foreign_platforms=", ".join(
+                        target.render_description() for target in foreign_targets
+                    ),
+                )
+            )
+
     build_requests, download_results = _download_internal(
         targets=targets,
         direct_requirements=direct_requirements,

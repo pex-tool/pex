@@ -35,7 +35,7 @@ from pex.resolve.resolver_configuration import (
     ReposConfiguration,
     ResolverVersion,
 )
-from pex.targets import LocalInterpreter, Target
+from pex.targets import Target
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
@@ -500,12 +500,6 @@ class Pip(object):
     ):
         # type: (...) -> Job
         target = target or targets.current()
-
-        if not build_configuration.allow_wheels and not isinstance(target, LocalInterpreter):
-            raise ValueError(
-                "Cannot ignore wheels (use_wheel=False) when resolving for a platform: "
-                "{}".format(target.platform)
-            )
 
         download_cmd = ["download", "--dest", download_dir]
         extra_env = {}  # type: Dict[str, str]

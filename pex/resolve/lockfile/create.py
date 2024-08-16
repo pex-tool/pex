@@ -319,6 +319,9 @@ class LockObserver(ResolveObserver):
                 build_wheel_results = self.wheel_builder.build_wheels(
                     build_requests=build_wheel_requests,
                     max_parallel_jobs=self.max_parallel_jobs,
+                    # We don't need a compatible wheel, we'll accept metadata from any wheel since
+                    # we assume metadata consistency across wheels in general.
+                    check_compatible=False,
                 )
                 for install_requests in build_wheel_results.values():
                     for install_request in install_requests:

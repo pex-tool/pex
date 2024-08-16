@@ -103,8 +103,10 @@ class ConfiguredResolver(Resolver):
             pip_version=pip_version or self.pip_configuration.version,
             resolver=self,
             use_pip_config=self.pip_configuration.use_pip_config,
-            extra_pip_requirements=extra_resolver_requirements
-            if extra_resolver_requirements is not None
-            else self.pip_configuration.extra_requirements,
+            extra_pip_requirements=(
+                extra_resolver_requirements
+                if extra_resolver_requirements is not None
+                else self.pip_configuration.extra_requirements
+            ),
             result_type=result_type,
         )
