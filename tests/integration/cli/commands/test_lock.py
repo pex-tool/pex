@@ -1158,14 +1158,14 @@ def test_update_partial(tmpdir):
 def test_excludes_pep517_build_requirements_issue_1565(tmpdir):
     # type: (Any) -> None
 
-    # Here we resolve ansicolors 1.0.2 and find 2020.12.3 which are both pure legacy sdist
+    # Here we resolve ansicolors 1.0.2 and psutil 0.1.1 which are both pure legacy sdist
     # distributions that will need to download build requirements using Pip since we force PEP-517.
     # The cowsay 4.0 requirement is satisfied by a universal wheel and has no build requirements as
     # a result.
 
     result = run_pypi_lock_create(
         "ansicolors==1.0.2",
-        "find==2020.12.3",
+        "psutil==0.1.1",
         "cowsay==4.0",
         "--force-pep517",
     )
@@ -1195,18 +1195,18 @@ def test_excludes_pep517_build_requirements_issue_1565(tmpdir):
                 ),
                 LockedRequirement.create(
                     pin=Pin(
-                        project_name=ProjectName("find"),
-                        version=Version("2020.12.3"),
+                        project_name=ProjectName("psutil"),
+                        version=Version("0.1.1"),
                     ),
                     artifact=Artifact.from_url(
                         url=(
-                            "https://files.pythonhosted.org/packages/91/1c/"
-                            "90cac4602ec146ce6f055b2e9598f46da08e941dd860f0498af764407b7e/"
-                            "find-2020.12.3.tar.gz"
+                            "https://files.pythonhosted.org/packages/69/e4/"
+                            "7e36e3e6cbc83b76f1c93a63d4c053a03ca99f1c99b106835cb175b5932a/"
+                            "psutil-0.1.1.tar.gz"
                         ),
                         fingerprint=Fingerprint(
                             algorithm="sha256",
-                            hash="7dadadb63e13de019463f13d83e0e0567a963cad99a568d0f0001ac1104d8210",
+                            hash="25c6caffbf00d8be77489391a784654e99fcbaf2a5278e80f748be4112ee0188",
                         ),
                     ),
                 ),
