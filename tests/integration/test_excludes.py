@@ -63,6 +63,7 @@ def requests_certifi_excluded_pex(tmpdir):
             REQUESTS_LOCK,
             "--exclude",
             "certifi",
+            "--include-tools",
             "-o",
             pex,
             "--pex-root",
@@ -151,6 +152,39 @@ def test_exclude(
     # type: (...) -> None
 
     pex = requests_certifi_excluded_pex(tmpdir)
+    assert_requests_certifi_excluded_pex(pex, certifi_venv)
+
+
+@skip_unless_compatible_with_requests_lock
+def test_pre_resolved_dists_exclude(
+    tmpdir,  # type: Any
+    certifi_venv,  # type: Virtualenv
+):
+    # type: (...) -> None
+
+    pex_repository = requests_certifi_excluded_pex(tmpdir)
+    dists = os.path.join(str(tmpdir), "dists")
+    subprocess.check_call(
+        args=[pex_repository, "repository", "extract", "-f", dists], env=make_env(PEX_TOOLS=1)
+    )
+
+    pex_root = PexInfo.from_pex(pex_repository).pex_root
+    pex = os.path.join(str(tmpdir), "pex")
+    run_pex_command(
+        args=[
+            "--pre-resolved-dists",
+            dists,
+            "--exclude",
+            "certifi",
+            "requests",
+            "-o",
+            pex,
+            "--pex-root",
+            pex_root,
+            "--runtime-pex-root",
+            pex_root,
+        ]
+    ).assert_success()
     assert_requests_certifi_excluded_pex(pex, certifi_venv)
 
 

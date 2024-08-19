@@ -469,7 +469,7 @@ def test_can_add_handles_optional_build_tag_in_wheel(
 def test_can_add_handles_invalid_wheel_filename(cpython_38_environment):
     # type: (PEXEnvironment) -> None
     dist = create_dist("pep427-invalid.whl")
-    assert _InvalidWheelName(dist, "pep427-invalid") == cpython_38_environment._can_add(dist)
+    assert _InvalidWheelName(dist, "pep427-invalid.whl") == cpython_38_environment._can_add(dist)
 
 
 @pytest.fixture

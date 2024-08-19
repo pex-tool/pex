@@ -15,7 +15,7 @@ from pex.auth import PasswordDatabase, PasswordEntry
 from pex.common import pluralize
 from pex.compatibility import cpu_count
 from pex.dependency_configuration import DependencyConfiguration
-from pex.dist_metadata import Requirement
+from pex.dist_metadata import Requirement, is_wheel
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.pep_427 import InstallableType
@@ -414,7 +414,7 @@ def resolve_from_lock(
         for resolved_subset in subset_result.subsets:
             for downloadable_artifact in resolved_subset.resolved.downloadable_artifacts:
                 downloaded_artifact = downloaded_artifacts[downloadable_artifact]
-                if downloaded_artifact.path.endswith(".whl"):
+                if is_wheel(downloaded_artifact.path):
                     install_requests.append(
                         InstallRequest(
                             target=resolved_subset.target,

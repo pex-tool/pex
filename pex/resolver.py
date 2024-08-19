@@ -20,13 +20,12 @@ from pex.cache.dirs import CacheDir
 from pex.common import pluralize, safe_mkdir, safe_mkdtemp
 from pex.compatibility import url_unquote, urlparse
 from pex.dependency_configuration import DependencyConfiguration
-from pex.dist_metadata import DistMetadata, Distribution, ProjectNameAndVersion, Requirement
+from pex.dist_metadata import DistMetadata, Distribution, Requirement, is_wheel
 from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.jobs import Raise, SpawnedJob, execute_parallel, iter_map_parallel
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.pep_376 import InstalledWheel
-from pex.pep_425 import CompatibilityTags
 from pex.pep_427 import InstallableType, WheelError, install_wheel_chroot
 from pex.pep_503 import ProjectName
 from pex.pip.download_observer import DownloadObserver
@@ -43,6 +42,7 @@ from pex.resolve.resolvers import (
     ResolveResult,
     Unsatisfiable,
     Untranslatable,
+    check_resolve,
 )
 from pex.targets import LocalInterpreter, Target, Targets
 from pex.tracer import TRACER
@@ -170,7 +170,7 @@ class DownloadResult(object):
     @staticmethod
     def _is_wheel(path):
         # type: (str) -> bool
-        return os.path.isfile(path) and path.endswith(".whl")
+        return is_wheel(path) and zipfile.is_zipfile(path)
 
     target = attr.ib()  # type: Target
     download_dir = attr.ib()  # type: str
@@ -318,9 +318,8 @@ class BuildResult(object):
             )
         wheel_path = wheels[0]
         if check_compatible and self.request.target.is_foreign:
-            wheel_tags = CompatibilityTags.from_wheel(wheel_path)
-            if not self.request.target.supported_tags.compatible_tags(wheel_tags):
-                project_name_and_version = ProjectNameAndVersion.from_filename(wheel_path)
+            wheel = Distribution.load(wheel_path)
+            if not self.request.target.wheel_applies(wheel):
                 raise ValueError(
                     "No pre-built wheel was available for {project_name} {version}.{eol}"
                     "Successfully built the wheel {wheel} from the sdist {sdist} but it is not "
@@ -328,8 +327,8 @@ class BuildResult(object):
                     "You'll need to build a wheel from {sdist} on the foreign target platform and "
                     "make it available to Pex via a `--find-links` repo or a custom "
                     "`--index`.".format(
-                        project_name=project_name_and_version.project_name,
-                        version=project_name_and_version.version,
+                        project_name=wheel.project_name,
+                        version=wheel.version,
                         eol=os.linesep,
                         wheel=os.path.basename(wheel_path),
                         sdist=os.path.basename(self.request.source_path),
@@ -789,7 +788,7 @@ class BuildAndInstallRequest(object):
                         "The {wheel} wheel has a dependency on {url} which does not exist on this "
                         "machine.".format(wheel=install_request.wheel_file, url=requirement.url)
                     )
-                if dist_path.endswith(".whl"):
+                if is_wheel(dist_path):
                     to_install.add(InstallRequest.create(install_request.target, dist_path))
                 else:
                     to_build.add(BuildRequest.create(install_request.target, dist_path))
@@ -873,7 +872,7 @@ class BuildAndInstallRequest(object):
 
         if not ignore_errors:
             with TRACER.timed("Checking build"):
-                self._check(wheels)
+                check_resolve(self._dependency_configuration, wheels)
         return direct_requirements.adjust(wheels)
 
     def install_distributions(
@@ -946,76 +945,8 @@ class BuildAndInstallRequest(object):
 
         if not ignore_errors:
             with TRACER.timed("Checking install"):
-                self._check(installations)
+                check_resolve(self._dependency_configuration, installations)
         return direct_requirements.adjust(installations)
-
-    def _check(self, resolved_distributions):
-        # type: (Iterable[ResolvedDistribution]) -> None
-        resolved_distributions_by_project_name = (
-            OrderedDict()
-        )  # type: OrderedDict[ProjectName, List[ResolvedDistribution]]
-        for resolved_distribution in resolved_distributions:
-            resolved_distributions_by_project_name.setdefault(
-                resolved_distribution.distribution.metadata.project_name, []
-            ).append(resolved_distribution)
-
-        unsatisfied = []
-        for resolved_distribution in itertools.chain.from_iterable(
-            resolved_distributions_by_project_name.values()
-        ):
-            dist = resolved_distribution.distribution
-            target = resolved_distribution.target
-            for requirement in dist.requires():
-                if self._dependency_configuration.excluded_by(requirement):
-                    continue
-                requirement = (
-                    self._dependency_configuration.overridden_by(requirement, target=target)
-                    or requirement
-                )
-                if not target.requirement_applies(requirement):
-                    continue
-
-                installed_requirement_dists = resolved_distributions_by_project_name.get(
-                    requirement.project_name
-                )
-                if not installed_requirement_dists:
-                    unsatisfied.append(
-                        "{dist} requires {requirement} but no version was resolved".format(
-                            dist=dist.as_requirement(), requirement=requirement
-                        )
-                    )
-                else:
-                    resolved_dists = [
-                        installed_requirement_dist.distribution
-                        for installed_requirement_dist in installed_requirement_dists
-                    ]
-                    if not any(
-                        requirement.specifier.contains(resolved_dist.version, prereleases=True)
-                        for resolved_dist in resolved_dists
-                    ):
-                        unsatisfied.append(
-                            "{dist} requires {requirement} but {count} incompatible {dists_were} "
-                            "resolved: {dists}".format(
-                                dist=dist.as_requirement(),
-                                requirement=requirement,
-                                count=len(resolved_dists),
-                                dists_were="dists were" if len(resolved_dists) > 1 else "dist was",
-                                dists=" ".join(
-                                    os.path.basename(resolved_dist.location)
-                                    for resolved_dist in resolved_dists
-                                ),
-                            )
-                        )
-
-        if unsatisfied:
-            raise Unsatisfiable(
-                "Failed to resolve compatible distributions:\n{failures}".format(
-                    failures="\n".join(
-                        "{index}: {failure}".format(index=index, failure=failure)
-                        for index, failure in enumerate(unsatisfied, start=1)
-                    )
-                )
-            )
 
 
 def _parse_reqs(
@@ -1265,7 +1196,7 @@ class LocalDistribution(object):
 
     @property
     def is_wheel(self):
-        return self.path.endswith(".whl") and zipfile.is_zipfile(self.path)
+        return is_wheel(self.path) and zipfile.is_zipfile(self.path)
 
 
 @attr.s(frozen=True)

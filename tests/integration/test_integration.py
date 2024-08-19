@@ -20,7 +20,7 @@ import pytest
 from pex.cache.dirs import CacheDir
 from pex.common import is_exe, safe_mkdir, safe_open, safe_rmtree, temporary_dir, touch
 from pex.compatibility import WINDOWS, commonpath
-from pex.dist_metadata import Distribution, Requirement
+from pex.dist_metadata import Distribution, Requirement, is_wheel
 from pex.fetcher import URLFetcher
 from pex.interpreter import PythonInterpreter
 from pex.layout import Layout
@@ -1360,7 +1360,7 @@ def iter_distributions(pex_root, project_name):
         for d in dirs:
             if not d.startswith(project_name):
                 continue
-            if not d.endswith(".whl"):
+            if not is_wheel(d):
                 continue
             wheel_path = os.path.realpath(os.path.join(root, d))
             if wheel_path in found:
@@ -1843,7 +1843,7 @@ def test_constraint_file_from_url(tmpdir):
     assert len(dist_paths) == 3
     dist_paths.remove("fasteners-0.15-py2.py3-none-any.whl")
     for dist_path in dist_paths:
-        assert dist_path.startswith(("six-", "monotonic-")) and dist_path.endswith(".whl")
+        assert dist_path.startswith(("six-", "monotonic-")) and is_wheel(dist_path)
 
 
 def test_console_script_from_pex_path(tmpdir):

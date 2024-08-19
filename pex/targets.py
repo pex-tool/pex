@@ -5,14 +5,15 @@ from __future__ import absolute_import
 
 import os
 
-from pex.dist_metadata import Requirement
+from pex.dist_metadata import Distribution, Requirement
 from pex.interpreter import PythonInterpreter, calculate_binary_name
 from pex.orderedset import OrderedSet
-from pex.pep_425 import CompatibilityTags
+from pex.pep_425 import CompatibilityTags, RankedTag
 from pex.pep_508 import MarkerEnvironment
 from pex.platforms import Platform
 from pex.result import Error
 from pex.third_party.packaging.specifiers import SpecifierSet
+from pex.third_party.packaging.tags import Tag
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
@@ -25,6 +26,21 @@ else:
 
 class RequiresPythonError(Exception):
     """Indicates the impossibility of evaluating Requires-Python metadata."""
+
+
+@attr.s(frozen=True)
+class WheelEvaluation(object):
+    tags = attr.ib()  # type: Tuple[Tag, ...]
+    best_match = attr.ib()  # type: Optional[RankedTag]
+    requires_python = attr.ib()  # type: Optional[SpecifierSet]
+    applies = attr.ib()  # type: bool
+
+    def __bool__(self):
+        # type: () -> bool
+        return self.applies
+
+    # N.B.: For Python 2.7.
+    __nonzero__ = __bool__
 
 
 @attr.s(frozen=True)
@@ -152,6 +168,25 @@ class Target(object):
                 return True
 
         return False
+
+    def wheel_applies(self, wheel):
+        # type: (Distribution) -> WheelEvaluation
+        wheel_tags = CompatibilityTags.from_wheel(wheel.location)
+        ranked_tag = self.supported_tags.best_match(wheel_tags)
+        return WheelEvaluation(
+            tags=tuple(wheel_tags),
+            best_match=ranked_tag,
+            requires_python=wheel.metadata.requires_python,
+            applies=(
+                ranked_tag is not None
+                and (
+                    not wheel.metadata.requires_python
+                    or self.requires_python_applies(
+                        wheel.metadata.requires_python, source=wheel.location
+                    )
+                )
+            ),
+        )
 
     def __str__(self):
         # type: () -> str

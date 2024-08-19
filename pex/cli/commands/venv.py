@@ -110,7 +110,9 @@ class Venv(OutputMixin, JsonMixin, BuildTimeCommand):
         )
         installer_options.register(parser)
         target_options.register(parser, include_platforms=True)
-        resolver_options.register(parser, include_pex_repository=True, include_lock=True)
+        resolver_options.register(
+            parser, include_pex_repository=True, include_lock=True, include_pre_resolved=True
+        )
         requirement_options.register(parser)
 
     @classmethod

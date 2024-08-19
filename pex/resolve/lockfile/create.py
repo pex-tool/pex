@@ -14,7 +14,7 @@ from pex.auth import PasswordDatabase
 from pex.build_system import pep_517
 from pex.common import open_zip, pluralize, safe_mkdtemp
 from pex.dependency_configuration import DependencyConfiguration
-from pex.dist_metadata import DistMetadata, ProjectNameAndVersion
+from pex.dist_metadata import DistMetadata, ProjectNameAndVersion, is_tar_sdist, is_zip_sdist
 from pex.fetcher import URLFetcher
 from pex.jobs import Job, Retain, SpawnedJob, execute_parallel
 from pex.orderedset import OrderedSet
@@ -155,10 +155,10 @@ def _prepare_project_directory(build_request):
         return target, project
 
     extract_dir = os.path.join(safe_mkdtemp(), "project")
-    if FileArtifact.is_zip_sdist(project):
+    if is_zip_sdist(project):
         with open_zip(project) as zf:
             zf.extractall(extract_dir)
-    elif FileArtifact.is_tar_sdist(project):
+    elif is_tar_sdist(project):
         with tarfile.open(project) as tf:
             tf.extractall(extract_dir)
     else:

@@ -1,11 +1,13 @@
 # Copyright 2021 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+import os.path
 import re
 from argparse import ArgumentParser
 
 import pytest
 
+from pex.common import touch
 from pex.pex_warnings import PEXWarning
 from pex.pip.version import PipVersion
 from pex.resolve import resolver_configuration, resolver_options
@@ -13,12 +15,13 @@ from pex.resolve.resolver_configuration import (
     BuildConfiguration,
     PexRepositoryConfiguration,
     PipConfiguration,
+    PreResolvedConfiguration,
     ReposConfiguration,
 )
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import List
+    from typing import Any, List
 
     from pex.resolve.resolver_options import ResolverConfiguration
 
@@ -151,6 +154,41 @@ def test_pex_repository(parser):
     )
     assert isinstance(resolver_configuration, PexRepositoryConfiguration)
     assert "a.pex" == resolver_configuration.pex_repository
+
+
+def test_pre_resolved_dists(
+    tmpdir,  # type: Any
+    parser,  # type: ArgumentParser
+):
+    # type: (...) -> None
+    resolver_options.register(parser, include_pre_resolved=True)
+
+    sdist = touch(os.path.join(str(tmpdir), "fake-1.0.tar.gz"))
+    expected_sdists = [sdist]
+
+    wheel = touch(os.path.join(str(tmpdir), "fake-1.0.py2.py3-none-any.whl"))
+    expected_wheels = [wheel]
+
+    dists_dir = os.path.join(str(tmpdir), "dists")
+    touch(os.path.join(dists_dir, "README.md"))
+    expected_wheels.append(touch(os.path.join(dists_dir, "another-2.0.py3-non-any.whl")))
+    expected_sdists.append(touch(os.path.join(dists_dir, "another-2.0.tar.gz")))
+    expected_sdists.append(touch(os.path.join(dists_dir, "one_more-3.0.tar.gz")))
+
+    resolver_configuration = compute_resolver_configuration(
+        parser,
+        args=[
+            "--pre-resolved-dist",
+            sdist,
+            "--pre-resolved-dist",
+            wheel,
+            "--pre-resolved-dists",
+            dists_dir,
+        ],
+    )
+    assert isinstance(resolver_configuration, PreResolvedConfiguration)
+    assert sorted(expected_sdists) == sorted(resolver_configuration.sdists)
+    assert sorted(expected_wheels) == sorted(resolver_configuration.wheels)
 
 
 def test_invalid_configuration(parser):

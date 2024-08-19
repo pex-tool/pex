@@ -2,9 +2,11 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import sys
+from textwrap import dedent
 
 import pytest
 
+from pex.targets import LocalInterpreter
 from testing import run_pex_command
 
 
@@ -27,10 +29,17 @@ def test_pip_2020_resolver_engaged():
         args=["--resolver-version", "pip-legacy-resolver"] + pex_args, quiet=True
     )
     results.assert_failure()
-    assert "Failed to resolve compatible distributions:" in results.error
     assert (
-        "1: boto3==1.15.6 requires botocore<1.19.0,>=1.18.6 but 1 incompatible dist was resolved: "
-        "botocore-1.19.63-py2.py3-none-any.whl" in results.error
+        dedent(
+            """\
+            Failed to resolve compatible distributions for 1 target:
+            1: {target} is not compatible with:
+                boto3 1.15.6 requires botocore<1.19.0,>=1.18.6 but 1 incompatible dist was resolved:
+                    botocore-1.19.63-py2.py3-none-any.whl
+            """.format(
+                target=LocalInterpreter.create().render_description()
+            )
+        )
+        in results.error
     ), results.error
-
     run_pex_command(args=["--resolver-version", "pip-2020-resolver"] + pex_args).assert_success()

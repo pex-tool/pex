@@ -450,10 +450,11 @@ def can_write_dir(path):
 
 
 def touch(file):
-    # type: (Text) -> None
+    # type: (_Text) -> _Text
     """Equivalent of unix `touch path`."""
     with safe_open(file, "a"):
         os.utime(file, None)
+    return file
 
 
 class Chroot(object):

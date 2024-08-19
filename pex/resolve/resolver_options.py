@@ -3,12 +3,13 @@
 
 from __future__ import absolute_import
 
+import glob
 import os
 from argparse import Action, ArgumentTypeError, Namespace, _ActionsContainer
 
 from pex import pex_warnings
 from pex.argparse import HandleBoolAction
-from pex.dist_metadata import Requirement
+from pex.dist_metadata import Requirement, is_sdist, is_wheel
 from pex.fetcher import initialize_ssl_context
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
@@ -23,6 +24,7 @@ from pex.resolve.resolver_configuration import (
     LockRepositoryConfiguration,
     PexRepositoryConfiguration,
     PipConfiguration,
+    PreResolvedConfiguration,
     ReposConfiguration,
     ResolverVersion,
 )
@@ -31,7 +33,7 @@ from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from typing import Optional, Union
+    from typing import List, Optional, Union
 
 
 class _ManylinuxAction(Action):
@@ -64,6 +66,7 @@ def register(
     parser,  # type: _ActionsContainer
     include_pex_repository=False,  # type: bool
     include_lock=False,  # type: bool
+    include_pre_resolved=False,  # type: bool
 ):
     # type: (...) -> None
     """Register resolver configuration options with the given parser.
@@ -71,6 +74,8 @@ def register(
     :param parser: The parser to register resolver configuration options with.
     :param include_pex_repository: Whether to include the `--pex-repository` option.
     :param include_lock: Whether to include the `--lock` option.
+    :param include_pre_resolved: Whether to include the `--pre-resolved-dist` and
+                                 `--pre-resolved-dists` options.
     """
 
     default_resolver_configuration = PipConfiguration()
@@ -151,9 +156,15 @@ def register(
         help="Deprecated: No longer used.",
     )
 
-    repository_choice = (
-        parser.add_mutually_exclusive_group() if include_pex_repository and include_lock else parser
-    )
+    repository_types = 0
+    if include_pex_repository:
+        repository_types += 1
+    if include_lock:
+        repository_types += 1
+    if include_pre_resolved:
+        repository_types += 1
+
+    repository_choice = parser.add_mutually_exclusive_group() if repository_types > 1 else parser
     if include_pex_repository:
         repository_choice.add_argument(
             "--pex-repository",
@@ -180,6 +191,23 @@ def register(
             ),
         )
         register_lock_options(parser)
+    if include_pre_resolved:
+        repository_choice.add_argument(
+            "--pre-resolved-dist",
+            "--pre-resolved-dists",
+            dest="pre_resolved_dists",
+            metavar="FILE",
+            default=[],
+            type=str,
+            action="append",
+            help=(
+                "If a wheel, add it to the PEX. If an sdist, build wheels for the selected targets "
+                "and add them to the PEX. Otherwise, if a directory, add all the distributions "
+                "found in the given directory to the PEX, building wheels from any sdists first. "
+                "This option can be used to add a pre-resolved dependency set to a PEX. By "
+                "default, Pex will ensure the dependencies added form a closure."
+            ),
+        )
 
     parser.add_argument(
         "--pre",
@@ -481,7 +509,10 @@ class InvalidConfigurationError(Exception):
 
 if TYPE_CHECKING:
     ResolverConfiguration = Union[
-        LockRepositoryConfiguration, PexRepositoryConfiguration, PipConfiguration
+        LockRepositoryConfiguration,
+        PexRepositoryConfiguration,
+        PipConfiguration,
+        PreResolvedConfiguration,
     ]
 
 
@@ -494,26 +525,49 @@ def configure(options):
     """
 
     pex_repository = getattr(options, "pex_repository", None)
-    lock = getattr(options, "lock", None)
-    if pex_repository and (options.indexes or options.find_links):
-        raise InvalidConfigurationError(
-            'The "--pex-repository" option cannot be used together with the "--index" or '
-            '"--find-links" options.'
-        )
-
     if pex_repository:
+        if options.indexes or options.find_links:
+            raise InvalidConfigurationError(
+                'The "--pex-repository" option cannot be used together with the "--index" or '
+                '"--find-links" options.'
+            )
         return PexRepositoryConfiguration(
             pex_repository=pex_repository,
             network_configuration=create_network_configuration(options),
             transitive=options.transitive,
         )
+
     pip_configuration = create_pip_configuration(options)
+    lock = getattr(options, "lock", None)
     if lock:
         return LockRepositoryConfiguration(
             parse_lock=lambda: parse_lockfile(options, lock_file_path=lock),
             lock_file_path=lock,
             pip_configuration=pip_configuration,
         )
+
+    pre_resolved_dists = getattr(options, "pre_resolved_dists", None)
+    if pre_resolved_dists:
+        sdists = []  # type: List[str]
+        wheels = []  # type: List[str]
+        for dist_or_dir in pre_resolved_dists:
+            abs_dist_or_dir = os.path.expanduser(dist_or_dir)
+            dists = (
+                [abs_dist_or_dir]
+                if os.path.isfile(abs_dist_or_dir)
+                else glob.glob(os.path.join(abs_dist_or_dir, "*"))
+            )
+            for dist in dists:
+                if not os.path.isfile(dist):
+                    continue
+                if is_wheel(dist):
+                    wheels.append(dist)
+                elif is_sdist(dist):
+                    sdists.append(dist)
+        return PreResolvedConfiguration(
+            sdists=tuple(sdists), wheels=tuple(wheels), pip_configuration=pip_configuration
+        )
+
     return pip_configuration
 
 
