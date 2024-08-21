@@ -6,14 +6,19 @@ from __future__ import absolute_import
 import hashlib
 import json
 import os
+import re
 import shutil
 import warnings
+from typing import Dict
 
 import pytest
 
 from pex.common import safe_rmtree
+from pex.dist_metadata import Distribution, Requirement
 from pex.interpreter import PythonInterpreter
 from pex.jobs import Job
+from pex.pep_440 import Version
+from pex.pep_503 import ProjectName
 from pex.pip.installation import _PIP, PipInstallation, get_pip
 from pex.pip.tool import PackageIndexConfiguration, Pip
 from pex.pip.version import PipVersion, PipVersionValue
@@ -23,16 +28,18 @@ from pex.resolve.resolver_configuration import ResolverVersion
 from pex.targets import AbbreviatedPlatform, LocalInterpreter, Target
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
+from pex.venv.virtualenv import Virtualenv
 from testing import IS_LINUX, PY310, ensure_python_interpreter, environment_as
 
 if TYPE_CHECKING:
-    from typing import Any, Iterator, Optional, Protocol
+    from typing import Any, Iterable, Iterator, Optional, Protocol
 
     class CreatePip(Protocol):
         def __call__(
             self,
             interpreter,  # type: Optional[PythonInterpreter]
             version=PipVersion.DEFAULT,  # type: PipVersionValue
+            extra_requirements=(),  # type: Iterable[Requirement]
             **extra_env  # type: str
         ):
             # type: (...) -> Pip
@@ -62,12 +69,16 @@ def create_pip(
     def create_pip(
         interpreter,  # type: Optional[PythonInterpreter]
         version=PipVersion.DEFAULT,  # type: PipVersionValue
+        extra_requirements=(),  # type: Iterable[Requirement]
         **extra_env  # type: str
     ):
         # type: (...) -> Pip
         with ENV.patch(PEX_ROOT=pex_root, **extra_env):
             return get_pip(
-                interpreter=interpreter, version=version, resolver=ConfiguredResolver.default()
+                interpreter=interpreter,
+                version=version,
+                resolver=ConfiguredResolver.default(),
+                extra_requirements=tuple(extra_requirements),
             )
 
     yield create_pip
@@ -382,3 +393,135 @@ def test_use_pip_config(
             job.wait()
         assert not os.path.exists(download_dir)
         assert "invalid --python-version value: 'invalid'" in str(exc.value.stderr)
+
+
+@applicable_pip_versions
+def test_extra_pip_requirements_pip_not_allowed(
+    create_pip,  # type: CreatePip
+    version,  # type: PipVersionValue
+    current_interpreter,  # type: PythonInterpreter
+):
+    # type: (...) -> None
+
+    with pytest.raises(
+        ValueError,
+        match=re.escape(
+            "An `--extra-pip-requirement` cannot be used to override the Pip version; use "
+            "`--pip-version` to select a supported Pip version instead. Given: pip~=24.0"
+        ),
+    ):
+        create_pip(
+            current_interpreter,
+            version=version,
+            extra_requirements=[Requirement.parse("pip~=24.0")],
+        )
+
+
+def index_pip_distributions(
+    create_pip,  # type: CreatePip
+    current_interpreter,  # type: PythonInterpreter
+    version,  # type: PipVersionValue
+    extra_requirement,  # type: str
+):
+    # type: (...) -> Dict[ProjectName, Distribution]
+
+    pip = create_pip(
+        current_interpreter,
+        version=version,
+        extra_requirements=[Requirement.parse(extra_requirement)],
+    )
+    dists_by_project_name = {
+        dist.metadata.project_name: dist
+        for dist in Virtualenv(pip.venv_dir).iter_distributions(rescan=True)
+    }
+
+    # N.B.: We avoid testing the full version (local segment) since our vendored Pip is
+    # 20.3.4+patched. Testing the release (`<major>.<minor>.<patch>`) gets us the assurance we want
+    # here.
+    assert (
+        version.version.parsed_version.release
+        == dists_by_project_name.pop(ProjectName("pip")).metadata.version.parsed_version.release
+    )
+
+    return dists_by_project_name
+
+
+@applicable_pip_versions
+def test_extra_pip_requirements_setuptools_override(
+    create_pip,  # type: CreatePip
+    version,  # type: PipVersionValue
+    current_interpreter,  # type: PythonInterpreter
+):
+    # type: (...) -> None
+
+    # N.B.: 44.0.0 is the oldest wheel version used by any of our supported `--pip-version`s.
+    custom_setuptools_version = Version("43.0.0")
+    custom_setuptools_requirement = "setuptools=={version}".format(
+        version=custom_setuptools_version
+    )
+
+    if PipVersion.VENDORED is version:
+        with pytest.raises(
+            ValueError,
+            match=re.escape(
+                "An `--extra-pip-requirement` cannot be used to override the setuptools version "
+                "for vendored Pip. If you need a custom setuptools you need to use `--pip-version` "
+                "to select a non-vendored Pip version. Given: {setuptools_requirement}".format(
+                    setuptools_requirement=custom_setuptools_requirement
+                )
+            ),
+        ):
+            create_pip(
+                current_interpreter,
+                version=version,
+                extra_requirements=[Requirement.parse(custom_setuptools_requirement)],
+            )
+        return
+
+    dists_by_project_name = index_pip_distributions(
+        create_pip, current_interpreter, version, custom_setuptools_requirement
+    )
+    assert dists_by_project_name.pop(ProjectName("wheel")) in version.wheel_requirement
+
+    setuptools = dists_by_project_name.pop(ProjectName("setuptools"))
+    assert setuptools not in version.setuptools_requirement
+    assert custom_setuptools_version == setuptools.metadata.version
+
+
+@applicable_pip_versions
+def test_extra_pip_requirements_wheel_override(
+    create_pip,  # type: CreatePip
+    version,  # type: PipVersionValue
+    current_interpreter,  # type: PythonInterpreter
+):
+    # type: (...) -> None
+
+    # N.B.: 0.37.1 is the oldest wheel version used by any of our supported `--pip-version`s.
+    custom_wheel_version = Version("0.37.0")
+    custom_wheel_requirement = "wheel=={version}".format(version=custom_wheel_version)
+
+    if PipVersion.VENDORED is version:
+        with pytest.raises(
+            ValueError,
+            match=re.escape(
+                "An `--extra-pip-requirement` cannot be used to override the wheel version "
+                "for vendored Pip. If you need a custom wheel version you need to use "
+                "`--pip-version` to select a non-vendored Pip version. "
+                "Given: {wheel_requirement}".format(wheel_requirement=custom_wheel_requirement)
+            ),
+        ):
+            create_pip(
+                current_interpreter,
+                version=version,
+                extra_requirements=[Requirement.parse(custom_wheel_requirement)],
+            )
+        return
+
+    dists_by_project_name = index_pip_distributions(
+        create_pip, current_interpreter, version, custom_wheel_requirement
+    )
+    assert dists_by_project_name.pop(ProjectName("setuptools")) in version.setuptools_requirement
+
+    wheel = dists_by_project_name.pop(ProjectName("wheel"))
+    assert wheel not in version.wheel_requirement
+    assert custom_wheel_version == wheel.metadata.version

@@ -89,8 +89,8 @@ def session_fixtures(shared_integration_test_tmpdir):
             # itself if needed.
             host_requirements(
                 "cowsay==5.0.0",
-                pip_version.setuptools_requirement,
-                pip_version.wheel_requirement,
+                str(pip_version.setuptools_requirement),
+                str(pip_version.wheel_requirement),
             )
             find_links_repo.make_sdist("spam", version="1")
             find_links_repo.make_wheel("spam", version="1")

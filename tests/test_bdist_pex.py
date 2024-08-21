@@ -219,7 +219,7 @@ def test_unwriteable_contents():
         wheels.extend(
             fingerprinted_dist.distribution.location
             for fingerprinted_dist in resolve(
-                requirements=[PipVersion.VENDORED.wheel_requirement],
+                requirements=[str(PipVersion.VENDORED.wheel_requirement)],
                 result_type=InstallableType.WHEEL_FILE,
             ).distributions
         )

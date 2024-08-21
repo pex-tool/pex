@@ -41,8 +41,8 @@ def find_links(shared_integration_test_tmpdir):
             result = find_links_repo.resolver.resolve_requirements(
                 [
                     "ansicolors==1.1.8",
-                    pip_version.setuptools_requirement,
-                    pip_version.wheel_requirement,
+                    str(pip_version.setuptools_requirement),
+                    str(pip_version.wheel_requirement),
                 ],
                 result_type=InstallableType.WHEEL_FILE,
             )

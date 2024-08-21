@@ -58,8 +58,8 @@ class PipVersionValue(Enum.Value):
             project_name,  # type: str
             project_version=None,  # type: Optional[str]
         ):
-            # type: (...) -> str
-            return (
+            # type: (...) -> Requirement
+            return Requirement.parse(
                 "{project_name}=={project_version}".format(
                     project_name=project_name, project_version=project_version
                 )
@@ -68,7 +68,9 @@ class PipVersionValue(Enum.Value):
             )
 
         self.version = Version(version)
-        self.requirement = requirement or to_requirement("pip", version)
+        self.requirement = (
+            Requirement.parse(requirement) if requirement else to_requirement("pip", version)
+        )
         self.setuptools_requirement = to_requirement("setuptools", setuptools_version)
         self.wheel_requirement = to_requirement("wheel", wheel_version)
         self.requires_python = SpecifierSet(requires_python) if requires_python else None
@@ -76,11 +78,11 @@ class PipVersionValue(Enum.Value):
 
     @property
     def requirements(self):
-        # type: () -> Iterable[str]
+        # type: () -> Iterable[Requirement]
         return self.requirement, self.setuptools_requirement, self.wheel_requirement
 
     def requires_python_applies(self, target=None):
-        # type: (Optional[Union[Version,Target]]) -> bool
+        # type: (Optional[Union[Version, Target]]) -> bool
         if not self.requires_python:
             return True
 
@@ -89,10 +91,7 @@ class PipVersionValue(Enum.Value):
 
         return LocalInterpreter.create(
             interpreter=target.get_interpreter() if target else None
-        ).requires_python_applies(
-            requires_python=self.requires_python,
-            source=Requirement.parse(self.requirement),
-        )
+        ).requires_python_applies(requires_python=self.requires_python, source=self.requirement)
 
     def __lt__(self, other):
         if not isinstance(other, PipVersionValue):
@@ -179,10 +178,6 @@ class PipVersion(Enum["PipVersionValue"]):
         wheel_version="0.37.1",
         requires_python="<3.12",
     )
-
-    # TODO(John Sirois): Expose setuptools and wheel version flags - these don't affect
-    #  Pex; so we should allow folks to experiment with upgrade easily:
-    #  https://github.com/pex-tool/pex/issues/1895
 
     v22_2_2 = PipVersionValue(
         version="22.2.2",

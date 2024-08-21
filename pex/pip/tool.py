@@ -293,6 +293,11 @@ class Pip(object):
     version = attr.ib()  # type: PipVersionValue
     _pip_cache = attr.ib()  # type: str
 
+    @property
+    def venv_dir(self):
+        # type: () -> str
+        return self._pip.venv_dir
+
     @staticmethod
     def _calculate_resolver_version(package_index_configuration=None):
         # type: (Optional[PackageIndexConfiguration]) -> ResolverVersion.Value
@@ -643,7 +648,7 @@ class Pip(object):
             if not atomic_dir.is_finalized():
                 self.spawn_download_distributions(
                     download_dir=atomic_dir.work_dir,
-                    requirements=[self.version.wheel_requirement],
+                    requirements=[str(self.version.wheel_requirement)],
                     package_index_configuration=package_index_configuration,
                     build_configuration=BuildConfiguration.create(allow_builds=False),
                 ).wait()

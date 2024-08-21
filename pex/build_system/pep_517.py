@@ -45,7 +45,7 @@ def _default_build_system(
             resolved_reqs = set()  # type: Set[str]
             resolved_dists = []  # type: List[Distribution]
             if selected_pip_version is PipVersion.VENDORED:
-                requires = ["setuptools", selected_pip_version.wheel_requirement]
+                requires = ["setuptools", str(selected_pip_version.wheel_requirement)]
                 resolved_dists.extend(
                     Distribution.load(dist_location)
                     for dist_location in third_party.expose(
@@ -56,8 +56,8 @@ def _default_build_system(
                 extra_env.update(__PEX_UNVENDORED__="setuptools")
             else:
                 requires = [
-                    selected_pip_version.setuptools_requirement,
-                    selected_pip_version.wheel_requirement,
+                    str(selected_pip_version.setuptools_requirement),
+                    str(selected_pip_version.wheel_requirement),
                 ]
             unresolved = [
                 requirement for requirement in requires if requirement not in resolved_reqs
