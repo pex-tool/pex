@@ -5,6 +5,7 @@ from __future__ import absolute_import
 
 import hashlib
 import os
+from collections import OrderedDict
 from textwrap import dedent
 
 from pex import pex_warnings, third_party
@@ -13,6 +14,7 @@ from pex.common import pluralize, safe_mkdtemp
 from pex.dist_metadata import Requirement
 from pex.interpreter import PythonInterpreter
 from pex.orderedset import OrderedSet
+from pex.pep_503 import ProjectName
 from pex.pex import PEX
 from pex.pex_bootstrapper import ensure_venv
 from pex.pip.tool import Pip, PipVenv
@@ -21,6 +23,7 @@ from pex.resolve.resolvers import Resolver
 from pex.result import Error, try_
 from pex.targets import LocalInterpreter, RequiresPythonError, Targets
 from pex.third_party import isolated
+from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 from pex.util import named_temporary_file
 from pex.variables import ENV
@@ -86,6 +89,11 @@ def _fingerprint(requirements):
     return hashlib.sha1("\n".join(sorted(map(str, requirements))).encode("utf-8")).hexdigest()
 
 
+_PIP_PROJECT_NAME = ProjectName("pip")
+_SETUPTOOLS_PROJECT_NAME = ProjectName("setuptools")
+_WHEEL_PROJECT_NAME = ProjectName("wheel")
+
+
 def _vendored_installation(
     interpreter=None,  # type: Optional[PythonInterpreter]
     resolver=None,  # type: Optional[Resolver]
@@ -113,6 +121,33 @@ def _vendored_installation(
                 extra_requirements=" ".join(map(str, extra_requirements)),
             )
         )
+
+    # Ensure user-specified extra requirements do not override vendored Pip or its setuptools and
+    # wheel dependencies. These are arranged just so with some patching to Pip and setuptools as
+    # well as a low enough standard wheel version to support Python 2.7.
+    for extra_req in extra_requirements:
+        if _PIP_PROJECT_NAME == extra_req.project_name:
+            raise ValueError(
+                "An `--extra-pip-requirement` cannot be used to override the Pip version; use "
+                "`--pip-version` to select a supported Pip version instead. "
+                "Given: {pip_req}".format(pip_req=extra_req)
+            )
+        if _SETUPTOOLS_PROJECT_NAME == extra_req.project_name:
+            raise ValueError(
+                "An `--extra-pip-requirement` cannot be used to override the setuptools version "
+                "for vendored Pip. If you need a custom setuptools you need to use `--pip-version` "
+                "to select a non-vendored Pip version. Given: {setuptools_req}".format(
+                    setuptools_req=extra_req
+                )
+            )
+        if _WHEEL_PROJECT_NAME == extra_req.project_name:
+            raise ValueError(
+                "An `--extra-pip-requirement` cannot be used to override the wheel version for "
+                "vendored Pip. If you need a custom wheel version you need to use `--pip-version` "
+                "to select a non-vendored Pip version. Given: {wheel_req}".format(
+                    wheel_req=extra_req
+                )
+            )
 
     # This indirection works around MyPy type inference failing to see that
     # `iter_distribution_locations` is only successfully defined when resolve is not None.
@@ -156,9 +191,9 @@ def _bootstrap_pip(
         )
 
         for req in version.requirements:
-            project_name = Requirement.parse(req).name
+            project_name = req.name
             target_dir = os.path.join(chroot, "reqs", project_name)
-            venv.interpreter.execute(["-m", "pip", "install", "--target", target_dir, req])
+            venv.interpreter.execute(["-m", "pip", "install", "--target", target_dir, str(req)])
             yield target_dir
 
     return bootstrap_pip
@@ -189,20 +224,40 @@ def _resolved_installation(
             fingerprint=_fingerprint(extra_requirements),
         )
 
-    requirements = list(version.requirements)
-    requirements.extend(map(str, extra_requirements))
+    requirements_by_project_name = OrderedDict(
+        (req.project_name, str(req)) for req in version.requirements
+    )
+
+    # Allow user-specified extra requirements to override Pip requirements (setuptools and wheel).
+    for extra_req in extra_requirements:
+        if _PIP_PROJECT_NAME == extra_req.project_name:
+            raise ValueError(
+                "An `--extra-pip-requirement` cannot be used to override the Pip version; use "
+                "`--pip-version` to select a supported Pip version instead. "
+                "Given: {pip_req}".format(pip_req=extra_req)
+            )
+        existing_req = requirements_by_project_name.get(extra_req.project_name)
+        if existing_req:
+            TRACER.log(
+                "Overriding `--pip-version {pip_version}` requirement of {existing_req} with "
+                "user-specified requirement {extra_req}".format(
+                    pip_version=version.version, existing_req=existing_req, extra_req=extra_req
+                )
+            )
+        requirements_by_project_name[extra_req.project_name] = str(extra_req)
+
     if not resolver:
         raise ValueError(
             "A resolver is required to install {requirements} for Pip {version}: {reqs}".format(
-                requirements=pluralize(requirements, "requirement"),
+                requirements=pluralize(requirements_by_project_name, "requirement"),
                 version=version,
-                reqs=" ".join(map(str, extra_requirements)),
+                reqs=" ".join(requirements_by_project_name.values()),
             )
         )
 
     def resolve_distribution_locations():
         for resolved_distribution in resolver.resolve_requirements(
-            requirements=requirements,
+            requirements=requirements_by_project_name.values(),
             targets=targets,
             pip_version=bootstrap_pip_version,
             extra_resolver_requirements=(),

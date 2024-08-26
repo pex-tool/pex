@@ -80,8 +80,8 @@ def find_links(
     repository_pex = os.path.join(str(tmpdir), "repository.pex")
     run_pex_command(
         args=[
-            pip_version.setuptools_requirement,
-            pip_version.wheel_requirement,
+            str(pip_version.setuptools_requirement),
+            str(pip_version.wheel_requirement),
             "--include-tools",
             "-o",
             repository_pex,

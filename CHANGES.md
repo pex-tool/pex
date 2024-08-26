@@ -1,5 +1,15 @@
 # Release Notes
 
+## 2.17.0
+
+This release brings support for overriding the versions of setuptools
+and wheel Pex bootstraps for non-vendored Pip versions (the modern ones
+you select with `--pip-version`) using the existing
+`--extra-pip-requirement` option introduced in the [2.10.0 release](
+https://github.com/pex-tool/pex/releases/tag/v2.10.0).
+
+* Support custom setuptools & wheel versions. (#2514)
+
 ## 2.16.2
 
 This release brings a slew of small fixes across the code base.

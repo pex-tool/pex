@@ -221,7 +221,7 @@ def test_extract_lifecycle(pex, pex_tools_env, tmpdir):
     vendored_pip_dists_dir = os.path.join(str(tmpdir), "vendored-pip-dists")
     get_pip(resolver=ConfiguredResolver.default()).spawn_download_distributions(
         download_dir=vendored_pip_dists_dir,
-        requirements=[PipVersion.VENDORED.wheel_requirement],
+        requirements=[str(PipVersion.VENDORED.wheel_requirement)],
         build_configuration=BuildConfiguration.create(allow_builds=False),
     ).wait()
 
