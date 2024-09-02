@@ -55,7 +55,7 @@ class DistFactory(object):
 @pytest.fixture
 def dist_factory(tmpdir):
     # type: (Any) -> DistFactory
-    return DistFactory(os.path.join(str(tmpdir), "installed_wheels"))
+    return DistFactory(os.path.join(str(tmpdir), "dists"))
 
 
 @attr.s(frozen=True)

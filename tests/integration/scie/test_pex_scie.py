@@ -15,6 +15,7 @@ from typing import Optional
 
 import pytest
 
+from pex.cache.dirs import CacheDir
 from pex.common import chmod_plus_x, is_exe, safe_open
 from pex.fetcher import URLFetcher
 from pex.layout import Layout
@@ -289,7 +290,12 @@ def test_specified_science_binary(tmpdir):
     )
 
     cached_science_binaries = glob.glob(
-        os.path.join(pex_root, "scies", "science", "*", "bin", "science")
+        os.path.join(
+            CacheDir.SCIES.path("science", pex_root=pex_root),
+            "*",
+            "bin",
+            "science",
+        )
     )
     assert 0 == len(
         cached_science_binaries

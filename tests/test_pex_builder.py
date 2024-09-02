@@ -13,6 +13,7 @@ from zipfile import ZipFile
 
 import pytest
 
+from pex.cache.dirs import CacheDir
 from pex.common import CopyMode, open_zip, safe_open, temporary_dir, touch
 from pex.compatibility import WINDOWS, commonpath
 from pex.executor import Executor
@@ -270,8 +271,8 @@ def test_pex_builder_packed(tmpdir):
     spread_dist_bootstrap = os.path.join(pex_app, pb.info.bootstrap)
     assert zipfile.is_zipfile(spread_dist_bootstrap)
 
-    cached_bootstrap_zip = os.path.join(
-        pex_root, "bootstrap_zips", pb.info.bootstrap_hash, pb.info.bootstrap
+    cached_bootstrap_zip = CacheDir.BOOTSTRAP_ZIPS.path(
+        pb.info.bootstrap_hash, pb.info.bootstrap, pex_root=pex_root
     )
     assert zipfile.is_zipfile(cached_bootstrap_zip)
 
@@ -294,7 +295,7 @@ def test_pex_builder_packed(tmpdir):
     spread_dist_zip = os.path.join(pex_app, pb.info.internal_cache, location)
     assert zipfile.is_zipfile(spread_dist_zip)
 
-    cached_dist_zip = os.path.join(pex_root, "packed_wheels", sha, location)
+    cached_dist_zip = CacheDir.PACKED_WHEELS.path(sha, location, pex_root=pex_root)
     assert zipfile.is_zipfile(cached_dist_zip)
 
     assert filecmp.cmp(spread_dist_zip, cached_dist_zip, shallow=False)

@@ -9,6 +9,7 @@ import colors  # vendor:skip
 import pytest
 
 from pex import targets
+from pex.cache.dirs import CacheDir
 from pex.common import safe_open
 from pex.layout import DEPS_DIR, Layout
 from pex.resolve.pex_repository_resolver import resolve_from_pex
@@ -91,11 +92,11 @@ def test_import_from_pex(
 
     def get_third_party_prefix():
         if is_venv:
-            return os.path.join(pex_root, "venvs")
+            return CacheDir.VENVS.path(pex_root=pex_root)
         elif layout is Layout.LOOSE:
             return os.path.join(pex, DEPS_DIR)
         else:
-            return os.path.join(pex_root, "installed_wheels")
+            return CacheDir.INSTALLED_WHEELS.path(pex_root=pex_root)
 
     # Verify 3rd party code can be imported hermetically from the PEX.
     alternate_pex_root = os.path.join(str(tmpdir), "alternate_pex_root")
@@ -140,9 +141,9 @@ def test_import_from_pex(
     if not is_venv and layout is Layout.LOOSE:
         assert os.path.join(pex, "first_party.py") == first_party_path
     else:
-        expected_prefix = os.path.join(pex_root, "venvs" if is_venv else "unzipped_pexes")
+        expected_cache_type = CacheDir.VENVS if is_venv else CacheDir.UNZIPPED_PEXES
         assert first_party_path.startswith(
-            expected_prefix
+            expected_cache_type.path(pex_root=pex_root)
         ), "Expected 1st party first_party.py path {path} to start with {expected_prefix}".format(
             path=first_party_path, expected_prefix=expected_prefix
         )

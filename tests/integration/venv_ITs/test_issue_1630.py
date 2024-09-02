@@ -5,6 +5,7 @@ import json
 import os
 import subprocess
 
+from pex.cache.dirs import CacheDir
 from pex.dist_metadata import Distribution
 from pex.interpreter import PythonInterpreter
 from pex.pep_376 import InstalledWheel
@@ -42,7 +43,7 @@ def test_data_files(tmpdir):
     assert 1 == len(pex_info.distributions)
     nbconvert_wheel_name, fingerprint = next(iter(pex_info.distributions.items()))
     nbconvert_dist = Distribution.load(
-        os.path.join(pex_info.install_cache, fingerprint, nbconvert_wheel_name)
+        CacheDir.INSTALLED_WHEELS.path(fingerprint, nbconvert_wheel_name, pex_root=pex_root)
     )
 
     pex_venv = Virtualenv.create(

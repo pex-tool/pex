@@ -9,6 +9,7 @@ import sys
 
 from pex import pex_warnings
 from pex.atomic_directory import atomic_directory
+from pex.cache.dirs import CacheDir
 from pex.common import CopyMode, die, pluralize
 from pex.environment import ResolveError
 from pex.inherit_path import InheritPath
@@ -539,7 +540,7 @@ def ensure_venv(
             collisions = []
             for chars in range(8, len(venv_hash) + 1):
                 entropy = venv_hash[:chars]
-                short_venv_dir = os.path.join(pex_info.pex_root, "venvs", "s", entropy)
+                short_venv_dir = CacheDir.VENVS.path("s", entropy, pex_root=pex_info.pex_root)
                 with atomic_directory(short_venv_dir) as short_venv:
                     if short_venv.is_finalized():
                         collisions.append(short_venv_dir)

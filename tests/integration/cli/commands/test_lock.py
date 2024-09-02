@@ -11,6 +11,7 @@ from textwrap import dedent
 
 import pytest
 
+from pex.cache.dirs import CacheDir
 from pex.common import safe_open
 from pex.dist_metadata import Constraint, Requirement
 from pex.interpreter import PythonInterpreter
@@ -123,8 +124,8 @@ def test_create_style(
         locked_resolve = lock.locked_resolves[0]
         assert 1 == len(locked_resolve.locked_requirements)
         locked_requirement = locked_resolve.locked_requirements[0]
-        download_dir = os.path.join(
-            pex_root, "downloads", locked_requirement.artifact.fingerprint.hash
+        download_dir = CacheDir.DOWNLOADS.path(
+            locked_requirement.artifact.fingerprint.hash, pex_root=pex_root
         )
         downloaded_artifact = DownloadedArtifact.load(download_dir)
         assert os.path.exists(downloaded_artifact.path), (

@@ -10,6 +10,7 @@ from textwrap import dedent
 
 from pex import pex_warnings, third_party
 from pex.atomic_directory import atomic_directory
+from pex.cache.dirs import CacheDir
 from pex.common import pluralize, safe_mkdtemp
 from pex.dist_metadata import Requirement
 from pex.interpreter import PythonInterpreter
@@ -26,7 +27,6 @@ from pex.third_party import isolated
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 from pex.util import named_temporary_file
-from pex.variables import ENV
 from pex.venv.virtualenv import InstallationChoice, Virtualenv
 
 if TYPE_CHECKING:
@@ -44,7 +44,7 @@ def _pip_installation(
     interpreter=None,  # type: Optional[PythonInterpreter]
 ):
     # type: (...) -> Pip
-    pip_root = os.path.join(ENV.PEX_ROOT, "pip", str(version))
+    pip_root = CacheDir.PIP.path(str(version))
     path = os.path.join(pip_root, "pip.pex")
     pip_interpreter = interpreter or PythonInterpreter.get()
     pip_pex_path = os.path.join(path, isolated().pex_hash, fingerprint)

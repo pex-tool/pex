@@ -9,6 +9,7 @@ from textwrap import dedent
 
 import pytest
 
+from pex.cache.dirs import CacheDir
 from pex.common import safe_open
 from pex.compatibility import commonpath
 from pex.interpreter import PythonInterpreter
@@ -107,7 +108,7 @@ def test_ensure_venv_short_link(
     full_hash1_dir = os.path.basename(os.path.dirname(expected_venv_dir))
     full_hash2_dir = os.path.basename(expected_venv_dir)
 
-    venvs_dir = os.path.join(pex_root, "venvs")
+    venvs_dir = CacheDir.VENVS.path(pex_root=pex_root)
     assert {"s", full_hash1_dir} == set(os.listdir(venvs_dir))
     short_listing = os.listdir(os.path.join(venvs_dir, "s"))
     assert 1 == len(short_listing)
@@ -214,7 +215,7 @@ def test_ensure_venv_namespace_packages(tmpdir):
     package_file_installed_wheel_dirs = {
         os.path.dirname(os.path.dirname(p)) for p in symlink_package_paths
     }
-    assert os.path.realpath(os.path.join(pex_root, PexInfo.INSTALL_CACHE)) == os.path.realpath(
+    assert os.path.realpath(CacheDir.INSTALLED_WHEELS.path(pex_root=pex_root)) == os.path.realpath(
         commonpath(list(package_file_installed_wheel_dirs))
     ), "Expected contributing wheel content to be symlinked from the installed wheel cache."
     assert {

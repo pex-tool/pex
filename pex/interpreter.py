@@ -18,6 +18,7 @@ from contextlib import contextmanager
 from textwrap import dedent
 
 from pex import third_party
+from pex.cache.dirs import CacheDir
 from pex.common import is_exe, safe_mkdtemp, safe_rmtree
 from pex.executor import Executor
 from pex.jobs import Job, Retain, SpawnedJob, execute_parallel
@@ -32,7 +33,6 @@ from pex.third_party.packaging import tags
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast, overload
 from pex.util import CacheHelper
-from pex.variables import ENV
 
 if TYPE_CHECKING:
     from typing import (
@@ -1027,7 +1027,7 @@ class PythonInterpreter(object):
             os_digest.update(os_identifier.encode("utf-8"))
         os_hash = os_digest.hexdigest()
 
-        interpreter_cache_dir = os.path.join(ENV.PEX_ROOT, "interpreters")
+        interpreter_cache_dir = CacheDir.INTERPRETERS.path()
         os_cache_dir = os.path.join(interpreter_cache_dir, os_hash)
         if os.path.isdir(interpreter_cache_dir) and not os.path.isdir(os_cache_dir):
             with TRACER.timed("GCing interpreter cache from prior OS version"):

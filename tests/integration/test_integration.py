@@ -17,6 +17,7 @@ from textwrap import dedent
 import pexpect  # type: ignore[import]  # MyPy can't see the types under Python 2.7.
 import pytest
 
+from pex.cache.dirs import CacheDir
 from pex.common import is_exe, safe_mkdir, safe_open, safe_rmtree, temporary_dir, touch
 from pex.compatibility import WINDOWS, commonpath
 from pex.dist_metadata import Distribution, Requirement
@@ -55,7 +56,7 @@ from testing.mitmproxy import Proxy
 from testing.pep_427 import get_installable_type_flag
 
 if TYPE_CHECKING:
-    from typing import Any, Callable, Iterator, List, Optional, Text, Tuple
+    from typing import Any, Callable, Iterator, List, Optional, Tuple
 
 
 def test_pex_execute():
@@ -72,21 +73,22 @@ def test_pex_raise():
 
 
 def assert_interpreters(label, pex_root):
-    # type: (Text, Text) -> None
-    assert "interpreters" in os.listdir(
-        pex_root
+    # type: (str, str) -> None
+    assert os.listdir(
+        CacheDir.INTERPRETERS.path(pex_root=pex_root)
     ), "Expected {label} pex root to be populated with interpreters.".format(label=label)
 
 
 def assert_installed_wheels(label, pex_root):
-    # type: (Text, Text) -> None
-    assert "installed_wheels" in os.listdir(
-        pex_root
-    ), "Expected {label} pex root to be populated with buildtime artifacts.".format(label=label)
+    # type: (str, str) -> None
+
+    assert os.listdir(
+        CacheDir.INSTALLED_WHEELS.path(pex_root=pex_root)
+    ), "Expected {label} pex root to be populated with build time artifacts.".format(label=label)
 
 
 def assert_empty_home_dir(home_dir):
-    # type: (Text) -> None
+    # type: (str) -> None
     pip_cache_dir = "Library" if IS_MAC else ".cache"
     rust_cache_dir = ".rustup"
     home_dir_contents = [

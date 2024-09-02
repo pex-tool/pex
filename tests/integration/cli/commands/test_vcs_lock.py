@@ -12,6 +12,7 @@ from textwrap import dedent
 import colors  # vendor:skip
 import pytest
 
+from pex.cache.dirs import CacheDir
 from pex.common import safe_open
 from pex.resolve.locked_resolve import VCSArtifact
 from pex.resolve.lockfile import json_codec
@@ -168,7 +169,7 @@ def test_subdir(test_tool):
             args=[pex, "-c", "import sdev_logging_utils; print(sdev_logging_utils.__file__)"]
         )
         .decode("utf-8")
-        .startswith(os.path.join(test_tool.pex_root, "installed_wheels"))
+        .startswith(CacheDir.INSTALLED_WHEELS.path(pex_root=test_tool.pex_root))
     )
 
 

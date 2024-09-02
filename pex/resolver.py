@@ -16,6 +16,7 @@ from collections import OrderedDict, defaultdict
 from pex import targets
 from pex.atomic_directory import AtomicDirectory, atomic_directory
 from pex.auth import PasswordEntry
+from pex.cache.dirs import CacheDir
 from pex.common import pluralize, safe_mkdir, safe_mkdtemp
 from pex.compatibility import url_unquote, urlparse
 from pex.dependency_configuration import DependencyConfiguration
@@ -28,7 +29,6 @@ from pex.pep_376 import InstalledWheel
 from pex.pep_425 import CompatibilityTags
 from pex.pep_427 import InstallableType, WheelError, install_wheel_chroot
 from pex.pep_503 import ProjectName
-from pex.pex_info import PexInfo
 from pex.pip.download_observer import DownloadObserver
 from pex.pip.installation import get_pip
 from pex.pip.tool import PackageIndexConfiguration
@@ -48,7 +48,6 @@ from pex.targets import LocalInterpreter, Target, Targets
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper
-from pex.variables import ENV
 
 if TYPE_CHECKING:
     from typing import (
@@ -583,7 +582,7 @@ class WheelBuilder(object):
             # Nothing to build or install.
             return {}
 
-        built_wheels_dir = os.path.join(ENV.PEX_ROOT, "built_wheels")
+        built_wheels_dir = CacheDir.BUILT_WHEELS.path()
         spawn_wheel_build = functools.partial(self._spawn_wheel_build, built_wheels_dir)
 
         with TRACER.timed(
@@ -889,7 +888,7 @@ class BuildAndInstallRequest(object):
             # Nothing to build or install.
             return ()
 
-        installed_wheels_dir = os.path.join(ENV.PEX_ROOT, PexInfo.INSTALL_CACHE)
+        installed_wheels_dir = CacheDir.INSTALLED_WHEELS.path()
         perform_install = functools.partial(_perform_install, installed_wheels_dir)
 
         installations = []  # type: List[ResolvedDistribution]

@@ -9,6 +9,7 @@ from abc import abstractmethod
 from contextlib import contextmanager
 
 from pex.atomic_directory import atomic_directory
+from pex.cache.dirs import CacheDir
 from pex.common import (
     PermPreservingZipFile,
     is_script,
@@ -168,7 +169,7 @@ def _install_distribution(
 
     location, sha = distribution_info
     is_wheel_file = pex_info.deps_are_wheel_files
-    spread_dest = os.path.join(pex_info.install_cache, sha, location)
+    spread_dest = CacheDir.INSTALLED_WHEELS.path(sha, location, pex_root=pex_info.pex_root)
     dist_relpath = os.path.join(DEPS_DIR, location)
     source = None if is_wheel_file else layout.dist_strip_prefix(location)
     symlink_src = os.path.relpath(
@@ -327,16 +328,20 @@ def _ensure_installed(
                     pex_info = PexInfo.from_pex(pex)
                     pex_info.update(PexInfo.from_env())
 
-                    bootstrap_cache = pex_info.bootstrap_cache
-                    if bootstrap_cache is None:
+                    if pex_info.bootstrap_hash is None:
                         raise AssertionError(
                             "Expected bootstrap_cache to be populated for {}.".format(layout)
                         )
-                    code_hash = pex_info.code_hash
-                    if code_hash is None:
+                    bootstrap_cache = CacheDir.BOOTSTRAPS.path(
+                        pex_info.bootstrap_hash, pex_root=pex_info.pex_root
+                    )
+                    if pex_info.code_hash is None:
                         raise AssertionError(
                             "Expected code_hash to be populated for {}.".format(layout)
                         )
+                    code_cache = CacheDir.USER_CODE.path(
+                        pex_info.code_hash, pex_root=pex_info.pex_root
+                    )
 
                     with atomic_directory(
                         bootstrap_cache, source=layout.bootstrap_strip_prefix()
@@ -355,13 +360,12 @@ def _ensure_installed(
                         install_to=install_to,
                     )
 
-                    code_dest = os.path.join(pex_info.zip_unsafe_cache, code_hash)
-                    with atomic_directory(code_dest) as code_chroot:
+                    with atomic_directory(code_cache) as code_chroot:
                         if not code_chroot.is_finalized():
                             layout.extract_code(code_chroot.work_dir)
-                    for path in os.listdir(code_dest):
+                    for path in os.listdir(code_cache):
                         os.symlink(
-                            os.path.join(os.path.relpath(code_dest, install_to), path),
+                            os.path.join(os.path.relpath(code_cache, install_to), path),
                             os.path.join(chroot.work_dir, path),
                         )
 

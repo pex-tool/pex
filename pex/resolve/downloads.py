@@ -8,6 +8,7 @@ import shutil
 
 from pex import hashing
 from pex.atomic_directory import atomic_directory
+from pex.cache.dirs import CacheDir
 from pex.common import safe_mkdir, safe_mkdtemp
 from pex.hashing import Sha256
 from pex.jobs import Job, Raise, SpawnedJob, execute_parallel
@@ -42,7 +43,7 @@ def get_downloads_dir(pex_root=None):
     root_dir = pex_root or ENV.PEX_ROOT
     downloads_dir = _DOWNLOADS_DIRS.get(root_dir)
     if downloads_dir is None:
-        downloads_dir = os.path.join(root_dir, "downloads")
+        downloads_dir = CacheDir.DOWNLOADS.path(pex_root=root_dir)
         safe_mkdir(downloads_dir)
         _DOWNLOADS_DIRS[root_dir] = downloads_dir
     return downloads_dir

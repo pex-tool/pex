@@ -11,9 +11,9 @@ import subprocess
 import sys
 import time
 
+from pex.cache.dirs import CacheDir
 from pex.common import safe_open
 from pex.typing import TYPE_CHECKING
-from pex.variables import ENV
 from pex.version import __version__
 
 if TYPE_CHECKING:
@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 SERVER_NAME = "Pex v{version} docs HTTP server".format(version=__version__)
 
-_SERVER_DIR = os.path.join(ENV.PEX_ROOT, "docs", "server", __version__)
+_SERVER_DIR = CacheDir.DOCS.path("server", __version__)
 
 
 @attr.s(frozen=True)

@@ -60,8 +60,6 @@ class PexInfo(object):
     """
 
     PATH = layout.PEX_INFO_PATH
-    BOOTSTRAP_CACHE = "bootstraps"
-    INSTALL_CACHE = "installed_wheels"
 
     @classmethod
     def make_build_properties(cls):
@@ -570,25 +568,9 @@ class PexInfo(object):
         return layout.BOOTSTRAP_DIR
 
     @property
-    def bootstrap_cache(self):
-        # type: () -> Optional[str]
-        if self.bootstrap_hash is None:
-            return None
-        return os.path.join(self.pex_root, self.BOOTSTRAP_CACHE, self.bootstrap_hash)
-
-    @property
     def internal_cache(self):
         # type: () -> str
         return layout.DEPS_DIR
-
-    @property
-    def install_cache(self):
-        return os.path.join(self.pex_root, self.INSTALL_CACHE)
-
-    @property
-    def zip_unsafe_cache(self):
-        #: type: () -> str
-        return os.path.join(self.pex_root, "user_code")
 
     def update(self, other):
         # type: (PexInfo) -> None

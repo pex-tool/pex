@@ -13,6 +13,7 @@ from zipimport import ZipImportError
 
 from pex import pex_warnings
 from pex.atomic_directory import atomic_directory
+from pex.cache.dirs import CacheDir
 from pex.common import (
     Chroot,
     CopyMode,
@@ -720,13 +721,12 @@ class PEXBuilder(object):
             return os.path.join(path, "un-compressed")
 
         # Zip up the bootstrap which is constant for a given version of Pex.
-        bootstrap_hash = pex_info.bootstrap_hash
-        if bootstrap_hash is None:
+        if pex_info.bootstrap_hash is None:
             raise AssertionError(
                 "Expected bootstrap_hash to be populated for {}.".format(self._pex_info)
             )
         cached_bootstrap_zip_dir = zip_cache_dir(
-            os.path.join(pex_info.pex_root, "bootstrap_zips", bootstrap_hash)
+            CacheDir.BOOTSTRAP_ZIPS.path(pex_info.bootstrap_hash, pex_root=pex_info.pex_root)
         )
         with TRACER.timed("Zipping PEX .bootstrap/ code."):
             with atomic_directory(cached_bootstrap_zip_dir) as atomic_bootstrap_zip_dir:
@@ -762,7 +762,7 @@ class PEXBuilder(object):
                             safe_copy(os.path.join(self._chroot.chroot, path), dest)
                     else:
                         cached_installed_wheel_zip_dir = zip_cache_dir(
-                            os.path.join(pex_info.pex_root, "packed_wheels", fingerprint)
+                            CacheDir.PACKED_WHEELS.path(fingerprint, pex_root=pex_info.pex_root)
                         )
                         with atomic_directory(cached_installed_wheel_zip_dir) as atomic_zip_dir:
                             if not atomic_zip_dir.is_finalized():

@@ -8,6 +8,7 @@ from textwrap import dedent
 import pytest
 from colors import yellow  # vendor:skip
 
+from pex.cache.dirs import CacheDir
 from pex.common import safe_open, touch
 from pex.typing import TYPE_CHECKING
 from testing import make_env, run_pex_command
@@ -53,7 +54,7 @@ def create_pex(
                         if not entry.startswith({unzipped_pexes_dir!r}):
                             print(entry)
                     """.format(
-                        unzipped_pexes_dir=os.path.join(pex_root, "unzipped_pexes")
+                        unzipped_pexes_dir=CacheDir.UNZIPPED_PEXES.path(pex_root=pex_root)
                     )
                 )
             )
