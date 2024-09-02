@@ -5,13 +5,15 @@ from __future__ import absolute_import
 
 import math
 
-import attr
-
 from pex.enum import Enum
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from typing import Callable, Optional, Union
+
+    import attr  # vendor:skip
+else:
+    from pex.third_party import attr
 
 
 class ByteUnits(Enum["ByteUnits.Value"]):
