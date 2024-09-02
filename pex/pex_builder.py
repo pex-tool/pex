@@ -558,7 +558,7 @@ class PEXBuilder(object):
         )
 
         bootstrap_digest = hashlib.sha1()
-        bootstrap_packages = ["repl", "third_party", "venv"]
+        bootstrap_packages = ["cache", "repl", "third_party", "venv"]
         if self._pex_info.includes_tools:
             bootstrap_packages.extend(["commands", "tools"])
         for root, dirs, files in deterministic_walk(_ABS_PEX_PACKAGE_DIR):

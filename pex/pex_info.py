@@ -7,7 +7,8 @@ import json
 import os
 import zipfile
 
-from pex import cache, layout, pex_warnings, variables
+from pex import layout, pex_warnings, variables
+from pex.cache import root as cache_root
 from pex.common import can_write_dir, open_zip, safe_mkdtemp
 from pex.compatibility import PY2, WINDOWS
 from pex.compatibility import string as compatibility_string
@@ -503,7 +504,7 @@ class PexInfo(object):
     @property
     def raw_pex_root(self):
         # type: () -> str
-        return cast(str, self._pex_info.get("pex_root", cache.cache_path(expand_user=False)))
+        return cast(str, self._pex_info.get("pex_root", cache_root.path(expand_user=False)))
 
     @property
     def pex_root(self):

@@ -165,9 +165,9 @@ def _default_pex_root():
     # N.B.: We need lazy import gymnastics here since cache uses appdirs which is pex.third_party
     # and the pex.third_party mechanism uses ENV.PEX_VERBOSE indirectly via TRACER to log certain
     # third party import lifecycle events.
-    from pex import cache
+    from pex.cache import root as cache_root
 
-    return cache.cache_path(expand_user=False)
+    return cache_root.path(expand_user=False)
 
 
 class Variables(object):

@@ -3,7 +3,7 @@
 
 import os
 
-from pex import cache
+from pex.cache import root as cache_root
 from pex.typing import TYPE_CHECKING
 from testing import make_env, run_pex_command
 
@@ -19,7 +19,7 @@ def test_mount_respects_env(
 
     home = os.path.join(str(tmpdir), "home")
 
-    rel_pex_root = os.path.relpath(cache.cache_path(expand_user=False), "~")
+    rel_pex_root = os.path.relpath(cache_root.path(expand_user=False), "~")
     pex_root = os.path.join(home, rel_pex_root)
     os.makedirs(pex_root)
     os.chmod(pex_root, 0o555)
