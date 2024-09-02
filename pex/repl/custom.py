@@ -55,6 +55,9 @@ def _try_enable_readline(
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 readline.read_init_file()
+        except AttributeError:
+            # A PyPy version that has dropped read_init_file support altogether.
+            pass
         except (IOError, OSError):
             # No init file (~/.inputrc for readline or ~/.editrc for libedit).
             pass
