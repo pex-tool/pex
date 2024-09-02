@@ -16,6 +16,7 @@ from subprocess import CalledProcessError
 
 from pex import pex_warnings
 from pex.argparse import HandleBoolAction
+from pex.cache import access as cache_access
 from pex.common import safe_mkdtemp, safe_open
 from pex.compatibility import shlex_quote
 from pex.result import Error, Ok, Result
@@ -379,6 +380,7 @@ def global_environment(options):
                 pex_root = options.cache_dir or options.pex_root or ENV.PEX_ROOT
 
             with ENV.patch(PEX_ROOT=pex_root, TMPDIR=tmpdir) as env:
+                cache_access.read_write()
                 yield env
 
 

@@ -9,6 +9,7 @@ import sys
 
 from pex import pex_warnings
 from pex.atomic_directory import atomic_directory
+from pex.cache import access as cache_access
 from pex.cache.dirs import CacheDir
 from pex.common import CopyMode, die, pluralize
 from pex.environment import ResolveError
@@ -518,6 +519,8 @@ def ensure_venv(
             "The PEX_VENV environment variable was set, but this PEX was not built with venv "
             "support (Re-build the PEX file with `pex --venv ...`)"
         )
+
+    cache_access.read_write()
     with atomic_directory(venv_dir) as venv:
         if not venv.is_finalized():
             from pex.venv.virtualenv import Virtualenv
@@ -627,6 +630,7 @@ def bootstrap_pex(
     # ENV.PEX_ROOT is consulted by PythonInterpreter and Platform so set that up as early as
     # possible in the run.
     with ENV.patch(PEX_ROOT=pex_info.pex_root):
+        cache_access.read_write()
         if not execute:
             for location in _activate_pex(entry_point, pex_info, venv_dir=venv_dir):
                 from pex.third_party import VendorImporter

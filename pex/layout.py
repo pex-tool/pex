@@ -9,6 +9,7 @@ from abc import abstractmethod
 from contextlib import contextmanager
 
 from pex.atomic_directory import atomic_directory
+from pex.cache import access as cache_access
 from pex.cache.dirs import CacheDir
 from pex.common import (
     PermPreservingZipFile,
@@ -21,7 +22,7 @@ from pex.common import (
 from pex.enum import Enum
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
-from pex.variables import unzip_dir
+from pex.variables import ENV, unzip_dir
 
 if TYPE_CHECKING:
     from types import TracebackType
@@ -316,10 +317,11 @@ def _ensure_installed(
     with TRACER.timed("Laying out {}".format(layout)):
         pex = layout.path
         install_to = unzip_dir(pex_root=pex_root, pex_hash=pex_hash)
+        if not os.path.exists(install_to):
+            with ENV.patch(PEX_ROOT=pex_root):
+                cache_access.read_write()
         with atomic_directory(install_to) as chroot:
             if not chroot.is_finalized():
-                from pex.variables import ENV
-
                 with ENV.patch(PEX_ROOT=pex_root), TRACER.timed(
                     "Installing {} to {}".format(pex, install_to)
                 ):
