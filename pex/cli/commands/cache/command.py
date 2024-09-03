@@ -120,13 +120,6 @@ class Cache(OutputMixin, BuildTimeCommand):
                 "out what actions would be taken"
             ),
         )
-        parser.add_argument(
-            "-R",
-            "--report-savings",
-            dest="report_savings",
-            action="store_true",
-            help="Report the disk usage savings from the purge.",
-        )
 
         cls.add_output_option(parser, entity="Pex purge results")
 
@@ -223,9 +216,9 @@ class Cache(OutputMixin, BuildTimeCommand):
         return Ok()
 
     def _purge_cache_dir(self, cache_dir):
-        # type: (CacheDir.Value) -> Tuple[CacheDir.Value, Optional[DiskUsage]]
+        # type: (CacheDir.Value) -> Tuple[CacheDir.Value, DiskUsage]
         cache_dir_path = cache_dir.path()
-        du = DiskUsage.collect(cache_dir_path) if self.options.report_savings else None
+        du = DiskUsage.collect(cache_dir_path)
         if not self.options.dry_run:
             safe_rmtree(cache_dir_path)
         return cache_dir, du
@@ -380,10 +373,9 @@ class Cache(OutputMixin, BuildTimeCommand):
                     ),
                     file=fp,
                 )
-                if du:
-                    disk_usages.append(du)
-                    print(self._render_usage(du), file=fp)
-                    print(file=fp)
+                disk_usages.append(du)
+                print(self._render_usage(du), file=fp)
+                print(file=fp)
             if disk_usages:
                 print(self._render_usage(disk_usages), file=fp)
                 print(file=fp)
