@@ -77,8 +77,8 @@ class Cache(OutputMixin, BuildTimeCommand):
             dest="sort_by_size",
             action="store_true",
             help=(
-                "Don't actually purge cache entries; instead, perform a dry run that just prints "
-                "out what actions would be taken"
+                "Sort cache entry information by the total size of the cache entry. "
+                "Entry information is sorted by entry name by default."
             ),
         )
         parser.add_argument(
@@ -86,10 +86,7 @@ class Cache(OutputMixin, BuildTimeCommand):
             "--reverse",
             dest="reverse",
             action="store_true",
-            help=(
-                "Don't actually purge cache entries; instead, perform a dry run that just prints "
-                "out what actions would be taken"
-            ),
+            help="Reverse the sorting of cache entry information.",
         )
         cls.add_output_option(parser, entity="Pex cache information")
 
