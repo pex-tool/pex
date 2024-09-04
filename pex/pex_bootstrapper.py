@@ -520,7 +520,9 @@ def ensure_venv(
             "support (Re-build the PEX file with `pex --venv ...`)"
         )
 
-    cache_access.read_write()
+    if not os.path.exists(venv_dir):
+        with ENV.patch(PEX_ROOT=pex_info.pex_root):
+            cache_access.read_write()
     with atomic_directory(venv_dir) as venv:
         if not venv.is_finalized():
             from pex.venv.virtualenv import Virtualenv
