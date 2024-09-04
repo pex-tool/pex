@@ -196,6 +196,7 @@ class _FileLock(object):
         lock_api(lock_fd, fcntl.LOCK_EX)  # A blocking write lock.
 
         def release():
+            # type: () -> None
             try:
                 lock_api(lock_fd, fcntl.LOCK_UN)
             finally:

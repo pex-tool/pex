@@ -7,7 +7,8 @@ import json
 import os
 import zipfile
 
-from pex import cache, layout, pex_warnings, variables
+from pex import layout, pex_warnings, variables
+from pex.cache import root as cache_root
 from pex.common import can_write_dir, open_zip, safe_mkdtemp
 from pex.compatibility import PY2, WINDOWS
 from pex.compatibility import string as compatibility_string
@@ -59,8 +60,6 @@ class PexInfo(object):
     """
 
     PATH = layout.PEX_INFO_PATH
-    BOOTSTRAP_CACHE = "bootstraps"
-    INSTALL_CACHE = "installed_wheels"
 
     @classmethod
     def make_build_properties(cls):
@@ -503,7 +502,7 @@ class PexInfo(object):
     @property
     def raw_pex_root(self):
         # type: () -> str
-        return cast(str, self._pex_info.get("pex_root", cache.cache_path(expand_user=False)))
+        return cast(str, self._pex_info.get("pex_root", cache_root.path(expand_user=False)))
 
     @property
     def pex_root(self):
@@ -569,25 +568,9 @@ class PexInfo(object):
         return layout.BOOTSTRAP_DIR
 
     @property
-    def bootstrap_cache(self):
-        # type: () -> Optional[str]
-        if self.bootstrap_hash is None:
-            return None
-        return os.path.join(self.pex_root, self.BOOTSTRAP_CACHE, self.bootstrap_hash)
-
-    @property
     def internal_cache(self):
         # type: () -> str
         return layout.DEPS_DIR
-
-    @property
-    def install_cache(self):
-        return os.path.join(self.pex_root, self.INSTALL_CACHE)
-
-    @property
-    def zip_unsafe_cache(self):
-        #: type: () -> str
-        return os.path.join(self.pex_root, "user_code")
 
     def update(self, other):
         # type: (PexInfo) -> None

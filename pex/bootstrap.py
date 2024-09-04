@@ -8,6 +8,11 @@ import os
 import sys
 import types
 
+from pex.typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import Any, List
+
 
 class Bootstrap(object):
     """Supports introspection of the PEX bootstrap code."""
@@ -45,12 +50,14 @@ class Bootstrap(object):
         return self._sys_path_entry
 
     def demote(self, disable_vendor_importer=True):
+        # type: (bool) -> List[types.ModuleType]
         """Demote the bootstrap code to the end of the `sys.path` so it is found last.
 
         :return: The list of un-imported bootstrap modules.
         :rtype: list of :class:`types.ModuleType`
         """
-        import sys  # Grab a hold of `sys` early since we'll be un-importing our module in this process.
+        # Grab a hold of `sys` early since we'll be un-importing our module in this process.
+        import sys
 
         # N.B.: We mutate the sys.path before un-importing modules so that any re-imports triggered
         # by concurrent code will pull from the desired sys.path ordering.
@@ -59,8 +66,12 @@ class Bootstrap(object):
         sys.path[:] = [path for path in sys.path if os.path.realpath(path) != self._realpath]
         sys.path.append(self._sys_path_entry)
 
-        unimported_modules = []
+        unimported_modules = []  # type: List[types.ModuleType]
         for name, module in reversed(sorted(sys.modules.items())):
+            if "pex.cache.access" == name:
+                # N.B.: The pex.cache.access module maintains cache lock state which must be
+                # preserved in the case of a Pex PEX.
+                module.save_lock_state()
             if "pex.third_party" == name and not disable_vendor_importer:
                 continue
             if self.imported_from_bootstrap(module):
@@ -68,11 +79,10 @@ class Bootstrap(object):
         return unimported_modules
 
     def imported_from_bootstrap(self, module):
+        # type: (Any) -> bool
         """Return ``True`` if the given ``module`` object was imported from bootstrap code.
 
         :param module: The module to check the provenance of.
-        :type module: :class:`types.ModuleType`
-        :rtype: bool
         """
 
         # Python 2.7 does some funky imports in the email stdlib package that cause havoc with
@@ -96,6 +106,7 @@ class Bootstrap(object):
         return False
 
     def __repr__(self):
+        # type: () -> str
         return "{cls}(sys_path_entry={sys_path_entry!r})".format(
             cls=type(self).__name__, sys_path_entry=self._sys_path_entry
         )

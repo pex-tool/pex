@@ -407,6 +407,7 @@ def _isolate_pex_from_dir(
     isolate_to_dir,  # type: str
     exclude_files,  # type: Container[str]
 ):
+    # type: (...) -> None
     from pex.common import is_pyc_dir, is_pyc_file, is_pyc_temporary_file, safe_copy
 
     for root, dirs, files in os.walk(pex_directory):
@@ -432,6 +433,7 @@ def _isolate_pex_from_zip(
     isolate_to_dir,  # type: str
     exclude_files,  # type: Container[str]
 ):
+    # type: (...) -> None
     from pex.common import open_zip, safe_open
 
     with open_zip(pex_zip) as zf:
@@ -462,8 +464,8 @@ def isolated(interpreter=None):
     if _ISOLATED is None:
         from pex import layout, vendor
         from pex.atomic_directory import atomic_directory
+        from pex.cache.dirs import CacheDir
         from pex.util import CacheHelper
-        from pex.variables import ENV
 
         module = "pex"
 
@@ -503,7 +505,7 @@ def isolated(interpreter=None):
                 pex_zip_paths = (zip_path, pex_package_relpath)
                 pex_hash = CacheHelper.zip_hash(zip_path, relpath=pex_package_relpath)
 
-        isolated_dir = os.path.join(ENV.PEX_ROOT, "isolated", pex_hash)
+        isolated_dir = CacheDir.ISOLATED.path(pex_hash)
         with _tracer().timed("Isolating pex"):
             with atomic_directory(isolated_dir) as chroot:
                 if not chroot.is_finalized():

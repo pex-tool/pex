@@ -16,6 +16,7 @@ from threading import Thread
 
 from pex import dist_metadata
 from pex.atomic_directory import atomic_directory
+from pex.cache.dirs import CacheDir
 from pex.commands.command import JsonMixin, OutputMixin
 from pex.common import (
     DETERMINISTIC_DATETIME_TIMESTAMP,
@@ -33,7 +34,6 @@ from pex.pex import PEX
 from pex.result import Error, Ok, Result
 from pex.tools.command import PEXCommand
 from pex.typing import TYPE_CHECKING, cast
-from pex.variables import ENV
 from pex.venv.virtualenv import InstallationChoice, Virtualenv
 
 if TYPE_CHECKING:
@@ -55,7 +55,7 @@ def spawn_python_job_with_setuptools_and_wheel(
     **subprocess_kwargs  # type: Any
 ):
     # type: (...) -> Job
-    venv_dir = os.path.join(ENV.PEX_ROOT, "tools", "repository", str(interpreter.platform))
+    venv_dir = CacheDir.TOOLS.path("repository", str(interpreter.platform))
     with atomic_directory(venv_dir) as atomic_dir:
         if not atomic_dir.is_finalized():
             Virtualenv.create_atomic(

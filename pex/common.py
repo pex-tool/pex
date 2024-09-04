@@ -39,9 +39,11 @@ if TYPE_CHECKING:
         Sized,
         Text,
         Tuple,
+        TypeVar,
         Union,
     )
 
+    _Text = TypeVar("_Text", str, Text)
 
 # We use the start of MS-DOS time, which is what zipfiles use (see section 4.4.6 of
 # https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT).
@@ -91,7 +93,9 @@ def pluralize(
     count = subject if isinstance(subject, int) else len(subject)
     if count == 1:
         return noun
-    if noun[-1] in ("s", "x", "z") or noun[-2:] in ("sh", "ch"):
+    if noun[-1] == "y":
+        return noun[:-1] + "ies"
+    elif noun[-1] in ("s", "x", "z") or noun[-2:] in ("sh", "ch"):
         return noun + "es"
     else:
         return noun + "s"
@@ -289,7 +293,7 @@ def register_rmtree(directory):
 
 
 def safe_mkdir(directory, clean=False):
-    # type: (Text, bool) -> Text
+    # type: (_Text, bool) -> _Text
     """Safely create a directory.
 
     Ensures a directory is present.  If it's not there, it is created.  If it is, it's a no-op. If

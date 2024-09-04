@@ -13,6 +13,7 @@ from textwrap import dedent
 import colors  # vendor:skip
 import pytest
 
+from pex.cache.dirs import CacheDir
 from pex.common import chmod_plus_x, safe_open, touch
 from pex.typing import TYPE_CHECKING
 from testing import IS_PYPY, make_project, run_pex_command
@@ -134,20 +135,18 @@ def too_deep_pex_root(
     # type: (...) -> str
 
     # The short venv python used in --venv shebangs is of the form:
-    #   <PEX_ROOT>/venvs/s/592c68dc/venv/bin/python
+    #   <PEX_ROOT>/venvs/0/s/592c68dc/venv/bin/python
     # With no collisions, the hash dir is 8 characters, and we expect no collisions in this bespoke
     # new empty temporary dir PEX_ROOT>
     padding_dirs_length = shebang_length_limit - len(
         "#!"
-        + os.path.join(
-            str(tmpdir),
-            "pex_root",
-            "venvs",
+        + CacheDir.VENVS.path(
             "s",
             "12345678",
             "venv",
             "bin",
             "pypy" if IS_PYPY else "python",
+            pex_root=os.path.join(str(tmpdir), "pex_root"),
         )
         + "\n"
     )

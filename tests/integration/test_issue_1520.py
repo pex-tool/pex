@@ -8,6 +8,7 @@ from textwrap import dedent
 
 import pytest
 
+from pex.cache.dirs import CacheDir
 from pex.typing import TYPE_CHECKING
 from testing import IS_LINUX, IS_MAC, PY_VER, run_pex_command
 
@@ -63,7 +64,7 @@ def test_hermetic_console_scripts(tmpdir):
 
     scripts = [
         os.path.join(root, f)
-        for root, dirs, files in os.walk(os.path.join(pex_root, "installed_wheels"))
+        for root, dirs, files in os.walk(CacheDir.INSTALLED_WHEELS.path(pex_root=pex_root))
         for f in files
         if "protoc-gen-mypy" == f
     ]

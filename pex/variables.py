@@ -165,9 +165,9 @@ def _default_pex_root():
     # N.B.: We need lazy import gymnastics here since cache uses appdirs which is pex.third_party
     # and the pex.third_party mechanism uses ENV.PEX_VERBOSE indirectly via TRACER to log certain
     # third party import lifecycle events.
-    from pex import cache
+    from pex.cache import root as cache_root
 
-    return cache.cache_path(expand_user=False)
+    return cache_root.path(expand_user=False)
 
 
 class Variables(object):
@@ -800,19 +800,18 @@ def _expand_pex_root(pex_root):
     return os.path.expanduser(Variables.PEX_ROOT.value_or(ENV, fallback=fallback))
 
 
-def unzip_dir_relpath(pex_hash):
-    # type: (str) -> str
-    return os.path.join("unzipped_pexes", pex_hash)
-
-
 def unzip_dir(
     pex_root,  # type: str
     pex_hash,  # type: str
     expand_pex_root=True,  # type: bool
 ):
     # type: (...) -> str
+
+    # N.B.: We need lazy import gymnastics here since CacheType uses Variables for PEX_ROOT.
+    from pex.cache.dirs import CacheDir
+
     pex_root = _expand_pex_root(pex_root) if expand_pex_root else pex_root
-    return os.path.join(pex_root, unzip_dir_relpath(pex_hash))
+    return CacheDir.UNZIPPED_PEXES.path(pex_hash, pex_root=pex_root)
 
 
 def venv_dir(
@@ -825,6 +824,9 @@ def venv_dir(
     expand_pex_root=True,  # type: bool
 ):
     # type: (...) -> str
+
+    # N.B.: We need lazy import gymnastics here since CacheType uses Variables for PEX_ROOT.
+    from pex.cache.dirs import CacheDir
 
     # The venv contents are affected by which PEX files are in play as well as which interpreter
     # is selected. The former is influenced via PEX_PATH and the latter is influenced by interpreter
@@ -887,7 +889,7 @@ def venv_dir(
         json.dumps(venv_contents, sort_keys=True).encode("utf-8")
     ).hexdigest()
     pex_root = _expand_pex_root(pex_root) if expand_pex_root else pex_root
-    venv_path = os.path.join(pex_root, "venvs", pex_hash, venv_contents_hash)
+    venv_path = CacheDir.VENVS.path(pex_hash, venv_contents_hash, pex_root=pex_root)
 
     def warn(message):
         # type: (str) -> None

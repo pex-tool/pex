@@ -6,6 +6,7 @@ import sys
 
 import pytest
 
+from pex.cache.dirs import CacheDir
 from pex.common import safe_rmtree
 from pex.compatibility import commonpath
 from pex.layout import Layout
@@ -78,7 +79,9 @@ def test_venv_symlink_site_packages(
     assert os.path.islink(ansicolors_venv_package_dir_realpath) == symlinks_expected
 
     if symlinks_expected:
-        installed_wheels_dir_realpath = os.path.realpath(os.path.join(pex_root, "installed_wheels"))
+        installed_wheels_dir_realpath = os.path.realpath(
+            CacheDir.INSTALLED_WHEELS.path(pex_root=pex_root)
+        )
         assert installed_wheels_dir_realpath == commonpath(
             (installed_wheels_dir_realpath, colors_module_realpath)
         )

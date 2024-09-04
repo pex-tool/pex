@@ -8,6 +8,7 @@ from io import BytesIO
 import pytest
 
 from pex import hashing
+from pex.cache.dirs import CacheDir
 from pex.hashing import Sha1Fingerprint, Sha256Fingerprint
 from pex.pep_503 import ProjectName
 from pex.resolve.locked_resolve import FileArtifact
@@ -178,7 +179,7 @@ def test_fingerprint_checking(
 
     # But when the artifact hash is marked verified, no hash checking should occur.
     verified_artifact = attr.evolve(artifact, verified=True)
-    expected_artifact_dir = os.path.join(pex_root, "downloads", expected_sha1_hash)
+    expected_artifact_dir = CacheDir.DOWNLOADS.path(expected_sha1_hash, pex_root=pex_root)
     downloaded_artifact = download_manager.store(verified_artifact, project_name)
     assert (
         DownloadedArtifact(

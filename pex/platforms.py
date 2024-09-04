@@ -10,12 +10,12 @@ from textwrap import dedent
 
 from pex import compatibility
 from pex.atomic_directory import atomic_directory
+from pex.cache.dirs import CacheDir
 from pex.common import safe_open, safe_rmtree
 from pex.pep_425 import CompatibilityTags
 from pex.third_party.packaging import tags
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
-from pex.variables import ENV
 
 if TYPE_CHECKING:
     from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
@@ -269,7 +269,7 @@ class Platform(object):
         components = [str(self)]
         if manylinux:
             components.append(manylinux)
-        disk_cache_key = os.path.join(ENV.PEX_ROOT, "platforms", self.SEP.join(components))
+        disk_cache_key = CacheDir.PLATFORMS.path(self.SEP.join(components))
         with atomic_directory(target_dir=disk_cache_key) as cache_dir:
             if not cache_dir.is_finalized():
                 # Missed both caches - spawn calculation.

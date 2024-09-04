@@ -73,7 +73,6 @@ def main(pex=None):
                     interpreter_test=InterpreterTest(entry_point=pex_file_path, pex_info=pex_info)
                 )
                 pex = PEX(pex_file_path, interpreter=interpreter)
-
             result = catch(pex_command.run, pex)
             result.maybe_display()
             return result.exit_code

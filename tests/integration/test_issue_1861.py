@@ -3,6 +3,7 @@
 
 import os
 
+from pex.cache.dirs import CacheDir
 from pex.typing import TYPE_CHECKING
 from testing import make_env, run_pex_command
 
@@ -30,4 +31,4 @@ def test_confounding_site_packages_directory(tmpdir):
         env=make_env(LOCALAPPDATA=local_app_data),
     )
     result.assert_success()
-    assert result.output.startswith(os.path.join(pex_root, "installed_wheels"))
+    assert result.output.startswith(CacheDir.INSTALLED_WHEELS.path(pex_root=pex_root))

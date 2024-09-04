@@ -11,6 +11,7 @@ from collections import OrderedDict
 from subprocess import CalledProcessError
 
 from pex.atomic_directory import atomic_directory
+from pex.cache.dirs import CacheDir
 from pex.common import chmod_plus_x, is_exe, pluralize, safe_mkdtemp, safe_open
 from pex.compatibility import shlex_quote
 from pex.dist_metadata import NamedEntryPoint, parse_entry_point
@@ -36,7 +37,7 @@ from pex.third_party.packaging.version import InvalidVersion
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
 from pex.util import CacheHelper
-from pex.variables import ENV, Variables, unzip_dir_relpath
+from pex.variables import ENV, Variables
 
 if TYPE_CHECKING:
     from typing import Any, Dict, Iterator, List, Optional, Union, cast
@@ -129,11 +130,7 @@ def create_manifests(
         else:
             production_assert(pex_info.pex_hash is not None)
             pex_hash = cast(str, pex_info.pex_hash)
-            configure_binding_args.append(os.path.join(pex_root, unzip_dir_relpath(pex_hash)))
-
-    env_default = {
-        "PEX_ROOT": pex_root,
-    }
+            configure_binding_args.append(CacheDir.UNZIPPED_PEXES.path(pex_hash, pex_root=pex_root))
 
     commands = []  # type: List[Dict[str, Any]]
     entrypoints = configuration.options.busybox_entrypoints
@@ -142,10 +139,7 @@ def create_manifests(
 
         def default_env(named_entry_point):
             # type: (...) -> Dict[str, str]
-            env = env_default.copy()
-            if named_entry_point.entry_point == pex_entry_point:
-                env.update(pex_info.inject_env)
-            return env
+            return pex_info.inject_env if named_entry_point.entry_point == pex_entry_point else {}
 
         def args(
             named_entry_point,  # type: NamedEntryPoint
@@ -201,7 +195,6 @@ def create_manifests(
         commands.append(
             {
                 "env": {
-                    "default": env_default,
                     "remove_exact": ["PEX_VENV"],
                 },
                 "exe": "{scie.bindings.configure:PYTHON}",
@@ -222,10 +215,10 @@ def create_manifests(
         "bindings": [
             {
                 "env": {
-                    "default": env_default,
                     "remove_exact": ["PATH"],
                     "remove_re": ["PEX_.*", "PYTHON.*"],
                     "replace": {
+                        "PEX_ROOT": pex_root,
                         "PEX_INTERPRETER": "1",
                         # We can get a warning about too-long script shebangs, but this is not
                         # relevant since we above run the PEX via python and not via shebang.
@@ -280,7 +273,7 @@ def _science_dir(
     *components  # type: str
 ):
     # type: (...) -> str
-    return os.path.join(env.PEX_ROOT, "scies", "science", MIN_SCIENCE_VERSION.raw, *components)
+    return CacheDir.SCIES.path("science", MIN_SCIENCE_VERSION.raw, *components, pex_root=env)
 
 
 def _science_binary_names():

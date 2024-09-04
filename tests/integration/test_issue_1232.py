@@ -5,6 +5,7 @@ import os
 import shutil
 import subprocess
 
+from pex.cache.dirs import CacheDir
 from pex.typing import TYPE_CHECKING
 from testing import PY38, PY310, ensure_python_interpreter, make_env, run_pex_command
 
@@ -47,7 +48,7 @@ def test_isolated_pex_zip(tmpdir):
                 if ext == ".py":
                     yield module
 
-        isolated_root = os.path.join(pex_root, "isolated")
+        isolated_root = CacheDir.ISOLATED.path(pex_root=pex_root)
         vendored_by_isolated = {}
         for entry in os.listdir(isolated_root):
             path = os.path.join(isolated_root, entry)
@@ -130,7 +131,7 @@ def test_isolated_pex_zip(tmpdir):
     # 4. Isolate modified Pex PEX at run-time.
     # ===
     # Force the bootstrap to run interpreter identification which will force a Pex isolation.
-    shutil.rmtree(os.path.join(pex_root, "interpreters"))
+    shutil.rmtree(CacheDir.INTERPRETERS.path(pex_root=pex_root))
     subprocess.check_call(args=[python310, ansicolors_pex, "-c", "import colors"], env=pex_env)
     ansicolors_pex_isolated_vendoreds = tally_isolated_vendoreds()
     ansicolors_pex_isolation = set(modified_pex_isolated_vendoreds.keys()) ^ set(
@@ -159,7 +160,7 @@ def test_isolated_pex_zip(tmpdir):
     )
 
     # Force the bootstrap to run interpreter identification which will force a Pex isolation.
-    shutil.rmtree(os.path.join(pex_root, "interpreters"))
+    shutil.rmtree(CacheDir.INTERPRETERS.path(pex_root=pex_root))
     subprocess.check_call(args=[python310, ansicolors_pex, "-c", "import colors"], env=pex_env)
     assert (
         ansicolors_pex_isolated_vendoreds == tally_isolated_vendoreds()

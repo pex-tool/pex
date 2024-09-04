@@ -72,6 +72,11 @@ classifiers = [
 subprocess = [
   "subprocess32>=3.2.7; python_version < '3'"
 ]
+management = [
+  # N.B.: Released on 2017-09-01 and added support for the `process_iter(attrs, ad_value)` API we
+  # use in `pex.cache.access`.
+  "psutil>=5.3"
+]
 
 [project.scripts]
 pex = "pex.bin.pex:main"

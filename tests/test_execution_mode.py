@@ -10,6 +10,7 @@ from subprocess import CalledProcessError
 
 import pytest
 
+from pex.cache.dirs import CacheDir
 from pex.layout import Layout
 from pex.pep_427 import InstallableType
 from pex.typing import TYPE_CHECKING
@@ -139,4 +140,4 @@ def test_execution_mode(
             execute_colors_pex(pex_app, {"PEX_VENV": "1"})
     else:
         output, pex_root = execute_colors_pex(pex_app, {"PEX_VENV": "1"})
-        assert output.startswith(os.path.join(pex_root, "venvs"))
+        assert output.startswith(CacheDir.VENVS.path(pex_root=pex_root))
