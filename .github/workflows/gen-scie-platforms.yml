@@ -1,0 +1,71 @@
+name: Generate Pex Scie Complete Platforms
+on:
+  workflow_dispatch:
+    inputs:
+      dest-dir:
+        description: The directory to generate the complete platform files in.
+        default: package/complete-platforms
+        required: false
+      pbs-release:
+        description: The PBS release to use.
+        required: true
+      python-version:
+        description: The PBS Python version to use.
+        required: true
+jobs:
+  gen-complete-platform:
+    name: Generate Pex Scie Complete Platform for ${{ matrix.platform }}
+    strategy:
+      matrix:
+        include:
+          - platform: Linux x86_64
+            os: ubuntu-22.04
+            docker-arch: amd64
+          - platform: Linux aarch64
+            os: ubuntu-22.04
+            docker-arch: arm64
+          - platform: macOS x86_64
+            os: macos-13
+          - platform: macOS arm64
+            os: macos-14
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout Pex
+        uses: actions/checkout@v4
+      - name: Generate Generate Script
+        run: |
+          cat << EOF > ./gen-scie-platform.sh
+          #!/usr/bin/env bash
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install -U pip
+          pip install -U tox
+          python -V
+
+          tox -e gen-scie-platform \
+            -d "${{ github.event.inputs.dest-dir }}" \
+            --pbs-release ${{ github.event.inputs.pbs-release }} \
+            --python-version ${{ github.event.inputs.python-version }}
+          EOF
+          chmod +x ./gen-scie-platform.sh
+      - name: Setup Docker QEMU Emulation
+        uses: docker/setup-qemu-action@v3
+        if: ${{ matrix.docker-arch }}
+        with:
+          platforms: linux/${{ matrix.docker-arch }}
+      - name: Generate Complete Platform
+        if: ${{ matrix.docker-arch }}
+        run: |
+          docker run \
+            --rm \
+            -v $PWD:/code \
+            -w /code \
+            --platform linux/${{ matrix.docker-arch }} \
+            python:3.12-slim-bullseye bash ./gen-scie-platform.sh
+      - name: Generate Complete Platform
+        if: ${{ ! matrix.docker-arch }}
+        run: ./gen-scie-platform.sh
+      - name: Upload Complete Platform File Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          path: ${{ github.event.inputs.dest-dir }}/*
