@@ -158,6 +158,36 @@ class VendorSpec(
             touch(os.path.join(self.ROOT, *relpath))
 
 
+# N.B.: We're currently using a patched version of Pip 20.3.4 housed at
+# https://github.com/pex-tool/pip/tree/pex/patches/generation-2.
+# It has 5 substantive patches:
+# 1.) https://github.com/pex-tool/pip/commit/06f462537c981116c763c1ba40cf40e9dd461bcf
+#     The patch works around a bug in `pip download --constraint...` tracked at
+#     https://github.com/pypa/pip/issues/9283 and fixed by https://github.com/pypa/pip/pull/9301
+#     there and https://github.com/pex-tool/pip/pull/8 in our fork.
+# 2.) https://github.com/pex-tool/pip/commit/386a54f097ece66775d0c7f34fd29bb596c6b0be
+#     This is a cherry-pick of
+#     https://github.com/pypa/pip/commit/00fb5a0b224cde08e3e5ca034247baadfb646468
+#     (https://github.com/pypa/pip/pull/9533) from upstream that upgrades Pip's vendored
+#     packaging to 20.9 to pick up support for mac universal2 wheels.
+# 3.) https://github.com/pex-tool/pip/commit/00827ec9f4275a7786425cf006466c56f4cbd862
+#     This is a cherry-pick of
+#     https://github.com/pypa/pip/commit/601bcf82eccfbc15c1ff6cc735aafb2c9dab81a5
+#     (https://github.com/pypa/pip/pull/12716) from upstream that fixes glibc version probing on
+#     musl libc systems.
+# 4.) https://github.com/pex-tool/pip/commit/48508331d331a1c326b0eccf4aac7476bc7ccca8
+#     This sets up and runs the 1st semi-automated update of Pip's vendored certifi's cacert.pem
+#     bringing it up to date with certifi 2024.7.4.
+# 5.) https://github.com/pex-tool/pip/commit/963e2d662597bfa4298eb3c0c51bc113c4508a80
+#     Automated update of Pip's vendored certifi's cacert.pem to that from certifi 2024.8.30.
+PIP_SPEC = VendorSpec.git(
+    repo="https://github.com/pex-tool/pip",
+    commit="963e2d662597bfa4298eb3c0c51bc113c4508a80",
+    project_name="pip",
+    rewrite=False,
+)
+
+
 def iter_vendor_specs(filter_requires_python=None):
     # type: (Optional[Union[Tuple[int, int], PythonInterpreter]]) -> Iterator[VendorSpec]
     """Iterate specifications for code vendored by pex.
@@ -208,32 +238,7 @@ def iter_vendor_specs(filter_requires_python=None):
     yield VendorSpec.pinned("toml", "0.10.2")
 
     # We shell out to pip at buildtime to resolve and install dependencies.
-    # N.B.: We're currently using a patched version of Pip 20.3.4 housed at
-    # https://github.com/pex-tool/pip/tree/pex/patches/generation-2.
-    # It has 4 patches:
-    # 1.) https://github.com/pex-tool/pip/commit/06f462537c981116c763c1ba40cf40e9dd461bcf
-    #     The patch works around a bug in `pip download --constraint...` tracked at
-    #     https://github.com/pypa/pip/issues/9283 and fixed by https://github.com/pypa/pip/pull/9301
-    #     there and https://github.com/pex-tool/pip/pull/8 in our fork.
-    # 2.) https://github.com/pex-tool/pip/commit/386a54f097ece66775d0c7f34fd29bb596c6b0be
-    #     This is a cherry-pick of
-    #     https://github.com/pypa/pip/commit/00fb5a0b224cde08e3e5ca034247baadfb646468
-    #     (https://github.com/pypa/pip/pull/9533) from upstream that upgrades Pip's vendored
-    #     packaging to 20.9 to pick up support for mac universal2 wheels.
-    # 3.) https://github.com/pex-tool/pip/commit/00827ec9f4275a7786425cf006466c56f4cbd862
-    #     This is a cherry-pick of
-    #     https://github.com/pypa/pip/commit/601bcf82eccfbc15c1ff6cc735aafb2c9dab81a5
-    #     (https://github.com/pypa/pip/pull/12716) from upstream that fixes glibc version probing on
-    #     musl libc systems.
-    # 4.) https://github.com/pex-tool/pip/commit/48508331d331a1c326b0eccf4aac7476bc7ccca8
-    #     This sets up and runs the 1st semi-automated update of Pip's vendored certifi's cacert.pem
-    #     bringing it up to date with certifi 2024.7.4.
-    yield VendorSpec.git(
-        repo="https://github.com/pex-tool/pip",
-        commit="48508331d331a1c326b0eccf4aac7476bc7ccca8",
-        project_name="pip",
-        rewrite=False,
-    )
+    yield PIP_SPEC
 
     # We expose this to pip at buildtime for legacy builds, but we also use pkg_resources via
     # pex.third_party at runtime to inject pkg_resources style namespace packages if needed.
