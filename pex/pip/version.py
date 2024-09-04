@@ -8,6 +8,7 @@ import os
 import sys
 from textwrap import dedent
 
+from pex import vendor
 from pex.dist_metadata import Requirement
 from pex.enum import Enum
 from pex.pep_440 import Version
@@ -172,9 +173,7 @@ class PipVersion(Enum["PipVersionValue"]):
     v20_3_4_patched = PipVersionValue(
         name="20.3.4-patched",
         version="20.3.4+patched",
-        requirement=(
-            "pip @ git+https://github.com/pex-tool/pip@386a54f097ece66775d0c7f34fd29bb596c6b0be"
-        ),
+        requirement=vendor.PIP_SPEC.requirement,
         wheel_version="0.37.1",
         requires_python="<3.12",
     )
