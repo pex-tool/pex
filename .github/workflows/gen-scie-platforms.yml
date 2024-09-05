@@ -61,7 +61,11 @@ jobs:
             -v $PWD:/code \
             -w /code \
             --platform linux/${{ matrix.docker-arch }} \
-            python:3.12-slim-bullseye bash ./gen-scie-platform.sh
+            python:3.11-slim-bullseye bash ./gen-scie-platform.sh
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
       - name: Generate Complete Platform
         if: ${{ ! matrix.docker-arch }}
         run: ./gen-scie-platform.sh
