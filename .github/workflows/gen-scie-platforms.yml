@@ -63,6 +63,7 @@ jobs:
             --platform linux/${{ matrix.docker-arch }} \
             python:3.11-slim-bullseye bash ./gen-scie-platform.sh
       - name: Setup Python 3.11
+        if: ${{ ! matrix.docker-arch }}
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
