@@ -12,6 +12,11 @@ on:
       python-version:
         description: The PBS Python version to use.
         required: true
+defaults:
+  run:
+    shell: bash
+env:
+  SCIENCE_AUTH_API_GITHUB_COM_BEARER: ${{ secrets.GITHUB_TOKEN }}
 jobs:
   gen-complete-platform:
     name: Generate Platform for ${{ matrix.platform }}
