@@ -33,6 +33,8 @@ def create_all_complete_platforms(
 
 def current_platform() -> str:
     system = platform.system().lower()
+    if system == "darwin":
+        system = "macos"
     machine = platform.machine().lower()
     if machine in ("aarch64", "arm64"):
         return f"{system}-aarch64"

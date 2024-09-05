@@ -26,13 +26,17 @@ jobs:
           - platform: Linux x86_64
             os: ubuntu-22.04
             docker-arch: amd64
+            artifact-name: linux-x86_64
           - platform: Linux aarch64
             os: ubuntu-22.04
             docker-arch: arm64
+            artifact-name: linux-aarch64
           - platform: macOS x86_64
             os: macos-13
+            artifact-name: macos-x86_64
           - platform: macOS arm64
             os: macos-14
+            artifact-name: macos-aarch64
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout Pex
@@ -78,4 +82,5 @@ jobs:
       - name: Upload Complete Platform File Artifact
         uses: actions/upload-artifact@v4
         with:
+          name: complete-platform-${{ matrix.artifact-name }}
           path: ${{ github.event.inputs.dest-dir }}/*
