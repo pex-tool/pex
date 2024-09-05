@@ -14,7 +14,7 @@ on:
         required: true
 jobs:
   gen-complete-platform:
-    name: Generate Pex Scie Complete Platform for ${{ matrix.platform }}
+    name: Generate Platform for ${{ matrix.platform }}
     strategy:
       matrix:
         include:
@@ -42,7 +42,7 @@ jobs:
           pip install -U tox
           python -V
 
-          tox -e gen-scie-platform \
+          tox -e gen-scie-platform -- \
             -d "${{ github.event.inputs.dest-dir }}" \
             --pbs-release ${{ github.event.inputs.pbs-release }} \
             --python-version ${{ github.event.inputs.python-version }}
