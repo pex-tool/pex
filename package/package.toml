@@ -1,0 +1,14 @@
+[scie]
+pbs-release = "20240814"
+python-version = "3.12.5"
+
+pex-extras = [
+    "management",
+]
+
+platforms = [
+    "linux-aarch64",
+    "linux-x86_64",
+    "macos-aarch64",
+    "macos-x86_64",
+]
