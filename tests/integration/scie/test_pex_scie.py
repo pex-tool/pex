@@ -100,6 +100,49 @@ def test_basic(
     assert b"| PAR! |" in subprocess.check_output(args=[scie, "PAR!"], env=make_env(PATH=None))
 
 
+@pytest.mark.skipif(
+    (PY_VER < (3, 8) and not IS_PYPY) or PY_VER >= (3, 13),
+    reason="Scie output is not supported for {interpreter}".format(interpreter=sys.version),
+)
+@pytest.mark.skipif(
+    not any(
+        is_exe(os.path.join(entry, "shasum"))
+        for entry in os.environ.get("PATH", os.path.defpath).split(os.pathsep)
+    ),
+    reason="This test requires the `shasum` utility be available on the PATH.",
+)
+def test_hashes(tmpdir):
+    # type: (Any) -> None
+
+    pex = os.path.join(str(tmpdir), "cowsay")
+    run_pex_command(
+        args=[
+            "cowsay==5.0",
+            "-c",
+            "cowsay",
+            "-o",
+            pex,
+            "--scie",
+            "lazy",
+            "--scie-hash-alg",
+            "sha256",
+            "--scie-hash-alg",
+            "sha512",
+        ]
+    ).assert_success()
+
+    assert b"| PEX-scie wabbit! |" in subprocess.check_output(
+        args=[pex, "PEX-scie wabbit!"], env=make_env(PATH=None)
+    )
+
+    for alg in "sha256", "sha512":
+        shasum_file = "{pex}.{alg}".format(pex=pex, alg=alg)
+        assert os.path.exists(shasum_file), "Expected {shasum_file} to be generated.".format(
+            shasum_file=shasum_file
+        )
+        subprocess.check_call(args=["shasum", "-c", os.path.basename(shasum_file)], cwd=str(tmpdir))
+
+
 def test_multiple_platforms(tmpdir):
     # type: (Any) -> None
 
