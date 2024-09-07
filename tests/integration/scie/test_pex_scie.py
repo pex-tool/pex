@@ -101,7 +101,7 @@ def test_basic(
 
 
 @pytest.mark.skipif(
-    PY_VER < (3, 8) and not IS_PYPY,
+    (PY_VER < (3, 8) and not IS_PYPY) or PY_VER >= (3, 13),
     reason="Scie output is not supported for {interpreter}".format(interpreter=sys.version),
 )
 @pytest.mark.skipif(
