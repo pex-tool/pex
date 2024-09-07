@@ -188,6 +188,23 @@ def register_options(parser):
         ),
     )
     parser.add_argument(
+        "--scie-hash-alg",
+        dest="scie_hash_algorithms",
+        default=[],
+        action="append",
+        type=str,
+        help=(
+            "Output a checksum file for each scie generated that is compatible with the shasum "
+            "family of tools. For each unique --scie-hash-alg specified, a sibling file to each "
+            "scie executable will be generated with the same stem as that scie file and hash "
+            "algorithm name suffix. The file will contain the hex fingerprint of the scie "
+            "executable using that algorithm to hash it. Supported algorithms include at least "
+            "md5, sha1, sha256, sha384 and sha512. For the complete list of supported hash "
+            "algorithms, see the science tool --hash documentation here: "
+            "https://science.scie.app/cli.html#science-lift-build."
+        ),
+    )
+    parser.add_argument(
         "--scie-science-binary",
         dest="scie_science_binary",
         default=None,
@@ -225,6 +242,9 @@ def render_options(options):
         args.append(".".join(map(str, options.python_version)))
     if options.pbs_stripped:
         args.append("--scie-pbs-stripped")
+    for hash_algorithm in options.hash_algorithms:
+        args.append("--scie-hash-alg")
+        args.append(hash_algorithm)
     if options.science_binary:
         args.append("--scie-science-binary")
         args.append(options.science_binary)
@@ -310,6 +330,7 @@ def extract_options(options):
         pypy_release=options.scie_pypy_release,
         python_version=python_version,
         pbs_stripped=options.scie_pbs_stripped,
+        hash_algorithms=tuple(options.scie_hash_algorithms),
         science_binary=science_binary,
     )
 

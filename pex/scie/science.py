@@ -442,6 +442,8 @@ def build(
         )
         if use_platform_suffix:
             args.append("--use-platform-suffix")
+        for hash_algorithm in configuration.options.hash_algorithms:
+            args.extend(["--hash", hash_algorithm])
         args.append(manifest.path)
         with open(os.devnull, "wb") as devnull:
             process = subprocess.Popen(args=args, stdout=devnull, stderr=subprocess.PIPE)

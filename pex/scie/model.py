@@ -355,6 +355,7 @@ class ScieOptions(object):
         default=None
     )  # type: Optional[Union[Tuple[int, int], Tuple[int, int, int]]]
     pbs_stripped = attr.ib(default=False)  # type: bool
+    hash_algorithms = attr.ib(default=())  # type: Tuple[str, ...]
     science_binary = attr.ib(default=None)  # type: Optional[Union[File, Url]]
 
     def create_configuration(self, targets):
