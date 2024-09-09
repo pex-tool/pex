@@ -1030,7 +1030,8 @@ def build_pex(
         else:
             pip_configuration = resolver_configuration
 
-        built_projects = project.get_projects(options).build(
+        projects = project.get_projects(options)
+        built_projects = projects.build(
             targets=targets,
             pip_configuration=pip_configuration,
             compile_pyc=options.compile,
@@ -1043,9 +1044,10 @@ def build_pex(
             dependency_config=dependency_config,
         )
         for built_project in built_projects:
-            dependency_manager.add_requirement(built_project.as_requirement())
+            for req in built_project.satisfied_direct_requirements:
+                dependency_manager.add_requirement(req)
             dependency_manager.add_distribution(built_project.fingerprinted_distribution)
-            project_dependencies.update(built_project.requires_dists)
+            project_dependencies.update(built_project.iter_requirements())
 
         requirements = OrderedSet(requirement_configuration.requirements)
         requirements.update(str(req) for req in project_dependencies)

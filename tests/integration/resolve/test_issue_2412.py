@@ -19,7 +19,7 @@ from testing import run_pex_command
 from testing.cli import run_pex3
 
 if TYPE_CHECKING:
-    from typing import Any
+    from typing import Any, Optional
 
 
 def test_invalid_project(
@@ -33,11 +33,11 @@ def test_invalid_project(
     run_pex_command(
         args=["--project", pex_project_dir, "--project", non_project_dir]
     ).assert_failure(
-        expected_error_re=r".*{message}$".format(
+        expected_error_re=r".*{message}.*$".format(
             message=re.escape(
-                "The following --project paths do not appear to point to directories containing "
-                "Python projects:\n"
-                "1. {non_project_dir}".format(non_project_dir=non_project_dir)
+                "Found 1 invalid --project specifier:\n"
+                "1. The --project {non_project_dir} is not a valid local project "
+                "requirement: ".format(non_project_dir=non_project_dir)
             )
         ),
         re_flags=re.DOTALL,
@@ -55,17 +55,18 @@ def test_invalid_project(
         "--project",
         non_project_file,
     ).assert_failure(
-        expected_error_re=r".*{message}$".format(
-            message=re.escape(
-                "The following --project paths do not appear to point to directories containing "
-                "Python projects:\n"
-                "1. {non_project_dir}\n"
-                "2. {non_project_file}".format(
-                    non_project_dir=non_project_dir, non_project_file=non_project_file
-                )
-            )
+        expected_error_re=r".*{message_part1}.*$.*{message_part2}.*$".format(
+            message_part1=re.escape(
+                "Found 2 invalid --project specifiers:\n"
+                "1. The --project {non_project_dir} is not a valid local project "
+                "requirement: ".format(non_project_dir=non_project_dir)
+            ),
+            message_part2=re.escape(
+                "2. The --project {non_project_file} is not a valid local project "
+                "requirement: ".format(non_project_file=non_project_file)
+            ),
         ),
-        re_flags=re.DOTALL,
+        re_flags=re.DOTALL | re.MULTILINE,
     )
 
 
@@ -81,7 +82,11 @@ def test_locked_project(tmpdir):
                 dedent(
                     """\
                     import cowsay
-                    from colors import color
+                    try:
+                        from colors import color
+                    except ImportError:
+                        def color(text, **args):
+                            return text
 
 
                     def tux():
@@ -102,7 +107,10 @@ def test_locked_project(tmpdir):
                     setup(
                         name="speak",
                         version="0.1",
-                        install_requires=["ansicolors", {cowsay_requirement!r}],
+                        install_requires=[{cowsay_requirement!r}],
+                        extras_require={{
+                            "color": ["ansicolors"],
+                        }},
                         entry_points={{
                             "console_scripts": [
                                 "speak = speak:tux",
@@ -116,11 +124,11 @@ def test_locked_project(tmpdir):
 
     def assert_pex(
         pex,  # type: str
-        expected_color,  # type: str
+        expected_color=None,  # type: Optional[str]
     ):
         # type: (...) -> None
         assert "| {message} |".format(
-            message=color("Moo?", fg=expected_color)
+            message=color("Moo?", fg=expected_color) if expected_color else "Moo?"
         ) in subprocess.check_output(args=[pex]).decode("utf-8")
 
     pex_root = os.path.join(str(tmpdir), "pex-root")
@@ -128,9 +136,19 @@ def test_locked_project(tmpdir):
     write_speak(fg_color="brown")
     write_setup(cowsay_requirement="cowsay<5")
 
+    project_with_color = "{project_dir}[color]".format(project_dir=project_dir)
+
     project_lock = os.path.join(str(tmpdir), "project-lock.json")
     run_pex3(
-        "lock", "create", "--pex-root", pex_root, project_dir, "--indent", "2", "-o", project_lock
+        "lock",
+        "create",
+        "--pex-root",
+        pex_root,
+        project_with_color,
+        "--indent",
+        "2",
+        "-o",
+        project_lock,
     ).assert_success()
     pex1 = os.path.join(str(tmpdir), "pex1")
     run_pex_command(
@@ -156,7 +174,7 @@ def test_locked_project(tmpdir):
         "--pex-root",
         pex_root,
         "--project",
-        project_dir,
+        project_with_color,
         "--indent",
         "2",
         "-o",
@@ -170,7 +188,7 @@ def test_locked_project(tmpdir):
             "--runtime-pex-root",
             pex_root,
             "--project",
-            project_dir,
+            project_with_color,
             "--lock",
             third_party_lock,
             "-c",
@@ -235,7 +253,7 @@ def test_locked_project(tmpdir):
             pex3,
         ]
     ).assert_success()
-    assert_pex(pex3, expected_color="blue")
+    assert_pex(pex3)
 
     # If the project is updated in a way incompatible with the lock, building a
     # `pex --project ... --lock ...` should fail.
@@ -286,7 +304,7 @@ def test_locked_project(tmpdir):
         "--pex-root",
         pex_root,
         "--project",
-        project_dir,
+        project_with_color,
         "--indent",
         "2",
         "--lock",
@@ -299,7 +317,7 @@ def test_locked_project(tmpdir):
             "--runtime-pex-root",
             pex_root,
             "--project",
-            project_dir,
+            project_with_color,
             "--lock",
             third_party_lock,
             "-c",
