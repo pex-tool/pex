@@ -8,6 +8,7 @@ from collections import OrderedDict
 
 from pex.common import pluralize
 from pex.dependency_configuration import DependencyConfiguration
+from pex.dist_metadata import Requirement
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.requirements import LocalProjectRequirement, parse_requirement_strings
@@ -21,7 +22,7 @@ from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Dict, Iterable, Optional, Tuple, Union
+    from typing import Dict, Iterable, List, Optional, Text, Tuple, Union
 
     import attr  # vendor:skip
 
@@ -64,12 +65,36 @@ def subset(
                 network_configuration
             )
         )
-        requirements_to_resolve = OrderedSet(
-            lock.local_project_requirement_mapping[os.path.abspath(parsed_requirement.path)]
-            if isinstance(parsed_requirement, LocalProjectRequirement)
-            else parsed_requirement.requirement
-            for parsed_requirement in parsed_requirements
-        )
+        missing_local_projects = []  # type: List[Text]
+        requirements_to_resolve = OrderedSet()  # type: OrderedSet[Requirement]
+        for parsed_requirement in parsed_requirements:
+            if isinstance(parsed_requirement, LocalProjectRequirement):
+                local_project_requirement = lock.local_project_requirement_mapping.get(
+                    os.path.abspath(parsed_requirement.path)
+                )
+                if local_project_requirement:
+                    requirements_to_resolve.add(local_project_requirement)
+                else:
+                    missing_local_projects.append(parsed_requirement.line.processed_text)
+            else:
+                requirements_to_resolve.add(parsed_requirement.requirement)
+        if missing_local_projects:
+            return Error(
+                "Found {count} local project {requirements} not present in the lock at {lock}:\n"
+                "{missing}\n"
+                "\n"
+                "Perhaps{for_example} you meant to use `--project {project}`?".format(
+                    count=len(missing_local_projects),
+                    requirements=pluralize(missing_local_projects, "requirement"),
+                    lock=lock.source,
+                    missing="\n".join(
+                        "{index}. {missing}".format(index=index, missing=missing)
+                        for index, missing in enumerate(missing_local_projects, start=1)
+                    ),
+                    for_example=", as one example," if len(missing_local_projects) > 1 else "",
+                    project=missing_local_projects[0],
+                )
+            )
 
     resolved_by_target = OrderedDict()  # type: OrderedDict[Target, Resolved]
     errors_by_target = {}  # type: Dict[Target, Iterable[Error]]
