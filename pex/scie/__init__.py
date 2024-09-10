@@ -152,9 +152,9 @@ def register_options(parser):
         type=bool,
         action=HandleBoolAction,
         help=(
-            "When creating a busybox, allow entrypoint control via PEX_INTERPRETER, PEX_SCRIPT and "
-            "PEX_MODULE. Note that when using --venv this adds modest startup overhead on the "
-            "order of 10ms."
+            "When creating a busybox, allow overriding the primary entrypoint at runtime via "
+            "PEX_INTERPRETER, PEX_SCRIPT and PEX_MODULE. Note that when using --venv this adds "
+            "modest startup overhead on the order of 10ms."
         ),
     )
     parser.add_argument(
