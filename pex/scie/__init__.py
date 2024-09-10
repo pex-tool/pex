@@ -145,6 +145,19 @@ def register_options(parser):
         ),
     )
     parser.add_argument(
+        "--scie-busybox-pex-entrypoint-env-passthrough",
+        "--no-scie-busybox-pex-entrypoint-env-passthrough",
+        dest="scie_busybox_pex_entrypoint_env_passthrough",
+        default=False,
+        type=bool,
+        action=HandleBoolAction,
+        help=(
+            "When creating a busybox, allow entrypoint control via PEX_INTERPRETER, PEX_SCRIPT and "
+            "PEX_MODULE. Note that when using --venv this adds modest startup overhead on the "
+            "order of 10ms."
+        ),
+    )
+    parser.add_argument(
         "--scie-platform",
         dest="scie_platforms",
         default=[],
@@ -269,6 +282,8 @@ def render_options(options):
         entrypoints = list(options.busybox_entrypoints.console_scripts_manifest.iter_specs())
         entrypoints.extend(map(str, options.busybox_entrypoints.ad_hoc_entry_points))
         args.append(",".join(entrypoints))
+    if options.busybox_pex_entrypoint_env_passthrough:
+        args.append("--scie-busybox-pex-entrypoint-env-passthrough")
     for platform in options.platforms:
         args.append("--scie-platform")
         args.append(str(platform))
@@ -368,6 +383,7 @@ def extract_options(options):
         naming_style=options.naming_style,
         scie_only=options.scie_only,
         busybox_entrypoints=entry_points,
+        busybox_pex_entrypoint_env_passthrough=options.scie_busybox_pex_entrypoint_env_passthrough,
         platforms=tuple(OrderedSet(options.scie_platforms)),
         pbs_release=options.scie_pbs_release,
         pypy_release=options.scie_pypy_release,

@@ -159,18 +159,26 @@ def create_manifests(
 
         def create_cmd(named_entry_point):
             # type: (NamedEntryPoint) -> Dict[str, Any]
-            return {
-                "name": named_entry_point.name,
-                "env": {
+
+            if (
+                configuration.options.busybox_pex_entrypoint_env_passthrough
+                and named_entry_point.entry_point == pex_entry_point
+            ):
+                env = {"default": default_env(named_entry_point), "remove_exact": ["PEX_VENV"]}
+            else:
+                env = {
                     "default": default_env(named_entry_point),
                     "replace": {"PEX_MODULE": str(named_entry_point.entry_point)},
                     "remove_exact": ["PEX_INTERPRETER", "PEX_SCRIPT", "PEX_VENV"],
-                },
+                }
+            return {
+                "name": named_entry_point.name,
+                "env": env,
                 "exe": "{scie.bindings.configure:PYTHON}",
                 "args": args(named_entry_point, "{scie.bindings.configure:PEX}"),
             }
 
-        if pex_info.venv:
+        if pex_info.venv and not configuration.options.busybox_pex_entrypoint_env_passthrough:
             # N.B.: Executing the console script directly instead of bouncing through the PEX
             # __main__.py using PEX_SCRIPT saves ~10ms of re-exec overhead in informal testing; so
             # it's worth specializing here.

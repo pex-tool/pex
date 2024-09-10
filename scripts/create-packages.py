@@ -126,6 +126,7 @@ def build_pex_scies(
             "sha256",
             "--scie-busybox",
             "@pex",
+            "--scie-busybox-pex-entrypoint-env-passthrough",
             "-o",
             output_file,
             "-c",
