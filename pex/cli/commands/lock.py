@@ -655,6 +655,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         resolver_options.register_network_options(resolver_options_parser)
         resolver_options.register_max_jobs_option(resolver_options_parser)
         resolver_options.register_use_pip_config(resolver_options_parser)
+        resolver_options.register_preserve_pip_download_log(resolver_options_parser)
 
     @classmethod
     def add_update_lock_options(
@@ -1085,6 +1086,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             max_jobs=resolver_options.get_max_jobs_value(self.options),
             use_pip_config=resolver_options.get_use_pip_config_value(self.options),
             dependency_configuration=dependency_config,
+            preserve_log=resolver_options.get_preserve_pip_download_log(self.options),
         )
 
         target_configuration = target_options.configure(self.options)
