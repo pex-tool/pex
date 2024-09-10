@@ -53,7 +53,9 @@ jobs:
       - name: Check Packaging
         uses: pantsbuild/actions/run-tox@b16b9cf47cd566acfe217b1dafc5b452e27e6fd7
         with:
-          tox-env: package -- --additional-format sdist --additional-format wheel --embed-docs --clean-docs
+          tox-env: >-
+            package -- --additional-format sdist --additional-format wheel --embed-docs --clean-docs
+            --scies --gen-md-table-of-hash-and-size dist/hashes.md
       - name: Check Docs
         uses: pantsbuild/actions/run-tox@b16b9cf47cd566acfe217b1dafc5b452e27e6fd7
         with:

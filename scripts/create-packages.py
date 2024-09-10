@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 
+from __future__ import absolute_import, annotations
+
 import atexit
+import glob
 import hashlib
 import io
 import os
@@ -15,7 +18,11 @@ from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path, PurePath
 from typing import Dict, Iterator, Optional, Tuple, cast
 
+from package.scie_config import ScieConfig
+from pex.common import safe_mkdtemp
+
 DIST_DIR = Path("dist")
+PACKAGE_DIR = Path("package")
 
 
 def build_pex_pex(
@@ -51,6 +58,95 @@ def build_pex_pex(
     ]
     subprocess.run(args=args, env=env, check=True)
     return output_file
+
+
+def build_pex_scies(
+    scie_dest_dir: Path, verbosity: int = 0, env: Optional[Dict[str, str]] = None
+) -> Iterator[tuple[Path, str]]:
+    scie_config = ScieConfig.load()
+
+    pex_requirement = f".[{','.join(scie_config.pex_extras)}]"
+
+    lock = PACKAGE_DIR / "pex-scie.lock"
+    if not lock.exists():
+        raise SystemExit(
+            f"The Pex scie lock at {lock} does not exist.\n"
+            f"Run `tox -e gen-scie-platform -- --all ...` to generate it."
+        )
+
+    missing_platforms: list[str] = []
+    platforms: list[tuple[str, Path]] = []
+    for platform in scie_config.platforms:
+        complete_platform = PACKAGE_DIR / "complete-platforms" / f"{platform}.json"
+        if not complete_platform.exists():
+            missing_platforms.append(platform)
+        else:
+            platforms.append((platform, complete_platform))
+    if missing_platforms:
+        missing = "\n".join(
+            f"{index}. {missing_platform}"
+            for index, missing_platform in enumerate(missing_platforms, start=1)
+        )
+        raise SystemExit(
+            f"Of the {len(platforms)} expected Pex scie complete platforms, "
+            f"{len(missing)} {'is' if len(missing) == 1 else 'are'} missing:\n{missing}"
+        )
+
+    for platform, complete_platform in platforms:
+        dest_dir = safe_mkdtemp()
+        output_file = os.path.join(dest_dir, "pex")
+        args = [
+            sys.executable,
+            "-m",
+            "pex",
+            *["-v" for _ in range(verbosity)],
+            "--disable-cache",
+            "--no-build",
+            "--no-compile",
+            "--no-use-system-time",
+            "--venv",
+            "--no-strip-pex-env",
+            "--complete-platform",
+            str(complete_platform),
+            "--lock",
+            str(lock),
+            "--scie",
+            "eager",
+            "--scie-only",
+            "--scie-name-style",
+            "platform-file-suffix",
+            "--scie-platform",
+            platform,
+            "--scie-pbs-release",
+            scie_config.pbs_release,
+            "--scie-python-version",
+            scie_config.python_version,
+            "--scie-pbs-stripped",
+            "--scie-hash-alg",
+            "sha256",
+            "--scie-busybox",
+            "@pex",
+            "-o",
+            output_file,
+            "-c",
+            "pex",
+            "--project",
+            pex_requirement,
+        ]
+        subprocess.run(args=args, env=env, check=True)
+
+        artifacts = glob.glob(f"{output_file}*")
+        scie_artifacts = [artifact for artifact in artifacts if not artifact.endswith(".sha256")]
+        if len(scie_artifacts) != 1:
+            raise SystemExit(
+                f"Found unexpected artifacts after generating Pex scie:{os.linesep}"
+                f"{os.linesep.join(sorted(artifacts))}"
+            )
+        scie_name = os.path.basename(scie_artifacts[0])
+        for artifact in artifacts:
+            shutil.move(artifact, scie_dest_dir / os.path.basename(artifact))
+
+        yield scie_dest_dir / scie_name, platform
 
 
 def describe_rev() -> str:
@@ -128,21 +224,40 @@ def main(
     embed_docs: bool = False,
     clean_docs: bool = False,
     pex_output_file: Optional[Path] = DIST_DIR / "pex",
+    scie_dest_dir: Optional[Path] = None,
+    markdown_hash_table_file: Optional[Path] = None,
     serve: bool = False
 ) -> None:
     env = os.environ.copy()
     if embed_docs:
         env.update(__PEX_BUILD_INCLUDE_DOCS__="1")
 
+    hash_table: dict[Path, tuple[str, int]] = {}
     if pex_output_file:
         print(f"Building Pex PEX to `{pex_output_file}` ...")
         build_pex_pex(pex_output_file, verbosity, env=env)
 
         rev = describe_rev()
         sha256, size = describe_file(pex_output_file)
+        hash_table[pex_output_file] = sha256, size
         print(f"Built Pex PEX @ {rev}:")
         print(f"sha256: {sha256}")
         print(f"  size: {size}")
+
+    if scie_dest_dir:
+        print(f"Building Pex scies to `{scie_dest_dir}` ...")
+        for scie, platform in build_pex_scies(scie_dest_dir, verbosity, env=env):
+            hash_table[scie] = describe_file(scie)
+            print(f"  Built Pex scie for {platform} at `{scie}`")
+
+    if markdown_hash_table_file and hash_table:
+        with markdown_hash_table_file.open(mode="w") as fp:
+            print("|file|sha256|size|", file=fp)
+            print("|----|------|----|", file=fp)
+            for file, (sha256, size) in sorted(hash_table.items()):
+                print(f"|{file.name}|{sha256}|{size}|", file=fp)
+
+        print(f"Generated markdown table of Pex sizes & hashes at `{markdown_hash_table_file}`")
 
     if additional_dist_formats:
         print(
@@ -215,6 +330,24 @@ if __name__ == "__main__":
         help="Build the Pex PEX at this path.",
     )
     parser.add_argument(
+        "--scies",
+        default=False,
+        action="store_true",
+        help="Build PEX scies.",
+    )
+    parser.add_argument(
+        "--scie-dest-dir",
+        default=DIST_DIR,
+        type=Path,
+        help="Build the Pex scies in this dir.",
+    )
+    parser.add_argument(
+        "--gen-md-table-of-hash-and-size",
+        default=None,
+        type=Path,
+        help="A path to generate a markdown table of packaged asset hashes to.",
+    )
+    parser.add_argument(
         "--serve",
         default=False,
         action="store_true",
@@ -228,5 +361,7 @@ if __name__ == "__main__":
         embed_docs=args.embed_docs,
         clean_docs=args.clean_docs,
         pex_output_file=None if args.no_pex else args.pex_output_file,
+        scie_dest_dir=args.scie_dest_dir if args.scies else None,
+        markdown_hash_table_file=args.gen_md_table_of_hash_and_size,
         serve=args.serve
     )

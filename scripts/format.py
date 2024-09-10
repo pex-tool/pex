@@ -41,6 +41,7 @@ def run_black(*args: str) -> None:
                 *args,
                 "build-backend",
                 "docs",
+                "package",
                 "pex",
                 "scripts",
                 "testing",
@@ -54,7 +55,17 @@ def run_black(*args: str) -> None:
 
 def run_isort(*args: str) -> None:
     subprocess.run(
-        args=["isort", *args, "build-backend", "docs", "pex", "scripts", "testing", "tests"],
+        args=[
+            "isort",
+            *args,
+            "build-backend",
+            "docs",
+            "package",
+            "pex",
+            "scripts",
+            "testing",
+            "tests",
+        ],
         check=True,
     )
 

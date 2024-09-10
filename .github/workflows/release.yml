@@ -88,7 +88,7 @@ jobs:
       - name: Package Pex ${{ needs.determine-tag.outputs.release-tag }} PEX
         uses: pantsbuild/actions/run-tox@b16b9cf47cd566acfe217b1dafc5b452e27e6fd7
         with:
-          tox-env: package -- --embed-docs
+          tox-env: package -- --embed-docs --scies --gen-md-table-of-hash-and-size dist/hashes.md
       - name: Generate Pex ${{ needs.determine-tag.outputs.release-tag }} PDF
         uses: pantsbuild/actions/run-tox@b16b9cf47cd566acfe217b1dafc5b452e27e6fd7
         with:
@@ -97,7 +97,7 @@ jobs:
         uses: actions/attest-build-provenance@v1
         with:
           subject-path: |
-            dist/pex
+            dist/pex*
             dist/docs/pdf/pex.pdf
       - name: Prepare Changelog
         id: prepare-changelog
@@ -105,6 +105,12 @@ jobs:
         with:
           changelog-file: ${{ github.workspace }}/CHANGES.md
           version: ${{ needs.determine-tag.outputs.release-version }}
+      - name: Append Hashes to Changelog
+        run: |
+          changelog_tmp="$(mktemp)"
+          cat "${{ steps.prepare-changelog.outputs.changelog-file }}" <(echo '***') dist/hashes.md \
+            > "${changelog_tmp}"
+          mv "${changelog_tmp}" "${{ steps.prepare-changelog.outputs.changelog-file }}"
       - name: Create ${{ needs.determine-tag.outputs.release-tag }} Release
         uses: softprops/action-gh-release@v2
         with:

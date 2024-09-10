@@ -5,7 +5,6 @@ import os
 import subprocess
 import sys
 
-from pex.compatibility import PY3
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.resolve.locked_resolve import LocalProjectArtifact
@@ -13,7 +12,7 @@ from pex.resolve.lockfile import json_codec
 from pex.resolve.resolved_requirement import Pin
 from pex.typing import TYPE_CHECKING
 from pex.version import __version__
-from testing import PY38, ensure_python_interpreter, make_env
+from testing import PY310, ensure_python_interpreter, make_env, run_pex_command
 
 if TYPE_CHECKING:
     from typing import Any
@@ -25,12 +24,23 @@ def test_pep_518_venv_pex_env_scrubbing(
 ):
     # type: (...) -> None
 
-    # N.B.: The package script requires Python 3.
-    python = sys.executable if PY3 else ensure_python_interpreter(PY38)
-
-    package_script = os.path.join(pex_project_dir, "scripts", "package.py")
     pex_pex = os.path.join(str(tmpdir), "pex")
-    subprocess.check_call(args=[python, package_script, "--pex-output-file", pex_pex])
+    package_script = os.path.join(pex_project_dir, "scripts", "create-packages.py")
+    run_pex_command(
+        args=[
+            "toml",
+            pex_project_dir,
+            "--",
+            package_script,
+            "-v",
+            "--pex-output-file",
+            pex_pex,
+        ],
+        # The package script requires Python>=3.8.
+        python=(
+            sys.executable if sys.version_info[:2] >= (3, 8) else ensure_python_interpreter(PY310)
+        ),
+    ).assert_success()
 
     lock = os.path.join(str(tmpdir), "lock.json")
     subprocess.check_call(
