@@ -35,6 +35,15 @@ class ScieStyle(Enum["ScieStyle.Value"]):
     EAGER = Value("eager")
 
 
+class PlatformNamingStyle(Enum["PlatformNamingStyle.Value"]):
+    class Value(Enum.Value):
+        pass
+
+    DYNAMIC = Value("dynamic")
+    PARENT_DIR = Value("platform-parent-dir")
+    FILE_SUFFIX = Value("platform-file-suffix")
+
+
 @attr.s(frozen=True)
 class ConsoleScript(object):
     name = attr.ib()  # type: str
@@ -347,6 +356,8 @@ class File(str):
 @attr.s(frozen=True)
 class ScieOptions(object):
     style = attr.ib(default=ScieStyle.LAZY)  # type: ScieStyle.Value
+    naming_style = attr.ib(default=None)  # type: Optional[PlatformNamingStyle.Value]
+    scie_only = attr.ib(default=False)  # type: bool
     busybox_entrypoints = attr.ib(default=None)  # type: Optional[BusyBoxEntryPoints]
     platforms = attr.ib(default=())  # type: Tuple[SciePlatform.Value, ...]
     pbs_release = attr.ib(default=None)  # type: Optional[str]

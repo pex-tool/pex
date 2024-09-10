@@ -1080,3 +1080,46 @@ def test_pbs_stripped(tmpdir):
         pex_scie=pex_scie,
         pex_scie_size=pex_scie_size,
     )
+
+
+@skip_if_no_provider
+def test_scie_only(tmpdir):
+    # type: (Any) -> None
+
+    dist_dir = os.path.join(str(tmpdir), "dist")
+    output_file = os.path.join(dist_dir, "app.pex")
+    run_pex_command(args=["--scie", "lazy", "-o", output_file]).assert_success()
+    assert sorted(["app.pex", "app"]) == sorted(os.listdir(dist_dir))
+
+    shutil.rmtree(dist_dir)
+    run_pex_command(args=["--scie", "lazy", "--scie-only", "-o", output_file]).assert_success()
+    assert ["app"] == os.listdir(dist_dir)
+
+
+@skip_if_no_provider
+def test_scie_name_style_platform_file_suffix(tmpdir):
+    # type: (Any) -> None
+
+    dist_dir = os.path.join(str(tmpdir), "dist")
+    output_file = os.path.join(dist_dir, "app")
+    run_pex_command(
+        args=["--scie", "lazy", "--scie-name-style", "platform-file-suffix", "-o", output_file]
+    ).assert_success()
+    assert sorted(["app", SciePlatform.CURRENT.qualified_binary_name("app")]) == sorted(
+        os.listdir(dist_dir)
+    )
+
+
+@skip_if_no_provider
+def test_scie_name_style_platform_parent_dir(tmpdir):
+    # type: (Any) -> None
+
+    dist_dir = os.path.join(str(tmpdir), "dist")
+    output_file = os.path.join(dist_dir, "app")
+    run_pex_command(
+        args=["--scie", "lazy", "--scie-name-style", "platform-parent-dir", "-o", output_file]
+    ).assert_success()
+    assert sorted(["app", SciePlatform.CURRENT.value]) == sorted(os.listdir(dist_dir))
+    assert [SciePlatform.CURRENT.binary_name("app")] == os.listdir(
+        os.path.join(dist_dir, SciePlatform.CURRENT.value)
+    )

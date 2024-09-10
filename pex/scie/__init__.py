@@ -18,6 +18,7 @@ from pex.scie.model import (
     ConsoleScriptsManifest,
     File,
     InterpreterDistribution,
+    PlatformNamingStyle,
     Provider,
     ScieConfiguration,
     ScieInfo,
@@ -64,20 +65,54 @@ def register_options(parser):
             "on machines with no Python installed at all. If your PEX has multiple targets, "
             "whether `--platform`s, `--complete-platform`s or local interpreters in any "
             "combination, then one PEX scie will be made for each platform, selecting the latest "
-            "compatible portable CPython interpreter. Note that only CPython>=3.8 is supported. If "
-            "you'd like to explicitly control the target platforms or the exact portable CPython "
-            "selected, see `--scie-platform`, `--scie-pbs-release` and `--scie-python-version`. "
-            "Specifying `--scie {lazy}` will fetch the portable CPython interpreter just in time "
-            "on first boot of the PEX scie on a given machine if needed. The URL(s) to fetch the "
-            "portable CPython interpreter from can be customized by exporting the "
-            "PEX_BOOTSTRAP_URLS environment variable pointing to a json file with the format: "
-            '`{{"ptex": {{<file name 1>: <url>, ...}}}}` where the file names should match those '
-            "found via `SCIE=inspect <the PEX scie> | jq .ptex` with appropriate replacement URLs. "
-            "Specifying `--scie {eager}` will embed the portable CPython interpreter in your PEX "
-            "scie making for a larger file, but requiring no internet access to boot. If you have "
-            "customization needs not addressed by the Pex `--scie*` options, consider using "
-            "`science` to build your scies (which is what Pex uses behind the scenes); see: "
-            "https://science.scie.app.".format(lazy=ScieStyle.LAZY, eager=ScieStyle.EAGER)
+            "compatible portable CPython or PyPy interpreter as appropriate. Note that only "
+            "Python>=3.8 is supported. If you'd like to explicitly control the target platforms or "
+            "the exact portable CPython selected, see `--scie-platform`, `--scie-pbs-release` and "
+            "`--scie-python-version`. Specifying `--scie {lazy}` will fetch the portable CPython "
+            "interpreter just in time on first boot of the PEX scie on a given machine if needed. "
+            "The URL(s) to fetch the portable CPython interpreter from can be customized by "
+            "exporting the PEX_BOOTSTRAP_URLS environment variable pointing to a json file with "
+            'the format: `{{"ptex": {{<file name 1>: <url>, ...}}}}` where the file names should '
+            "match those found via `SCIE=inspect <the PEX scie> | jq .ptex` with appropriate "
+            "replacement URLs. Specifying `--scie {eager}` will embed the portable CPython "
+            "interpreter in your PEX scie making for a larger file, but requiring no internet "
+            "access to boot. If you have customization needs not addressed by the Pex `--scie*` "
+            "options, consider using `science` to build your scies (which is what Pex uses behind "
+            "the scenes); see: https://science.scie.app.".format(
+                lazy=ScieStyle.LAZY, eager=ScieStyle.EAGER
+            )
+        ),
+    )
+    parser.add_argument(
+        "--scie-only",
+        "--no-scie-only",
+        "--pex-and-scie",
+        dest="scie_only",
+        default=False,
+        type=bool,
+        action=HandleBoolAction,
+        help=(
+            "Only output a scie. By default, both a PEX and a scie are output unless the "
+            "`-o` / `--output-file` specified has no '.pex' extension or a platform suffix is "
+            "included (see `--scie-name-platform`)."
+        ),
+    )
+    parser.add_argument(
+        "--scie-name-style",
+        dest="naming_style",
+        default=None,
+        type=PlatformNamingStyle.for_value,
+        choices=PlatformNamingStyle.values(),
+        help=(
+            "Control how the `-o` / --output-file` translates to a scie name. By default ("
+            "`--scie-name-style dynamic`), the platform is used as a file suffix only when needed "
+            "for disambiguation when targeting a local platform. Specifying "
+            "`--scie-name-style platform-file-suffix` forces the scie target platform name to be "
+            "added as a suffix of the output filename; e.g.: `-o app` would produce a scie named "
+            "app-linux-x86_64 assuming the scie targets that platform. Specifying "
+            "`--scie-name-style platform-parent-dir` places the scie in a sub-directory with the "
+            "name of the platform it targets; e.g.: `-o app` would produce a scie at "
+            "`macos-aarch64/app` assuming the scie targets that platform."
         ),
     )
     parser.add_argument(
@@ -126,7 +161,8 @@ def register_options(parser):
             "unspecified, the platforms implied by the targets selected to build the PEX with are "
             "used. Those targets are influenced by the current interpreter running Pex as well as "
             "use of `--python`, `--interpreter-constraint`, `--platform` or `--complete-platform` "
-            "options."
+            "options. Note that, in general, `--scie-platform` should only be used to select a "
+            "subset of the platforms implied by the targets selected via other options."
         ),
     )
     parser.add_argument(
@@ -223,6 +259,11 @@ def render_options(options):
     # type: (ScieOptions) -> Text
 
     args = ["--scie", str(options.style)]  # type: List[Text]
+    if options.naming_style:
+        args.append("--scie-name-style")
+        args.append(str(options.naming_style))
+    if options.scie_only:
+        args.append("--scie-only")
     if options.busybox_entrypoints:
         args.append("--scie-busybox")
         entrypoints = list(options.busybox_entrypoints.console_scripts_manifest.iter_specs())
@@ -324,6 +365,8 @@ def extract_options(options):
 
     return ScieOptions(
         style=options.scie_style,
+        naming_style=options.naming_style,
+        scie_only=options.scie_only,
         busybox_entrypoints=entry_points,
         platforms=tuple(OrderedSet(options.scie_platforms)),
         pbs_release=options.scie_pbs_release,
