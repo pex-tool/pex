@@ -8,7 +8,7 @@ import sys
 import pytest
 
 from pex.typing import TYPE_CHECKING
-from testing import IS_LINUX, PY38, ensure_python_interpreter, make_env, run_pex_command
+from testing import IS_LINUX, PY310, ensure_python_interpreter, make_env, run_pex_command
 
 if TYPE_CHECKING:
     from typing import Any
@@ -21,7 +21,7 @@ def test_packaging(
 ):
     # type: (...) -> None
     pex = os.path.join(str(tmpdir), "pex.pex")
-    package_script = os.path.join(pex_project_dir, "scripts", "package.py")
+    package_script = os.path.join(pex_project_dir, "scripts", "create-packages.py")
     run_pex_command(
         args=[
             "toml",
@@ -32,8 +32,10 @@ def test_packaging(
             "--pex-output-file",
             pex,
         ],
-        # The package script requires Python 3.
-        python=sys.executable if sys.version_info[0] >= 3 else ensure_python_interpreter(PY38),
+        # The package script requires Python>=3.8.
+        python=(
+            sys.executable if sys.version_info[:2] >= (3, 8) else ensure_python_interpreter(PY310)
+        ),
     ).assert_success()
     assert os.path.exists(pex), "Expected {pex} to be created by {package_script}.".format(
         pex=pex, package_script=package_script

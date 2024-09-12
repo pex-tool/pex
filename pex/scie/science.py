@@ -25,6 +25,7 @@ from pex.result import Error, try_
 from pex.scie.model import (
     File,
     InterpreterDistribution,
+    PlatformNamingStyle,
     Provider,
     ScieConfiguration,
     ScieInfo,
@@ -158,18 +159,26 @@ def create_manifests(
 
         def create_cmd(named_entry_point):
             # type: (NamedEntryPoint) -> Dict[str, Any]
-            return {
-                "name": named_entry_point.name,
-                "env": {
+
+            if (
+                configuration.options.busybox_pex_entrypoint_env_passthrough
+                and named_entry_point.entry_point == pex_entry_point
+            ):
+                env = {"default": default_env(named_entry_point), "remove_exact": ["PEX_VENV"]}
+            else:
+                env = {
                     "default": default_env(named_entry_point),
                     "replace": {"PEX_MODULE": str(named_entry_point.entry_point)},
                     "remove_exact": ["PEX_INTERPRETER", "PEX_SCRIPT", "PEX_VENV"],
-                },
+                }
+            return {
+                "name": named_entry_point.name,
+                "env": env,
                 "exe": "{scie.bindings.configure:PYTHON}",
                 "args": args(named_entry_point, "{scie.bindings.configure:PEX}"),
             }
 
-        if pex_info.venv:
+        if pex_info.venv and not configuration.options.busybox_pex_entrypoint_env_passthrough:
             # N.B.: Executing the console script directly instead of bouncing through the PEX
             # __main__.py using PEX_SCRIPT saves ~10ms of re-exec overhead in informal testing; so
             # it's worth specializing here.
@@ -414,7 +423,15 @@ def build(
     )
     name = re.sub(r"\.pex$", "", os.path.basename(pex_file), flags=re.IGNORECASE)
     pex = PEX(pex_file)
-    use_platform_suffix = len(configuration.interpreters) > 1
+
+    naming_style = configuration.options.naming_style or PlatformNamingStyle.DYNAMIC
+    if PlatformNamingStyle.FILE_SUFFIX is naming_style:
+        use_platform_suffix = True
+    elif PlatformNamingStyle.PARENT_DIR is naming_style:
+        use_platform_suffix = False
+    else:
+        use_platform_suffix = len(configuration.interpreters) > 1
+
     filenames = Filenames.avoid_collisions_with(name)
 
     errors = OrderedDict()  # type: OrderedDict[Manifest, str]
@@ -423,6 +440,8 @@ def build(
         if env.PEX_VERBOSE:
             args.append("-{verbosity}".format(verbosity="v" * env.PEX_VERBOSE))
         dest_dir = os.path.dirname(os.path.abspath(pex_file))
+        if PlatformNamingStyle.PARENT_DIR is naming_style:
+            dest_dir = os.path.join(dest_dir, manifest.interpreter.platform.value)
         args.extend(
             [
                 "lift",

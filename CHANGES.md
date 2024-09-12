@@ -1,5 +1,41 @@
 # Release Notes
 
+## 2.18.0
+
+This release adds support for `pex3 cache {dir,info,purge}` for
+inspecting and managing the Pex cache. Notably, the `pex3 cache purge`
+command is safe in the face of concurrent PEX runs, waiting for in
+flight PEX runs to complete and blocking new runs from starting once the
+purge is in progress. N.B.: when using `pex3 cache purge` it is best to
+install Pex with the 'management' extra; e.g.:
+`pip install pex[management]`. Alternatively, one of the new Pex scie
+binary releases can be used.
+
+In order to release a Pex binary that can support the new `pex3` cache
+management commands first class, a set of enhancements to project
+locking and scie generation were added. When using `--project` you can
+now specify extras; e.g.: `--project ./the/project-dir[extra1,extra2]`.
+When creating a Pex scie, you can now better control the output files
+using `--scie-only` to ensure no PEX file is emitted and
+`--scie-name-style` to control how the scie target platform name is
+mixed into the scie output file name. Additionally, you can request one
+or more shasum-compatible checksum files be emitted for each scie with
+`--scie-hash-alg`.
+
+On the locking front, an obscure bug locking project releases that
+contain artifacts that mis-report their version number via their file
+name has been fixed.
+
+Finally, the vendored Pip has had its own vendored CA cert bundle
+upgraded from that in certifi 2024.7.4 to that in certifi 2024.8.30.
+
+* Fix locking of sdists rejected by Pip. (#2524)
+* Add `--scie-only` & `--scie-name-style`. (#2523)
+* Support `--project` extras. (#2522)
+* Support shasum file gen via `--scie-hash-alg`. (#2520)
+* Update vendored Pip's CA cert bundle. (#2517)
+* Introduce `pex3 cache {dir,info,purge}`. (#2513)
+
 ## 2.17.0
 
 This release brings support for overriding the versions of setuptools

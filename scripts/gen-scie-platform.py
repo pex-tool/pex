@@ -15,16 +15,16 @@ import time
 import zipfile
 from argparse import ArgumentError, ArgumentTypeError
 from contextlib import contextmanager
-from dataclasses import dataclass
 from pathlib import Path
 from textwrap import dedent
 from typing import IO, Collection, Iterable, Iterator
 
 import github
 import httpx
-import toml
 from github import Github
 from github.WorkflowRun import WorkflowRun
+
+from package.scie_config import ScieConfig
 
 logger = logging.getLogger(__name__)
 
@@ -35,25 +35,6 @@ class GitHubError(Exception):
 
 PACKAGE_DIR = Path("package")
 GEN_SCIE_PLATFORMS_WORKFLOW = "gen-scie-platforms.yml"
-
-
-@dataclass(frozen=True)
-class ScieConfig:
-    @classmethod
-    def load(cls, *, pbs_release: str | None = None, python_version: str | None = None):
-        with (PACKAGE_DIR / "package.toml").open() as fp:
-            scie_config = toml.load(fp)["scie"]
-        return cls(
-            pbs_release=pbs_release or scie_config["pbs-release"],
-            python_version=python_version or scie_config["python-version"],
-            pex_extras=tuple(scie_config["pex-extras"]),
-            platforms=tuple(scie_config["platforms"]),
-        )
-
-    pbs_release: str
-    python_version: str
-    pex_extras: tuple[str, ...]
-    platforms: tuple[str, ...]
 
 
 def create_all_complete_platforms(

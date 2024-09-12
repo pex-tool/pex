@@ -30,7 +30,7 @@ class AdjustBuild(BuildHookInterface):
             subprocess.check_call(
                 args=[
                     sys.executable,
-                    os.path.join(self.root, "scripts", "build_docs.py"),
+                    os.path.join(self.root, "scripts", "build-docs.py"),
                     "--clean-html",
                     out_dir,
                 ]

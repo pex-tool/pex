@@ -1,4 +1,4 @@
 # Copyright 2015 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-__version__ = "2.17.0"
+__version__ = "2.18.0"

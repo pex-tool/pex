@@ -1375,6 +1375,8 @@ def do_main(
                         ),
                         V=options.verbosity,
                     )
+                if scie_configuration.options.scie_only:
+                    os.unlink(pex_file)
     else:
         if not _compatible_with_current_platform(interpreter, targets.platforms):
             log("WARNING: attempting to run PEX with incompatible platforms!", V=1)

@@ -1,0 +1,138 @@
+{
+  "allow_builds": false,
+  "allow_prereleases": false,
+  "allow_wheels": true,
+  "build_isolation": true,
+  "constraints": [],
+  "excluded": [],
+  "locked_resolves": [
+    {
+      "locked_requirements": [
+        {
+          "artifacts": [
+            {
+              "algorithm": "sha256",
+              "hash": "c588a7e9b1173b6e866756dde596fd4cad94f9399daf99ad8c3258b3cb2b47a0",
+              "url": "https://files.pythonhosted.org/packages/0b/37/f8da2fbd29690b3557cca414c1949f92162981920699cd62095a984983bf/psutil-6.0.0-cp36-abi3-macosx_10_9_x86_64.whl"
+            }
+          ],
+          "project_name": "psutil",
+          "requires_dists": [
+            "enum34; python_version <= \"3.4\" and extra == \"test\"",
+            "ipaddress; python_version < \"3.0\" and extra == \"test\"",
+            "mock; python_version < \"3.0\" and extra == \"test\"",
+            "pywin32; sys_platform == \"win32\" and extra == \"test\"",
+            "wmi; sys_platform == \"win32\" and extra == \"test\""
+          ],
+          "requires_python": "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*,>=2.7",
+          "version": "6.0.0"
+        }
+      ],
+      "platform_tag": [
+        "cp312",
+        "cp312",
+        "macosx_13_0_x86_64"
+      ]
+    },
+    {
+      "locked_requirements": [
+        {
+          "artifacts": [
+            {
+              "algorithm": "sha256",
+              "hash": "5fd9a97c8e94059b0ef54a7d4baf13b405011176c3b6ff257c247cae0d560ecd",
+              "url": "https://files.pythonhosted.org/packages/19/74/f59e7e0d392bc1070e9a70e2f9190d652487ac115bb16e2eff6b22ad1d24/psutil-6.0.0-cp36-abi3-manylinux_2_12_x86_64.manylinux2010_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+            }
+          ],
+          "project_name": "psutil",
+          "requires_dists": [
+            "enum34; python_version <= \"3.4\" and extra == \"test\"",
+            "ipaddress; python_version < \"3.0\" and extra == \"test\"",
+            "mock; python_version < \"3.0\" and extra == \"test\"",
+            "pywin32; sys_platform == \"win32\" and extra == \"test\"",
+            "wmi; sys_platform == \"win32\" and extra == \"test\""
+          ],
+          "requires_python": "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*,>=2.7",
+          "version": "6.0.0"
+        }
+      ],
+      "platform_tag": [
+        "cp312",
+        "cp312",
+        "manylinux_2_31_x86_64"
+      ]
+    },
+    {
+      "locked_requirements": [
+        {
+          "artifacts": [
+            {
+              "algorithm": "sha256",
+              "hash": "ffe7fc9b6b36beadc8c322f84e1caff51e8703b88eee1da46d1e3a6ae11b4fd0",
+              "url": "https://files.pythonhosted.org/packages/7c/06/63872a64c312a24fb9b4af123ee7007a306617da63ff13bcc1432386ead7/psutil-6.0.0-cp38-abi3-macosx_11_0_arm64.whl"
+            }
+          ],
+          "project_name": "psutil",
+          "requires_dists": [
+            "enum34; python_version <= \"3.4\" and extra == \"test\"",
+            "ipaddress; python_version < \"3.0\" and extra == \"test\"",
+            "mock; python_version < \"3.0\" and extra == \"test\"",
+            "pywin32; sys_platform == \"win32\" and extra == \"test\"",
+            "wmi; sys_platform == \"win32\" and extra == \"test\""
+          ],
+          "requires_python": "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*,>=2.7",
+          "version": "6.0.0"
+        }
+      ],
+      "platform_tag": [
+        "cp312",
+        "cp312",
+        "macosx_14_0_arm64"
+      ]
+    },
+    {
+      "locked_requirements": [
+        {
+          "artifacts": [
+            {
+              "algorithm": "sha256",
+              "hash": "e2e8d0054fc88153ca0544f5c4d554d42e33df2e009c4ff42284ac9ebdef4132",
+              "url": "https://files.pythonhosted.org/packages/cd/5f/60038e277ff0a9cc8f0c9ea3d0c5eb6ee1d2470ea3f9389d776432888e47/psutil-6.0.0-cp36-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"
+            }
+          ],
+          "project_name": "psutil",
+          "requires_dists": [
+            "enum34; python_version <= \"3.4\" and extra == \"test\"",
+            "ipaddress; python_version < \"3.0\" and extra == \"test\"",
+            "mock; python_version < \"3.0\" and extra == \"test\"",
+            "pywin32; sys_platform == \"win32\" and extra == \"test\"",
+            "wmi; sys_platform == \"win32\" and extra == \"test\""
+          ],
+          "requires_python": "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*,>=2.7",
+          "version": "6.0.0"
+        }
+      ],
+      "platform_tag": [
+        "cp312",
+        "cp312",
+        "manylinux_2_31_aarch64"
+      ]
+    }
+  ],
+  "only_builds": [],
+  "only_wheels": [],
+  "overridden": [],
+  "path_mappings": {},
+  "pex_version": "2.17.0",
+  "pip_version": "24.2",
+  "prefer_older_binary": false,
+  "requirements": [
+    "psutil>=5.3"
+  ],
+  "requires_python": [],
+  "resolver_version": "pip-2020-resolver",
+  "style": "strict",
+  "target_systems": [],
+  "transitive": true,
+  "use_pep517": null
+}
