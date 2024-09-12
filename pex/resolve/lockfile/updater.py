@@ -619,6 +619,7 @@ class LockUpdater(object):
         max_jobs,  # type: int
         use_pip_config,  # type: bool
         dependency_configuration,  # type: DependencyConfiguration
+        preserve_log,  # type: bool
     ):
         # type: (...) -> LockUpdater
 
@@ -637,6 +638,7 @@ class LockUpdater(object):
             network_configuration=network_configuration,
             max_jobs=max_jobs,
             use_pip_config=use_pip_config,
+            preserve_log=preserve_log,
         )
         return cls(
             lock_file=lock_file,
