@@ -120,7 +120,7 @@ jobs:
           draft: false
           prerelease: false
           files: |
-            dist/pex
+            dist/pex*
             dist/docs/pdf/pex.pdf
           fail_on_unmatched_files: true
           discussion_category_name: Announcements

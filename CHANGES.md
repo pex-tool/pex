@@ -18,11 +18,18 @@ now specify extras; e.g.: `--project ./the/project-dir[extra1,extra2]`.
 When creating a Pex scie, you can now better control the output files
 using `--scie-only` to ensure no PEX file is emitted and
 `--scie-name-style` to control how the scie target platform name is
-mixed into the scie output file name.
+mixed into the scie output file name. Additionally, you can request one
+or more shasum-compatible checksum files be emitted for each scie with
+`--scie-hash-alg`.
+
+On the locking front, an obscure bug locking project releases that
+contain artifacts that mis-report their version number via their file
+name has been fixed.
 
 Finally, the vendored Pip has had its own vendored CA cert bundle
 upgraded from that in certifi 2024.7.4 to that in certifi 2024.8.30.
 
+* Fix locking of sdists rejected by Pip. (#2524)
 * Add `--scie-only` & `--scie-name-style`. (#2523)
 * Support `--project` extras. (#2522)
 * Support shasum file gen via `--scie-hash-alg`. (#2520)
