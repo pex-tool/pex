@@ -76,8 +76,7 @@ def resolve_from_dists(
             FingerprintedDistribution(
                 distribution=Distribution.load(dist_path), fingerprint=fingerprint
             )
-            for dist_path, fingerprint
-            in iter_map_parallel(
+            for dist_path, fingerprint in iter_map_parallel(
                 inputs=wheels,
                 function=_fingerprint_dist,
                 max_jobs=pip_configuration.max_jobs,
