@@ -1,5 +1,15 @@
 # Release Notes
 
+## 2.19.0
+
+This release adds support for a new `--pre-resolved-dists` resolver as
+an alternative to the existing Pip resolver, `--lock` resolver and
+`--pex-repository` resolvers. Using `--pre-resolved-dists dists/dir/`
+behaves much like `--no-pypi --find-links dists/dir/` except that it is
+roughly 3x faster.
+
+* Support `--pre-resolved-dists` resolver. (#2512)
+
 ## 2.18.1
 
 This release fixes `--scie-name-style platform-parent-dir` introduced in
