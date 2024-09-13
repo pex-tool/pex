@@ -8,8 +8,6 @@ import os.path
 import subprocess
 from textwrap import dedent
 
-import colors
-
 from pex.common import safe_open
 from pex.scie import SciePlatform
 from pex.typing import TYPE_CHECKING
@@ -17,6 +15,10 @@ from testing import make_env, run_pex_command
 
 if TYPE_CHECKING:
     from typing import Any
+
+    import colors  # vendor:skip
+else:
+    from pex.third_party import colors
 
 
 def test_discussion_2516_op(tmpdir):
