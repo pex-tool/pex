@@ -3,6 +3,7 @@
 
 from __future__ import absolute_import
 
+import glob
 import os.path
 import re
 import subprocess
@@ -15,6 +16,7 @@ from pex.atomic_directory import atomic_directory
 from pex.common import safe_open
 from pex.pep_503 import ProjectName
 from pex.pex import PEX
+from pex.pip.version import PipVersion
 from pex.typing import TYPE_CHECKING
 from testing import PY_VER, data, run_pex_command
 from testing.cli import run_pex3
@@ -24,7 +26,7 @@ if TYPE_CHECKING:
 
 
 skip_unless_supports_devpi_server_lock = pytest.mark.skipif(
-    PY_VER < (3, 8) or PY_VER >= (3, 14), reason="The uses a lock that requires Python>=3.8,<3.14"
+    PY_VER < (3, 10) or PY_VER >= (3, 14), reason="The uses a lock that requires Python>=3.10,<3.14"
 )
 
 
@@ -61,7 +63,7 @@ def test_pre_resolved_dists_nominal(
             "--",
             "--version",
         ]
-    ).assert_success(expected_output_re=re.escape("6.12.0"))
+    ).assert_success(expected_output_re=re.escape("6.12.1"))
 
 
 @skip_unless_supports_devpi_server_lock
@@ -150,6 +152,49 @@ def test_pre_resolved_dists_project_requirement(
     pex = os.path.join(str(tmpdir), "pex")
     run_pex_command(
         args=["--pre-resolved-dists", dists, "--project", local_project, "-m", "app", "-o", pex]
+    ).assert_success()
+
+    assert subprocess.check_output(args=[pex]).startswith(b"app: Pyramid version: 2.0.2")
+
+
+@skip_unless_supports_devpi_server_lock
+def test_pre_resolved_dists_offline(
+    tmpdir,  # type: Any
+    dists,  # type: str
+    local_project,  # type: str
+):
+    # type: (...) -> None
+
+    offline = os.path.join(str(tmpdir), "offline")
+    os.mkdir(offline)
+
+    # In order to go offline and still be able to build sdists, we need both the un-vendored Pip and
+    # its basic build requirements.
+    if PipVersion.DEFAULT is not PipVersion.VENDORED:
+        args = [sys.executable, "-m", "pip", "wheel", "-w", offline]
+        args.extend(str(req) for req in PipVersion.DEFAULT.requirements)
+        subprocess.check_call(args)
+
+    for dist in glob.glob(os.path.join(dists, "*")):
+        dest_dist = os.path.join(offline, os.path.basename(dist))
+        if not os.path.exists(dest_dist):
+            os.symlink(dist, dest_dist)
+
+    pex = os.path.join(str(tmpdir), "pex")
+    run_pex_command(
+        args=[
+            "--no-pypi",
+            "--find-links",
+            offline,
+            "--pre-resolved-dists",
+            offline,
+            "--project",
+            local_project,
+            "-m",
+            "app",
+            "-o",
+            pex,
+        ]
     ).assert_success()
 
     assert subprocess.check_output(args=[pex]).startswith(b"app: Pyramid version: 2.0.2")

@@ -101,6 +101,7 @@ def resolve(
                 sdists=resolver_configuration.sdists,
                 wheels=resolver_configuration.wheels,
                 requirement_configuration=requirement_configuration,
+                pip_configuration=resolver_configuration.pip_configuration,
                 compile=compile_pyc,
                 ignore_errors=ignore_errors,
                 result_type=result_type,
