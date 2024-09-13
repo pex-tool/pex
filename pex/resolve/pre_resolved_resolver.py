@@ -37,15 +37,12 @@ from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper
 
 if TYPE_CHECKING:
-    from typing import DefaultDict, Dict, Iterable, List
+    from typing import DefaultDict, Dict, Iterable, List, Tuple
 
 
 def _fingerprint_dist(dist_path):
-    # type: (str) -> FingerprintedDistribution
-    return FingerprintedDistribution(
-        distribution=Distribution.load(dist_path),
-        fingerprint=CacheHelper.hash(dist_path, hasher=hashlib.sha256),
-    )
+    # type: (str) -> Tuple[str, str]
+    return dist_path, CacheHelper.hash(dist_path, hasher=hashlib.sha256)
 
 
 def resolve_from_dists(
@@ -76,7 +73,11 @@ def resolve_from_dists(
     )  # type: List[str]
     with TRACER.timed("Fingerprinting pre-resolved wheels"):
         fingerprinted_wheels = tuple(
-            iter_map_parallel(
+            FingerprintedDistribution(
+                distribution=Distribution.load(dist_path), fingerprint=fingerprint
+            )
+            for dist_path, fingerprint
+            in iter_map_parallel(
                 inputs=wheels,
                 function=_fingerprint_dist,
                 max_jobs=pip_configuration.max_jobs,
