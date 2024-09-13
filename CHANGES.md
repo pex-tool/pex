@@ -1,5 +1,13 @@
 # Release Notes
 
+## 2.18.1
+
+This release fixes `--scie-name-style platform-parent-dir` introduced in
+#2523. Previously the target platform name also leaked into scies
+targeting foreign platforms despite using this option.
+
+* Fix `--scie-name-style platform-parent-dir`. (#2526)
+
 ## 2.18.0
 
 This release adds support for `pex3 cache {dir,info,purge}` for

@@ -240,6 +240,8 @@ def main(
 
         rev = describe_rev()
         sha256, size = describe_file(pex_output_file)
+        with (pex_output_file.parent / f"{pex_output_file.name}.sha256").open("w") as fp:
+            fp.write(f"{sha256} *{pex_output_file.name}")
         hash_table[pex_output_file] = sha256, size
         print(f"Built Pex PEX @ {rev}:")
         print(f"sha256: {sha256}")

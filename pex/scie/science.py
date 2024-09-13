@@ -64,7 +64,7 @@ class Manifest(object):
 
 
 SCIENCE_RELEASES_URL = "https://github.com/a-scie/lift/releases"
-MIN_SCIENCE_VERSION = Version("0.6.0")
+MIN_SCIENCE_VERSION = Version("0.8.0")
 SCIENCE_REQUIREMENT = SpecifierSet("~={min_version}".format(min_version=MIN_SCIENCE_VERSION))
 
 
@@ -425,12 +425,13 @@ def build(
     pex = PEX(pex_file)
 
     naming_style = configuration.options.naming_style or PlatformNamingStyle.DYNAMIC
+    use_platform_suffix = None  # type: Optional[bool]
     if PlatformNamingStyle.FILE_SUFFIX is naming_style:
         use_platform_suffix = True
     elif PlatformNamingStyle.PARENT_DIR is naming_style:
         use_platform_suffix = False
-    else:
-        use_platform_suffix = len(configuration.interpreters) > 1
+    elif len(configuration.interpreters) > 1:
+        use_platform_suffix = True
 
     filenames = Filenames.avoid_collisions_with(name)
 
@@ -459,8 +460,10 @@ def build(
                 dest_dir,
             ]
         )
-        if use_platform_suffix:
-            args.append("--use-platform-suffix")
+        if use_platform_suffix is not None:
+            args.append(
+                "--use-platform-suffix" if use_platform_suffix else "--no-use-platform-suffix"
+            )
         for hash_algorithm in configuration.options.hash_algorithms:
             args.extend(["--hash", hash_algorithm])
         args.append(manifest.path)
@@ -487,9 +490,11 @@ def build(
                     interpreter=manifest.interpreter,
                     file=os.path.join(
                         dest_dir,
-                        manifest.qualified_binary_name(name)
-                        if use_platform_suffix
-                        else manifest.binary_name(name),
+                        (
+                            manifest.qualified_binary_name(name)
+                            if use_platform_suffix
+                            else manifest.binary_name(name)
+                        ),
                     ),
                 )
 
