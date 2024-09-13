@@ -78,10 +78,12 @@ def pre_resolved_dists(
     )
     assert sorted(
         [(ProjectName("cowsay"), Version("5.0")), (ProjectName("ansicolors"), Version("1.1.8"))]
-    ) == [
-        (dist.metadata.project_name, dist.metadata.version)
-        for dist in map(Distribution.load, glob.glob(os.path.join(dists_dir, "*.whl")))
-    ]
+    ) == sorted(
+        [
+            (dist.metadata.project_name, dist.metadata.version)
+            for dist in map(Distribution.load, glob.glob(os.path.join(dists_dir, "*.whl")))
+        ]
+    )
     return dists_dir
 
 
