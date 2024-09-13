@@ -300,7 +300,7 @@ def test_specified_science_binary(tmpdir):
 
     local_science_binary = os.path.join(str(tmpdir), "science")
     with open(local_science_binary, "wb") as write_fp, URLFetcher().get_body_stream(
-        "https://github.com/a-scie/lift/releases/download/v0.6.0/{binary}".format(
+        "https://github.com/a-scie/lift/releases/download/v0.8.0/{binary}".format(
             binary=SciePlatform.CURRENT.qualified_binary_name("science")
         )
     ) as read_fp:
@@ -344,7 +344,7 @@ def test_specified_science_binary(tmpdir):
         cached_science_binaries
     ), "Expected the local science binary to be used but not cached."
     assert (
-        "0.6.0"
+        "0.8.0"
         == subprocess.check_output(args=[local_science_binary, "--version"]).decode("utf-8").strip()
     )
 
@@ -1114,12 +1114,24 @@ def test_scie_name_style_platform_file_suffix(tmpdir):
 def test_scie_name_style_platform_parent_dir(tmpdir):
     # type: (Any) -> None
 
+    foreign_platform = next(
+        plat for plat in SciePlatform.values() if SciePlatform.CURRENT is not plat
+    )
     dist_dir = os.path.join(str(tmpdir), "dist")
     output_file = os.path.join(dist_dir, "app")
     run_pex_command(
-        args=["--scie", "lazy", "--scie-name-style", "platform-parent-dir", "-o", output_file]
+        args=[
+            "--scie",
+            "lazy",
+            "--scie-platform",
+            str(foreign_platform),
+            "--scie-name-style",
+            "platform-parent-dir",
+            "-o",
+            output_file,
+        ]
     ).assert_success()
-    assert sorted(["app", SciePlatform.CURRENT.value]) == sorted(os.listdir(dist_dir))
-    assert [SciePlatform.CURRENT.binary_name("app")] == os.listdir(
-        os.path.join(dist_dir, SciePlatform.CURRENT.value)
+    assert sorted(["app", foreign_platform.value]) == sorted(os.listdir(dist_dir))
+    assert [foreign_platform.binary_name("app")] == os.listdir(
+        os.path.join(dist_dir, foreign_platform.value)
     )
