@@ -216,12 +216,15 @@ def test_extract_deterministic_wheels(pex, pex_tools_env):
 def test_extract_lifecycle(pex, pex_tools_env, tmpdir):
     # type: (str, Dict[str, str], Any) -> None
 
-    # Since we'll be locking down indexes to just find-links, we need to include the wheel .whl
-    # needed by vendored Pip.
-    vendored_pip_dists_dir = os.path.join(str(tmpdir), "vendored-pip-dists")
+    # Since we'll be locking down indexes to just find-links, we need to include setuptools and
+    # wheel build deps for sdists.
+    build_reqs_dists_dir = os.path.join(str(tmpdir), "vendored-pip-dists")
     get_pip(resolver=ConfiguredResolver.default()).spawn_download_distributions(
-        download_dir=vendored_pip_dists_dir,
-        requirements=[str(PipVersion.VENDORED.wheel_requirement)],
+        download_dir=build_reqs_dists_dir,
+        requirements=[
+            str(PipVersion.VENDORED.setuptools_requirement),
+            str(PipVersion.VENDORED.wheel_requirement),
+        ],
         build_configuration=BuildConfiguration.create(allow_builds=False),
     ).wait()
 
@@ -253,7 +256,7 @@ def test_extract_lifecycle(pex, pex_tools_env, tmpdir):
             "--find-links",
             find_links_url,
             "--find-links",
-            vendored_pip_dists_dir,
+            build_reqs_dists_dir,
             "example",
             "-c",
             "example",
@@ -265,7 +268,16 @@ def test_extract_lifecycle(pex, pex_tools_env, tmpdir):
 
     _, pip = ensure_python_venv(PY310)
     subprocess.check_call(
-        args=[pip, "install", "--no-index", "--find-links", find_links_url, "example"]
+        args=[
+            pip,
+            "install",
+            "--no-index",
+            "--find-links",
+            find_links_url,
+            "--find-links",
+            build_reqs_dists_dir,
+            "example",
+        ]
     )
     example_console_script = os.path.join(os.path.dirname(pip), "example")
 

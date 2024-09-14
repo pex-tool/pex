@@ -6,6 +6,7 @@ import os
 import site
 import subprocess
 import sys
+import sysconfig
 import tempfile
 import textwrap
 from contextlib import contextmanager
@@ -230,8 +231,13 @@ def test_site_libs(tmpdir):
 def test_site_libs_symlink(tmpdir):
     # type: (Any) -> None
 
-    sys_path_entry = os.path.join(str(tmpdir), "lib")
-    os.mkdir(sys_path_entry)
+    # N.B.: PythonIdentity.get() used below in the core test ends up consulting
+    # `packaging.tags.sys_tags()` which in turn consults `sysconfig`; so we need to make sure that
+    # bit of stdlib is on the sys.path. We get this by grabbing its sys.path entry, which contains
+    # the whole stdlib in addition to it.
+    assert sysconfig.__file__
+    sys_path_entry = os.path.dirname(sysconfig.__file__)
+
     sys_path_entry_link = os.path.join(str(tmpdir), "lib-link")
     os.symlink(sys_path_entry, sys_path_entry_link)
 

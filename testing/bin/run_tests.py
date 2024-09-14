@@ -151,15 +151,14 @@ def main():
     else:
         logger.info("No test control environment variables set.")
 
+    args = [sys.executable, "-m", "pytest", "-n", "auto"]
     if options.it:
-        pytest_args = ["-n", "auto", "tests/integration"]
+        args.append("tests/integration")
     else:
-        pytest_args = ["tests", "--ignore", "tests/integration"]
+        args.extend(["tests", "--ignore", "tests/integration"])
+    args.extend(passthrough_args or ["-vvs"])
 
-    return subprocess.call(
-        args=[sys.executable, "-m", "pytest"] + pytest_args + passthrough_args or ["-vvs"],
-        cwd=pex_project_dir(),
-    )
+    return subprocess.call(args=args, cwd=pex_project_dir())
 
 
 if __name__ == "__main__":

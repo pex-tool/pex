@@ -370,7 +370,11 @@ def check_resolve_venv(real_interpreter):
     ):
         # type: (...) -> List[str]
         venv_dir = os.path.join(tmpdir, rel_path)
-        interpreter.execute(["-m", "venv", venv_dir])
+
+        # N.B.: We don't need pip in the venv for this test and sometimes system interpreters
+        # don't have ensurepip support.
+        interpreter.execute(["-m", "venv", "--without-pip", venv_dir])
+
         return glob.glob(os.path.join(venv_dir, "bin", "python*"))
 
     assert not real_interpreter.is_venv
