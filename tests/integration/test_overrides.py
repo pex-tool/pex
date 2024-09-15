@@ -6,6 +6,7 @@ from __future__ import absolute_import
 import os.path
 import re
 import shutil
+import subprocess
 import sys
 from collections import defaultdict
 
@@ -17,7 +18,7 @@ from pex.pep_503 import ProjectName
 from pex.pex import PEX
 from pex.pex_info import PexInfo
 from pex.typing import TYPE_CHECKING
-from testing import PY39, PY310, PY_VER, data, ensure_python_interpreter, run_pex_command
+from testing import PY39, PY310, PY_VER, data, ensure_python_interpreter, make_env, run_pex_command
 from testing.cli import run_pex3
 from testing.lock import extract_lock_option_args, index_lock_artifacts
 
@@ -119,6 +120,28 @@ def test_pex_repository_override(tmpdir):
     pex = os.path.join(str(tmpdir), "pex")
     run_pex_command(
         args=["--pex-repository", repository_pex, "requests", "-o", pex]
+    ).assert_success()
+    assert_overrides(
+        pex, expected_overrides=["idna<2.4"], expected_overridden_dists={"idna": ["2.3"]}
+    )
+
+
+@skip_unless_compatible_with_requests_2_31_0
+def test_pre_resolved_dists_override(tmpdir):
+    # type: (Any) -> None
+
+    repository_pex = os.path.join(str(tmpdir), "repository.pex")
+    run_pex_command(
+        args=["requests==2.31.0", "--override", "idna<2.4", "--include-tools", "-o", repository_pex]
+    ).assert_success()
+    dists = os.path.join(str(tmpdir), "dists")
+    subprocess.check_call(
+        args=[repository_pex, "repository", "extract", "-f", dists], env=make_env(PEX_TOOLS=1)
+    )
+
+    pex = os.path.join(str(tmpdir), "pex")
+    run_pex_command(
+        args=["--pre-resolved-dists", dists, "requests", "--override", "idna<2.4", "-o", pex]
     ).assert_success()
     assert_overrides(
         pex, expected_overrides=["idna<2.4"], expected_overridden_dists={"idna": ["2.3"]}

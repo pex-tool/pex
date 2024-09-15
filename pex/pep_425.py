@@ -6,6 +6,7 @@ from __future__ import absolute_import
 import itertools
 import os.path
 
+from pex.dist_metadata import is_wheel
 from pex.orderedset import OrderedSet
 from pex.rank import Rank
 from pex.third_party.packaging.tags import Tag, parse_tag
@@ -56,14 +57,14 @@ class CompatibilityTags(object):
     @classmethod
     def from_wheel(cls, wheel):
         # type: (str) -> CompatibilityTags
-        wheel_stem, ext = os.path.splitext(os.path.basename(wheel))
-        if ".whl" != ext:
+        if not is_wheel(wheel):
             raise ValueError(
                 "Can only calculate wheel tags from a filename that ends in .whl per "
                 "https://peps.python.org/pep-0427/#file-name-convention, given: {wheel!r}".format(
                     wheel=wheel
                 )
             )
+        wheel_stem, _ = os.path.splitext(os.path.basename(wheel))
         # Wheel filename format: https://www.python.org/dev/peps/pep-0427/#file-name-convention
         # `{distribution}-{version}(-{build tag})?-{python tag}-{abi tag}-{platform tag}.whl`
         wheel_components = wheel_stem.rsplit("-", 3)

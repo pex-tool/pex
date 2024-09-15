@@ -220,3 +220,20 @@ class LockRepositoryConfiguration(object):
     def network_configuration(self):
         # type: () -> NetworkConfiguration
         return self.pip_configuration.network_configuration
+
+
+@attr.s(frozen=True)
+class PreResolvedConfiguration(object):
+    sdists = attr.ib()  # type: Tuple[str, ...]
+    wheels = attr.ib()  # type: Tuple[str, ...]
+    pip_configuration = attr.ib()  # type: PipConfiguration
+
+    @property
+    def repos_configuration(self):
+        # type: () -> ReposConfiguration
+        return self.pip_configuration.repos_configuration
+
+    @property
+    def network_configuration(self):
+        # type: () -> NetworkConfiguration
+        return self.pip_configuration.network_configuration

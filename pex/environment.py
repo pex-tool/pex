@@ -12,17 +12,18 @@ from collections import OrderedDict, defaultdict
 from pex import dist_metadata, pex_warnings, targets
 from pex.common import pluralize
 from pex.dependency_configuration import DependencyConfiguration
-from pex.dist_metadata import Distribution, Requirement
+from pex.dist_metadata import Distribution, Requirement, is_wheel
 from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.inherit_path import InheritPath
 from pex.interpreter import PythonInterpreter
 from pex.layout import ensure_installed, identify_layout
 from pex.orderedset import OrderedSet
-from pex.pep_425 import CompatibilityTags, TagRank
+from pex.pep_425 import TagRank
 from pex.pep_503 import ProjectName
 from pex.pex_info import PexInfo
 from pex.targets import Target
 from pex.third_party.packaging import specifiers
+from pex.third_party.packaging.tags import Tag
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 
@@ -139,7 +140,7 @@ class _InvalidWheelName(_UnrankedDistribution):
 
 @attr.s(frozen=True)
 class _TagMismatch(_UnrankedDistribution):
-    wheel_tags = attr.ib()  # type: CompatibilityTags
+    wheel_tags = attr.ib()  # type: Iterable[Tag]
 
     def render_message(self, target):
         # type: (Target) -> str
@@ -332,8 +333,8 @@ class PEXEnvironment(object):
 
     def _can_add(self, fingerprinted_dist):
         # type: (FingerprintedDistribution) -> Union[_RankedDistribution, _UnrankedDistribution]
-        filename, ext = os.path.splitext(os.path.basename(fingerprinted_dist.location))
-        if ext.lower() != ".whl":
+        filename = os.path.basename(fingerprinted_dist.location)
+        if not is_wheel(filename):
             # This supports resolving pex's own vendored distributions which are vendored in a
             # directory with the project name (`pip/` for pip) and not the corresponding wheel name
             # (`pip-19.3.1-py2.py3-none-any.whl/` for pip). Pex only vendors universal wheels for
@@ -341,23 +342,17 @@ class PEXEnvironment(object):
             return _RankedDistribution.highest_rank(fingerprinted_dist)
 
         try:
-            wheel_tags = CompatibilityTags.from_wheel(fingerprinted_dist.location)
+            wheel_eval = self._target.wheel_applies(fingerprinted_dist.distribution)
         except ValueError:
             return _InvalidWheelName(fingerprinted_dist, filename)
 
-        # There will be multiple parsed tags for compressed tag sets. Ensure we grab the parsed tag
-        # with highest rank from that expanded set.
-        best_match = self._target.supported_tags.best_match(wheel_tags)
-        if best_match is None:
-            return _TagMismatch(fingerprinted_dist, wheel_tags)
+        if not wheel_eval.best_match:
+            return _TagMismatch(fingerprinted_dist, wheel_eval.tags)
+        if not wheel_eval.applies:
+            assert wheel_eval.requires_python
+            return _PythonRequiresMismatch(fingerprinted_dist, wheel_eval.requires_python)
 
-        python_requires = dist_metadata.requires_python(fingerprinted_dist.distribution)
-        if python_requires and not self._target.requires_python_applies(
-            python_requires, source=fingerprinted_dist.distribution.as_requirement()
-        ):
-            return _PythonRequiresMismatch(fingerprinted_dist, python_requires)
-
-        return _RankedDistribution(best_match.rank, fingerprinted_dist)
+        return _RankedDistribution(wheel_eval.best_match.rank, fingerprinted_dist)
 
     def activate(self):
         # type: () -> Iterable[Distribution]

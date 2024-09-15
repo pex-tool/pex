@@ -75,14 +75,65 @@ class InvalidMetadataError(MetadataError):
     """Indicates a metadata value that is invalid."""
 
 
+def is_tar_sdist(path):
+    # type: (Text) -> bool
+    # N.B.: PEP-625 (https://peps.python.org/pep-0625/) says sdists must use .tar.gz, but we
+    # have a known example of tar.bz2 in the wild in python-constraint 1.4.0 on PyPI:
+    # https://pypi.org/project/python-constraint/1.4.0/#files
+    # This probably all stems from the legacy `python setup.py sdist` as last described here:
+    #   https://docs.python.org/3.11/distutils/sourcedist.html
+    # There was a move to reject exotic formats in PEP-527 in 2016 and the historical sdist
+    # formats appear to be listed here: https://peps.python.org/pep-0527/#file-extensions
+    # A query on the PyPI dataset shows:
+    #
+    # SELECT
+    # REGEXP_EXTRACT(path, r'\.([^.]+|tar\.[^.]+|tar)$') as extension,
+    # count(*) as count
+    # FROM `bigquery-public-data.pypi.distribution_metadata`
+    # group by extension
+    # order by count desc
+    #
+    #   | extension | count   |
+    #   |-----------|---------|
+    #   | whl       | 6332494 |
+    # * | tar.gz    | 5283102 |
+    #   | egg       |  135940 |
+    # * | zip       |  108532 |
+    #   | exe       |   18452 |
+    # * | tar.bz2   |    3857 |
+    #   | msi       |     625 |
+    #   | rpm       |     603 |
+    # * | tgz       |     226 |
+    #   | dmg       |      47 |
+    #   | deb       |      36 |
+    # * | tar.zip   |       2 |
+    # * | ZIP       |       1 |
+    return path.lower().endswith((".tar.gz", ".tgz", ".tar.bz2"))
+
+
+def is_zip_sdist(path):
+    # type: (Text) -> bool
+    return path.lower().endswith(".zip")
+
+
+def is_sdist(path):
+    # type: (Text) -> bool
+    return is_tar_sdist(path) or is_zip_sdist(path)
+
+
+def is_wheel(path):
+    # type: (Text) -> bool
+    return path.lower().endswith(".whl")
+
+
 def _strip_sdist_path(sdist_path):
     # type: (Text) -> Optional[Text]
-    if not sdist_path.endswith((".tar.gz", ".tgz", ".tar.bz2", ".tbz2", ".tar.xz", ".txz", ".zip")):
+    if not is_sdist(sdist_path):
         return None
 
     sdist_basename = os.path.basename(sdist_path)
     filename, _ = os.path.splitext(sdist_basename)
-    if filename.endswith(".tar"):
+    if filename.lower().endswith(".tar"):
         filename, _ = os.path.splitext(filename)
     return filename
 
@@ -194,8 +245,19 @@ def _find_installed_metadata_files(
             )
 
 
+def _read_from_zip(
+    zip_location,  # type: str
+    rel_path,  # type: Text
+):
+    # type: (...) -> bytes
+    with open_zip(zip_location) as zf:
+        return zf.read(rel_path)
+
+
 def find_wheel_metadata(location):
     # type: (Text) -> Optional[MetadataFiles]
+
+    read_function = functools.partial(_read_from_zip, location)
     with open_zip(location) as zf:
         for name in zf.namelist():
             if name.endswith("/"):
@@ -217,11 +279,6 @@ def find_wheel_metadata(location):
                     head, tail = os.path.split(rel_path)
                     if dist_info_dir == head and tail != metadata_file_name:
                         files.append(rel_path)
-
-                def read_function(rel_path):
-                    # type: (Text) -> bytes
-                    with open_zip(location) as zf:
-                        return zf.read(rel_path)
 
                 return MetadataFiles(
                     metadata=DistMetadataFile(
@@ -330,7 +387,7 @@ def iter_metadata_files(
                             location, MetadataType.DIST_INFO, "*.dist-info", "METADATA"
                         )
                     )
-                elif location.endswith(".whl") and zipfile.is_zipfile(location):
+                elif is_wheel(location) and zipfile.is_zipfile(location):
                     metadata_files = find_wheel_metadata(location)
                     if metadata_files:
                         listing.append(metadata_files)
@@ -341,13 +398,11 @@ def iter_metadata_files(
                     )
                 )
             elif MetadataType.PKG_INFO is metadata_type:
-                if location.endswith(".zip") and zipfile.is_zipfile(location):
+                if is_zip_sdist(location) and zipfile.is_zipfile(location):
                     metadata_file = find_zip_sdist_metadata(location)
                     if metadata_file:
                         listing.append(MetadataFiles(metadata=metadata_file))
-                elif location.endswith(
-                    (".tar.gz", ".tgz", ".tar.bz2", ".tbz2", ".tar.xz", ".txz")
-                ) and tarfile.is_tarfile(location):
+                elif is_tar_sdist(location) and tarfile.is_tarfile(location):
                     metadata_file = find_tar_sdist_metadata(location)
                     if metadata_file:
                         listing.append(MetadataFiles(metadata=metadata_file))
@@ -408,7 +463,7 @@ class ProjectNameAndVersion(object):
         #
         # The wheel filename convention is specified here:
         #   https://www.python.org/dev/peps/pep-0427/#file-name-convention.
-        if path.endswith(".whl"):
+        if is_wheel(path):
             project_name, version, _ = os.path.basename(path).split("-", 2)
             return cls(project_name=project_name, version=version)
 
@@ -903,7 +958,7 @@ class DistributionType(Enum["DistributionType.Value"]):
         # type: (Text) -> DistributionType.Value
         if os.path.isdir(location):
             return cls.INSTALLED
-        if location.endswith(".whl") and zipfile.is_zipfile(location):
+        if is_wheel(location) and zipfile.is_zipfile(location):
             return cls.WHEEL
         return cls.SDIST
 

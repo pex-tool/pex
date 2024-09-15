@@ -3,12 +3,17 @@
 
 from __future__ import absolute_import
 
+import itertools
+import os
 from abc import abstractmethod
+from collections import OrderedDict, defaultdict
 
+from pex.common import pluralize
 from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import Distribution, Requirement
 from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.pep_427 import InstallableType
+from pex.pep_503 import ProjectName
 from pex.pip.version import PipVersionValue
 from pex.resolve.lockfile.model import Lockfile
 from pex.sorted_tuple import SortedTuple
@@ -16,7 +21,7 @@ from pex.targets import Target, Targets
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Iterable, Optional, Tuple
+    from typing import DefaultDict, Iterable, List, Optional, Tuple
 
     import attr  # vendor:skip
 else:
@@ -78,6 +83,90 @@ class ResolvedDistribution(object):
             self.target,
             self.fingerprinted_distribution,
             direct_requirements=direct_requirements,
+        )
+
+
+def check_resolve(
+    dependency_configuration,  # type: DependencyConfiguration
+    resolved_distributions,  # type: Iterable[ResolvedDistribution]
+):
+    # type: (...) -> None
+    resolved_distributions_by_project_name = (
+        OrderedDict()
+    )  # type: OrderedDict[ProjectName, List[ResolvedDistribution]]
+    for resolved_distribution in resolved_distributions:
+        resolved_distributions_by_project_name.setdefault(
+            resolved_distribution.distribution.metadata.project_name, []
+        ).append(resolved_distribution)
+
+    unsatisfied = defaultdict(list)  # type: DefaultDict[Target, List[str]]
+    for resolved_distribution in itertools.chain.from_iterable(
+        resolved_distributions_by_project_name.values()
+    ):
+        dist = resolved_distribution.distribution
+        target = resolved_distribution.target
+
+        for requirement in dist.requires():
+            if dependency_configuration.excluded_by(requirement):
+                continue
+            requirement = (
+                dependency_configuration.overridden_by(requirement, target=target) or requirement
+            )
+            if not target.requirement_applies(requirement):
+                continue
+
+            installed_requirement_dists = resolved_distributions_by_project_name.get(
+                requirement.project_name
+            )
+            if not installed_requirement_dists:
+                unsatisfied[target].append(
+                    "{dist} requires {requirement} but no version was resolved".format(
+                        dist=dist.as_requirement(), requirement=requirement
+                    )
+                )
+            else:
+                resolved_dists = [
+                    installed_requirement_dist.distribution
+                    for installed_requirement_dist in installed_requirement_dists
+                ]
+                if not any(
+                    (
+                        requirement.specifier.contains(resolved_dist.version, prereleases=True)
+                        and target.wheel_applies(resolved_dist)
+                    )
+                    for resolved_dist in resolved_dists
+                ):
+                    unsatisfied[target].append(
+                        "{dist} requires {requirement} but {count} incompatible {dists_were} "
+                        "resolved:\n        {dists}".format(
+                            dist=dist,
+                            requirement=requirement,
+                            count=len(resolved_dists),
+                            dists_were="dists were" if len(resolved_dists) > 1 else "dist was",
+                            dists="\n        ".join(
+                                os.path.basename(resolved_dist.location)
+                                for resolved_dist in resolved_dists
+                            ),
+                        )
+                    )
+
+    if unsatisfied:
+        unsatisfieds = []
+        for target, missing in unsatisfied.items():
+            unsatisfieds.append(
+                "{target} is not compatible with:\n    {missing}".format(
+                    target=target.render_description(), missing="\n    ".join(missing)
+                )
+            )
+        raise Unsatisfiable(
+            "Failed to resolve compatible distributions for {count} {targets}:\n{failures}".format(
+                count=len(unsatisfieds),
+                targets=pluralize(unsatisfieds, "target"),
+                failures="\n".join(
+                    "{index}: {failure}".format(index=index, failure=failure)
+                    for index, failure in enumerate(unsatisfieds, start=1)
+                ),
+            )
         )
 
 

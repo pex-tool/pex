@@ -744,10 +744,10 @@ def iter_map_parallel(
         #
         input_items.sort(key=costing_function, reverse=True)
 
-    # We want each of the job slots above to process MULTIPROCESSING_MIN_AVERAGE_LOAD on average in
-    # order to overcome multiprocessing overheads. Of course, if there are fewer available cores
-    # than that or the user has pinned max jobs lower, we clamp to that. Finally, we always want at
-    # least two slots to ensure we process input items in parallel.
+    # We want each of the job slots above to process MULTIPROCESSING_DEFAULT_MIN_AVERAGE_LOAD on
+    # average in order to overcome multiprocessing overheads. Of course, if there are fewer
+    # available cores than that or the user has pinned max jobs lower, we clamp to that. Finally, we
+    # always want at least two slots to ensure we process input items in parallel.
     pool_size = max(2, min(len(input_items) // min_average_load, _sanitize_max_jobs(max_jobs)))
 
     apply_function = functools.partial(_apply_function, function)

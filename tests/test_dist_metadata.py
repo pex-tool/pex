@@ -69,7 +69,7 @@ def downloaded_sdist(requirement):
         dists = os.listdir(download_dir)
         assert len(dists) == 1, "Expected 1 dist to be downloaded for {}.".format(requirement)
         sdist = os.path.join(download_dir, dists[0])
-        assert sdist.endswith((".sdist", ".tar.gz", ".zip"))
+        assert sdist.endswith((".tar.gz", ".zip"))
         yield sdist
 
 

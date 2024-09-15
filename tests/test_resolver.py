@@ -12,7 +12,7 @@ from textwrap import dedent
 
 import pytest
 
-from pex import targets
+from pex import dist_metadata, targets
 from pex.build_system.pep_517 import build_sdist
 from pex.common import safe_copy, safe_mkdtemp, temporary_dir
 from pex.dist_metadata import Distribution, Requirement
@@ -523,7 +523,9 @@ def test_download2():
 
         dist = distributions_by_name[project_name]
         assert version == dist.version
-        assert is_wheel == (dist.location.endswith(".whl") and zipfile.is_zipfile(dist.location))
+        assert is_wheel == (
+            dist_metadata.is_wheel(dist.location) and zipfile.is_zipfile(dist.location)
+        )
 
     assert_dist("project1", "1.0.0", is_wheel=False)
     assert_dist("project2", "2.0.0", is_wheel=True)

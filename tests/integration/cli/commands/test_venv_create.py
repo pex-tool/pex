@@ -3,6 +3,7 @@
 
 from __future__ import absolute_import
 
+import glob
 import os.path
 import shutil
 import subprocess
@@ -16,6 +17,7 @@ from pex import dist_metadata
 from pex.cli.commands.venv import InstallLayout
 from pex.common import open_zip, safe_open
 from pex.compatibility import commonpath
+from pex.dist_metadata import Distribution
 from pex.interpreter import PythonInterpreter
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
@@ -56,11 +58,33 @@ def cowsay_pex(
     # type: (...) -> str
 
     pex = str(td.join("pex"))
-    run_pex_command(args=["--lock", lock, "-o", pex]).assert_success()
+    run_pex_command(args=["--lock", lock, "--include-tools", "-o", pex]).assert_success()
     assert sorted(
         [(ProjectName("cowsay"), Version("5.0")), (ProjectName("ansicolors"), Version("1.1.8"))]
     ) == [(dist.metadata.project_name, dist.metadata.version) for dist in PEX(pex).resolve()]
     return pex
+
+
+@pytest.fixture(scope="module")
+def pre_resolved_dists(
+    td,  # type: Any
+    cowsay_pex,  # type: str
+):
+    # type: (...) -> str
+
+    dists_dir = str(td.join("dists"))
+    subprocess.check_call(
+        args=[cowsay_pex, "repository", "extract", "-f", dists_dir], env=make_env(PEX_TOOLS=1)
+    )
+    assert sorted(
+        [(ProjectName("cowsay"), Version("5.0")), (ProjectName("ansicolors"), Version("1.1.8"))]
+    ) == sorted(
+        [
+            (dist.metadata.project_name, dist.metadata.version)
+            for dist in map(Distribution.load, glob.glob(os.path.join(dists_dir, "*.whl")))
+        ]
+    )
+    return dists_dir
 
 
 def test_venv_empty(tmpdir):
@@ -110,12 +134,14 @@ def test_venv(
     tmpdir,  # type: Any
     lock,  # type: str
     cowsay_pex,  # type: str
+    pre_resolved_dists,  # type: str
 ):
     # type: (...) -> None
 
     assert_venv(tmpdir)
     assert_venv(tmpdir, "--lock", lock)
     assert_venv(tmpdir, "--pex-repository", cowsay_pex)
+    assert_venv(tmpdir, "--pre-resolved-dists", pre_resolved_dists)
 
 
 def test_flat_empty(tmpdir):

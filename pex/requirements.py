@@ -285,7 +285,7 @@ class VCSScheme(object):
 
 
 def parse_scheme(scheme):
-    # type: (str) -> Optional[Union[str, ArchiveScheme.Value, VCSScheme]]
+    # type: (str) -> Union[str, ArchiveScheme.Value, VCSScheme]
     match = re.match(
         r"""
         ^

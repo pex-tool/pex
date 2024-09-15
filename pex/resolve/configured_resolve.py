@@ -3,15 +3,18 @@
 
 from __future__ import absolute_import
 
+from pex.common import pluralize
 from pex.dependency_configuration import DependencyConfiguration
 from pex.pep_427 import InstallableType
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.lock_resolver import resolve_from_lock
 from pex.resolve.pex_repository_resolver import resolve_from_pex
+from pex.resolve.pre_resolved_resolver import resolve_from_dists
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import (
     LockRepositoryConfiguration,
     PexRepositoryConfiguration,
+    PreResolvedConfiguration,
 )
 from pex.resolve.resolvers import ResolveResult
 from pex.resolver import resolve as resolve_via_pip
@@ -34,6 +37,7 @@ def resolve(
     dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
 ):
     # type: (...) -> ResolveResult
+
     if isinstance(resolver_configuration, LockRepositoryConfiguration):
         lock = try_(resolver_configuration.parse_lock())
         with TRACER.timed(
@@ -78,6 +82,27 @@ def resolve(
                 constraint_files=requirement_configuration.constraint_files,
                 network_configuration=resolver_configuration.network_configuration,
                 transitive=resolver_configuration.transitive,
+                ignore_errors=ignore_errors,
+                result_type=result_type,
+                dependency_configuration=dependency_configuration,
+            )
+    elif isinstance(resolver_configuration, PreResolvedConfiguration):
+        with TRACER.timed(
+            "Resolving requirements from {sdist_count} pre-resolved {sdists} and "
+            "{wheel_count} pre-resolved {wheels}.".format(
+                sdist_count=len(resolver_configuration.sdists),
+                sdists=pluralize(resolver_configuration.sdists, "sdist"),
+                wheel_count=len(resolver_configuration.wheels),
+                wheels=pluralize(resolver_configuration.wheels, "wheel"),
+            )
+        ):
+            return resolve_from_dists(
+                targets=targets,
+                sdists=resolver_configuration.sdists,
+                wheels=resolver_configuration.wheels,
+                requirement_configuration=requirement_configuration,
+                pip_configuration=resolver_configuration.pip_configuration,
+                compile=compile_pyc,
                 ignore_errors=ignore_errors,
                 result_type=result_type,
                 dependency_configuration=dependency_configuration,

@@ -7,7 +7,7 @@ import hashlib
 
 from pex import hashing
 from pex.compatibility import url_unquote, urlparse
-from pex.dist_metadata import ProjectNameAndVersion, Requirement
+from pex.dist_metadata import ProjectNameAndVersion, Requirement, is_wheel
 from pex.hashing import HashlibHasher
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
@@ -91,7 +91,7 @@ class ArtifactURL(object):
     def parse(cls, url):
         # type: (str) -> ArtifactURL
         url_info = urlparse.urlparse(url)
-        scheme = parse_scheme(url_info.scheme) if url_info.scheme else None
+        scheme = parse_scheme(url_info.scheme) if url_info.scheme else "file"
         path = url_unquote(url_info.path)
 
         fingerprints = []
@@ -139,7 +139,7 @@ class ArtifactURL(object):
     raw_url = attr.ib(eq=False)  # type: str
     download_url = attr.ib(eq=False)  # type: str
     normalized_url = attr.ib()  # type: str
-    scheme = attr.ib(eq=False)  # type: Optional[Union[str, ArchiveScheme.Value, VCSScheme]]
+    scheme = attr.ib(eq=False)  # type: Union[str, ArchiveScheme.Value, VCSScheme]
     path = attr.ib(eq=False)  # type: str
     fragment_parameters = attr.ib(eq=False)  # type: Mapping[str, Sequence[str]]
     fingerprints = attr.ib(eq=False)  # type: Tuple[Fingerprint, ...]
@@ -147,7 +147,7 @@ class ArtifactURL(object):
     @property
     def is_wheel(self):
         # type: () -> bool
-        return self.path.endswith(".whl")
+        return is_wheel(self.path)
 
     @property
     def fingerprint(self):

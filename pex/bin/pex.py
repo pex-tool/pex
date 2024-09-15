@@ -53,6 +53,7 @@ from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import (
     LockRepositoryConfiguration,
     PexRepositoryConfiguration,
+    PreResolvedConfiguration,
 )
 from pex.resolve.resolver_options import create_pip_configuration
 from pex.resolve.resolvers import Unsatisfiable, sorted_requirements
@@ -136,7 +137,9 @@ def configure_clp_pex_resolution(parser):
         ),
     )
 
-    resolver_options.register(group, include_pex_repository=True, include_lock=True)
+    resolver_options.register(
+        group, include_pex_repository=True, include_lock=True, include_pre_resolved=True
+    )
 
     group.add_argument(
         "--pex-path",
@@ -1011,25 +1014,26 @@ def build_pex(
                 DependencyConfiguration.from_pex_info(requirements_pex_info)
             )
 
+    if isinstance(resolver_configuration, (LockRepositoryConfiguration, PreResolvedConfiguration)):
+        pip_configuration = resolver_configuration.pip_configuration
+    elif isinstance(resolver_configuration, PexRepositoryConfiguration):
+        # TODO(John Sirois): Consider finding a way to support custom --index and --find-links in
+        #  this case. I.E.: I use a corporate index to build a PEX repository and now I want to
+        #  build a --project PEX whose pyproject.toml build-system.requires should be resolved from
+        #  that corporate index.
+        pip_configuration = try_(
+            finalize_resolve_config(
+                create_pip_configuration(options), targets=targets, context="--project building"
+            )
+        )
+    else:
+        pip_configuration = resolver_configuration
+
     project_dependencies = OrderedSet()  # type: OrderedSet[Requirement]
     with TRACER.timed(
         "Adding distributions built from local projects and collecting their requirements: "
         "{projects}".format(projects=" ".join(options.projects))
     ):
-        if isinstance(resolver_configuration, LockRepositoryConfiguration):
-            pip_configuration = resolver_configuration.pip_configuration
-        elif isinstance(resolver_configuration, PexRepositoryConfiguration):
-            # TODO(John Sirois): Consider finding a way to support custom --index and --find-links in this case.
-            #  I.E.: I use a corporate index to build a PEX repository and now I want to build a --project PEX
-            #  whose pyproject.toml build-system.requires should be resolved from that corporate index.
-            pip_configuration = try_(
-                finalize_resolve_config(
-                    create_pip_configuration(options), targets=targets, context="--project building"
-                )
-            )
-        else:
-            pip_configuration = resolver_configuration
-
         projects = project.get_projects(options)
         built_projects = projects.build(
             targets=targets,
