@@ -8,6 +8,7 @@ import os
 from abc import abstractmethod
 from collections import OrderedDict, defaultdict
 
+from pex import pex_warnings
 from pex.common import pluralize
 from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import Distribution, Requirement
@@ -17,7 +18,7 @@ from pex.pep_503 import ProjectName
 from pex.pip.version import PipVersionValue
 from pex.resolve.lockfile.model import Lockfile
 from pex.sorted_tuple import SortedTuple
-from pex.targets import Target, Targets
+from pex.targets import AbbreviatedPlatform, Target, Targets
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -99,6 +100,7 @@ def check_resolve(
             resolved_distribution.distribution.metadata.project_name, []
         ).append(resolved_distribution)
 
+    maybe_unsatisfied = defaultdict(list)  # type: DefaultDict[Target, List[str]]
     unsatisfied = defaultdict(list)  # type: DefaultDict[Target, List[str]]
     for resolved_distribution in itertools.chain.from_iterable(
         resolved_distributions_by_project_name.values()
@@ -129,14 +131,15 @@ def check_resolve(
                     installed_requirement_dist.distribution
                     for installed_requirement_dist in installed_requirement_dists
                 ]
-                if not any(
-                    (
-                        requirement.specifier.contains(resolved_dist.version, prereleases=True)
-                        and target.wheel_applies(resolved_dist)
-                    )
+                version_matches = any(
+                    requirement.specifier.contains(resolved_dist.version, prereleases=True)
                     for resolved_dist in resolved_dists
-                ):
-                    unsatisfied[target].append(
+                )
+                tags_match = any(
+                    target.wheel_applies(resolved_dist) for resolved_dist in resolved_dists
+                )
+                if not version_matches or not tags_match:
+                    message = (
                         "{dist} requires {requirement} but {count} incompatible {dists_were} "
                         "resolved:\n        {dists}".format(
                             dist=dist,
@@ -149,6 +152,17 @@ def check_resolve(
                             ),
                         )
                     )
+                    if (
+                        version_matches
+                        and not tags_match
+                        and isinstance(target, AbbreviatedPlatform)
+                    ):
+                        # We don't know for sure an abbreviated platform doesn't match a wheels tags
+                        # until we are running on that platform; so just warn for these instead of
+                        # hard erroring.
+                        maybe_unsatisfied[target].append(message)
+                    else:
+                        unsatisfied[target].append(message)
 
     if unsatisfied:
         unsatisfieds = []
@@ -165,6 +179,31 @@ def check_resolve(
                 failures="\n".join(
                     "{index}: {failure}".format(index=index, failure=failure)
                     for index, failure in enumerate(unsatisfieds, start=1)
+                ),
+            )
+        )
+
+    if maybe_unsatisfied:
+        maybe_unsatisfieds = []
+        for target, missing in maybe_unsatisfied.items():
+            maybe_unsatisfieds.append(
+                "{target} may not be compatible with:\n    {missing}".format(
+                    target=target.render_description(), missing="\n    ".join(missing)
+                )
+            )
+        pex_warnings.warn(
+            "The resolved distributions for {count} {targets} may not be compatible:\n"
+            "{failures}\n"
+            "\n"
+            "Its generally advisable to use `--complete-platform` instead of `--platform` to\n"
+            "ensure resolved distributions will be compatible with the target platform at\n"
+            "runtime. For instructions on how to generate a `--complete-platform` see:\n"
+            "    https://docs.pex-tool.org/buildingpex.html#complete-platform ".format(
+                count=len(maybe_unsatisfieds),
+                targets=pluralize(maybe_unsatisfieds, "target"),
+                failures="\n".join(
+                    "{index}: {failure}".format(index=index, failure=failure)
+                    for index, failure in enumerate(maybe_unsatisfieds, start=1)
                 ),
             )
         )
