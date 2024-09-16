@@ -97,17 +97,17 @@ def test_resolved_wheel_tag_platform_mismatch_warns(
     assert (
         dedent(
             """\
-        PEXWarning: The resolved distributions for 1 target may not be compatible:
-        1: abbreviated platform cp311-cp311-manylinux_2_28_x86_64 may not be compatible with:
-            cryptography 42.0.8 requires cffi>=1.12; platform_python_implementation != "PyPy" but 2 incompatible dists were resolved:
-                cffi-1.16.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
-                cffi-1.16.0-cp311-cp311-linux_x86_64.whl
+            PEXWarning: The resolved distributions for 1 target may not be compatible:
+            1: abbreviated platform cp311-cp311-manylinux_2_28_x86_64 may not be compatible with:
+                cryptography 42.0.8 requires cffi>=1.12; platform_python_implementation != "PyPy" but 2 incompatible dists were resolved:
+                    cffi-1.16.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+                    cffi-1.16.0-cp311-cp311-linux_x86_64.whl
 
-        Its generally advisable to use `--complete-platform` instead of `--platform` to
-        ensure resolved distributions will be compatible with the target platform at
-        runtime. For instructions on how to generate a `--complete-platform` see:
-            https://docs.pex-tool.org/buildingpex.html#complete-platform
-        """
+            Its generally advisable to use `--complete-platform` instead of `--platform` to
+            ensure resolved distributions will be compatible with the target platform at
+            runtime. For instructions on how to generate a `--complete-platform` see:
+                https://docs.pex-tool.org/buildingpex.html#complete-platform
+            """
         ).strip()
         in error
     ), error
