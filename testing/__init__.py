@@ -541,12 +541,12 @@ def ensure_python_distribution(version):
 
     with atomic_directory(target_dir=interpreter_location) as interpreter_target_dir:
         if not interpreter_target_dir.is_finalized():
-            with atomic_directory(target_dir=pyenv_root) as target_dir:
-                if target_dir.is_finalized():
-                    with target_dir.locked():
+            with atomic_directory(target_dir=pyenv_root) as pyenv_root_target_dir:
+                if pyenv_root_target_dir.is_finalized():
+                    with pyenv_root_target_dir.locked():
                         subprocess.check_call(args=["git", "pull", "--ff-only"], cwd=pyenv_root)
                 else:
-                    bootstrap_python_installer(target_dir.work_dir)
+                    bootstrap_python_installer(pyenv_root_target_dir.work_dir)
             env = pyenv_env.copy()
             if sys.platform.lower().startswith("linux"):
                 env["CONFIGURE_OPTS"] = "--enable-shared"
