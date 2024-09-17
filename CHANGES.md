@@ -1,5 +1,15 @@
 # Release Notes
 
+## 2.19.1
+
+This release fixes a regression introduced by #2512 in the 2.19.0
+release when building PEXes using abbreviated `--platform` targets.
+Instead of failing certain builds that used to succeed, Pex now warns
+that the resulting PEX may fail at runtime and that
+`--complete-platform` should be used instead.
+
+# Only warn when `--platform` resolves fail tag checks. (#2533)
+
 ## 2.19.0
 
 This release adds support for a new `--pre-resolved-dists` resolver as
