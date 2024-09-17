@@ -67,8 +67,16 @@ class AtomicDirectory(object):
         locked=False,  # type: bool
     ):
         # type: (...) -> None
+
+        head, tail = os.path.split(os.path.normpath(target_dir))
+        self._lockfile = os.path.join(
+            head, ".{target_dir_name}.atomic_directory.lck".format(target_dir_name=tail)
+        )
+        self._work_dir = "{target_dir}.{type}.work".format(
+            target_dir=target_dir, type="lck" if locked else uuid4().hex
+        )
         self._target_dir = target_dir
-        self._work_dir = "{}.{}.work".format(target_dir, "lck" if locked else uuid4().hex)
+
         target_basename = os.path.basename(self._work_dir)
         if len(target_basename) > 143:
             # Guard against eCryptFS home dir encryption which restricts file names to 143
@@ -109,6 +117,24 @@ class AtomicDirectory(object):
     def is_finalized(self):
         # type: () -> bool
         return os.path.exists(self._target_dir)
+
+    @property
+    def lockfile(self):
+        # type: () -> str
+        return self._lockfile
+
+    def lock(self, lock_style=None):
+        # type: (Optional[FileLockStyle.Value]) -> Callable[[], None]
+        return _LOCK_MANAGER.lock(self._lockfile, lock_style=lock_style)
+
+    @contextmanager
+    def locked(self, lock_style=None):
+        # type: (Optional[FileLockStyle.Value]) -> Iterator[None]
+        unlock = self.lock(lock_style=lock_style)
+        try:
+            yield
+        finally:
+            unlock()
 
     def finalize(self, source=None):
         # type: (Optional[str]) -> None
@@ -183,6 +209,7 @@ class _FileLock(object):
 
         # N.B.: We don't actually write anything to the lock file but the fcntl file locking
         # operations only work on files opened for at least write.
+        safe_mkdir(os.path.dirname(self._path))
         lock_fd = os.open(self._path, os.O_CREAT | os.O_WRONLY)
 
         lock_api = cast(
@@ -265,12 +292,7 @@ def atomic_directory(
         yield atomic_dir
         return
 
-    head, tail = os.path.split(atomic_dir.target_dir)
-    if head:
-        safe_mkdir(head)
-    lockfile = os.path.join(head, ".{}.atomic_directory.lck".format(tail or "here"))
-
-    unlock = _LOCK_MANAGER.lock(file_path=lockfile, lock_style=lock_style)
+    unlock = atomic_dir.lock(lock_style=lock_style)
     if atomic_dir.is_finalized():
         # We lost the double-checked locking race and our work was done for us by the race
         # winner so exit early.
@@ -293,7 +315,7 @@ def atomic_directory(
             "{ident}: After obtaining an exclusive lock on {lockfile}, failed to establish a work "
             "directory at {workdir} due to: {err}".format(
                 ident=ident,
-                lockfile=lockfile,
+                lockfile=atomic_dir.lockfile,
                 workdir=atomic_dir.work_dir,
                 err=e,
             ),
