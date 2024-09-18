@@ -26,8 +26,6 @@ def test_exclude(tmpdir):
     pex = os.path.join(str(tmpdir), "pex")
     run_pex_command(
         args=[
-            "--pip-version",
-            "latest",
             "--platform",
             "macosx_10.12-x86_64-cp-310-cp310",
             "--platform",
