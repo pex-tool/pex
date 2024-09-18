@@ -6,16 +6,18 @@ from textwrap import dedent
 
 import pytest
 
+from pex.pip.version import PipVersion
 from pex.targets import LocalInterpreter
 from testing import run_pex_command
 
 
 @pytest.mark.skipif(
-    sys.version_info[:2] >= (3, 12),
+    sys.version_info[:2] >= (3, 12) or PipVersion.DEFAULT >= PipVersion.v23_2,
     reason=(
         "There is an indirect urllib3 dependency which embeds six which uses a meta path importer "
         "that only implements the PEP-302 finder spec and not the modern spec. Only the modern "
-        "finder spec is supported by Python 3.12+."
+        "finder spec is supported by Python 3.12+. Also, Pip 23.2 dropped support for the legacy "
+        "resolver, which this test needs."
     ),
 )
 def test_pip_2020_resolver_engaged():

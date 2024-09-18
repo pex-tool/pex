@@ -17,6 +17,7 @@ from textwrap import dedent
 import pexpect  # type: ignore[import]  # MyPy can't see the types under Python 2.7.
 import pytest
 
+from pex import targets
 from pex.cache.dirs import CacheDir
 from pex.common import is_exe, safe_mkdir, safe_open, safe_rmtree, temporary_dir, touch
 from pex.compatibility import WINDOWS, commonpath
@@ -27,6 +28,7 @@ from pex.layout import Layout
 from pex.network_configuration import NetworkConfiguration
 from pex.pep_427 import InstallableType
 from pex.pex_info import PexInfo
+from pex.pip.version import PipVersion
 from pex.requirements import LogicalLine, PyPIRequirement, parse_requirement_file
 from pex.typing import TYPE_CHECKING, cast
 from pex.util import named_temporary_file
@@ -382,32 +384,51 @@ def test_entry_point_exit_code(tmpdir):
         assert rc == 1
 
 
-def test_pex_multi_resolve():
-    # type: () -> None
+def test_pex_multi_resolve_1(tmpdir):
+    # type: (Any) -> None
     """Tests multi-interpreter + multi-platform resolution."""
     python38 = ensure_python_interpreter(PY38)
     python39 = ensure_python_interpreter(PY39)
-    with temporary_dir() as output_dir:
-        pex_path = os.path.join(output_dir, "pex.pex")
-        results = run_pex_command(
-            [
-                "--disable-cache",
-                "lxml==4.6.1",
-                "--no-build",
-                "--platform=linux-x86_64-cp-36-m",
-                "--platform=macosx-10.9-x86_64-cp-36-m",
-                "--python={}".format(python38),
-                "--python={}".format(python39),
-                "-o",
-                pex_path,
-            ]
-        )
-        results.assert_success()
 
-        included_dists = get_dep_dist_names_from_pex(pex_path, "lxml")
-        assert len(included_dists) == 4
-        for dist_substr in ("-cp36-", "-cp38-", "-cp39-", "-manylinux1_x86_64", "-macosx_"):
-            assert any(dist_substr in f for f in included_dists)
+    pex_path = os.path.join(str(tmpdir), "pex.pex")
+
+    pip_log = os.path.join(str(tmpdir), "pip.log")
+
+    def read_pip_log():
+        # type: () -> str
+        if not os.path.exists(pip_log):
+            return "Did not find Pip log at {log}.".format(log=pip_log)
+        with open(pip_log) as fp:
+            return fp.read()
+
+    result = run_pex_command(
+        args=[
+            "--disable-cache",
+            "lxml==4.6.1",
+            "--no-build",
+            "--platform=linux-x86_64-cp-36-m",
+            "--platform=macosx-10.9-x86_64-cp-36-m",
+            "--python={}".format(python38),
+            "--python={}".format(python39),
+            "-o",
+            pex_path,
+            "--pip-log",
+            pip_log,
+        ]
+    )
+    assert 0 == result.return_code, (
+        "Failed to resolve lxml for all platforms. Pip download log:\n"
+        "-----------------------------------------------------------\n"
+        "{pip_log_text}\n"
+        "-----------------------------------------------------------\n".format(
+            pip_log_text=read_pip_log()
+        )
+    )
+
+    included_dists = get_dep_dist_names_from_pex(pex_path, "lxml")
+    assert len(included_dists) == 4
+    for dist_substr in ("-cp36-", "-cp38-", "-cp39-", "-manylinux1_x86_64", "-macosx_"):
+        assert any(dist_substr in f for f in included_dists)
 
 
 def test_pex_path_arg():
@@ -569,32 +590,49 @@ def inherit_path(inherit_path):
             assert requests_paths[0] > sys_paths[0]
 
 
-def test_pex_multi_resolve_2():
-    # type: () -> None
-    """Tests multi-interpreter + multi-platform resolution using extended platform notation."""
-    with temporary_dir() as output_dir:
-        pex_path = os.path.join(output_dir, "pex.pex")
-        results = run_pex_command(
-            [
-                "--disable-cache",
-                "lxml==3.8.0",
-                "--no-build",
-                "--platform=linux-x86_64-cp-36-m",
-                "--platform=linux-x86_64-cp-27-m",
-                "--platform=macosx-10.6-x86_64-cp-36-m",
-                "--platform=macosx-10.6-x86_64-cp-27-m",
-                "-o",
-                pex_path,
-            ]
-        )
-        results.assert_success()
+def test_pex_multi_resolve_2(tmpdir):
+    # type: (Any) -> None
 
-        included_dists = get_dep_dist_names_from_pex(pex_path, "lxml")
-        assert len(included_dists) == 4
-        for dist_substr in ("-cp27-", "-cp36-", "-manylinux1_x86_64", "-macosx_"):
-            assert any(
-                dist_substr in f for f in included_dists
-            ), "{} was not found in wheel".format(dist_substr)
+    pip_log = os.path.join(str(tmpdir), "pip.log")
+
+    def read_pip_log():
+        # type: () -> str
+        if not os.path.exists(pip_log):
+            return "Did not find Pip log at {log}.".format(log=pip_log)
+        with open(pip_log) as fp:
+            return fp.read()
+
+    pex_path = os.path.join(str(tmpdir), "pex.pex")
+    result = run_pex_command(
+        args=[
+            "--disable-cache",
+            "lxml==3.8.0",
+            "--no-build",
+            "--platform=linux-x86_64-cp-36-m",
+            "--platform=linux-x86_64-cp-27-m",
+            "--platform=macosx-10.6-x86_64-cp-36-m",
+            "--platform=macosx-10.6-x86_64-cp-27-m",
+            "-o",
+            pex_path,
+            "--pip-log",
+            pip_log,
+        ]
+    )
+    assert 0 == result.return_code, (
+        "Failed to resolve lxml for all platforms. Pip download log:\n"
+        "-----------------------------------------------------------\n"
+        "{pip_log_text}\n"
+        "-----------------------------------------------------------\n".format(
+            pip_log_text=read_pip_log()
+        )
+    )
+
+    included_dists = get_dep_dist_names_from_pex(pex_path, "lxml")
+    assert len(included_dists) == 4
+    for dist_substr in ("-cp27-", "-cp36-", "-manylinux1_x86_64", "-macosx_"):
+        assert any(dist_substr in f for f in included_dists), "{} was not found in wheel".format(
+            dist_substr
+        )
 
 
 if TYPE_CHECKING:
@@ -748,24 +786,26 @@ def test_ipython_appnope_env_markers():
     res.assert_success()
 
 
-def test_cross_platform_abi_targeting_behavior_exact():
-    # type: () -> None
-    with temporary_dir() as td:
-        pex_out_path = os.path.join(td, "pex.pex")
-        res = run_pex_command(
-            [
-                "--disable-cache",
-                "--no-pypi",
-                "--platform=linux-x86_64-cp-27-mu",
-                "--find-links=tests/example_packages/",
-                # Since we have no PyPI access, ensure we're using vendored Pip for this test.
-                "--pip-version=vendored",
-                "MarkupSafe==1.0",
-                "-o",
-                pex_out_path,
-            ]
-        )
-        res.assert_success()
+@pytest.mark.skipif(
+    not PipVersion.VENDORED.requires_python_applies(targets.current()),
+    reason="This test needs to use `--pip-version vendored`.",
+)
+def test_cross_platform_abi_targeting_behavior_exact(tmpdir):
+    # type: (Any) -> None
+    pex_out_path = os.path.join(str(tmpdir), "pex.pex")
+    run_pex_command(
+        args=[
+            "--disable-cache",
+            "--no-pypi",
+            "--platform=linux-x86_64-cp-27-mu",
+            "--find-links=tests/example_packages/",
+            # Since we have no PyPI access, ensure we're using vendored Pip for this test.
+            "--pip-version=vendored",
+            "MarkupSafe==1.0",
+            "-o",
+            pex_out_path,
+        ]
+    ).assert_success()
 
 
 def test_pex_source_bundling():
@@ -1704,13 +1744,16 @@ def test_seed_verbose(
         args=args
         + execution_mode_args
         + [
+            "--pex-root",
+            pex_root,
+            "--runtime-pex-root",
+            pex_root,
             "--layout",
             layout.value,
             get_installable_type_flag(installable_type),
             "--seed",
             "verbose",
         ],
-        env=make_env(PEX_ROOT=pex_root, PEX_PYTHON_PATH=sys.executable),
     )
     results.assert_success()
     verbose_info = json.loads(results.output)
@@ -1936,10 +1979,15 @@ def test_require_hashes(tmpdir):
     run_pex_command(args=["-r", requirements, "-o", requests_pex]).assert_success()
     subprocess.check_call(args=[requests_pex, "-c", "import requests"])
 
-    # The hash checking mode should also work in constraints context.
-    run_pex_command(
-        args=["--constraints", requirements, "requests", "-o", requests_pex]
-    ).assert_success()
+    result = run_pex_command(args=["--constraints", requirements, "requests", "-o", requests_pex])
+    # The hash checking mode should also work in constraints context for Pip prior to 23.2 when
+    # Pip got more strict about the contents of constraints files (just specifiers and markers; no
+    # extras, hashes, etc.).
+    if PipVersion.DEFAULT < PipVersion.v23_2:
+        result.assert_success()
+    else:
+        result.assert_failure()
+
     subprocess.check_call(args=[requests_pex, "-c", "import requests"])
 
     with open(requirements, "w") as fp:
@@ -1964,13 +2012,9 @@ def test_require_hashes(tmpdir):
     as_requirements_result = run_pex_command(args=["-r", requirements])
     as_requirements_result.assert_failure()
 
-    # The hash checking mode should also work in constraints context.
-    as_constraints_result = run_pex_command(args=["--constraints", requirements, "requests"])
-    as_constraints_result.assert_failure()
-
     error_lines = {
         re.sub(r"\s+", " ", line.strip()): index
-        for index, line in enumerate(as_constraints_result.error.splitlines())
+        for index, line in enumerate(as_requirements_result.error.splitlines())
     }
     index = error_lines["pip: Expected sha512 worse"]
     assert (

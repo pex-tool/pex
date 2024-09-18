@@ -17,7 +17,8 @@ from pex.build_system.pep_517 import build_sdist
 from pex.common import safe_copy, safe_mkdtemp, temporary_dir
 from pex.dist_metadata import Distribution, Requirement
 from pex.interpreter import PythonInterpreter
-from pex.platforms import Platform
+from pex.pip.version import PipVersion
+from pex.resolve import abbreviated_platforms
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.resolver_configuration import BuildConfiguration, ResolverVersion
 from pex.resolve.resolvers import ResolvedDistribution, ResolveResult, Unsatisfiable
@@ -335,7 +336,7 @@ def test_resolve_current_and_foreign_platforms(p537_resolve_cache):
 
         # N.B.: None stands in for the "current" platform at higher layers that parse platform
         # strings to Platform objects.
-        platforms = (None, Platform.create(foreign_platform))
+        platforms = (None, abbreviated_platforms.create(foreign_platform))
         return resolve_p537_wheel_names(
             cache_dir=p537_resolve_cache,
             targets=Targets(platforms=platforms, interpreters=tuple(interpreters)),
@@ -356,14 +357,14 @@ def test_resolve_current_and_foreign_platforms(p537_resolve_cache):
     assert 3 == len(resolve_current_and_foreign(interpreters=[current_python, other_python]))
 
 
-def test_resolve_foreign_abi3():
-    # type: () -> None
+def test_resolve_foreign_abi3(tmpdir):
+    # type: (Any) -> None
     # For version 2.8, cryptography publishes the following abi3 wheels for linux and macosx:
     # cryptography-2.8-cp34-abi3-macosx_10_6_intel.whl
     # cryptography-2.8-cp34-abi3-manylinux1_x86_64.whl
     # cryptography-2.8-cp34-abi3-manylinux2010_x86_64.whl
 
-    cryptogrpahy_resolve_cache = safe_mkdtemp()
+    cryptogrpahy_resolve_cache = os.path.join(str(tmpdir), "pex_root")
     foreign_ver = "37" if PY_VER == (3, 6) else "36"
 
     def resolve_cryptography_wheel_names(manylinux):
@@ -372,10 +373,13 @@ def test_resolve_foreign_abi3():
                 requirements=["cryptography==2.8"],
                 targets=Targets(
                     platforms=(
-                        Platform.create("linux_x86_64-cp-{}-m".format(foreign_ver)),
-                        Platform.create("macosx_10.11_x86_64-cp-{}-m".format(foreign_ver)),
+                        abbreviated_platforms.create(
+                            "linux_x86_64-cp-{}-m".format(foreign_ver), manylinux=manylinux
+                        ),
+                        abbreviated_platforms.create(
+                            "macosx_10.11_x86_64-cp-{}-m".format(foreign_ver), manylinux=manylinux
+                        ),
                     ),
-                    assume_manylinux=manylinux,
                 ),
                 transitive=False,
                 build_configuration=BuildConfiguration.create(allow_builds=False),
@@ -533,8 +537,12 @@ def test_download2():
 
 
 @pytest.mark.skipif(
-    sys.version_info[:2] >= (3, 12),
-    reason="We need to use setuptools<66 ut Python 3.12+ require greater.",
+    sys.version_info[:2] >= (3, 12) or PipVersion.DEFAULT >= PipVersion.v24_1,
+    reason=(
+        "We need to use setuptools<66, but Python 3.12+ require greater. We also need to avoid "
+        "Pip>=24.1 which upgrades its vendored packaging to a version that rejects invalid "
+        "versions"
+    ),
 )
 def test_resolve_arbitrary_equality_issues_940():
     # type: (...) -> None

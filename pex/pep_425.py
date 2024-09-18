@@ -84,7 +84,7 @@ class CompatibilityTags(object):
         return cls(tags=tuple(itertools.chain.from_iterable(parse_tag(tag) for tag in tags)))
 
     _tags = attr.ib(converter=_prepare_tags)  # type: Tuple[Tag, ...]
-    __rankings = attr.ib(eq=False, factory=dict)  # type: MutableMapping[Tag, TagRank]
+    _rankings = attr.ib(eq=False, factory=dict)  # type: MutableMapping[Tag, TagRank]
 
     @_tags.validator
     def _validate_tags(
@@ -120,11 +120,11 @@ class CompatibilityTags(object):
         return [str(tag) for tag in self._tags]
 
     @property
-    def _rankings(self):
+    def __rankings(self):
         # type: () -> Mapping[Tag, TagRank]
-        if not self.__rankings:
-            self.__rankings.update(TagRank.ranked(self._tags))
-        return self.__rankings
+        if not self._rankings:
+            self._rankings.update(TagRank.ranked(self._tags))
+        return self._rankings
 
     @property
     def lowest_rank(self):
@@ -133,7 +133,7 @@ class CompatibilityTags(object):
 
     def rank(self, tag):
         # type: (Tag) -> Optional[TagRank]
-        return self._rankings.get(tag)
+        return self.__rankings.get(tag)
 
     def best_match(self, tags):
         # type: (Iterable[Tag]) -> Optional[RankedTag]
@@ -161,17 +161,27 @@ class CompatibilityTags(object):
         pass
 
     @overload
+    def __getitem__(self, slice_):  # type: ignore[misc]
+        # type: (slice) -> CompatibilityTags
+        pass
+
+    @overload
     def __getitem__(self, tag):
         # type: (Tag) -> TagRank
         pass
 
-    def __getitem__(self, index_or_tag):
-        # type: (Union[int, Tag]) -> Union[Tag, TagRank]
+    def __getitem__(self, index_or_slice_or_tag):
+        # type: (Union[int, slice, Tag]) -> Union[Tag, CompatibilityTags, TagRank]
         """Retrieve tag by its rank or a tags rank.
 
         Ranks are 0-based with the 0-rank tag being the most specific (best match).
         """
-        if isinstance(index_or_tag, Tag):
-            return self._rankings[index_or_tag]
+        if isinstance(index_or_slice_or_tag, Tag):
+            return self.__rankings[index_or_slice_or_tag]
+        elif isinstance(index_or_slice_or_tag, slice):
+            tags = self._tags[index_or_slice_or_tag]
+            return CompatibilityTags(
+                tags=tags, rankings={tag: self.__rankings[tag] for tag in tags}
+            )
         else:
-            return self._tags[index_or_tag]
+            return self._tags[index_or_slice_or_tag]

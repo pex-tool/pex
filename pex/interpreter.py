@@ -545,9 +545,10 @@ class PythonIdentity(object):
             version=self.version_str,
             version_info=self.version,
             abi=self.abi_tag,
+            supported_tags=self._supported_tags,
         )
-        for tag in self._supported_tags:
-            yield Platform.from_tag(tag)
+        for index in range(len(self._supported_tags)):
+            yield Platform.from_tags(self._supported_tags[index:])
 
     def binary_name(self, version_components=2):
         # type: (int) -> str

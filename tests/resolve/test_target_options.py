@@ -14,7 +14,8 @@ from pex.interpreter import PythonInterpreter
 from pex.pep_425 import CompatibilityTags
 from pex.pep_508 import MarkerEnvironment
 from pex.platforms import Platform
-from pex.resolve import target_options
+from pex.resolve import abbreviated_platforms, target_options
+from pex.resolve.resolver_configuration import PipConfiguration
 from pex.targets import CompletePlatform, Targets
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
@@ -30,20 +31,18 @@ def compute_target_configuration(
 ):
     # type: (...) -> Targets
     options = parser.parse_args(args=args)
-    return target_options.configure(options).resolve_targets()
+    return target_options.configure(options, pip_configuration=PipConfiguration()).resolve_targets()
 
 
 def test_clp_manylinux(parser):
     # type: (ArgumentParser) -> None
     target_options.register(parser)
 
-    targets = compute_target_configuration(parser, args=[])
-    assert targets.assume_manylinux, "The --manylinux option should default to some value."
+    assert compute_target_configuration(parser, args=[]) is not None
 
     def assert_manylinux(value):
         # type: (str) -> None
-        rc = compute_target_configuration(parser, args=["--manylinux", value])
-        assert value == rc.assume_manylinux
+        assert compute_target_configuration(parser, args=["--manylinux", value]) is not None
 
     # Legacy manylinux standards should be supported.
     assert_manylinux("manylinux1_x86_64")
@@ -54,8 +53,7 @@ def test_clp_manylinux(parser):
     assert_manylinux("manylinux_2_5_x86_64")
     assert_manylinux("manylinux_2_33_x86_64")
 
-    targets = compute_target_configuration(parser, args=["--no-manylinux"])
-    assert targets.assume_manylinux is None
+    assert compute_target_configuration(parser, args=["--no-manylinux"]) is not None
 
     with pytest.raises(ArgumentTypeError):
         compute_target_configuration(parser, args=["--manylinux", "foo"])
@@ -80,12 +78,16 @@ def test_configure_platform(parser):
     # The special 'current' platform should map to a `None` platform entry.
     assert_platforms(["current"], None)
 
-    assert_platforms(["linux-x86_64-cp-37-cp37m"], Platform.create("linux-x86_64-cp-37-cp37m"))
-    assert_platforms(["linux-x86_64-cp-37-m"], Platform.create("linux-x86_64-cp-37-cp37m"))
+    assert_platforms(
+        ["linux-x86_64-cp-37-cp37m"], abbreviated_platforms.create("linux-x86_64-cp-37-cp37m")
+    )
+    assert_platforms(
+        ["linux-x86_64-cp-37-m"], abbreviated_platforms.create("linux-x86_64-cp-37-cp37m")
+    )
     assert_platforms(
         ["linux-x86_64-cp-37-m", "macosx-10.13-x86_64-cp-36-cp36m"],
-        Platform.create("linux-x86_64-cp-37-cp37m"),
-        Platform.create("macosx-10.13-x86_64-cp-36-m"),
+        abbreviated_platforms.create("linux-x86_64-cp-37-cp37m"),
+        abbreviated_platforms.create("macosx-10.13-x86_64-cp-36-m"),
     )
 
 
@@ -351,7 +353,10 @@ def test_configure_resolve_local_platforms(
         args.extend(itertools.chain.from_iterable(("--platform", p) for p in platforms))
         args.extend(extra_args or ())
         targets = compute_target_configuration(parser, args)
-        assert tuple(Platform.create(ep) for ep in expected_platforms) == targets.platforms
+        assert (
+            tuple(abbreviated_platforms.create(ep) for ep in expected_platforms)
+            == targets.platforms
+        )
         assert_interpreters_configured(targets, expected_interpreter, expected_interpreters)
 
     assert_local_platforms(

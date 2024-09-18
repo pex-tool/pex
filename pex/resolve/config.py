@@ -9,6 +9,7 @@ from pex.resolve.resolver_configuration import (
     LockRepositoryConfiguration,
     PexRepositoryConfiguration,
     PipConfiguration,
+    PreResolvedConfiguration,
 )
 from pex.result import Error, catch, try_
 from pex.targets import Targets
@@ -19,7 +20,12 @@ if TYPE_CHECKING:
 
     import attr  # vendor:skip
 
-    Configuration = Union[LockRepositoryConfiguration, PexRepositoryConfiguration, PipConfiguration]
+    Configuration = Union[
+        LockRepositoryConfiguration,
+        PexRepositoryConfiguration,
+        PreResolvedConfiguration,
+        PipConfiguration,
+    ]
     _C = TypeVar("_C", bound=Configuration)
 
 else:
@@ -60,6 +66,17 @@ def finalize(
                 resolver_configuration, targets, context, pip_version=pip_version
             ),
         )
+
+    if isinstance(resolver_configuration, (PexRepositoryConfiguration, PreResolvedConfiguration)):
+        pip_configuration = try_(
+            _finalize_pip_configuration(
+                resolver_configuration.pip_configuration,
+                targets,
+                context,
+                pip_version=pip_version,
+            )
+        )
+        return cast("_C", attr.evolve(resolver_configuration, pip_configuration=pip_configuration))
 
     if isinstance(resolver_configuration, LockRepositoryConfiguration):
         lock_file = try_(resolver_configuration.parse_lock())

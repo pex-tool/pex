@@ -18,7 +18,7 @@ from pex.pep_503 import ProjectName
 from pex.pex import PEX
 from pex.pip.version import PipVersion
 from pex.typing import TYPE_CHECKING
-from testing import PY_VER, data, run_pex_command
+from testing import IS_PYPY, PY_VER, data, run_pex_command
 from testing.cli import run_pex3
 
 if TYPE_CHECKING:
@@ -168,11 +168,15 @@ def test_pre_resolved_dists_offline(
     offline = os.path.join(str(tmpdir), "offline")
     os.mkdir(offline)
 
-    # In order to go offline and still be able to build sdists, we need both the un-vendored Pip and
-    # its basic build requirements.
-    if PipVersion.DEFAULT is not PipVersion.VENDORED:
+    if IS_PYPY or PipVersion.DEFAULT is not PipVersion.VENDORED:
         args = [sys.executable, "-m", "pip", "wheel", "-w", offline]
-        args.extend(str(req) for req in PipVersion.DEFAULT.requirements)
+        if PipVersion.DEFAULT is not PipVersion.VENDORED:
+            # In order to go offline and still be able to build sdists, we need both the un-vendored Pip and
+            # its basic build requirements.
+            args.extend(str(req) for req in PipVersion.DEFAULT.requirements)
+        if IS_PYPY:
+            # For PyPy, we need extra build dependencies for argon2-cffi-bindings.
+            args.append("setuptools_scm")
         subprocess.check_call(args)
 
     for dist in glob.glob(os.path.join(dists, "*")):

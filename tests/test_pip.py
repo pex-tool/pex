@@ -22,7 +22,7 @@ from pex.pep_503 import ProjectName
 from pex.pip.installation import _PIP, PipInstallation, get_pip
 from pex.pip.tool import PackageIndexConfiguration, Pip
 from pex.pip.version import PipVersion, PipVersionValue
-from pex.platforms import Platform
+from pex.resolve import abbreviated_platforms
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.resolver_configuration import ResolverVersion
 from pex.targets import AbbreviatedPlatform, LocalInterpreter, Target
@@ -107,9 +107,7 @@ def test_no_duplicate_constraints_pex_warnings(
 ):
     # type: (...) -> None
     with warnings.catch_warnings(record=True) as events:
-        pip = create_pip(current_interpreter, version=version)
-
-    pip.spawn_debug(platform=current_interpreter.platform).wait()
+        create_pip(current_interpreter, version=version)
 
     assert 0 == len([event for event in events if "constraints.txt" in str(event)]), (
         "Expected no duplicate constraints warnings to be emitted when creating a Pip venv but "
@@ -177,7 +175,7 @@ def test_download_platform_issues_1355(
     assert_pyarrow_downloaded(
         "pyarrow-4.0.1-cp38-cp38-manylinux2010_x86_64.whl",
         target=AbbreviatedPlatform.create(
-            Platform.create("linux-x86_64-cp-38-cp38"), manylinux="manylinux2010"
+            abbreviated_platforms.create("linux-x86_64-cp-38-cp38", manylinux="manylinux2010")
         ),
     )
 
@@ -191,7 +189,7 @@ def assert_download_platform_markers_issue_1366(
     python310_interpreter = PythonInterpreter.from_binary(ensure_python_interpreter(PY310))
     pip = create_pip(python310_interpreter, version=version)
 
-    python27_platform = Platform.create("manylinux_2_33_x86_64-cp-27-cp27mu")
+    python27_platform = abbreviated_platforms.create("manylinux_2_33_x86_64-cp-27-cp27mu")
     download_dir = os.path.join(str(tmpdir), "downloads")
     pip.spawn_download_distributions(
         target=AbbreviatedPlatform.create(python27_platform),
@@ -242,7 +240,9 @@ def test_download_platform_markers_issue_1366_indeterminate(
     python310_interpreter = PythonInterpreter.from_binary(ensure_python_interpreter(PY310))
     pip = create_pip(python310_interpreter, version=version)
 
-    target = AbbreviatedPlatform.create(Platform.create("manylinux_2_33_x86_64-cp-27-cp27mu"))
+    target = AbbreviatedPlatform.create(
+        abbreviated_platforms.create("manylinux_2_33_x86_64-cp-27-cp27mu")
+    )
     download_dir = os.path.join(str(tmpdir), "downloads")
 
     with pytest.raises(Job.Error) as exc_info:
@@ -275,9 +275,11 @@ def test_download_platform_markers_issue_1488(
 
     download_dir = os.path.join(str(tmpdir), "downloads")
 
-    python39_platform = Platform.create("linux-x86_64-cp-39-cp39")
+    python39_platform = abbreviated_platforms.create(
+        "linux-x86_64-cp-39-cp39", manylinux="manylinux2014"
+    )
     create_pip(None, version=version).spawn_download_distributions(
-        target=AbbreviatedPlatform.create(python39_platform, manylinux="manylinux2014"),
+        target=AbbreviatedPlatform.create(python39_platform),
         requirements=["SQLAlchemy==1.4.25"],
         constraint_files=[constraints_file],
         download_dir=download_dir,

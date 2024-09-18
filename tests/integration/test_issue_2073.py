@@ -5,7 +5,7 @@ import os.path
 import re
 import subprocess
 
-from pex.platforms import Platform
+from pex.resolve import abbreviated_platforms
 from pex.targets import AbbreviatedPlatform
 from pex.typing import TYPE_CHECKING
 from testing import IS_LINUX, IntegResults, run_pex_command
@@ -18,7 +18,9 @@ if TYPE_CHECKING:
 FOREIGN_PLATFORM_311 = (
     "macosx_10.9_x86_64-cp-311-cp311" if IS_LINUX else "linux_x86_64-cp-311-cp311"
 )
-ABBREVIATED_FOREIGN_PLATFORM_311 = AbbreviatedPlatform.create(Platform.create(FOREIGN_PLATFORM_311))
+ABBREVIATED_FOREIGN_PLATFORM_311 = AbbreviatedPlatform.create(
+    abbreviated_platforms.create(FOREIGN_PLATFORM_311)
+)
 
 
 def assert_psutil_cross_build_failure(result):

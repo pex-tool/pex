@@ -463,7 +463,6 @@ def create(
         check_targets = Targets(
             platforms=targets.platforms,
             complete_platforms=targets.complete_platforms,
-            assume_manylinux=targets.assume_manylinux,
         )
         with TRACER.timed(
             "Checking lock can resolve for platforms: {targets}".format(targets=check_targets)

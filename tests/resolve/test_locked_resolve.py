@@ -12,8 +12,8 @@ from pex.pep_425 import CompatibilityTags, TagRank
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pep_508 import MarkerEnvironment
-from pex.platforms import Platform
 from pex.requirements import VCS
+from pex.resolve import abbreviated_platforms
 from pex.resolve.locked_resolve import (
     Artifact,
     DownloadableArtifact,
@@ -272,7 +272,7 @@ def assert_error(
 
 def platform(plat):
     # type: (str) -> AbbreviatedPlatform
-    return AbbreviatedPlatform.create(Platform.create(plat))
+    return AbbreviatedPlatform.create(abbreviated_platforms.create(plat))
 
 
 def test_platform_resolve(ansicolors_exotic):

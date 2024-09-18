@@ -17,9 +17,9 @@ def test_preserve_pip_download_log():
     match = re.search(
         r"^pex: Preserving `pip download` log at (?P<log_path>.*)$", result.error, re.MULTILINE
     )
-    assert match is not None
+    assert match is not None, result.error
     log_path = match.group("log_path")
-    assert os.path.exists(log_path)
+    assert os.path.exists(log_path), result.error
     expected_url_suffix = "ansicolors-1.1.8-py2.py3-none-any.whl"
     expected_algorithm = "sha256"
     expected_hash = "00d2dde5a675579325902536738dd27e4fac1fd68f773fe36c21044eb559e187"

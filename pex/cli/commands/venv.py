@@ -21,6 +21,7 @@ from pex.resolve import configured_resolve, requirement_options, resolver_option
 from pex.resolve.resolver_configuration import (
     LockRepositoryConfiguration,
     PexRepositoryConfiguration,
+    PipConfiguration,
 )
 from pex.result import Error, Ok, Result, try_
 from pex.targets import LocalInterpreter, Target, Targets
@@ -200,7 +201,15 @@ class Venv(OutputMixin, JsonMixin, BuildTimeCommand):
     def _create(self):
         # type: () -> Result
 
-        targets = target_options.configure(self.options).resolve_targets()
+        resolver_configuration = resolver_options.configure(self.options)
+        targets = target_options.configure(
+            self.options,
+            pip_configuration=(
+                resolver_configuration
+                if isinstance(resolver_configuration, PipConfiguration)
+                else resolver_configuration.pip_configuration
+            ),
+        ).resolve_targets()
         installer_configuration = installer_options.configure(self.options)
 
         dest_dir = (
@@ -266,7 +275,6 @@ class Venv(OutputMixin, JsonMixin, BuildTimeCommand):
                 )
 
         requirement_configuration = requirement_options.configure(self.options)
-        resolver_configuration = resolver_options.configure(self.options)
         with TRACER.timed("Resolving distributions"):
             resolved = configured_resolve.resolve(
                 targets=targets,
