@@ -17,7 +17,6 @@ from textwrap import dedent
 import pexpect  # type: ignore[import]  # MyPy can't see the types under Python 2.7.
 import pytest
 
-from pex import targets
 from pex.cache.dirs import CacheDir
 from pex.common import is_exe, safe_mkdir, safe_open, safe_rmtree, temporary_dir, touch
 from pex.compatibility import WINDOWS, commonpath
