@@ -3,22 +3,14 @@
 
 from __future__ import absolute_import
 
-import json
-import os
-import re
 from textwrap import dedent
 
-from pex import compatibility
-from pex.atomic_directory import atomic_directory
-from pex.cache.dirs import CacheDir
-from pex.common import safe_open, safe_rmtree
 from pex.pep_425 import CompatibilityTags
 from pex.third_party.packaging import tags
-from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
+    from typing import Tuple, Union
 
     import attr  # vendor:skip
 
@@ -33,11 +25,10 @@ def _normalize_platform(platform):
 
 
 @attr.s(frozen=True)
-class Platform(object):
-    """Represents a target platform and it's extended interpreter compatibility tags (e.g.
-    implementation, version and ABI)."""
+class PlatformSpec(object):
+    """Represents a target Python platform, implementation, version and ABI."""
 
-    class InvalidPlatformError(Exception):
+    class InvalidSpecError(Exception):
         """Indicates an invalid platform string."""
 
         @classmethod
@@ -92,17 +83,14 @@ class Platform(object):
     SEP = "-"
 
     @classmethod
-    def create(cls, platform):
-        # type: (Union[str, Platform]) -> Platform
-        if isinstance(platform, Platform):
-            return platform
-
-        platform_components = platform.rsplit(cls.SEP, 3)
+    def parse(cls, platform_spec):
+        # type: (str) -> PlatformSpec
+        platform_components = platform_spec.rsplit(cls.SEP, 3)
         try:
             plat, impl, version, abi = platform_components
         except ValueError:
-            raise cls.InvalidPlatformError.create(
-                platform,
+            raise cls.InvalidSpecError.create(
+                platform_spec,
                 cause="There are missing platform fields. Expected 4 but given {count}.".format(
                     count=len(platform_components)
                 ),
@@ -112,8 +100,8 @@ class Platform(object):
         if len(version_components) == 1:
             component = version_components[0]
             if len(component) < 2:
-                raise cls.InvalidPlatformError.create(
-                    platform,
+                raise cls.InvalidSpecError.create(
+                    platform_spec,
                     cause=(
                         "The version field must either be a 2 or more digit digit major/minor "
                         "version or else a component dotted version. "
@@ -128,8 +116,8 @@ class Platform(object):
         try:
             version_info = cast("VersionInfo", tuple(map(int, version_components)))
         except ValueError:
-            raise cls.InvalidPlatformError.create(
-                platform,
+            raise cls.InvalidSpecError.create(
+                platform_spec,
                 cause="The version specified had non-integer components. Given: {version!r}".format(
                     version=version
                 ),
@@ -139,7 +127,7 @@ class Platform(object):
 
     @classmethod
     def from_tag(cls, tag):
-        # type: (tags.Tag) -> Platform
+        # type: (tags.Tag) -> PlatformSpec
         """Creates a platform corresponding to wheel compatibility tags.
 
         See: https://www.python.org/dev/peps/pep-0425/#details
@@ -151,7 +139,7 @@ class Platform(object):
         try:
             version_info = cast("VersionInfo", tuple(map(int, components)))
         except ValueError:
-            raise cls.InvalidPlatformError.create(
+            raise cls.InvalidSpecError.create(
                 tag,
                 cause=(
                     "The tag's interpreter field has an non-integer version suffix following the "
@@ -179,7 +167,7 @@ class Platform(object):
     @abi.validator
     def _non_blank(self, attribute, value):
         if not value:
-            raise self.InvalidPlatformError.create(
+            raise self.InvalidSpecError.create(
                 platform=str(self),
                 cause=(
                     "Platform specifiers cannot have blank fields. Given a blank {field}.".format(
@@ -207,143 +195,24 @@ class Platform(object):
         # type: () -> tags.Tag
         return tags.Tag(interpreter=self.interpreter, abi=self.abi, platform=self.platform)
 
-    def _calculate_tags(
-        self,
-        manylinux=None,  # type: Optional[str]
-    ):
-        # type: (...) -> Iterator[tags.Tag]
-        from pex.jobs import SpawnedJob
-        from pex.pip.installation import get_pip
-
-        def parse_tags(output):
-            # type: (bytes) -> Iterator[tags.Tag]
-            count = None  # type: Optional[int]
-            try:
-                for line in output.decode("utf-8").splitlines():
-                    if count is None:
-                        match = re.match(r"^Compatible tags: (?P<count>\d+)\s+", line)
-                        if match:
-                            count = int(match.group("count"))
-                        continue
-                    count -= 1
-                    if count < 0:
-                        raise AssertionError("Expected {} tags but got more.".format(count))
-                    for tag in tags.parse_tag(line.strip()):
-                        yield tag
-            finally:
-                if count != 0:
-                    raise AssertionError("Finished with count {}.".format(count))
-
-        from pex.resolve.configured_resolver import ConfiguredResolver
-
-        job = SpawnedJob.stdout(
-            # TODO(John Sirois): Plumb pip_version and the user-configured resolver:
-            #  https://github.com/pex-tool/pex/issues/1894
-            job=get_pip(resolver=ConfiguredResolver.default()).spawn_debug(
-                platform=self, manylinux=manylinux
-            ),
-            result_func=parse_tags,
-        )
-        return job.await_result()
-
-    PLAT_INFO_FILE = "PLAT-INFO"
-
-    _SUPPORTED_TAGS_BY_PLATFORM = (
-        {}
-    )  # type: Dict[Tuple[Platform, Optional[str]], CompatibilityTags]
-
-    def supported_tags(self, manylinux=None):
-        # type: (Optional[str]) -> CompatibilityTags
-
-        # We use a 2 level cache, probing memory first and then a json file on disk in order to
-        # avoid calculating tags when possible since it's an O(500ms) operation that involves
-        # spawning Pip.
-
-        # Read level 1.
-        memory_cache_key = (self, manylinux)
-        supported_tags = self._SUPPORTED_TAGS_BY_PLATFORM.get(memory_cache_key)
-        if supported_tags is not None:
-            return supported_tags
-
-        # Read level 2.
-        components = [str(self)]
-        if manylinux:
-            components.append(manylinux)
-        disk_cache_key = CacheDir.PLATFORMS.path(self.SEP.join(components))
-        with atomic_directory(target_dir=disk_cache_key) as cache_dir:
-            if not cache_dir.is_finalized():
-                # Missed both caches - spawn calculation.
-                plat_info = attr.asdict(self)
-                plat_info.update(
-                    supported_tags=[
-                        (tag.interpreter, tag.abi, tag.platform)
-                        for tag in self._calculate_tags(manylinux=manylinux)
-                    ],
-                )
-                # Write level 2.
-                with safe_open(os.path.join(cache_dir.work_dir, self.PLAT_INFO_FILE), "w") as fp:
-                    json.dump(plat_info, fp)
-
-        with open(os.path.join(disk_cache_key, self.PLAT_INFO_FILE)) as fp:
-            try:
-                data = json.load(fp)
-            except ValueError as e:
-                TRACER.log(
-                    "Regenerating the platform info file at {} since it did not contain parsable "
-                    "JSON data: {}".format(fp.name, e)
-                )
-                safe_rmtree(disk_cache_key)
-                return self.supported_tags(manylinux=manylinux)
-
-        if not isinstance(data, dict):
-            TRACER.log(
-                "Regenerating the platform info file at {} since it did not contain a "
-                "configuration object. Found: {!r}".format(fp.name, data)
-            )
-            safe_rmtree(disk_cache_key)
-            return self.supported_tags(manylinux=manylinux)
-
-        sup_tags = data.get("supported_tags")
-        if not isinstance(sup_tags, list):
-            TRACER.log(
-                "Regenerating the platform info file at {} since it was missing a valid "
-                "`supported_tags` list. Found: {!r}".format(fp.name, sup_tags)
-            )
-            safe_rmtree(disk_cache_key)
-            return self.supported_tags(manylinux=manylinux)
-
-        count = len(sup_tags)
-
-        def parse_tag(
-            index,  # type: int
-            tag,  # type: List[Any]
-        ):
-            # type: (...) -> tags.Tag
-            if len(tag) != 3 or not all(
-                isinstance(component, compatibility.string) for component in tag
-            ):
-                raise ValueError(
-                    "Serialized platform tags should be lists of three strings. Tag {index} of "
-                    "{count} was: {tag!r}.".format(index=index, count=count, tag=tag)
-                )
-            interpreter, abi, platform = tag
-            return tags.Tag(interpreter=interpreter, abi=abi, platform=platform)
-
-        try:
-            supported_tags = CompatibilityTags(
-                tags=[parse_tag(index, tag) for index, tag in enumerate(sup_tags)]
-            )
-            # Write level 1.
-            self._SUPPORTED_TAGS_BY_PLATFORM[memory_cache_key] = supported_tags
-            return supported_tags
-        except ValueError as e:
-            TRACER.log(
-                "Regenerating the platform info file at {} since it did not contain parsable "
-                "tag data: {}".format(fp.name, e)
-            )
-            safe_rmtree(disk_cache_key)
-            return self.supported_tags(manylinux=manylinux)
-
     def __str__(self):
         # type: () -> str
         return cast(str, self.SEP.join((self.platform, self.impl, self.version, self.abi)))
+
+
+@attr.s(frozen=True)
+class Platform(PlatformSpec):
+    @classmethod
+    def from_tags(cls, compatibility_tags):
+        # type: (CompatibilityTags) -> Platform
+        platform_spec = PlatformSpec.from_tag(compatibility_tags[0])
+        return Platform(
+            platform=platform_spec.platform,
+            impl=platform_spec.impl,
+            version=platform_spec.version,
+            version_info=platform_spec.version_info,
+            abi=platform_spec.abi,
+            supported_tags=compatibility_tags,
+        )
+
+    supported_tags = attr.ib(eq=False)  # type: CompatibilityTags

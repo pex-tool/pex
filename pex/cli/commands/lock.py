@@ -549,7 +549,12 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         cls.add_output_option(export_parser, entity="lock")
         cls._add_target_options(export_parser)
         resolver_options_parser = cls._create_resolver_options_group(export_parser)
-        resolver_options.register_network_options(resolver_options_parser)
+        resolver_options.register(
+            resolver_options_parser,
+            include_pex_repository=False,
+            include_lock=False,
+            include_pre_resolved=False,
+        )
 
     @classmethod
     def _add_export_subset_arguments(cls, export_subset_parser):
@@ -652,11 +657,12 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         cls.add_json_options(update_parser, entity="lock", include_switch=False)
         cls._add_target_options(update_parser)
         resolver_options_parser = cls._create_resolver_options_group(update_parser)
-        resolver_options.register_repos_options(resolver_options_parser)
-        resolver_options.register_network_options(resolver_options_parser)
-        resolver_options.register_max_jobs_option(resolver_options_parser)
-        resolver_options.register_use_pip_config(resolver_options_parser)
-        resolver_options.register_pip_log(resolver_options_parser)
+        resolver_options.register(
+            resolver_options_parser,
+            include_pex_repository=False,
+            include_lock=False,
+            include_pre_resolved=False,
+        )
 
     @classmethod
     def add_update_lock_options(
@@ -792,7 +798,9 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
     ):
         # type: (...) -> Union[Targets, Error]
 
-        target_config = target_configuration or target_options.configure(self.options)
+        target_config = target_configuration or target_options.configure(
+            self.options, pip_configuration=resolver_options.create_pip_configuration(self.options)
+        )
         if style is not LockStyle.UNIVERSAL:
             return target_config.resolve_targets()
 
@@ -812,7 +820,6 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             return Targets(
                 platforms=target_config.platforms,
                 complete_platforms=target_config.complete_platforms,
-                assume_manylinux=target_config.assume_manylinux,
             )
 
         try:
@@ -827,7 +834,6 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             interpreters=(interpreter,),
             platforms=target_config.platforms,
             complete_platforms=target_config.complete_platforms,
-            assume_manylinux=target_config.assume_manylinux,
         )
 
     def _gather_requirements(
@@ -860,7 +866,11 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
 
     def _create(self):
         # type: () -> Result
-        target_configuration = target_options.configure(self.options)
+
+        pip_configuration = resolver_options.create_pip_configuration(self.options)
+        target_configuration = target_options.configure(
+            self.options, pip_configuration=pip_configuration
+        )
         if self.options.style == LockStyle.UNIVERSAL:
             lock_configuration = LockConfiguration(
                 style=LockStyle.UNIVERSAL,
@@ -888,7 +898,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         )
         pip_configuration = try_(
             finalize_resolve_config(
-                resolver_configuration=resolver_options.create_pip_configuration(self.options),
+                resolver_configuration=pip_configuration,
                 targets=targets,
                 context="lock creation",
             )
@@ -953,19 +963,21 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             )
 
         lockfile_path, lock_file = self._load_lockfile()
-        targets = target_options.configure(self.options).resolve_targets()
+        pip_configuration = resolver_options.create_pip_configuration(self.options)
+        targets = target_options.configure(
+            self.options, pip_configuration=pip_configuration
+        ).resolve_targets()
         target = targets.require_unique_target(
             purpose="exporting a lock in the {pip!r} format".format(pip=ExportFormat.PIP)
         )
 
-        network_configuration = resolver_options.create_network_configuration(self.options)
         with TRACER.timed("Selecting locks for {target}".format(target=target)):
             subset_result = try_(
                 subset(
                     targets=targets,
                     lock=lock_file,
                     requirement_configuration=requirement_configuration,
-                    network_configuration=network_configuration,
+                    network_configuration=pip_configuration.network_configuration,
                     build_configuration=lock_file.build_configuration(),
                     transitive=lock_file.transitive,
                     include_all_matches=True,
@@ -1079,18 +1091,20 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
     ):
         # type: (...) -> Union[LockUpdateRequest, Error]
 
-        network_configuration = resolver_options.create_network_configuration(self.options)
+        pip_configuration = resolver_options.create_pip_configuration(self.options)
         lock_updater = LockUpdater.create(
             lock_file=lock_file,
-            repos_configuration=resolver_options.create_repos_configuration(self.options),
-            network_configuration=network_configuration,
-            max_jobs=resolver_options.get_max_jobs_value(self.options),
-            use_pip_config=resolver_options.get_use_pip_config_value(self.options),
+            repos_configuration=pip_configuration.repos_configuration,
+            network_configuration=pip_configuration.network_configuration,
+            max_jobs=pip_configuration.max_jobs,
+            use_pip_config=pip_configuration.use_pip_config,
             dependency_configuration=dependency_config,
             pip_log=resolver_options.get_pip_log(self.options),
         )
 
-        target_configuration = target_options.configure(self.options)
+        target_configuration = target_options.configure(
+            self.options, pip_configuration=pip_configuration
+        )
         targets = try_(
             self._resolve_targets(
                 action="updating", style=lock_file.style, target_configuration=target_configuration
@@ -1146,7 +1160,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                     subset(
                         targets=targets,
                         lock=lock_file,
-                        network_configuration=network_configuration,
+                        network_configuration=pip_configuration.network_configuration,
                         build_configuration=lock_file.build_configuration(),
                         transitive=lock_file.transitive,
                     )
@@ -1498,7 +1512,9 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         pip_configuration = resolver_configuration.pip_configuration
         dependency_config = dependency_configuration.configure(self.options)
 
-        target_configuration = target_options.configure(self.options)
+        target_configuration = target_options.configure(
+            self.options, pip_configuration=pip_configuration
+        )
         if self.options.style == LockStyle.UNIVERSAL:
             lock_configuration = LockConfiguration(
                 style=LockStyle.UNIVERSAL,
@@ -1613,7 +1629,9 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                         else PythonInterpreter.from_env(self.options.venv_python)
                     )
                 else:
-                    targets = target_options.configure(self.options).resolve_targets()
+                    targets = target_options.configure(
+                        self.options, pip_configuration=pip_configuration
+                    ).resolve_targets()
                     interpreters = [
                         target.get_interpreter()
                         for target in targets.unique_targets()

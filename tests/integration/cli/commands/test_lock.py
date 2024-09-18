@@ -19,7 +19,7 @@ from pex.interpreter_constraints import InterpreterConstraint
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pip.version import PipVersion
-from pex.platforms import Platform
+from pex.resolve import abbreviated_platforms
 from pex.resolve.locked_resolve import Artifact, LockedRequirement
 from pex.resolve.lockfile import json_codec
 from pex.resolve.lockfile.download_manager import DownloadedArtifact
@@ -255,7 +255,9 @@ def test_create_universal_platform_check(tmpdir):
     foreign_platform_310 = (
         "macosx_10.9_x86_64-cp-310-cp310" if IS_LINUX else "linux_x86_64-cp-310-cp310"
     )
-    abbreviated_platform_310 = AbbreviatedPlatform.create(Platform.create(foreign_platform_310))
+    abbreviated_platform_310 = AbbreviatedPlatform.create(
+        abbreviated_platforms.create(foreign_platform_310)
+    )
 
     complete_platform = os.path.join(str(tmpdir), "complete-platform.json")
     run_pex3("interpreter", "inspect", "--markers", "--tags", "-v", "-i2", "-o", complete_platform)
@@ -388,7 +390,9 @@ def test_create_universal_platform_check(tmpdir):
         "psutil==5.9.1",
     )
     result.assert_failure()
-    abbreviated_platform_311 = AbbreviatedPlatform.create(Platform.create(foreign_platform_311))
+    abbreviated_platform_311 = AbbreviatedPlatform.create(
+        abbreviated_platforms.create(foreign_platform_311)
+    )
     assert re.search(
         r"No pre-built wheel was available for psutil 5\.9\.1\.{eol}"
         r"Successfully built the wheel psutil-5\.9\.1-\S+\.whl from the sdist "

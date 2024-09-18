@@ -13,10 +13,16 @@ from pex.interpreter_constraints import InterpreterConstraints
 from pex.orderedset import OrderedSet
 from pex.pep_425 import CompatibilityTags
 from pex.pep_508 import MarkerEnvironment
-from pex.platforms import Platform
+from pex.platforms import Platform, PlatformSpec
+from pex.resolve import abbreviated_platforms
+from pex.resolve.resolver_configuration import PipConfiguration
 from pex.resolve.resolver_options import _ManylinuxAction
 from pex.resolve.target_configuration import InterpreterConfiguration, TargetConfiguration
 from pex.targets import CompletePlatform
+from pex.typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import Optional
 
 
 def register(
@@ -147,14 +153,13 @@ def _register_platform_options(
         ),
     )
 
-    default_target_configuration = TargetConfiguration()
     parser.add_argument(
         "--manylinux",
         "--no-manylinux",
         "--no-use-manylinux",
         dest="assume_manylinux",
         type=str,
-        default=default_target_configuration.assume_manylinux,
+        default="manylinux2014",
         action=_ManylinuxAction,
         help="Whether to allow resolution of manylinux wheels for linux target platforms.",
     )
@@ -239,23 +244,35 @@ def _create_complete_platform(value):
     return CompletePlatform.create(marker_environment, supported_tags)
 
 
-def configure(options):
-    # type: (Namespace) -> TargetConfiguration
+def configure(
+    options,  # type: Namespace
+    pip_configuration,  # type: PipConfiguration
+):
+    # type: (...) -> TargetConfiguration
     """Creates a target configuration from options via `register(..., include_platforms=True)`.
 
     :param options: The target configuration options.
+    :param pip_configuration: The Pip configuration options.
     """
     interpreter_configuration = configure_interpreters(options)
 
-    try:
-        platforms = tuple(
-            OrderedSet(
-                Platform.create(platform) if platform and platform != "current" else None
+    platforms = OrderedSet()  # type: OrderedSet[Optional[Platform]]
+    if options.platforms:
+        try:
+            platforms.update(
+                (
+                    abbreviated_platforms.create(
+                        platform,
+                        manylinux=options.assume_manylinux,
+                        pip_configuration=pip_configuration,
+                    )
+                    if platform and platform != "current"
+                    else None
+                )
                 for platform in options.platforms
             )
-        )
-    except Platform.InvalidPlatformError as e:
-        raise ArgumentTypeError(str(e))
+        except PlatformSpec.InvalidSpecError as e:
+            raise ArgumentTypeError(str(e))
 
     complete_platforms = tuple(
         OrderedSet(_create_complete_platform(value) for value in options.complete_platforms)
@@ -263,8 +280,7 @@ def configure(options):
 
     return TargetConfiguration(
         interpreter_configuration=interpreter_configuration,
-        platforms=platforms,
+        platforms=tuple(platforms),
         complete_platforms=complete_platforms,
         resolve_local_platforms=options.resolve_local_platforms,
-        assume_manylinux=options.assume_manylinux,
     )

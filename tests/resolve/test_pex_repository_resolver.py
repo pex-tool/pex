@@ -14,6 +14,7 @@ from pex.pep_427 import InstallableType
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
 from pex.platforms import Platform
+from pex.resolve import abbreviated_platforms
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.pex_repository_resolver import resolve_from_pex
 from pex.resolve.resolver_configuration import PipConfiguration
@@ -33,7 +34,6 @@ def create_pex_repository(
     requirements=None,  # type: Optional[Iterable[str]]
     requirement_files=None,  # type: Optional[Iterable[str]]
     constraint_files=None,  # type: Optional[Iterable[str]]
-    manylinux=None,  # type: Optional[str]
     result_type=InstallableType.INSTALLED_WHEEL_CHROOT,  # type: InstallableType.Value
 ):
     # type: (...) -> str
@@ -43,7 +43,6 @@ def create_pex_repository(
         targets=Targets(
             interpreters=tuple(interpreters) if interpreters else (),
             platforms=tuple(platforms) if platforms else (),
-            assume_manylinux=manylinux,
         ),
         requirements=requirements,
         requirement_files=requirement_files,
@@ -82,19 +81,13 @@ def py310():
 @pytest.fixture(scope="module")
 def macosx():
     # type: () -> Platform
-    return Platform.create("macosx-10.13-x86_64-cp-36-m")
+    return abbreviated_platforms.create("macosx-10.13-x86_64-cp-36-m")
 
 
 @pytest.fixture(scope="module")
 def linux():
     # type: () -> Platform
-    return Platform.create("linux-x86_64-cp-36-m")
-
-
-@pytest.fixture(scope="module")
-def manylinux():
-    # type: () -> Optional[str]
-    return None if IS_LINUX else "manylinux2014"
+    return abbreviated_platforms.create("linux-x86_64-cp-36-m", manylinux="manylinux2014")
 
 
 @pytest.fixture(scope="module")
@@ -117,7 +110,6 @@ def pex_repository(
     py27,  # type: PythonInterpreter
     py310,  # type: PythonInterpreter
     foreign_platform,  # type: Platform
-    manylinux,  # type: Optional[str]
     request,  # type: pytest.FixtureRequest
 ):
     # type (...) -> str
@@ -139,7 +131,6 @@ def pex_repository(
         platforms=[foreign_platform],
         requirements=["requests[security,socks]==2.25.1"],
         constraint_files=[constraints_file],
-        manylinux=manylinux,
         result_type=request.param,
     )
 
@@ -149,7 +140,6 @@ def test_resolve_from_pex(
     py27,  # type: PythonInterpreter
     py310,  # type: PythonInterpreter
     foreign_platform,  # type: Platform
-    manylinux,  # type: Optional[str]
 ):
     # type: (...) -> None
     pex_info = PexInfo.from_pex(pex_repository)
@@ -205,11 +195,7 @@ def test_resolve_from_pex(
         resolve_from_pex(
             pex=pex_repository,
             requirements=direct_requirements,
-            targets=Targets(
-                interpreters=(py27, py310),
-                platforms=(foreign_platform,),
-                assume_manylinux=manylinux,
-            ),
+            targets=Targets(interpreters=(py27, py310), platforms=(foreign_platform,)),
         ),
         expected_result_type=InstallableType.INSTALLED_WHEEL_CHROOT,
     )
@@ -219,11 +205,7 @@ def test_resolve_from_pex(
             resolve_from_pex(
                 pex=pex_repository,
                 requirements=direct_requirements,
-                targets=Targets(
-                    interpreters=(py27, py310),
-                    platforms=(foreign_platform,),
-                    assume_manylinux=manylinux,
-                ),
+                targets=Targets(interpreters=(py27, py310), platforms=(foreign_platform,)),
                 result_type=InstallableType.WHEEL_FILE,
             ),
             expected_result_type=InstallableType.WHEEL_FILE,
@@ -239,11 +221,7 @@ def test_resolve_from_pex(
             resolve_from_pex(
                 pex=pex_repository,
                 requirements=direct_requirements,
-                targets=Targets(
-                    interpreters=(py27, py310),
-                    platforms=(foreign_platform,),
-                    assume_manylinux=manylinux,
-                ),
+                targets=Targets(interpreters=(py27, py310), platforms=(foreign_platform,)),
                 result_type=InstallableType.WHEEL_FILE,
             )
 
@@ -251,17 +229,13 @@ def test_resolve_from_pex(
 def test_resolve_from_pex_subset(
     pex_repository,  # type: str
     foreign_platform,  # type: Platform
-    manylinux,  # type: Optional[str]
 ):
     # type: (...) -> None
 
     result = resolve_from_pex(
         pex=pex_repository,
         requirements=["cffi"],
-        targets=Targets(
-            platforms=(foreign_platform,),
-            assume_manylinux=manylinux,
-        ),
+        targets=Targets(platforms=(foreign_platform,)),
     )
 
     assert {"cffi", "pycparser"} == {
@@ -280,9 +254,7 @@ def test_resolve_from_pex_not_found(
         resolve_from_pex(
             pex=pex_repository,
             requirements=["pex"],
-            targets=Targets(
-                interpreters=(py310,),
-            ),
+            targets=Targets(interpreters=(py310,)),
         )
     assert "A distribution for pex could not be resolved for {py310_exe}.".format(
         py310_exe=py310.binary
@@ -292,9 +264,7 @@ def test_resolve_from_pex_not_found(
         resolve_from_pex(
             pex=pex_repository,
             requirements=["requests==1.0.0"],
-            targets=Targets(
-                interpreters=(py310,),
-            ),
+            targets=Targets(interpreters=(py310,)),
         )
     message = str(exec_info.value)
     assert (
@@ -311,7 +281,6 @@ def test_resolve_from_pex_intransitive(
     py27,  # type: PythonInterpreter
     py310,  # type: PythonInterpreter
     foreign_platform,  # type: Platform
-    manylinux,  # type: Optional[str]
 ):
     # type: (...) -> None
 
@@ -319,11 +288,7 @@ def test_resolve_from_pex_intransitive(
         pex=pex_repository,
         requirements=["requests"],
         transitive=False,
-        targets=Targets(
-            interpreters=(py27, py310),
-            platforms=(foreign_platform,),
-            assume_manylinux=manylinux,
-        ),
+        targets=Targets(interpreters=(py27, py310), platforms=(foreign_platform,)),
     ).distributions
     assert 3 == len(
         resolved_distributions
@@ -357,9 +322,7 @@ def test_resolve_from_pex_constraints(
             pex=pex_repository,
             requirements=["requests"],
             constraint_files=[create_constraints_file("urllib3==1.26.2")],
-            targets=Targets(
-                interpreters=(py27,),
-            ),
+            targets=Targets(interpreters=(py27,)),
         )
     message = str(exec_info.value)
     assert "The following constraints were not satisfied by " in message
@@ -378,9 +341,7 @@ def test_resolve_from_pex_ignore_errors(
         pex=pex_repository,
         requirements=["requests"],
         constraint_files=[create_constraints_file("urllib3==1.26.2")],
-        targets=Targets(
-            interpreters=(py27,),
-        ),
+        targets=Targets(interpreters=(py27,)),
         ignore_errors=True,
     )
     resolved_distributions_by_key = {

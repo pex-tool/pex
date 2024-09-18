@@ -4,7 +4,7 @@
 import pytest
 
 from pex.pep_508 import MarkerEnvironment
-from pex.platforms import Platform
+from pex.resolve import abbreviated_platforms
 from pex.third_party.packaging import markers
 from pex.typing import TYPE_CHECKING, cast
 
@@ -35,7 +35,7 @@ def assert_unknown_marker(
 
 def test_platform_marker_environment():
     # type: () -> None
-    platform = Platform.create("linux-x86_64-cp-37-cp37m")
+    platform = abbreviated_platforms.create("linux-x86_64-cp-37-cp37m")
     marker_environment = MarkerEnvironment.from_platform(platform)
     env = marker_environment.as_dict()
 
@@ -57,7 +57,7 @@ def test_platform_marker_environment():
 
 def test_extended_platform_marker_environment():
     # type: () -> None
-    platform = Platform.create("linux-x86_64-cp-3.10.1-cp310")
+    platform = abbreviated_platforms.create("linux-x86_64-cp-3.10.1-cp310")
     marker_environment = MarkerEnvironment.from_platform(platform)
     env = marker_environment.as_dict()
 
@@ -84,7 +84,7 @@ def test_platform_marker_environment_issue_1488():
         expected,  # type: str
         platform,  # type: str
     ):
-        marker_environment = MarkerEnvironment.from_platform(Platform.create(platform))
+        marker_environment = MarkerEnvironment.from_platform(abbreviated_platforms.create(platform))
         assert expected == marker_environment.platform_machine
 
     assert_platform_machine("x86_64", "linux-x86_64-cp-37-cp37m")

@@ -14,6 +14,7 @@ from pex.orderedset import OrderedSet
 from pex.pep_425 import CompatibilityTags
 from pex.pep_508 import MarkerEnvironment
 from pex.platforms import Platform
+from pex.resolve import abbreviated_platforms
 from pex.targets import (
     AbbreviatedPlatform,
     CompletePlatform,
@@ -156,7 +157,9 @@ def test_requires_python_current():
 
 
 def test_requires_python_abbreviated_platform():
-    abbreviated_platform = AbbreviatedPlatform.create(Platform.create("linux-x86_64-cp-37-m"))
+    abbreviated_platform = AbbreviatedPlatform.create(
+        abbreviated_platforms.create("linux-x86_64-cp-37-m")
+    )
 
     def assert_requires_python(
         expected_result,  # type: bool
@@ -245,9 +248,7 @@ def test_from_target_local_interpreter():
 def test_from_target_abbreviated_platform(current_platform):
     # type: (Platform) -> None
 
-    abbreviated_platform = AbbreviatedPlatform.create(
-        platform=current_platform, manylinux="manylinux1"
-    )
+    abbreviated_platform = AbbreviatedPlatform.create(platform=current_platform)
     tgts = Targets.from_target(abbreviated_platform)
     assert tgts.interpreter is None
     assert OrderedSet([abbreviated_platform]) == tgts.unique_targets(only_explicit=False)
@@ -312,6 +313,7 @@ def test_compatible_shebang(
         version_info=incompatible_version_info,
         version=".".join(map(str, incompatible_version_info)),
         abi=current_platform.abi,
+        supported_tags=current_platform.supported_tags,
     )
     assert (
         Targets(platforms=(current_platform, incompatible_platform_version)).compatible_shebang()
@@ -324,6 +326,7 @@ def test_compatible_shebang(
         version_info=current_platform.version_info,
         version=current_platform.version,
         abi=current_platform.abi,
+        supported_tags=current_platform.supported_tags,
     )
     assert (
         Targets(platforms=(current_platform, incompatible_platform_impl)).compatible_shebang()

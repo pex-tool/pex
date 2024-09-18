@@ -8,7 +8,8 @@ from textwrap import dedent
 import pytest
 
 from pex.pep_425 import CompatibilityTags
-from pex.platforms import Platform
+from pex.platforms import PlatformSpec
+from pex.resolve import abbreviated_platforms
 from pex.third_party.packaging import tags
 from testing import data
 
@@ -17,37 +18,38 @@ EXPECTED_BASE = [("py27", "none", "any"), ("py2", "none", "any")]
 
 def test_platform():
     # type: () -> None
-    assert Platform("linux-x86_64", "cp", "27", (2, 7), "mu") == Platform(
+    assert PlatformSpec("linux-x86_64", "cp", "27", (2, 7), "mu") == PlatformSpec(
         "linux_x86_64", "cp", "27", (2, 7), "cp27mu"
     )
-    assert Platform("linux-x86_64", "cp", "2.7", (2, 7), "mu") == Platform(
+    assert PlatformSpec("linux-x86_64", "cp", "2.7", (2, 7), "mu") == PlatformSpec(
         "linux_x86_64", "cp", "2.7", (2, 7), "cp27mu"
     )
 
-    assert str(Platform("linux-x86_64", "cp", "27", (2, 7), "m")) == "linux_x86_64-cp-27-cp27m"
+    assert str(PlatformSpec("linux-x86_64", "cp", "27", (2, 7), "m")) == "linux_x86_64-cp-27-cp27m"
     assert (
-        str(Platform("linux-x86_64", "cp", "310", (3, 10), "cp310")) == "linux_x86_64-cp-310-cp310"
+        str(PlatformSpec("linux-x86_64", "cp", "310", (3, 10), "cp310"))
+        == "linux_x86_64-cp-310-cp310"
     )
 
     assert (
-        str(Platform("linux-x86_64", "cp", "3.10", (3, 10), "cp310"))
+        str(PlatformSpec("linux-x86_64", "cp", "3.10", (3, 10), "cp310"))
         == "linux_x86_64-cp-3.10-cp310"
     )
     assert (
-        str(Platform("linux-x86_64", "cp", "3.10.1", (3, 10, 1), "cp310"))
+        str(PlatformSpec("linux-x86_64", "cp", "3.10.1", (3, 10, 1), "cp310"))
         == "linux_x86_64-cp-3.10.1-cp310"
     )
 
 
 def test_platform_create():
     # type: () -> None
-    assert Platform.create("linux-x86_64-cp-27-cp27mu") == Platform(
+    assert PlatformSpec.parse("linux-x86_64-cp-27-cp27mu") == PlatformSpec(
         "linux_x86_64", "cp", "27", (2, 7), "cp27mu"
     )
-    assert Platform.create("linux-x86_64-cp-27-mu") == Platform(
+    assert PlatformSpec.parse("linux-x86_64-cp-27-mu") == PlatformSpec(
         "linux_x86_64", "cp", "27", (2, 7), "cp27mu"
     )
-    assert Platform.create("macosx-10.4-x86_64-cp-27-m") == Platform(
+    assert PlatformSpec.parse("macosx-10.4-x86_64-cp-27-m") == PlatformSpec(
         "macosx_10_4_x86_64",
         "cp",
         "27",
@@ -58,7 +60,7 @@ def test_platform_create():
 
 def assert_raises(platform, expected_cause):
     with pytest.raises(
-        Platform.InvalidPlatformError,
+        PlatformSpec.InvalidSpecError,
         match=(
             r".*{literal}.*".format(
                 literal=re.escape(
@@ -73,7 +75,7 @@ def assert_raises(platform, expected_cause):
             )
         ),
     ):
-        Platform.create(platform)
+        PlatformSpec.parse(platform)
 
 
 def test_platform_create_bad_platform_missing_fields():
@@ -118,15 +120,9 @@ def test_platform_create_bad_platform_bad_version():
     )
 
 
-def test_platform_create_noop():
-    # type: () -> None
-    existing = Platform.create("linux-x86_64-cp-27-mu")
-    assert Platform.create(existing) is existing
-
-
 def test_platform_supported_tags():
     # type: () -> None
-    platform = Platform.create("macosx-10.13-x86_64-cp-36-m")
+    platform = abbreviated_platforms.create("macosx-10.13-x86_64-cp-36-m")
 
     # A golden file test. This could break if we upgrade Pip and it upgrades packaging which, from
     # time to time, corrects omissions in tag sets.
@@ -140,15 +136,26 @@ def test_platform_supported_tags():
                 if not tag.startswith("#")
             )
         )
-        == platform.supported_tags()
+        == platform.supported_tags
     )
 
 
 def test_platform_supported_tags_manylinux():
     # type: () -> None
-    platform = Platform.create("linux-x86_64-cp-37-cp37m")
-    tags = frozenset(platform.supported_tags())
-    manylinux1_tags = frozenset(platform.supported_tags(manylinux="manylinux1"))
-    manylinux2010_tags = frozenset(platform.supported_tags(manylinux="manylinux2010"))
-    manylinux2014_tags = frozenset(platform.supported_tags(manylinux="manylinux2014"))
+    tags = frozenset(abbreviated_platforms.create("linux-x86_64-cp-37-cp37m").supported_tags)
+    manylinux1_tags = frozenset(
+        abbreviated_platforms.create(
+            "linux-x86_64-cp-37-cp37m", manylinux="manylinux1"
+        ).supported_tags
+    )
+    manylinux2010_tags = frozenset(
+        abbreviated_platforms.create(
+            "linux-x86_64-cp-37-cp37m", manylinux="manylinux2010"
+        ).supported_tags
+    )
+    manylinux2014_tags = frozenset(
+        abbreviated_platforms.create(
+            "linux-x86_64-cp-37-cp37m", manylinux="manylinux2014"
+        ).supported_tags
+    )
     assert manylinux2014_tags > manylinux2010_tags > manylinux1_tags > tags

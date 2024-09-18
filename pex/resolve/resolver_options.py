@@ -547,6 +547,8 @@ def configure(options):
     :raise: :class:`InvalidConfigurationError` if the resolver configuration is invalid.
     """
 
+    pip_configuration = create_pip_configuration(options)
+
     pex_repository = getattr(options, "pex_repository", None)
     if pex_repository:
         if options.indexes or options.find_links:
@@ -555,12 +557,9 @@ def configure(options):
                 '"--find-links" options.'
             )
         return PexRepositoryConfiguration(
-            pex_repository=pex_repository,
-            network_configuration=create_network_configuration(options),
-            transitive=options.transitive,
+            pex_repository=pex_repository, pip_configuration=pip_configuration
         )
 
-    pip_configuration = create_pip_configuration(options)
     lock = getattr(options, "lock", None)
     if lock:
         return LockRepositoryConfiguration(

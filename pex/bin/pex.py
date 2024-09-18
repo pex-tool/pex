@@ -53,9 +53,8 @@ from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import (
     LockRepositoryConfiguration,
     PexRepositoryConfiguration,
-    PreResolvedConfiguration,
+    PipConfiguration,
 )
-from pex.resolve.resolver_options import create_pip_configuration
 from pex.resolve.resolvers import Unsatisfiable, sorted_requirements
 from pex.result import Error, ResultError, catch, try_
 from pex.scie import ScieConfiguration
@@ -1014,20 +1013,11 @@ def build_pex(
                 DependencyConfiguration.from_pex_info(requirements_pex_info)
             )
 
-    if isinstance(resolver_configuration, (LockRepositoryConfiguration, PreResolvedConfiguration)):
-        pip_configuration = resolver_configuration.pip_configuration
-    elif isinstance(resolver_configuration, PexRepositoryConfiguration):
-        # TODO(John Sirois): Consider finding a way to support custom --index and --find-links in
-        #  this case. I.E.: I use a corporate index to build a PEX repository and now I want to
-        #  build a --project PEX whose pyproject.toml build-system.requires should be resolved from
-        #  that corporate index.
-        pip_configuration = try_(
-            finalize_resolve_config(
-                create_pip_configuration(options), targets=targets, context="--project building"
-            )
-        )
-    else:
-        pip_configuration = resolver_configuration
+    pip_configuration = (
+        resolver_configuration
+        if isinstance(resolver_configuration, PipConfiguration)
+        else resolver_configuration.pip_configuration
+    )
 
     project_dependencies = OrderedSet()  # type: OrderedSet[Requirement]
     with TRACER.timed(
@@ -1157,11 +1147,14 @@ def _compatible_with_current_platform(interpreter, platforms):
     return current_platforms.intersection(platforms)
 
 
-def configure_requirements_and_targets(options):
-    # type: (Namespace) -> Union[Tuple[RequirementConfiguration, InterpreterConstraints, Targets], Error]
+def configure_requirements_and_targets(
+    options,  # type: Namespace
+    pip_configuration,  # type: PipConfiguration
+):
+    # type: (...) -> Union[Tuple[RequirementConfiguration, InterpreterConstraints, Targets], Error]
 
     requirement_configuration = requirement_options.configure(options)
-    target_config = target_options.configure(options)
+    target_config = target_options.configure(options, pip_configuration=pip_configuration)
     script_metadata = ScriptMetadata()
 
     if options.executable and options.enable_script_metadata:
@@ -1260,14 +1253,21 @@ def main(args=None):
 
     try:
         with global_environment(options) as env:
-            requirement_configuration, interpreter_constraints, targets = try_(
-                configure_requirements_and_targets(options)
-            )
-
             try:
                 resolver_configuration = resolver_options.configure(options)
             except resolver_options.InvalidConfigurationError as e:
                 die(str(e))
+
+            requirement_configuration, interpreter_constraints, targets = try_(
+                configure_requirements_and_targets(
+                    options,
+                    pip_configuration=(
+                        resolver_configuration
+                        if isinstance(resolver_configuration, PipConfiguration)
+                        else resolver_configuration.pip_configuration
+                    ),
+                )
+            )
 
             resolver_configuration = try_(
                 finalize_resolve_config(resolver_configuration, targets, context="PEX building")

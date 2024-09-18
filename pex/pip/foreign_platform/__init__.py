@@ -10,7 +10,7 @@ from pex.common import safe_mkdtemp
 from pex.interpreter_constraints import iter_compatible_versions
 from pex.pep_425 import CompatibilityTags
 from pex.pip.download_observer import DownloadObserver, Patch, PatchSet
-from pex.platforms import Platform
+from pex.platforms import PlatformSpec
 from pex.targets import AbbreviatedPlatform, CompletePlatform, Target
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
@@ -20,12 +20,12 @@ if TYPE_CHECKING:
 
 
 def iter_platform_args(
-    platform,  # type: Platform
+    platform_spec,  # type: PlatformSpec
     manylinux=None,  # type: Optional[str]
 ):
     # type: (...) -> Iterator[str]
 
-    plat = platform.platform
+    platform = platform_spec.platform
     # N.B.: Pip supports passing multiple --platform and --abi. We pass multiple --platform to
     # support the following use case 1st surfaced by Twitter in 2018:
     #
@@ -41,21 +41,21 @@ def iter_platform_args(
     # consume both its own custom-built wheels as well as other manylinux-compliant wheels in
     # the same application, it needs to advertise that the target machine supports both
     # `linux_x86_64` wheels and `manylinux2014_x86_64` wheels (for example).
-    if manylinux and plat.startswith("linux"):
+    if manylinux and platform.startswith("linux"):
         yield "--platform"
-        yield plat.replace("linux", manylinux, 1)
+        yield platform.replace("linux", manylinux, 1)
 
     yield "--platform"
-    yield plat
+    yield platform
 
     yield "--implementation"
-    yield platform.impl
+    yield platform_spec.impl
 
     yield "--python-version"
-    yield platform.version
+    yield platform_spec.version
 
     yield "--abi"
-    yield platform.abi
+    yield platform_spec.abi
 
 
 class EvaluationEnvironment(dict):
