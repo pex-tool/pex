@@ -17,6 +17,7 @@ from textwrap import dedent
 import pexpect  # type: ignore[import]  # MyPy can't see the types under Python 2.7.
 import pytest
 
+from pex import targets
 from pex.cache.dirs import CacheDir
 from pex.common import is_exe, safe_mkdir, safe_open, safe_rmtree, temporary_dir, touch
 from pex.compatibility import WINDOWS, commonpath
@@ -27,6 +28,7 @@ from pex.layout import Layout
 from pex.network_configuration import NetworkConfiguration
 from pex.pep_427 import InstallableType
 from pex.pex_info import PexInfo
+from pex.pip.version import PipVersion
 from pex.requirements import LogicalLine, PyPIRequirement, parse_requirement_file
 from pex.typing import TYPE_CHECKING, cast
 from pex.util import named_temporary_file
@@ -784,24 +786,26 @@ def test_ipython_appnope_env_markers():
     res.assert_success()
 
 
-def test_cross_platform_abi_targeting_behavior_exact():
-    # type: () -> None
-    with temporary_dir() as td:
-        pex_out_path = os.path.join(td, "pex.pex")
-        res = run_pex_command(
-            [
-                "--disable-cache",
-                "--no-pypi",
-                "--platform=linux-x86_64-cp-27-mu",
-                "--find-links=tests/example_packages/",
-                # Since we have no PyPI access, ensure we're using vendored Pip for this test.
-                "--pip-version=vendored",
-                "MarkupSafe==1.0",
-                "-o",
-                pex_out_path,
-            ]
-        )
-        res.assert_success()
+@pytest.mark.skipif(
+    not PipVersion.VENDORED.requires_python_applies(targets.current()),
+    reason="This test needs to use `--pip-version vendored`.",
+)
+def test_cross_platform_abi_targeting_behavior_exact(tmpdir):
+    # type: (Any) -> None
+    pex_out_path = os.path.join(str(tmpdir), "pex.pex")
+    run_pex_command(
+        args=[
+            "--disable-cache",
+            "--no-pypi",
+            "--platform=linux-x86_64-cp-27-mu",
+            "--find-links=tests/example_packages/",
+            # Since we have no PyPI access, ensure we're using vendored Pip for this test.
+            "--pip-version=vendored",
+            "MarkupSafe==1.0",
+            "-o",
+            pex_out_path,
+        ]
+    ).assert_success()
 
 
 def test_pex_source_bundling():
@@ -1740,13 +1744,16 @@ def test_seed_verbose(
         args=args
         + execution_mode_args
         + [
+            "--pex-root",
+            pex_root,
+            "--runtime-pex-root",
+            pex_root,
             "--layout",
             layout.value,
             get_installable_type_flag(installable_type),
             "--seed",
             "verbose",
         ],
-        env=make_env(PEX_ROOT=pex_root, PEX_PYTHON_PATH=sys.executable),
     )
     results.assert_success()
     verbose_info = json.loads(results.output)
