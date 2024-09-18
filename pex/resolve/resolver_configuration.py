@@ -185,7 +185,7 @@ class PipConfiguration(object):
     allow_prereleases = attr.ib(default=False)  # type: bool
     transitive = attr.ib(default=True)  # type: bool
     max_jobs = attr.ib(default=DEFAULT_MAX_JOBS)  # type: int
-    preserve_log = attr.ib(default=False)  # type: bool
+    log = attr.ib(default=None)  # type: Optional[str]
     version = attr.ib(default=None)  # type: Optional[PipVersionValue]
     resolver_version = attr.ib(default=None)  # type: Optional[ResolverVersion.Value]
     allow_version_fallback = attr.ib(default=True)  # type: bool

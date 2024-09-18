@@ -5,7 +5,8 @@ from __future__ import absolute_import
 
 import glob
 import os
-from argparse import Action, ArgumentTypeError, Namespace, _ActionsContainer
+import tempfile
+from argparse import Action, ArgumentError, ArgumentTypeError, Namespace, _ActionsContainer
 
 from pex import pex_warnings
 from pex.argparse import HandleBoolAction
@@ -316,23 +317,45 @@ def register(
         help="Whether to transitively resolve requirements.",
     )
     register_max_jobs_option(parser)
-    register_preserve_pip_download_log(parser)
+    register_pip_log(parser)
 
 
-def register_preserve_pip_download_log(parser):
+class HandlePipDownloadLogAction(Action):
+    def __init__(self, *args, **kwargs):
+        kwargs["nargs"] = "?"
+        super(HandlePipDownloadLogAction, self).__init__(*args, **kwargs)
+
+    def __call__(self, parser, namespace, value, option_str=None):
+        if option_str.startswith("--no"):
+            if value:
+                raise ArgumentError(
+                    self,
+                    "Cannot specify a Pip log path and turn off Pip log preservation at the same "
+                    "time. Given: `{option_str} {value}`".format(
+                        option_str=option_str, value=value
+                    ),
+                )
+        elif not value:
+            value = os.path.join(tempfile.mkdtemp(prefix="pex-pip-log."), "pip.log")
+        setattr(namespace, self.dest, value)
+
+
+def register_pip_log(parser):
     # type: (_ActionsContainer) -> None
     parser.add_argument(
+        "--pip-log",
         "--preserve-pip-download-log",
         "--no-preserve-pip-download-log",
-        default=PipConfiguration().preserve_log,
-        action=HandleBoolAction,
+        dest="pip_log",
+        default=PipConfiguration().log,
+        action=HandlePipDownloadLogAction,
         help="Preserve the `pip download` log and print its location to stderr.",
     )
 
 
-def get_preserve_pip_download_log(options):
-    # type: (Namespace) -> bool
-    return cast(bool, options.preserve_pip_download_log)
+def get_pip_log(options):
+    # type: (Namespace) -> Optional[str]
+    return cast("Optional[str]", options.pip_log)
 
 
 def register_use_pip_config(parser):
@@ -618,7 +641,7 @@ def create_pip_configuration(options):
         build_configuration=build_configuration,
         transitive=options.transitive,
         max_jobs=get_max_jobs_value(options),
-        preserve_log=get_preserve_pip_download_log(options),
+        log=get_pip_log(options),
         version=pip_version,
         resolver_version=resolver_version,
         allow_version_fallback=options.allow_pip_version_fallback,
