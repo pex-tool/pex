@@ -251,25 +251,18 @@ class LocalInterpreter(Target):
 @attr.s(frozen=True)
 class AbbreviatedPlatform(Target):
     @classmethod
-    def create(
-        cls,
-        platform,  # type: Platform
-        manylinux=None,  # type: Optional[str]
-    ):
-        # type: (...) -> AbbreviatedPlatform
+    def create(cls, platform):
+        # type: (Platform) -> AbbreviatedPlatform
         return cls(
             id=str(platform.tag),
             marker_environment=MarkerEnvironment.from_platform(platform),
             platform=platform,
-            manylinux=manylinux,
         )
-
-    manylinux = attr.ib()  # type: Optional[str]
 
     @property
     def supported_tags(self):
         # type: () -> CompatibilityTags
-        return self.platform.supported_tags(manylinux=self.manylinux)
+        return self.platform.supported_tags
 
     def render_description(self):
         return "abbreviated platform {platform}".format(platform=self.platform.tag)
@@ -298,7 +291,7 @@ class CompletePlatform(Target):
     ):
         # type: (...) -> CompletePlatform
 
-        platform = Platform.from_tag(supported_tags[0])
+        platform = Platform.from_tags(supported_tags)
         return cls(
             id=str(platform.tag),
             marker_environment=marker_environment,
@@ -323,7 +316,7 @@ class Targets(object):
     def from_target(cls, target):
         # type: (Target) -> Targets
         if isinstance(target, AbbreviatedPlatform):
-            return cls(platforms=(target.platform,), assume_manylinux=target.manylinux)
+            return cls(platforms=(target.platform,))
         elif isinstance(target, CompletePlatform):
             return cls(complete_platforms=(target,))
         else:
@@ -332,7 +325,6 @@ class Targets(object):
     interpreters = attr.ib(default=())  # type: Tuple[PythonInterpreter, ...]
     complete_platforms = attr.ib(default=())  # type: Tuple[CompletePlatform, ...]
     platforms = attr.ib(default=())  # type: Tuple[Optional[Platform], ...]
-    assume_manylinux = attr.ib(default=None)  # type: Optional[str]
 
     @property
     def interpreter(self):
@@ -368,7 +360,7 @@ class Targets(object):
                     yield current()
                 elif platform is not None:
                     # Build for specific platforms.
-                    yield AbbreviatedPlatform.create(platform, manylinux=self.assume_manylinux)
+                    yield AbbreviatedPlatform.create(platform)
 
             for complete_platform in self.complete_platforms:
                 yield complete_platform

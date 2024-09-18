@@ -18,6 +18,7 @@ from pex.common import safe_copy, temporary_dir
 from pex.compatibility import to_bytes
 from pex.interpreter import PythonInterpreter
 from pex.resolve import requirement_options, resolver_options, target_options
+from pex.resolve.resolver_configuration import PipConfiguration
 from pex.typing import TYPE_CHECKING
 from pex.venv.bin_path import BinPath
 from testing import PY39, built_wheel, ensure_python_interpreter, run_pex_command, run_simple_pex
@@ -70,7 +71,7 @@ def test_clp_preamble_file():
 
         requirement_configuration = requirement_options.configure(options)
         resolver_configuration = resolver_options.configure(options)
-        target_config = target_options.configure(options)
+        target_config = target_options.configure(options, pip_configuration=PipConfiguration())
         targets = target_config.resolve_targets()
         pex_builder = build_pex(
             requirement_configuration=requirement_configuration,
@@ -123,7 +124,7 @@ def test_clp_prereleases_resolver():
         assert not options.allow_prereleases
 
         with pytest.raises(SystemExit):
-            target_config = target_options.configure(options)
+            target_config = target_options.configure(options, pip_configuration=PipConfiguration())
             build_pex(
                 requirement_configuration=requirement_options.configure(options),
                 resolver_configuration=resolver_options.configure(options),
@@ -154,7 +155,7 @@ def test_clp_prereleases_resolver():
         #     dep==1.2.3b1, dep
         #
         # With a correct behavior the assert line is reached and pex_builder object created.
-        target_config = target_options.configure(options)
+        target_config = target_options.configure(options, pip_configuration=PipConfiguration())
         pex_builder = build_pex(
             requirement_configuration=requirement_options.configure(options),
             resolver_configuration=resolver_options.configure(options),

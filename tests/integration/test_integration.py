@@ -17,6 +17,7 @@ from textwrap import dedent
 import pexpect  # type: ignore[import]  # MyPy can't see the types under Python 2.7.
 import pytest
 
+from pex import targets
 from pex.cache.dirs import CacheDir
 from pex.common import is_exe, safe_mkdir, safe_open, safe_rmtree, temporary_dir, touch
 from pex.compatibility import WINDOWS, commonpath
@@ -382,32 +383,51 @@ def test_entry_point_exit_code(tmpdir):
         assert rc == 1
 
 
-def test_pex_multi_resolve():
-    # type: () -> None
+def test_pex_multi_resolve_1(tmpdir):
+    # type: (Any) -> None
     """Tests multi-interpreter + multi-platform resolution."""
     python38 = ensure_python_interpreter(PY38)
     python39 = ensure_python_interpreter(PY39)
-    with temporary_dir() as output_dir:
-        pex_path = os.path.join(output_dir, "pex.pex")
-        results = run_pex_command(
-            [
-                "--disable-cache",
-                "lxml==4.6.1",
-                "--no-build",
-                "--platform=linux-x86_64-cp-36-m",
-                "--platform=macosx-10.9-x86_64-cp-36-m",
-                "--python={}".format(python38),
-                "--python={}".format(python39),
-                "-o",
-                pex_path,
-            ]
-        )
-        results.assert_success()
 
-        included_dists = get_dep_dist_names_from_pex(pex_path, "lxml")
-        assert len(included_dists) == 4
-        for dist_substr in ("-cp36-", "-cp38-", "-cp39-", "-manylinux1_x86_64", "-macosx_"):
-            assert any(dist_substr in f for f in included_dists)
+    pex_path = os.path.join(str(tmpdir), "pex.pex")
+
+    pip_log = os.path.join(str(tmpdir), "pip.log")
+
+    def read_pip_log():
+        # type: () -> str
+        if not os.path.exists(pip_log):
+            return "Did not find Pip log at {log}.".format(log=pip_log)
+        with open(pip_log) as fp:
+            return fp.read()
+
+    result = run_pex_command(
+        args=[
+            "--disable-cache",
+            "lxml==4.6.1",
+            "--no-build",
+            "--platform=linux-x86_64-cp-36-m",
+            "--platform=macosx-10.9-x86_64-cp-36-m",
+            "--python={}".format(python38),
+            "--python={}".format(python39),
+            "-o",
+            pex_path,
+            "--pip-log",
+            pip_log,
+        ]
+    )
+    assert 0 == result.return_code, (
+        "Failed to resolve lxml for all platforms. Pip download log:\n"
+        "-----------------------------------------------------------\n"
+        "{pip_log_text}\n"
+        "-----------------------------------------------------------\n".format(
+            pip_log_text=read_pip_log()
+        )
+    )
+
+    included_dists = get_dep_dist_names_from_pex(pex_path, "lxml")
+    assert len(included_dists) == 4
+    for dist_substr in ("-cp36-", "-cp38-", "-cp39-", "-manylinux1_x86_64", "-macosx_"):
+        assert any(dist_substr in f for f in included_dists)
 
 
 def test_pex_path_arg():
@@ -569,32 +589,49 @@ def inherit_path(inherit_path):
             assert requests_paths[0] > sys_paths[0]
 
 
-def test_pex_multi_resolve_2():
-    # type: () -> None
-    """Tests multi-interpreter + multi-platform resolution using extended platform notation."""
-    with temporary_dir() as output_dir:
-        pex_path = os.path.join(output_dir, "pex.pex")
-        results = run_pex_command(
-            [
-                "--disable-cache",
-                "lxml==3.8.0",
-                "--no-build",
-                "--platform=linux-x86_64-cp-36-m",
-                "--platform=linux-x86_64-cp-27-m",
-                "--platform=macosx-10.6-x86_64-cp-36-m",
-                "--platform=macosx-10.6-x86_64-cp-27-m",
-                "-o",
-                pex_path,
-            ]
-        )
-        results.assert_success()
+def test_pex_multi_resolve_2(tmpdir):
+    # type: (Any) -> None
 
-        included_dists = get_dep_dist_names_from_pex(pex_path, "lxml")
-        assert len(included_dists) == 4
-        for dist_substr in ("-cp27-", "-cp36-", "-manylinux1_x86_64", "-macosx_"):
-            assert any(
-                dist_substr in f for f in included_dists
-            ), "{} was not found in wheel".format(dist_substr)
+    pip_log = os.path.join(str(tmpdir), "pip.log")
+
+    def read_pip_log():
+        # type: () -> str
+        if not os.path.exists(pip_log):
+            return "Did not find Pip log at {log}.".format(log=pip_log)
+        with open(pip_log) as fp:
+            return fp.read()
+
+    pex_path = os.path.join(str(tmpdir), "pex.pex")
+    result = run_pex_command(
+        args=[
+            "--disable-cache",
+            "lxml==3.8.0",
+            "--no-build",
+            "--platform=linux-x86_64-cp-36-m",
+            "--platform=linux-x86_64-cp-27-m",
+            "--platform=macosx-10.6-x86_64-cp-36-m",
+            "--platform=macosx-10.6-x86_64-cp-27-m",
+            "-o",
+            pex_path,
+            "--pip-log",
+            pip_log,
+        ]
+    )
+    assert 0 == result.return_code, (
+        "Failed to resolve lxml for all platforms. Pip download log:\n"
+        "-----------------------------------------------------------\n"
+        "{pip_log_text}\n"
+        "-----------------------------------------------------------\n".format(
+            pip_log_text=read_pip_log()
+        )
+    )
+
+    included_dists = get_dep_dist_names_from_pex(pex_path, "lxml")
+    assert len(included_dists) == 4
+    for dist_substr in ("-cp27-", "-cp36-", "-manylinux1_x86_64", "-macosx_"):
+        assert any(dist_substr in f for f in included_dists), "{} was not found in wheel".format(
+            dist_substr
+        )
 
 
 if TYPE_CHECKING:

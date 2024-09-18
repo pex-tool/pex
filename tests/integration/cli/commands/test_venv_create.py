@@ -22,7 +22,7 @@ from pex.interpreter import PythonInterpreter
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pex import PEX
-from pex.platforms import Platform
+from pex.resolve import abbreviated_platforms
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import Virtualenv
 from testing import IS_MAC, PY39, PY310, ensure_python_interpreter, make_env, run_pex_command
@@ -483,7 +483,7 @@ def test_foreign_target(
     result.assert_failure()
     assert (
         "Cannot create a local venv for foreign platform {platform}.".format(
-            platform=Platform.create(foreign_platform)
+            platform=abbreviated_platforms.create(foreign_platform)
         )
         == result.error.strip()
     )
@@ -523,7 +523,7 @@ def test_venv_update_target_mismatch(
     result.assert_failure()
     assert (
         "Cannot update a local venv using a foreign platform. Given: {foreign_platform}.".format(
-            foreign_platform=Platform.create(foreign_platform)
+            foreign_platform=abbreviated_platforms.create(foreign_platform)
         )
         == result.error.strip()
     ), result.error

@@ -14,7 +14,7 @@ from pex.enum import Enum
 from pex.finders import get_entry_point_from_console_script
 from pex.pep_503 import ProjectName
 from pex.pex import PEX
-from pex.platforms import Platform
+from pex.platforms import PlatformSpec
 from pex.targets import Targets
 from pex.third_party.packaging import tags  # noqa
 from pex.typing import TYPE_CHECKING, cast
@@ -384,8 +384,9 @@ class ScieConfiguration(object):
         tags,  # type: Iterable[tags.Tag]
     ):
         # type: (...) -> ScieConfiguration
-        return cls._from_platforms(
-            options=options, platforms=tuple(Platform.from_tag(tag) for tag in tags)
+        return cls._from_platform_specs(
+            options=options,
+            platform_specs=tuple(PlatformSpec.from_tag(tag) for tag in tags),
         )
 
     @classmethod
@@ -395,16 +396,16 @@ class ScieConfiguration(object):
         targets,  # type: Targets
     ):
         # type: (...) -> ScieConfiguration
-        return cls._from_platforms(
+        return cls._from_platform_specs(
             options=options,
-            platforms=tuple(target.platform for target in targets.unique_targets()),
+            platform_specs=tuple(target.platform for target in targets.unique_targets()),
         )
 
     @classmethod
-    def _from_platforms(
+    def _from_platform_specs(
         cls,
         options,  # type: ScieOptions
-        platforms,  # type: Iterable[Platform]
+        platform_specs,  # type: Iterable[PlatformSpec]
     ):
         # type: (...) -> ScieConfiguration
 
@@ -412,20 +413,21 @@ class ScieConfiguration(object):
         python_versions_by_platform = defaultdict(
             set
         )  # type: DefaultDict[SciePlatform.Value, Set[Union[Tuple[int, int], Tuple[int, int, int]]]]
-        for plat in platforms:
+        for platform_spec in platform_specs:
             if python_version:
                 plat_python_version = python_version
-            elif len(plat.version_info) < 2:
+            elif len(platform_spec.version_info) < 2:
                 continue
             else:
                 # Here were guessing an available PBS CPython version. Since a triple is unlikely to
                 # hit, we just use major / minor. If the user wants control they can specify
                 # options.python_version via `--scie-python-version`.
                 plat_python_version = cast(
-                    "Union[Tuple[int, int], Tuple[int, int, int]]", plat.version_info
+                    "Union[Tuple[int, int], Tuple[int, int, int]]",
+                    platform_spec.version_info,
                 )[:2]
 
-            platform_str = plat.platform
+            platform_str = platform_spec.platform
             is_aarch64 = "arm64" in platform_str or "aarch64" in platform_str
             is_x86_64 = "amd64" in platform_str or "x86_64" in platform_str
             if not is_aarch64 ^ is_x86_64:
@@ -446,12 +448,12 @@ class ScieConfiguration(object):
             else:
                 continue
 
-            if plat.impl in ("py", "cp"):
+            if platform_spec.impl in ("py", "cp"):
                 # Python Build Standalone does not support CPython<3.8.
                 if plat_python_version < (3, 8):
                     continue
                 provider = Provider.PythonBuildStandalone
-            elif "pp" == plat.impl:
+            elif "pp" == platform_spec.impl:
                 # PyPy distributions for Linux aarch64 start with 3.7 (and PyPy always releases for
                 # 2.7).
                 if (
@@ -460,7 +462,8 @@ class ScieConfiguration(object):
                     and plat_python_version < (3, 7)
                 ):
                     continue
-                # PyPy distributions for Mac arm64 start with 3.8 (and PyPy always releases for 2.7).
+                # PyPy distributions for Mac arm64 start with 3.8 (and PyPy always releases for
+                # 2.7).
                 if (
                     SciePlatform.MACOS_AARCH64 is scie_platform
                     and plat_python_version[0] == 3

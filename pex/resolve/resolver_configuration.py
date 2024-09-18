@@ -196,13 +196,22 @@ class PipConfiguration(object):
 @attr.s(frozen=True)
 class PexRepositoryConfiguration(object):
     pex_repository = attr.ib()  # type: str
-    network_configuration = attr.ib(default=NetworkConfiguration())  # type: NetworkConfiguration
-    transitive = attr.ib(default=True)  # type: bool
+    pip_configuration = attr.ib()  # type: PipConfiguration
 
     @property
     def repos_configuration(self):
         # type: () -> ReposConfiguration
-        return ReposConfiguration()
+        return self.pip_configuration.repos_configuration
+
+    @property
+    def network_configuration(self):
+        # type: () -> NetworkConfiguration
+        return self.pip_configuration.network_configuration
+
+    @property
+    def transitive(self):
+        # type: () -> bool
+        return self.pip_configuration.transitive
 
 
 @attr.s(frozen=True)

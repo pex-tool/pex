@@ -11,7 +11,7 @@ from pex.interpreter_constraints import InterpreterConstraints, iter_compatible_
 from pex.orderedset import OrderedSet
 from pex.pep_425 import CompatibilityTags
 from pex.pep_508 import MarkerEnvironment
-from pex.platforms import Platform
+from pex.resolve import abbreviated_platforms
 from pex.sh_boot import PythonBinaryName
 from pex.targets import CompletePlatform, Targets
 from pex.typing import TYPE_CHECKING, cast
@@ -120,8 +120,8 @@ def test_calculate_platforms_no_ics(requires_python):
     ) == calculate_binary_names(
         Targets(
             platforms=(
-                Platform.create("macosx-10.13-x86_64-cp-36-cp36m"),
-                Platform.create("linux-x86_64-pp-27-pypy_73"),
+                abbreviated_platforms.create("macosx-10.13-x86_64-cp-36-cp36m"),
+                abbreviated_platforms.create("linux-x86_64-pp-27-pypy_73"),
             )
         )
     )

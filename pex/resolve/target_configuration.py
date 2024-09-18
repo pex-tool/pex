@@ -162,7 +162,6 @@ class TargetConfiguration(object):
 
     complete_platforms = attr.ib(default=())  # type: Tuple[CompletePlatform, ...]
     platforms = attr.ib(default=())  # type: Tuple[Optional[Platform], ...]
-    assume_manylinux = attr.ib(default="manylinux2014")  # type: Optional[str]
     resolve_local_platforms = attr.ib(default=False)  # type: bool
 
     def resolve_targets(self):
@@ -238,5 +237,4 @@ class TargetConfiguration(object):
             interpreters=tuple(interpreters),
             complete_platforms=tuple(requested_complete_platforms),
             platforms=tuple(requested_platforms),
-            assume_manylinux=self.assume_manylinux,
         )

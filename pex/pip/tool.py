@@ -28,7 +28,7 @@ from pex.pip.download_observer import DownloadObserver, PatchSet
 from pex.pip.log_analyzer import ErrorAnalyzer, ErrorMessage, LogAnalyzer, LogScrapeJob
 from pex.pip.tailer import Tailer
 from pex.pip.version import PipVersion, PipVersionValue
-from pex.platforms import Platform
+from pex.platforms import PlatformSpec
 from pex.resolve.resolver_configuration import (
     BuildConfiguration,
     ReposConfiguration,
@@ -698,7 +698,7 @@ class Pip(object):
 
     def spawn_debug(
         self,
-        platform,  # type: Platform
+        platform_spec,  # type: PlatformSpec
         manylinux=None,  # type: Optional[str]
         log=None,  # type: Optional[str]
     ):
@@ -713,7 +713,9 @@ class Pip(object):
         # only if the Pip command fails, which is what we want.
 
         debug_command = ["debug"]
-        debug_command.extend(foreign_platform.iter_platform_args(platform, manylinux=manylinux))
+        debug_command.extend(
+            foreign_platform.iter_platform_args(platform_spec, manylinux=manylinux)
+        )
         return self._spawn_pip_isolated_job(
             debug_command, log=log, pip_verbosity=1, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
