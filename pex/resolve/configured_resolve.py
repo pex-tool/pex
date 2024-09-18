@@ -125,7 +125,7 @@ def resolve(
                 compile=compile_pyc,
                 max_parallel_jobs=resolver_configuration.max_jobs,
                 ignore_errors=ignore_errors,
-                preserve_log=resolver_configuration.preserve_log,
+                pip_log=resolver_configuration.log,
                 pip_version=resolver_configuration.version,
                 resolver=ConfiguredResolver(pip_configuration=resolver_configuration),
                 use_pip_config=resolver_configuration.use_pip_config,

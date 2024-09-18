@@ -421,7 +421,7 @@ def create(
             max_parallel_jobs=pip_configuration.max_jobs,
             observer=lock_observer,
             dest=download_dir,
-            preserve_log=pip_configuration.preserve_log,
+            pip_log=pip_configuration.log,
             pip_version=pip_configuration.version,
             resolver=configured_resolver,
             use_pip_config=pip_configuration.use_pip_config,

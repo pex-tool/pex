@@ -11,7 +11,6 @@ import re
 import subprocess
 import sys
 from collections import deque
-from tempfile import mkdtemp
 
 from pex import targets
 from pex.atomic_directory import atomic_directory
@@ -339,6 +338,7 @@ class Pip(object):
         args,  # type: Iterable[str]
         package_index_configuration=None,  # type: Optional[PackageIndexConfiguration]
         interpreter=None,  # type: Optional[PythonInterpreter]
+        log=None,  # type: Optional[str]
         pip_verbosity=0,  # type: int
         extra_env=None,  # type: Optional[Dict[str, str]]
         **popen_kwargs  # type: Any
@@ -370,6 +370,10 @@ class Pip(object):
             # Don't read PIP_ environment variables or pip configuration files like
             # `~/.config/pip/pip.conf`.
             pip_args.append("--isolated")
+
+        if log:
+            pip_args.append("--log")
+            pip_args.append(log)
 
         # The max pip verbosity is -vvv and for pex it's -vvvvvvvvv; so we scale down by a factor
         # of 3.
@@ -442,6 +446,7 @@ class Pip(object):
         args,  # type: Iterable[str]
         package_index_configuration=None,  # type: Optional[PackageIndexConfiguration]
         interpreter=None,  # type: Optional[PythonInterpreter]
+        log=None,  # type: Optional[str]
         pip_verbosity=0,  # type: int
         finalizer=None,  # type: Optional[Callable[[int], None]]
         extra_env=None,  # type: Optional[Dict[str, str]]
@@ -452,6 +457,7 @@ class Pip(object):
             args,
             package_index_configuration=package_index_configuration,
             interpreter=interpreter,
+            log=log,
             pip_verbosity=pip_verbosity,
             extra_env=extra_env,
             **popen_kwargs
@@ -501,7 +507,7 @@ class Pip(object):
         build_configuration=BuildConfiguration(),  # type: BuildConfiguration
         observer=None,  # type: Optional[DownloadObserver]
         dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
-        preserve_log=False,  # type: bool
+        log=None,  # type: Optional[str]
     ):
         # type: (...) -> Job
         target = target or targets.current()
@@ -583,17 +589,14 @@ class Pip(object):
         popen_kwargs = {}
         finalizer = None
 
-        prefix = "pex-pip-log."
-        log = os.path.join(
-            mkdtemp(prefix=prefix) if preserve_log else safe_mkdtemp(prefix=prefix), "pip.log"
-        )
+        preserve_log = log is not None
         if preserve_log:
             TRACER.log(
                 "Preserving `pip download` log at {log_path}".format(log_path=log),
                 V=ENV.PEX_VERBOSE,
             )
+        log = log or os.path.join(safe_mkdtemp(prefix="pex-pip-log."), "pip.log")
 
-        download_cmd = ["--log", log] + download_cmd
         # N.B.: The `pip -q download ...` command is quiet but
         # `pip -q --log log.txt download ...` leaks download progress bars to stdout. We work
         # around this by sending stdout to the bit bucket.
@@ -627,6 +630,7 @@ class Pip(object):
             download_cmd,
             package_index_configuration=package_index_configuration,
             interpreter=target.get_interpreter(),
+            log=log,
             pip_verbosity=0,
             extra_env=extra_env,
             **popen_kwargs
@@ -696,6 +700,7 @@ class Pip(object):
         self,
         platform,  # type: Platform
         manylinux=None,  # type: Optional[str]
+        log=None,  # type: Optional[str]
     ):
         # type: (...) -> Job
 
@@ -710,5 +715,5 @@ class Pip(object):
         debug_command = ["debug"]
         debug_command.extend(foreign_platform.iter_platform_args(platform, manylinux=manylinux))
         return self._spawn_pip_isolated_job(
-            debug_command, pip_verbosity=1, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            debug_command, log=log, pip_verbosity=1, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )

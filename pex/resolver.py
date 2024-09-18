@@ -2,7 +2,7 @@
 # Copyright 2014 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-from __future__ import absolute_import
+from __future__ import absolute_import, print_function
 
 import functools
 import glob
@@ -17,7 +17,7 @@ from pex import targets
 from pex.atomic_directory import AtomicDirectory, atomic_directory
 from pex.auth import PasswordEntry
 from pex.cache.dirs import CacheDir
-from pex.common import pluralize, safe_mkdir, safe_mkdtemp
+from pex.common import pluralize, safe_mkdir, safe_mkdtemp, safe_open
 from pex.compatibility import url_unquote, urlparse
 from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import DistMetadata, Distribution, Requirement, is_wheel
@@ -44,7 +44,7 @@ from pex.resolve.resolvers import (
     Untranslatable,
     check_resolve,
 )
-from pex.targets import LocalInterpreter, Target, Targets
+from pex.targets import AbbreviatedPlatform, CompletePlatform, LocalInterpreter, Target, Targets
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper
@@ -52,6 +52,7 @@ from pex.util import CacheHelper
 if TYPE_CHECKING:
     from typing import (
         DefaultDict,
+        Dict,
         Iterable,
         Iterator,
         List,
@@ -75,6 +76,68 @@ def _uniqued_targets(targets=None):
 
 
 @attr.s(frozen=True)
+class PipLogManager(object):
+    @classmethod
+    def create(
+        cls,
+        log,  # type: Optional[str]
+        targets,  # type: Sequence[Target]
+    ):
+        # type: (...) -> PipLogManager
+        log_by_target = {}  # type: Dict[Target, str]
+        if log and len(targets) == 1:
+            log_by_target[targets[0]] = log
+        elif log:
+            log_dir = safe_mkdtemp(prefix="pex-pip-log.")
+            log_by_target.update(
+                (target, os.path.join(log_dir, "pip.{target}.log".format(target=target.id)))
+                for target in targets
+            )
+        return cls(log=log, log_by_target=log_by_target)
+
+    log = attr.ib()  # type: Optional[str]
+    _log_by_target = attr.ib()  # type: Mapping[Target, str]
+
+    @staticmethod
+    def _target_id(target):
+        # type: (Target) -> str
+        if isinstance(target, LocalInterpreter):
+            # e.g.: CPython 2.7.18
+            return target.interpreter.version_string
+        if isinstance(target, AbbreviatedPlatform):
+            return str(target.platform)
+        if isinstance(target, CompletePlatform):
+            return str(target.platform.tag)
+        return target.id
+
+    def finalize_log(self):
+        # type: () -> None
+        target_count = len(self._log_by_target)
+        if target_count <= 1:
+            return
+
+        with safe_open(self.log, "a") as out_fp:
+            for index, (target, log) in enumerate(self._log_by_target.items(), start=1):
+                prefix = "{index}/{count}]{target}".format(
+                    index=index, count=target_count, target=self._target_id(target)
+                )
+                if not os.path.exists(log):
+                    print(
+                        "{prefix}: WARNING: no Pip log was generated!".format(prefix=prefix),
+                        file=out_fp,
+                    )
+                    continue
+
+                with open(log) as in_fp:
+                    for line in in_fp:
+                        out_fp.write("{prefix}: {line}".format(prefix=prefix, line=line))
+
+    def get_log(self, target):
+        # type: (Target) -> Optional[str]
+        return self._log_by_target.get(target)
+
+
+@attr.s(frozen=True)
 class DownloadRequest(object):
     targets = attr.ib(converter=_uniqued_targets)  # type: Tuple[Target, ...]
     direct_requirements = attr.ib()  # type: Iterable[ParsedRequirement]
@@ -86,7 +149,7 @@ class DownloadRequest(object):
     package_index_configuration = attr.ib(default=None)  # type: Optional[PackageIndexConfiguration]
     build_configuration = attr.ib(default=BuildConfiguration())  # type: BuildConfiguration
     observer = attr.ib(default=None)  # type: Optional[ResolveObserver]
-    preserve_log = attr.ib(default=False)  # type: bool
+    pip_log = attr.ib(default=None)  # type: Optional[str]
     pip_version = attr.ib(default=None)  # type: Optional[PipVersionValue]
     resolver = attr.ib(default=None)  # type: Optional[Resolver]
     dependency_configuration = attr.ib(
@@ -109,24 +172,29 @@ class DownloadRequest(object):
         dest = dest or safe_mkdtemp(
             prefix="resolver_download.", dir=safe_mkdir(get_downloads_dir())
         )
-        spawn_download = functools.partial(self._spawn_download, dest)
+        log_manager = PipLogManager.create(self.pip_log, self.targets)
+        spawn_download = functools.partial(self._spawn_download, dest, log_manager)
         with TRACER.timed(
             "Resolving for:\n  {}".format(
                 "\n  ".join(target.render_description() for target in self.targets)
             )
         ):
-            return list(
-                execute_parallel(
-                    inputs=self.targets,
-                    spawn_func=spawn_download,
-                    error_handler=Raise[Target, DownloadResult](Unsatisfiable),
-                    max_jobs=max_parallel_jobs,
+            try:
+                return list(
+                    execute_parallel(
+                        inputs=self.targets,
+                        spawn_func=spawn_download,
+                        error_handler=Raise[Target, DownloadResult](Unsatisfiable),
+                        max_jobs=max_parallel_jobs,
+                    )
                 )
-            )
+            finally:
+                log_manager.finalize_log()
 
     def _spawn_download(
         self,
         resolved_dists_dir,  # type: str
+        log_manager,  # type: PipLogManager
         target,  # type: Target
     ):
         # type: (...) -> SpawnedJob[DownloadResult]
@@ -159,7 +227,7 @@ class DownloadRequest(object):
             build_configuration=self.build_configuration,
             observer=observer,
             dependency_configuration=self.dependency_configuration,
-            preserve_log=self.preserve_log,
+            log=log_manager.get_log(target),
         )
 
         return SpawnedJob.wait(job=download_job, result=download_result)
@@ -978,7 +1046,7 @@ def resolve(
     max_parallel_jobs=None,  # type: Optional[int]
     ignore_errors=False,  # type: bool
     verify_wheels=True,  # type: bool
-    preserve_log=False,  # type: bool
+    pip_log=None,  # type: Optional[str]
     pip_version=None,  # type: Optional[PipVersionValue]
     resolver=None,  # type: Optional[Resolver]
     use_pip_config=False,  # type: bool
@@ -1018,7 +1086,7 @@ def resolve(
       building and installing distributions in a resolve. Defaults to the number of CPUs available.
     :keyword ignore_errors: Whether to ignore resolution solver errors. Defaults to ``False``.
     :keyword verify_wheels: Whether to verify wheels have valid metadata. Defaults to ``True``.
-    :keyword preserve_log: Preserve the `pip download` log and print its location to stderr.
+    :keyword pip_log: Preserve the `pip download` log and print its location to stderr.
       Defaults to ``False``.
     :returns: The installed distributions meeting all requirements and constraints.
     :raises Unsatisfiable: If ``requirements`` is not transitively satisfiable.
@@ -1098,7 +1166,7 @@ def resolve(
         package_index_configuration=package_index_configuration,
         build_configuration=build_configuration,
         max_parallel_jobs=max_parallel_jobs,
-        preserve_log=preserve_log,
+        pip_log=pip_log,
         pip_version=pip_version,
         resolver=resolver,
         dependency_configuration=dependency_configuration,
@@ -1152,7 +1220,7 @@ def _download_internal(
     dest=None,  # type: Optional[str]
     max_parallel_jobs=None,  # type: Optional[int]
     observer=None,  # type: Optional[ResolveObserver]
-    preserve_log=False,  # type: bool
+    pip_log=None,  # type: Optional[str]
     pip_version=None,  # type: Optional[PipVersionValue]
     resolver=None,  # type: Optional[Resolver]
     dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
@@ -1171,7 +1239,7 @@ def _download_internal(
         package_index_configuration=package_index_configuration,
         build_configuration=build_configuration,
         observer=observer,
-        preserve_log=preserve_log,
+        pip_log=pip_log,
         pip_version=pip_version,
         resolver=resolver,
         dependency_configuration=dependency_configuration,
@@ -1231,7 +1299,7 @@ def download(
     dest=None,  # type: Optional[str]
     max_parallel_jobs=None,  # type: Optional[int]
     observer=None,  # type: Optional[ResolveObserver]
-    preserve_log=False,  # type: bool
+    pip_log=None,  # type: Optional[str]
     pip_version=None,  # type: Optional[PipVersionValue]
     resolver=None,  # type: Optional[Resolver]
     use_pip_config=False,  # type: bool
@@ -1265,7 +1333,7 @@ def download(
     :keyword max_parallel_jobs: The maximum number of parallel jobs to use when resolving,
       building and installing distributions in a resolve. Defaults to the number of CPUs available.
     :keyword observer: An optional observer of the download internals.
-    :keyword preserve_log: Preserve the `pip download` log and print its location to stderr.
+    :keyword pip_log: Preserve the `pip download` log and print its location to stderr.
       Defaults to ``False``.
     :returns: The local distributions meeting all requirements and constraints.
     :raises Unsatisfiable: If the resolution of download of distributions fails for any reason.
@@ -1296,7 +1364,7 @@ def download(
         dest=dest,
         max_parallel_jobs=max_parallel_jobs,
         observer=observer,
-        preserve_log=preserve_log,
+        pip_log=pip_log,
         pip_version=pip_version,
         resolver=resolver,
         dependency_configuration=dependency_configuration,
