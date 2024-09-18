@@ -153,7 +153,7 @@ def main():
 
     args = [sys.executable, "-m", "pytest", "-n", "auto"]
     if options.it:
-        args.append("tests/integration")
+        args.extend(["tests/integration", "-p", "testing.pytest_shard"])
     else:
         args.extend(["tests", "--ignore", "tests/integration"])
     args.extend(passthrough_args or ["-vvs"])
