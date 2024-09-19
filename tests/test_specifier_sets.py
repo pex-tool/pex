@@ -8,9 +8,17 @@ import sys
 import pytest
 
 from pex.pep_440 import Version
-from pex.specifier_sets import ExcludedRange, LowerBound, Range, UpperBound, as_range, includes
+from pex.specifier_sets import (
+    ExcludedRange,
+    LowerBound,
+    Range,
+    UnsatisfiableSpecifierSet,
+    UpperBound,
+    as_range,
+    includes,
+)
 from pex.third_party.packaging.specifiers import InvalidSpecifier
-from pex.typing import TYPE_CHECKING
+from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     pass
@@ -302,3 +310,19 @@ def test_wildcard_version_suffix_handling():
 
     # Local-release specifiers.
     assert_wildcard_handling("+bob")
+
+
+def test_unsatisfiable():
+    # type: () -> None
+
+    assert isinstance(as_range(">3,<2"), UnsatisfiableSpecifierSet)
+
+    assert isinstance(as_range(">=2.7,<2.7"), UnsatisfiableSpecifierSet)
+    assert isinstance(as_range(">2.7,<=2.7"), UnsatisfiableSpecifierSet)
+    assert isinstance(as_range(">2.7,<2.7"), UnsatisfiableSpecifierSet)
+    assert cast(Range, as_range("==2.7")) in cast(Range, as_range(">=2.7,<=2.7"))
+
+    assert isinstance(as_range(">=3.8,!=3.8.*,!=3.9.*,<3.10"), UnsatisfiableSpecifierSet)
+
+    assert not includes(">2,<3", ">=2.7,<2.7")
+    assert not includes(">=2.7,<2.7", ">2,<3")

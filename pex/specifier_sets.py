@@ -18,6 +18,16 @@ else:
     from pex.third_party import attr
 
 
+def _ensure_specifier_set(specifier_set):
+    # type: (Union[str, SpecifierSet]) -> SpecifierSet
+    return specifier_set if isinstance(specifier_set, SpecifierSet) else SpecifierSet(specifier_set)
+
+
+@attr.s(frozen=True)
+class UnsatisfiableSpecifierSet(object):
+    specifier_set = attr.ib(converter=_ensure_specifier_set)  # type: SpecifierSet
+
+
 @attr.s(frozen=True)
 class ArbitraryEquality(object):
     version = attr.ib()  # type: str
@@ -239,7 +249,7 @@ def _bounds(specifier_set):
 
 
 def as_range(specifier_set):
-    # type: (Union[str, SpecifierSet]) -> Union[ArbitraryEquality, Range]
+    # type: (Union[str, SpecifierSet]) -> Union[ArbitraryEquality, Range, UnsatisfiableSpecifierSet]
 
     lower_bounds = []  # type: List[LowerBound]
     upper_bounds = []  # type: List[UpperBound]
@@ -281,6 +291,14 @@ def as_range(specifier_set):
                     upper = new_upper
                 excludes.remove(exclude)
 
+    # N.B.: Since we went through exclude merging above, there is no need to consider those here
+    # when checking for unsatisfiable specifier sets.
+    if lower and upper:
+        if lower.version > upper.version:
+            return UnsatisfiableSpecifierSet(specifier_set)
+        if lower.version == upper.version and (not lower.inclusive or not upper.inclusive):
+            return UnsatisfiableSpecifierSet(specifier_set)
+
     return Range(
         lower=lower,
         upper=upper,
@@ -295,9 +313,16 @@ def includes(
     # type: (...) -> bool
 
     included_range = as_range(specifier)
+    if isinstance(included_range, UnsatisfiableSpecifierSet):
+        return False
+
     candidate_range = as_range(candidate)
+    if isinstance(candidate_range, UnsatisfiableSpecifierSet):
+        return False
+
     if isinstance(included_range, ArbitraryEquality) or isinstance(
         candidate_range, ArbitraryEquality
     ):
         return included_range == candidate_range
+
     return candidate_range in included_range

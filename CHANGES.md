@@ -1,5 +1,17 @@
 # Release Notes
 
+## 2.20.1
+
+This release fixes Pex `--interpreter-constraint` handling such that
+any supplied interpreter constraints which are in principle
+unstaisfiable either raise an error or else cause a warning to be issued
+when other viable interpreter constraints have also been specified. For
+example, `--interpreter-constraint ==3.11.*,==3.12.*` now errors and
+`--interpreter-constraint '>=3.8,<3.8' --interpreter-constraint ==3.9.*`
+now warns, culling `>3.8,<3.8` and continuing using only `==3.9.*`.
+
+* Pre-emptively cull unsatisfiable interpreter constraints. (#2542)
+
 ## 2.20.0
 
 This release adds the `--pip-log` alias for the existing
