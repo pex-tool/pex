@@ -17,6 +17,7 @@ from pex.build_system.pep_517 import build_sdist
 from pex.common import safe_copy, safe_mkdtemp, temporary_dir
 from pex.dist_metadata import Distribution, Requirement
 from pex.interpreter import PythonInterpreter
+from pex.pip.version import PipVersion
 from pex.resolve import abbreviated_platforms
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.resolver_configuration import BuildConfiguration, ResolverVersion
@@ -536,8 +537,12 @@ def test_download2():
 
 
 @pytest.mark.skipif(
-    sys.version_info[:2] >= (3, 12),
-    reason="We need to use setuptools<66 ut Python 3.12+ require greater.",
+    sys.version_info[:2] >= (3, 12) or PipVersion.DEFAULT >= PipVersion.v24_1,
+    reason=(
+        "We need to use setuptools<66, but Python 3.12+ require greater. We also need to avoid "
+        "Pip>=24.1 which upgrades its vendored packaging to a version that rejects invalid "
+        "versions"
+    ),
 )
 def test_resolve_arbitrary_equality_issues_940():
     # type: (...) -> None

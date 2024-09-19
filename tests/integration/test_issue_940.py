@@ -7,6 +7,7 @@ from textwrap import dedent
 
 import pytest
 
+from pex.pip.version import PipVersion
 from pex.typing import TYPE_CHECKING
 from testing import built_wheel, run_pex_command, run_simple_pex
 
@@ -15,8 +16,12 @@ if TYPE_CHECKING:
 
 
 @pytest.mark.skipif(
-    sys.version_info[:2] >= (3, 12),
-    reason="We need to use setuptools<66 but Python 3.12+ require greater.",
+    sys.version_info[:2] >= (3, 12) or PipVersion.DEFAULT >= PipVersion.v24_1,
+    reason=(
+        "We need to use setuptools<66 but Python 3.12+ require greater. We also need to avoid "
+        "Pip>=24.1 which upgrades its vendored packaging to a version that rejects invalid "
+        "versions"
+    ),
 )
 def test_resolve_arbitrary_equality(tmpdir):
     # type: (Any) -> None

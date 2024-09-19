@@ -1,5 +1,28 @@
 # Release Notes
 
+## 2.20.0
+
+This release adds the `--pip-log` alias for the existing
+`--preserve-pip-download-log` option as well as the ability to specify
+the log file path. So, to debug a resolve, you can now specify
+`--pip-log log.txt` and Pex will deposit the Pip resolve log to
+`log.txt` in the current directory for easy tailing or post-resolve
+inspection. In addition, the log file itself is more useful in some
+cases. When you specify any abbreviated `--platform` targets, those
+targets calculated wheel compatibility tags are included in the Pip
+log. Also, when multiple targets are specified, their log outputs are
+now merged at the end of the resolve in a serialized fashion with
+prefixes on each log line indicating which target the log line
+corresponds to.
+
+In addition, a race in Pex's PEP-517 implementation that could (rarely)
+lead to spurious metadata generation errors or sdist creation errors is
+fixed.
+
+* Fix intermittent PEP-517 failures. (#2540)
+* Plumb `--pip-version` to Platform tag calculation. (#2538)
+* Add the ability to specify the `--pip-log` path. (#2536)
+
 ## 2.19.1
 
 This release fixes a regression introduced by #2512 in the 2.19.0
@@ -8,7 +31,7 @@ Instead of failing certain builds that used to succeed, Pex now warns
 that the resulting PEX may fail at runtime and that
 `--complete-platform` should be used instead.
 
-# Only warn when `--platform` resolves fail tag checks. (#2533)
+* Only warn when `--platform` resolves fail tag checks. (#2533)
 
 ## 2.19.0
 

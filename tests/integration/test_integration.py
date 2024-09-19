@@ -1979,10 +1979,15 @@ def test_require_hashes(tmpdir):
     run_pex_command(args=["-r", requirements, "-o", requests_pex]).assert_success()
     subprocess.check_call(args=[requests_pex, "-c", "import requests"])
 
-    # The hash checking mode should also work in constraints context.
-    run_pex_command(
-        args=["--constraints", requirements, "requests", "-o", requests_pex]
-    ).assert_success()
+    result = run_pex_command(args=["--constraints", requirements, "requests", "-o", requests_pex])
+    # The hash checking mode should also work in constraints context for Pip prior to 23.2 when
+    # Pip got more strict about the contents of constraints files (just specifiers and markers; no
+    # extras, hashes, etc.).
+    if PipVersion.DEFAULT < PipVersion.v23_2:
+        result.assert_success()
+    else:
+        result.assert_failure()
+
     subprocess.check_call(args=[requests_pex, "-c", "import requests"])
 
     with open(requirements, "w") as fp:
@@ -2007,13 +2012,9 @@ def test_require_hashes(tmpdir):
     as_requirements_result = run_pex_command(args=["-r", requirements])
     as_requirements_result.assert_failure()
 
-    # The hash checking mode should also work in constraints context.
-    as_constraints_result = run_pex_command(args=["--constraints", requirements, "requests"])
-    as_constraints_result.assert_failure()
-
     error_lines = {
         re.sub(r"\s+", " ", line.strip()): index
-        for index, line in enumerate(as_constraints_result.error.splitlines())
+        for index, line in enumerate(as_requirements_result.error.splitlines())
     }
     index = error_lines["pip: Expected sha512 worse"]
     assert (

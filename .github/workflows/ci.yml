@@ -6,10 +6,6 @@ defaults:
 env:
   _PEX_TEST_DEV_ROOT: ${{ github.workspace }}/.pex_dev
   _PEX_TEST_POS_ARGS: "--color --devpi --devpi-timeout 15.0 --shutdown-devpi -vvs"
-  # We use this to skip exposing same-versioned Pythons present on Linux hosts. These otherwise can
-  # collide when attempting to load libpython<major>.<minor><flags>.so and lead to mysterious errors
-  # importing builtins like `fcntl` as outlined in https://github.com/pex-tool/pex/issues/1391.
-  _PEX_TEST_PYENV_VERSIONS: "2.7 3.7 3.10"
   _PEX_PEXPECT_TIMEOUT: 10
   # We have integration tests that exercise `--scie` support and these can trigger downloads from
   # GitHub Releases that needed elevated rate limit quota, which this gives.
@@ -64,36 +60,51 @@ jobs:
   # N.B.: The name of this job key (linux-tests) is depended on by scrips/build_cache_image.py. In
   # particular, the tox-env matrix list is used to ensure the cache covers all Linux CI jobs.
   linux-tests:
-    name: ./dtox.sh -e ${{ matrix.tox-env }}
+    name: ./dtox.sh -e ${{ matrix.tox-env }} ${{ matrix.pex-test-pos-args }}
     needs: org-check
     runs-on: ubuntu-22.04
     strategy:
       matrix:
-        tox-env:
-          - py27-pip20
-          # N.B.: Although we support Python 3.5 with a published universal wheel, Pex does not
-          # build under Python 3.5 or 3.6; so we skip to Python 3.7 for tests which must be able to
-          # build a Pex distribution both as part of the tox setup and in many test cases as well.
-          - py37-pip20
-          - py311-pip20
-          - py311-pip22_3_1
-          - py311-pip23_1_2
-          - py312-pip24_2
-          - py313-pip24_2
-          - pypy310-pip20
-          - pypy310-pip22_3_1
-          - pypy310-pip23_1_2
-          - py27-pip20-integration
-          - py37-pip22_3_1-integration
-          - py37-pip23_1_2-integration
-          - py311-pip20-integration
-          - py311-pip22_3_1-integration
-          - py311-pip23_1_2-integration
-          - py312-pip24_2-integration
-          - py313-pip24_2-integration
-          - pypy310-pip20-integration
-          - pypy310-pip22_3_1-integration
-          - pypy310-pip23_1_2-integration
+        include:
+          # Unit tests:
+          # -----------
+          - tox-env: py27-pip20
+          - tox-env: py37-pip22_3_1
+          - tox-env: py311-pip23_3_2
+          - tox-env: py312-pip24_2
+          - tox-env: py313-pip24_2
+          - tox-env: pypy310-pip24_2
+
+          # Integration tests, split most into two shards:
+          # ----------------------------------------------
+
+          # CPython 2.7 is fast enough not to require sharding.
+          - tox-env: py27-pip20-integration
+
+          - tox-env: py37-pip22_3_1-integration
+            pex-test-pos-args: --shard 1/2
+          - tox-env: py37-pip22_3_1-integration
+            pex-test-pos-args: --shard 2/2
+
+          - tox-env: py311-pip23_3_2-integration
+            pex-test-pos-args: --shard 1/2
+          - tox-env: py311-pip23_3_2-integration
+            pex-test-pos-args: --shard 2/2
+
+          - tox-env: py312-pip24_2-integration
+            pex-test-pos-args: --shard 1/2
+          - tox-env: py312-pip24_2-integration
+            pex-test-pos-args: --shard 2/2
+
+          - tox-env: py313-pip24_2-integration
+            pex-test-pos-args: --shard 1/2
+          - tox-env: py313-pip24_2-integration
+            pex-test-pos-args: --shard 2/2
+
+          - tox-env: pypy310-pip24_2-integration
+            pex-test-pos-args: --shard 1/2
+          - tox-env: pypy310-pip24_2-integration
+            pex-test-pos-args: --shard 2/2
     steps:
       - name: Free Up Disk Space
         uses: jlumbroso/free-disk-space@v1.3.1
@@ -125,9 +136,10 @@ jobs:
           # This is needed to get pexpect tests working under PyPy running under docker.
           export TERM="xterm"
           BASE_MODE=pull CACHE_MODE=pull \
-            ./dtox.sh -e ${{ matrix.tox-env }} -- ${{ env._PEX_TEST_POS_ARGS }}
+            ./dtox.sh -e ${{ matrix.tox-env }} -- \
+              ${{ env._PEX_TEST_POS_ARGS }} ${{ matrix.pex-test-pos-args }}
   mac-tests:
-    name: tox -e ${{ matrix.tox-env }}
+    name: tox -e ${{ matrix.tox-env }} ${{ matrix.pex-test-pos-args }}
     needs: org-check
     runs-on: macos-12
     strategy:
@@ -139,15 +151,12 @@ jobs:
           - python-version: [ 3, 12 ]
             tox-env: py312-pip24_2-integration
             tox-env-python: python3.11
+            pex-test-pos-args: --shard 1/2
+          - python-version: [ 3, 12 ]
+            tox-env: py312-pip24_2-integration
+            tox-env-python: python3.11
+            pex-test-pos-args: --shard 2/2
     steps:
-      - name: Calculate Pythons to Expose
-        id: calculate-pythons-to-expose
-        run: |
-          skip=""
-          if [[ "$(uname -s)" == "Linux" ]]; then
-            skip="${{ env._PEX_TEST_PYENV_VERSIONS }}"
-          fi
-          echo "skip=${skip}" >> $GITHUB_OUTPUT
       - name: Checkout Pex
         uses: actions/checkout@v4
         with:
@@ -160,8 +169,6 @@ jobs:
           python-version: "${{ join(matrix.python-version, '.') }}"
       - name: Expose Pythons
         uses: pantsbuild/actions/expose-pythons@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
-        with:
-          skip: "${{ steps.calculate-pythons-to-expose.outputs.skip }}"
       - name: Restore Cached Pyenv Interpreters
         id: restore-pyenv-interpreters
         uses: actions/cache/restore@v4
@@ -190,7 +197,8 @@ jobs:
         with:
           path: repo/tox.ini
           python: ${{ matrix.tox-env-python }}
-          tox-env: ${{ matrix.tox-env }} -- ${{ env._PEX_TEST_POS_ARGS }}
+          tox-env: >-
+            ${{ matrix.tox-env }} -- ${{ env._PEX_TEST_POS_ARGS }} ${{ matrix.pex-test-pos-args }}
       - name: Cache Pyenv Interpreters
         uses: actions/cache/save@v4
         if: github.ref == 'refs/heads/main'
