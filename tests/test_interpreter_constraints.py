@@ -1,12 +1,21 @@
 # Copyright 2022 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
-
 import itertools
 import sys
+from textwrap import dedent
+
+import pytest
 
 from pex import interpreter_constraints
 from pex.interpreter import PythonInterpreter
-from pex.interpreter_constraints import COMPATIBLE_PYTHON_VERSIONS, InterpreterConstraint, Lifecycle
+from pex.interpreter_constraints import (
+    COMPATIBLE_PYTHON_VERSIONS,
+    InterpreterConstraint,
+    InterpreterConstraints,
+    Lifecycle,
+    UnsatisfiableError,
+)
+from pex.pex_warnings import PEXWarning
 from pex.typing import TYPE_CHECKING
 from testing import PY38, ensure_python_interpreter
 
@@ -22,6 +31,53 @@ def test_parse():
     assert py38 in InterpreterConstraint.parse("==3.8.*", default_interpreter="CPython")
     assert py38 not in InterpreterConstraint.parse("==3.8.*", default_interpreter="PyPy")
     assert py38 not in InterpreterConstraint.parse("PyPy==3.8.*")
+
+    with pytest.raises(
+        UnsatisfiableError, match="The interpreter constraint ==3.8.*,==3.9.* is unsatisfiable."
+    ):
+        InterpreterConstraint.parse("==3.8.*,==3.9.*")
+
+    with pytest.raises(
+        UnsatisfiableError, match="The interpreter constraint ==3.8.*,==3.9.* is unsatisfiable."
+    ):
+        InterpreterConstraints.parse("==3.8.*,==3.9.*")
+
+    with pytest.raises(
+        UnsatisfiableError,
+        match=dedent(
+            """\
+            Given interpreter constraints are unsatisfiable:
+            ==3.8.*,==3.9.*
+            ==3.9.*,<3.9
+            """
+        ).strip(),
+    ):
+        InterpreterConstraints.parse("==3.8.*,==3.9.*", "==3.9.*,<3.9")
+
+    with pytest.warns(
+        PEXWarning,
+        match=dedent(
+            """\
+            Only 2 interpreter constraints are valid amongst: CPython==3.10.*,==3.11.* or CPython==3.10.*,==3.12.* or CPython==3.11.* or CPython==3.11.*,==3.12.* or CPython==3.11.*,==3.9.* or CPython==3.12.* or CPython==3.12.*,==3.9.*.
+            Given interpreter constraints are unsatisfiable:
+            CPython==3.10.*,==3.11.*
+            CPython==3.10.*,==3.12.*
+            CPython==3.11.*,==3.12.*
+            CPython==3.11.*,==3.9.*
+            CPython==3.12.*,==3.9.*
+            Continuing using only CPython==3.11.* or CPython==3.12.*
+            """
+        ).strip(),
+    ):
+        InterpreterConstraints.parse(
+            "CPython==3.10.*,==3.11.*",
+            "CPython==3.10.*,==3.12.*",
+            "CPython==3.11.*",
+            "CPython==3.11.*,==3.12.*",
+            "CPython==3.11.*,==3.9.*",
+            "CPython==3.12.*",
+            "CPython==3.12.*,==3.9.*",
+        )
 
 
 def iter_compatible_versions(*requires_python):

@@ -7,22 +7,29 @@ from __future__ import absolute_import
 
 import itertools
 
+from pex import pex_warnings
+from pex.common import pluralize
 from pex.compatibility import indent
 from pex.dist_metadata import Requirement, RequirementParseError
 from pex.enum import Enum
 from pex.interpreter import PythonInterpreter
 from pex.orderedset import OrderedSet
+from pex.specifier_sets import UnsatisfiableSpecifierSet, as_range
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Iterable, Iterator, Optional, Tuple
+    from typing import Any, Iterable, Iterator, List, Optional, Tuple
 
     import attr  # vendor:skip
 
     from pex.interpreter import InterpreterIdentificationError
 else:
     from pex.third_party import attr
+
+
+class UnsatisfiableError(ValueError):
+    """Indicates an unsatisfiable interpreter constraint, e.g. `>=3.8,<3.8`."""
 
 
 @attr.s(frozen=True)
@@ -75,6 +82,18 @@ class InterpreterConstraint(object):
     specifier = attr.ib()  # type: SpecifierSet
     name = attr.ib(default=None)  # type: Optional[str]
 
+    @specifier.validator
+    def _validate_specifier(
+        self,
+        _attribute,  # type: Any
+        value,  # type: SpecifierSet
+    ):
+        # type: (...) -> None
+        if isinstance(as_range(value), UnsatisfiableSpecifierSet):
+            raise UnsatisfiableError(
+                "The interpreter constraint {constraint} is unsatisfiable.".format(constraint=self)
+            )
+
     def iter_matching(self, paths=None):
         # type: (Optional[Iterable[str]]) -> Iterator[PythonInterpreter]
         for interp in PythonInterpreter.iter(paths=paths):
@@ -103,11 +122,45 @@ class InterpreterConstraints(object):
     @classmethod
     def parse(cls, *constraints):
         # type: (str) -> InterpreterConstraints
-        return cls(
-            constraints=tuple(
-                InterpreterConstraint.parse(constraint) for constraint in OrderedSet(constraints)
+
+        interpreter_constraints = []  # type: List[InterpreterConstraint]
+        unsatisfiable = []  # type: List[Tuple[str, UnsatisfiableError]]
+        all_constraints = OrderedSet(constraints)
+        for constraint in all_constraints:
+            try:
+                interpreter_constraints.append(InterpreterConstraint.parse(constraint))
+            except UnsatisfiableError as e:
+                unsatisfiable.append((constraint, e))
+
+        if unsatisfiable:
+            if len(unsatisfiable) == 1:
+                _, err = unsatisfiable[0]
+                if not interpreter_constraints:
+                    raise err
+                message = str(err)
+            else:
+                message = (
+                    "Given interpreter constraints are unsatisfiable:\n{unsatisfiable}".format(
+                        unsatisfiable="\n".join(constraint for constraint, _ in unsatisfiable)
+                    )
+                )
+
+            if not interpreter_constraints:
+                raise UnsatisfiableError(message)
+            pex_warnings.warn(
+                "Only {count} interpreter {constraints} {are} valid amongst: {all_constraints}.\n"
+                "{message}\n"
+                "Continuing using only {interpreter_constraints}".format(
+                    count=len(interpreter_constraints),
+                    constraints=pluralize(interpreter_constraints, "constraint"),
+                    are="is" if len(interpreter_constraints) == 1 else "are",
+                    all_constraints=" or ".join(all_constraints),
+                    message=message,
+                    interpreter_constraints=" or ".join(map(str, interpreter_constraints)),
+                )
             )
-        )
+
+        return cls(constraints=tuple(interpreter_constraints))
 
     constraints = attr.ib(default=())  # type: Tuple[InterpreterConstraint, ...]
 
