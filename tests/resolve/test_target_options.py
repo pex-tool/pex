@@ -16,13 +16,14 @@ from pex.pep_508 import MarkerEnvironment
 from pex.platforms import Platform
 from pex.resolve import abbreviated_platforms, target_options
 from pex.resolve.resolver_configuration import PipConfiguration
+from pex.resolve.target_configuration import InterpreterConstraintsNotSatisfied
 from pex.targets import CompletePlatform, Targets
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
 from testing import IS_MAC, environment_as
 
 if TYPE_CHECKING:
-    from typing import Any, Dict, Iterable, List, Optional, Tuple
+    from typing import Any, Dict, Iterable, List, Optional, Tuple, Type
 
 
 def compute_target_configuration(
@@ -318,15 +319,25 @@ def test_configure_interpreter_constraints(
     assert_interpreter_constraint([">=3.8,<3.9"], [py38], expected_interpreter=py38)
     assert_interpreter_constraint(["==3.10.*", "==2.7.*"], [py310, py27], expected_interpreter=py27)
 
-    def assert_interpreter_constraint_not_satisfied(interpreter_constraints):
-        # type: (List[str]) -> None
-        with pytest.raises(pex.resolve.target_configuration.InterpreterConstraintsNotSatisfied):
+    def assert_interpreter_constraint_not_satisfied(
+        interpreter_constraints,  # type: List[str]
+        expected_error_type,  # type: Type[Exception]
+    ):
+        # type: (...) -> None
+        with pytest.raises(expected_error_type):
             compute_target_configuration(
                 parser, interpreter_constraint_args(interpreter_constraints)
             )
 
-    assert_interpreter_constraint_not_satisfied(["==3.9.*"])
-    assert_interpreter_constraint_not_satisfied(["==3.9.*", "==2.6.*"])
+    assert_interpreter_constraint_not_satisfied(
+        ["==3.9.*"], expected_error_type=InterpreterConstraintsNotSatisfied
+    )
+    assert_interpreter_constraint_not_satisfied(
+        ["==3.8.*,!=3.8.*"], expected_error_type=ArgumentTypeError
+    )
+    assert_interpreter_constraint_not_satisfied(
+        ["==3.9.*", "==2.6.*"], expected_error_type=InterpreterConstraintsNotSatisfied
+    )
 
 
 def test_configure_resolve_local_platforms(
