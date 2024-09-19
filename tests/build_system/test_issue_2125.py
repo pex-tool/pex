@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 def test_missing_get_requires_for_build_wheel(tmpdir):
     # type: (Any) -> None
 
-    project_directory = str(tmpdir)
+    project_directory = os.path.join(str(tmpdir), "project")
 
     dist_info_dir = os.path.join(project_directory, "foo-0.1.0.dist-info")
     metadata = os.path.join(dist_info_dir, "METADATA")
