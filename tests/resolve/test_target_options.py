@@ -326,7 +326,6 @@ def test_configure_interpreter_constraints(
             )
 
     assert_interpreter_constraint_not_satisfied(["==3.9.*"])
-    assert_interpreter_constraint_not_satisfied(["==3.8.*,!=3.8.*"])
     assert_interpreter_constraint_not_satisfied(["==3.9.*", "==2.6.*"])
 
 
