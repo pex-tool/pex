@@ -15,6 +15,11 @@ now merged at the end of the resolve in a serialized fashion with
 prefixes on each log line indicating which target the log line
 corresponds to.
 
+In addition, a race in Pex's PEP-517 implementation that could (rarely)
+lead to spurious metadata generation errors or sdist creation errors is
+fixed.
+
+* Fix intermittent PEP-517 failures. (#2540)
 * Plumb `--pip-version` to Platform tag calculation. (#2538)
 * Add the ability to specify the `--pip-log` path. (#2536)
 
