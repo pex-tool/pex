@@ -20,7 +20,6 @@ from pex.result import Error, try_
 from pex.targets import Target, Targets
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
-from pex.util import named_temporary_file
 
 if TYPE_CHECKING:
     from typing import Any, Dict, Iterable, List, Mapping, Optional, Set, Text, Union
@@ -148,54 +147,54 @@ def _invoke_build_hook(
     # The interfaces are spec'd here: https://peps.python.org/pep-0517
     build_backend_module, _, _ = build_system.build_backend.partition(":")
     build_backend_object = build_system.build_backend.replace(":", ".")
-    with named_temporary_file(mode="r") as fp:
-        args = build_system.venv_pex.execute_args(
-            additional_args=(
-                "-c",
-                dedent(
-                    """\
-                    import json
-                    import sys
+    build_hook_result = os.path.join(safe_mkdtemp(prefix="pex-pep-517."), "build_hook_result.json")
+    args = build_system.venv_pex.execute_args(
+        additional_args=(
+            "-c",
+            dedent(
+                """\
+                import json
+                import sys
 
-                    import {build_backend_module}
+                import {build_backend_module}
 
 
-                    if not hasattr({build_backend_object}, {hook_method!r}):
-                        sys.exit({hook_unavailable_exit_code})
+                if not hasattr({build_backend_object}, {hook_method!r}):
+                    sys.exit({hook_unavailable_exit_code})
 
-                    result = {build_backend_object}.{hook_method}(*{hook_args!r}, **{hook_kwargs!r})
-                    with open({result_file!r}, "w") as fp:
-                        json.dump(result, fp)
-                    """
-                ).format(
-                    build_backend_module=build_backend_module,
-                    build_backend_object=build_backend_object,
-                    hook_method=hook_method,
-                    hook_args=tuple(hook_args),
-                    hook_kwargs=dict(hook_kwargs) if hook_kwargs else {},
-                    hook_unavailable_exit_code=_HOOK_UNAVAILABLE_EXIT_CODE,
-                    result_file=fp.name,
-                ),
-            )
-        )
-        process = subprocess.Popen(
-            args=args,
-            env=build_system.env,
-            cwd=project_directory,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-        return SpawnedJob.file(
-            Job(
-                command=args,
-                process=process,
-                context="PEP-517:{hook_method} at {project_directory}".format(
-                    hook_method=hook_method, project_directory=project_directory
-                ),
+                result = {build_backend_object}.{hook_method}(*{hook_args!r}, **{hook_kwargs!r})
+                with open({result_file!r}, "w") as fp:
+                    json.dump(result, fp)
+                """
+            ).format(
+                build_backend_module=build_backend_module,
+                build_backend_object=build_backend_object,
+                hook_method=hook_method,
+                hook_args=tuple(hook_args),
+                hook_kwargs=dict(hook_kwargs) if hook_kwargs else {},
+                hook_unavailable_exit_code=_HOOK_UNAVAILABLE_EXIT_CODE,
+                result_file=build_hook_result,
             ),
-            output_file=fp.name,
-            result_func=lambda file_content: json.loads(file_content.decode("utf-8")),
         )
+    )
+    process = subprocess.Popen(
+        args=args,
+        env=build_system.env,
+        cwd=project_directory,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    return SpawnedJob.file(
+        Job(
+            command=args,
+            process=process,
+            context="PEP-517:{hook_method} at {project_directory}".format(
+                hook_method=hook_method, project_directory=project_directory
+            ),
+        ),
+        output_file=build_hook_result,
+        result_func=lambda file_content: json.loads(file_content.decode("utf-8")),
+    )
 
 
 def build_sdist(
