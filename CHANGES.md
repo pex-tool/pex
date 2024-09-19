@@ -4,7 +4,7 @@
 
 This release fixes Pex `--interpreter-constraint` handling such that
 any supplied interpreter constraints which are in principle
-unstaisfiable either raise an error or else cause a warning to be issued
+unsatisfiable either raise an error or else cause a warning to be issued
 when other viable interpreter constraints have also been specified. For
 example, `--interpreter-constraint ==3.11.*,==3.12.*` now errors and
 `--interpreter-constraint '>=3.8,<3.8' --interpreter-constraint ==3.9.*`
