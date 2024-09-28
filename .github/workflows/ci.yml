@@ -18,14 +18,14 @@ jobs:
   org-check:
     name: Check GitHub Organization
     if: github.repository_owner == 'pex-tool'
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - name: Noop
         run: "true"
   checks:
     name: tox -e format-check,lint-check,typecheck,vendor-check,package,docs
     needs: org-check
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout Pex
         uses: actions/checkout@v4
@@ -62,7 +62,7 @@ jobs:
   linux-tests:
     name: ./dtox.sh -e ${{ matrix.tox-env }} ${{ matrix.pex-test-pos-args }}
     needs: org-check
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         include:
@@ -141,7 +141,7 @@ jobs:
   mac-tests:
     name: tox -e ${{ matrix.tox-env }} ${{ matrix.pex-test-pos-args }}
     needs: org-check
-    runs-on: macos-12
+    runs-on: macos-13
     strategy:
       matrix:
         include:
@@ -174,7 +174,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ env._PEX_TEST_DEV_ROOT }}/pyenv
-          key: macos-12-${{ runner.arch }}-pex-test-dev-root-pyenv-v1
+          key: macos-13-${{ runner.arch }}-pex-test-dev-root-pyenv-v1
       - name: Restore Cached Devpi Server
         id: restore-devpi-server
         uses: actions/cache/restore@v4
@@ -182,8 +182,8 @@ jobs:
           path: ${{ env._PEX_TEST_DEV_ROOT }}/devpi
           # We're using a key suffix / restore-keys prefix trick here to get an updatable cache.
           # See: https://github.com/actions/cache/blob/main/tips-and-workarounds.md#update-a-cache
-          key: macos-12-${{ runner.arch }}-${{ matrix.tox-env }}-pex-test-dev-root-devpi-v1-${{ github.run_id }}
-          restore-keys: macos-12-${{ runner.arch }}-${{ matrix.tox-env }}-pex-test-dev-root-devpi-v1
+          key: macos-13-${{ runner.arch }}-${{ matrix.tox-env }}-pex-test-dev-root-devpi-v1-${{ github.run_id }}
+          restore-keys: macos-13-${{ runner.arch }}-${{ matrix.tox-env }}-pex-test-dev-root-devpi-v1
       # Some ITs need this for VCS URLs of the form git+ssh://git@github.com/...
       - name: Setup SSH Agent
         uses: webfactory/ssh-agent@v0.9.0
@@ -217,7 +217,7 @@ jobs:
       - checks
       - linux-tests
       - mac-tests
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - name: Check Non-Success
         if: |

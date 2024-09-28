@@ -1,5 +1,5 @@
 # An image with the necessary binaries and libraries to develop pex.
-FROM ubuntu:22.04
+FROM ubuntu:24.04
 
 # We use pyenv to bootstrap interpreters and pyenv needs most of these packages.
 # See: https://github.com/pyenv/pyenv/wiki#suggested-build-environment
