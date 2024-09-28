@@ -21,7 +21,7 @@ from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.resolver_configuration import BuildConfiguration
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.typing import TYPE_CHECKING
-from testing import PY310, ensure_python_venv, run_command_with_jitter, run_pex_command
+from testing import PY310, PY_VER, ensure_python_venv, run_command_with_jitter, run_pex_command
 
 if TYPE_CHECKING:
     from typing import Any, Dict, Iterator
@@ -247,7 +247,7 @@ def test_extract_lifecycle(pex, pex_tools_env, tmpdir):
         stdout=subprocess.PIPE,
     )
     with open(pid_file) as fp:
-        _, port = fp.read().strip().split(":", 1)
+        pid, port = fp.read().strip().split(":", 1)
     example_sdist_pex = os.path.join(str(tmpdir), "example-sdist.pex")
     find_links_url = "http://localhost:{}".format(port)
     result = run_pex_command(
@@ -283,6 +283,14 @@ def test_extract_lifecycle(pex, pex_tools_env, tmpdir):
 
     find_links_server.send_signal(signal.SIGTERM)
     assert -1 * int(signal.SIGTERM) == find_links_server.wait()
+
+    if PY_VER == (2, 7):
+        # Ensure the server is shut down. Under Python 2.7 somehow the above process.wait is not
+        # enough.
+        try:
+            os.kill(int(pid), signal.SIGKILL)
+        except OSError:
+            pass
 
     expected_output = b"Fetching from https://example.com ...\n"
     assert expected_output in subprocess.check_output(args=[example_sdist_pex])
