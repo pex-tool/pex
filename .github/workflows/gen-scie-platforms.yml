@@ -24,11 +24,11 @@ jobs:
       matrix:
         include:
           - platform: Linux x86_64
-            os: ubuntu-22.04
+            os: ubuntu-24.04
             docker-arch: amd64
             artifact-name: linux-x86_64
           - platform: Linux aarch64
-            os: ubuntu-22.04
+            os: ubuntu-24.04
             docker-arch: arm64
             artifact-name: linux-aarch64
           - platform: macOS x86_64

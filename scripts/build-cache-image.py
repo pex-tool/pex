@@ -91,7 +91,12 @@ def main() -> None:
 
     with (Path(".github") / "workflows" / "ci.yml").open() as fp:
         data = yaml.full_load(fp)
-    tox_envs = data["jobs"]["linux-tests"]["strategy"]["matrix"]["tox-env"]
+    tox_envs = sorted(
+        set(
+            entry["tox-env"]
+            for entry in data["jobs"]["linux-tests"]["strategy"]["matrix"]["include"]
+        )
+    )
 
     logger.info(f"Building caches for {len(tox_envs)} tox environments.")
     for tox_env in tox_envs:

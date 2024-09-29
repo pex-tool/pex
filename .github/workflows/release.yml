@@ -12,14 +12,14 @@ jobs:
   org-check:
     name: Check GitHub Organization
     if: ${{ github.repository_owner == 'pex-tool' }}
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - name: Noop
         run: "true"
   determine-tag:
     name: Determine the release tag to operate against.
     needs: org-check
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     outputs:
       release-tag: ${{ steps.determine-tag.outputs.release-tag }}
       release-version: ${{ steps.determine-tag.outputs.release-version }}
@@ -42,7 +42,7 @@ jobs:
   pypi:
     name: Publish sdist and wheel to PyPI
     needs: determine-tag
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     environment: Release
     permissions:
       id-token: write
@@ -67,7 +67,7 @@ jobs:
   github-release:
     name: Create Github Release
     needs: determine-tag
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     environment: Release
     permissions:
       id-token: write
@@ -130,7 +130,7 @@ jobs:
       - determine-tag
       - pypi
       - github-release
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - name: Dispatch `release-docs` Event
         uses: peter-evans/repository-dispatch@v3
