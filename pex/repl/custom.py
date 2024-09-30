@@ -84,6 +84,11 @@ def _try_enable_readline(
 def _use_color():
     # type: () -> bool
 
+    # Used in Python 3.13+
+    python_colors = os.environ.get("PYTHON_COLORS")
+    if python_colors in ("0", "1"):
+        return python_colors == "1"
+
     # A common convention; see: https://no-color.org/
     if "NO_COLOR" in os.environ:
         return False
@@ -92,7 +97,7 @@ def _use_color():
     if "FORCE_COLOR" in os.environ:
         return True
 
-    return sys.stdout.isatty() and "dumb" != os.environ.get("TERM")
+    return sys.stderr.isatty() and "dumb" != os.environ.get("TERM")
 
 
 def repl_loop(
