@@ -278,15 +278,11 @@ class ZipFileEx(ZipFile):
         efs_bit = 1 << 11  # type: ignore[unreachable]
 
         target_path = path or os.getcwd()
-        encoded_target_path = target_path.encode("utf-8")
         for member in members or self.infolist():
             info = member if isinstance(member, ZipInfo) else self.getinfo(member)
-            if info.flag_bits & efs_bit:
-                member_path = info.filename.encode("utf-8")  # type: Union[Text, bytes]
-                target = encoded_target_path  # type: Union[Text, bytes]
-            else:
-                member_path = info.filename
-                target = target_path
+            encoding = "utf-8" if info.flag_bits & efs_bit else "cp437"
+            member_path = info.filename.encode(encoding)
+            target = target_path.encode(encoding)
 
             rel_dir = os.path.dirname(member_path)
             abs_dir = os.path.join(target, rel_dir)
