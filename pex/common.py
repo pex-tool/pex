@@ -19,9 +19,10 @@ import zipfile
 from collections import defaultdict, namedtuple
 from datetime import datetime
 from uuid import uuid4
+from zipfile import ZipFile, ZipInfo
 
 from pex.enum import Enum
-from pex.typing import TYPE_CHECKING
+from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     from typing import (
@@ -43,7 +44,7 @@ if TYPE_CHECKING:
         Union,
     )
 
-    _Text = TypeVar("_Text", str, Text)
+    _Text = TypeVar("_Text", bytes, str, Text)
 
 # We use the start of MS-DOS time, which is what zipfiles use (see section 4.4.6 of
 # https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT).
@@ -170,14 +171,25 @@ class MktempTeardownRegistry(object):
 _MKDTEMP_SINGLETON = MktempTeardownRegistry()
 
 
-class PermPreservingZipFile(zipfile.ZipFile, object):
-    """A ZipFile that works around https://bugs.python.org/issue15795."""
+class ZipFileEx(ZipFile):
+    """A ZipFile that works around several issues in the stdlib.
+
+    See:
+    + https://bugs.python.org/issue15795
+    + https://github.com/pex-tool/pex/issues/298
+    """
 
     class ZipEntry(namedtuple("ZipEntry", ["info", "data"])):
         pass
 
     @classmethod
-    def zip_entry_from_file(cls, filename, arcname=None, date_time=None):
+    def zip_entry_from_file(
+        cls,
+        filename,  # type: str
+        arcname=None,  # type: Optional[str]
+        date_time=None,  # type: Optional[time.struct_time]
+    ):
+        # type: (...) -> ZipEntry
         """Construct a ZipEntry for a file on the filesystem.
 
         Usually a similar `zip_info_from_file` method is provided by `ZipInfo`, but it is not
@@ -196,27 +208,43 @@ class PermPreservingZipFile(zipfile.ZipFile, object):
             arcname += "/"
         if date_time is None:
             date_time = time.localtime(st.st_mtime)
-        zinfo = zipfile.ZipInfo(filename=arcname, date_time=date_time[:6])
-        zinfo.external_attr = (st.st_mode & 0xFFFF) << 16  # Unix attributes
+        zip_info = zipfile.ZipInfo(filename=arcname, date_time=date_time[:6])
+        zip_info.external_attr = (st.st_mode & 0xFFFF) << 16  # Unix attributes
         if isdir:
-            zinfo.file_size = 0
-            zinfo.external_attr |= 0x10  # MS-DOS directory flag
-            zinfo.compress_type = zipfile.ZIP_STORED
+            zip_info.file_size = 0
+            zip_info.external_attr |= 0x10  # MS-DOS directory flag
+            zip_info.compress_type = zipfile.ZIP_STORED
             data = b""
         else:
-            zinfo.file_size = st.st_size
-            zinfo.compress_type = zipfile.ZIP_DEFLATED
+            zip_info.file_size = st.st_size
+            zip_info.compress_type = zipfile.ZIP_DEFLATED
             with open(filename, "rb") as fp:
                 data = fp.read()
-        return cls.ZipEntry(info=zinfo, data=data)
+        return cls.ZipEntry(info=zip_info, data=data)
 
-    def _extract_member(self, member, targetpath, pwd):
-        result = super(PermPreservingZipFile, self)._extract_member(member, targetpath, pwd)
+    def _extract_member(
+        self,
+        member,  # type: Union[str, ZipInfo]
+        targetpath,  # type: str
+        pwd,  # type: Optional[bytes]
+    ):
+        # type: (...) -> str
+
+        # MyPy doesn't see the superclass private method.
+        result = super(ZipFileEx, self)._extract_member(  # type: ignore[misc]
+            member, targetpath, pwd
+        )
         info = member if isinstance(member, zipfile.ZipInfo) else self.getinfo(member)
         self._chmod(info, result)
-        return result
+        return cast(str, result)
 
-    def _chmod(self, info, path):
+    @staticmethod
+    def _chmod(
+        info,  # type: ZipInfo
+        path,  # type: Text
+    ):
+        # type: (...) -> None
+
         # This magic works to extract perm bits from the 32 bit external file attributes field for
         # unix-created zip files, for the layout, see:
         #   https://www.forensicswiki.org/wiki/ZIP#External_file_attributes
@@ -224,10 +252,61 @@ class PermPreservingZipFile(zipfile.ZipFile, object):
             attr = info.external_attr >> 16
             os.chmod(path, attr)
 
+    # Python 3 also takes PathLike[str] for the path arg, but we only ever pass str since we support
+    # Python 2.7 and don't use pathlib as a result.
+    def extractall(  # type: ignore[override]
+        self,
+        path=None,  # type: Optional[str]
+        members=None,  # type: Optional[Iterable[Union[str, ZipInfo]]]
+        pwd=None,  # type: Optional[bytes]
+    ):
+        # type: (...) -> None
+        if sys.version_info[0] != 2:
+            return super(ZipFileEx, self).extractall(path=path, members=members, pwd=pwd)
+
+        # Under Python 2.7, ZipFile does not handle Zip entry name encoding correctly. Older Zip
+        # standards supported IBM code page 437 and newer support UTF-8. The newer support is
+        # indicated by the bit 11 flag in the file header.
+        # From https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT section
+        # "4.4.4 general purpose bit flag: (2 bytes)":
+        #
+        #   Bit 11: Language encoding flag (EFS).  If this bit is set,
+        #           the filename and comment fields for this file
+        #           MUST be encoded using UTF-8. (see APPENDIX D)
+        #
+        # N.B.: MyPy fails to see this code can be reached for Python 2.7.
+        efs_bit = 1 << 11  # type: ignore[unreachable]
+
+        target_path = path or os.getcwd()
+        encoded_target_path = target_path.encode("utf-8")
+        for member in members or self.infolist():
+            info = member if isinstance(member, ZipInfo) else self.getinfo(member)
+            if info.flag_bits & efs_bit:
+                member_path = info.filename.encode("utf-8")  # type: Union[Text, bytes]
+                target = encoded_target_path  # type: Union[Text, bytes]
+            else:
+                member_path = info.filename
+                target = target_path
+
+            rel_dir = os.path.dirname(member_path)
+            abs_dir = os.path.join(target, rel_dir)
+            abs_path = os.path.join(abs_dir, os.path.basename(member_path))
+            if member_path.endswith(b"/"):
+                safe_mkdir(abs_path)
+            else:
+                safe_mkdir(abs_dir)
+                with open(abs_path, "wb") as tfp, self.open(info) as zf_entry:
+                    shutil.copyfileobj(zf_entry, tfp)
+            self._chmod(info, abs_path)
+
 
 @contextlib.contextmanager
-def open_zip(path, *args, **kwargs):
-    # type: (Text, *Any, **Any) -> Iterator[PermPreservingZipFile]
+def open_zip(
+    path,  # type: Text
+    *args,  # type: Any
+    **kwargs  # type: Any
+):
+    # type: (...) -> Iterator[ZipFileEx]
     """A contextmanager for zip files.
 
     Passes through positional and kwargs to zipfile.ZipFile.
@@ -237,8 +316,8 @@ def open_zip(path, *args, **kwargs):
     # extensions across all Pex supported Pythons.
     kwargs.setdefault("allowZip64", True)
 
-    with contextlib.closing(PermPreservingZipFile(path, *args, **kwargs)) as zip:
-        yield zip
+    with contextlib.closing(ZipFileEx(path, *args, **kwargs)) as zip_fp:
+        yield zip_fp
 
 
 def deterministic_walk(*args, **kwargs):
@@ -336,7 +415,7 @@ def safe_delete(filename):
 
 
 def safe_rmtree(directory):
-    # type: (Text) -> None
+    # type: (_Text) -> None
     """Delete a directory if it's present.
 
     If it's not present, no-op.

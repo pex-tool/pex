@@ -1,5 +1,14 @@
 # Release Notes
 
+## 2.20.2
+
+This release fixes an old bug handling certain sdist zips under
+Python 2.7 as well missing support for Python 3.13's `PYTHON_COLORS`
+env var.
+
+* Fix Zip extraction UTF-8 handling for Python 2.7. (#2546)
+* Add repl support for `PYTHON_COLORS`. (#2545)
+
 ## 2.20.1
 
 This release fixes Pex `--interpreter-constraint` handling such that

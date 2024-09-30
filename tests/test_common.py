@@ -9,7 +9,7 @@ import pytest
 
 from pex.common import (
     Chroot,
-    PermPreservingZipFile,
+    ZipFileEx,
     can_write_dir,
     chmod_plus_x,
     deterministic_walk,
@@ -51,7 +51,7 @@ def zip_fixture():
         assert extract_perms(one) != extract_perms(two)
 
         zip_file = os.path.join(target_dir, "test.zip")
-        with contextlib.closing(PermPreservingZipFile(zip_file, "w")) as zf:
+        with contextlib.closing(ZipFileEx(zip_file, "w")) as zf:
             zf.write(one, "one")
             zf.write(two, "two")
 
@@ -61,7 +61,7 @@ def zip_fixture():
 def test_perm_preserving_zipfile_extractall():
     # type: () -> None
     with zip_fixture() as (zip_file, extract_dir, one, two):
-        with contextlib.closing(PermPreservingZipFile(zip_file)) as zf:
+        with contextlib.closing(ZipFileEx(zip_file)) as zf:
             zf.extractall(extract_dir)
 
             assert extract_perms(one) == extract_perms(os.path.join(extract_dir, "one"))
@@ -71,7 +71,7 @@ def test_perm_preserving_zipfile_extractall():
 def test_perm_preserving_zipfile_extract():
     # type: () -> None
     with zip_fixture() as (zip_file, extract_dir, one, two):
-        with contextlib.closing(PermPreservingZipFile(zip_file)) as zf:
+        with contextlib.closing(ZipFileEx(zip_file)) as zf:
             zf.extract("one", path=extract_dir)
             zf.extract("two", path=extract_dir)
 
@@ -98,7 +98,7 @@ def assert_chroot_perms(copyfn):
             zip_path = os.path.join(src, "chroot.zip")
             chroot.zip(zip_path)
             with temporary_dir() as extract_dir:
-                with contextlib.closing(PermPreservingZipFile(zip_path)) as zf:
+                with contextlib.closing(ZipFileEx(zip_path)) as zf:
                     zf.extractall(extract_dir)
 
                     assert extract_perms(one) == extract_perms(os.path.join(extract_dir, "one"))

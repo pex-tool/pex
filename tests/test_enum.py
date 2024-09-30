@@ -5,7 +5,7 @@ import re
 import pytest
 
 from pex.atomic_directory import AtomicDirectory
-from pex.common import PermPreservingZipFile
+from pex.common import ZipFileEx
 from pex.compatibility import PY2
 from pex.enum import Enum, qualified_name
 
@@ -116,9 +116,9 @@ def test_qualified_name():
         AtomicDirectory.work_dir
     ), "Expected @property to be handled."
 
-    expected_prefix = "pex.common." if PY2 else "pex.common.PermPreservingZipFile."
+    expected_prefix = "pex.common." if PY2 else "pex.common.ZipFileEx."
     assert expected_prefix + "zip_entry_from_file" == qualified_name(
-        PermPreservingZipFile.zip_entry_from_file
+        ZipFileEx.zip_entry_from_file
     ), "Expected @classmethod to be handled."
 
     class Test(object):
