@@ -11,14 +11,7 @@ from contextlib import contextmanager
 from pex.atomic_directory import atomic_directory
 from pex.cache import access as cache_access
 from pex.cache.dirs import CacheDir
-from pex.common import (
-    PermPreservingZipFile,
-    is_script,
-    open_zip,
-    safe_copy,
-    safe_mkdir,
-    safe_mkdtemp,
-)
+from pex.common import ZipFileEx, is_script, open_zip, safe_copy, safe_mkdir, safe_mkdtemp
 from pex.enum import Enum
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
@@ -395,7 +388,7 @@ class _ZipAppPEX(_Layout):
     def open(self):
         # type: () -> zipfile.ZipFile
         if self._zfp is None:
-            self._zfp = PermPreservingZipFile(self.path)
+            self._zfp = ZipFileEx(self.path)
         return self._zfp
 
     def __getstate__(self):
