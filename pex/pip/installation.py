@@ -54,6 +54,7 @@ def _pip_installation(
 
             isolated_pip_builder = PEXBuilder(path=chroot.work_dir)
             isolated_pip_builder.info.venv = True
+            isolated_pip_builder.info.venv_site_packages_copies = True
             for dist_location in iter_distribution_locations():
                 isolated_pip_builder.add_dist_location(dist=dist_location)
             with named_temporary_file(prefix="", suffix=".py", mode="w") as fp:
