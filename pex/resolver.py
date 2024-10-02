@@ -16,7 +16,7 @@ from collections import OrderedDict, defaultdict
 from pex import targets
 from pex.atomic_directory import AtomicDirectory, atomic_directory
 from pex.auth import PasswordEntry
-from pex.cache.dirs import CacheDir
+from pex.cache.dirs import BuiltWheelDir, CacheDir
 from pex.common import pluralize, safe_mkdir, safe_mkdtemp, safe_open
 from pex.compatibility import url_unquote, urlparse
 from pex.dependency_configuration import DependencyConfiguration
@@ -33,7 +33,6 @@ from pex.pip.installation import get_pip
 from pex.pip.tool import PackageIndexConfiguration
 from pex.pip.version import PipVersionValue
 from pex.requirements import LocalProjectRequirement
-from pex.resolve.downloads import get_downloads_dir
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import BuildConfiguration, PipLog, ResolverVersion
 from pex.resolve.resolvers import (
@@ -174,7 +173,7 @@ class DownloadRequest(object):
             return []
 
         dest = dest or safe_mkdtemp(
-            prefix="resolver_download.", dir=safe_mkdir(get_downloads_dir())
+            prefix="resolver_download.", dir=safe_mkdir(CacheDir.DOWNLOADS.path(".tmp"))
         )
 
         log_manager = PipLogManager.create(self.pip_log, self.targets)
@@ -316,51 +315,22 @@ class BuildRequest(object):
     source_path = attr.ib()  # type: str
     fingerprint = attr.ib()  # type: str
 
-    def result(self, dist_root):
-        # type: (str) -> BuildResult
-        return BuildResult.from_request(self, dist_root=dist_root)
+    def result(self):
+        # type: () -> BuildResult
+        return BuildResult.from_request(self)
 
 
 @attr.s(frozen=True)
 class BuildResult(object):
     @classmethod
-    def from_request(
-        cls,
-        build_request,  # type: BuildRequest
-        dist_root,  # type: str
-    ):
-        # type: (...) -> BuildResult
-        dist_type = "sdists" if os.path.isfile(build_request.source_path) else "local_projects"
-
-        # For the purposes of building a wheel from source, the product should be uniqued by the
-        # wheel name which is unique on the host os up to the python and abi tags. In other words,
-        # the product of a CPython 2.7.6 wheel build and a CPython 2.7.18 wheel build should be
-        # functionally interchangeable if the two CPython interpreters have matching abis.
-        #
-        # However, this is foiled by at least two scenarios:
-        # 1. Running a vm / container with shared storage mounted. This can introduce a different
-        #    platform on the host.
-        # 2. On macOS the same host can report / use different OS versions (c.f.: the
-        #    MACOSX_DEPLOYMENT_TARGET environment variable and the 10.16 / 11.0 macOS Big Sur
-        #    transitional case in particular).
-        #
-        # As such, we must be pessimistic and assume the wheel will be platform specific to the
-        # full extent possible.
-        interpreter = build_request.target.get_interpreter()
-        target_tags = "{python_tag}-{abi_tag}-{platform_tag}".format(
-            python_tag=interpreter.identity.python_tag,
-            abi_tag=interpreter.identity.abi_tag,
-            platform_tag=interpreter.identity.platform_tag,
+    def from_request(cls, build_request):
+        # type: (BuildRequest) -> BuildResult
+        built_wheel = BuiltWheelDir.create(
+            sdist=build_request.source_path,
+            fingerprint=build_request.fingerprint,
+            target=build_request.target,
         )
-
-        dist_dir = os.path.join(
-            dist_root,
-            dist_type,
-            os.path.basename(build_request.source_path),
-            build_request.fingerprint,
-            target_tags,
-        )
-        return cls(request=build_request, atomic_dir=AtomicDirectory(dist_dir))
+        return cls(request=build_request, atomic_dir=AtomicDirectory(built_wheel.dist_dir))
 
     request = attr.ib()  # type: BuildRequest
     _atomic_dir = attr.ib()  # type: AtomicDirectory
@@ -596,7 +566,6 @@ class WheelBuilder(object):
     @staticmethod
     def _categorize_build_requests(
         build_requests,  # type: Iterable[BuildRequest]
-        dist_root,  # type: str
         check_compatible=True,  # type: bool
     ):
         # type: (...) -> Tuple[Iterable[BuildRequest], DefaultDict[str, OrderedSet[InstallRequest]]]
@@ -605,7 +574,7 @@ class WheelBuilder(object):
             OrderedSet
         )  # type: DefaultDict[str, OrderedSet[InstallRequest]]
         for build_request in build_requests:
-            build_result = build_request.result(dist_root)
+            build_result = build_request.result()
             if not build_result.is_built:
                 TRACER.log(
                     "Building {} to {}".format(build_request.source_path, build_result.dist_dir)
@@ -622,13 +591,9 @@ class WheelBuilder(object):
                 )
         return unsatisfied_build_requests, build_results
 
-    def _spawn_wheel_build(
-        self,
-        built_wheels_dir,  # type: str
-        build_request,  # type: BuildRequest
-    ):
-        # type: (...) -> SpawnedJob[BuildResult]
-        build_result = build_request.result(built_wheels_dir)
+    def _spawn_wheel_build(self, build_request):
+        # type: (BuildRequest) -> SpawnedJob[BuildResult]
+        build_result = build_request.result()
         build_job = get_pip(
             interpreter=build_request.target.get_interpreter(),
             version=self._pip_version,
@@ -660,21 +625,17 @@ class WheelBuilder(object):
             # Nothing to build or install.
             return {}
 
-        built_wheels_dir = CacheDir.BUILT_WHEELS.path()
-        spawn_wheel_build = functools.partial(self._spawn_wheel_build, built_wheels_dir)
-
         with TRACER.timed(
             "Building distributions for:" "\n  {}".format("\n  ".join(map(str, build_requests)))
         ):
             build_requests, build_results = self._categorize_build_requests(
                 build_requests=build_requests,
-                dist_root=built_wheels_dir,
                 check_compatible=check_compatible,
             )
 
             for build_result in execute_parallel(
                 inputs=build_requests,
-                spawn_func=spawn_wheel_build,
+                spawn_func=self._spawn_wheel_build,
                 error_handler=Raise[BuildRequest, BuildResult](Untranslatable),
                 max_jobs=max_parallel_jobs,
             ):

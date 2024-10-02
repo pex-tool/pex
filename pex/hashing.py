@@ -200,10 +200,11 @@ def dir_hash(
     def iter_files():
         # type: () -> Iterator[Text]
         for root, dirs, files in os.walk(top, followlinks=True):
-            dirs[:] = [d for d in dirs if dir_filter(d)]
+            dirs[:] = [d for d in dirs if dir_filter(os.path.join(root, d))]
             for f in files:
-                if file_filter(f):
-                    yield os.path.join(root, f)
+                path = os.path.join(root, f)
+                if file_filter(path):
+                    yield path
 
     file_paths = sorted(iter_files())
 

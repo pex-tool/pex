@@ -45,11 +45,12 @@ class PipVersionValue(Enum.Value):
     def __init__(
         self,
         version,  # type: str
+        setuptools_version,  # type: str
+        wheel_version,  # type: str
+        requires_python,  # type: str
         name=None,  # type: Optional[str]
         requirement=None,  # type: Optional[str]
-        setuptools_version=None,  # type: Optional[str]
-        wheel_version=None,  # type: Optional[str]
-        requires_python=None,  # type: Optional[str]
+        setuptools_requirement=None,  # type: Optional[str]
         hidden=False,  # type: bool
     ):
         # type: (...) -> None
@@ -57,22 +58,26 @@ class PipVersionValue(Enum.Value):
 
         def to_requirement(
             project_name,  # type: str
-            project_version=None,  # type: Optional[str]
+            project_version,  # type: str
         ):
             # type: (...) -> Requirement
             return Requirement.parse(
                 "{project_name}=={project_version}".format(
                     project_name=project_name, project_version=project_version
                 )
-                if project_version
-                else project_name
             )
 
         self.version = Version(version)
         self.requirement = (
             Requirement.parse(requirement) if requirement else to_requirement("pip", version)
         )
-        self.setuptools_requirement = to_requirement("setuptools", setuptools_version)
+        self.setuptools_version = setuptools_version
+        self.setuptools_requirement = (
+            Requirement.parse(setuptools_requirement)
+            if setuptools_requirement
+            else to_requirement("setuptools", setuptools_version)
+        )
+        self.wheel_version = wheel_version
         self.wheel_requirement = to_requirement("wheel", wheel_version)
         self.requires_python = SpecifierSet(requires_python) if requires_python else None
         self.hidden = hidden
@@ -174,6 +179,8 @@ class PipVersion(Enum["PipVersionValue"]):
         name="20.3.4-patched",
         version="20.3.4+patched",
         requirement=vendor.PIP_SPEC.requirement,
+        setuptools_version="44.0.0+3acb925dd708430aeaf197ea53ac8a752f7c1863",
+        setuptools_requirement="setuptools",
         wheel_version="0.37.1",
         requires_python="<3.12",
     )

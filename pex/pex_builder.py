@@ -11,7 +11,7 @@ import zipimport
 from textwrap import dedent
 from zipimport import ZipImportError
 
-from pex import pex_warnings
+from pex import layout, pex_warnings
 from pex.atomic_directory import atomic_directory
 from pex.cache.dirs import CacheDir
 from pex.common import (
@@ -35,6 +35,7 @@ from pex.finders import get_entry_point_from_console_script, get_script_from_dis
 from pex.interpreter import PythonInterpreter
 from pex.layout import Layout
 from pex.orderedset import OrderedSet
+from pex.pep_376 import InstalledWheel
 from pex.pex import PEX
 from pex.pex_info import PexInfo
 from pex.sh_boot import create_sh_boot_script
@@ -373,9 +374,16 @@ class PEXBuilder(object):
                     relpath = os.path.relpath(filename, path)
                     target = os.path.join(target_dir, relpath)
                     self._copy_or_link(filename, target, label=dist_name)
-        return fingerprint or (
-            CacheHelper.hash(path) if is_wheel_file else CacheHelper.dir_hash(path)
-        )
+        if fingerprint:
+            return fingerprint
+        if not is_wheel_file:
+            try:
+                installed_wheel = InstalledWheel.load(path)
+                if installed_wheel.fingerprint:
+                    return installed_wheel.fingerprint
+            except InstalledWheel.LoadError:
+                pass
+        return CacheHelper.hash(path) if is_wheel_file else CacheHelper.dir_hash(path)
 
     def add_distribution(
         self,
@@ -453,7 +461,13 @@ class PEXBuilder(object):
             self._chroot.touch(compiled, label="bytecode")
 
     def _prepare_code(self):
-        self._pex_info.code_hash = CacheHelper.pex_code_hash(self._chroot.path())
+        chroot_path = self._chroot.path()
+        self._pex_info.code_hash = CacheHelper.pex_code_hash(
+            chroot_path,
+            exclude_dirs=tuple(
+                os.path.join(chroot_path, d) for d in (layout.BOOTSTRAP_DIR, layout.DEPS_DIR)
+            ),
+        )
         self._pex_info.pex_hash = hashlib.sha1(self._pex_info.dump().encode("utf-8")).hexdigest()
         self._chroot.write(self._pex_info.dump().encode("utf-8"), PexInfo.PATH, label="manifest")
 
@@ -537,6 +551,11 @@ class PEXBuilder(object):
         bootstrap_packages = ["cache", "repl", "third_party", "venv"]
         if self._pex_info.includes_tools:
             bootstrap_packages.extend(["commands", "tools"])
+
+        # TODO(John Sirois): Switch to a symlink model, isolate(), then symlink from there?
+        # The bootstraps, as it stands, are ~4.5 MB for each loose dogfood PEX. For the Pex ITs,
+        # this ends up taking up a significant amount of disk space.
+
         for root, dirs, files in deterministic_walk(_ABS_PEX_PACKAGE_DIR):
             if root == _ABS_PEX_PACKAGE_DIR:
                 dirs[:] = bootstrap_packages

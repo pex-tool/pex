@@ -24,6 +24,7 @@ if TYPE_CHECKING:
     from typing import Collection  # type: ignore[attr-defined]
     from typing import Any, Dict, Iterable, Mapping, Optional, Text, Tuple, Union
 
+    from pex.cache.dirs import VenvDir
     from pex.dist_metadata import Requirement
 
     # N.B.: These are expensive imports and PexInfo is used during PEX bootstrapping which we want
@@ -275,7 +276,7 @@ class PexInfo(object):
         interpreter=None,  # type: Optional[PythonInterpreter]
         expand_pex_root=True,  # type: bool
     ):
-        # type: (...) -> Optional[str]
+        # type: (...) -> Optional[VenvDir]
         if not self.venv:
             return None
         if self.pex_hash is None:
@@ -295,7 +296,7 @@ class PexInfo(object):
         pex_file,  # type: str
         interpreter=None,  # type: Optional[PythonInterpreter]
     ):
-        # type: (...) -> Optional[str]
+        # type: (...) -> Optional[VenvDir]
         return self._venv_dir(self.pex_root, pex_file, interpreter)
 
     def raw_venv_dir(
@@ -303,7 +304,7 @@ class PexInfo(object):
         pex_file,  # type: str
         interpreter=None,  # type: Optional[PythonInterpreter]
     ):
-        # type: (...) -> Optional[str]
+        # type: (...) -> Optional[VenvDir]
         """Distiguished from ``venv_dir`` by use of the raw_pex_root.
         We don't expand the pex_root at build time in case the pex_root is not
         writable or doesn't exist at build time.

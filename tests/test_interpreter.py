@@ -13,6 +13,7 @@ from textwrap import dedent
 
 import pytest
 
+from pex.cache.dirs import InterpreterDir
 from pex.common import chmod_plus_x, safe_mkdir, safe_mkdtemp, temporary_dir, touch
 from pex.executor import Executor
 from pex.interpreter import PythonInterpreter, create_shebang
@@ -423,14 +424,9 @@ def test_identify_cwd_isolation_issues_1231(tmpdir):
     ), PythonInterpreter._cleared_memory_cache():
         interp = PythonInterpreter.from_binary(python38)
 
-    interp_info_files = {
-        os.path.join(root, f)
-        for root, _, files in os.walk(pex_root)
-        for f in files
-        if f == PythonInterpreter.INTERP_INFO_FILE
-    }
-    assert 1 == len(interp_info_files)
-    with open(interp_info_files.pop()) as fp:
+    interpreter_dirs = list(InterpreterDir.iter_all(pex_root=pex_root))
+    assert 1 == len(interpreter_dirs)
+    with open(interpreter_dirs[0].interp_info_file) as fp:
         assert interp.binary == json.load(fp)["binary"]
 
 

@@ -169,6 +169,8 @@ def boot(
             "_PEX_SCIE_INSTALLED_PEX_DIR",
             # This is used to override PBS distribution URLs in lazy PEX scies.
             "PEX_BOOTSTRAP_URLS",
+            # This is used to support `pex3 cache {prune,purge}`.
+            "_PEX_CACHE_ACCESS_LOCK",
         )
     ]
     if ignored_pex_env_vars:

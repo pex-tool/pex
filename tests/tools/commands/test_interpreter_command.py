@@ -14,7 +14,6 @@ from pex.interpreter_constraints import InterpreterConstraint
 from pex.pex_builder import PEXBuilder
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import Virtualenv
-from testing import PY38, PY310, ensure_python_interpreter
 
 if TYPE_CHECKING:
     from typing import Any, Dict, Iterable
@@ -22,18 +21,6 @@ if TYPE_CHECKING:
     import attr  # vendor:skip
 else:
     from pex.third_party import attr
-
-
-@pytest.fixture(scope="module")
-def python38():
-    # type: () -> PythonInterpreter
-    return PythonInterpreter.from_binary(ensure_python_interpreter(PY38))
-
-
-@pytest.fixture(scope="module")
-def python310():
-    # type: () -> PythonInterpreter
-    return PythonInterpreter.from_binary(ensure_python_interpreter(PY310))
 
 
 @attr.s(frozen=True)
@@ -81,13 +68,13 @@ class InterpreterTool(object):
         return stdout
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def interpreter_tool(
-    python38,  # type: PythonInterpreter
-    python310,  # type: PythonInterpreter
+    py38,  # type: PythonInterpreter
+    py310,  # type: PythonInterpreter
 ):
     # type: (...) -> InterpreterTool
-    return InterpreterTool.create(python38, python310)
+    return InterpreterTool.create(py38, py310)
 
 
 def expected_basic(interpreter):
@@ -96,24 +83,22 @@ def expected_basic(interpreter):
 
 
 def test_basic(
-    python38,  # type: PythonInterpreter
+    py38,  # type: PythonInterpreter
     interpreter_tool,  # type: InterpreterTool
 ):
     # type: (...) -> None
     output = interpreter_tool.run()
-    assert expected_basic(python38) == output.strip()
+    assert expected_basic(py38) == output.strip()
 
 
 def test_basic_all(
-    python38,  # type: PythonInterpreter
-    python310,  # type: PythonInterpreter
+    py38,  # type: PythonInterpreter
+    py310,  # type: PythonInterpreter
     interpreter_tool,  # type: InterpreterTool
 ):
     # type: (...) -> None
     output = interpreter_tool.run("-a")
-    assert [
-        expected_basic(interpreter) for interpreter in (python38, python310)
-    ] == output.splitlines()
+    assert [expected_basic(interpreter) for interpreter in (py38, py310)] == output.splitlines()
 
 
 def expected_verbose(interpreter):
@@ -126,22 +111,22 @@ def expected_verbose(interpreter):
 
 
 def test_verbose(
-    python38,  # type: PythonInterpreter
+    py38,  # type: PythonInterpreter
     interpreter_tool,  # type: InterpreterTool
 ):
     # type: (...) -> None
     output = interpreter_tool.run("-v")
-    assert expected_verbose(python38) == json.loads(output)
+    assert expected_verbose(py38) == json.loads(output)
 
 
 def test_verbose_all(
-    python38,  # type: PythonInterpreter
-    python310,  # type: PythonInterpreter
+    py38,  # type: PythonInterpreter
+    py310,  # type: PythonInterpreter
     interpreter_tool,  # type: InterpreterTool
 ):
     # type: (...) -> None
     output = interpreter_tool.run("-va")
-    assert [expected_verbose(interpreter) for interpreter in (python38, python310)] == [
+    assert [expected_verbose(interpreter) for interpreter in (py38, py310)] == [
         json.loads(line) for line in output.splitlines()
     ]
 
@@ -154,30 +139,30 @@ def expected_verbose_verbose(interpreter):
 
 
 def test_verbose_verbose(
-    python38,  # type: PythonInterpreter
+    py38,  # type: PythonInterpreter
     interpreter_tool,  # type: InterpreterTool
 ):
     # type: (...) -> None
     output = interpreter_tool.run("-vv")
-    assert expected_verbose_verbose(python38) == json.loads(output)
+    assert expected_verbose_verbose(py38) == json.loads(output)
 
 
 def test_verbose_verbose_verbose(
-    python38,  # type: PythonInterpreter
+    py38,  # type: PythonInterpreter
     interpreter_tool,  # type: InterpreterTool
 ):
     # type: (...) -> None
     output = interpreter_tool.run("-vvv")
-    expected = expected_verbose_verbose(python38)
-    expected.update(env_markers=python38.identity.env_markers.as_dict(), venv=False)
+    expected = expected_verbose_verbose(py38)
+    expected.update(env_markers=py38.identity.env_markers.as_dict(), venv=False)
     assert expected == json.loads(output)
 
 
 def test_verbose_verbose_verbose_venv(
-    python310,  # type: PythonInterpreter
+    py310,  # type: PythonInterpreter
 ):
     # type: (...) -> None
-    venv = Virtualenv.create(venv_dir=safe_mkdtemp(), interpreter=python310, force=True)
+    venv = Virtualenv.create(venv_dir=safe_mkdtemp(), interpreter=py310, force=True)
     assert venv.interpreter.is_venv
 
     # N.B.: Non-venv-mode PEXes always escape venvs to prevent `sys.path` contamination unless
@@ -188,6 +173,6 @@ def test_verbose_verbose_verbose_venv(
     expected.update(
         env_markers=venv.interpreter.identity.env_markers.as_dict(),
         venv=True,
-        base_interpreter=python310.binary,
+        base_interpreter=py310.binary,
     )
     assert expected == json.loads(output)
