@@ -59,6 +59,7 @@ def _pip_installation(
 
             isolated_pip_builder = PEXBuilder(path=chroot.work_dir, copy_mode=CopyMode.SYMLINK)
             isolated_pip_builder.info.venv = True
+            isolated_pip_builder.info.venv_site_packages_copies = True
             # Allow REPRODUCIBLE_BUILDS_ENV PYTHONHASHSEED env var to take effect if needed.
             isolated_pip_builder.info.venv_hermetic_scripts = False
             for dist_location in iter_distribution_locations():

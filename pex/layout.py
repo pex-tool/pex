@@ -10,7 +10,7 @@ from contextlib import contextmanager
 
 from pex.atomic_directory import atomic_directory
 from pex.cache import access as cache_access
-from pex.cache.dirs import CacheDir
+from pex.cache.dirs import BootstrapDir, InstalledWheelDir, UserCodeDir
 from pex.common import ZipFileEx, is_script, open_zip, safe_copy, safe_mkdir, safe_mkdtemp
 from pex.enum import Enum
 from pex.tracer import TRACER
@@ -163,7 +163,9 @@ def _install_distribution(
 
     location, sha = distribution_info
     is_wheel_file = pex_info.deps_are_wheel_files
-    spread_dest = CacheDir.INSTALLED_WHEELS.path(sha, location, pex_root=pex_info.pex_root)
+    spread_dest = InstalledWheelDir.create(
+        wheel_name=location, install_hash=sha, pex_root=pex_info.pex_root
+    )
     dist_relpath = os.path.join(DEPS_DIR, location)
     source = None if is_wheel_file else layout.dist_strip_prefix(location)
     symlink_src = os.path.relpath(
@@ -313,11 +315,14 @@ def _ensure_installed(
         if not os.path.exists(install_to):
             with ENV.patch(PEX_ROOT=pex_root):
                 cache_access.read_write()
+        else:
+            cache_access.record_access(install_to)
         with atomic_directory(install_to) as chroot:
             if not chroot.is_finalized():
                 with ENV.patch(PEX_ROOT=pex_root), TRACER.timed(
                     "Installing {} to {}".format(pex, install_to)
                 ):
+                    from pex.cache.data import record_zipapp_install
                     from pex.pex_info import PexInfo
 
                     pex_info = PexInfo.from_pex(pex)
@@ -327,16 +332,14 @@ def _ensure_installed(
                         raise AssertionError(
                             "Expected bootstrap_cache to be populated for {}.".format(layout)
                         )
-                    bootstrap_cache = CacheDir.BOOTSTRAPS.path(
+                    bootstrap_cache = BootstrapDir.create(
                         pex_info.bootstrap_hash, pex_root=pex_info.pex_root
                     )
                     if pex_info.code_hash is None:
                         raise AssertionError(
                             "Expected code_hash to be populated for {}.".format(layout)
                         )
-                    code_cache = CacheDir.USER_CODE.path(
-                        pex_info.code_hash, pex_root=pex_info.pex_root
-                    )
+                    code_cache = UserCodeDir.create(pex_info.code_hash, pex_root=pex_info.pex_root)
 
                     with atomic_directory(
                         bootstrap_cache, source=layout.bootstrap_strip_prefix()
@@ -367,6 +370,13 @@ def _ensure_installed(
                     layout.extract_pex_info(chroot.work_dir)
                     layout.extract_main(chroot.work_dir)
                     layout.record(chroot.work_dir)
+
+                    with TRACER.timed(
+                        "Recording zipapp install of {pex} {hash}".format(
+                            pex=pex, hash=pex_info.pex_hash
+                        )
+                    ):
+                        record_zipapp_install(pex_info)
         return install_to
 
 

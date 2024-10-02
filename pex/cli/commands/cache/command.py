@@ -4,11 +4,13 @@
 from __future__ import absolute_import, print_function
 
 import os
+import re
 from argparse import Action, ArgumentError, _ActionsContainer
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from pex.cache import access as cache_access
-from pex.cache.dirs import CacheDir
+from pex.cache import data as cache_data
+from pex.cache.dirs import AtomicCacheDir, CacheDir, InstalledWheelDir, VenvDirs
 from pex.cli.command import BuildTimeCommand
 from pex.cli.commands.cache.bytes import ByteAmount, ByteUnits
 from pex.cli.commands.cache.du import DiskUsage
@@ -23,6 +25,10 @@ from pex.variables import ENV
 
 if TYPE_CHECKING:
     from typing import IO, Dict, Iterable, List, Optional, Tuple, Union
+
+    import attr  # vendor:skip
+else:
+    from pex.third_party import attr
 
 
 class HandleAmountAction(Action):
@@ -43,6 +49,27 @@ class HandleAmountAction(Action):
                 ),
             )
         setattr(namespace, self.dest, amount_func)
+
+
+@attr.s(frozen=True)
+class Cutoff(object):
+    @classmethod
+    def parse(cls, spec):
+        # type: (str) -> Cutoff
+        match = re.match(
+            r"(?P<amount>\d+)\s+(?P<unit>second|minute|hour|day|week)s?(\s+ago)?",
+            spec.strip(),
+            re.IGNORECASE,
+        )
+        if match:
+            args = {match.group("unit") + "s": int(match.group("amount"))}
+            cutoff = datetime.now() - timedelta(**args)
+        else:
+            cutoff = datetime.strptime(spec.strip(), "%d/%m/%Y")
+        return cls(spec=spec, cutoff=cutoff)
+
+    spec = attr.ib()  # type: str
+    cutoff = attr.ib()  # type: datetime
 
 
 class Cache(OutputMixin, BuildTimeCommand):
@@ -90,6 +117,21 @@ class Cache(OutputMixin, BuildTimeCommand):
         )
         cls.add_output_option(parser, entity="Pex cache information")
 
+    @staticmethod
+    def _add_dry_run_option(parser):
+        # type: (_ActionsContainer) -> None
+
+        parser.add_argument(
+            "-n",
+            "--dry-run",
+            dest="dry_run",
+            action="store_true",
+            help=(
+                "Don't actually purge cache entries; instead, perform a dry run that just prints "
+                "out what actions would be taken"
+            ),
+        )
+
     @classmethod
     def _add_purge_arguments(cls, parser):
         # type: (_ActionsContainer) -> None
@@ -107,17 +149,29 @@ class Cache(OutputMixin, BuildTimeCommand):
                 "other cache entries dependent on those) will be purged."
             ),
         )
+        cls._add_dry_run_option(parser)
+        cls.add_output_option(parser, entity="Pex purge results")
+
+    @classmethod
+    def _add_prune_arguments(cls, parser):
+        # type: (_ActionsContainer) -> None
+
+        cls._add_amount_argument(parser)
         parser.add_argument(
-            "-n",
-            "--dry-run",
-            dest="dry_run",
-            action="store_true",
+            "--older-than",
+            dest="cutoff",
+            type=Cutoff.parse,
+            default=datetime.now() - timedelta(weeks=2),
             help=(
-                "Don't actually purge cache entries; instead, perform a dry run that just prints "
-                "out what actions would be taken"
+                "Prune zipapp and venv caches last accessed before the specified time. If the "
+                "dependencies of the selected zipapps and venvs (e.g.: installed wheels) are "
+                "unused by other zipapps and venvs, those dependencies are pruned as well. "
+                "The cutoff time can be specified as a date in the format "
+                "`<day number>/<month number>/<4 digit year>` or as a relative time in the format "
+                "`<amount> [second(s)|minute(s)|hour(s)|day(s)|week(s)]"
             ),
         )
-
+        cls._add_dry_run_option(parser)
         cls.add_output_option(parser, entity="Pex purge results")
 
     @classmethod
@@ -150,6 +204,14 @@ class Cache(OutputMixin, BuildTimeCommand):
             include_verbosity=False,
         ) as purge_parser:
             cls._add_purge_arguments(purge_parser)
+
+        with subcommands.parser(
+            name="prune",
+            help="Prune the Pex cache safely.",
+            func=cls._prune,
+            include_verbosity=False,
+        ) as prune_parser:
+            cls._add_prune_arguments(prune_parser)
 
     def _dir(self):
         # type: () -> Result
@@ -360,7 +422,7 @@ class Cache(OutputMixin, BuildTimeCommand):
 
             disk_usages = []  # type: List[DiskUsage]
             for cache_dir, du in iter_map_parallel(
-                cache_dirs, self._purge_cache_dir, noun="entries", verb="purge", verb_past="purged"
+                cache_dirs, self._purge_cache_dir, noun="entry", verb="purge", verb_past="purged"
             ):
                 print(
                     "{purged} cache {name} from {rel_path}".format(
@@ -377,4 +439,130 @@ class Cache(OutputMixin, BuildTimeCommand):
                 print(self._render_usage(disk_usages), file=fp)
                 print(file=fp)
 
+        return Ok()
+
+    def _prune_cache_dir(self, cache_dir):
+        # type: (AtomicCacheDir) -> DiskUsage
+        du = DiskUsage.collect(cache_dir.path)
+        if not self.options.dry_run:
+            safe_rmtree(cache_dir.path)
+            if isinstance(cache_dir, InstalledWheelDir) and cache_dir.symlink_dir:
+                safe_rmtree(cache_dir.symlink_dir)
+            elif isinstance(cache_dir, VenvDirs):
+                safe_rmtree(cache_dir.short_dir)
+        return du
+
+    def _prune(self):
+        # type: () -> Result
+
+        with self.output(self.options) as fp:
+            if not self.options.dry_run:
+                try:
+                    with cache_access.await_delete_lock() as lock_file:
+                        self._log_delete_start(lock_file, out=fp)
+                        print(
+                            "Attempting to acquire cache write lock (press CTRL-C to abort) ...",
+                            file=fp,
+                        )
+                except KeyboardInterrupt:
+                    return Error("No cache entries purged.")
+                finally:
+                    print(file=fp)
+
+        cutoff = self.options.cutoff
+        pex_dirs = list(cache_access.last_access_before(cutoff.cutoff))
+        if not pex_dirs:
+            print(
+                "There are no cached PEX zipapps or venvs last accessed prior to {cutoff}".format(
+                    cutoff=(
+                        cutoff.spec
+                        if cutoff.spec.endswith("ago") or cutoff.spec[-1].isdigit()
+                        else "{cutoff} ago".format(cutoff=cutoff.spec)
+                    ),
+                ),
+                file=fp,
+            )
+            return Ok()
+
+        with cache_data.delete(pex_dirs, self.options.dry_run) as deps_iter:
+            deps = list(deps_iter)
+
+        print(
+            "{pruned} {count} {cached_pex}".format(
+                pruned="Would have pruned" if self.options.dry_run else "Pruned",
+                count=len(pex_dirs),
+                cached_pex=pluralize(pex_dirs, "cached PEX"),
+            ),
+            file=fp,
+        )
+        print(
+            self._render_usage(
+                list(
+                    iter_map_parallel(
+                        pex_dirs,
+                        self._prune_cache_dir,
+                        noun="cached PEX",
+                        verb="prune",
+                        verb_past="pruned",
+                    )
+                )
+            ),
+            file=fp,
+        )
+        print(file=fp)
+
+        if self.options.dry_run:
+            print(
+                "Might have pruned up to {count} {cached_pex_dependency}".format(
+                    count=len(deps), cached_pex_dependency=pluralize(deps, "cached PEX dependency")
+                ),
+                file=fp,
+            )
+            print(
+                self._render_usage(
+                    list(
+                        iter_map_parallel(
+                            deps,
+                            self._prune_cache_dir,
+                            noun="cached PEX dependency",
+                            verb="prune",
+                            verb_past="pruned",
+                        )
+                    )
+                )
+            )
+            print(file=fp)
+        else:
+            with cache_data.prune(deps) as prunable_deps_iter:
+                disk_usages = list(
+                    iter_map_parallel(
+                        prunable_deps_iter,
+                        self._prune_cache_dir,
+                        noun="cached PEX dependency",
+                        verb="prune",
+                        verb_past="pruned",
+                    )
+                )
+                if not disk_usages:
+                    print(
+                        "No cached PEX dependencies were able to be pruned; all have un-pruned "
+                        "cached PEX dependents.",
+                        file=fp,
+                    )
+                elif len(deps) == 1:
+                    print("Pruned the 1 cached PEX dependency.", file=fp)
+                elif len(deps) == len(disk_usages):
+                    print(
+                        "Pruned all {count} cached PEX dependencies.".format(count=len(deps)),
+                        file=fp,
+                    )
+                else:
+                    print(
+                        "Pruned {count} of {total} cached PEX dependencies.".format(
+                            count=len(disk_usages), total=len(deps)
+                        ),
+                        file=fp,
+                    )
+                print(self._render_usage(disk_usages))
+                print(file=fp)
         return Ok()
