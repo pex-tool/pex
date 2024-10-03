@@ -1,8 +1,8 @@
 {
   "__meta_data__": {
-    "comment": "DO NOT EDIT - Generated via: `tox -e gen-scie-platform -- --pbs-release 20240909 --python-version 3.12.6`.",
-    "pbs-release": "20240909",
-    "python-version": "3.12.6"
+    "comment": "DO NOT EDIT - Generated via: `tox -e gen-scie-platform -- --pbs-release 20241002 --python-version 3.12.7`.",
+    "pbs-release": "20241002",
+    "python-version": "3.12.7"
   },
   "compatible_tags": [
     "cp312-cp312-manylinux_2_31_aarch64",
@@ -482,14 +482,14 @@
   ],
   "marker_environment": {
     "implementation_name": "cpython",
-    "implementation_version": "3.12.6",
+    "implementation_version": "3.12.7",
     "os_name": "posix",
     "platform_machine": "aarch64",
     "platform_python_implementation": "CPython",
-    "platform_release": "6.5.0-1025-azure",
+    "platform_release": "6.8.0-1014-azure",
     "platform_system": "Linux",
-    "platform_version": "#26~22.04.1-Ubuntu SMP Thu Jul 11 22:33:04 UTC 2024",
-    "python_full_version": "3.12.6",
+    "platform_version": "#16-Ubuntu SMP Thu Aug 15 20:04:41 UTC 2024",
+    "python_full_version": "3.12.7",
     "python_version": "3.12",
     "sys_platform": "linux"
   }
