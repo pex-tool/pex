@@ -40,6 +40,9 @@ jobs:
       - name: Generate Generate Script
         id: generate
         run: |
+          dest_dir="$(mktemp -d)"
+          echo "dest-dir=${dest_dir}" >> "${GITHUB_OUTPUT}"
+
           cat << EOF > ./gen-scie-platform.sh
           #!/usr/bin/env bash
           python -m venv .venv
@@ -48,8 +51,6 @@ jobs:
           pip install -U tox
           python -V
 
-          dest_dir="$(mktemp -d)"
-          echo "dest-dir=${dest_dir}" >> "${GITHUB_OUTPUT}"
           tox -e gen-scie-platform -- \
             -d "${dest_dir}" \
             --pbs-release ${{ github.event.inputs.pbs-release }} \
@@ -66,6 +67,7 @@ jobs:
         run: |
           docker run \
             --rm \
+            -v "${{ steps.generate.outputs.dest-dir }}:${{ steps.generate.outputs.dest-dir }}" \
             -v $PWD:/code \
             -w /code \
             --platform linux/${{ matrix.docker-arch }} \
