@@ -84,3 +84,4 @@ jobs:
         with:
           name: complete-platform-${{ matrix.artifact-name }}
           path: ${{ github.event.inputs.dest-dir }}/*
+          overwrite: true
