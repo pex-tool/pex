@@ -22,12 +22,14 @@ class CacheDir(Enum["CacheDir.Value"]):
             version,  # type: int
             description,  # type: str
             dependencies=(),  # type: Iterable[CacheDir.Value]
+            can_purge=True,  # type: bool
         ):
             Enum.Value.__init__(self, value)
             self.name = name
             self.version = version
             self.description = description
             self.dependencies = tuple(dependencies)
+            self.can_purge = can_purge
 
         @property
         def rel_path(self):
@@ -74,6 +76,14 @@ class CacheDir(Enum["CacheDir.Value"]):
         version=0,
         name="Built Wheels",
         description="Wheels built by Pex from resolved sdists when creating PEX files.",
+    )
+
+    DBS = Value(
+        "dbs",
+        version=0,
+        name="Pex Internal Databases",
+        description="Databases Pex uses for caches and to track cache structure.",
+        can_purge=False,
     )
 
     DOCS = Value(

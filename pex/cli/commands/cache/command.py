@@ -99,7 +99,7 @@ class Cache(OutputMixin, BuildTimeCommand):
             "--entries",
             action="append",
             type=CacheDir.for_value,
-            choices=CacheDir.values(),
+            choices=[cache_dir for cache_dir in CacheDir.values() if cache_dir.can_purge],
             default=[],
             help=(
                 "Specific cache entries to purge. By default, all entries are purged, but by "

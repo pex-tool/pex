@@ -5,11 +5,13 @@ from __future__ import absolute_import
 
 import os
 import sqlite3
-from contextlib import closing
+from contextlib import closing, contextmanager
 from itertools import repeat
 from multiprocessing.pool import ThreadPool
 
 from pex import pex_warnings
+from pex.atomic_directory import atomic_directory
+from pex.cache.dirs import CacheDir
 from pex.compatibility import cpu_count
 from pex.fetcher import URLFetcher
 from pex.resolve.pep_691.api import Client
@@ -19,7 +21,6 @@ from pex.resolve.resolvers import MAX_PARALLEL_DOWNLOADS
 from pex.result import Error, catch
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
-from pex.variables import ENV
 
 if TYPE_CHECKING:
     from typing import Dict, Iterable, Iterator, List, Optional, Sequence, Set, Tuple, Union
@@ -46,7 +47,7 @@ class FingerprintService(object):
         return cls(api=Client(url_fetcher=url_fetcher), max_parallel_jobs=max_parallel_jobs)
 
     _api = attr.ib(factory=Client)  # type: Client
-    _path = attr.ib(factory=lambda: os.path.join(ENV.PEX_ROOT, "fingerprints.db"))  # type: str
+    _db_dir = attr.ib(factory=lambda: CacheDir.DBS.path("pep_691"))  # type: str
     _max_parallel_jobs = attr.ib(default=None)  # type: Optional[int]
 
     @property
@@ -54,21 +55,33 @@ class FingerprintService(object):
         # type: () -> Tuple[str, ...]
         return self._api.ACCEPT
 
+    _SCHEMA = """
+    PRAGMA journal_mode=WAL;
+
+    CREATE TABLE hashes (
+        url TEXT PRIMARY KEY ASC,
+        algorithm TEXT NOT NULL,
+        hash TEXT NOT NULL
+    ) WITHOUT ROWID;
+    """
+
+    @contextmanager
+    def _db_connection(self):
+        # type: () -> Iterator[sqlite3.Connection]
+        with atomic_directory(self._db_dir) as atomic_dir:
+            if not atomic_dir.is_finalized():
+                with sqlite3.connect(os.path.join(atomic_dir.work_dir, "fingerprints.db")) as conn:
+                    conn.executescript(self._SCHEMA).close()
+        with sqlite3.connect(os.path.join(self._db_dir, "fingerprints.db")) as conn:
+            conn.execute("PRAGMA synchronous=NORMAL").close()
+            yield conn
+
     def _iter_cached(self, urls_to_fingerprint):
         # type: (Iterable[str]) -> Iterator[_FingerprintedURL]
 
         urls = sorted(urls_to_fingerprint)
         with TRACER.timed("Searching for {count} fingerprints in database".format(count=len(urls))):
-            with sqlite3.connect(self._path) as conn:
-                conn.executescript(
-                    """
-                    CREATE TABLE IF NOT EXISTS hashes (
-                        url TEXT PRIMARY KEY ASC,
-                        algorithm TEXT NOT NULL,
-                        hash TEXT NOT NULL
-                    ) WITHOUT ROWID;
-                    """
-                ).close()
+            with self._db_connection() as conn:
                 # N.B.: Maximum parameter count is 999 in pre-2020 versions of SQLite 3; so we limit
                 # to an even lower chunk size to be safe: https://www.sqlite.org/limits.html
                 chunk_size = 100
@@ -93,7 +106,7 @@ class FingerprintService(object):
         with TRACER.timed(
             "Caching {count} fingerprints in database".format(count=len(fingerprinted_urls))
         ):
-            with sqlite3.connect(self._path) as conn:
+            with self._db_connection() as conn:
                 conn.executemany(
                     "INSERT OR REPLACE INTO hashes (url, algorithm, hash) VALUES (?, ?, ?)",
                     tuple(

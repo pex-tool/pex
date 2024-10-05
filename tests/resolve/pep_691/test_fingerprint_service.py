@@ -2,6 +2,7 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os.path
+import shutil
 
 import pytest
 
@@ -28,9 +29,9 @@ ENDPOINT = Endpoint("https://example.org/simple/foo", "x/y")
 
 
 @pytest.fixture
-def database_path(tmpdir):
+def db_dir(tmpdir):
     # type: (Any) -> str
-    return os.path.join(str(tmpdir), "fingerprints.db")
+    return os.path.join(str(tmpdir), "pep_691")
 
 
 def file(
@@ -57,11 +58,11 @@ def create_project(
     )
 
 
-def test_no_fingerprints(database_path):
+def test_no_fingerprints(db_dir):
     # type: (str) -> None
 
     with mock.patch.object(Client, "request", return_value=create_project("foo")) as request:
-        fingerprint_service = FingerprintService(path=database_path)
+        fingerprint_service = FingerprintService(db_dir=db_dir)
         artifacts = list(
             fingerprint_service.fingerprint(
                 endpoints={ENDPOINT},
@@ -72,7 +73,7 @@ def test_no_fingerprints(database_path):
     request.assert_called_once_with(ENDPOINT)
 
 
-def test_no_matching_fingerprints(database_path):
+def test_no_matching_fingerprints(db_dir):
     # type: (str) -> None
 
     with mock.patch.object(
@@ -84,7 +85,7 @@ def test_no_matching_fingerprints(database_path):
             file("https://files.example.org/foo-2.0.tar.gz", sha256="strong"),
         ),
     ) as request:
-        fingerprint_service = FingerprintService(path=database_path)
+        fingerprint_service = FingerprintService(db_dir=db_dir)
         artifacts = list(
             fingerprint_service.fingerprint(
                 endpoints={ENDPOINT},
@@ -95,7 +96,7 @@ def test_no_matching_fingerprints(database_path):
     request.assert_called_once_with(ENDPOINT)
 
 
-def test_cache_miss_retries(database_path):
+def test_cache_miss_retries(db_dir):
     # type: (Any) -> None
 
     endpoint = Endpoint("https://example.org/simple/foo", "x/y")
@@ -110,7 +111,7 @@ def test_cache_miss_retries(database_path):
             file("https://files.example.org/foo-2.0.tar.gz", sha256="strong"),
         ),
     ) as request:
-        fingerprint_service = FingerprintService(path=database_path)
+        fingerprint_service = FingerprintService(db_dir=db_dir)
         for _ in range(attempts):
 
             artifacts = list(
@@ -128,7 +129,7 @@ def test_cache_miss_retries(database_path):
 def test_cache_hit(tmpdir):
     # type: (Any) -> None
 
-    database_path = os.path.join(str(tmpdir), "fingerprints.db")
+    db_dir = os.path.join(str(tmpdir), "pep_691")
     endpoint = Endpoint("https://example.org/simple/foo", "x/y")
     initial_artifact = PartialArtifact(url="https://files.example.org/foo-1.1.tar.gz")
     expected_artifact = PartialArtifact(
@@ -143,7 +144,7 @@ def test_cache_hit(tmpdir):
             "foo", file("https://files.example.org/foo-1.1.tar.gz", md5="weak")
         ),
     ) as request:
-        fingerprint_service = FingerprintService(path=database_path)
+        fingerprint_service = FingerprintService(db_dir=db_dir)
         for _ in range(3):
             artifacts = list(
                 fingerprint_service.fingerprint(endpoints={endpoint}, artifacts=[initial_artifact])
@@ -154,7 +155,7 @@ def test_cache_hit(tmpdir):
         request.assert_called_once_with(endpoint)
 
         # Unless the cache is wiped out.
-        os.unlink(database_path)
+        shutil.rmtree(db_dir)
         request.reset_mock()
         assert [expected_artifact] == list(
             fingerprint_service.fingerprint(endpoints={endpoint}, artifacts=[initial_artifact])
@@ -162,7 +163,7 @@ def test_cache_hit(tmpdir):
         request.assert_called_once_with(endpoint)
 
 
-def test_mixed(database_path):
+def test_mixed(db_dir):
     # type: (str) -> None
 
     responses = {
@@ -177,7 +178,7 @@ def test_mixed(database_path):
     }
 
     with mock.patch.object(Client, "request", side_effect=responses.get) as request:
-        fingerprint_service = FingerprintService(path=database_path)
+        fingerprint_service = FingerprintService(db_dir=db_dir)
         artifacts = sorted(
             fingerprint_service.fingerprint(
                 endpoints=set(responses),
