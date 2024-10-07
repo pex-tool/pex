@@ -168,7 +168,7 @@ class Cache(OutputMixin, BuildTimeCommand):
                 "unused by other zipapps and venvs, those dependencies are pruned as well. "
                 "The cutoff time can be specified as a date in the format "
                 "`<day number>/<month number>/<4 digit year>` or as a relative time in the format "
-                "`<amount> [second(s)|minute(s)|hour(s)|day(s)|week(s)]"
+                "`<amount> [second(s)|minute(s)|hour(s)|day(s)|week(s)]`."
             ),
         )
         cls._add_dry_run_option(parser)
@@ -484,9 +484,6 @@ class Cache(OutputMixin, BuildTimeCommand):
             )
             return Ok()
 
-        with cache_data.delete(pex_dirs, self.options.dry_run) as deps_iter:
-            deps = list(deps_iter)
-
         print(
             "{pruned} {count} {cached_pex}".format(
                 pruned="Would have pruned" if self.options.dry_run else "Pruned",
@@ -512,6 +509,7 @@ class Cache(OutputMixin, BuildTimeCommand):
         print(file=fp)
 
         if self.options.dry_run:
+            deps = list(cache_data.dir_dependencies(pex_dirs))
             print(
                 "Might have pruned up to {count} {cached_pex_dependency}".format(
                     count=len(deps), cached_pex_dependency=pluralize(deps, "cached PEX dependency")
@@ -533,6 +531,8 @@ class Cache(OutputMixin, BuildTimeCommand):
             )
             print(file=fp)
         else:
+            with cache_data.delete(pex_dirs) as deps_iter:
+                deps = list(deps_iter)
             with cache_data.prune(deps) as prunable_deps_iter:
                 disk_usages = list(
                     iter_map_parallel(

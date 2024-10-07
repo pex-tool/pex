@@ -310,21 +310,19 @@ def dir_dependencies(
 @contextmanager
 def delete(
     pex_dirs,  # type: Iterable[Union[UnzipDir, VenvDirs]]
-    dry_run=False,  # type: bool
 ):
     # type: (...) -> Iterator[Iterator[Union[BootstrapDir, UserCodeDir, InstalledWheelDir]]]
 
     with _db_connection() as conn:
         yield dir_dependencies(pex_dirs, connection=conn)
 
-        if not dry_run:
-            for placeholders, keys in _iter_key_chunks(
-                [pex_dir for pex_dir in pex_dirs if isinstance(pex_dir, UnzipDir)],
-                extract_key=lambda u: u.pex_hash,
-            ):
-                conn.execute(
-                    "DELETE FROM zipapps WHERE pex_hash IN ({keys})".format(keys=placeholders), keys
-                ).close()
+        for placeholders, keys in _iter_key_chunks(
+            [pex_dir for pex_dir in pex_dirs if isinstance(pex_dir, UnzipDir)],
+            extract_key=lambda u: u.pex_hash,
+        ):
+            conn.execute(
+                "DELETE FROM zipapps WHERE pex_hash IN ({keys})".format(keys=placeholders), keys
+            ).close()
 
 
 @contextmanager
