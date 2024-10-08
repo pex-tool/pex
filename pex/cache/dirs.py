@@ -11,7 +11,7 @@ from pex.typing import TYPE_CHECKING, cast
 from pex.variables import ENV, Variables
 
 if TYPE_CHECKING:
-    from typing import Any, Iterable, Iterator, Optional, Type, TypeVar, Union
+    from typing import Any, Iterable, Iterator, List, Optional, Type, TypeVar, Union
 
 
 class CacheDir(Enum["CacheDir.Value"]):
@@ -343,6 +343,45 @@ class VenvDirs(AtomicCacheDir):
 
 class InstalledWheelDir(AtomicCacheDir):
     @classmethod
+    def iter_all(cls, pex_root=ENV):
+        symlinks = []  # type: List[str]
+        dirs = []  # type: List[str]
+        for path in glob.glob(CacheDir.INSTALLED_WHEELS.path("*", "*.whl", pex_root=pex_root)):
+            if not os.path.isdir(path):
+                continue
+            if os.path.islink(path):
+                symlinks.append(path)
+            else:
+                dirs.append(path)
+
+        seen = set()
+        for symlink in symlinks:
+            symlink_dir = os.path.dirname(symlink)
+            install_hash = os.path.basename(symlink_dir)
+            wheel_dir = os.path.realpath(symlink)
+            wheel_hash = os.path.basename(os.path.dirname(wheel_dir))
+            wheel_name = os.path.basename(wheel_dir)
+            installed_wheel_dir = InstalledWheelDir(
+                wheel_dir,
+                wheel_name=wheel_name,
+                install_hash=install_hash,
+                wheel_hash=wheel_hash,
+                symlink_dir=symlink_dir,
+            )
+            if installed_wheel_dir not in seen:
+                seen.add(installed_wheel_dir)
+                yield installed_wheel_dir
+        for wheel_dir in dirs:
+            install_hash = os.path.basename(os.path.dirname(wheel_dir))
+            wheel_name = os.path.basename(wheel_dir)
+            installed_wheel_dir = InstalledWheelDir(
+                wheel_dir, wheel_name=wheel_name, install_hash=install_hash
+            )
+            if installed_wheel_dir not in seen:
+                seen.add(installed_wheel_dir)
+                yield installed_wheel_dir
+
+    @classmethod
     def create(
         cls,
         wheel_name,  # type: str
@@ -357,8 +396,7 @@ class InstalledWheelDir(AtomicCacheDir):
         if os.path.islink(wheel_dir):
             symlink_dir = os.path.dirname(wheel_dir)
             wheel_dir = os.path.realpath(wheel_dir)
-            wheel_hash_dir, _ = os.path.split(wheel_dir)
-            wheel_hash = os.path.basename(wheel_hash_dir)
+            wheel_hash = os.path.basename(os.path.dirname(wheel_dir))
 
         return cls(
             path=wheel_dir,
