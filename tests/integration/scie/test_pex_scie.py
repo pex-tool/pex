@@ -82,18 +82,6 @@ def test_basic(
             re_flags=re.DOTALL | re.MULTILINE,
         )
         return
-    if PY_VER >= (3, 13):
-        result.assert_failure(
-            expected_error_re=(
-                r".*"
-                r"^Failed to build 1 scie:$"
-                r".*"
-                r"^Provider: No released assets found for release [0-9]{{8}} Python {version} "
-                r"of flavor install_only\.$".format(version=".".join(map(str, PY_VER)))
-            ),
-            re_flags=re.DOTALL | re.MULTILINE,
-        )
-        return
     result.assert_success()
 
     scie = os.path.join(str(tmpdir), "cowsay")
