@@ -18,13 +18,7 @@ from pex import dist_metadata
 from pex.atomic_directory import atomic_directory
 from pex.cache.dirs import CacheDir
 from pex.commands.command import JsonMixin, OutputMixin
-from pex.common import (
-    DETERMINISTIC_DATETIME_TIMESTAMP,
-    pluralize,
-    safe_mkdir,
-    safe_mkdtemp,
-    safe_open,
-)
+from pex.common import REPRODUCIBLE_BUILDS_ENV, pluralize, safe_mkdir, safe_mkdtemp, safe_open
 from pex.compatibility import Queue
 from pex.dist_metadata import Distribution
 from pex.environment import PEXEnvironment
@@ -280,12 +274,7 @@ class Repository(JsonMixin, OutputMixin, PEXCommand):
             # type: (Distribution) -> SpawnedJob[Text]
             env = os.environ.copy()
             if not self.options.use_system_time:
-                # N.B.: The `SOURCE_DATE_EPOCH` env var is semi-standard magic for controlling
-                # build tools. Wheel has supported this since 2016.
-                # See:
-                # + https://reproducible-builds.org/docs/source-date-epoch/
-                # + https://github.com/pypa/wheel/blob/1b879e53fed1f179897ed47e55a68bc51df188db/wheel/archive.py#L36-L39
-                env.update(SOURCE_DATE_EPOCH=str(int(DETERMINISTIC_DATETIME_TIMESTAMP)))
+                env.update(REPRODUCIBLE_BUILDS_ENV)
             job = spawn_python_job_with_setuptools_and_wheel(
                 args=["-m", "wheel", "pack", "--dest-dir", dest_dir, distribution.location],
                 interpreter=pex.interpreter,

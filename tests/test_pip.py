@@ -337,6 +337,7 @@ def test_pip_pex_interpreter_venv_hash_issue_1885(
         interpreter=current_interpreter,
         version=PipVersion.DEFAULT,
         extra_requirements=(),
+        use_system_time=False,
     )
     _PIP.pop(installation, None)
     binary = current_interpreter.binary

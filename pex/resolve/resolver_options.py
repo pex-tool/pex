@@ -539,15 +539,19 @@ if TYPE_CHECKING:
     ]
 
 
-def configure(options):
-    # type: (Namespace) -> ResolverConfiguration
+def configure(
+    options,  # type: Namespace
+    use_system_time=False,  # type: bool
+):
+    # type: (...) -> ResolverConfiguration
     """Creates a resolver configuration from options registered by `register`.
 
     :param options: The resolver configuration options.
+    :param use_system_time: `False` to attempt use a reproducible timestamp for builds.
     :raise: :class:`InvalidConfigurationError` if the resolver configuration is invalid.
     """
 
-    pip_configuration = create_pip_configuration(options)
+    pip_configuration = create_pip_configuration(options, use_system_time=use_system_time)
 
     pex_repository = getattr(options, "pex_repository", None)
     if pex_repository:
@@ -593,11 +597,15 @@ def configure(options):
     return pip_configuration
 
 
-def create_pip_configuration(options):
-    # type: (Namespace) -> PipConfiguration
+def create_pip_configuration(
+    options,  # type: Namespace
+    use_system_time=False,  # type: bool
+):
+    # type: (...) -> PipConfiguration
     """Creates a Pip configuration from options registered by `register`.
 
     :param options: The Pip resolver configuration options.
+    :param use_system_time: `False` to attempt use a reproducible timestamp for builds.
     """
 
     if options.cache_ttl:
@@ -631,6 +639,7 @@ def create_pip_configuration(options):
         prefer_older_binary=options.prefer_older_binary,
         use_pep517=options.use_pep517,
         build_isolation=options.build_isolation,
+        use_system_time=use_system_time,
     )
 
     return PipConfiguration(

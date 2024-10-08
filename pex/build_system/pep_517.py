@@ -75,6 +75,7 @@ def _default_build_system(
                     resolved=resolved_dists,
                     build_backend=DEFAULT_BUILD_BACKEND,
                     backend_path=(),
+                    use_system_time=resolver.use_system_time(),
                     **extra_env
                 )
             )

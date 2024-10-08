@@ -799,7 +799,10 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         # type: (...) -> Union[Targets, Error]
 
         target_config = target_configuration or target_options.configure(
-            self.options, pip_configuration=resolver_options.create_pip_configuration(self.options)
+            self.options,
+            pip_configuration=resolver_options.create_pip_configuration(
+                self.options, use_system_time=False
+            ),
         )
         if style is not LockStyle.UNIVERSAL:
             return target_config.resolve_targets()
@@ -867,7 +870,9 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
     def _create(self):
         # type: () -> Result
 
-        pip_configuration = resolver_options.create_pip_configuration(self.options)
+        pip_configuration = resolver_options.create_pip_configuration(
+            self.options, use_system_time=False
+        )
         target_configuration = target_options.configure(
             self.options, pip_configuration=pip_configuration
         )
@@ -963,7 +968,9 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             )
 
         lockfile_path, lock_file = self._load_lockfile()
-        pip_configuration = resolver_options.create_pip_configuration(self.options)
+        pip_configuration = resolver_options.create_pip_configuration(
+            self.options, use_system_time=False
+        )
         targets = target_options.configure(
             self.options, pip_configuration=pip_configuration
         ).resolve_targets()
@@ -1091,7 +1098,9 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
     ):
         # type: (...) -> Union[LockUpdateRequest, Error]
 
-        pip_configuration = resolver_options.create_pip_configuration(self.options)
+        pip_configuration = resolver_options.create_pip_configuration(
+            self.options, use_system_time=False
+        )
         lock_updater = LockUpdater.create(
             lock_file=lock_file,
             repos_configuration=pip_configuration.repos_configuration,
@@ -1506,7 +1515,8 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         # type: () -> Result
 
         resolver_configuration = cast(
-            LockRepositoryConfiguration, resolver_options.configure(self.options)
+            LockRepositoryConfiguration,
+            resolver_options.configure(self.options, use_system_time=False),
         )
         production_assert(isinstance(resolver_configuration, LockRepositoryConfiguration))
         pip_configuration = resolver_configuration.pip_configuration

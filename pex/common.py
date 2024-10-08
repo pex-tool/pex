@@ -54,6 +54,15 @@ DETERMINISTIC_DATETIME = datetime(
 _UNIX_EPOCH = datetime(year=1970, month=1, day=1, hour=0, minute=0, second=0, tzinfo=None)
 DETERMINISTIC_DATETIME_TIMESTAMP = (DETERMINISTIC_DATETIME - _UNIX_EPOCH).total_seconds()
 
+# N.B.: The `SOURCE_DATE_EPOCH` env var is semi-standard magic for controlling
+# build tools. Wheel, for example, has supported this since 2016.
+# See:
+# + https://reproducible-builds.org/docs/source-date-epoch/
+# + https://github.com/pypa/wheel/blob/1b879e53fed1f179897ed47e55a68bc51df188db/wheel/archive.py#L36-L39
+REPRODUCIBLE_BUILDS_ENV = dict(
+    PYTHONHASHSEED="0", SOURCE_DATE_EPOCH=str(int(DETERMINISTIC_DATETIME_TIMESTAMP))
+)
+
 
 def is_pyc_dir(dir_path):
     # type: (Text) -> bool

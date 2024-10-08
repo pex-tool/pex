@@ -106,6 +106,7 @@ class Lockfile(object):
             prefer_older_binary=build_configuration.prefer_older_binary,
             use_pep517=build_configuration.use_pep517,
             build_isolation=build_configuration.build_isolation,
+            use_system_time=build_configuration.use_system_time,
             transitive=transitive,
             excluded=SortedTuple(excluded),
             overridden=SortedTuple(overridden),
@@ -130,6 +131,7 @@ class Lockfile(object):
     prefer_older_binary = attr.ib()  # type: bool
     use_pep517 = attr.ib()  # type: Optional[bool]
     build_isolation = attr.ib()  # type: bool
+    use_system_time = attr.ib()  # type: bool
     transitive = attr.ib()  # type: bool
     excluded = attr.ib()  # type: SortedTuple[Requirement]
     overridden = attr.ib()  # type: SortedTuple[Requirement]
@@ -147,6 +149,7 @@ class Lockfile(object):
             prefer_older_binary=self.prefer_older_binary,
             use_pep517=self.use_pep517,
             build_isolation=self.build_isolation,
+            use_system_time=self.use_system_time,
         )
 
     def dependency_configuration(self):

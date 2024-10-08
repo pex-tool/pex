@@ -136,7 +136,7 @@ class CacheDir(Enum["CacheDir.Value"]):
 
     PIP = Value(
         "pip",
-        version=0,
+        version=1,
         name="Pip Versions",
         description="Isolated Pip caches and Pip PEXes Pex uses to resolve distributions.",
     )
