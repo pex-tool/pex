@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 
 from pex.cache import access as cache_access
 from pex.cache import data as cache_data
-from pex.cache.dirs import AtomicCacheDir, CacheDir, InstalledWheelDir, VenvDirs
+from pex.cache.dirs import AtomicCacheDir, BootstrapDir, CacheDir, InstalledWheelDir, VenvDirs
 from pex.cli.command import BuildTimeCommand
 from pex.cli.commands.cache.bytes import ByteAmount, ByteUnits
 from pex.cli.commands.cache.du import DiskUsage
@@ -161,7 +161,7 @@ class Cache(OutputMixin, BuildTimeCommand):
             "--older-than",
             dest="cutoff",
             type=Cutoff.parse,
-            default=datetime.now() - timedelta(weeks=2),
+            default=Cutoff.parse("2 weeks ago"),
             help=(
                 "Prune zipapp and venv caches last accessed before the specified time. If the "
                 "dependencies of the selected zipapps and venvs (e.g.: installed wheels) are "
@@ -443,14 +443,36 @@ class Cache(OutputMixin, BuildTimeCommand):
 
     def _prune_cache_dir(self, cache_dir):
         # type: (AtomicCacheDir) -> DiskUsage
-        du = DiskUsage.collect(cache_dir.path)
+        paths_to_prune = []  # type: List[str]
+
+        def prune_if_exists(path):
+            if os.path.exists(path):
+                paths_to_prune.append(path)
+
+        if isinstance(cache_dir, InstalledWheelDir):
+            paths_to_prune.append(os.path.dirname(cache_dir.path))
+            packed_wheel_dir = CacheDir.PACKED_WHEELS.path(cache_dir.install_hash)
+            prune_if_exists(packed_wheel_dir)
+        elif isinstance(cache_dir, BootstrapDir):
+            paths_to_prune.append(cache_dir.path)
+            prune_if_exists(CacheDir.BOOTSTRAP_ZIPS.path(cache_dir.bootstrap_hash))
+        else:
+            paths_to_prune.append(cache_dir.path)
+
+        disk_usages = [DiskUsage.collect(path) for path in paths_to_prune]
         if not self.options.dry_run:
-            safe_rmtree(cache_dir.path)
+            for path in paths_to_prune:
+                safe_rmtree(path)
             if isinstance(cache_dir, InstalledWheelDir) and cache_dir.symlink_dir:
                 safe_rmtree(cache_dir.symlink_dir)
             elif isinstance(cache_dir, VenvDirs):
                 safe_rmtree(cache_dir.short_dir)
-        return du
+
+        return (
+            disk_usages[0]
+            if len(disk_usages) == 1
+            else DiskUsage.aggregate(cache_dir.path, disk_usages)
+        )
 
     def _prune(self):
         # type: () -> Result
@@ -469,11 +491,34 @@ class Cache(OutputMixin, BuildTimeCommand):
                 finally:
                     print(file=fp)
 
+        def prune_unused_deps(additional=False):
+            with cache_data.prune(list(InstalledWheelDir.iter_all())) as unused_deps_iter:
+                disk_usages = list(
+                    iter_map_parallel(
+                        unused_deps_iter,
+                        self._prune_cache_dir,
+                        noun="cached PEX dependency",
+                        verb="prune",
+                        verb_past="pruned",
+                    )
+                )
+                if disk_usages:
+                    print(
+                        "Pruned {count} {additional}unused PEX {dependencies}.".format(
+                            count=len(disk_usages),
+                            additional="additional " if additional else "",
+                            dependencies=pluralize(disk_usages, "dependency"),
+                        ),
+                        file=fp,
+                    )
+                    print(self._render_usage(disk_usages))
+                    print(file=fp)
+
         cutoff = self.options.cutoff
         pex_dirs = list(cache_access.last_access_before(cutoff.cutoff))
         if not pex_dirs:
             print(
-                "There are no cached PEX zipapps or venvs last accessed prior to {cutoff}".format(
+                "There are no cached PEX zipapps or venvs last accessed prior to {cutoff}.".format(
                     cutoff=(
                         cutoff.spec
                         if cutoff.spec.endswith("ago") or cutoff.spec[-1].isdigit()
@@ -482,10 +527,12 @@ class Cache(OutputMixin, BuildTimeCommand):
                 ),
                 file=fp,
             )
+            print(file=fp)
+            prune_unused_deps()
             return Ok()
 
         print(
-            "{pruned} {count} {cached_pex}".format(
+            "{pruned} {count} {cached_pex}.".format(
                 pruned="Would have pruned" if self.options.dry_run else "Pruned",
                 count=len(pex_dirs),
                 cached_pex=pluralize(pex_dirs, "cached PEX"),
@@ -511,7 +558,7 @@ class Cache(OutputMixin, BuildTimeCommand):
         if self.options.dry_run:
             deps = list(cache_data.dir_dependencies(pex_dirs))
             print(
-                "Might have pruned up to {count} {cached_pex_dependency}".format(
+                "Might have pruned up to {count} {cached_pex_dependency}.".format(
                     count=len(deps), cached_pex_dependency=pluralize(deps, "cached PEX dependency")
                 ),
                 file=fp,
@@ -563,6 +610,8 @@ class Cache(OutputMixin, BuildTimeCommand):
                         ),
                         file=fp,
                     )
-                print(self._render_usage(disk_usages))
+                if disk_usages:
+                    print(self._render_usage(disk_usages))
                 print(file=fp)
+            prune_unused_deps(additional=len(disk_usages) > 0)
         return Ok()
