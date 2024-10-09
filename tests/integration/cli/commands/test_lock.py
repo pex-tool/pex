@@ -1544,7 +1544,8 @@ LEGACY_UNIVERSAL_LOCKFILE_CONTENTS = """\
   "resolver_version": "pip-legacy-resolver",
   "style": "universal",
   "transitive": true,
-  "use_pep517": null
+  "use_pep517": null,
+  "use_system_time": false
 }
 """
 
@@ -1855,7 +1856,8 @@ PIP_2020_UNIVERSAL_LOCKFILE_CONTENTS = """\
   "resolver_version": "pip-2020-resolver",
   "style": "universal",
   "transitive": true,
-  "use_pep517": null
+  "use_pep517": null,
+  "use_system_time": false
 }
 """
 
