@@ -222,6 +222,10 @@ class Resolver(object):
         # type: () -> bool
         raise NotImplementedError()
 
+    def use_system_time(self):
+        # type: () -> bool
+        raise NotImplementedError()
+
     @abstractmethod
     def resolve_lock(
         self,

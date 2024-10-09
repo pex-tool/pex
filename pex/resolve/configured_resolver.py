@@ -45,7 +45,12 @@ class ConfiguredResolver(Resolver):
     pip_configuration = attr.ib()  # type: PipConfiguration
 
     def is_default_repos(self):
+        # type: () -> bool
         return self.pip_configuration.repos_configuration == _DEFAULT_REPOS
+
+    def use_system_time(self):
+        # type: () -> bool
+        return self.pip_configuration.build_configuration.use_system_time
 
     def resolve_lock(
         self,

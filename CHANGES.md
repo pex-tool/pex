@@ -1,5 +1,20 @@
 # Release Notes
 
+## 2.20.3
+
+This release fixes both PEX building and lock creation via
+`pex3 lock {create,sync}` to be reproducible in more cases. Previously,
+if a requirement only available in source form (an sdist, a local
+project or a VCS requirement) had a build that was not reproducible due
+to either file timestamps (where the `SOURCE_DATE_EPOCH` standard was
+respected) or random iteration order (e.g.: the `setup.py` used sets in
+certain in-opportune ways), Pex's outputs would mirror the problematic
+requirement's non-reproducibility. Now Pex plumbs a fixed
+`SOURCE_DATE_EPOCH` and `PYTHONHASHSEED` to all places sources are
+built.
+
+* Plumb reproducible build env vars more thoroughly. (#2554)
+
 ## 2.20.2
 
 This release fixes an old bug handling certain sdist zips under

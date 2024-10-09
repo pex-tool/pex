@@ -7,6 +7,7 @@ import os.path
 import subprocess
 
 from pex.build_system import DEFAULT_BUILD_BACKEND
+from pex.common import REPRODUCIBLE_BUILDS_ENV
 from pex.dist_metadata import Distribution
 from pex.interpreter import PythonInterpreter
 from pex.pex import PEX
@@ -80,6 +81,7 @@ class BuildSystem(object):
         build_backend,  # type: str
         backend_path,  # type: Tuple[str, ...]
         extra_requirements=None,  # type: Optional[Iterable[str]]
+        use_system_time=False,  # type: bool
         **extra_env  # type: str
     ):
         # type: (...) -> Union[BuildSystem, Error]
@@ -87,6 +89,8 @@ class BuildSystem(object):
         pex_builder.info.venv = True
         pex_builder.info.venv_site_packages_copies = True
         pex_builder.info.venv_bin_path = BinPath.PREPEND
+        # Allow REPRODUCIBLE_BUILDS_ENV PYTHONHASHSEED env var to take effect.
+        pex_builder.info.venv_hermetic_scripts = False
         for req in requires:
             pex_builder.add_requirement(req)
         for dist in resolved:
@@ -144,6 +148,8 @@ class BuildSystem(object):
                 env.update(extra_env)
             if backend_path:
                 env.update(PEX_EXTRA_SYS_PATH=os.pathsep.join(backend_path))
+            if not use_system_time:
+                env.update(REPRODUCIBLE_BUILDS_ENV)
             return cls(
                 venv_pex=venv_pex, build_backend=build_backend, requires=tuple(requires), env=env
             )
@@ -190,4 +196,5 @@ def load_build_system(
             build_backend=build_system_table.build_backend,
             backend_path=build_system_table.backend_path,
             extra_requirements=extra_requirements,
+            use_system_time=resolver.use_system_time(),
         )

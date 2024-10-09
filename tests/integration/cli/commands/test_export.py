@@ -57,6 +57,7 @@ UNIVERSAL_ANSICOLORS = Lockfile(
     prefer_older_binary=False,
     use_pep517=None,
     build_isolation=True,
+    use_system_time=False,
     transitive=True,
     excluded=SortedTuple(),
     overridden=SortedTuple(),

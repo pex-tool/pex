@@ -1254,7 +1254,9 @@ def main(args=None):
     try:
         with global_environment(options) as env:
             try:
-                resolver_configuration = resolver_options.configure(options)
+                resolver_configuration = resolver_options.configure(
+                    options, use_system_time=options.use_system_time
+                )
             except resolver_options.InvalidConfigurationError as e:
                 die(str(e))
 

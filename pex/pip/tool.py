@@ -272,6 +272,7 @@ class _PexIssue2113Analyzer(ErrorAnalyzer):
 @attr.s(frozen=True)
 class PipVenv(object):
     venv_dir = attr.ib()  # type: str
+    execute_env = attr.ib()  # type: Mapping[str, str]
     _execute_args = attr.ib()  # type: Tuple[str, ...]
 
     def execute_args(self, *args):
@@ -431,6 +432,7 @@ class Pip(object):
                 popen_kwargs["stdout"] = sys.stderr.fileno()
             popen_kwargs.update(stderr=subprocess.PIPE)
 
+            env.update(self._pip.execute_env)
             args = self._pip.execute_args(*command)
 
             rendered_env = " ".join(

@@ -231,6 +231,8 @@ def loads(
         for index, constraint in enumerate(get("constraints", list))
     ]
 
+    use_system_time = get("use_system_time", bool, optional=True)
+
     excluded = [
         parse_requirement(req, path=".excluded[{index}]".format(index=index))
         for index, req in enumerate(get("excluded", list, optional=True) or ())
@@ -352,6 +354,10 @@ def loads(
             prefer_older_binary=get("prefer_older_binary", bool),
             use_pep517=get("use_pep517", bool, optional=True),
             build_isolation=get("build_isolation", bool),
+            # N.B.: Although locks are now always generated under SOURCE_DATE_EPOCH=fixed and
+            # PYTHONHASHSEED=0 (aka: `use_system_time=False`), that did not use to be the case. In
+            # those old locks there was no "use_system_time" field.
+            use_system_time=use_system_time if use_system_time is not None else True,
         ),
         transitive=get("transitive", bool),
         excluded=excluded,
@@ -399,6 +405,7 @@ def as_json_data(
         "prefer_older_binary": lockfile.prefer_older_binary,
         "use_pep517": lockfile.use_pep517,
         "build_isolation": lockfile.build_isolation,
+        "use_system_time": lockfile.use_system_time,
         "transitive": lockfile.transitive,
         "excluded": [str(exclude) for exclude in lockfile.excluded],
         "overridden": [str(override) for override in lockfile.overridden],

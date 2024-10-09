@@ -11,7 +11,7 @@ from textwrap import dedent
 from pex import pex_warnings, third_party
 from pex.atomic_directory import atomic_directory
 from pex.cache.dirs import CacheDir
-from pex.common import pluralize, safe_mkdtemp
+from pex.common import REPRODUCIBLE_BUILDS_ENV, pluralize, safe_mkdtemp
 from pex.dist_metadata import Requirement
 from pex.interpreter import PythonInterpreter
 from pex.orderedset import OrderedSet
@@ -42,6 +42,7 @@ def _pip_installation(
     iter_distribution_locations,  # type: Callable[[], Iterator[str]]
     fingerprint,  # type: str
     interpreter=None,  # type: Optional[PythonInterpreter]
+    use_system_time=False,  # type: bool
 ):
     # type: (...) -> Pip
     pip_root = CacheDir.PIP.path(str(version))
@@ -54,6 +55,8 @@ def _pip_installation(
 
             isolated_pip_builder = PEXBuilder(path=chroot.work_dir)
             isolated_pip_builder.info.venv = True
+            # Allow REPRODUCIBLE_BUILDS_ENV PYTHONHASHSEED env var to take effect if needed.
+            isolated_pip_builder.info.venv_hermetic_scripts = False
             for dist_location in iter_distribution_locations():
                 isolated_pip_builder.add_dist_location(dist=dist_location)
             with named_temporary_file(prefix="", suffix=".py", mode="w") as fp:
@@ -78,7 +81,11 @@ def _pip_installation(
             isolated_pip_builder.freeze()
     pip_cache = os.path.join(pip_root, "pip_cache")
     pip_pex = ensure_venv(PEX(pip_pex_path, interpreter=pip_interpreter))
-    pip_venv = PipVenv(venv_dir=pip_pex.venv_dir, execute_args=tuple(pip_pex.execute_args()))
+    pip_venv = PipVenv(
+        venv_dir=pip_pex.venv_dir,
+        execute_env=REPRODUCIBLE_BUILDS_ENV if not use_system_time else {},
+        execute_args=tuple(pip_pex.execute_args()),
+    )
     return Pip(pip=pip_venv, version=version, pip_cache=pip_cache)
 
 
@@ -98,6 +105,7 @@ def _vendored_installation(
     interpreter=None,  # type: Optional[PythonInterpreter]
     resolver=None,  # type: Optional[Resolver]
     extra_requirements=(),  # type: Tuple[Requirement, ...]
+    use_system_time=False,  # type: bool
 ):
     # type: (...) -> Pip
 
@@ -111,6 +119,7 @@ def _vendored_installation(
             iter_distribution_locations=expose_vendored,
             interpreter=interpreter,
             fingerprint=_fingerprint(extra_requirements),
+            use_system_time=use_system_time,
         )
 
     if not resolver:
@@ -171,6 +180,7 @@ def _vendored_installation(
         iter_distribution_locations=iter_distribution_locations,
         interpreter=interpreter,
         fingerprint=_fingerprint(extra_requirements),
+        use_system_time=use_system_time,
     )
 
 
@@ -204,6 +214,7 @@ def _resolved_installation(
     resolver=None,  # type: Optional[Resolver]
     interpreter=None,  # type: Optional[PythonInterpreter]
     extra_requirements=(),  # type: Tuple[Requirement, ...]
+    use_system_time=False,  # type: bool
 ):
     # type: (...) -> Pip
     targets = Targets.from_target(LocalInterpreter.create(interpreter))
@@ -222,6 +233,7 @@ def _resolved_installation(
             iter_distribution_locations=_bootstrap_pip(version, interpreter=interpreter),
             interpreter=interpreter,
             fingerprint=_fingerprint(extra_requirements),
+            use_system_time=use_system_time,
         )
 
     requirements_by_project_name = OrderedDict(
@@ -269,6 +281,7 @@ def _resolved_installation(
         iter_distribution_locations=resolve_distribution_locations,
         interpreter=interpreter,
         fingerprint=_fingerprint(extra_requirements),
+        use_system_time=use_system_time,
     )
 
 
@@ -277,6 +290,7 @@ class PipInstallation(object):
     interpreter = attr.ib()  # type: PythonInterpreter
     version = attr.ib()  # type: PipVersionValue
     extra_requirements = attr.ib()  # type: Tuple[Requirement, ...]
+    use_system_time = attr.ib()  # type: bool
 
     def check_python_applies(self):
         # type: () -> None
@@ -396,6 +410,7 @@ def get_pip(
         interpreter=interpreter or PythonInterpreter.get(),
         version=calculated_version,
         extra_requirements=extra_requirements,
+        use_system_time=resolver.use_system_time() if resolver else False,
     )
     pip = _PIP.get(installation)
     if pip is None:
@@ -405,6 +420,7 @@ def get_pip(
                 interpreter=interpreter,
                 resolver=resolver,
                 extra_requirements=installation.extra_requirements,
+                use_system_time=installation.use_system_time,
             )
         else:
             pip = _resolved_installation(
@@ -412,6 +428,7 @@ def get_pip(
                 resolver=resolver,
                 interpreter=interpreter,
                 extra_requirements=installation.extra_requirements,
+                use_system_time=installation.use_system_time,
             )
         _PIP[installation] = pip
     return pip

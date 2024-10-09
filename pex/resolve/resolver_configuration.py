@@ -98,6 +98,7 @@ class BuildConfiguration(object):
         prefer_older_binary=False,  # type: bool
         use_pep517=None,  # type: Optional[bool]
         build_isolation=True,  # type: bool
+        use_system_time=False,  # type: bool
     ):
         # type: (...) -> BuildConfiguration
         return cls(
@@ -108,6 +109,7 @@ class BuildConfiguration(object):
             prefer_older_binary=prefer_older_binary,
             use_pep517=use_pep517,
             build_isolation=build_isolation,
+            use_system_time=use_system_time,
         )
 
     allow_builds = attr.ib(default=True)  # type: bool
@@ -117,6 +119,7 @@ class BuildConfiguration(object):
     prefer_older_binary = attr.ib(default=False)  # type: bool
     use_pep517 = attr.ib(default=None)  # type: Optional[bool]
     build_isolation = attr.ib(default=True)  # type: bool
+    use_system_time = attr.ib(default=False)  # type: bool
 
     def __attrs_post_init__(self):
         # type: () -> None
