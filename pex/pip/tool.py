@@ -272,8 +272,8 @@ class _PexIssue2113Analyzer(ErrorAnalyzer):
 @attr.s(frozen=True)
 class PipVenv(object):
     venv_dir = attr.ib()  # type: str
-    execute_env = attr.ib()  # type: Mapping[str, str]
-    _execute_args = attr.ib()  # type: Tuple[str, ...]
+    execute_env = attr.ib(factory=dict)  # type: Mapping[str, str]
+    _execute_args = attr.ib(default=())  # type: Tuple[str, ...]
 
     def execute_args(self, *args):
         # type: (*str) -> List[str]
@@ -711,4 +711,22 @@ class Pip(object):
         )
         return self._spawn_pip_isolated_job(
             debug_command, log=log, pip_verbosity=1, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+
+    def spawn_cache_remove(self, wheel_name_glob):
+        # type: (str) -> Job
+        return self._spawn_pip_isolated_job(
+            args=["cache", "remove", wheel_name_glob],
+            pip_verbosity=1,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+
+    def spawn_cache_list(self):
+        # type: () -> Job
+        return self._spawn_pip_isolated_job(
+            args=["cache", "list", "--format", "abspath"],
+            pip_verbosity=1,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
         )

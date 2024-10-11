@@ -11,9 +11,10 @@ from textwrap import dedent
 
 from pex import pep_427, pex_warnings, third_party
 from pex.atomic_directory import atomic_directory
-from pex.cache.dirs import CacheDir
+from pex.cache.dirs import CacheDir, PipPexDir
 from pex.common import REPRODUCIBLE_BUILDS_ENV, CopyMode, pluralize, safe_mkdtemp
 from pex.dist_metadata import Requirement
+from pex.exceptions import production_assert
 from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
 from pex.jobs import iter_map_parallel
@@ -26,11 +27,10 @@ from pex.pip.version import PipVersion, PipVersionValue
 from pex.resolve.resolvers import Resolver
 from pex.result import Error, try_
 from pex.targets import LocalInterpreter, RequiresPythonError, Targets
-from pex.third_party import isolated
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper
-from pex.variables import ENV
+from pex.variables import ENV, Variables
 from pex.venv.virtualenv import InstallationChoice, Virtualenv
 
 if TYPE_CHECKING:
@@ -41,6 +41,25 @@ else:
     from pex.third_party import attr
 
 
+def _create_pip(
+    pip_pex,  # type: PipPexDir
+    interpreter=None,  # type: Optional[PythonInterpreter]
+    use_system_time=False,  # type: bool
+):
+    # type: (...) -> Pip
+
+    production_assert(os.path.exists(pip_pex.path))
+
+    pip_interpreter = interpreter or PythonInterpreter.get()
+    venv_pex = ensure_venv(PEX(pip_pex.path, interpreter=pip_interpreter))
+    pip_venv = PipVenv(
+        venv_dir=venv_pex.venv_dir,
+        execute_env=REPRODUCIBLE_BUILDS_ENV if not use_system_time else {},
+        execute_args=tuple(venv_pex.execute_args()),
+    )
+    return Pip(pip=pip_venv, version=pip_pex.version, pip_cache=pip_pex.cache_dir)
+
+
 def _pip_installation(
     version,  # type: PipVersionValue
     iter_distribution_locations,  # type: Callable[[], Iterator[str]]
@@ -49,11 +68,9 @@ def _pip_installation(
     use_system_time=False,  # type: bool
 ):
     # type: (...) -> Pip
-    pip_root = CacheDir.PIP.path(str(version))
-    path = os.path.join(pip_root, "pip.pex")
-    pip_interpreter = interpreter or PythonInterpreter.get()
-    pip_pex_path = os.path.join(path, isolated().pex_hash, fingerprint)
-    with atomic_directory(pip_pex_path) as chroot:
+
+    pip_pex = PipPexDir.create(version, fingerprint)
+    with atomic_directory(pip_pex.path) as chroot:
         if not chroot.is_finalized():
             from pex.pex_builder import PEXBuilder
 
@@ -83,14 +100,7 @@ def _pip_installation(
                 )
             isolated_pip_builder.set_executable(fp.name, "exe.py")
             isolated_pip_builder.freeze()
-    pip_cache = os.path.join(pip_root, "pip_cache")
-    pip_pex = ensure_venv(PEX(pip_pex_path, interpreter=pip_interpreter))
-    pip_venv = PipVenv(
-        venv_dir=pip_pex.venv_dir,
-        execute_env=REPRODUCIBLE_BUILDS_ENV if not use_system_time else {},
-        execute_args=tuple(pip_pex.execute_args()),
-    )
-    return Pip(pip=pip_venv, version=version, pip_cache=pip_cache)
+    return _create_pip(pip_pex, interpreter=interpreter, use_system_time=use_system_time)
 
 
 def _fingerprint(requirements):
@@ -486,3 +496,14 @@ def get_pip(
             )
         _PIP[installation] = pip
     return pip
+
+
+def iter_all(
+    interpreter=None,  # type: Optional[PythonInterpreter]
+    use_system_time=False,  # type: bool
+    pex_root=ENV,  # type: Union[str, Variables]
+):
+    # type: (...) -> Iterator[Pip]
+
+    for pip_pex in PipPexDir.iter_all(pex_root=pex_root):
+        yield _create_pip(pip_pex, interpreter=interpreter, use_system_time=use_system_time)
