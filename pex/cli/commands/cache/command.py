@@ -6,6 +6,7 @@ from __future__ import absolute_import, print_function
 import os
 import re
 from argparse import Action, ArgumentError, _ActionsContainer
+from collections import Counter
 from datetime import datetime, timedelta
 
 from pex.cache import access as cache_access
@@ -16,14 +17,18 @@ from pex.cli.commands.cache.bytes import ByteAmount, ByteUnits
 from pex.cli.commands.cache.du import DiskUsage
 from pex.commands.command import OutputMixin
 from pex.common import pluralize, safe_rmtree
+from pex.dist_metadata import ProjectNameAndVersion
 from pex.exceptions import reportable_unexpected_error_msg
-from pex.jobs import iter_map_parallel, map_parallel
+from pex.jobs import SpawnedJob, execute_parallel, iter_map_parallel, map_parallel
 from pex.orderedset import OrderedSet
+from pex.pip.installation import iter_all as iter_all_pips
+from pex.pip.tool import Pip
 from pex.result import Error, Ok, Result
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
 
 if TYPE_CHECKING:
+    import typing
     from typing import IO, Dict, Iterable, List, Optional, Tuple, Union
 
     import attr  # vendor:skip
@@ -492,10 +497,14 @@ class Cache(OutputMixin, BuildTimeCommand):
                     print(file=fp)
 
         def prune_unused_deps(additional=False):
-            with cache_data.prune(list(InstalledWheelDir.iter_all())) as unused_deps_iter:
-                disk_usages = list(
+            # type: (bool) -> Iterable[InstalledWheelDir]
+            with cache_data.prune(tuple(InstalledWheelDir.iter_all())) as unused_deps_iter:
+                unused_wheels = tuple(
+                    dep for dep in unused_deps_iter if isinstance(dep, InstalledWheelDir)
+                )
+                disk_usages = tuple(
                     iter_map_parallel(
-                        unused_deps_iter,
+                        unused_wheels,
                         self._prune_cache_dir,
                         noun="cached PEX dependency",
                         verb="prune",
@@ -513,9 +522,88 @@ class Cache(OutputMixin, BuildTimeCommand):
                     )
                     print(self._render_usage(disk_usages))
                     print(file=fp)
+                return unused_wheels
+
+        def prune_pip_caches(wheels):
+            # type: (Iterable[InstalledWheelDir]) -> None
+
+            prunable_wheels = set()
+            for wheel in wheels:
+                prunable_pnav = ProjectNameAndVersion.from_filename(wheel.wheel_name)
+                prunable_wheels.add(
+                    (prunable_pnav.canonicalized_project_name, prunable_pnav.canonicalized_version)
+                )
+
+            def spawn_list(pip):
+                # type: (Pip) -> SpawnedJob[Tuple[ProjectNameAndVersion, ...]]
+                return SpawnedJob.stdout(
+                    job=pip.spawn_cache_list(),
+                    result_func=lambda stdout: tuple(
+                        ProjectNameAndVersion.from_filename(wheel_file)
+                        for wheel_file in stdout.decode("utf-8").splitlines()
+                        if wheel_file
+                    ),
+                )
+
+            all_pips = tuple(iter_all_pips())
+            pip_removes = []  # type: List[Tuple[Pip, str]]
+            for pip, project_name_and_versions in zip(
+                all_pips, execute_parallel(inputs=all_pips, spawn_func=spawn_list)
+            ):
+                for pnav in project_name_and_versions:
+                    if (
+                        pnav.canonicalized_project_name,
+                        pnav.canonicalized_version,
+                    ) in prunable_wheels:
+                        pip_removes.append(
+                            (
+                                pip,
+                                "{project_name}-{version}*".format(
+                                    project_name=pnav.project_name, version=pnav.version
+                                ),
+                            )
+                        )
+
+            def spawn_remove(args):
+                # type: (Tuple[Pip, str]) -> SpawnedJob[int]
+                pip, wheel_name_glob = args
+                # Files removed: 1
+                return SpawnedJob.stdout(
+                    job=pip.spawn_cache_remove(wheel_name_glob),
+                    result_func=lambda stdout: int(
+                        stdout.decode("utf-8").rsplit(":", 1)[1].strip()
+                    ),
+                )
+
+            removes_by_pip = Counter()  # type: typing.Counter[str]
+            for pip, remove_count in zip(
+                [pip for pip, _ in pip_removes],
+                execute_parallel(inputs=pip_removes, spawn_func=spawn_remove),
+            ):
+                removes_by_pip[pip.version.value] += remove_count
+            if removes_by_pip:
+                total = sum(removes_by_pip.values())
+                print(
+                    "Pruned {total} cached {wheels} from {count} Pip {version}:".format(
+                        total=total,
+                        wheels=pluralize(total, "wheel"),
+                        count=len(removes_by_pip),
+                        version=pluralize(removes_by_pip, "version"),
+                    ),
+                    file=fp,
+                )
+                for pip_version, remove_count in sorted(removes_by_pip.items()):
+                    print(
+                        "Pip {version}: removed {remove_count} {wheels}".format(
+                            version=pip_version,
+                            remove_count=remove_count,
+                            wheels=pluralize(remove_count, "wheel"),
+                        ),
+                        file=fp,
+                    )
 
         cutoff = self.options.cutoff
-        pex_dirs = list(cache_access.last_access_before(cutoff.cutoff))
+        pex_dirs = tuple(cache_access.last_access_before(cutoff.cutoff))
         if not pex_dirs:
             print(
                 "There are no cached PEX zipapps or venvs last accessed prior to {cutoff}.".format(
@@ -528,7 +616,8 @@ class Cache(OutputMixin, BuildTimeCommand):
                 file=fp,
             )
             print(file=fp)
-            prune_unused_deps()
+            unused_wheels = prune_unused_deps()
+            prune_pip_caches(unused_wheels)
             return Ok()
 
         print(
@@ -541,7 +630,7 @@ class Cache(OutputMixin, BuildTimeCommand):
         )
         print(
             self._render_usage(
-                list(
+                tuple(
                     iter_map_parallel(
                         pex_dirs,
                         self._prune_cache_dir,
@@ -556,7 +645,7 @@ class Cache(OutputMixin, BuildTimeCommand):
         print(file=fp)
 
         if self.options.dry_run:
-            deps = list(cache_data.dir_dependencies(pex_dirs))
+            deps = tuple(cache_data.dir_dependencies(pex_dirs))
             print(
                 "Might have pruned up to {count} {cached_pex_dependency}.".format(
                     count=len(deps), cached_pex_dependency=pluralize(deps, "cached PEX dependency")
@@ -565,7 +654,7 @@ class Cache(OutputMixin, BuildTimeCommand):
             )
             print(
                 self._render_usage(
-                    list(
+                    tuple(
                         iter_map_parallel(
                             deps,
                             self._prune_cache_dir,
@@ -579,11 +668,15 @@ class Cache(OutputMixin, BuildTimeCommand):
             print(file=fp)
         else:
             with cache_data.delete(pex_dirs) as deps_iter:
-                deps = list(deps_iter)
+                deps = tuple(deps_iter)
             with cache_data.prune(deps) as prunable_deps_iter:
-                disk_usages = list(
+                unused_deps = tuple(prunable_deps_iter)
+                unused_wheels = OrderedSet(
+                    dep for dep in unused_deps if isinstance(dep, InstalledWheelDir)
+                )
+                disk_usages = tuple(
                     iter_map_parallel(
-                        prunable_deps_iter,
+                        unused_deps,
                         self._prune_cache_dir,
                         noun="cached PEX dependency",
                         verb="prune",
@@ -613,5 +706,6 @@ class Cache(OutputMixin, BuildTimeCommand):
                 if disk_usages:
                     print(self._render_usage(disk_usages))
                 print(file=fp)
-            prune_unused_deps(additional=len(disk_usages) > 0)
+            unused_wheels.update(prune_unused_deps(additional=len(disk_usages) > 0))
+            prune_pip_caches(unused_wheels)
         return Ok()
