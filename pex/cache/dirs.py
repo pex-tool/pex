@@ -13,6 +13,8 @@ from pex.variables import ENV, Variables
 if TYPE_CHECKING:
     from typing import Any, Iterable, Iterator, List, Optional, Type, TypeVar, Union
 
+    from pex.pip.version import PipVersionValue
+
 
 class CacheDir(Enum["CacheDir.Value"]):
     class Value(Enum.Value):
@@ -344,6 +346,7 @@ class VenvDirs(AtomicCacheDir):
 class InstalledWheelDir(AtomicCacheDir):
     @classmethod
     def iter_all(cls, pex_root=ENV):
+        # type: (Union[str, Variables]) -> Iterator[InstalledWheelDir]
         symlinks = []  # type: List[str]
         dirs = []  # type: List[str]
         for path in glob.glob(CacheDir.INSTALLED_WHEELS.path("*", "*.whl", pex_root=pex_root)):
@@ -462,3 +465,49 @@ class UserCodeDir(AtomicCacheDir):
         # type: (...) -> None
         super(UserCodeDir, self).__init__(path)
         self.code_hash = code_hash
+
+
+class PipPexDir(AtomicCacheDir):
+    @classmethod
+    def iter_all(cls, pex_root=ENV):
+        # type: (Union[str, Variables]) -> Iterator[PipPexDir]
+
+        from pex.pip.version import PipVersion
+
+        for version_dir in glob.glob(CacheDir.PIP.path("*", pex_root=pex_root)):
+            version = PipVersion.for_value(os.path.basename(version_dir))
+            cache_dir = os.path.join(version_dir, "pip_cache")
+            for pex_dir in glob.glob(os.path.join(version_dir, "pip.pex", "*", "*")):
+                yield cls(
+                    path=pex_dir,
+                    version=version,
+                    cache_dir=cache_dir,
+                )
+
+    @classmethod
+    def create(
+        cls,
+        version,  # type: PipVersionValue
+        fingerprint,  # type: str
+    ):
+        # type: (...) -> PipPexDir
+
+        from pex.third_party import isolated
+
+        base_dir = CacheDir.PIP.path(str(version))
+        return cls(
+            path=os.path.join(base_dir, "pip.pex", isolated().pex_hash, fingerprint),
+            version=version,
+            cache_dir=os.path.join(base_dir, "pip_cache"),
+        )
+
+    def __init__(
+        self,
+        path,  # type: str
+        version,  # type: PipVersionValue
+        cache_dir,  # type: str
+    ):
+        # type: (...) -> None
+        super(PipPexDir, self).__init__(path)
+        self.version = version
+        self.cache_dir = cache_dir
