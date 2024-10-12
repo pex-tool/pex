@@ -606,13 +606,14 @@ def ensure_venv(
                                 hermetic_scripts=pex_info.venv_hermetic_scripts,
                             )
 
-                            if copy_mode is CopyMode.SYMLINK:
-                                with TRACER.timed(
-                                    "Recording venv install of {pex} {hash}".format(
-                                        pex=pex.path(), hash=pex_info.pex_hash
-                                    )
-                                ):
-                                    record_venv_install(pex_info=pex_info, venv_dirs=venv_dirs)
+                            with TRACER.timed(
+                                "Recording venv install of {pex} {hash}".format(
+                                    pex=pex.path(), hash=pex_info.pex_hash
+                                )
+                            ):
+                                record_venv_install(
+                                    copy_mode=copy_mode, pex_info=pex_info, venv_dirs=venv_dirs
+                                )
 
                             # There are popular Linux distributions with shebang length limits
                             # (BINPRM_BUF_SIZE in /usr/include/linux/binfmts.h) set at 128

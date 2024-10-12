@@ -18,6 +18,7 @@ from pex.cache.dirs import (
     UserCodeDir,
     VenvDirs,
 )
+from pex.common import CopyMode
 from pex.dist_metadata import ProjectNameAndVersion
 from pex.typing import TYPE_CHECKING, overload
 
@@ -161,24 +162,28 @@ def record_zipapp_install(pex_info):
 
 
 def record_venv_install(
+    copy_mode,  # type: CopyMode.Value
     pex_info,  # type: PexInfo
     venv_dirs,  # type: VenvDirs
 ):
     # type: (...) -> None
 
     with _inserted_wheels(pex_info) as cursor:
-        cursor.executemany(
-            """
-            INSERT OR IGNORE INTO venv_deps (
-                venv_hash,
-                wheel_install_hash
-            ) VALUES (?, ?)
-            """,
-            tuple(
-                (venv_dirs.short_hash, wheel_install_hash)
-                for wheel_install_hash in pex_info.distributions.values()
-            ),
-        ).close()
+        if copy_mode is CopyMode.SYMLINK:
+            cursor.executemany(
+                """
+                INSERT OR IGNORE INTO venv_deps (
+                    venv_hash,
+                    wheel_install_hash
+                ) VALUES (?, ?)
+                """,
+                tuple(
+                    (venv_dirs.short_hash, wheel_install_hash)
+                    for wheel_install_hash in pex_info.distributions.values()
+                ),
+            ).close()
+        else:
+            cursor.close()
 
 
 if TYPE_CHECKING:
