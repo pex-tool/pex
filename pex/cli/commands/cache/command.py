@@ -533,6 +533,8 @@ class Cache(OutputMixin, BuildTimeCommand):
                 prunable_wheels.add(
                     (prunable_pnav.canonicalized_project_name, prunable_pnav.canonicalized_version)
                 )
+            if not prunable_wheels:
+                return
 
             def spawn_list(pip):
                 # type: (Pip) -> SpawnedJob[Tuple[ProjectNameAndVersion, ...]]
@@ -545,10 +547,13 @@ class Cache(OutputMixin, BuildTimeCommand):
                     ),
                 )
 
-            all_pips = tuple(iter_all_pips())
+            # N.B.:We just need 1 Pip per version (really per paired cache). Whether a Pip has extra
+            # requirements installed does not affect cache management.
+            all_pip_versions = tuple({pip.version: pip for pip in iter_all_pips()}.values())
+
             pip_removes = []  # type: List[Tuple[Pip, str]]
             for pip, project_name_and_versions in zip(
-                all_pips, execute_parallel(inputs=all_pips, spawn_func=spawn_list)
+                all_pip_versions, execute_parallel(inputs=all_pip_versions, spawn_func=spawn_list)
             ):
                 for pnav in project_name_and_versions:
                     if (
@@ -564,15 +569,24 @@ class Cache(OutputMixin, BuildTimeCommand):
                             )
                         )
 
+            def parse_remove(stdout):
+                # type: (bytes) -> int
+
+                # The output from `pip cache remove` is a line like:
+                # Files removed: 42
+                _, sep, count = stdout.decode("utf-8").partition(":")
+                if sep != ":" or not count:
+                    return 0
+                try:
+                    return int(count)
+                except ValueError:
+                    return 0
+
             def spawn_remove(args):
                 # type: (Tuple[Pip, str]) -> SpawnedJob[int]
                 pip, wheel_name_glob = args
-                # Files removed: 1
                 return SpawnedJob.stdout(
-                    job=pip.spawn_cache_remove(wheel_name_glob),
-                    result_func=lambda stdout: int(
-                        stdout.decode("utf-8").rsplit(":", 1)[1].strip()
-                    ),
+                    job=pip.spawn_cache_remove(wheel_name_glob), result_func=parse_remove
                 )
 
             removes_by_pip = Counter()  # type: typing.Counter[str]
