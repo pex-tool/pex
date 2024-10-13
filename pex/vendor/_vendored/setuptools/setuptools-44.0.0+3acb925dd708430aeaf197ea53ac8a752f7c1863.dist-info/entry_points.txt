@@ -1,6 +1,6 @@
 [console_scripts]
 easy_install = setuptools.command.easy_install:main
-easy_install-3.8 = setuptools.command.easy_install:main
+easy_install-3.9 = setuptools.command.easy_install:main
 
 [distutils.commands]
 alias = setuptools.command.alias:alias
