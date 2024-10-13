@@ -33,11 +33,11 @@ jobs:
           # We need branches and tags since package leans on `git describe`. Passing 0 gets us
           # complete history.
           fetch-depth: 0
-      - name: Setup Python 3.8
+      - name: Setup Python 3.9
         uses: actions/setup-python@v5
         with:
-          # We need to keep Python 3.8 for consistent vendoring with tox.
-          python-version: "3.8"
+          # We need to keep Python 3.9 for consistent vendoring with tox.
+          python-version: "3.9"
       - name: Check Formatting, Lints and Types
         uses: pantsbuild/actions/run-tox@b16b9cf47cd566acfe217b1dafc5b452e27e6fd7
         with:
