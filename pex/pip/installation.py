@@ -3,17 +3,20 @@
 
 from __future__ import absolute_import
 
+import glob
 import hashlib
 import os
 from collections import OrderedDict
 from textwrap import dedent
 
-from pex import pex_warnings, third_party
+from pex import pep_427, pex_warnings, third_party
 from pex.atomic_directory import atomic_directory
 from pex.cache.dirs import CacheDir
-from pex.common import REPRODUCIBLE_BUILDS_ENV, pluralize, safe_mkdtemp
+from pex.common import REPRODUCIBLE_BUILDS_ENV, CopyMode, pluralize, safe_mkdtemp
 from pex.dist_metadata import Requirement
+from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
+from pex.jobs import iter_map_parallel
 from pex.orderedset import OrderedSet
 from pex.pep_503 import ProjectName
 from pex.pex import PEX
@@ -26,7 +29,7 @@ from pex.targets import LocalInterpreter, RequiresPythonError, Targets
 from pex.third_party import isolated
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
-from pex.util import named_temporary_file
+from pex.util import CacheHelper
 from pex.venv.virtualenv import InstallationChoice, Virtualenv
 
 if TYPE_CHECKING:
@@ -53,13 +56,13 @@ def _pip_installation(
         if not chroot.is_finalized():
             from pex.pex_builder import PEXBuilder
 
-            isolated_pip_builder = PEXBuilder(path=chroot.work_dir)
+            isolated_pip_builder = PEXBuilder(path=chroot.work_dir, copy_mode=CopyMode.SYMLINK)
             isolated_pip_builder.info.venv = True
             # Allow REPRODUCIBLE_BUILDS_ENV PYTHONHASHSEED env var to take effect if needed.
             isolated_pip_builder.info.venv_hermetic_scripts = False
             for dist_location in iter_distribution_locations():
                 isolated_pip_builder.add_dist_location(dist=dist_location)
-            with named_temporary_file(prefix="", suffix=".py", mode="w") as fp:
+            with open(os.path.join(chroot.work_dir, "__pex_patched_pip__.py"), "w") as fp:
                 fp.write(
                     dedent(
                         """\
@@ -76,8 +79,7 @@ def _pip_installation(
                         """
                     ).format(patches_package_env_var_name=Pip._PATCHES_PACKAGE_ENV_VAR_NAME)
                 )
-                fp.close()
-                isolated_pip_builder.set_executable(fp.name, "__pex_patched_pip__.py")
+            isolated_pip_builder.set_executable(fp.name, "exe.py")
             isolated_pip_builder.freeze()
     pip_cache = os.path.join(pip_root, "pip_cache")
     pip_pex = ensure_venv(PEX(pip_pex_path, interpreter=pip_interpreter))
@@ -111,7 +113,7 @@ def _vendored_installation(
 
     def expose_vendored():
         # type: () -> Iterator[str]
-        return third_party.expose(("pip", "setuptools"), interpreter=interpreter)
+        return third_party.expose_installed_wheels(("pip", "setuptools"), interpreter=interpreter)
 
     if not extra_requirements:
         return _pip_installation(
@@ -184,6 +186,35 @@ def _vendored_installation(
     )
 
 
+class PipInstallError(Exception):
+    """Indicates an error installing Pip."""
+
+
+def _install_wheel(wheel_path):
+    # type: (str) -> str
+
+    # TODO(John Sirois): Consolidate with pex.resolver.BuildAndInstallRequest.
+    #  https://github.com/pex-tool/pex/issues/2556
+    wheel_hash = CacheHelper.hash(wheel_path, hasher=hashlib.sha256)
+    wheel_name = os.path.basename(wheel_path)
+    destination = CacheDir.INSTALLED_WHEELS.path(wheel_hash, wheel_name)
+    with atomic_directory(destination) as atomic_dir:
+        if not atomic_dir.is_finalized():
+            installed_wheel = pep_427.install_wheel_chroot(
+                wheel_path=wheel_path, destination=atomic_dir.work_dir
+            )
+            runtime_key_dir = CacheDir.INSTALLED_WHEELS.path(
+                installed_wheel.fingerprint
+                or CacheHelper.dir_hash(atomic_dir.work_dir, hasher=hashlib.sha256)
+            )
+            with atomic_directory(runtime_key_dir) as runtime_atomic_dir:
+                if not runtime_atomic_dir.is_finalized():
+                    source_path = os.path.join(runtime_atomic_dir.work_dir, wheel_name)
+                    relative_target_path = os.path.relpath(destination, runtime_key_dir)
+                    os.symlink(relative_target_path, source_path)
+    return destination
+
+
 def _bootstrap_pip(
     version,  # type: PipVersionValue
     interpreter=None,  # type: Optional[PythonInterpreter]
@@ -200,11 +231,25 @@ def _bootstrap_pip(
             install_pip=InstallationChoice.YES,
         )
 
-        for req in version.requirements:
-            project_name = req.name
-            target_dir = os.path.join(chroot, "reqs", project_name)
-            venv.interpreter.execute(["-m", "pip", "install", "--target", target_dir, str(req)])
-            yield target_dir
+        wheels = os.path.join(chroot, "wheels")
+        wheels_cmd = ["-m", "pip", "wheel", "--wheel-dir", wheels]
+        wheels_cmd.extend(str(req) for req in version.requirements)
+        try:
+            venv.interpreter.execute(args=wheels_cmd)
+        except Executor.NonZeroExit as e:
+            raise PipInstallError(
+                "Failed to bootstrap Pip {version}.\n"
+                "Failed to download its dependencies: {err}".format(version=version, err=str(e))
+            )
+
+        return iter_map_parallel(
+            inputs=glob.glob(os.path.join(wheels, "*.whl")),
+            function=_install_wheel,
+            costing_function=os.path.getsize,
+            noun="wheel",
+            verb="install",
+            verb_past="installed",
+        )
 
     return bootstrap_pip
 

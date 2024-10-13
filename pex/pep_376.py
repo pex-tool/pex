@@ -19,7 +19,7 @@ from pex.interpreter import PythonInterpreter
 from pex.typing import TYPE_CHECKING, cast
 from pex.util import CacheHelper
 from pex.venv.virtualenv import Virtualenv
-from pex.wheel import WHEEL, WheelMetadataLoadError
+from pex.wheel import WHEEL, Wheel, WheelMetadataLoadError
 
 if TYPE_CHECKING:
     from typing import Callable, Iterable, Iterator, Optional, Protocol, Text, Tuple, Union
@@ -240,6 +240,10 @@ class InstalledWheel(object):
     record_relpath = attr.ib()  # type: Text
     fingerprint = attr.ib()  # type: Optional[str]
     root_is_purelib = attr.ib()  # type: bool
+
+    def wheel_file_name(self):
+        # type: () -> str
+        return Wheel.load(self.prefix_dir).wheel_file_name
 
     def stashed_path(self, *components):
         # type: (*str) -> str

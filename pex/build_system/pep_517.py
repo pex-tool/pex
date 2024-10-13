@@ -47,7 +47,7 @@ def _default_build_system(
                 requires = ["setuptools", str(selected_pip_version.wheel_requirement)]
                 resolved_dists.extend(
                     Distribution.load(dist_location)
-                    for dist_location in third_party.expose(
+                    for dist_location in third_party.expose_installed_wheels(
                         ["setuptools"], interpreter=target.get_interpreter()
                     )
                 )

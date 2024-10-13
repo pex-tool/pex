@@ -7,7 +7,7 @@ import os.path
 import subprocess
 
 from pex.build_system import DEFAULT_BUILD_BACKEND
-from pex.common import REPRODUCIBLE_BUILDS_ENV
+from pex.common import REPRODUCIBLE_BUILDS_ENV, CopyMode
 from pex.dist_metadata import Distribution
 from pex.interpreter import PythonInterpreter
 from pex.pex import PEX
@@ -85,7 +85,7 @@ class BuildSystem(object):
         **extra_env  # type: str
     ):
         # type: (...) -> Union[BuildSystem, Error]
-        pex_builder = PEXBuilder()
+        pex_builder = PEXBuilder(copy_mode=CopyMode.SYMLINK)
         pex_builder.info.venv = True
         pex_builder.info.venv_site_packages_copies = True
         pex_builder.info.venv_bin_path = BinPath.PREPEND

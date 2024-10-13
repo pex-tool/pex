@@ -195,23 +195,25 @@ def dir_hash(
     # type: (...) -> None
     """Digest the contents of a directory in a reproducible manner."""
 
+    top = os.path.realpath(directory)
+
     def iter_files():
         # type: () -> Iterator[Text]
-        normpath = os.path.realpath(os.path.normpath(directory))
-        for root, dirs, files in os.walk(normpath):
+        for root, dirs, files in os.walk(top, followlinks=True):
             dirs[:] = [d for d in dirs if dir_filter(d)]
             for f in files:
                 if file_filter(f):
-                    yield os.path.relpath(os.path.join(root, f), normpath)
+                    yield os.path.join(root, f)
 
-    names = sorted(iter_files())
+    file_paths = sorted(iter_files())
 
-    # Always use / as the path separator, since that's what zip uses.
-    hashed_names = [n.replace(os.sep, "/") for n in names]
+    # Regularize to / as the directory separator so that a dir hash on Unix matches a dir hash on
+    # Windows matches a zip hash (see below) of that same dir.
+    hashed_names = [os.path.relpath(n, top).replace(os.sep, "/") for n in file_paths]
     digest.update("".join(hashed_names).encode("utf-8"))
 
-    for name in names:
-        file_hash(os.path.join(directory, name), digest)
+    for file_path in file_paths:
+        file_hash(file_path, digest)
 
 
 def zip_hash(
