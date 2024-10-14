@@ -12,6 +12,8 @@ import signal
 import subprocess
 import time
 
+import psutil  # type: ignore[import]
+
 from pex.atomic_directory import atomic_directory
 from pex.common import safe_open, safe_rmtree
 from pex.interpreter import PythonInterpreter
@@ -44,7 +46,7 @@ class Pidfile(object):
         try:
             with open(cls._PATH) as fp:
                 data = json.load(fp)
-            return cls(url=data["url"], pid=data["pid"])
+            return cls(url=data["url"], pid=data["pid"], create_time=data.get("create_time"))
         except (OSError, IOError, ValueError, KeyError) as e:
             logger.warning(
                 "Failed to load devpi-server pid file from {path}: {err}".format(
@@ -81,24 +83,27 @@ class Pidfile(object):
         if not base_url:
             return None
 
+        try:
+            create_time = psutil.Process(pid).create_time()
+        except psutil.Error:
+            return None
+
         url = "{base_url}/root/pypi/+simple/".format(base_url=base_url)
         with safe_open(cls._PATH, "w") as fp:
-            json.dump(dict(url=url, pid=pid), fp, indent=2, sort_keys=True)
-        return cls(url=url, pid=pid)
+            json.dump(dict(url=url, pid=pid, create_time=create_time), fp, indent=2, sort_keys=True)
+        return cls(url=url, pid=pid, create_time=create_time)
 
     url = attr.ib()  # type: str
     pid = attr.ib()  # type: int
+    create_time = attr.ib()  # type: Optional[float]
 
     def alive(self):
         # type: () -> bool
-        # TODO(John Sirois): Handle pid rollover
         try:
-            os.kill(self.pid, 0)
-            return True
-        except OSError as e:
-            if e.errno == errno.ESRCH:  # No such process.
-                return False
-            raise
+            process = psutil.Process(self.pid)
+            return self.create_time is None or self.create_time == process.create_time()
+        except psutil.NoSuchProcess:
+            return False
 
     def kill(self):
         # type: () -> None
