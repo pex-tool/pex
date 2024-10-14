@@ -12,11 +12,13 @@ import signal
 import subprocess
 import time
 
+import psutil  # type: ignore[import]
+
 from pex.atomic_directory import atomic_directory
 from pex.common import safe_open, safe_rmtree
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import InterpreterConstraint
-from pex.typing import TYPE_CHECKING
+from pex.typing import TYPE_CHECKING, cast
 from pex.venv.virtualenv import InvalidVirtualenvError, Virtualenv
 from testing import PEX_TEST_DEV_ROOT
 
@@ -44,7 +46,7 @@ class Pidfile(object):
         try:
             with open(cls._PATH) as fp:
                 data = json.load(fp)
-            return cls(url=data["url"], pid=data["pid"])
+            return cls(url=data["url"], pid=data["pid"], create_time=data["create_time"])
         except (OSError, IOError, ValueError, KeyError) as e:
             logger.warning(
                 "Failed to load devpi-server pid file from {path}: {err}".format(
@@ -69,6 +71,14 @@ class Pidfile(object):
                             return match.group("url")
         return None
 
+    @staticmethod
+    def _get_process_creation_time(pid):
+        # type: (int) -> Optional[float]
+        try:
+            return cast(float, psutil.Process(pid).create_time())
+        except psutil.Error:
+            return None
+
     @classmethod
     def record(
         cls,
@@ -81,24 +91,22 @@ class Pidfile(object):
         if not base_url:
             return None
 
+        create_time = cls._get_process_creation_time(pid)
+        if create_time is None:
+            return None
+
         url = "{base_url}/root/pypi/+simple/".format(base_url=base_url)
         with safe_open(cls._PATH, "w") as fp:
-            json.dump(dict(url=url, pid=pid), fp, indent=2, sort_keys=True)
-        return cls(url=url, pid=pid)
+            json.dump(dict(url=url, pid=pid, create_time=create_time), fp, indent=2, sort_keys=True)
+        return cls(url=url, pid=pid, create_time=create_time)
 
     url = attr.ib()  # type: str
     pid = attr.ib()  # type: int
+    create_time = attr.ib()  # type: float
 
     def alive(self):
         # type: () -> bool
-        # TODO(John Sirois): Handle pid rollover
-        try:
-            os.kill(self.pid, 0)
-            return True
-        except OSError as e:
-            if e.errno == errno.ESRCH:  # No such process.
-                return False
-            raise
+        return self.create_time == self._get_process_creation_time(self.pid)
 
     def kill(self):
         # type: () -> None
