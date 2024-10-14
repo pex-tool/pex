@@ -226,7 +226,9 @@ def _install_wheel(wheel_path):
             with atomic_directory(cast(str, runtime_key_dir.symlink_dir)) as runtime_atomic_dir:
                 if not runtime_atomic_dir.is_finalized():
                     source_path = os.path.join(runtime_atomic_dir.work_dir, wheel_name)
-                    relative_target_path = os.path.relpath(installed_wheel_dir, runtime_key_dir)
+                    relative_target_path = os.path.relpath(
+                        installed_wheel_dir, runtime_key_dir.symlink_dir
+                    )
                     os.symlink(relative_target_path, source_path)
     return installed_wheel_dir
 
