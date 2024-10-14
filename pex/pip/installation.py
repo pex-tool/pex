@@ -11,7 +11,7 @@ from textwrap import dedent
 
 from pex import pep_427, pex_warnings, third_party
 from pex.atomic_directory import atomic_directory
-from pex.cache.dirs import CacheDir, PipPexDir
+from pex.cache.dirs import InstalledWheelDir, PipPexDir
 from pex.common import REPRODUCIBLE_BUILDS_ENV, CopyMode, pluralize, safe_mkdtemp
 from pex.dist_metadata import Requirement
 from pex.exceptions import production_assert
@@ -28,7 +28,7 @@ from pex.resolve.resolvers import Resolver
 from pex.result import Error, try_
 from pex.targets import LocalInterpreter, RequiresPythonError, Targets
 from pex.tracer import TRACER
-from pex.typing import TYPE_CHECKING
+from pex.typing import TYPE_CHECKING, cast
 from pex.util import CacheHelper
 from pex.variables import ENV, Variables
 from pex.venv.virtualenv import InstallationChoice, Virtualenv
@@ -208,22 +208,27 @@ def _install_wheel(wheel_path):
     #  https://github.com/pex-tool/pex/issues/2556
     wheel_hash = CacheHelper.hash(wheel_path, hasher=hashlib.sha256)
     wheel_name = os.path.basename(wheel_path)
-    destination = CacheDir.INSTALLED_WHEELS.path(wheel_hash, wheel_name)
-    with atomic_directory(destination) as atomic_dir:
+    installed_wheel_dir = InstalledWheelDir.create(wheel_name=wheel_name, install_hash=wheel_hash)
+    with atomic_directory(installed_wheel_dir) as atomic_dir:
         if not atomic_dir.is_finalized():
             installed_wheel = pep_427.install_wheel_chroot(
                 wheel_path=wheel_path, destination=atomic_dir.work_dir
             )
-            runtime_key_dir = CacheDir.INSTALLED_WHEELS.path(
-                installed_wheel.fingerprint
-                or CacheHelper.dir_hash(atomic_dir.work_dir, hasher=hashlib.sha256)
+            runtime_key_dir = InstalledWheelDir.create(
+                wheel_name=wheel_name,
+                install_hash=(
+                    installed_wheel.fingerprint
+                    or CacheHelper.dir_hash(atomic_dir.work_dir, hasher=hashlib.sha256)
+                ),
+                wheel_hash=wheel_hash,
             )
-            with atomic_directory(runtime_key_dir) as runtime_atomic_dir:
+            production_assert(runtime_key_dir.symlink_dir is not None)
+            with atomic_directory(cast(str, runtime_key_dir.symlink_dir)) as runtime_atomic_dir:
                 if not runtime_atomic_dir.is_finalized():
                     source_path = os.path.join(runtime_atomic_dir.work_dir, wheel_name)
-                    relative_target_path = os.path.relpath(destination, runtime_key_dir)
+                    relative_target_path = os.path.relpath(installed_wheel_dir, runtime_key_dir)
                     os.symlink(relative_target_path, source_path)
-    return destination
+    return installed_wheel_dir
 
 
 def _bootstrap_pip(

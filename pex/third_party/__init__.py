@@ -24,6 +24,7 @@ from pex.util import CacheHelper
 if TYPE_CHECKING:
     from typing import Container, Dict, Iterable, Iterator, List, Optional, Tuple
 
+    from pex.cache.dirs import InstalledWheelDir  # noqa
     from pex.interpreter import PythonInterpreter
 
 
@@ -634,10 +635,10 @@ def expose_installed_wheels(
     dists,  # type: Iterable[str]
     interpreter=None,  # type: Optional[PythonInterpreter]
 ):
-    # type: (...) -> Iterator[str]
+    # type: (...) -> Iterator[InstalledWheelDir]
 
     from pex.atomic_directory import atomic_directory
-    from pex.cache.dirs import CacheDir
+    from pex.cache.dirs import InstalledWheelDir
     from pex.pep_376 import InstalledWheel
 
     for path in expose(dists, interpreter=interpreter):
@@ -648,12 +649,14 @@ def expose_installed_wheels(
         install_hash = installed_wheel.fingerprint or CacheHelper.dir_hash(
             path, hasher=hashlib.sha256
         )
-        wheel_path = CacheDir.INSTALLED_WHEELS.path(install_hash, wheel_file_name)
-        with atomic_directory(wheel_path) as atomic_dir:
+        installed_wheel_dir = InstalledWheelDir.create(
+            wheel_name=wheel_file_name, install_hash=install_hash
+        )
+        with atomic_directory(installed_wheel_dir) as atomic_dir:
             if not atomic_dir.is_finalized():
                 for _src, _dst in iter_copytree(path, atomic_dir.work_dir, copy_mode=CopyMode.LINK):
                     pass
-        yield wheel_path
+        yield installed_wheel_dir
 
 
 # Implicitly install an importer for vendored code on the first import of pex.third_party.

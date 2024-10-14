@@ -7,6 +7,7 @@ import glob
 import os
 
 from pex.enum import Enum
+from pex.exceptions import production_assert
 from pex.typing import TYPE_CHECKING, cast
 from pex.variables import ENV, Variables
 
@@ -399,7 +400,14 @@ class InstalledWheelDir(AtomicCacheDir):
         if os.path.islink(wheel_dir):
             symlink_dir = os.path.dirname(wheel_dir)
             wheel_dir = os.path.realpath(wheel_dir)
-            wheel_hash = os.path.basename(os.path.dirname(wheel_dir))
+            recorded_wheel_hash = os.path.basename(os.path.dirname(wheel_dir))
+            if wheel_hash:
+                production_assert(wheel_hash == recorded_wheel_hash)
+            else:
+                wheel_hash = recorded_wheel_hash
+        elif wheel_hash is not None:
+            symlink_dir = os.path.dirname(wheel_dir)
+            wheel_dir = CacheDir.INSTALLED_WHEELS.path(wheel_hash, wheel_name, pex_root=pex_root)
 
         return cls(
             path=wheel_dir,
