@@ -4,6 +4,7 @@
 from __future__ import absolute_import
 
 import contextlib
+import hashlib
 import importlib
 import os
 import re
@@ -12,10 +13,13 @@ import sys
 import zipfile
 from collections import OrderedDict, namedtuple
 
+from pex.common import CopyMode, iter_copytree
+
 # NB: ~All pex imports are performed lazily to play well with the un-imports performed by both the
 # PEX runtime when it demotes the bootstrap code and any pex modules that uninstalled
 # VendorImporters un-import.
 from pex.typing import TYPE_CHECKING
+from pex.util import CacheHelper
 
 if TYPE_CHECKING:
     from typing import Container, Iterable, Iterator, List, Optional, Tuple
@@ -618,6 +622,32 @@ def expose(
     """
     for path in VendorImporter.expose(dists, root=isolated().chroot_path, interpreter=interpreter):
         yield path
+
+
+def expose_installed_wheels(
+    dists,  # type: Iterable[str]
+    interpreter=None,  # type: Optional[PythonInterpreter]
+):
+    # type: (...) -> Iterator[str]
+
+    from pex.atomic_directory import atomic_directory
+    from pex.cache.dirs import CacheDir
+    from pex.pep_376 import InstalledWheel
+
+    for path in expose(dists, interpreter=interpreter):
+        # TODO(John Sirois): Maybe consolidate with pex.resolver.BuildAndInstallRequest.
+        #  https://github.com/pex-tool/pex/issues/2556
+        installed_wheel = InstalledWheel.load(path)
+        wheel_file_name = installed_wheel.wheel_file_name()
+        install_hash = installed_wheel.fingerprint or CacheHelper.dir_hash(
+            path, hasher=hashlib.sha256
+        )
+        wheel_path = CacheDir.INSTALLED_WHEELS.path(install_hash, wheel_file_name)
+        with atomic_directory(wheel_path) as atomic_dir:
+            if not atomic_dir.is_finalized():
+                for _src, _dst in iter_copytree(path, atomic_dir.work_dir, copy_mode=CopyMode.LINK):
+                    pass
+        yield wheel_path
 
 
 # Implicitly install an importer for vendored code on the first import of pex.third_party.

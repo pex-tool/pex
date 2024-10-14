@@ -3,6 +3,7 @@
 
 from __future__ import absolute_import
 
+import itertools
 import os
 import re
 from email.message import Message
@@ -14,10 +15,12 @@ from pex.dist_metadata import (
     load_metadata,
     parse_message,
 )
+from pex.orderedset import OrderedSet
+from pex.third_party.packaging import tags
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from typing import Dict, Text
+    from typing import Dict, Text, Tuple
 
     import attr  # vendor:skip
 else:
@@ -60,6 +63,15 @@ class WHEEL(object):
 
     files = attr.ib()  # type: MetadataFiles
     metadata = attr.ib()  # type: Message
+
+    @property
+    def tags(self):
+        # type: () -> Tuple[tags.Tag, ...]
+        return tuple(
+            itertools.chain.from_iterable(
+                tags.parse_tag(tag) for tag in self.metadata.get_all("Tag", ())
+            )
+        )
 
     @property
     def root_is_purelib(self):
@@ -115,6 +127,27 @@ class Wheel(object):
     metadata_files = attr.ib()  # type: MetadataFiles
     metadata = attr.ib()  # type: WHEEL
     data_dir = attr.ib()  # type: str
+
+    @property
+    def wheel_file_name(self):
+        # type: () -> str
+
+        interpreters = OrderedSet()  # type: OrderedSet[str]
+        abis = OrderedSet()  # type: OrderedSet[str]
+        platforms = OrderedSet()  # type: OrderedSet[str]
+        for tag in self.metadata.tags:
+            interpreters.add(tag.interpreter)
+            abis.add(tag.abi)
+            platforms.add(tag.platform)
+        tag = "{interpreters}-{abis}-{platforms}".format(
+            interpreters=".".join(interpreters), abis=".".join(abis), platforms=".".join(platforms)
+        )
+
+        return "{project_name}-{version}-{tag}.whl".format(
+            project_name=self.metadata_files.metadata.project_name.raw,
+            version=self.metadata_files.metadata.version.raw,
+            tag=tag,
+        )
 
     @property
     def root_is_purelib(self):

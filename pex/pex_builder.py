@@ -179,31 +179,6 @@ class PEXBuilder(object):
         # type: () -> Chroot
         return self._chroot
 
-    def clone(self, into=None):
-        """Clone this PEX environment into a new PEXBuilder.
-
-        :keyword into: (optional) An optional destination directory to clone this PEXBuilder into.  If
-          not specified, a temporary directory will be created.
-
-        Clones PEXBuilder into a new location.  This is useful if the PEXBuilder has been frozen and
-        rendered immutable.
-
-        .. versionchanged:: 0.8
-          The temporary directory created when ``into`` is not specified is now garbage collected on
-          interpreter exit.
-        """
-        chroot_clone = self._chroot.clone(into=into)
-        clone = self.__class__(
-            chroot=chroot_clone,
-            interpreter=self._interpreter,
-            pex_info=self._pex_info.copy(),
-            preamble=self._preamble,
-            copy_mode=self._copy_mode,
-        )
-        clone.set_shebang(self._shebang)
-        clone._distributions = self._distributions.copy()
-        return clone
-
     def path(self):
         # type: () -> str
         return self.chroot().path()

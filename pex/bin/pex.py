@@ -23,7 +23,7 @@ from pex.commands.command import (
     global_environment,
     register_global_arguments,
 )
-from pex.common import CopyMode, die, is_pyc_dir, is_pyc_file, safe_mkdtemp
+from pex.common import CopyMode, die, is_pyc_dir, is_pyc_file
 from pex.dependency_configuration import DependencyConfiguration
 from pex.dependency_manager import DependencyManager
 from pex.dist_metadata import Requirement
@@ -923,10 +923,7 @@ def build_pex(
             preamble = preamble_fd.read()
 
     pex_builder = PEXBuilder(
-        path=safe_mkdtemp(),
-        interpreter=targets.interpreter,
-        preamble=preamble,
-        copy_mode=CopyMode.SYMLINK,
+        interpreter=targets.interpreter, preamble=preamble, copy_mode=CopyMode.SYMLINK
     )
 
     if options.resources_directory:

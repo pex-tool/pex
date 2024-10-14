@@ -568,24 +568,6 @@ class Chroot(object):
         self._compress_by_file = {}  # type: Dict[str, bool]
         self._file_index = {}  # type: Dict[str, Optional[str]]
 
-    def clone(self, into=None):
-        # type: (Optional[str]) -> Chroot
-        """Clone this chroot.
-
-        :keyword into: (optional) An optional destination directory to clone the
-          Chroot into.  If not specified, a temporary directory will be created.
-
-        .. versionchanged:: 0.8
-          The temporary directory created when ``into`` is not specified is now garbage collected on
-          interpreter exit.
-        """
-        into = into or safe_mkdtemp()
-        new_chroot = Chroot(into)
-        for label, fileset in self.filesets.items():
-            for fn in fileset:
-                new_chroot.link(os.path.join(self.chroot, fn), fn, label=label)
-        return new_chroot
-
     def path(self):
         # type: () -> str
         """The path of the chroot."""
@@ -691,9 +673,9 @@ class Chroot(object):
         dst = self._normalize(dst)
         self._tag(dst, label, compress)
         self._ensure_parent(dst)
-        abs_src = os.path.abspath(src)
-        abs_dst = os.path.join(self.chroot, dst)
-        os.symlink(abs_src, abs_dst)
+        abs_src = os.path.realpath(src)
+        abs_dst = os.path.realpath(os.path.join(self.chroot, dst))
+        os.symlink(os.path.relpath(abs_src, os.path.dirname(abs_dst)), abs_dst)
 
     def write(
         self,

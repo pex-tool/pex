@@ -65,13 +65,12 @@ def test_pex_builder_shebang():
         return pb
 
     for pb in builder("foobar"), builder("#!foobar"):
-        for b in pb, pb.clone():
-            with temporary_dir() as td:
-                target = os.path.join(td, "foo.pex")
-                b.build(target)
-                expected_preamble = b"#!foobar\n"
-                with open(target, "rb") as fp:
-                    assert fp.read(len(expected_preamble)) == expected_preamble
+        with temporary_dir() as td:
+            target = os.path.join(td, "foo.pex")
+            pb.build(target)
+            expected_preamble = b"#!foobar\n"
+            with open(target, "rb") as fp:
+                assert fp.read(len(expected_preamble)) == expected_preamble
 
 
 def test_pex_builder_preamble():
@@ -144,25 +143,20 @@ def test_pex_builder_copy_or_link():
         def build_and_check(copy_mode):
             # type: (CopyMode.Value) -> None
             pb = PEXBuilder(copy_mode=copy_mode)
-            path = pb.path()
             pb.add_source(src, "exe.py")
 
-            path_clone = os.path.join(path, "__clone")
-            pb.clone(into=path_clone)
-
-            for root in path, path_clone:
-                s1 = os.stat(src)
-                s2 = os.stat(os.path.join(root, "exe.py"))
-                is_link = (s1[stat.ST_INO], s1[stat.ST_DEV]) == (s2[stat.ST_INO], s2[stat.ST_DEV])
-                if copy_mode == CopyMode.COPY:
-                    assert not is_link
-                else:
-                    # Since os.stat follows symlinks; so in CopyMode.SYMLINK, this just proves
-                    # the symlink points to the original file. Going further and checking path
-                    # and path_clone for the presence of a symlink (an os.islink test) is
-                    # trickier since a Linux hardlink of a symlink produces a symlink whereas a
-                    # macOS hardlink of a symlink produces a hardlink.
-                    assert is_link
+            s1 = os.stat(src)
+            s2 = os.stat(os.path.join(pb.path(), "exe.py"))
+            is_link = (s1[stat.ST_INO], s1[stat.ST_DEV]) == (s2[stat.ST_INO], s2[stat.ST_DEV])
+            if copy_mode == CopyMode.COPY:
+                assert not is_link
+            else:
+                # Since os.stat follows symlinks; so in CopyMode.SYMLINK, this just proves
+                # the symlink points to the original file. Going further and checking path
+                # and path_clone for the presence of a symlink (an os.islink test) is
+                # trickier since a Linux hardlink of a symlink produces a symlink whereas a
+                # macOS hardlink of a symlink produces a hardlink.
+                assert is_link
 
         build_and_check(CopyMode.LINK)
         build_and_check(CopyMode.COPY)
