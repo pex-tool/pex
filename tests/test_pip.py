@@ -352,7 +352,7 @@ def test_pip_pex_interpreter_venv_hash_issue_1885(
             sort_keys=True,
         ).encode("utf-8")
     ).hexdigest()
-    assert venv_contents_hash in pip_w_linked_ppp._pip.venv_dir
+    assert venv_contents_hash in pip_w_linked_ppp.venv_dir
 
 
 @applicable_pip_versions

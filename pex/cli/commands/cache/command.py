@@ -6,12 +6,19 @@ from __future__ import absolute_import, print_function
 import os
 import re
 from argparse import Action, ArgumentError, _ActionsContainer
-from collections import Counter
+from collections import Counter, OrderedDict
 from datetime import datetime, timedelta
 
 from pex.cache import access as cache_access
 from pex.cache import data as cache_data
-from pex.cache.dirs import AtomicCacheDir, BootstrapDir, CacheDir, InstalledWheelDir, VenvDirs
+from pex.cache.dirs import (
+    AtomicCacheDir,
+    BootstrapDir,
+    CacheDir,
+    InstalledWheelDir,
+    UnzipDir,
+    VenvDirs,
+)
 from pex.cli.command import BuildTimeCommand
 from pex.cli.commands.cache.bytes import ByteAmount, ByteUnits
 from pex.cli.commands.cache.du import DiskUsage
@@ -23,6 +30,7 @@ from pex.jobs import SpawnedJob, execute_parallel, iter_map_parallel, map_parall
 from pex.orderedset import OrderedSet
 from pex.pip.installation import iter_all as iter_all_pips
 from pex.pip.tool import Pip
+from pex.pip.version import PipVersionValue
 from pex.result import Error, Ok, Result
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
@@ -479,6 +487,15 @@ class Cache(OutputMixin, BuildTimeCommand):
             else DiskUsage.aggregate(cache_dir.path, disk_usages)
         )
 
+    def _prune_pip(self, pip_info):
+        # type: (Tuple[Pip, bool]) -> DiskUsage
+        pip, prune_version = pip_info
+        path_to_prune = pip.pex_dir.base_dir if prune_version else pip.pex_dir.path
+        du = DiskUsage.collect(path_to_prune)
+        if not self.options.dry_run:
+            safe_rmtree(path_to_prune)
+        return du
+
     def _prune(self):
         # type: () -> Result
 
@@ -524,6 +541,57 @@ class Cache(OutputMixin, BuildTimeCommand):
                     print(file=fp)
                 return unused_wheels
 
+        cutoff = self.options.cutoff
+        pex_dirs = OrderedDict(
+            cache_access.last_access_before(cutoff.cutoff)
+        )  # type: OrderedDict[Union[UnzipDir, VenvDirs], float]
+        pex_hashes_to_prune = set(pex_dir.pex_hash for pex_dir in pex_dirs)
+        last_access_by_pex_hash = {
+            pex_dir.pex_hash: last_access for pex_dir, last_access in pex_dirs.items()
+        }
+
+        # True to prune the Pip version completely, False to just prune the Pip PEX.
+        pips_to_prune = OrderedDict()  # type: OrderedDict[Pip, bool]
+        # N.B.: We just need 1 Pip per version (really per paired cache). Whether a Pip has
+        # extra requirements installed does not affect cache management.
+        pip_caches_to_prune = OrderedDict()  # type: OrderedDict[PipVersionValue, Pip]
+        for pip in iter_all_pips():
+            if pip.pex_hash in pex_hashes_to_prune:
+                pips_to_prune[pip] = False
+            else:
+                pip_caches_to_prune[pip.version] = pip
+        for pip in pips_to_prune:
+            if pip.version not in pip_caches_to_prune:
+                pips_to_prune[pip] = True
+
+        def prune_pips():
+            # type: () -> None
+            if not pips_to_prune:
+                return
+
+            print(
+                "{pruned} {count} {cached_pex}.".format(
+                    pruned="Would have pruned" if self.options.dry_run else "Pruned",
+                    count=len(pips_to_prune),
+                    cached_pex=pluralize(pips_to_prune, "Pip PEX"),
+                ),
+                file=fp,
+            )
+            print(
+                self._render_usage(
+                    tuple(
+                        iter_map_parallel(
+                            pips_to_prune.items(),
+                            function=self._prune_pip,
+                            noun="Pip",
+                            verb="prune",
+                            verb_past="pruned",
+                        )
+                    )
+                ),
+                file=fp,
+            )
+
         def prune_pip_caches(wheels):
             # type: (Iterable[InstalledWheelDir]) -> None
 
@@ -547,13 +615,10 @@ class Cache(OutputMixin, BuildTimeCommand):
                     ),
                 )
 
-            # N.B.:We just need 1 Pip per version (really per paired cache). Whether a Pip has extra
-            # requirements installed does not affect cache management.
-            all_pip_versions = tuple({pip.version: pip for pip in iter_all_pips()}.values())
-
             pip_removes = []  # type: List[Tuple[Pip, str]]
             for pip, project_name_and_versions in zip(
-                all_pip_versions, execute_parallel(inputs=all_pip_versions, spawn_func=spawn_list)
+                pip_caches_to_prune.values(),
+                execute_parallel(inputs=pip_caches_to_prune.values(), spawn_func=spawn_list),
             ):
                 for pnav in project_name_and_versions:
                     if (
@@ -595,6 +660,9 @@ class Cache(OutputMixin, BuildTimeCommand):
                 execute_parallel(inputs=pip_removes, spawn_func=spawn_remove),
             ):
                 removes_by_pip[pip.version.value] += remove_count
+                cache_access.record_access(
+                    pip.pex_dir, last_access=last_access_by_pex_hash[pip.pex_hash]
+                )
             if removes_by_pip:
                 total = sum(removes_by_pip.values())
                 print(
@@ -616,8 +684,6 @@ class Cache(OutputMixin, BuildTimeCommand):
                         file=fp,
                     )
 
-        cutoff = self.options.cutoff
-        pex_dirs = tuple(cache_access.last_access_before(cutoff.cutoff))
         if not pex_dirs:
             print(
                 "There are no cached PEX zipapps or venvs last accessed prior to {cutoff}.".format(
@@ -632,6 +698,7 @@ class Cache(OutputMixin, BuildTimeCommand):
             print(file=fp)
             unused_wheels = prune_unused_deps()
             prune_pip_caches(unused_wheels)
+            prune_pips()
             return Ok()
 
         print(
@@ -722,4 +789,5 @@ class Cache(OutputMixin, BuildTimeCommand):
                 print(file=fp)
             unused_wheels.update(prune_unused_deps(additional=len(disk_usages) > 0))
             prune_pip_caches(unused_wheels)
+            prune_pips()
         return Ok()

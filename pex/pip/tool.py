@@ -15,6 +15,7 @@ from collections import deque
 from pex import targets
 from pex.atomic_directory import atomic_directory
 from pex.auth import PasswordEntry
+from pex.cache.dirs import PipPexDir
 from pex.common import safe_mkdir, safe_mkdtemp
 from pex.compatibility import get_stderr_bytes_buffer, shlex_quote, urlparse
 from pex.dependency_configuration import DependencyConfiguration
@@ -272,7 +273,8 @@ class _PexIssue2113Analyzer(ErrorAnalyzer):
 @attr.s(frozen=True)
 class PipVenv(object):
     venv_dir = attr.ib()  # type: str
-    execute_env = attr.ib(factory=dict)  # type: Mapping[str, str]
+    pex_hash = attr.ib()  # type: str
+    execute_env = attr.ib(default=())  # type: Tuple[Tuple[str, str], ...]
     _execute_args = attr.ib(default=())  # type: Tuple[str, ...]
 
     def execute_args(self, *args):
@@ -289,14 +291,33 @@ class Pip(object):
     _PATCHES_PACKAGE_ENV_VAR_NAME = "_PEX_PIP_RUNTIME_PATCHES_PACKAGE"
     _PATCHES_PACKAGE_NAME = "_pex_pip_patches"
 
-    _pip = attr.ib()  # type: PipVenv
-    version = attr.ib()  # type: PipVersionValue
-    _pip_cache = attr.ib()  # type: str
+    _pip_pex = attr.ib()  # type: PipPexDir
+    _pip_venv = attr.ib()  # type: PipVenv
 
     @property
     def venv_dir(self):
         # type: () -> str
-        return self._pip.venv_dir
+        return self._pip_venv.venv_dir
+
+    @property
+    def pex_hash(self):
+        # type: () -> str
+        return self._pip_venv.pex_hash
+
+    @property
+    def version(self):
+        # type: () -> PipVersionValue
+        return self._pip_pex.version
+
+    @property
+    def pex_dir(self):
+        # type: () -> PipPexDir
+        return self._pip_pex
+
+    @property
+    def cache_dir(self):
+        # type: () -> str
+        return self._pip_pex.cache_dir
 
     @staticmethod
     def _calculate_resolver_version(package_index_configuration=None):
@@ -384,7 +405,7 @@ class Pip(object):
         else:
             pip_args.append("-q")
 
-        pip_args.extend(["--cache-dir", self._pip_cache])
+        pip_args.extend(["--cache-dir", self.cache_dir])
 
         command = pip_args + list(args)
 
@@ -403,7 +424,7 @@ class Pip(object):
         # since Pip relies upon `shutil.move` which is only atomic when `os.rename` can be used.
         # See https://github.com/pex-tool/pex/issues/1776 for an example of the issues non-atomic
         # moves lead to in the `pip wheel` case.
-        pip_tmpdir = os.path.join(self._pip_cache, ".tmp")
+        pip_tmpdir = os.path.join(self.cache_dir, ".tmp")
         safe_mkdir(pip_tmpdir)
         extra_env.update(TMPDIR=pip_tmpdir)
 
@@ -432,8 +453,8 @@ class Pip(object):
                 popen_kwargs["stdout"] = sys.stderr.fileno()
             popen_kwargs.update(stderr=subprocess.PIPE)
 
-            env.update(self._pip.execute_env)
-            args = self._pip.execute_args(*command)
+            env.update(self._pip_venv.execute_env)
+            args = self._pip_venv.execute_args(*command)
 
             rendered_env = " ".join(
                 "{}={}".format(key, shlex_quote(value)) for key, value in env.items()
@@ -634,10 +655,10 @@ class Pip(object):
 
     def _ensure_wheel_installed(self, package_index_configuration=None):
         # type: (Optional[PackageIndexConfiguration]) -> None
-        pip_interpreter = self._pip.get_interpreter()
+        pip_interpreter = self._pip_venv.get_interpreter()
         with atomic_directory(
             os.path.join(
-                self._pip_cache,
+                self.cache_dir,
                 ".wheel-install",
                 hashlib.sha1(pip_interpreter.binary.encode("utf-8")).hexdigest(),
             )

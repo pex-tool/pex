@@ -51,13 +51,17 @@ def _create_pip(
     production_assert(os.path.exists(pip_pex.path))
 
     pip_interpreter = interpreter or PythonInterpreter.get()
-    venv_pex = ensure_venv(PEX(pip_pex.path, interpreter=pip_interpreter))
+    pex = PEX(pip_pex.path, interpreter=pip_interpreter)
+    venv_pex = ensure_venv(pex)
+    pex_hash = pex.pex_info().pex_hash
+    production_assert(pex_hash is not None)
     pip_venv = PipVenv(
         venv_dir=venv_pex.venv_dir,
-        execute_env=REPRODUCIBLE_BUILDS_ENV if not use_system_time else {},
+        pex_hash=cast(str, pex_hash),
+        execute_env=tuple(REPRODUCIBLE_BUILDS_ENV.items()) if not use_system_time else (),
         execute_args=tuple(venv_pex.execute_args()),
     )
-    return Pip(pip=pip_venv, version=pip_pex.version, pip_cache=pip_pex.cache_dir)
+    return Pip(pip_pex=pip_pex, pip_venv=pip_venv)
 
 
 def _pip_installation(

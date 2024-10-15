@@ -537,6 +537,11 @@ class PEXBuilder(object):
         bootstrap_packages = ["cache", "repl", "third_party", "venv"]
         if self._pex_info.includes_tools:
             bootstrap_packages.extend(["commands", "tools"])
+
+        # TODO(John Sirois): XXX: Switch to a symlink model, isolate(), then symlink from there?
+        # The bootstraps, as it stands, are ~4.5 MB for each loose dogfood PEX. For the Pex ITs,
+        # this ends up taking up a significant amount of disk space.
+
         for root, dirs, files in deterministic_walk(_ABS_PEX_PACKAGE_DIR):
             if root == _ABS_PEX_PACKAGE_DIR:
                 dirs[:] = bootstrap_packages
