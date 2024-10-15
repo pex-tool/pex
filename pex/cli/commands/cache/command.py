@@ -764,7 +764,7 @@ class Cache(OutputMixin, BuildTimeCommand):
                         verb_past="pruned",
                     )
                 )
-                if not disk_usages:
+                if deps and not disk_usages:
                     print(
                         "No cached PEX dependencies were able to be pruned; all have un-pruned "
                         "cached PEX dependents.",
@@ -772,12 +772,12 @@ class Cache(OutputMixin, BuildTimeCommand):
                     )
                 elif len(deps) == 1:
                     print("Pruned the 1 cached PEX dependency.", file=fp)
-                elif len(deps) == len(disk_usages):
+                elif len(deps) > 1 and len(deps) == len(disk_usages):
                     print(
                         "Pruned all {count} cached PEX dependencies.".format(count=len(deps)),
                         file=fp,
                     )
-                else:
+                elif len(deps) > 1:
                     print(
                         "Pruned {count} of {total} cached PEX dependencies.".format(
                             count=len(disk_usages), total=len(deps)
@@ -786,7 +786,8 @@ class Cache(OutputMixin, BuildTimeCommand):
                     )
                 if disk_usages:
                     print(self._render_usage(disk_usages))
-                print(file=fp)
+                if deps or disk_usages:
+                    print(file=fp)
             unused_wheels.update(prune_unused_deps(additional=len(disk_usages) > 0))
             prune_pip_caches(unused_wheels)
             prune_pips()
