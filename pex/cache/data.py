@@ -325,8 +325,18 @@ def delete(
             [pex_dir for pex_dir in pex_dirs if isinstance(pex_dir, UnzipDir)],
             extract_key=lambda u: u.pex_hash,
         ):
+            # N.B.: The corresponding `zipapp_deps` table entries are cleaned up via an
+            # ON DELETE CASCADE foreign key relation.
             conn.execute(
                 "DELETE FROM zipapps WHERE pex_hash IN ({keys})".format(keys=placeholders), keys
+            ).close()
+
+        for placeholders, keys in _iter_key_chunks(
+            [pex_dir for pex_dir in pex_dirs if isinstance(pex_dir, VenvDirs)],
+            extract_key=lambda v: v.short_hash,
+        ):
+            conn.execute(
+                "DELETE FROM venv_deps WHERE venv_hash IN ({keys})".format(keys=placeholders), keys
             ).close()
 
 

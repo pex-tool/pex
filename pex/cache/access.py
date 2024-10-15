@@ -106,19 +106,22 @@ def await_delete_lock():
     _lock(exclusive=True)
 
 
-def record_access(atomic_cache_dir):
-    # type: (AtomicCacheDir) -> None
+def record_access(
+    atomic_cache_dir,  # type: AtomicCacheDir
+    last_access=None,  # type: Optional[float]
+):
+    # type: (...) -> None
 
     # N.B.: We explicitly set atime and do not rely on the filesystem implicitly setting it when the
     # directory is read since filesystems may be mounted noatime, nodiratime or relatime on Linux
     # and similar toggles exist, at least in part, for some macOS file systems.
-    atime = time.time()
+    atime = last_access or time.time()
     mtime = os.stat(atomic_cache_dir.path).st_mtime
     os.utime(atomic_cache_dir.path, (atime, mtime))
 
 
 def last_access_before(cutoff):
-    # type: (datetime) -> Iterator[Union[UnzipDir, VenvDirs]]
+    # type: (datetime) -> Iterator[Tuple[Union[UnzipDir, VenvDirs], float]]
 
     from pex.cache.dirs import UnzipDir, VenvDirs
 
@@ -126,5 +129,6 @@ def last_access_before(cutoff):
         UnzipDir.iter_all(), VenvDirs.iter_all()
     )  # type: Iterator[Union[UnzipDir, VenvDirs]]
     for pex_dir in pex_dirs:
-        if datetime.fromtimestamp(os.stat(pex_dir.path).st_atime) < cutoff:
-            yield pex_dir
+        last_access = os.stat(pex_dir.path).st_atime
+        if datetime.fromtimestamp(last_access) < cutoff:
+            yield pex_dir, last_access

@@ -143,6 +143,7 @@ class CacheDir(Enum["CacheDir.Value"]):
         version=1,
         name="Pip Versions",
         description="Isolated Pip caches and Pip PEXes Pex uses to resolve distributions.",
+        dependencies=[INSTALLED_WHEELS],
     )
 
     PLATFORMS = Value(
@@ -482,15 +483,11 @@ class PipPexDir(AtomicCacheDir):
 
         from pex.pip.version import PipVersion
 
-        for version_dir in glob.glob(CacheDir.PIP.path("*", pex_root=pex_root)):
-            version = PipVersion.for_value(os.path.basename(version_dir))
-            cache_dir = os.path.join(version_dir, "pip_cache")
-            for pex_dir in glob.glob(os.path.join(version_dir, "pip.pex", "*", "*")):
-                yield cls(
-                    path=pex_dir,
-                    version=version,
-                    cache_dir=cache_dir,
-                )
+        for base_dir in glob.glob(CacheDir.PIP.path("*", pex_root=pex_root)):
+            version = PipVersion.for_value(os.path.basename(base_dir))
+            cache_dir = os.path.join(base_dir, "pip_cache")
+            for pex_dir in glob.glob(os.path.join(base_dir, "pip.pex", "*", "*")):
+                yield cls(path=pex_dir, version=version, base_dir=base_dir, cache_dir=cache_dir)
 
     @classmethod
     def create(
@@ -506,6 +503,7 @@ class PipPexDir(AtomicCacheDir):
         return cls(
             path=os.path.join(base_dir, "pip.pex", isolated().pex_hash, fingerprint),
             version=version,
+            base_dir=base_dir,
             cache_dir=os.path.join(base_dir, "pip_cache"),
         )
 
@@ -513,9 +511,11 @@ class PipPexDir(AtomicCacheDir):
         self,
         path,  # type: str
         version,  # type: PipVersionValue
+        base_dir,  # type: str
         cache_dir,  # type: str
     ):
         # type: (...) -> None
         super(PipPexDir, self).__init__(path)
         self.version = version
+        self.base_dir = base_dir
         self.cache_dir = cache_dir
