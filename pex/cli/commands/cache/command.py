@@ -747,6 +747,7 @@ class Cache(OutputMixin, BuildTimeCommand):
                 )
             )
             print(file=fp)
+            prune_pips()
         else:
             with cache_data.delete(pex_dirs) as deps_iter:
                 deps = tuple(deps_iter)
