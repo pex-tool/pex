@@ -11,14 +11,7 @@ from datetime import datetime, timedelta
 
 from pex.cache import access as cache_access
 from pex.cache import data as cache_data
-from pex.cache.dirs import (
-    AtomicCacheDir,
-    BootstrapDir,
-    CacheDir,
-    InstalledWheelDir,
-    UnzipDir,
-    VenvDirs,
-)
+from pex.cache.dirs import AtomicCacheDir, BootstrapDir, CacheDir, InstalledWheelDir, VenvDirs
 from pex.cli.command import BuildTimeCommand
 from pex.cli.commands.cache.bytes import ByteAmount, ByteUnits
 from pex.cli.commands.cache.du import DiskUsage
@@ -542,12 +535,9 @@ class Cache(OutputMixin, BuildTimeCommand):
                 return unused_wheels
 
         cutoff = self.options.cutoff
-        pex_dirs = OrderedDict(
-            cache_access.last_access_before(cutoff.cutoff)
-        )  # type: OrderedDict[Union[UnzipDir, VenvDirs], float]
-        pex_hashes_to_prune = set(pex_dir.pex_hash for pex_dir in pex_dirs)
-        last_access_by_pex_hash = {
-            pex_dir.pex_hash: last_access for pex_dir, last_access in pex_dirs.items()
+        pex_dirs = OrderedDict(cache_access.last_access_before(cutoff.cutoff))
+        pex_hashes_to_prune = {
+            pex_dir.pex_hash: (pex_dir, last_access) for pex_dir, last_access in pex_dirs.items()
         }
 
         # True to prune the Pip version completely, False to just prune the Pip PEX.
@@ -660,9 +650,8 @@ class Cache(OutputMixin, BuildTimeCommand):
                 execute_parallel(inputs=pip_removes, spawn_func=spawn_remove),
             ):
                 removes_by_pip[pip.version.value] += remove_count
-                cache_access.record_access(
-                    pip.pex_dir, last_access=last_access_by_pex_hash[pip.pex_hash]
-                )
+                pex_dir, last_access = pex_hashes_to_prune[pip.pex_hash]
+                cache_access.record_access(pex_dir, last_access=last_access)
             if removes_by_pip:
                 total = sum(removes_by_pip.values())
                 print(

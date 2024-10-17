@@ -506,6 +506,7 @@ class VenvPex(object):
 def ensure_venv(
     pex,  # type: PEX
     collisions_ok=True,  # type: bool
+    copy_mode=None,  # type: Optional[CopyMode.Value]
 ):
     # type: (...) -> VenvPex
     pex_info = pex.pex_info()
@@ -582,7 +583,7 @@ def ensure_venv(
                             # running; so we'll not have a stable base there to symlink from. As
                             # such, always copy for loose PEXes to ensure the PEX_ROOT venv is
                             # stable in the face of modification of the source loose PEX.
-                            copy_mode = (
+                            copy_mode = copy_mode or (
                                 CopyMode.SYMLINK
                                 if (
                                     pex.layout != Layout.LOOSE
