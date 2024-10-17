@@ -52,7 +52,7 @@ def _create_pip(
 
     pip_interpreter = interpreter or PythonInterpreter.get()
     pex = PEX(pip_pex.path, interpreter=pip_interpreter)
-    venv_pex = ensure_venv(pex)
+    venv_pex = ensure_venv(pex, copy_mode=CopyMode.SYMLINK)
     pex_hash = pex.pex_info().pex_hash
     production_assert(pex_hash is not None)
     pip_venv = PipVenv(
