@@ -27,7 +27,11 @@ if TYPE_CHECKING:
     _O = TypeVar("_O")
     _P = TypeVar("_P")
 
-    # N.B.: This is an expensive import and we only need it for type checking.
+    # N.B.: This import is circular, and we import lazily below as a result, but we also need the
+    # import eagerly for type checking.
+    from pex.cache.dirs import UnzipDir, VenvDir  # noqa
+
+    # N.B.: This is an expensive import, and we only need it for type checking.
     from pex.interpreter import PythonInterpreter
 
 
@@ -805,13 +809,13 @@ def unzip_dir(
     pex_hash,  # type: str
     expand_pex_root=True,  # type: bool
 ):
-    # type: (...) -> str
+    # type: (...) -> UnzipDir
 
     # N.B.: We need lazy import gymnastics here since CacheType uses Variables for PEX_ROOT.
-    from pex.cache.dirs import CacheDir
+    from pex.cache.dirs import UnzipDir
 
     pex_root = _expand_pex_root(pex_root) if expand_pex_root else pex_root
-    return CacheDir.UNZIPPED_PEXES.path(pex_hash, pex_root=pex_root)
+    return UnzipDir.create(pex_hash=pex_hash, pex_root=pex_root)
 
 
 def venv_dir(
@@ -823,10 +827,10 @@ def venv_dir(
     pex_path=(),  # type: Tuple[str, ...]
     expand_pex_root=True,  # type: bool
 ):
-    # type: (...) -> str
+    # type: (...) -> VenvDir
 
     # N.B.: We need lazy import gymnastics here since CacheType uses Variables for PEX_ROOT.
-    from pex.cache.dirs import CacheDir
+    from pex.cache.dirs import VenvDir
 
     # The venv contents are affected by which PEX files are in play as well as which interpreter
     # is selected. The former is influenced via PEX_PATH and the latter is influenced by interpreter
@@ -889,7 +893,7 @@ def venv_dir(
         json.dumps(venv_contents, sort_keys=True).encode("utf-8")
     ).hexdigest()
     pex_root = _expand_pex_root(pex_root) if expand_pex_root else pex_root
-    venv_path = CacheDir.VENVS.path(pex_hash, venv_contents_hash, pex_root=pex_root)
+    venv_path = VenvDir.create(pex_hash, venv_contents_hash, pex_root=pex_root)
 
     def warn(message):
         # type: (str) -> None

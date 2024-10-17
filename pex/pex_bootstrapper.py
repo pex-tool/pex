@@ -10,7 +10,7 @@ import sys
 from pex import pex_warnings
 from pex.atomic_directory import atomic_directory
 from pex.cache import access as cache_access
-from pex.cache.dirs import CacheDir
+from pex.cache.dirs import VenvDirs
 from pex.common import CopyMode, die, pluralize
 from pex.environment import ResolveError
 from pex.inherit_path import InheritPath
@@ -506,6 +506,7 @@ class VenvPex(object):
 def ensure_venv(
     pex,  # type: PEX
     collisions_ok=True,  # type: bool
+    copy_mode=None,  # type: Optional[CopyMode.Value]
 ):
     # type: (...) -> VenvPex
     pex_info = pex.pex_info()
@@ -523,8 +524,11 @@ def ensure_venv(
     if not os.path.exists(venv_dir):
         with ENV.patch(PEX_ROOT=pex_info.pex_root):
             cache_access.read_write()
+    else:
+        cache_access.record_access(venv_dir)
     with atomic_directory(venv_dir) as venv:
         if not venv.is_finalized():
+            from pex.cache.data import record_venv_install
             from pex.venv.virtualenv import Virtualenv
 
             virtualenv = Virtualenv.create_atomic(
@@ -545,10 +549,10 @@ def ensure_venv(
             collisions = []
             for chars in range(8, len(venv_hash) + 1):
                 entropy = venv_hash[:chars]
-                short_venv_dir = CacheDir.VENVS.path("s", entropy, pex_root=pex_info.pex_root)
-                with atomic_directory(short_venv_dir) as short_venv:
+                venv_dirs = VenvDirs(venv_dir=venv_dir, short_hash=entropy)
+                with atomic_directory(venv_dirs.short_dir) as short_venv:
                     if short_venv.is_finalized():
-                        collisions.append(short_venv_dir)
+                        collisions.append(venv_dirs.short_dir)
                         if entropy == venv_hash:
                             raise RuntimeError(
                                 "The venv for {pex} at {venv} has hash collisions with {count} "
@@ -567,13 +571,15 @@ def ensure_venv(
                             )
                         continue
 
-                    os.symlink(venv_dir, os.path.join(short_venv.work_dir, "venv"))
+                    os.symlink(
+                        venv_dirs, os.path.join(short_venv.work_dir, venv_dirs.SHORT_SYMLINK_NAME)
+                    )
 
                     # Loose PEXes don't need to unpack themselves to the PEX_ROOT before running;
                     # so we'll not have a stable base there to symlink from. As such, always copy
                     # for loose PEXes to ensure the PEX_ROOT venv is stable in the face of
                     # modification of the source loose PEX.
-                    copy_mode = (
+                    copy_mode = copy_mode or (
                         CopyMode.SYMLINK
                         if (pex.layout != Layout.LOOSE and not pex_info.venv_site_packages_copies)
                         else CopyMode.LINK
@@ -584,7 +590,7 @@ def ensure_venv(
                         pex,
                         bin_path=pex_info.venv_bin_path,
                         python=os.path.join(
-                            short_venv_dir,
+                            venv_dirs.short_dir,
                             "venv",
                             "bin",
                             os.path.basename(virtualenv.interpreter.binary),
@@ -593,6 +599,15 @@ def ensure_venv(
                         copy_mode=copy_mode,
                         hermetic_scripts=pex_info.venv_hermetic_scripts,
                     )
+
+                    with TRACER.timed(
+                        "Recording venv install of {pex} {hash}".format(
+                            pex=pex.path(), hash=pex_info.pex_hash
+                        )
+                    ):
+                        record_venv_install(
+                            copy_mode=copy_mode, pex_info=pex_info, venv_dirs=venv_dirs
+                        )
 
                     # There are popular Linux distributions with shebang length limits
                     # (BINPRM_BUF_SIZE in /usr/include/linux/binfmts.h) set at 128 characters, so

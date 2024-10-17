@@ -754,8 +754,11 @@ def iter_map_parallel(
 
     slots = defaultdict(list)  # type: DefaultDict[int, List[float]]
     with TRACER.timed(
-        "Using {pool_size} parallel jobs to {verb} {count} items".format(
-            pool_size=pool_size, verb=verb, count=len(input_items)
+        "Using {pool_size} parallel jobs to {verb} {count} {inputs}".format(
+            pool_size=pool_size,
+            verb=verb,
+            count=len(input_items),
+            inputs=pluralize(input_items, noun),
         )
     ):
         with _mp_pool(size=pool_size) as pool:
