@@ -43,6 +43,7 @@ from pex.result import Error, catch, try_
 from pex.targets import Target, Targets
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
+from pex.variables import ENV, Variables
 
 if TYPE_CHECKING:
     from typing import Dict, Iterable, Mapping, Optional, Sequence, Tuple, Union
@@ -59,7 +60,7 @@ class FileArtifactDownloadManager(DownloadManager[FileArtifact]):
         self,
         file_lock_style,  # type: FileLockStyle.Value
         downloader,  # type: ArtifactDownloader
-        pex_root=None,  # type: Optional[str]
+        pex_root=ENV,  # type: Union[str, Variables]
     ):
         super(FileArtifactDownloadManager, self).__init__(
             pex_root=pex_root, file_lock_style=file_lock_style
@@ -89,7 +90,7 @@ class VCSArtifactDownloadManager(DownloadManager[VCSArtifact]):
         password_entries=(),  # type: Iterable[PasswordEntry]
         cache=None,  # type: Optional[str]
         build_configuration=BuildConfiguration(),  # type: BuildConfiguration
-        pex_root=None,  # type: Optional[str]
+        pex_root=ENV,  # type: Union[str, Variables]
         pip_version=None,  # type: Optional[PipVersionValue]
         resolver=None,  # type: Optional[Resolver]
         use_pip_config=False,  # type: bool
@@ -177,7 +178,7 @@ class LocalProjectDownloadManager(DownloadManager[LocalProjectArtifact]):
         file_lock_style,  # type: FileLockStyle.Value
         resolver,  # type: Resolver
         pip_version=None,  # type: Optional[PipVersionValue]
-        pex_root=None,  # type: Optional[str]
+        pex_root=ENV,  # type: Union[str, Variables]
     ):
         super(LocalProjectDownloadManager, self).__init__(
             pex_root=pex_root, file_lock_style=file_lock_style

@@ -33,7 +33,6 @@ from pex.pip.installation import get_pip
 from pex.pip.tool import PackageIndexConfiguration
 from pex.pip.version import PipVersionValue
 from pex.requirements import LocalProjectRequirement
-from pex.resolve.downloads import get_downloads_dir
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import BuildConfiguration, PipLog, ResolverVersion
 from pex.resolve.resolvers import (
@@ -174,7 +173,7 @@ class DownloadRequest(object):
             return []
 
         dest = dest or safe_mkdtemp(
-            prefix="resolver_download.", dir=safe_mkdir(get_downloads_dir())
+            prefix="resolver_download.", dir=safe_mkdir(CacheDir.DOWNLOADS.path(".tmp"))
         )
 
         log_manager = PipLogManager.create(self.pip_log, self.targets)
