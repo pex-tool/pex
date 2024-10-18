@@ -9,7 +9,6 @@ import re
 from argparse import Action, ArgumentError, _ActionsContainer
 from collections import Counter, OrderedDict, defaultdict
 from datetime import datetime, timedelta
-from typing import DefaultDict
 
 from pex.cache import access as cache_access
 from pex.cache import data as cache_data
@@ -41,7 +40,7 @@ from pex.variables import ENV
 
 if TYPE_CHECKING:
     import typing
-    from typing import IO, Dict, Iterable, List, Mapping, Optional, Tuple, Union
+    from typing import IO, DefaultDict, Dict, Iterable, List, Mapping, Optional, Tuple, Union
 
     import attr  # vendor:skip
 else:
