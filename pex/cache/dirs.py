@@ -14,6 +14,8 @@ from pex.variables import ENV, Variables
 if TYPE_CHECKING:
     from typing import Any, Iterable, Iterator, List, Optional, Type, TypeVar, Union
 
+    from pex.pep_440 import Version
+    from pex.pep_503 import ProjectName
     from pex.pip.version import PipVersionValue
 
 
@@ -99,7 +101,7 @@ class CacheDir(Enum["CacheDir.Value"]):
 
     DOWNLOADS = Value(
         "downloads",
-        version=0,
+        version=1,
         name="Lock Artifact Downloads",
         description="Distributions downloaded when resolving from a Pex lock file.",
     )
@@ -349,6 +351,9 @@ class InstalledWheelDir(AtomicCacheDir):
     @classmethod
     def iter_all(cls, pex_root=ENV):
         # type: (Union[str, Variables]) -> Iterator[InstalledWheelDir]
+
+        from pex.dist_metadata import ProjectNameAndVersion
+
         symlinks = []  # type: List[str]
         dirs = []  # type: List[str]
         for path in glob.glob(CacheDir.INSTALLED_WHEELS.path("*", "*.whl", pex_root=pex_root)):
@@ -366,9 +371,12 @@ class InstalledWheelDir(AtomicCacheDir):
             wheel_dir = os.path.realpath(symlink)
             wheel_hash = os.path.basename(os.path.dirname(wheel_dir))
             wheel_name = os.path.basename(wheel_dir)
+            pnav = ProjectNameAndVersion.from_filename(wheel_name)
             installed_wheel_dir = InstalledWheelDir(
                 wheel_dir,
                 wheel_name=wheel_name,
+                project_name=pnav.canonicalized_project_name,
+                version=pnav.canonicalized_version,
                 install_hash=install_hash,
                 wheel_hash=wheel_hash,
                 symlink_dir=symlink_dir,
@@ -379,8 +387,13 @@ class InstalledWheelDir(AtomicCacheDir):
         for wheel_dir in dirs:
             install_hash = os.path.basename(os.path.dirname(wheel_dir))
             wheel_name = os.path.basename(wheel_dir)
+            pnav = ProjectNameAndVersion.from_filename(wheel_name)
             installed_wheel_dir = InstalledWheelDir(
-                wheel_dir, wheel_name=wheel_name, install_hash=install_hash
+                wheel_dir,
+                wheel_name=wheel_name,
+                project_name=pnav.canonicalized_project_name,
+                version=pnav.canonicalized_version,
+                install_hash=install_hash,
             )
             if installed_wheel_dir not in seen:
                 seen.add(installed_wheel_dir)
@@ -396,6 +409,9 @@ class InstalledWheelDir(AtomicCacheDir):
     ):
         # type: (...) -> InstalledWheelDir
 
+        from pex.dist_metadata import ProjectNameAndVersion
+
+        pnav = ProjectNameAndVersion.from_filename(wheel_name)
         wheel_dir = CacheDir.INSTALLED_WHEELS.path(install_hash, wheel_name, pex_root=pex_root)
         symlink_dir = None  # type: Optional[str]
         if os.path.islink(wheel_dir):
@@ -413,6 +429,8 @@ class InstalledWheelDir(AtomicCacheDir):
         return cls(
             path=wheel_dir,
             wheel_name=wheel_name,
+            project_name=pnav.canonicalized_project_name,
+            version=pnav.canonicalized_version,
             install_hash=install_hash,
             wheel_hash=wheel_hash,
             symlink_dir=symlink_dir,
@@ -422,6 +440,8 @@ class InstalledWheelDir(AtomicCacheDir):
         self,
         path,  # type: str
         wheel_name,  # type: str
+        project_name,  # type: ProjectName
+        version,  # type: Version
         install_hash,  # type: str
         wheel_hash=None,  # type: Optional[str]
         symlink_dir=None,  # type: Optional[str]
@@ -429,6 +449,8 @@ class InstalledWheelDir(AtomicCacheDir):
         # type: (...) -> None
         super(InstalledWheelDir, self).__init__(path)
         self.wheel_name = wheel_name
+        self.project_name = project_name
+        self.version = version
         self.install_hash = install_hash
         self.wheel_hash = wheel_hash
         self.symlink_dir = symlink_dir
@@ -519,3 +541,53 @@ class PipPexDir(AtomicCacheDir):
         self.version = version
         self.base_dir = base_dir
         self.cache_dir = cache_dir
+
+
+class DownloadDir(AtomicCacheDir):
+    @classmethod
+    def iter_all(cls, pex_root=ENV):
+        # type: (Union[str, Variables]) -> Iterator[DownloadDir]
+
+        from pex.dist_metadata import is_sdist, is_wheel
+
+        for file_path in glob.glob(CacheDir.DOWNLOADS.path("*", "*", pex_root=pex_root)):
+            if os.path.isdir(file_path):
+                continue
+            if not is_sdist(file_path) and not is_wheel(file_path):
+                continue
+            directory, file_name = os.path.split(file_path)
+            file_hash = os.path.basename(directory)
+            yield cls.create(file_hash=file_hash, file_name=file_name)
+
+    @classmethod
+    def create(
+        cls,
+        file_hash,  # type: str
+        file_name,  # type: str
+    ):
+        # type: (...) -> DownloadDir
+        from pex.dist_metadata import ProjectNameAndVersion, is_wheel
+
+        pnav = ProjectNameAndVersion.from_filename(file_name)
+        return cls(
+            path=CacheDir.DOWNLOADS.path(file_hash),
+            file_name=file_name,
+            project_name=pnav.canonicalized_project_name,
+            version=pnav.canonicalized_version,
+            is_wheel=is_wheel(file_name),
+        )
+
+    def __init__(
+        self,
+        path,  # type: str
+        file_name,  # type: str
+        project_name,  # type: ProjectName
+        version,  # type: Version
+        is_wheel,  # type: bool
+    ):
+        # type: (...) -> None
+        super(DownloadDir, self).__init__(path)
+        self.file_name = file_name
+        self.project_name = project_name
+        self.version = version
+        self.is_wheel = is_wheel

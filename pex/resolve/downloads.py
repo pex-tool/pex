@@ -23,30 +23,15 @@ from pex.resolve.resolvers import Resolver
 from pex.result import Error
 from pex.targets import LocalInterpreter, Target
 from pex.typing import TYPE_CHECKING
-from pex.variables import ENV
 
 if TYPE_CHECKING:
-    from typing import Dict, Iterable, Iterator, Optional, Union
+    from typing import Iterable, Iterator, Optional, Union
 
     import attr  # vendor:skip
 
     from pex.hashing import HintedDigest
 else:
     from pex.third_party import attr
-
-
-_DOWNLOADS_DIRS = {}  # type: Dict[str, str]
-
-
-def get_downloads_dir(pex_root=None):
-    # type: (Optional[str]) -> str
-    root_dir = pex_root or ENV.PEX_ROOT
-    downloads_dir = _DOWNLOADS_DIRS.get(root_dir)
-    if downloads_dir is None:
-        downloads_dir = CacheDir.DOWNLOADS.path(pex_root=root_dir)
-        safe_mkdir(downloads_dir)
-        _DOWNLOADS_DIRS[root_dir] = downloads_dir
-    return downloads_dir
 
 
 @attr.s(frozen=True)
@@ -75,7 +60,7 @@ class ArtifactDownloader(object):
         digest = Sha256()
         hashing.file_hash(path, digest)
         fingerprint = digest.hexdigest()
-        target_dir = os.path.join(get_downloads_dir(), fingerprint)
+        target_dir = CacheDir.DOWNLOADS.path(fingerprint)
         with atomic_directory(target_dir) as atomic_dir:
             if not atomic_dir.is_finalized():
                 shutil.move(path, os.path.join(atomic_dir.work_dir, os.path.basename(path)))
@@ -129,8 +114,9 @@ class ArtifactDownloader(object):
 
     def _download_and_fingerprint(self, url):
         # type: (ArtifactURL) -> SpawnedJob[FileArtifact]
-        downloads = get_downloads_dir()
-        download_dir = safe_mkdtemp(prefix="fingerprint_artifact.", dir=downloads)
+        download_dir = safe_mkdtemp(
+            prefix="fingerprint_artifact.", dir=safe_mkdir(CacheDir.DOWNLOADS.path(".tmp"))
+        )
 
         src_file = url.path
         temp_dest = os.path.join(download_dir, os.path.basename(src_file))

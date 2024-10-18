@@ -16,9 +16,10 @@ from pex.resolve.lockfile.download_manager import DownloadedArtifact, DownloadMa
 from pex.resolve.resolved_requirement import ArtifactURL, Fingerprint
 from pex.result import Error, catch
 from pex.typing import TYPE_CHECKING
+from pex.variables import ENV, Variables
 
 if TYPE_CHECKING:
-    from typing import Any, List, Optional, Union
+    from typing import Any, List, Union
 
     import attr  # vendor:skip
 
@@ -31,7 +32,7 @@ class FakeDownloadManager(DownloadManager[FileArtifact]):
     def __init__(
         self,
         content,  # type: bytes
-        pex_root=None,  # type: Optional[str]
+        pex_root=ENV,  # type: Union[str, Variables]
     ):
         # type: (...) -> None
         super(FakeDownloadManager, self).__init__(pex_root=pex_root)
