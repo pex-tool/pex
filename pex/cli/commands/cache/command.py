@@ -3,6 +3,7 @@
 
 from __future__ import absolute_import, print_function
 
+import functools
 import os
 import re
 from argparse import Action, ArgumentError, _ActionsContainer
@@ -11,7 +12,14 @@ from datetime import datetime, timedelta
 
 from pex.cache import access as cache_access
 from pex.cache import data as cache_data
-from pex.cache.dirs import AtomicCacheDir, BootstrapDir, CacheDir, InstalledWheelDir, VenvDirs
+from pex.cache.dirs import (
+    AtomicCacheDir,
+    BootstrapDir,
+    CacheDir,
+    DownloadDir,
+    InstalledWheelDir,
+    VenvDirs,
+)
 from pex.cli.command import BuildTimeCommand
 from pex.cli.commands.cache.bytes import ByteAmount, ByteUnits
 from pex.cli.commands.cache.du import DiskUsage
@@ -21,6 +29,8 @@ from pex.dist_metadata import ProjectNameAndVersion
 from pex.exceptions import reportable_unexpected_error_msg
 from pex.jobs import SpawnedJob, execute_parallel, iter_map_parallel, map_parallel
 from pex.orderedset import OrderedSet
+from pex.pep_440 import Version
+from pex.pep_503 import ProjectName
 from pex.pip.installation import iter_all as iter_all_pips
 from pex.pip.tool import Pip
 from pex.pip.version import PipVersionValue
@@ -30,7 +40,7 @@ from pex.variables import ENV
 
 if TYPE_CHECKING:
     import typing
-    from typing import IO, Dict, Iterable, List, Optional, Tuple, Union
+    from typing import IO, Dict, Iterable, List, Mapping, Optional, Tuple, Union
 
     import attr  # vendor:skip
 else:
@@ -447,18 +457,26 @@ class Cache(OutputMixin, BuildTimeCommand):
 
         return Ok()
 
-    def _prune_cache_dir(self, cache_dir):
-        # type: (AtomicCacheDir) -> DiskUsage
+    def _prune_cache_dir(
+        self,
+        additional_cache_dirs_by_project_name_and_version,  # type: Mapping[Tuple[ProjectName, Version], Iterable[AtomicCacheDir]]
+        cache_dir,  # type: AtomicCacheDir
+    ):
+        # type: (...) -> DiskUsage
         paths_to_prune = []  # type: List[str]
 
         def prune_if_exists(path):
-            if os.path.exists(path):
+            # type: (Optional[str]) -> None
+            if path and os.path.exists(path):
                 paths_to_prune.append(path)
 
         if isinstance(cache_dir, InstalledWheelDir):
             paths_to_prune.append(os.path.dirname(cache_dir.path))
-            packed_wheel_dir = CacheDir.PACKED_WHEELS.path(cache_dir.install_hash)
-            prune_if_exists(packed_wheel_dir)
+            prune_if_exists(CacheDir.PACKED_WHEELS.path(cache_dir.install_hash))
+            for additional_dir in additional_cache_dirs_by_project_name_and_version.get(
+                (cache_dir.project_name, cache_dir.version), ()
+            ):
+                prune_if_exists(additional_dir)
         elif isinstance(cache_dir, BootstrapDir):
             paths_to_prune.append(cache_dir.path)
             prune_if_exists(CacheDir.BOOTSTRAP_ZIPS.path(cache_dir.bootstrap_hash))
@@ -506,6 +524,15 @@ class Cache(OutputMixin, BuildTimeCommand):
                 finally:
                     print(file=fp)
 
+        additional_cache_dirs_by_project_name_and_version = {
+            (download_dir.project_name, download_dir.version): [download_dir]
+            for download_dir in DownloadDir.iter_all()
+        }  # type: Dict[Tuple[ProjectName, Version], List[AtomicCacheDir]]
+
+        prune_cache_dir = functools.partial(
+            self._prune_cache_dir, additional_cache_dirs_by_project_name_and_version
+        )
+
         def prune_unused_deps(additional=False):
             # type: (bool) -> Iterable[InstalledWheelDir]
             with cache_data.prune(tuple(InstalledWheelDir.iter_all())) as unused_deps_iter:
@@ -515,7 +542,7 @@ class Cache(OutputMixin, BuildTimeCommand):
                 disk_usages = tuple(
                     iter_map_parallel(
                         unused_wheels,
-                        self._prune_cache_dir,
+                        prune_cache_dir,
                         noun="cached PEX dependency",
                         verb="prune",
                         verb_past="pruned",
@@ -703,7 +730,7 @@ class Cache(OutputMixin, BuildTimeCommand):
                 tuple(
                     iter_map_parallel(
                         pex_dirs,
-                        self._prune_cache_dir,
+                        prune_cache_dir,
                         noun="cached PEX",
                         verb="prune",
                         verb_past="pruned",
@@ -727,7 +754,7 @@ class Cache(OutputMixin, BuildTimeCommand):
                     tuple(
                         iter_map_parallel(
                             deps,
-                            self._prune_cache_dir,
+                            prune_cache_dir,
                             noun="cached PEX dependency",
                             verb="prune",
                             verb_past="pruned",
@@ -748,7 +775,7 @@ class Cache(OutputMixin, BuildTimeCommand):
                 disk_usages = tuple(
                     iter_map_parallel(
                         unused_deps,
-                        self._prune_cache_dir,
+                        prune_cache_dir,
                         noun="cached PEX dependency",
                         verb="prune",
                         verb_past="pruned",
