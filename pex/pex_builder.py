@@ -35,6 +35,7 @@ from pex.finders import get_entry_point_from_console_script, get_script_from_dis
 from pex.interpreter import PythonInterpreter
 from pex.layout import Layout
 from pex.orderedset import OrderedSet
+from pex.pep_376 import InstalledWheel
 from pex.pex import PEX
 from pex.pex_info import PexInfo
 from pex.sh_boot import create_sh_boot_script
@@ -373,9 +374,16 @@ class PEXBuilder(object):
                     relpath = os.path.relpath(filename, path)
                     target = os.path.join(target_dir, relpath)
                     self._copy_or_link(filename, target, label=dist_name)
-        return fingerprint or (
-            CacheHelper.hash(path) if is_wheel_file else CacheHelper.dir_hash(path)
-        )
+        if fingerprint:
+            return fingerprint
+        if not is_wheel_file:
+            try:
+                installed_wheel = InstalledWheel.load(path)
+                if installed_wheel.fingerprint:
+                    return installed_wheel.fingerprint
+            except InstalledWheel.LoadError:
+                pass
+        return CacheHelper.hash(path) if is_wheel_file else CacheHelper.dir_hash(path)
 
     def add_distribution(
         self,
@@ -537,6 +545,11 @@ class PEXBuilder(object):
         bootstrap_packages = ["cache", "repl", "third_party", "venv"]
         if self._pex_info.includes_tools:
             bootstrap_packages.extend(["commands", "tools"])
+
+        # TODO(John Sirois): XXX: Switch to a symlink model, isolate(), then symlink from there?
+        # The bootstraps, as it stands, are ~4.5 MB for each loose dogfood PEX. For the Pex ITs,
+        # this ends up taking up a significant amount of disk space.
+
         for root, dirs, files in deterministic_walk(_ABS_PEX_PACKAGE_DIR):
             if root == _ABS_PEX_PACKAGE_DIR:
                 dirs[:] = bootstrap_packages
