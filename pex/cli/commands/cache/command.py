@@ -7,8 +7,9 @@ import functools
 import os
 import re
 from argparse import Action, ArgumentError, _ActionsContainer
-from collections import Counter, OrderedDict
+from collections import Counter, OrderedDict, defaultdict
 from datetime import datetime, timedelta
+from typing import DefaultDict
 
 from pex.cache import access as cache_access
 from pex.cache import data as cache_data
@@ -524,10 +525,13 @@ class Cache(OutputMixin, BuildTimeCommand):
                 finally:
                     print(file=fp)
 
-        additional_cache_dirs_by_project_name_and_version = {
-            (download_dir.project_name, download_dir.version): [download_dir]
-            for download_dir in DownloadDir.iter_all()
-        }  # type: Dict[Tuple[ProjectName, Version], List[AtomicCacheDir]]
+        additional_cache_dirs_by_project_name_and_version = defaultdict(
+            list
+        )  # type: DefaultDict[Tuple[ProjectName, Version], List[AtomicCacheDir]]
+        for download_dir in DownloadDir.iter_all():
+            additional_cache_dirs_by_project_name_and_version[
+                (download_dir.project_name, download_dir.version)
+            ].append(download_dir)
 
         prune_cache_dir = functools.partial(
             self._prune_cache_dir, additional_cache_dirs_by_project_name_and_version
