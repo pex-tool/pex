@@ -9,7 +9,7 @@ import os
 
 from pex import hashing
 from pex.atomic_directory import FileLockStyle, atomic_directory
-from pex.cache.dirs import CacheDir
+from pex.cache.dirs import DownloadDir
 from pex.common import safe_rmtree
 from pex.pep_503 import ProjectName
 from pex.resolve.locked_resolve import Artifact
@@ -126,7 +126,9 @@ class DownloadManager(Generic["_A"]):
     ):
         # type: (...) -> DownloadedArtifact
 
-        download_dir = CacheDir.DOWNLOADS.path(artifact.fingerprint.hash, pex_root=self._pex_root)
+        download_dir = DownloadDir.create(
+            file_hash=artifact.fingerprint.hash, pex_root=self._pex_root
+        )
         with atomic_directory(download_dir, lock_style=self._file_lock_style) as atomic_dir:
             if atomic_dir.is_finalized():
                 TRACER.log("Using cached artifact at {} for {}".format(download_dir, artifact))
