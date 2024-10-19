@@ -536,11 +536,12 @@ def test_check(tmpdir):
     file_too_big = os.path.join(str(tmpdir), "file_too_big.py")
     with open(file_too_big, "w") as fp:
         fp.write("\n")
+    accum = file_too_big + ".accum"
     for _ in range(32):
-        accum = file_too_big + ".accum"
         os.rename(file_too_big, accum)
         with open(file_too_big, "wb") as dest:
             subprocess.check_call(args=["cat", accum, accum], stdout=dest.fileno())
+    os.unlink(accum)
     assert os.path.getsize(file_too_big) > 0xFFFFFFFF, (
         "ZIP64 must be used if file sizes are bigger than 0xFFFFFFFF per "
         "https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT 4.3.9.2"
@@ -549,11 +550,13 @@ def test_check(tmpdir):
     zipapp_too_big = os.path.join(str(tmpdir), "too-big.pyz")
     with write_zipapp(zipapp_too_big) as zf:
         zf.write(file_too_big, os.path.basename(file_too_big))
+    os.unlink(file_too_big)
     assert_perform_check_zip64_handling(
         zipapp_too_big,
         # N.B.: PyPy < 3.8 hangs when trying to run a zip64 app with a too-large file entry.
         test_run=not IS_PYPY or sys.version_info[:2] >= (3, 8),
     )
+    os.unlink(zipapp_too_big)
 
     zipapp_too_many_entries = os.path.join(str(tmpdir), "too-many-entries.pyz")
     with write_zipapp(zipapp_too_many_entries) as zf:
