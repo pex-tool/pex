@@ -37,6 +37,7 @@ def test_zip64_fail_fast(tmpdir):
         ),
     ):
         Zip.load(zip_file)
+    os.unlink(zip_file)
 
 
 def assert_zipapp(

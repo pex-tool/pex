@@ -4,6 +4,7 @@
 import os.path
 import stat
 import subprocess
+from collections import OrderedDict
 
 from pex.common import safe_rmtree
 from pex.typing import TYPE_CHECKING
@@ -48,9 +49,15 @@ def test_read_only_venv(
     assert_pex_works()
 
     write_mask = stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH
+    orig_mode_by_path = OrderedDict()  # type: OrderedDict[str, int]
     for root, dirs, files in os.walk(venv.site_packages_dir, topdown=False):
         for path in files + dirs:
             abs_path = os.path.join(root, path)
-            os.chmod(abs_path, os.stat(abs_path).st_mode & ~write_mask)
-
-    assert_pex_works()
+            orig_mode = os.stat(abs_path).st_mode
+            orig_mode_by_path[abs_path] = orig_mode
+            os.chmod(abs_path, orig_mode & ~write_mask)
+    try:
+        assert_pex_works()
+    finally:
+        for path, mode in orig_mode_by_path.items():
+            os.chmod(path, mode)
