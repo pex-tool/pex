@@ -14,6 +14,7 @@ from pex.variables import ENV, Variables
 if TYPE_CHECKING:
     from typing import Any, Iterable, Iterator, List, Optional, Type, TypeVar, Union
 
+    from pex.dist_metadata import ProjectNameAndVersion
     from pex.pep_440 import Version
     from pex.pep_503 import ProjectName
     from pex.pip.version import PipVersionValue
@@ -555,39 +556,66 @@ class DownloadDir(AtomicCacheDir):
                 continue
             if not is_sdist(file_path) and not is_wheel(file_path):
                 continue
-            directory, file_name = os.path.split(file_path)
-            file_hash = os.path.basename(directory)
-            yield cls.create(file_hash=file_hash, file_name=file_name)
+            download_dir, file_name = os.path.split(file_path)
+            yield cls(path=download_dir, file_name=file_name)
 
     @classmethod
     def create(
         cls,
         file_hash,  # type: str
-        file_name,  # type: str
+        file_name=None,  # type: Optional[str]
+        pex_root=ENV,  # type: Union[str, Variables]
     ):
         # type: (...) -> DownloadDir
-        from pex.dist_metadata import ProjectNameAndVersion, is_wheel
-
-        pnav = ProjectNameAndVersion.from_filename(file_name)
-        return cls(
-            path=CacheDir.DOWNLOADS.path(file_hash),
-            file_name=file_name,
-            project_name=pnav.canonicalized_project_name,
-            version=pnav.canonicalized_version,
-            is_wheel=is_wheel(file_name),
-        )
+        return cls(path=CacheDir.DOWNLOADS.path(file_hash, pex_root=pex_root), file_name=file_name)
 
     def __init__(
         self,
         path,  # type: str
-        file_name,  # type: str
-        project_name,  # type: ProjectName
-        version,  # type: Version
-        is_wheel,  # type: bool
+        file_name=None,  # type: Optional[str]
     ):
         # type: (...) -> None
         super(DownloadDir, self).__init__(path)
-        self.file_name = file_name
-        self.project_name = project_name
-        self.version = version
-        self.is_wheel = is_wheel
+        self._file_name = file_name
+        self.__pnav = None  # type: Optional[ProjectNameAndVersion]
+
+    @property
+    def file_name(self):
+        # type: () -> str
+        from pex.dist_metadata import is_sdist, is_wheel
+
+        if self._file_name is None:
+            potential_file_names = [
+                file_name
+                for file_name in os.listdir(self.path)
+                if not os.path.isdir(os.path.join(self.path, file_name))
+                and (is_sdist(file_name) or is_wheel(file_name))
+            ]
+            production_assert(len(potential_file_names) == 1)
+            self._file_name = potential_file_names[0]
+        return self._file_name
+
+    @property
+    def _pnav(self):
+        # type: () -> ProjectNameAndVersion
+        if self.__pnav is None:
+            from pex.dist_metadata import ProjectNameAndVersion
+
+            self.__pnav = ProjectNameAndVersion.from_filename(self.file_name)
+        return self.__pnav
+
+    @property
+    def project_name(self):
+        # type: () -> ProjectName
+        return self._pnav.canonicalized_project_name
+
+    @property
+    def version(self):
+        # type: () -> Version
+        return self._pnav.canonicalized_version
+
+    @property
+    def is_wheel(self):
+        from pex.dist_metadata import is_wheel
+
+        return is_wheel(self.file_name)

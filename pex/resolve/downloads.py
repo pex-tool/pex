@@ -8,7 +8,7 @@ import shutil
 
 from pex import hashing
 from pex.atomic_directory import atomic_directory
-from pex.cache.dirs import CacheDir
+from pex.cache.dirs import CacheDir, DownloadDir
 from pex.common import safe_mkdir, safe_mkdtemp
 from pex.hashing import Sha256
 from pex.jobs import Job, Raise, SpawnedJob, execute_parallel
@@ -60,7 +60,7 @@ class ArtifactDownloader(object):
         digest = Sha256()
         hashing.file_hash(path, digest)
         fingerprint = digest.hexdigest()
-        target_dir = CacheDir.DOWNLOADS.path(fingerprint)
+        target_dir = DownloadDir.create(file_hash=fingerprint)
         with atomic_directory(target_dir) as atomic_dir:
             if not atomic_dir.is_finalized():
                 shutil.move(path, os.path.join(atomic_dir.work_dir, os.path.basename(path)))
