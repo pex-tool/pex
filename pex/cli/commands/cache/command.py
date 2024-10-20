@@ -4,6 +4,7 @@
 from __future__ import absolute_import, print_function
 
 import functools
+import itertools
 import os
 import re
 from argparse import Action, ArgumentError, _ActionsContainer
@@ -15,6 +16,7 @@ from pex.cache import data as cache_data
 from pex.cache.dirs import (
     AtomicCacheDir,
     BootstrapDir,
+    BuiltWheelDir,
     CacheDir,
     DownloadDir,
     InstalledWheelDir,
@@ -40,7 +42,18 @@ from pex.variables import ENV
 
 if TYPE_CHECKING:
     import typing
-    from typing import IO, DefaultDict, Dict, Iterable, List, Mapping, Optional, Tuple, Union
+    from typing import (
+        IO,
+        DefaultDict,
+        Dict,
+        Iterable,
+        Iterator,
+        List,
+        Mapping,
+        Optional,
+        Tuple,
+        Union,
+    )
 
     import attr  # vendor:skip
 else:
@@ -527,10 +540,13 @@ class Cache(OutputMixin, BuildTimeCommand):
         additional_cache_dirs_by_project_name_and_version = defaultdict(
             list
         )  # type: DefaultDict[Tuple[ProjectName, Version], List[AtomicCacheDir]]
-        for download_dir in DownloadDir.iter_all():
+        cached_artifact_dirs = itertools.chain(
+            BuiltWheelDir.iter_all(), DownloadDir.iter_all()
+        )  # type: Iterator[Union[BuiltWheelDir, DownloadDir]]
+        for cache_dir in cached_artifact_dirs:
             additional_cache_dirs_by_project_name_and_version[
-                (download_dir.project_name, download_dir.version)
-            ].append(download_dir)
+                (cache_dir.project_name, cache_dir.version)
+            ].append(cache_dir)
 
         prune_cache_dir = functools.partial(
             self._prune_cache_dir, additional_cache_dirs_by_project_name_and_version
