@@ -57,11 +57,21 @@ def test_confounding_encoding(
                 """\
                 from __future__ import absolute_import
 
+                import atexit
                 import os
                 import zipfile
 
                 from pex.common import open_zip
 
+
+                def chown_dest():
+                    for root, dirs, files in os.walk("/dest", topdown=False):
+                        for path in dirs + files:
+                            os.chown(os.path.join(root, path), {uid}, {gid})
+                    os.chown("/dest", {uid}, {gid})
+
+
+                atexit.register(chown_dest)
 
                 with zipfile.ZipFile("/sdists/CherryPy-7.1.0.zip") as zf:
                     try:
@@ -74,7 +84,9 @@ def test_confounding_encoding(
 
                 with open_zip("/sdists/CherryPy-7.1.0.zip") as zf:
                     zf.extractall("/dest")
-                """
+                """.format(
+                    uid=os.getuid(), gid=os.getgid()
+                )
             ),
         ]
     )

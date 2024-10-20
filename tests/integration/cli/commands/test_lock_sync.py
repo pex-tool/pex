@@ -1034,7 +1034,7 @@ def test_sync_venv_run_retain_pip_preinstalled(
 ):
     # type: (...) -> None
 
-    venv_dir = os.path.join(str(tmpdir), "venv")
+    venv_dir = os.path.join(str(tmpdir), "venv-pip-preinstalled")
     venv = Virtualenv.create(venv_dir, install_pip=InstallationChoice.YES)
     pip = find_distribution("pip", search_path=venv.sys_path)
     assert pip is not None
@@ -1079,7 +1079,7 @@ def test_sync_venv_run_retain_pip_no_pip_preinstalled(
 ):
     # type: (...) -> None
 
-    venv_dir = os.path.join(str(tmpdir), "venv")
+    venv_dir = os.path.join(str(tmpdir), "venv-no-pip-preinstalled")
     lock = os.path.join(str(tmpdir), "lock.json")
     run_sync(
         *(
