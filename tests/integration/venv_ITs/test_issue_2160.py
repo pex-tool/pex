@@ -20,9 +20,9 @@ if TYPE_CHECKING:
 
 
 @pytest.fixture
-def top_level_wheel(tmpdir):
+def top_level_wheel(tmpdir_factory):
     # type: (Any) -> str
-    top_level_project = os.path.join(str(tmpdir), "project")
+    top_level_project = str(tmpdir_factory.mktemp("project"))
     with safe_open(os.path.join(top_level_project, "top_level", "__init__.py"), "w") as fp:
         fp.write("__path__ = __import__('pkgutil').extend_path(__path__, __name__)")
     with safe_open(os.path.join(top_level_project, "top_level", "lib.py"), "w") as fp:
@@ -53,7 +53,7 @@ def top_level_wheel(tmpdir):
             )
         )
 
-    wheel_dir = os.path.join(str(tmpdir), "wheels")
+    wheel_dir = str(tmpdir_factory.mktemp("wheels"))
     return WheelBuilder(source_dir=top_level_project, wheel_dir=wheel_dir).bdist()
 
 
