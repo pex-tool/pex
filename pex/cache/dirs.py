@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from pex.pep_440 import Version
     from pex.pep_503 import ProjectName
     from pex.pip.version import PipVersionValue
+    from pex.targets import Target
 
 
 class CacheDir(Enum["CacheDir.Value"]):
@@ -614,8 +615,135 @@ class DownloadDir(AtomicCacheDir):
         # type: () -> Version
         return self._pnav.canonicalized_version
 
+
+class BuiltWheelDir(AtomicCacheDir):
+    @classmethod
+    def iter_all(cls, pex_root=ENV):
+        # type: (Union[str, Variables]) -> Iterator[BuiltWheelDir]
+
+        from pex.dist_metadata import ProjectNameAndVersion, UnrecognizedDistributionFormat
+
+        for path in glob.glob(CacheDir.BUILT_WHEELS.path("sdists", "*", "*")):
+            sdist, fingerprint = os.path.split(path)
+            try:
+                pnav = ProjectNameAndVersion.from_filename(sdist)
+                yield BuiltWheelDir.create(
+                    sdist=sdist, fingerprint=fingerprint, pnav=pnav, pex_root=pex_root
+                )
+            except UnrecognizedDistributionFormat:
+                # This is a source distribution that does not follow sdist naming patterns / is not
+                # distributed via PyPI; e.g.: a GitHub source tarball or zip.
+                for built_wheel in glob.glob(os.path.join(path, "*", "*")):
+                    file_name = os.path.basename(built_wheel)
+                    dist_dir = os.path.dirname(built_wheel)
+                    yield BuiltWheelDir(path=dist_dir, dist_dir=dist_dir, file_name=file_name)
+
+        for built_wheel in glob.glob(
+            CacheDir.BUILT_WHEELS.path("local_projects", "*", "*", "*", "*")
+        ):
+            file_name = os.path.basename(built_wheel)
+            dist_dir = os.path.dirname(built_wheel)
+            yield BuiltWheelDir(path=dist_dir, dist_dir=dist_dir, file_name=file_name)
+
+    @classmethod
+    def create(
+        cls,
+        sdist,  # type: str
+        fingerprint=None,  # type: Optional[str]
+        pnav=None,  # type: Optional[ProjectNameAndVersion]
+        target=None,  # type: Optional[Target]
+        pex_root=ENV,  # type: Union[str, Variables]
+    ):
+        # type: (...) -> BuiltWheelDir
+
+        import hashlib
+
+        from pex import targets
+        from pex.dist_metadata import is_sdist
+        from pex.util import CacheHelper
+
+        if is_sdist(sdist):
+            dist_type = "sdists"
+            fingerprint = fingerprint or CacheHelper.hash(sdist, hasher=hashlib.sha256)
+            file_name = os.path.basename(sdist)
+        else:
+            dist_type = "local_projects"
+            fingerprint = fingerprint or CacheHelper.dir_hash(sdist, hasher=hashlib.sha256)
+            file_name = None
+
+        # For the purposes of building a wheel from source, the product should be uniqued by the
+        # wheel name which is unique on the host os up to the python and abi tags. In other words,
+        # the product of a CPython 2.7.6 wheel build and a CPython 2.7.18 wheel build should be
+        # functionally interchangeable if the two CPython interpreters have matching abis.
+        #
+        # However, this is foiled by at least two scenarios:
+        # 1. Running a vm / container with shared storage mounted. This can introduce a different
+        #    platform on the host.
+        # 2. On macOS the same host can report / use different OS versions (c.f.: the
+        #    MACOSX_DEPLOYMENT_TARGET environment variable and the 10.16 / 11.0 macOS Big Sur
+        #    transitional case in particular).
+        #
+        # As such, we must be pessimistic and assume the wheel will be platform specific to the
+        # full extent possible.
+        interpreter = (target or targets.current()).get_interpreter()
+        target_tags = "{python_tag}-{abi_tag}-{platform_tag}".format(
+            python_tag=interpreter.identity.python_tag,
+            abi_tag=interpreter.identity.abi_tag,
+            platform_tag=interpreter.identity.platform_tag,
+        )
+        sdist_dir = CacheDir.BUILT_WHEELS.path(
+            dist_type, os.path.basename(sdist), pex_root=pex_root
+        )
+        dist_dir = os.path.join(sdist_dir, fingerprint, target_tags)
+
+        if is_sdist(sdist):
+            return cls(path=sdist_dir, dist_dir=dist_dir, file_name=file_name, pnav=pnav)
+        else:
+            return cls(path=dist_dir, dist_dir=dist_dir, file_name=file_name, pnav=pnav)
+
+    def __init__(
+        self,
+        path,  # type: str
+        dist_dir,  # type: str
+        file_name=None,  # type: Optional[str]
+        pnav=None,  # type: Optional[ProjectNameAndVersion]
+    ):
+        # type: (...) -> None
+        super(BuiltWheelDir, self).__init__(path)
+        self.dist_dir = dist_dir
+        self._file_name = file_name
+        self.__pnav = pnav
+
     @property
-    def is_wheel(self):
+    def file_name(self):
+        # type: () -> str
         from pex.dist_metadata import is_wheel
 
-        return is_wheel(self.file_name)
+        if self._file_name is None:
+            potential_file_names = [
+                file_name
+                for file_name in os.listdir(self.dist_dir)
+                if not os.path.isdir(os.path.join(self.dist_dir, file_name)) and is_wheel(file_name)
+            ]
+            production_assert(len(potential_file_names) == 1)
+            self._file_name = potential_file_names[0]
+        return self._file_name
+
+    @property
+    def _pnav(self):
+        # type: () -> ProjectNameAndVersion
+        if self.__pnav is None:
+            from pex.dist_metadata import ProjectNameAndVersion
+
+            self.__pnav = ProjectNameAndVersion.from_filename(self.file_name)
+        return self.__pnav
+
+    @property
+    def project_name(self):
+        # type: () -> ProjectName
+        return self._pnav.canonicalized_project_name
+
+    @property
+    def version(self):
+        # type: () -> Version
+        return self._pnav.canonicalized_version
