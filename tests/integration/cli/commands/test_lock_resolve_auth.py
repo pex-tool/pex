@@ -16,6 +16,7 @@ from pex.compatibility import PY2
 from pex.typing import TYPE_CHECKING
 from testing import IntegResults, make_env, run_pex_command
 from testing.cli import run_pex3
+from testing.pytest.tmp import TempdirFactory
 
 if TYPE_CHECKING:
     from typing import Any, Iterator
@@ -72,9 +73,12 @@ def serve_authenticated(username, password, find_links):
 
 
 @pytest.fixture(scope="module")
-def ansicolors_find_links_directory(tmpdir_factory):
-    # type: (Any) -> str
-    find_links = str(tmpdir_factory.mktemp("find_links"))
+def ansicolors_find_links_directory(
+    tmpdir_factory,  # type: TempdirFactory
+    request,  # type: Any
+):
+    # type: (...) -> str
+    find_links = str(tmpdir_factory.mktemp("find_links", request=request))
     run_pex_command(
         args=[
             "ansicolors==1.1.8",

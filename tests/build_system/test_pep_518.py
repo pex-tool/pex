@@ -15,6 +15,7 @@ from pex.targets import LocalInterpreter
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
 from pex.venv.virtualenv import Virtualenv
+from testing.build_system import hatchling_only_supports_37_and_greater
 
 if TYPE_CHECKING:
     from typing import Any, Optional, Union
@@ -60,6 +61,7 @@ def test_load_build_system_pyproject_but_not_for_build(tmpdir):
     assert load_build_system(project_dir) is None
 
 
+@hatchling_only_supports_37_and_greater
 def test_load_build_system_pyproject(
     tmpdir,  # type: Any
     pex_project_dir,  # type: str
@@ -80,6 +82,7 @@ def test_load_build_system_pyproject(
     )
 
 
+@hatchling_only_supports_37_and_greater
 def test_load_build_system_env_strip_issue_1872(
     tmpdir,  # type: Any
     pex_project_dir,  # type: str

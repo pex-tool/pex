@@ -31,6 +31,7 @@ from pex.venv.virtualenv import InstallationChoice, Virtualenv
 from testing import PY_VER, data, make_env, run_pex_command
 from testing.cli import run_pex3
 from testing.lock import extract_lock_option_args, index_lock_artifacts
+from testing.pytest.tmp import TempdirFactory
 
 if TYPE_CHECKING:
     from typing import Any
@@ -84,11 +85,15 @@ EXPECTED_IMPORT_ERROR_MSG = "ModuleNotFoundError: No module named 'certifi'"
 
 
 @pytest.fixture(scope="module")
-def certifi_venv(tmpdir_factory):
-    # type: (Any) -> Virtualenv
+def certifi_venv(
+    tmpdir_factory,  # type: TempdirFactory
+    request,  # type: Any
+):
+    # type: (...) -> Virtualenv
 
     venv = Virtualenv.create(
-        venv_dir=str(tmpdir_factory.mktemp("venv")), install_pip=InstallationChoice.YES
+        venv_dir=str(tmpdir_factory.mktemp("venv", request=request)),
+        install_pip=InstallationChoice.YES,
     )
     pip = venv.bin_path("pip")
 

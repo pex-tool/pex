@@ -11,7 +11,7 @@ from pex.targets import LocalInterpreter
 from pex.typing import TYPE_CHECKING
 from pex.version import __version__
 from testing import make_project
-from testing.build_system import assert_build_sdist
+from testing.build_system import assert_build_sdist, hatchling_only_supports_37_and_greater
 
 if TYPE_CHECKING:
     from typing import Any
@@ -59,6 +59,7 @@ def test_build_sdist_setup_py(tmpdir):
         assert_build_sdist(project_dir, "foo", "42", tmpdir)
 
 
+@hatchling_only_supports_37_and_greater
 def test_build_sdist_pyproject_toml(
     tmpdir,  # type: Any
     pex_project_dir,  # type: str

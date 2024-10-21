@@ -20,12 +20,7 @@ if TYPE_CHECKING:
 def temporary_pex_root():
     # type: () -> Iterator[Tuple[str, Dict[str, str]]]
     with temporary_dir() as pex_root, ENV.patch(PEX_ROOT=os.path.realpath(pex_root)) as env:
-        original_isolated = third_party._ISOLATED
-        try:
-            third_party._ISOLATED = None
-            yield os.path.realpath(pex_root), env
-        finally:
-            third_party._ISOLATED = original_isolated
+        yield os.path.realpath(pex_root), env
 
 
 def test_isolated_pex_root():

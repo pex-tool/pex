@@ -17,15 +17,19 @@ from pex.resolve.resolved_requirement import ArtifactURL, Pin
 from pex.typing import TYPE_CHECKING
 from testing import make_env, run_pex_command
 from testing.cli import run_pex3
+from testing.pytest.tmp import Tempdir, TempdirFactory
 
 if TYPE_CHECKING:
     from typing import Any
 
 
 @pytest.fixture(scope="module")
-def td(tmpdir_factory):
-    # type: (Any) -> Any
-    return tmpdir_factory.mktemp("td")
+def td(
+    tmpdir_factory,  # type: TempdirFactory
+    request,  # type: Any
+):
+    # type: (...) -> Tempdir
+    return tmpdir_factory.mktemp("td", request=request)
 
 
 @pytest.fixture(scope="module")

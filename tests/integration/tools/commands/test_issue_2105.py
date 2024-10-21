@@ -14,15 +14,19 @@ from pex.pex import PEX
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import InstallationChoice, Virtualenv
 from testing import make_env, run_pex_command
+from testing.pytest.tmp import Tempdir, TempdirFactory
 
 if TYPE_CHECKING:
     from typing import Any, Iterable, Mapping, Optional
 
 
 @pytest.fixture(scope="module")
-def td(tmpdir_factory):
-    # type: (Any) -> Any
-    return tmpdir_factory.mktemp("td")
+def td(
+    tmpdir_factory,  # type: TempdirFactory
+    request,  # type: Any
+):
+    # type: (...) -> Tempdir
+    return tmpdir_factory.mktemp("td", request=request)
 
 
 PIP_PROJECT_NAME = ProjectName("pip")
