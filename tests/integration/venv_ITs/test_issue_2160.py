@@ -20,9 +20,9 @@ if TYPE_CHECKING:
 
 
 @pytest.fixture
-def top_level_wheel(tmpdir):
+def top_level_wheel(tmpdir_factory):
     # type: (Any) -> str
-    top_level_project = os.path.join(str(tmpdir), "project")
+    top_level_project = str(tmpdir_factory.mktemp("project"))
     with safe_open(os.path.join(top_level_project, "top_level", "__init__.py"), "w") as fp:
         fp.write("__path__ = __import__('pkgutil').extend_path(__path__, __name__)")
     with safe_open(os.path.join(top_level_project, "top_level", "lib.py"), "w") as fp:
@@ -53,7 +53,7 @@ def top_level_wheel(tmpdir):
             )
         )
 
-    wheel_dir = os.path.join(str(tmpdir), "wheels")
+    wheel_dir = str(tmpdir_factory.mktemp("wheels"))
     return WheelBuilder(source_dir=top_level_project, wheel_dir=wheel_dir).bdist()
 
 
@@ -69,14 +69,14 @@ def top_level_wheel(tmpdir):
     "layout", [pytest.param(layout, id=layout.value) for layout in Layout.values()]
 )
 def test_ns_package_split_across_sources_and_deps(
-    tmpdir,  # type: Any
+    tmpdir_factory,  # type: Any
     top_level_wheel,  # type: str
     style_args,  # type: List[str]
     layout,  # type: Layout.Value
 ):
     # type: (...) -> None
 
-    sources = os.path.join(str(tmpdir), "sources")
+    sources = str(tmpdir_factory.mktemp("sources"))
     with safe_open(os.path.join(sources, "top_level", "__init__.py"), "w") as fp:
         fp.write("__path__ = __import__('pkgutil').extend_path(__path__, __name__)")
     with safe_open(os.path.join(sources, "top_level", "mymain.py"), "w") as fp:
@@ -91,8 +91,8 @@ def test_ns_package_split_across_sources_and_deps(
             )
         )
 
-    pex_root = os.path.join(str(tmpdir), "pex_root")
-    pex = os.path.join(str(tmpdir), "binary.pex")
+    pex_root = str(tmpdir_factory.mktemp("pex_root"))
+    pex = str(tmpdir_factory.mktemp("bin").join("binary.pex"))
     run_pex_command(
         args=[
             "--pex-root",

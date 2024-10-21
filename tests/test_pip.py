@@ -59,12 +59,9 @@ def pex_root(tmpdir):
 
 
 @pytest.fixture
-def create_pip(
-    pex_root,  # type: str
-    tmpdir,  # type: Any
-):
-    # type: (...) -> Iterator[CreatePip]
-    pex_root = os.path.join(str(tmpdir), "pex_root")
+def create_pip(tmpdir_factory):
+    # type: (Any) -> Iterator[CreatePip]
+    pex_root = str(tmpdir_factory.mktemp("pex_root"))
 
     def create_pip(
         interpreter,  # type: Optional[PythonInterpreter]

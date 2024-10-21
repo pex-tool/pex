@@ -65,16 +65,12 @@ def test_ssl_context(
         ]
     )
 
-    work_dir = os.path.join(str(tmpdir), "work_dir")
-    os.mkdir(work_dir)
     docker_run_args = [
         "docker",
         "run",
         "--rm",
         "-v",
         "{pex_project_dir}:/code".format(pex_project_dir=pex_project_dir),
-        "-v",
-        "{work_dir}:/work".format(work_dir=work_dir),
         "-w",
         "/code",
         "test_issue_2355",
@@ -101,25 +97,25 @@ def test_ssl_context(
         )
     )
 
-    subprocess.check_call(
-        args=docker_run_args
-        + [
-            "lock",
-            "create",
-            "--pip-version",
-            str(pip_version),
-            "--style",
-            "universal",
-            "cowsay==5.0",
-            "--indent",
-            "2",
-            "-o",
-            "/work/lock.json",
-        ]
-    )
+    lock = os.path.join(str(tmpdir), "lock.json")
+    with open(lock, "wb") as fp:
+        fp.write(
+            subprocess.check_output(
+                args=docker_run_args
+                + [
+                    "lock",
+                    "create",
+                    "--pip-version",
+                    str(pip_version),
+                    "--style",
+                    "universal",
+                    "cowsay==5.0",
+                    "--indent",
+                    "2",
+                ]
+            )
+        )
 
-    result = run_pex_command(
-        args=["--lock", os.path.join(work_dir, "lock.json"), "-c", "cowsay", "--", "Moo!"]
-    )
+    result = run_pex_command(args=["--lock", lock, "-c", "cowsay", "--", "Moo!"])
     result.assert_success()
     assert "Moo!" in result.error
