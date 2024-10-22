@@ -82,6 +82,18 @@ def test_basic(
             re_flags=re.DOTALL | re.MULTILINE,
         )
         return
+    if PY_VER >= (3, 14):
+        result.assert_failure(
+            expected_error_re=(
+                r".*"
+                r"^Failed to build 1 scie:$"
+                r".*"
+                r"^Provider: No released assets found for release [0-9]{{8}} Python {version} "
+                r"of flavor install_only\.$".format(version=".".join(map(str, PY_VER)))
+            ),
+            re_flags=re.DOTALL | re.MULTILINE,
+        )
+        return
     result.assert_success()
 
     scie = os.path.join(str(tmpdir), "cowsay")
@@ -89,7 +101,7 @@ def test_basic(
 
 
 @pytest.mark.skipif(
-    (PY_VER < (3, 8) and not IS_PYPY) or PY_VER >= (3, 13),
+    (PY_VER < (3, 8) and not IS_PYPY) or PY_VER >= (3, 14),
     reason="Scie output is not supported for {interpreter}".format(interpreter=sys.version),
 )
 @pytest.mark.skipif(

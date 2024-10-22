@@ -17,6 +17,7 @@ from pex.pep_427 import InstallableType
 from pex.pep_503 import ProjectName
 from pex.pip.version import PipVersionValue
 from pex.resolve.lockfile.model import Lockfile
+from pex.resolve.resolver_configuration import BuildConfiguration
 from pex.sorted_tuple import SortedTuple
 from pex.targets import AbbreviatedPlatform, Target, Targets
 from pex.typing import TYPE_CHECKING
@@ -245,6 +246,7 @@ class Resolver(object):
         pip_version=None,  # type: Optional[PipVersionValue]
         transitive=None,  # type: Optional[bool]
         extra_resolver_requirements=None,  # type: Optional[Tuple[Requirement, ...]]
+        build_configuration=None,  # type: Optional[BuildConfiguration]
         result_type=InstallableType.INSTALLED_WHEEL_CHROOT,  # type: InstallableType.Value
     ):
         # type: (...) -> ResolveResult

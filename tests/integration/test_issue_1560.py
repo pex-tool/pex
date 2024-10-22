@@ -3,6 +3,7 @@
 
 import os.path
 import subprocess
+import sys
 
 import pytest
 
@@ -55,6 +56,10 @@ def test_build_isolation(
     subprocess.check_call(args=[python, pex, "-c", "import pex"])
 
 
+@pytest.mark.skipif(
+    sys.version_info[:2] >= (3, 14),
+    reason="The flit_core versions under test rely on ast.Str which was removed in Python 3.14.",
+)
 def test_pep_517_for_pep_517_project():
     # type: () -> None
 

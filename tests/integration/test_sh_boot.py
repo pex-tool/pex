@@ -3,6 +3,7 @@
 
 import json
 import os
+import re
 import subprocess
 import sys
 from textwrap import dedent
@@ -189,12 +190,38 @@ def test_issue_1782(
     # type: (...) -> None
 
     pex = os.path.realpath(os.path.join(str(tmpdir), "pex.sh"))
+    python = "python{major}.{minor}".format(major=sys.version_info[0], minor=sys.version_info[1])
     run_pex_command(
-        args=[pex_project_dir, "-c", "pex", "-o", pex] + execution_mode_args
+        args=[
+            pex_project_dir,
+            "-c",
+            "pex",
+            "-o",
+            pex,
+            "--python-shebang",
+            "/usr/bin/env {python}".format(python=python),
+        ]
+        + execution_mode_args
     ).assert_success()
 
-    help_line1 = subprocess.check_output(args=[pex, "-h"]).decode("utf-8").splitlines()[0]
-    assert help_line1.startswith("usage: {pex} ".format(pex=os.path.basename(pex))), help_line1
+    if sys.version_info[:2] >= (3, 14) and {"--venv"} != set(execution_mode_args):
+        argv0 = r"python(?:3(?:\.\d{{2,}})?)? {pex}".format(pex=re.escape(pex))
+    else:
+        argv0 = re.escape(os.path.basename(pex))
+    usage_line_re = re.compile(r"^usage: {argv0}".format(argv0=argv0))
+    help_line1 = (
+        subprocess.check_output(
+            args=[pex, "-h"], env=make_env(COLUMNS=max(80, len(usage_line_re.pattern) + 10))
+        )
+        .decode("utf-8")
+        .splitlines()[0]
+        .strip()
+    )
+    assert usage_line_re.match(help_line1), (
+        "\n"
+        "expected: {expected}\n"
+        "actual:   {actual}".format(expected=usage_line_re.pattern, actual=help_line1)
+    )
     assert (
         pex
         == subprocess.check_output(

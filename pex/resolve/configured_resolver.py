@@ -9,7 +9,12 @@ from pex.pep_427 import InstallableType
 from pex.pip.version import PipVersion, PipVersionValue
 from pex.resolve import lock_resolver
 from pex.resolve.lockfile.model import Lockfile
-from pex.resolve.resolver_configuration import PipConfiguration, ReposConfiguration, ResolverVersion
+from pex.resolve.resolver_configuration import (
+    BuildConfiguration,
+    PipConfiguration,
+    ReposConfiguration,
+    ResolverVersion,
+)
 from pex.resolve.resolvers import Resolver, ResolveResult
 from pex.result import try_
 from pex.targets import Targets
@@ -88,6 +93,7 @@ class ConfiguredResolver(Resolver):
         pip_version=None,  # type: Optional[PipVersionValue]
         transitive=None,  # type: Optional[bool]
         extra_resolver_requirements=None,  # type: Optional[Tuple[Requirement, ...]]
+        build_configuration=None,  # type: Optional[BuildConfiguration]
         result_type=InstallableType.INSTALLED_WHEEL_CHROOT,  # type: InstallableType.Value
     ):
         # type: (...) -> ResolveResult
@@ -100,7 +106,7 @@ class ConfiguredResolver(Resolver):
             find_links=self.pip_configuration.repos_configuration.find_links,
             resolver_version=self.pip_configuration.resolver_version,
             network_configuration=self.pip_configuration.network_configuration,
-            build_configuration=self.pip_configuration.build_configuration,
+            build_configuration=build_configuration or self.pip_configuration.build_configuration,
             compile=False,
             max_parallel_jobs=self.pip_configuration.max_jobs,
             ignore_errors=False,

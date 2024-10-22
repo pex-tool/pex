@@ -18,4 +18,4 @@ def has_provider():
         else:
             return PY_VER >= (3, 6)
     else:
-        return (3, 8) <= PY_VER < (3, 13)
+        return (3, 8) <= PY_VER < (3, 14)
