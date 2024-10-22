@@ -18,7 +18,7 @@ from pex.typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from typing import Any, Optional
 
-_MAX_ATTEMPTS = 50
+_MAX_ATTEMPTS = 100
 
 
 class RetentionPolicy(Enum["RetentionPolicy.Value"]):
