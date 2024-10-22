@@ -5,6 +5,9 @@ from __future__ import absolute_import
 
 import glob
 import os
+import sys
+
+import pytest
 
 from pex.build_system.pep_517 import build_sdist
 from pex.dist_metadata import Distribution
@@ -20,6 +23,11 @@ from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from typing import Any
+
+
+hatchling_only_supports_37_and_greater = pytest.mark.skipif(
+    sys.version_info[:2] < (3, 7), reason="Our current build system only works under Python>=3.7"
+)
 
 
 def assert_build_sdist(

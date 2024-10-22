@@ -5,13 +5,11 @@
 from __future__ import absolute_import
 
 import atexit
-import getpass
 import logging
 import os
 import re
 import subprocess
 import sys
-import tempfile
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 
 import coloredlogs
@@ -153,21 +151,9 @@ def main():
     else:
         logger.info("No test control environment variables set.")
 
-    args = [
-        sys.executable,
-        "-m",
-        "pytest",
-        # We set up out own --basetemp (similar to the default), just to leverage the fact that this
-        # gets the prior run's temp files cleaned up just before start. This appears to be the only
-        # way to get this behavior, since the `tmp_path_retention_count` setting only seems to work
-        # for values of 1 or more, which leaves 1 or more prior run temp files lying around.
-        "--basetemp",
-        os.path.join(tempfile.gettempdir(), "pytest-of-{user}-pex".format(user=getpass.getuser())),
-        "-n",
-        "auto",
-    ]
+    args = [sys.executable, "-m", "pytest", "-n", "auto"]
     if options.it:
-        args.extend(["tests/integration", "-p", "testing.pytest_shard"])
+        args.extend(["tests/integration", "-p", "testing.pytest.shard"])
     else:
         args.extend(["tests", "--ignore", "tests/integration"])
     args.extend(passthrough_args or ["-vvs"])

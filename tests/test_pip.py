@@ -30,6 +30,7 @@ from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
 from pex.venv.virtualenv import Virtualenv
 from testing import IS_LINUX, PY310, ensure_python_interpreter, environment_as
+from testing.pytest.tmp import Tempdir
 
 if TYPE_CHECKING:
     from typing import Any, Iterable, Iterator, Optional, Protocol
@@ -54,17 +55,13 @@ def current_interpreter():
 
 @pytest.fixture
 def pex_root(tmpdir):
-    # type: (Any) -> str
-    return os.path.join(str(tmpdir), "pex_root")
+    # type: (Tempdir) -> str
+    return tmpdir.join("pex_root")
 
 
 @pytest.fixture
-def create_pip(
-    pex_root,  # type: str
-    tmpdir,  # type: Any
-):
-    # type: (...) -> Iterator[CreatePip]
-    pex_root = os.path.join(str(tmpdir), "pex_root")
+def create_pip(pex_root):
+    # type: (str) -> Iterator[CreatePip]
 
     def create_pip(
         interpreter,  # type: Optional[PythonInterpreter]

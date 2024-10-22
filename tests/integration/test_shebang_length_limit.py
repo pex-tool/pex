@@ -18,6 +18,7 @@ from pex.common import chmod_plus_x, safe_open, touch
 from pex.typing import TYPE_CHECKING
 from testing import IS_PYPY, make_project, run_pex_command
 from testing.cli import run_pex3
+from testing.pytest.tmp import TempdirFactory
 
 if TYPE_CHECKING:
     from typing import Any, Callable, List
@@ -52,12 +53,15 @@ pytestmark = pytest.mark.filterwarnings("ignore:\\(rm_rf\\) error removing.*:pyt
 
 
 @pytest.fixture(scope="module")
-def file_path_length_limit(tmpdir_factory):
-    # type: (Any) -> int
+def file_path_length_limit(
+    tmpdir_factory,  # type: TempdirFactory
+    request,  # type: Any
+):
+    # type: (...) -> int
 
     def file_path_too_long(length):
         # type: (int) -> bool
-        path = str(tmpdir_factory.mktemp("td"))
+        path = str(tmpdir_factory.mktemp("td", request=request))
         while len(path) < length - len(os.path.join("directory", "x")):
             path = os.path.join(path, "directory")
             try:
@@ -85,14 +89,15 @@ def file_path_length_limit(tmpdir_factory):
 
 @pytest.fixture(scope="module")
 def shebang_length_limit(
-    tmpdir_factory,  # type: Any
+    tmpdir_factory,  # type: TempdirFactory
+    request,  # type: Any
     file_path_length_limit,  # type: int
 ):
     # type: (...) -> int
 
     def shebang_too_long(length):
         # type: (int) -> bool
-        path = str(tmpdir_factory.mktemp("td"))
+        path = str(tmpdir_factory.mktemp("td", request=request))
         while len(path) < length - len("#!\n" + os.path.join("directory", "x")):
             path = os.path.join(path, "directory")
             try:

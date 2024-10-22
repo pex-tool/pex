@@ -22,7 +22,7 @@ from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper
 
 if TYPE_CHECKING:
-    from typing import Container, Iterable, Iterator, List, Optional, Tuple
+    from typing import Container, Dict, Iterable, Iterator, List, Optional, Tuple
 
     from pex.interpreter import PythonInterpreter
 
@@ -403,7 +403,9 @@ class IsolationResult(namedtuple("IsolatedPex", ["pex_hash", "chroot_path"])):
     """The result of isolating the current pex distribution to a filesystem chroot."""
 
 
-_ISOLATED = None  # type: Optional[IsolationResult]
+# We use this to isolate Pex installations by PEX_ROOT for tests. In production, there will only
+# ever be 1 PEX_ROOT per Pex process lifetime.
+_ISOLATED = {}  # type: Dict[str, Optional[IsolationResult]]
 
 
 def _isolate_pex_from_dir(
@@ -464,8 +466,11 @@ def isolated(interpreter=None):
 
     :return: An isolation result.
     """
-    global _ISOLATED
-    if _ISOLATED is None:
+    from pex.variables import ENV
+
+    pex_root = ENV.PEX_ROOT
+    isolation_result = _ISOLATED.get(pex_root)
+    if isolation_result is None:
         from pex import layout, vendor
         from pex.atomic_directory import atomic_directory
         from pex.cache.dirs import CacheDir
@@ -509,7 +514,7 @@ def isolated(interpreter=None):
                 pex_zip_paths = (zip_path, pex_package_relpath)
                 pex_hash = CacheHelper.zip_hash(zip_path, relpath=pex_package_relpath)
 
-        isolated_dir = CacheDir.ISOLATED.path(pex_hash)
+        isolated_dir = CacheDir.ISOLATED.path(pex_hash, pex_root=pex_root)
         with _tracer().timed("Isolating pex"):
             with atomic_directory(isolated_dir) as chroot:
                 if not chroot.is_finalized():
@@ -529,8 +534,9 @@ def isolated(interpreter=None):
                                 exclude_files=vendor_lockfiles,
                             )
 
-        _ISOLATED = IsolationResult(pex_hash=pex_hash, chroot_path=isolated_dir)
-    return _ISOLATED
+        isolation_result = IsolationResult(pex_hash=pex_hash, chroot_path=isolated_dir)
+        _ISOLATED[pex_root] = isolation_result
+    return isolation_result
 
 
 def uninstall():

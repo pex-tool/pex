@@ -44,6 +44,7 @@ from testing import (
     make_env,
     run_pex_command,
 )
+from testing.build_system import hatchling_only_supports_37_and_greater
 from testing.cli import run_pex3
 from testing.resolve import normalize_locked_resolve
 
@@ -174,6 +175,7 @@ def test_create_style(
     )
 
 
+@hatchling_only_supports_37_and_greater
 def test_create_local(
     tmpdir,  # type: Any
     pex_project_dir,  # type: str

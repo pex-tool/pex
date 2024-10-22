@@ -533,6 +533,10 @@ def test_check(tmpdir):
             yield zip_file
             zip_file.writestr("__main__.py", "print('BOOTED')")
 
+    # N.B.: This test creates very large files in /tmp; so to relieve possible memory pressure in
+    # tmpfs-based /tmp filesystems, we unlink files as soon as we don't need them instead of waiting
+    # for tmpdir fixture cleanup at the end of the test.
+
     file_too_big = os.path.join(str(tmpdir), "file_too_big.py")
     with open(file_too_big, "w") as fp:
         fp.write("\n")

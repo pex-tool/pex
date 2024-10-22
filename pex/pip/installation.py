@@ -30,6 +30,7 @@ from pex.third_party import isolated
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper
+from pex.variables import ENV
 from pex.venv.virtualenv import InstallationChoice, Virtualenv
 
 if TYPE_CHECKING:
@@ -336,6 +337,13 @@ class PipInstallation(object):
     version = attr.ib()  # type: PipVersionValue
     extra_requirements = attr.ib()  # type: Tuple[Requirement, ...]
     use_system_time = attr.ib()  # type: bool
+
+    # We use this to isolate installations by PEX_ROOT for tests. In production, there will only
+    # ever be 1 PEX_ROOT per Pex process lifetime.
+    pex_root = attr.ib(init=False)  # type: str
+
+    def __attrs_post_init__(self):
+        object.__setattr__(self, "pex_root", ENV.PEX_ROOT)
 
     def check_python_applies(self):
         # type: () -> None

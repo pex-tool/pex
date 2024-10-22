@@ -11,6 +11,7 @@ from pex.interpreter import PythonInterpreter
 from pex.pex_info import PexInfo
 from pex.typing import TYPE_CHECKING
 from testing import IS_PYPY, PY_VER, make_env, run_pex_command
+from testing.pytest.tmp import TempdirFactory
 
 if TYPE_CHECKING:
     from typing import Any, List, Text
@@ -28,13 +29,16 @@ def create_pex_pex(
 
 
 @pytest.fixture(scope="module")
-def old_pex(tmpdir_factory):
-    # type: (Any) -> str
+def old_pex(
+    tmpdir_factory,  # type: TempdirFactory
+    request,  # type: Any
+):
+    # type: (...) -> str
 
     # This was the first version to support Python 3.10, and it did not rely upon the RECORD file to
     # build venvs.
     pex_version = "2.1.55"
-    pex_file = os.path.join(str(tmpdir_factory.mktemp(pex_version)), "tool.pex")
+    pex_file = tmpdir_factory.mktemp(pex_version, request=request).join("tool.pex")
     create_pex_pex(pex_version=pex_version, pex_file=pex_file)
     return pex_file
 

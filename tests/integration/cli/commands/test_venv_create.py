@@ -27,16 +27,20 @@ from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import Virtualenv
 from testing import IS_MAC, PY39, PY310, ensure_python_interpreter, make_env, run_pex_command
 from testing.cli import run_pex3
+from testing.pytest.tmp import Tempdir, TempdirFactory
 
 if TYPE_CHECKING:
     from typing import Any
 
 
 @pytest.fixture(scope="module")
-def td(tmpdir_factory):
-    # type: (Any) -> Any
+def td(
+    tmpdir_factory,  # type: TempdirFactory
+    request,  # type: Any
+):
+    # type: (...) -> Tempdir
 
-    return tmpdir_factory.mktemp("td")
+    return tmpdir_factory.mktemp("td", request=request)
 
 
 @pytest.fixture(scope="module")

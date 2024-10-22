@@ -25,6 +25,7 @@ from pex.util import CacheHelper
 from testing import IS_PYPY, PY_VER, built_wheel, make_env, run_pex_command
 from testing.cli import run_pex3
 from testing.lock import index_lock_artifacts
+from testing.pytest.tmp import TempdirFactory
 
 if TYPE_CHECKING:
     from typing import Any, Mapping, Tuple
@@ -51,10 +52,13 @@ def index_pex_distributions(pex_file):
 
 
 @pytest.fixture(scope="module")
-def requests_lock_strict(tmpdir_factory):
-    # type: (Any) -> str
+def requests_lock_strict(
+    tmpdir_factory,  # type: TempdirFactory
+    request,  # type: Any
+):
+    # type: (...) -> str
 
-    lock = os.path.join(str(tmpdir_factory.mktemp("locks")), "requests.lock")
+    lock = tmpdir_factory.mktemp("locks", request=request).join("requests.lock")
     # N.B.: requests 2.25.1 is known to work with all versions of Python Pex supports.
     run_pex3("lock", "create", "--style", "strict", "requests==2.25.1", "-o", lock).assert_success()
     return lock
@@ -140,12 +144,13 @@ class LockAndRepo(object):
 
 @pytest.fixture(scope="module")
 def requests_tool_pex(
-    tmpdir_factory,  # type: Any
+    tmpdir_factory,  # type: TempdirFactory
+    request,  # type: Any
     requests_lock_strict,  # type: str
 ):
     # type: (...) -> str
 
-    requests_pex = os.path.join(str(tmpdir_factory.mktemp("tool")), "requests.pex")
+    requests_pex = tmpdir_factory.mktemp("tool", request=request).join("requests.pex")
     run_pex_command(
         args=["--lock", requests_lock_strict, "--include-tools", "requests", "-o", requests_pex]
     ).assert_success()
@@ -154,17 +159,18 @@ def requests_tool_pex(
 
 @pytest.fixture
 def requests_lock_findlinks(
-    tmpdir_factory,  # type: Any
+    tmpdir_factory,  # type: TempdirFactory
+    request,  # type: Any
     requests_tool_pex,  # type: str
 ):
     # type: (...) -> LockAndRepo
 
-    find_links_repo = str(tmpdir_factory.mktemp("repo"))
+    find_links_repo = str(tmpdir_factory.mktemp("repo", request=request))
     subprocess.check_call(
         args=[requests_tool_pex, "repository", "extract", "-f", find_links_repo],
         env=make_env(PEX_TOOLS=1),
     )
-    lock = os.path.join(str(tmpdir_factory.mktemp("locks")), "requests-find-links.lock")
+    lock = tmpdir_factory.mktemp("locks", request=request).join("requests-find-links.lock")
     run_pex3(
         "lock",
         "create",
@@ -275,10 +281,13 @@ def test_unavailable_artifacts(
 
 
 @pytest.fixture(scope="module")
-def requests_lock_universal(tmpdir_factory):
-    # type: (Any) -> str
+def requests_lock_universal(
+    tmpdir_factory,  # type: TempdirFactory
+    request,  # type: Any
+):
+    # type: (...) -> str
 
-    lock = os.path.join(str(tmpdir_factory.mktemp("locks")), "requests-universal.lock")
+    lock = tmpdir_factory.mktemp("locks", request=request).join("requests-universal.lock")
     run_pex3(
         "lock", "create", "--style", "universal", "requests[security]==2.25.1", "-o", lock
     ).assert_success()

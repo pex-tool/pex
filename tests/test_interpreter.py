@@ -32,6 +32,7 @@ from testing import (
     environment_as,
     pushd,
 )
+from testing.pytest.tmp import TempdirFactory
 
 try:
     from unittest.mock import Mock, patch  # type: ignore[import]
@@ -434,9 +435,12 @@ def test_identify_cwd_isolation_issues_1231(tmpdir):
 
 
 @pytest.fixture(scope="module")
-def macos_monterey_interpeter(tmpdir_factory):
-    # type: (Any) -> str
-    pythonwrapper = os.path.join(str(tmpdir_factory.mktemp("bin")), "pythonwrapper")
+def macos_monterey_interpeter(
+    tmpdir_factory,  # type: TempdirFactory
+    request,  # type: Any
+):
+    # type: (...) -> str
+    pythonwrapper = tmpdir_factory.mktemp("bin", request=request).join("pythonwrapper")
     with open(pythonwrapper, "w") as fp:
         fp.write(
             dedent(
@@ -450,7 +454,7 @@ def macos_monterey_interpeter(tmpdir_factory):
         )
     chmod_plus_x(pythonwrapper)
 
-    python = os.path.join(str(tmpdir_factory.mktemp("bin")), "python")
+    python = tmpdir_factory.mktemp("bin", request=request).join("python")
     os.symlink(pythonwrapper, python)
     return python
 
