@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 
 
 hatchling_only_supports_37_and_greater = pytest.mark.skipif(
-    sys.version_info[:2] <= (3, 7), reason="Our current build system only works under Python>=3.7"
+    sys.version_info[:2] < (3, 7), reason="Our current build system only works under Python>=3.7"
 )
 
 
