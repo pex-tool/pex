@@ -15,7 +15,6 @@ from pex.common import safe_mkdtemp
 from pex.dist_metadata import DistMetadata, Distribution, MetadataType
 from pex.jobs import Job, SpawnedJob
 from pex.pip.version import PipVersion, PipVersionValue
-from pex.resolve.resolver_configuration import BuildConfiguration
 from pex.resolve.resolvers import Resolver
 from pex.result import Error, try_
 from pex.targets import Target, Targets
@@ -67,7 +66,6 @@ def _default_build_system(
                 for resolved_distribution in resolver.resolve_requirements(
                     requirements=unresolved,
                     targets=Targets.from_target(target),
-                    build_configuration=BuildConfiguration.create(prefer_older_binary=True),
                 ).distributions
             )
             build_system = try_(

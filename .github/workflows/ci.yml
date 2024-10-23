@@ -146,14 +146,14 @@ jobs:
       matrix:
         include:
           - python-version: [ 3, 13 ]
-            tox-env: py312-pip24_2
+            tox-env: py313-pip24_2
             tox-env-python: python3.11
           - python-version: [ 3, 13 ]
-            tox-env: py312-pip24_2-integration
+            tox-env: py313-pip24_2-integration
             tox-env-python: python3.11
             pex-test-pos-args: --shard 1/2
           - python-version: [ 3, 13 ]
-            tox-env: py312-pip24_2-integration
+            tox-env: py313-pip24_2-integration
             tox-env-python: python3.11
             pex-test-pos-args: --shard 2/2
     steps:

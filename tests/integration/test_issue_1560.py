@@ -3,12 +3,12 @@
 
 import os.path
 import subprocess
-import sys
 
 import pytest
 
 from pex.typing import TYPE_CHECKING
 from testing import IntegResults, VenvFactory, all_python_venvs, make_source_dir, run_pex_command
+from testing.pythonPI import skip_flit_core_39
 
 if TYPE_CHECKING:
     from typing import Any
@@ -56,10 +56,7 @@ def test_build_isolation(
     subprocess.check_call(args=[python, pex, "-c", "import pex"])
 
 
-@pytest.mark.skipif(
-    sys.version_info[:2] >= (3, 14),
-    reason="The flit_core versions under test rely on ast.Str which was removed in Python 3.14.",
-)
+@skip_flit_core_39
 def test_pep_517_for_pep_517_project():
     # type: () -> None
 
