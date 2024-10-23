@@ -13,11 +13,13 @@ from pex.resolve.lockfile import json_codec
 from pex.resolve.resolved_requirement import Pin
 from pex.typing import TYPE_CHECKING
 from testing.cli import run_pex3
+from testing.pythonPI import skip_flit_core_39
 
 if TYPE_CHECKING:
     from typing import Any
 
 
+@skip_flit_core_39
 def test_update_sdists_not_updated(tmpdir):
     # type: (Any) -> None
 
