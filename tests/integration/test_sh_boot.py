@@ -13,6 +13,7 @@ import pytest
 from pex.common import safe_open
 from pex.typing import TYPE_CHECKING
 from testing import all_pythons, make_env, run_pex_command
+from testing.pytest.tmp import Tempdir
 
 if TYPE_CHECKING:
     from typing import Any, Iterable, Iterator, List, Text, Tuple
@@ -183,16 +184,21 @@ EXECUTION_MODE_ARGS_PERMUTATIONS = [
 
 @pytest.mark.parametrize("execution_mode_args", EXECUTION_MODE_ARGS_PERMUTATIONS)
 def test_issue_1782(
-    tmpdir,  # type: Any
+    tmpdir,  # type: Tempdir
     pex_project_dir,  # type: str
     execution_mode_args,  # type: List[str]
 ):
     # type: (...) -> None
 
-    pex = os.path.realpath(os.path.join(str(tmpdir), "pex.sh"))
+    pex = os.path.realpath(tmpdir.join("pex.sh"))
+    pex_root = os.path.realpath(tmpdir.join("pex_root"))
     python = "python{major}.{minor}".format(major=sys.version_info[0], minor=sys.version_info[1])
     run_pex_command(
         args=[
+            "--pex-root",
+            pex_root,
+            "--runtime-pex-root",
+            pex_root,
             pex_project_dir,
             "-c",
             "pex",
@@ -204,7 +210,7 @@ def test_issue_1782(
         + execution_mode_args
     ).assert_success()
 
-    if sys.version_info[:2] >= (3, 14) and {"--venv"} != set(execution_mode_args):
+    if sys.version_info[:2] >= (3, 14) and "--venv" not in execution_mode_args:
         argv0 = r"python(?:3(?:\.\d{{2,}})?)? {pex}".format(pex=re.escape(pex))
     else:
         argv0 = re.escape(os.path.basename(pex))
