@@ -9,6 +9,7 @@ import glob
 import hashlib
 import itertools
 import os
+import shutil
 import zipfile
 from abc import abstractmethod
 from collections import OrderedDict, defaultdict
@@ -85,9 +86,7 @@ class PipLogManager(object):
     ):
         # type: (...) -> PipLogManager
         log_by_target = {}  # type: Dict[Target, str]
-        if log and len(targets) == 1:
-            log_by_target[targets[0]] = log
-        elif log:
+        if log:
             log_dir = safe_mkdtemp(prefix="pex-pip-log.")
             log_by_target.update(
                 (target, os.path.join(log_dir, "pip.{target}.log".format(target=target.id)))
@@ -113,7 +112,12 @@ class PipLogManager(object):
     def finalize_log(self):
         # type: () -> None
         target_count = len(self._log_by_target)
-        if target_count <= 1:
+        if target_count == 0:
+            return
+
+        if self.log and target_count == 1:
+            log = next(iter(self._log_by_target.values()))
+            shutil.move(log, self.log)
             return
 
         with safe_open(self.log, "a") as out_fp:
