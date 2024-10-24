@@ -507,7 +507,7 @@ class PexInfo(object):
     @property
     def pex_root(self):
         # type: () -> str
-        pex_root = os.path.expanduser(self.raw_pex_root)
+        pex_root = os.path.realpath(os.path.expanduser(self.raw_pex_root))
         if not can_write_dir(pex_root):
             tmp_root = safe_mkdtemp()
             pex_warnings.warn(

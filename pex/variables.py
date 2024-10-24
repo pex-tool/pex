@@ -167,7 +167,7 @@ def _default_pex_root():
     # third party import lifecycle events.
     from pex.cache import root as cache_root
 
-    return cache_root.path(expand_user=False)
+    return cache_root.path(expand_user=True)
 
 
 class Variables(object):
@@ -796,7 +796,7 @@ ENV = Variables()
 #  calculations: https://github.com/pex-tool/pex/issues/1154
 def _expand_pex_root(pex_root):
     # type: (str) -> str
-    fallback = os.path.expanduser(pex_root)
+    fallback = os.path.realpath(os.path.expanduser(pex_root))
     return os.path.expanduser(Variables.PEX_ROOT.value_or(ENV, fallback=fallback))
 
 
