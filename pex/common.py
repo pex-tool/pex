@@ -390,8 +390,7 @@ def safe_mkdir(directory, clean=False):
     except OSError as e:
         if e.errno != errno.EEXIST:
             raise
-    finally:
-        return directory
+    return directory
 
 
 def safe_open(filename, *args, **kwargs):
