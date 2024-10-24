@@ -129,7 +129,7 @@ class PipLogManager(object):
                 shutil.move(log, self.log.path)
             return
 
-        with safe_open(self.log, "a") as out_fp:
+        with safe_open(self.log.path, "a") as out_fp:
             for index, (target, log) in enumerate(self._log_by_target.items(), start=1):
                 prefix = "{index}/{count}]{target}".format(
                     index=index, count=target_count, target=self._target_id(target)
