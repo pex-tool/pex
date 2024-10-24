@@ -7,7 +7,6 @@ import os
 import subprocess
 from abc import abstractmethod
 
-from pex.common import safe_delete
 from pex.jobs import Job
 from pex.typing import TYPE_CHECKING, Generic
 
@@ -75,13 +74,11 @@ class LogScrapeJob(Job):
         process,  # type: subprocess.Popen
         log,  # type: str
         log_analyzers,  # type: Iterable[LogAnalyzer]
-        preserve_log=False,  # type: bool
         finalizer=None,  # type: Optional[Callable[[int], None]]
     ):
         # type: (...) -> None
         self._log = log
         self._log_analyzers = list(log_analyzers)
-        self._preserve_log = preserve_log
         super(LogScrapeJob, self).__init__(command, process, finalizer=finalizer, context="pip")
 
     def _check_returncode(self, stderr=None):
@@ -125,8 +122,5 @@ class LogScrapeJob(Job):
         ):
             with open(self._log, "rb") as fp:
                 analyzed_stderr = fp.read()
-
-        if not self._preserve_log:
-            safe_delete(self._log)
 
         super(LogScrapeJob, self)._check_returncode(stderr=(stderr or b"") + analyzed_stderr)

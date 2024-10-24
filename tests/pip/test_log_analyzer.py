@@ -94,10 +94,8 @@ def assert_job_failure(
             process=process,
             log=log,
             log_analyzers=log_analyzers,
-            preserve_log=False,
             finalizer=lambda code: finalized.append(code),
         ).wait()
-    assert not os.path.exists(log)
     assert [42] == finalized
     return str(exc_info.value)
 

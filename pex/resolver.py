@@ -9,7 +9,6 @@ import glob
 import hashlib
 import itertools
 import os
-import shutil
 import zipfile
 from abc import abstractmethod
 from collections import OrderedDict, defaultdict
@@ -49,6 +48,7 @@ from pex.targets import AbbreviatedPlatform, CompletePlatform, LocalInterpreter,
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper
+from pex.variables import ENV
 
 if TYPE_CHECKING:
     from typing import (
@@ -86,17 +86,12 @@ class PipLogManager(object):
     ):
         # type: (...) -> PipLogManager
         log_by_target = {}  # type: Dict[Target, str]
-        if log:
+        if log and len(targets) == 1:
+            log_by_target[targets[0]] = log.path
+        elif log:
             log_dir = safe_mkdtemp(prefix="pex-pip-log.")
             log_by_target.update(
-                (
-                    target,
-                    (
-                        os.path.join(log_dir, "pip.{target}.log".format(target=target.id))
-                        if log.user_specified
-                        else log.path
-                    ),
-                )
+                (target, os.path.join(log_dir, "pip.{target}.log".format(target=target.id)))
                 for target in targets
             )
         return cls(log=log, log_by_target=log_by_target)
@@ -118,15 +113,11 @@ class PipLogManager(object):
 
     def finalize_log(self):
         # type: () -> None
-        target_count = len(self._log_by_target)
-        if target_count == 0 or not self.log:
+        if not self.log:
             return
 
-        if target_count == 1:
-            if self.log.user_specified:
-                # Move the log to the path the user asked for.
-                log = next(iter(self._log_by_target.values()))
-                shutil.move(log, self.log.path)
+        target_count = len(self._log_by_target)
+        if target_count <= 1:
             return
 
         with safe_open(self.log.path, "a") as out_fp:
@@ -185,7 +176,14 @@ class DownloadRequest(object):
         dest = dest or safe_mkdtemp(
             prefix="resolver_download.", dir=safe_mkdir(get_downloads_dir())
         )
+
         log_manager = PipLogManager.create(self.pip_log, self.targets)
+        if self.pip_log and not self.pip_log.user_specified:
+            TRACER.log(
+                "Preserving `pip download` log at {log_path}".format(log_path=self.pip_log.path),
+                V=ENV.PEX_VERBOSE,
+            )
+
         spawn_download = functools.partial(self._spawn_download, dest, log_manager)
         with TRACER.timed(
             "Resolving for:\n  {}".format(

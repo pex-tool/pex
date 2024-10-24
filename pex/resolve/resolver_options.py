@@ -343,6 +343,19 @@ class HandlePipDownloadLogAction(Action):
                 user_specified=False,
             )
         else:
+            path = os.path.realpath(value)
+            if os.path.exists(path):
+                if not os.path.isfile(path):
+                    raise ArgumentError(
+                        self,
+                        "The requested `--pip-log` of {path} is a directory.\n"
+                        "The `--pip-log` argument must be either an existing file path, in which "
+                        "case the file will be truncated to receive a fresh log, or else a "
+                        "non-existent path, in which case it will be created. Note that using the "
+                        "same `--pip-log` path in concurrent Pex executions is not "
+                        "supported.".format(path=path),
+                    )
+                os.truncate(path, 0)
             pip_log = PipLog(path=value, user_specified=True)
         setattr(namespace, self.dest, pip_log)
 
@@ -356,7 +369,11 @@ def register_pip_log(parser):
         dest="pip_log",
         default=PipConfiguration().log,
         action=HandlePipDownloadLogAction,
-        help="Preserve the `pip download` log and print its location to stderr.",
+        help=(
+            "With no argument, preserve the `pip download` log and print its location to stderr. "
+            "With a log path argument, truncate the log if it exists and create it if it does not "
+            "already exist, and send Pip log output there."
+        ),
     )
 
 
