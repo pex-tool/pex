@@ -15,6 +15,7 @@ from pex.pex_warnings import PEXWarning
 from pex.typing import TYPE_CHECKING
 from pex.variables import Variables
 from pex.version import __version__ as pex_version
+from testing.pytest.tmp import Tempdir
 
 if TYPE_CHECKING:
     from typing import Dict, List, Text
@@ -97,23 +98,23 @@ def test_build_properties():
     assert pex_version == PexInfo.default().build_properties["pex_version"]
 
 
-def test_pex_root_set_unwriteable():
-    # type: () -> None
-    with temporary_dir() as td:
-        pex_root = os.path.realpath(os.path.join(td, "pex_root"))
-        os.mkdir(pex_root, 0o444)
+def test_pex_root_set_unwriteable(tmpdir):
+    # type: (Tempdir) -> None
 
-        pex_info = PexInfo.default()
-        pex_info.pex_root = pex_root
+    pex_root = tmpdir.join("pex_root")
+    os.mkdir(pex_root, 0o444)
 
-        with warnings.catch_warnings(record=True) as log:
-            assert pex_root != pex_info.pex_root
+    pex_info = PexInfo.default()
+    pex_info.pex_root = pex_root
 
-        assert 1 == len(log)
-        message = log[0].message
-        assert isinstance(message, PEXWarning)
-        assert pex_root in str(message)
-        assert pex_info.pex_root in str(message)
+    with warnings.catch_warnings(record=True) as log:
+        assert pex_root != pex_info.pex_root
+
+    assert 1 == len(log)
+    message = log[0].message
+    assert isinstance(message, PEXWarning)
+    assert pex_root in str(message)
+    assert pex_info.pex_root in str(message)
 
 
 def test_copy():
