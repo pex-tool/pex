@@ -279,6 +279,7 @@ class ResolveUpdater(object):
             original_requirements=tuple(original_requirements.values()),
             update_constraints_by_project_name=update_constraints_by_project_name,
             deletes=frozenset(deletes),
+            pure_delete=bool(deletes and not replace_requirements),
             lock_configuration=lock_configuration,
             pip_configuration=pip_configuration,
             dependency_configuration=dependency_configuration,
@@ -330,6 +331,7 @@ class ResolveUpdater(object):
             update_requirements_by_project_name={update.project_name: update for update in updates},
             update_constraints_by_project_name=update_constraints_by_project_name,
             deletes=frozenset(deletes),
+            pure_delete=bool(deletes and not updates and not replacements),
             lock_configuration=lock_configuration,
             pip_configuration=pip_configuration,
             dependency_configuration=dependency_configuration,
@@ -339,6 +341,7 @@ class ResolveUpdater(object):
     original_requirements = attr.ib()  # type: Iterable[Requirement]
     update_constraints_by_project_name = attr.ib()  # type: Mapping[ProjectName, Constraint]
     deletes = attr.ib()  # type: Container[ProjectName]
+    pure_delete = attr.ib()  # type: bool
     lock_configuration = attr.ib()  # type: LockConfiguration
     pip_configuration = attr.ib()  # type: PipConfiguration
     dependency_configuration = attr.ib(
@@ -416,6 +419,38 @@ class ResolveUpdater(object):
                 )
                 raise e
 
+    def _pure_delete(self, locked_resolve):
+        # type: (LockedResolve) -> LockedResolve
+
+        to_delete = {
+            locked_requirement.pin.project_name: locked_requirement
+            for locked_requirement in locked_resolve.locked_requirements
+        }
+
+        def remove_requirements_to_be_retained(
+            reqs,  # type: Iterable[Requirement]
+        ):
+            # type: (...) -> None
+            for req in reqs:
+                if req.project_name in self.deletes:
+                    continue
+                locked_requirement_to_retain = to_delete.pop(req.project_name, None)
+                if not locked_requirement_to_retain:
+                    # We've already visited this node via another dependency chain
+                    continue
+                remove_requirements_to_be_retained(locked_requirement_to_retain.requires_dists)
+
+        remove_requirements_to_be_retained(self.original_requirements)
+
+        return attr.evolve(
+            locked_resolve,
+            locked_requirements=SortedTuple(
+                locked_requirement
+                for locked_requirement in locked_resolve.locked_requirements
+                if locked_requirement.pin.project_name not in to_delete
+            ),
+        )
+
     def update_resolve(
         self,
         locked_resolve,  # type: LockedResolve
@@ -430,18 +465,21 @@ class ResolveUpdater(object):
             locked_resolve, artifacts_can_change=artifacts_can_change
         ) as requirement_configuration:
             if requirement_configuration:
-                updated_lock_file = try_(
-                    create(
-                        lock_configuration=self.lock_configuration,
-                        requirement_configuration=requirement_configuration,
-                        targets=Targets.from_target(target),
-                        pip_configuration=self.pip_configuration,
-                        dependency_configuration=self.dependency_configuration,
+                if self.pure_delete:
+                    updated_resolve = self._pure_delete(locked_resolve)
+                else:
+                    updated_lock_file = try_(
+                        create(
+                            lock_configuration=self.lock_configuration,
+                            requirement_configuration=requirement_configuration,
+                            targets=Targets.from_target(target),
+                            pip_configuration=self.pip_configuration,
+                            dependency_configuration=self.dependency_configuration,
+                        )
                     )
-                )
-                assert 1 == len(updated_lock_file.locked_resolves)
-                updated_resolve = updated_lock_file.locked_resolves[0]
-                updated_requirements = updated_lock_file.requirements
+                    assert 1 == len(updated_lock_file.locked_resolves)
+                    updated_resolve = updated_lock_file.locked_resolves[0]
+                    updated_requirements = updated_lock_file.requirements
 
         updates = (
             OrderedDict()
