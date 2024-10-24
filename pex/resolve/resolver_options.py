@@ -355,7 +355,9 @@ class HandlePipDownloadLogAction(Action):
                         "same `--pip-log` path in concurrent Pex executions is not "
                         "supported.".format(path=path),
                     )
-                os.truncate(path, 0)
+                # N.B.: This truncates the file in a way compatible with Python 2.7 (os.truncate
+                # was introduced in 3.3).
+                open(path, "w").close()
             pip_log = PipLog(path=value, user_specified=True)
         setattr(namespace, self.dest, pip_log)
 
