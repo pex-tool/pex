@@ -25,6 +25,7 @@ from pex.resolve.resolver_configuration import (
     LockRepositoryConfiguration,
     PexRepositoryConfiguration,
     PipConfiguration,
+    PipLog,
     PreResolvedConfiguration,
     ReposConfiguration,
     ResolverVersion,
@@ -326,6 +327,7 @@ class HandlePipDownloadLogAction(Action):
         super(HandlePipDownloadLogAction, self).__init__(*args, **kwargs)
 
     def __call__(self, parser, namespace, value, option_str=None):
+        pip_log = None  # type: Optional[PipLog]
         if option_str.startswith("--no"):
             if value:
                 raise ArgumentError(
@@ -336,8 +338,13 @@ class HandlePipDownloadLogAction(Action):
                     ),
                 )
         elif not value:
-            value = os.path.join(tempfile.mkdtemp(prefix="pex-pip-log."), "pip.log")
-        setattr(namespace, self.dest, value)
+            pip_log = PipLog(
+                path=os.path.join(tempfile.mkdtemp(prefix="pex-pip-log."), "pip.log"),
+                user_specified=False,
+            )
+        else:
+            pip_log = PipLog(path=value, user_specified=True)
+        setattr(namespace, self.dest, pip_log)
 
 
 def register_pip_log(parser):
@@ -354,8 +361,8 @@ def register_pip_log(parser):
 
 
 def get_pip_log(options):
-    # type: (Namespace) -> Optional[str]
-    return cast("Optional[str]", options.pip_log)
+    # type: (Namespace) -> Optional[PipLog]
+    return cast("Optional[PipLog]", options.pip_log)
 
 
 def register_use_pip_config(parser):

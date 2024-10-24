@@ -62,7 +62,9 @@ def _calculate_tags(
     )
     job = SpawnedJob.stdout(
         job=pip.spawn_debug(
-            platform_spec=platform_spec, manylinux=manylinux, log=pip_configuration.log
+            platform_spec=platform_spec,
+            manylinux=manylinux,
+            log=pip_configuration.log.path if pip_configuration.log else None,
         ),
         result_func=parse_tags,
     )
@@ -179,7 +181,7 @@ def create(
         # call to `pip -v debug ...` in _calculate_tags above. We do the same for the cached case
         # since this can be very useful information when investigating why Pip did not select a
         # particular wheel for an abbreviated --platform.
-        with safe_open(pip_configuration.log, "a") as fp:
+        with safe_open(pip_configuration.log.path, "a") as fp:
             print(
                 "Read {count} compatible tags for abbreviated --platform {platform} from:".format(
                     count=len(compatibility_tags), platform=platform

@@ -36,7 +36,7 @@ from pex.pip.version import PipVersionValue
 from pex.requirements import LocalProjectRequirement
 from pex.resolve.downloads import get_downloads_dir
 from pex.resolve.requirement_configuration import RequirementConfiguration
-from pex.resolve.resolver_configuration import BuildConfiguration, ResolverVersion
+from pex.resolve.resolver_configuration import BuildConfiguration, PipLog, ResolverVersion
 from pex.resolve.resolvers import (
     ResolvedDistribution,
     Resolver,
@@ -81,7 +81,7 @@ class PipLogManager(object):
     @classmethod
     def create(
         cls,
-        log,  # type: Optional[str]
+        log,  # type: Optional[PipLog]
         targets,  # type: Sequence[Target]
     ):
         # type: (...) -> PipLogManager
@@ -89,12 +89,19 @@ class PipLogManager(object):
         if log:
             log_dir = safe_mkdtemp(prefix="pex-pip-log.")
             log_by_target.update(
-                (target, os.path.join(log_dir, "pip.{target}.log".format(target=target.id)))
+                (
+                    target,
+                    (
+                        os.path.join(log_dir, "pip.{target}.log".format(target=target.id))
+                        if log.user_specified
+                        else log.path
+                    ),
+                )
                 for target in targets
             )
         return cls(log=log, log_by_target=log_by_target)
 
-    log = attr.ib()  # type: Optional[str]
+    log = attr.ib()  # type: Optional[PipLog]
     _log_by_target = attr.ib()  # type: Mapping[Target, str]
 
     @staticmethod
@@ -112,12 +119,14 @@ class PipLogManager(object):
     def finalize_log(self):
         # type: () -> None
         target_count = len(self._log_by_target)
-        if target_count == 0:
+        if target_count == 0 or not self.log:
             return
 
-        if self.log and target_count == 1:
-            log = next(iter(self._log_by_target.values()))
-            shutil.move(log, self.log)
+        if target_count == 1:
+            if self.log.user_specified:
+                # Move the log to the path the user asked for.
+                log = next(iter(self._log_by_target.values()))
+                shutil.move(log, self.log.path)
             return
 
         with safe_open(self.log, "a") as out_fp:
@@ -153,7 +162,7 @@ class DownloadRequest(object):
     package_index_configuration = attr.ib(default=None)  # type: Optional[PackageIndexConfiguration]
     build_configuration = attr.ib(default=BuildConfiguration())  # type: BuildConfiguration
     observer = attr.ib(default=None)  # type: Optional[ResolveObserver]
-    pip_log = attr.ib(default=None)  # type: Optional[str]
+    pip_log = attr.ib(default=None)  # type: Optional[PipLog]
     pip_version = attr.ib(default=None)  # type: Optional[PipVersionValue]
     resolver = attr.ib(default=None)  # type: Optional[Resolver]
     dependency_configuration = attr.ib(
@@ -1050,7 +1059,7 @@ def resolve(
     max_parallel_jobs=None,  # type: Optional[int]
     ignore_errors=False,  # type: bool
     verify_wheels=True,  # type: bool
-    pip_log=None,  # type: Optional[str]
+    pip_log=None,  # type: Optional[PipLog]
     pip_version=None,  # type: Optional[PipVersionValue]
     resolver=None,  # type: Optional[Resolver]
     use_pip_config=False,  # type: bool
@@ -1224,7 +1233,7 @@ def _download_internal(
     dest=None,  # type: Optional[str]
     max_parallel_jobs=None,  # type: Optional[int]
     observer=None,  # type: Optional[ResolveObserver]
-    pip_log=None,  # type: Optional[str]
+    pip_log=None,  # type: Optional[PipLog]
     pip_version=None,  # type: Optional[PipVersionValue]
     resolver=None,  # type: Optional[Resolver]
     dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
@@ -1303,7 +1312,7 @@ def download(
     dest=None,  # type: Optional[str]
     max_parallel_jobs=None,  # type: Optional[int]
     observer=None,  # type: Optional[ResolveObserver]
-    pip_log=None,  # type: Optional[str]
+    pip_log=None,  # type: Optional[PipLog]
     pip_version=None,  # type: Optional[PipVersionValue]
     resolver=None,  # type: Optional[Resolver]
     use_pip_config=False,  # type: bool

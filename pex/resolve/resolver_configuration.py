@@ -181,6 +181,12 @@ class BuildConfiguration(object):
 
 
 @attr.s(frozen=True)
+class PipLog(object):
+    path = attr.ib()  # type: str
+    user_specified = attr.ib()  # type: bool
+
+
+@attr.s(frozen=True)
 class PipConfiguration(object):
     repos_configuration = attr.ib(default=ReposConfiguration())  # type: ReposConfiguration
     network_configuration = attr.ib(default=NetworkConfiguration())  # type: NetworkConfiguration
@@ -188,7 +194,7 @@ class PipConfiguration(object):
     allow_prereleases = attr.ib(default=False)  # type: bool
     transitive = attr.ib(default=True)  # type: bool
     max_jobs = attr.ib(default=DEFAULT_MAX_JOBS)  # type: int
-    log = attr.ib(default=None)  # type: Optional[str]
+    log = attr.ib(default=None)  # type: Optional[PipLog]
     version = attr.ib(default=None)  # type: Optional[PipVersionValue]
     resolver_version = attr.ib(default=None)  # type: Optional[ResolverVersion.Value]
     allow_version_fallback = attr.ib(default=True)  # type: bool
