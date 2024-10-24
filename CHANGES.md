@@ -1,5 +1,18 @@
 # Release Notes
 
+## 2.20.4
+
+This release fixes a ug where `--pip-log <path>`, used multiple times
+in a row against the same file could lead to `pex3 lock` errors.
+
+In addition, `pex3 lock {update,sync}` is now optimized for the cases
+where all the required updates are deletes. In this case netiher Pip nor
+the network are consulted leading to speed improvements porportional to
+the size of the resolve.
+
+* Optimize pure delete lock updates. (#2568)
+* Fix `--pip-log` re-use. (#2570)
+
 ## 2.20.3
 
 This release fixes both PEX building and lock creation via
