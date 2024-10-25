@@ -30,9 +30,14 @@ class RetentionPolicy(Enum["RetentionPolicy.Value"]):
     NONE = Value("none")
 
 
+def _realpath(path):
+    # type: (str) -> str
+    return os.path.realpath(path)
+
+
 @attr.s(frozen=True)
 class Tempdir(object):
-    path = attr.ib()  # type: str
+    path = attr.ib(converter=_realpath)  # type: str
     symlink = attr.ib(default=None)  # type: Optional[str]
 
     def join(self, *components):
@@ -52,7 +57,7 @@ class Tempdir(object):
 
 @attr.s(frozen=True)
 class TempdirFactory(object):
-    path = attr.ib()  # type: str
+    path = attr.ib(converter=_realpath)  # type: str
     retention_policy = attr.ib()  # type: RetentionPolicy.Value
 
     def getbasetemp(self):

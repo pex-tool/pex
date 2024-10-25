@@ -7,13 +7,13 @@ import warnings
 import pytest
 
 from pex import pex_warnings
-from pex.common import temporary_dir
 from pex.compatibility import PY2
 from pex.pex_warnings import PEXWarning
 from pex.typing import TYPE_CHECKING
 from pex.util import named_temporary_file
 from pex.variables import NoValueError, Variables
 from testing import environment_as
+from testing.pytest.tmp import Tempdir
 
 if TYPE_CHECKING:
     from typing import Any
@@ -196,27 +196,27 @@ def test_pex_vars_defaults_stripped():
     assert Variables.PEX_VERBOSE.strip_default(v) is None
 
 
-def test_pex_root_unwriteable():
-    # type: () -> None
-    with temporary_dir() as td:
-        pex_root = os.path.realpath(os.path.join(td, "pex_root"))
-        os.mkdir(pex_root, 0o444)
+def test_pex_root_unwriteable(tmpdir):
+    # type: (Tempdir) -> None
 
-        env = Variables(environ=dict(PEX_ROOT=pex_root))
+    pex_root = tmpdir.join("pex_root")
+    os.mkdir(pex_root, 0o444)
 
-        with warnings.catch_warnings(record=True) as log:
-            assert pex_root != env.PEX_ROOT
+    env = Variables(environ=dict(PEX_ROOT=pex_root))
 
-        assert 1 == len(log)
-        message = log[0].message
-        assert isinstance(message, PEXWarning)
-        assert pex_root in str(message)
-        assert env.PEX_ROOT is not None
-        assert env.PEX_ROOT in str(message)
+    with warnings.catch_warnings(record=True) as log:
+        assert pex_root != env.PEX_ROOT
 
-        assert (
-            env.PEX_ROOT == env.PEX_ROOT
-        ), "When an ephemeral PEX_ROOT is materialized it should be stable."
+    assert 1 == len(log)
+    message = log[0].message
+    assert isinstance(message, PEXWarning)
+    assert pex_root in str(message)
+    assert env.PEX_ROOT is not None
+    assert env.PEX_ROOT in str(message)
+
+    assert (
+        env.PEX_ROOT == env.PEX_ROOT
+    ), "When an ephemeral PEX_ROOT is materialized it should be stable."
 
 
 def test_pex_vars_value_or(tmpdir):

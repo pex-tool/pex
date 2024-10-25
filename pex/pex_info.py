@@ -507,9 +507,9 @@ class PexInfo(object):
     @property
     def pex_root(self):
         # type: () -> str
-        pex_root = os.path.expanduser(self.raw_pex_root)
+        pex_root = os.path.realpath(os.path.expanduser(self.raw_pex_root))
         if not can_write_dir(pex_root):
-            tmp_root = safe_mkdtemp()
+            tmp_root = os.path.realpath(safe_mkdtemp())
             pex_warnings.warn(
                 "PEX_ROOT is configured as {pex_root} but that path is un-writeable, "
                 "falling back to a temporary PEX_ROOT of {tmp_root} which will hurt "

@@ -14,8 +14,10 @@ else:
     from pex.third_party import appdirs
 
 
-_USER_DIR = os.path.expanduser("~")
-_CACHE_DIR = appdirs.user_cache_dir(appauthor="pex-tool.org", appname="pex")  # type: str
+_USER_DIR = os.path.realpath(os.path.expanduser("~"))
+_CACHE_DIR = os.path.realpath(
+    appdirs.user_cache_dir(appauthor="pex-tool.org", appname="pex")
+)  # type: str
 
 
 def path(expand_user=True):
