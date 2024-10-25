@@ -7,7 +7,6 @@ import warnings
 import pytest
 
 from pex import pex_warnings
-from pex.common import temporary_dir
 from pex.compatibility import PY2
 from pex.pex_warnings import PEXWarning
 from pex.typing import TYPE_CHECKING
