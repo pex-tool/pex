@@ -20,8 +20,8 @@ been added to the option `--help` that using the same `--pip-log` path
 in concurrent Pex runs is not supported.
 
 In addition, `pex3 lock {update,sync}` is now optimized for the cases
-where all the required updates are deletes. In this case netiher Pip nor
-the network are consulted leading to speed improvements porportional to
+where all the required updates are deletes. In this case neither Pip nor
+the network are consulted leading to speed improvements proportional to
 the size of the resolve.
 
 * Fix `safe_mkdir` swallowing non-`EEXIST` errors. (#2575)
