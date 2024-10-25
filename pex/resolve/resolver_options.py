@@ -25,6 +25,7 @@ from pex.resolve.resolver_configuration import (
     LockRepositoryConfiguration,
     PexRepositoryConfiguration,
     PipConfiguration,
+    PipLog,
     PreResolvedConfiguration,
     ReposConfiguration,
     ResolverVersion,
@@ -326,6 +327,7 @@ class HandlePipDownloadLogAction(Action):
         super(HandlePipDownloadLogAction, self).__init__(*args, **kwargs)
 
     def __call__(self, parser, namespace, value, option_str=None):
+        pip_log = None  # type: Optional[PipLog]
         if option_str.startswith("--no"):
             if value:
                 raise ArgumentError(
@@ -336,8 +338,28 @@ class HandlePipDownloadLogAction(Action):
                     ),
                 )
         elif not value:
-            value = os.path.join(tempfile.mkdtemp(prefix="pex-pip-log."), "pip.log")
-        setattr(namespace, self.dest, value)
+            pip_log = PipLog(
+                path=os.path.join(tempfile.mkdtemp(prefix="pex-pip-log."), "pip.log"),
+                user_specified=False,
+            )
+        else:
+            path = os.path.realpath(value)
+            if os.path.exists(path):
+                if not os.path.isfile(path):
+                    raise ArgumentError(
+                        self,
+                        "The requested `--pip-log` of {path} is a directory.\n"
+                        "The `--pip-log` argument must be either an existing file path, in which "
+                        "case the file will be truncated to receive a fresh log, or else a "
+                        "non-existent path, in which case it will be created. Note that using the "
+                        "same `--pip-log` path in concurrent Pex executions is not "
+                        "supported.".format(path=path),
+                    )
+                # N.B.: This truncates the file in a way compatible with Python 2.7 (os.truncate
+                # was introduced in 3.3).
+                open(path, "w").close()
+            pip_log = PipLog(path=value, user_specified=True)
+        setattr(namespace, self.dest, pip_log)
 
 
 def register_pip_log(parser):
@@ -349,13 +371,17 @@ def register_pip_log(parser):
         dest="pip_log",
         default=PipConfiguration().log,
         action=HandlePipDownloadLogAction,
-        help="Preserve the `pip download` log and print its location to stderr.",
+        help=(
+            "With no argument, preserve the `pip download` log and print its location to stderr. "
+            "With a log path argument, truncate the log if it exists and create it if it does not "
+            "already exist, and send Pip log output there."
+        ),
     )
 
 
 def get_pip_log(options):
-    # type: (Namespace) -> Optional[str]
-    return cast("Optional[str]", options.pip_log)
+    # type: (Namespace) -> Optional[PipLog]
+    return cast("Optional[PipLog]", options.pip_log)
 
 
 def register_use_pip_config(parser):

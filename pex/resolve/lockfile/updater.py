@@ -28,7 +28,7 @@ from pex.resolve.lockfile.create import create
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolved_requirement import ArtifactURL, Fingerprint
-from pex.resolve.resolver_configuration import PipConfiguration, ReposConfiguration
+from pex.resolve.resolver_configuration import PipConfiguration, PipLog, ReposConfiguration
 from pex.result import Error, ResultError, catch, try_
 from pex.sorted_tuple import SortedTuple
 from pex.targets import Target, Targets
@@ -657,7 +657,7 @@ class LockUpdater(object):
         max_jobs,  # type: int
         use_pip_config,  # type: bool
         dependency_configuration,  # type: DependencyConfiguration
-        pip_log,  # type: Optional[str]
+        pip_log,  # type: Optional[PipLog]
     ):
         # type: (...) -> LockUpdater
 

@@ -35,7 +35,7 @@ from pex.pip.version import PipVersionValue
 from pex.requirements import LocalProjectRequirement
 from pex.resolve.downloads import get_downloads_dir
 from pex.resolve.requirement_configuration import RequirementConfiguration
-from pex.resolve.resolver_configuration import BuildConfiguration, ResolverVersion
+from pex.resolve.resolver_configuration import BuildConfiguration, PipLog, ResolverVersion
 from pex.resolve.resolvers import (
     ResolvedDistribution,
     Resolver,
@@ -48,6 +48,7 @@ from pex.targets import AbbreviatedPlatform, CompletePlatform, LocalInterpreter,
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper
+from pex.variables import ENV
 
 if TYPE_CHECKING:
     from typing import (
@@ -80,13 +81,13 @@ class PipLogManager(object):
     @classmethod
     def create(
         cls,
-        log,  # type: Optional[str]
+        log,  # type: Optional[PipLog]
         targets,  # type: Sequence[Target]
     ):
         # type: (...) -> PipLogManager
         log_by_target = {}  # type: Dict[Target, str]
         if log and len(targets) == 1:
-            log_by_target[targets[0]] = log
+            log_by_target[targets[0]] = log.path
         elif log:
             log_dir = safe_mkdtemp(prefix="pex-pip-log.")
             log_by_target.update(
@@ -95,7 +96,7 @@ class PipLogManager(object):
             )
         return cls(log=log, log_by_target=log_by_target)
 
-    log = attr.ib()  # type: Optional[str]
+    log = attr.ib()  # type: Optional[PipLog]
     _log_by_target = attr.ib()  # type: Mapping[Target, str]
 
     @staticmethod
@@ -112,11 +113,14 @@ class PipLogManager(object):
 
     def finalize_log(self):
         # type: () -> None
+        if not self.log:
+            return
+
         target_count = len(self._log_by_target)
         if target_count <= 1:
             return
 
-        with safe_open(self.log, "a") as out_fp:
+        with safe_open(self.log.path, "a") as out_fp:
             for index, (target, log) in enumerate(self._log_by_target.items(), start=1):
                 prefix = "{index}/{count}]{target}".format(
                     index=index, count=target_count, target=self._target_id(target)
@@ -149,7 +153,7 @@ class DownloadRequest(object):
     package_index_configuration = attr.ib(default=None)  # type: Optional[PackageIndexConfiguration]
     build_configuration = attr.ib(default=BuildConfiguration())  # type: BuildConfiguration
     observer = attr.ib(default=None)  # type: Optional[ResolveObserver]
-    pip_log = attr.ib(default=None)  # type: Optional[str]
+    pip_log = attr.ib(default=None)  # type: Optional[PipLog]
     pip_version = attr.ib(default=None)  # type: Optional[PipVersionValue]
     resolver = attr.ib(default=None)  # type: Optional[Resolver]
     dependency_configuration = attr.ib(
@@ -172,7 +176,14 @@ class DownloadRequest(object):
         dest = dest or safe_mkdtemp(
             prefix="resolver_download.", dir=safe_mkdir(get_downloads_dir())
         )
+
         log_manager = PipLogManager.create(self.pip_log, self.targets)
+        if self.pip_log and not self.pip_log.user_specified:
+            TRACER.log(
+                "Preserving `pip download` log at {log_path}".format(log_path=self.pip_log.path),
+                V=ENV.PEX_VERBOSE,
+            )
+
         spawn_download = functools.partial(self._spawn_download, dest, log_manager)
         with TRACER.timed(
             "Resolving for:\n  {}".format(
@@ -1046,7 +1057,7 @@ def resolve(
     max_parallel_jobs=None,  # type: Optional[int]
     ignore_errors=False,  # type: bool
     verify_wheels=True,  # type: bool
-    pip_log=None,  # type: Optional[str]
+    pip_log=None,  # type: Optional[PipLog]
     pip_version=None,  # type: Optional[PipVersionValue]
     resolver=None,  # type: Optional[Resolver]
     use_pip_config=False,  # type: bool
@@ -1220,7 +1231,7 @@ def _download_internal(
     dest=None,  # type: Optional[str]
     max_parallel_jobs=None,  # type: Optional[int]
     observer=None,  # type: Optional[ResolveObserver]
-    pip_log=None,  # type: Optional[str]
+    pip_log=None,  # type: Optional[PipLog]
     pip_version=None,  # type: Optional[PipVersionValue]
     resolver=None,  # type: Optional[Resolver]
     dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
@@ -1299,7 +1310,7 @@ def download(
     dest=None,  # type: Optional[str]
     max_parallel_jobs=None,  # type: Optional[int]
     observer=None,  # type: Optional[ResolveObserver]
-    pip_log=None,  # type: Optional[str]
+    pip_log=None,  # type: Optional[PipLog]
     pip_version=None,  # type: Optional[PipVersionValue]
     resolver=None,  # type: Optional[Resolver]
     use_pip_config=False,  # type: bool

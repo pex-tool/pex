@@ -590,13 +590,6 @@ class Pip(object):
 
         popen_kwargs = {}
         finalizer = None
-
-        preserve_log = log is not None
-        if preserve_log:
-            TRACER.log(
-                "Preserving `pip download` log at {log_path}".format(log_path=log),
-                V=ENV.PEX_VERBOSE,
-            )
         log = log or os.path.join(safe_mkdtemp(prefix="pex-pip-log."), "pip.log")
 
         # N.B.: The `pip -q download ...` command is quiet but
@@ -637,9 +630,7 @@ class Pip(object):
             extra_env=extra_env,
             **popen_kwargs
         )
-        return LogScrapeJob(
-            command, process, log, log_analyzers, preserve_log=preserve_log, finalizer=finalizer
-        )
+        return LogScrapeJob(command, process, log, log_analyzers, finalizer=finalizer)
 
     def _ensure_wheel_installed(self, package_index_configuration=None):
         # type: (Optional[PackageIndexConfiguration]) -> None
