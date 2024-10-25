@@ -1,5 +1,34 @@
 # Release Notes
 
+## 2.20.4
+
+This release carries several bug fixes and a performance improvement for
+lock deletes.
+
+Although there were no direct reports in the wild, @iritkatriel noticed
+by inspection the Pex `safe_mkdir` utility function would mask any
+`OSError` besides `EEXIST`. This is now fixed.
+
+It was observed by @b-x that when `PEX_ROOT` was contained in a
+symlinked path, PEXes would fail to execute. The most likely case
+leading to this would be a symlinked `HOME` dir. This is now fixed.
+
+This release also fixes a bug where `--pip-log <path>`, used multiple
+times in a row against the same file could lead to `pex3 lock` errors.
+Now the specified path is always truncated before use and a note has
+been added to the option `--help` that using the same `--pip-log` path
+in concurrent Pex runs is not supported.
+
+In addition, `pex3 lock {update,sync}` is now optimized for the cases
+where all the required updates are deletes. In this case netiher Pip nor
+the network are consulted leading to speed improvements porportional to
+the size of the resolve.
+
+* Fix `safe_mkdir` swallowing non-`EEXIST` errors. (#2575)
+* Fix `PEX_ROOT` handling for symlinked paths. (#2574)
+* Fix `--pip-log` re-use. (#2570)
+* Optimize pure delete lock updates. (#2568)
+
 ## 2.20.3
 
 This release fixes both PEX building and lock creation via
