@@ -13,12 +13,12 @@ from textwrap import dedent
 import colors  # vendor:skip
 import pytest
 
+from pex.atomic_directory import atomic_directory
 from pex.cache.dirs import CacheDir
 from pex.common import chmod_plus_x, safe_open, touch
 from pex.typing import TYPE_CHECKING
 from testing import IS_PYPY, make_project, run_pex_command
 from testing.cli import run_pex3
-from testing.pytest.tmp import TempdirFactory
 
 if TYPE_CHECKING:
     from typing import Any, Callable, List
@@ -52,83 +52,106 @@ def find_max_length(
 pytestmark = pytest.mark.filterwarnings("ignore:\\(rm_rf\\) error removing.*:pytest.PytestWarning")
 
 
-@pytest.fixture(scope="module")
-def file_path_length_limit(
-    tmpdir_factory,  # type: TempdirFactory
-    request,  # type: Any
-):
-    # type: (...) -> int
-
-    def file_path_too_long(length):
-        # type: (int) -> bool
-        path = str(tmpdir_factory.mktemp("td", request=request))
-        while len(path) < length - len(os.path.join("directory", "x")):
-            path = os.path.join(path, "directory")
-            try:
-                os.mkdir(path)
-            except (IOError, OSError) as e:
-                if e.errno == errno.ENAMETOOLONG:
-                    return True
-                elif e.errno != errno.EEXIST:
-                    raise e
-
-        if len(path) < length:
-            padding = length - len(path) - len(os.sep)
-            path = os.path.join(path, "x" * padding)
-            try:
-                touch(path)
-            except (IOError, OSError) as e:
-                if e.errno == errno.ENAMETOOLONG:
-                    return True
-                raise e
-
-        return False
-
-    return find_max_length(seed_max=2 ** 16, is_too_long=file_path_too_long)
+@pytest.fixture(scope="session")
+def length_calculation_root_dir(shared_integration_test_tmpdir):
+    # type: (str) -> str
+    return os.path.join(shared_integration_test_tmpdir, __name__)
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
+def file_path_length_limit(length_calculation_root_dir):
+    # type: (str) -> int
+
+    limit_dir = os.path.join(length_calculation_root_dir, "file_path_length_limit")
+    limit_file = os.path.join(limit_dir, "limit")
+    with atomic_directory(limit_dir) as atomic_dir:
+        if not atomic_dir.is_finalized():
+
+            def file_path_too_long(length):
+                # type: (int) -> bool
+                path = atomic_dir.work_dir
+                while len(path) < length - len(os.path.join("directory", "x")):
+                    path = os.path.join(path, "directory")
+                    try:
+                        os.mkdir(path)
+                    except (IOError, OSError) as e:
+                        if e.errno == errno.ENAMETOOLONG:
+                            return True
+                        elif e.errno != errno.EEXIST:
+                            raise e
+
+                if len(path) < length:
+                    padding = length - len(path) - len(os.sep)
+                    path = os.path.join(path, "x" * padding)
+                    try:
+                        touch(path)
+                    except (IOError, OSError) as e:
+                        if e.errno == errno.ENAMETOOLONG:
+                            return True
+                        raise e
+
+                return False
+
+            limit = find_max_length(seed_max=2 ** 16, is_too_long=file_path_too_long)
+            with safe_open(limit_file, "w") as fp:
+                fp.write(str(limit))
+
+    with open(limit_file) as fp:
+        return int(fp.read())
+
+
+@pytest.fixture(scope="session")
 def shebang_length_limit(
-    tmpdir_factory,  # type: TempdirFactory
-    request,  # type: Any
+    length_calculation_root_dir,  # type: str
     file_path_length_limit,  # type: int
 ):
     # type: (...) -> int
 
-    def shebang_too_long(length):
-        # type: (int) -> bool
-        path = str(tmpdir_factory.mktemp("td", request=request))
-        while len(path) < length - len("#!\n" + os.path.join("directory", "x")):
-            path = os.path.join(path, "directory")
-            try:
-                os.mkdir(path)
-            except (IOError, OSError) as e:
-                if e.errno != errno.EEXIST:
+    limit_dir = os.path.join(length_calculation_root_dir, "shebang_length_limit")
+    limit_file = os.path.join(limit_dir, "limit")
+    with atomic_directory(limit_dir) as atomic_dir:
+        if not atomic_dir.is_finalized():
+
+            def shebang_too_long(length):
+                # type: (int) -> bool
+                path = atomic_dir.work_dir
+                while len(path) < length - len("#!\n" + os.path.join("directory", "x")):
+                    path = os.path.join(path, "directory")
+                    try:
+                        os.mkdir(path)
+                    except (IOError, OSError) as e:
+                        if e.errno != errno.EEXIST:
+                            raise e
+
+                sh_path = os.path.join(path, "x" * (length - len("#!\n" + path + os.sep)))
+                try:
+                    os.unlink(sh_path)
+                except (IOError, OSError) as e:
+                    if e.errno != errno.ENOENT:
+                        raise e
+                os.symlink("/bin/sh", sh_path)
+
+                script = os.path.join(path, "script.sh")
+                with open(script, "w") as fp:
+                    fp.write("#!{sh_path}\n".format(sh_path=sh_path))
+                    fp.write("exit 0\n")
+                chmod_plus_x(script)
+                try:
+                    return 0 != subprocess.call(args=[script])
+                except (IOError, OSError) as e:
+                    if e.errno == errno.ENOEXEC:
+                        return True
                     raise e
 
-        sh_path = os.path.join(path, "x" * (length - len("#!\n" + path + os.sep)))
-        try:
-            os.unlink(sh_path)
-        except (IOError, OSError) as e:
-            if e.errno != errno.ENOENT:
-                raise e
-        os.symlink("/bin/sh", sh_path)
+            shebang_length_limit = find_max_length(
+                seed_max=file_path_length_limit - len(os.sep + "script.sh"),
+                is_too_long=shebang_too_long,
+            )
+            with safe_open(limit_file, "w") as fp:
+                fp.write(str(shebang_length_limit))
 
-        script = os.path.join(path, "script.sh")
-        with open(script, "w") as fp:
-            fp.write("#!{sh_path}\n".format(sh_path=sh_path))
-            fp.write("exit 0\n")
-        chmod_plus_x(script)
-        try:
-            return 0 != subprocess.call(args=[script])
-        except (IOError, OSError) as e:
-            if e.errno == errno.ENOEXEC:
-                return True
-            raise e
-
-    return find_max_length(
-        seed_max=file_path_length_limit - len(os.sep + "script.sh"), is_too_long=shebang_too_long
-    )
+    with open(limit_file) as fp:
+        return int(fp.read())
 
 
 @pytest.fixture
