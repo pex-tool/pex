@@ -593,7 +593,7 @@ def ensure_python_venv(
         subprocess.check_call(args=args)
     python, pip = tuple(os.path.join(venv, "bin", exe) for exe in ("python", "pip"))
     if latest_pip:
-        subprocess.check_call(args=[pip, "install", "-U", "pip<22.1"])
+        subprocess.check_call(args=[pip, "install", "-U", "pip"])
     return python, pip
 
 
