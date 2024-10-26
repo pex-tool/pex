@@ -385,7 +385,7 @@ def test_entry_point_exit_code(tmpdir):
         assert rc == 1
 
 
-CI_flaky = pytest.mark.CI_flaky(retries=2, condition=IS_CI)
+CI_flaky = pytest.mark.flaky(retries=2, condition=IS_CI)
 
 
 # This test often fails when there is no devpi cache built up yet; so give it a few burns.
