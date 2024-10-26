@@ -404,10 +404,10 @@ def test_pex_multi_resolve_1(tmpdir):
     result = run_pex_command(
         args=[
             "--disable-cache",
-            "lxml==4.6.1",
+            "p537==1.0.8",
             "--no-build",
             "--platform=linux-x86_64-cp-36-m",
-            "--platform=macosx-10.9-x86_64-cp-36-m",
+            "--platform=macosx-13.0-x86_64-cp-36-m",
             "--python={}".format(python38),
             "--python={}".format(python39),
             "-o",
@@ -425,10 +425,14 @@ def test_pex_multi_resolve_1(tmpdir):
         )
     )
 
-    included_dists = get_dep_dist_names_from_pex(pex_path, "lxml")
+    included_dists = get_dep_dist_names_from_pex(pex_path, "p537")
     assert len(included_dists) == 4
-    for dist_substr in ("-cp36-", "-cp38-", "-cp39-", "-manylinux1_x86_64", "-macosx_"):
-        assert any(dist_substr in f for f in included_dists)
+    for dist_substr in ("-cp36-", "-cp38-", "-cp39-", "manylinux1_x86_64", "-macosx_"):
+        assert any(
+            dist_substr in f for f in included_dists
+        ), "looking for {dist_substr} amongst {included_dists}".format(
+            dist_substr=dist_substr, included_dists="\n".join(included_dists)
+        )
 
 
 def test_pex_path_arg():
@@ -606,12 +610,12 @@ def test_pex_multi_resolve_2(tmpdir):
     result = run_pex_command(
         args=[
             "--disable-cache",
-            "lxml==3.8.0",
+            "p537==1.0.8",
             "--no-build",
             "--platform=linux-x86_64-cp-36-m",
-            "--platform=linux-x86_64-cp-27-m",
-            "--platform=macosx-10.6-x86_64-cp-36-m",
-            "--platform=macosx-10.6-x86_64-cp-27-m",
+            "--platform=linux-x86_64-cp-313-cp313",
+            "--platform=macosx-13.0-x86_64-cp-36-m",
+            "--platform=macosx-10.13-x86_64-cp-313-cp313",
             "-o",
             pex_path,
             "--pip-log",
@@ -627,11 +631,13 @@ def test_pex_multi_resolve_2(tmpdir):
         )
     )
 
-    included_dists = get_dep_dist_names_from_pex(pex_path, "lxml")
+    included_dists = get_dep_dist_names_from_pex(pex_path, "p537")
     assert len(included_dists) == 4
-    for dist_substr in ("-cp27-", "-cp36-", "-manylinux1_x86_64", "-macosx_"):
-        assert any(dist_substr in f for f in included_dists), "{} was not found in wheel".format(
-            dist_substr
+    for dist_substr in ("-cp313-", "-cp36-", "manylinux1_x86_64", "-macosx_"):
+        assert any(
+            dist_substr in f for f in included_dists
+        ), "looking for {dist_substr} amongst {included_dists}".format(
+            dist_substr=dist_substr, included_dists="\n".join(included_dists)
         )
 
 
