@@ -56,6 +56,7 @@ from testing import (
 )
 from testing.mitmproxy import Proxy
 from testing.pep_427 import get_installable_type_flag
+from testing.pytest import IS_CI
 
 if TYPE_CHECKING:
     from typing import Any, Callable, Iterator, List, Optional, Tuple
@@ -384,7 +385,11 @@ def test_entry_point_exit_code(tmpdir):
         assert rc == 1
 
 
-@pytest.mark.flaky(retries=2, condition="true" == os.environ.get("CI", "false"))
+CI_flaky = pytest.mark.CI_flaky(retries=2, condition=IS_CI)
+
+
+# This test often fails when there is no devpi cache built up yet; so give it a few burns.
+@CI_flaky
 def test_pex_multi_resolve_1(tmpdir):
     # type: (Any) -> None
     """Tests multi-interpreter + multi-platform resolution."""
@@ -591,7 +596,8 @@ def inherit_path(inherit_path):
             assert requests_paths[0] > sys_paths[0]
 
 
-@pytest.mark.flaky(retries=2, condition="true" == os.environ.get("CI", "false"))
+# This test often fails when there is no devpi cache built up yet; so give it a few burns.
+@CI_flaky
 def test_pex_multi_resolve_2(tmpdir):
     # type: (Any) -> None
 
