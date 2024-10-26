@@ -403,7 +403,10 @@ def test_pex_multi_resolve_1(tmpdir):
 
     result = run_pex_command(
         args=[
-            "--disable-cache",
+            # When --devpi is being used to run tests, this gives a direct fallback to PyPI which
+            # helps in CI when the devpi server cache is cold.
+            "--index",
+            "https://pypi.org/simple",
             "p537==1.0.8",
             "--no-build",
             "--platform=linux-x86_64-cp-36-m",
@@ -609,7 +612,10 @@ def test_pex_multi_resolve_2(tmpdir):
     pex_path = os.path.join(str(tmpdir), "pex.pex")
     result = run_pex_command(
         args=[
-            "--disable-cache",
+            # When --devpi is being used to run tests, this gives a direct fallback to PyPI which
+            # helps in CI when the devpi server cache is cold.
+            "--index",
+            "https://pypi.org/simple",
             "p537==1.0.8",
             "--no-build",
             "--platform=linux-x86_64-cp-36-m",
