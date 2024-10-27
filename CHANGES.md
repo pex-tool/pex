@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.21.0
+
+This release adds support for `--pip-version 24.3`.
+
+* Add support for `--pip-version 24.3`. (#2580)
+
 ## 2.20.4
 
 This release carries several bug fixes and a performance improvement for
