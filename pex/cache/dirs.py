@@ -112,7 +112,7 @@ class CacheDir(Enum["CacheDir.Value"]):
 
     INTERPRETERS = Value(
         "interpreters",
-        version=0,
+        version=1,
         name="Interpreters",
         description="Information about interpreters found on the system.",
     )
