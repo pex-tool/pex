@@ -25,6 +25,7 @@ from pex.targets import LocalInterpreter
 from pex.typing import TYPE_CHECKING
 from pex.version import __version__
 from testing import IS_PYPY, PY_VER, make_env, run_pex_command, scie
+from testing.scie import skip_if_no_provider
 
 if TYPE_CHECKING:
     from typing import Any, Iterable, List
@@ -101,7 +102,7 @@ def test_basic(
 
 
 @pytest.mark.skipif(
-    (PY_VER < (3, 8) and not IS_PYPY) or PY_VER >= (3, 14),
+    not scie.has_provider(),
     reason="Scie output is not supported for {interpreter}".format(interpreter=sys.version),
 )
 @pytest.mark.skipif(
@@ -535,14 +536,6 @@ def foo(tmpdir):
 def bar(tmpdir):
     # type: (Any) -> str
     return make_project(tmpdir, "bar")
-
-
-skip_if_no_provider = pytest.mark.skipif(
-    not scie.has_provider(),
-    reason=(
-        "Either A PBS or PyPy release must be available for the current interpreter to run this test."
-    ),
-)
 
 
 @skip_if_no_provider
