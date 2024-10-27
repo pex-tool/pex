@@ -272,27 +272,34 @@ class PipVersion(Enum["PipVersionValue"]):
         version="24.1",
         setuptools_version="70.1.0",
         wheel_version="0.43.0",
-        requires_python=">=3.8,<3.14",
+        requires_python=">=3.8,<3.15",
     )
 
     v24_1_1 = PipVersionValue(
         version="24.1.1",
         setuptools_version="70.1.1",
         wheel_version="0.43.0",
-        requires_python=">=3.8,<3.14",
+        requires_python=">=3.8,<3.15",
     )
 
     v24_1_2 = PipVersionValue(
         version="24.1.2",
         setuptools_version="70.2.0",
         wheel_version="0.43.0",
-        requires_python=">=3.8,<3.14",
+        requires_python=">=3.8,<3.15",
     )
 
     v24_2 = PipVersionValue(
         version="24.2",
         setuptools_version="71.1.0",
         wheel_version="0.43.0",
+        requires_python=">=3.8,<3.15",
+    )
+
+    v24_3 = PipVersionValue(
+        version="24.3",
+        setuptools_version="75.2.0",
+        wheel_version="0.44.0",
         requires_python=">=3.8,<3.15",
     )
 
