@@ -83,7 +83,7 @@ def test_basic(
             re_flags=re.DOTALL | re.MULTILINE,
         )
         return
-    if PY_VER >= (3, 14):
+    if PY_VER == (3, 8) or PY_VER >= (3, 14):
         result.assert_failure(
             expected_error_re=(
                 r".*"
