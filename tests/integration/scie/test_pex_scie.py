@@ -24,7 +24,7 @@ from pex.scie import SciePlatform, ScieStyle
 from pex.targets import LocalInterpreter
 from pex.typing import TYPE_CHECKING
 from pex.version import __version__
-from testing import IS_PYPY, PY_VER, make_env, run_pex_command, scie
+from testing import IS_PYPY, PY_VER, make_env, run_pex_command
 from testing.scie import skip_if_no_provider
 
 if TYPE_CHECKING:
@@ -101,10 +101,7 @@ def test_basic(
     assert b"| PAR! |" in subprocess.check_output(args=[scie, "PAR!"], env=make_env(PATH=None))
 
 
-@pytest.mark.skipif(
-    not scie.has_provider(),
-    reason="Scie output is not supported for {interpreter}".format(interpreter=sys.version),
-)
+@skip_if_no_provider
 @pytest.mark.skipif(
     not any(
         is_exe(os.path.join(entry, "shasum"))
