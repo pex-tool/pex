@@ -147,7 +147,12 @@ def create_sh_boot_script(
     python_args = list(pex_info.inject_python_args)  # type: List[str]
     if python_shebang:
         shebang = python_shebang[2:] if python_shebang.startswith("#!") else python_shebang
-        args = shlex.split(shebang)
+        # Drop leading `/usr/bin/env [args]?`.
+        args = list(
+            itertools.dropwhile(
+                lambda word: not PythonInterpreter.matches_binary_name(word), shlex.split(shebang)
+            )
+        )
         python = args[0]
         python_args.extend(args[1:])
     venv_python_args = python_args[:]

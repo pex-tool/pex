@@ -117,7 +117,7 @@ class TestPythonInterpreter(object):
             "python3.123m",
         )
 
-        matches = PythonInterpreter._matches_binary_name
+        matches = PythonInterpreter.matches_binary_name
         for name in valid_binary_names:
             assert matches(name), "Expected {} to be valid binary name".format(name)
 

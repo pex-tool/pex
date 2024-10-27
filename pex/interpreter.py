@@ -1167,7 +1167,7 @@ class PythonInterpreter(object):
             raise cls.IdentificationError("Failed to identify {}: {}".format(binary, e))
 
     @classmethod
-    def _matches_binary_name(cls, path):
+    def matches_binary_name(cls, path):
         # type: (str) -> bool
         basefile = os.path.basename(path)
         return any(matcher.match(basefile) is not None for matcher in cls._REGEXEN)
@@ -1202,7 +1202,7 @@ class PythonInterpreter(object):
         Returns an iterator over PythonInterpreter objects.
         """
         return cls._identify_interpreters(
-            filter=path_filter or cls._matches_binary_name, paths=paths, error_handler=error_handler
+            filter=path_filter or cls.matches_binary_name, paths=paths, error_handler=error_handler
         )
 
     @overload

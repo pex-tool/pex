@@ -115,7 +115,7 @@ def reproducibility_hostile_project(tmpdir):
                 """\
                 [build-system]
                 requires = ["setuptools"]
-                backend = "setuptools.build_meta"
+                build-backend = "setuptools.build_meta"
                 """
             )
         )

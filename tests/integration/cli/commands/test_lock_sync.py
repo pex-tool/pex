@@ -1276,9 +1276,9 @@ def assert_p537_lock(
 
 
 skip_unless_p537_compatible = pytest.mark.skipif(
-    PY_VER < (3, 6) or PY_VER >= (3, 13) or IS_PYPY or not IS_X86_64,
+    PY_VER < (3, 6) or PY_VER >= (3, 15) or IS_PYPY or not IS_X86_64,
     reason=(
-        "The p537 1.0.7 release only supports CPython >=3.6,<3.13 and only has published wheels "
+        "The p537 1.0.8 release only supports CPython >=3.6,<3.13 and only has published wheels "
         "for Linux and Mac x86_64"
     ),
 )
@@ -1309,7 +1309,7 @@ def test_sync_strict_to_strict(tmpdir):
 
     lock = os.path.join(str(tmpdir), "lock.json")
     run_pex3(
-        "lock", "sync", "--style", "strict", "p537==1.0.7", "--indent", "2", "--lock", lock
+        "lock", "sync", "--style", "strict", "p537==1.0.8", "--indent", "2", "--lock", lock
     ).assert_success()
     p537_current = assert_p537_lock(
         lock, LockStyle.STRICT, expected_python_tag=python_tag(), expected_abi_tag=abi_tag()
@@ -1328,7 +1328,7 @@ def test_sync_strict_to_strict(tmpdir):
         other_python,
         "--style",
         "strict",
-        "p537==1.0.7",
+        "p537==1.0.8",
         "--indent",
         "2",
         "--lock",
@@ -1350,7 +1350,7 @@ def test_sync_strict_to_sources(tmpdir):
 
     lock = os.path.join(str(tmpdir), "lock.json")
     run_pex3(
-        "lock", "sync", "--style", "strict", "p537==1.0.7", "--indent", "2", "--lock", lock
+        "lock", "sync", "--style", "strict", "p537==1.0.8", "--indent", "2", "--lock", lock
     ).assert_success()
     p537_strict = assert_p537_lock(
         lock, LockStyle.STRICT, expected_python_tag=python_tag(), expected_abi_tag=abi_tag()
@@ -1359,7 +1359,7 @@ def test_sync_strict_to_sources(tmpdir):
     p537_strict_tag, p537_strict_wheel = next(iter(p537_strict.artifacts_by_tag.items()))
 
     run_pex3(
-        "lock", "sync", "--style", "sources", "p537==1.0.7", "--indent", "2", "--lock", lock
+        "lock", "sync", "--style", "sources", "p537==1.0.8", "--indent", "2", "--lock", lock
     ).assert_success()
     p537_sources = assert_p537_lock(
         lock, LockStyle.SOURCES, expected_python_tag=python_tag(), expected_abi_tag=abi_tag()
@@ -1386,7 +1386,7 @@ def test_sync_universal_to_universal(tmpdir):
         "universal",
         "--interpreter-constraint",
         "CPython==3.10.*",
-        "p537==1.0.7",
+        "p537==1.0.8",
         "--indent",
         "2",
         "--lock",
@@ -1411,7 +1411,7 @@ def test_sync_universal_to_universal(tmpdir):
         "universal",
         "--interpreter-constraint",
         "CPython==3.11.*",
-        "p537==1.0.7",
+        "p537==1.0.8",
         "--indent",
         "2",
         "--lock",

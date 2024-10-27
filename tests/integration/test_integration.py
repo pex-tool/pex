@@ -56,6 +56,7 @@ from testing import (
 )
 from testing.mitmproxy import Proxy
 from testing.pep_427 import get_installable_type_flag
+from testing.pytest import IS_CI
 
 if TYPE_CHECKING:
     from typing import Any, Callable, Iterator, List, Optional, Tuple
@@ -384,6 +385,11 @@ def test_entry_point_exit_code(tmpdir):
         assert rc == 1
 
 
+CI_flaky = pytest.mark.flaky(retries=2, condition=IS_CI)
+
+
+# This test often fails when there is no devpi cache built up yet; so give it a few burns.
+@CI_flaky
 def test_pex_multi_resolve_1(tmpdir):
     # type: (Any) -> None
     """Tests multi-interpreter + multi-platform resolution."""
@@ -590,6 +596,8 @@ def inherit_path(inherit_path):
             assert requests_paths[0] > sys_paths[0]
 
 
+# This test often fails when there is no devpi cache built up yet; so give it a few burns.
+@CI_flaky
 def test_pex_multi_resolve_2(tmpdir):
     # type: (Any) -> None
 
@@ -973,30 +981,32 @@ def test_invalid_entry_point_verification_3rdparty(
 
 
 @pytest.mark.skipif(IS_LINUX_ARM64 or IS_MAC_ARM64, reason="No p537 wheel published for ARM yet.")
-def test_multiplatform_entrypoint():
-    # type: () -> None
-    with temporary_dir() as td:
-        pex_out_path = os.path.join(td, "p537.pex")
-        interpreter = ensure_python_interpreter(PY38)
-        res = run_pex_command(
-            [
-                "p537==1.0.6",
-                "--no-build",
-                "--python={}".format(interpreter),
-                "--python-shebang=#!{}".format(interpreter),
-                "--platform=linux-x86_64-cp-37-m",
-                "--platform=macosx-10.15-x86_64-cp-37-m",
-                "-c",
-                "p537",
-                "-o",
-                pex_out_path,
-                "--validate-entry-point",
-            ]
-        )
-        res.assert_success()
+def test_multiplatform_entrypoint(tmpdir):
+    # type: (Any) -> None
 
-        greeting = subprocess.check_output([pex_out_path])
-        assert b"Hello World!" == greeting.strip()
+    pex_out_path = os.path.join(str(tmpdir), "p537.pex")
+    interpreter = ensure_python_interpreter(PY38)
+    res = run_pex_command(
+        [
+            "p537==1.0.8",
+            "--no-build",
+            "--python={}".format(interpreter),
+            "--python-shebang=#!{}".format(interpreter),
+            "--platform=linux-x86_64-cp-37-m",
+            "--platform=macosx-13.0-x86_64-cp-37-m",
+            "-c",
+            "p537",
+            "-o",
+            pex_out_path,
+            "--validate-entry-point",
+            "--pip-log",
+            os.path.join(str(tmpdir), "pip.log"),
+        ]
+    )
+    res.assert_success()
+
+    greeting = subprocess.check_output([pex_out_path])
+    assert b"Hello World!" == greeting.strip()
 
 
 def test_pex_console_script_custom_setuptools_useable():
@@ -1422,7 +1432,7 @@ def test_pex_cache_dir_and_pex_root():
         pex_file = os.path.join(td, "pex_file")
         run_pex_command(
             python=python,
-            args=["--cache-dir", cache_dir, "--pex-root", cache_dir, "p537==1.0.6", "-o", pex_file],
+            args=["--cache-dir", cache_dir, "--pex-root", cache_dir, "p537==1.0.8", "-o", pex_file],
         ).assert_success()
 
         dists = list(iter_distributions(pex_root=cache_dir, project_name="p537"))
@@ -1434,7 +1444,7 @@ def test_pex_cache_dir_and_pex_root():
         # When the options have conflicting values they should be rejected.
         run_pex_command(
             python=python,
-            args=["--cache-dir", cache_dir, "--pex-root", pex_root, "p537==1.0.6", "-o", pex_file],
+            args=["--cache-dir", cache_dir, "--pex-root", pex_root, "p537==1.0.8", "-o", pex_file],
         ).assert_failure()
 
         assert not os.path.exists(cache_dir)
@@ -1449,7 +1459,7 @@ def test_disable_cache():
         pex_file = os.path.join(td, "pex_file")
         run_pex_command(
             python=python,
-            args=["--disable-cache", "p537==1.0.6", "-o", pex_file],
+            args=["--disable-cache", "p537==1.0.8", "-o", pex_file],
             env=make_env(PEX_ROOT=pex_root),
         ).assert_success()
 

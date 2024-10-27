@@ -8,21 +8,18 @@ from textwrap import dedent
 from pex.common import safe_open, touch
 from pex.compatibility import commonpath
 from pex.interpreter import PythonInterpreter
-from pex.typing import TYPE_CHECKING
 from testing import run_pex_command
 from testing.cli import run_pex3
-
-if TYPE_CHECKING:
-    from typing import Any
+from testing.pytest.tmp import Tempdir
 
 
 def test_missing_download_lock_analysis_handling(
-    tmpdir,  # type: Any
+    tmpdir,  # type: Tempdir
     py310,  # type: PythonInterpreter
 ):
     # type: (...) -> None
 
-    my_feast = os.path.join(str(tmpdir), "intermediary")
+    my_feast = tmpdir.join("intermediary")
     touch(os.path.join(my_feast, "README.rst"))
     with safe_open(os.path.join(my_feast, "pyproject.toml"), "w") as fp:
         fp.write(
@@ -49,15 +46,10 @@ def test_missing_download_lock_analysis_handling(
             )
         )
 
-    pex_root = os.path.join(str(tmpdir), "pex_root")
-    lock = os.path.join(str(tmpdir), "lock.json")
+    lock = tmpdir.join("lock.json")
     run_pex3(
         "lock",
         "create",
-        "--pex-root",
-        pex_root,
-        "--python-path",
-        py310.binary,
         "--interpreter-constraint",
         "==3.10.*",
         "--style",
@@ -76,6 +68,7 @@ def test_missing_download_lock_analysis_handling(
         lock,
     ).assert_success()
 
+    pex_root = tmpdir.join("pex_root")
     result = run_pex_command(
         args=[
             "--pex-root",

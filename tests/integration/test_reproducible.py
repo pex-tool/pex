@@ -9,7 +9,7 @@ from zipfile import ZipFile
 
 import pytest
 
-from pex.common import temporary_dir
+from pex.common import safe_open, temporary_dir
 from pex.compatibility import PY2
 from pex.interpreter import PythonInterpreter
 from pex.pip.version import PipVersion, PipVersionValue
@@ -21,14 +21,15 @@ from testing import (
     IS_PYPY,
     PY27,
     PY38,
+    PY39,
     PY310,
     PY_VER,
     create_pex_command,
     ensure_python_interpreter,
     run_command_with_jitter,
     run_commands_with_jitter,
-    temporary_content,
 )
+from testing.pytest.tmp import Tempdir
 
 if TYPE_CHECKING:
     from typing import Iterable, List, Optional, Tuple
@@ -36,7 +37,7 @@ if TYPE_CHECKING:
 
 def compatible_pip_version(pythons):
     # type: (Iterable[str]) -> PipVersionValue
-    for pip_version in PipVersion.values():
+    for pip_version in sorted(PipVersion.values(), key=lambda v: v.version, reverse=True):
         if all(
             pip_version.requires_python_applies(
                 LocalInterpreter.create(PythonInterpreter.from_binary(python))
@@ -107,7 +108,7 @@ def major_compatible_pythons():
     return (
         (sys.executable, ensure_python_interpreter(PY27))
         if PY2
-        else (sys.executable, ensure_python_interpreter(PY38), ensure_python_interpreter(PY310))
+        else (sys.executable, ensure_python_interpreter(PY39), ensure_python_interpreter(PY310))
     )
 
 
@@ -169,45 +170,67 @@ def test_reproducible_build_m_flag(mixed_major_pythons):
     assert_reproducible_build(["-m", "pydoc"], pythons=mixed_major_pythons)
 
 
-def test_reproducible_build_c_flag_from_source(major_compatible_pythons):
-    # type: (Tuple[str, ...]) -> None
-    setup_cfg = dedent(
-        """\
-        [wheel]
-        universal = 1
-        """
-    )
-    setup_py = dedent(
-        """\
-        from setuptools import setup
+def test_reproducible_build_c_flag_from_source(
+    tmpdir,  # type: Tempdir
+    major_compatible_pythons,  # type: Tuple[str, ...]
+):
+    # type: (...) -> None
 
-        setup(
-            name='my_app',
-            entry_points={'console_scripts': ['my_app_function = my_app:do_something']},
+    project_dir = tmpdir.join("project")
+    with safe_open(os.path.join(project_dir, "pyproject.toml"), "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                [build-system]
+                requires = ["setuptools"]
+                build-backend =  "setuptools.build_meta"
+                """
+            )
         )
-        """
-    )
-    my_app = dedent(
-        """\
-        def do_something():
-            return "reproducible"
-        """
-    )
-    with temporary_content(
-        {"setup.cfg": setup_cfg, "setup.py": setup_py, "my_app.py": my_app}
-    ) as project_dir:
-        assert_reproducible_build(
-            [
-                project_dir,
-                "-c",
-                "my_app_function",
-                "--pip-version",
-                str(compatible_pip_version(major_compatible_pythons)),
-            ],
-            # Modern Pip / Setuptools produce different metadata for sdists than legacy Pip /
-            # Setuptools; so we don't mix them.
-            pythons=major_compatible_pythons,
+    with safe_open(os.path.join(project_dir, "setup.cfg"), "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                [bdist_wheel]
+                python_tag=py2.py3
+                """
+            )
         )
+    with safe_open(os.path.join(project_dir, "setup.py"), "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                from setuptools import setup
+
+                setup(
+                    name="my_app",
+                    entry_points={"console_scripts": ["my_app_function = my_app:do_something"]},
+                )
+                """
+            )
+        )
+    with safe_open(os.path.join(project_dir, "my_app.py"), "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                def do_something():
+                    return "reproducible"
+                """
+            )
+        )
+
+    assert_reproducible_build(
+        [
+            project_dir,
+            "-c",
+            "my_app_function",
+            "--pip-version",
+            str(compatible_pip_version(major_compatible_pythons)),
+        ],
+        # Modern Pip / Setuptools produce different metadata for sdists than legacy Pip /
+        # Setuptools; so we don't mix them.
+        pythons=major_compatible_pythons,
+    )
 
 
 def test_reproducible_build_c_flag_from_dependency(major_compatible_pythons):

@@ -127,6 +127,9 @@ def test_bdist_pex_under_tox(
             dedent(
                 """\
                 [testenv:bundle]
+                passenv =
+                    # This allows experimenting with Requires-Python metadata adjustment.
+                    _PEX_REQUIRES_PYTHON
                 deps =
                     setuptools
                     {pex}

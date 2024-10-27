@@ -10,6 +10,7 @@ import pytest
 from pex.typing import TYPE_CHECKING
 from testing import run_pex_command
 from testing.cli import run_pex3
+from testing.pythonPI import skip_flit_core_39
 
 if TYPE_CHECKING:
     from typing import Any
@@ -53,11 +54,18 @@ def assert_create_and_use_sdist_lock(
     ).assert_success()
 
 
+# For test_sdist_for_project_universal and test_sdist_for_project_with_native_extensions the skip is
+# needed because we force sdist only which currently transitively applies to build system requires
+# which leads to needing to build a wheel for wheel, which uses flit_core.
+
+
+@skip_flit_core_39
 def test_sdist_for_project_universal(tmpdir):
     # type: (Any) -> None
     assert_create_and_use_sdist_lock(tmpdir, "ansicolors==1.1.8", "import colors")
 
 
+@skip_flit_core_39
 def test_sdist_for_project_with_native_extensions(tmpdir):
     # type: (Any) -> None
     assert_create_and_use_sdist_lock(tmpdir, "psutil==5.9.1", "import psutil")

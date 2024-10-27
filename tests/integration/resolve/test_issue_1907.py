@@ -113,7 +113,7 @@ def local_project(tmpdir):
                 """\
                 [build-system]
                 requires = ["setuptools"]
-                backend = "setuptools.build_meta"
+                build-backend = "setuptools.build_meta"
 
                 [project]
                 name = "app"

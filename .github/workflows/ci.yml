@@ -69,10 +69,10 @@ jobs:
           # Unit tests:
           # -----------
           - tox-env: py27-pip20
-          - tox-env: py37-pip22_3_1
+          - tox-env: py38-pip22_3_1
           - tox-env: py311-pip23_3_2
-          - tox-env: py312-pip24_2
           - tox-env: py313-pip24_2
+          - tox-env: py314-pip24_2
           - tox-env: pypy310-pip24_2
 
           # Integration tests, split most into two shards:
@@ -81,9 +81,9 @@ jobs:
           # CPython 2.7 is fast enough not to require sharding.
           - tox-env: py27-pip20-integration
 
-          - tox-env: py37-pip22_3_1-integration
+          - tox-env: py38-pip22_3_1-integration
             pex-test-pos-args: --shard 1/2
-          - tox-env: py37-pip22_3_1-integration
+          - tox-env: py38-pip22_3_1-integration
             pex-test-pos-args: --shard 2/2
 
           - tox-env: py311-pip23_3_2-integration
@@ -91,14 +91,14 @@ jobs:
           - tox-env: py311-pip23_3_2-integration
             pex-test-pos-args: --shard 2/2
 
-          - tox-env: py312-pip24_2-integration
+          - tox-env: py313-pip24_2-integration
             pex-test-pos-args: --shard 1/2
-          - tox-env: py312-pip24_2-integration
+          - tox-env: py313-pip24_2-integration
             pex-test-pos-args: --shard 2/2
 
-          - tox-env: py313-pip24_2-integration
+          - tox-env: py314-pip24_2-integration
             pex-test-pos-args: --shard 1/2
-          - tox-env: py313-pip24_2-integration
+          - tox-env: py314-pip24_2-integration
             pex-test-pos-args: --shard 2/2
 
           - tox-env: pypy310-pip24_2-integration
@@ -145,15 +145,15 @@ jobs:
     strategy:
       matrix:
         include:
-          - python-version: [ 3, 12 ]
-            tox-env: py312-pip24_2
+          - python-version: [ 3, 13 ]
+            tox-env: py313-pip24_2
             tox-env-python: python3.11
-          - python-version: [ 3, 12 ]
-            tox-env: py312-pip24_2-integration
+          - python-version: [ 3, 13 ]
+            tox-env: py313-pip24_2-integration
             tox-env-python: python3.11
             pex-test-pos-args: --shard 1/2
-          - python-version: [ 3, 12 ]
-            tox-env: py312-pip24_2-integration
+          - python-version: [ 3, 13 ]
+            tox-env: py313-pip24_2-integration
             tox-env-python: python3.11
             pex-test-pos-args: --shard 2/2
     steps:
