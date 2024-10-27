@@ -531,7 +531,7 @@ def ensure_venv(
             from pex.cache.data import record_venv_install
             from pex.venv.virtualenv import Virtualenv
 
-            with interpreter.path_mapping(venv.work_dir, venv_dir):
+            with interpreter.path_mapping(venv.work_dir, venv_dir.path):
                 virtualenv = Virtualenv.create_atomic(
                     venv_dir=venv,
                     interpreter=pex.interpreter,

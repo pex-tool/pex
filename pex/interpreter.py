@@ -109,7 +109,7 @@ class Platlib(SitePackagesDir):
     pass
 
 
-_PATH_MAPPINGS = {}
+_PATH_MAPPINGS = {}  # type: Dict[str, str]
 
 
 @contextmanager
