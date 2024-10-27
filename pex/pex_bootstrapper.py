@@ -7,7 +7,7 @@ import hashlib
 import os
 import sys
 
-from pex import pex_warnings
+from pex import interpreter, pex_warnings
 from pex.atomic_directory import atomic_directory
 from pex.cache import access as cache_access
 from pex.cache.dirs import CacheDir
@@ -527,92 +527,102 @@ def ensure_venv(
         if not venv.is_finalized():
             from pex.venv.virtualenv import Virtualenv
 
-            virtualenv = Virtualenv.create_atomic(
-                venv_dir=venv,
-                interpreter=pex.interpreter,
-                copies=pex_info.venv_copies,
-                system_site_packages=pex_info.venv_system_site_packages,
-                prompt=os.path.basename(ENV.PEX) if ENV.PEX else None,
-            )
+            with interpreter.path_mapping(venv.work_dir, venv_dir):
+                virtualenv = Virtualenv.create_atomic(
+                    venv_dir=venv,
+                    interpreter=pex.interpreter,
+                    copies=pex_info.venv_copies,
+                    system_site_packages=pex_info.venv_system_site_packages,
+                    prompt=os.path.basename(ENV.PEX) if ENV.PEX else None,
+                )
 
-            pex_path = os.path.abspath(pex.path())
+                pex_path = os.path.abspath(pex.path())
 
-            # A sha1 hash is 160 bits -> 20 bytes -> 40 hex characters. We start with 8 characters
-            # (32 bits) of entropy since that is short and _very_ unlikely to collide with another
-            # PEX venv on this machine. If we still collide after using the whole sha1 (for a total
-            # of 33 collisions), then the universe is broken and we raise. It's the least we can do.
-            venv_hash = hashlib.sha1(venv_dir.encode("utf-8")).hexdigest()
-            collisions = []
-            for chars in range(8, len(venv_hash) + 1):
-                entropy = venv_hash[:chars]
-                short_venv_dir = CacheDir.VENVS.path("s", entropy, pex_root=pex_info.pex_root)
-                with atomic_directory(short_venv_dir) as short_venv:
-                    if short_venv.is_finalized():
-                        collisions.append(short_venv_dir)
-                        if entropy == venv_hash:
-                            raise RuntimeError(
-                                "The venv for {pex} at {venv} has hash collisions with {count} "
-                                "other {venvs}!\n{collisions}".format(
-                                    pex=pex_path,
-                                    venv=venv_dir,
-                                    count=len(collisions),
-                                    venvs=pluralize(collisions, "venv"),
-                                    collisions="\n".join(
-                                        "{index}.) {venv_path}".format(
-                                            index=index, venv_path=os.path.realpath(path)
-                                        )
-                                        for index, path in enumerate(collisions, start=1)
-                                    ),
+                # A sha1 hash is 160 bits -> 20 bytes -> 40 hex characters. We start with 8
+                # characters (32 bits) of entropy since that is short and _very_ unlikely to collide
+                # with another PEX venv on this machine. If we still collide after using the whole
+                # sha1 (for a total of 33 collisions), then the universe is broken and we raise.
+                # It's the least we can do.
+                venv_hash = hashlib.sha1(venv_dir.encode("utf-8")).hexdigest()
+                collisions = []
+                for chars in range(8, len(venv_hash) + 1):
+                    entropy = venv_hash[:chars]
+                    short_venv_dir = CacheDir.VENVS.path("s", entropy, pex_root=pex_info.pex_root)
+                    with atomic_directory(short_venv_dir) as short_venv:
+                        if short_venv.is_finalized():
+                            collisions.append(short_venv_dir)
+                            if entropy == venv_hash:
+                                raise RuntimeError(
+                                    "The venv for {pex} at {venv} has hash collisions with {count} "
+                                    "other {venvs}!\n{collisions}".format(
+                                        pex=pex_path,
+                                        venv=venv_dir,
+                                        count=len(collisions),
+                                        venvs=pluralize(collisions, "venv"),
+                                        collisions="\n".join(
+                                            "{index}.) {venv_path}".format(
+                                                index=index, venv_path=os.path.realpath(path)
+                                            )
+                                            for index, path in enumerate(collisions, start=1)
+                                        ),
+                                    )
                                 )
+                            continue
+
+                        with interpreter.path_mapping(short_venv.work_dir, short_venv_dir):
+                            os.symlink(
+                                os.path.relpath(venv_dir, short_venv_dir),
+                                os.path.join(short_venv.work_dir, "venv"),
                             )
-                        continue
 
-                    os.symlink(venv_dir, os.path.join(short_venv.work_dir, "venv"))
-
-                    # Loose PEXes don't need to unpack themselves to the PEX_ROOT before running;
-                    # so we'll not have a stable base there to symlink from. As such, always copy
-                    # for loose PEXes to ensure the PEX_ROOT venv is stable in the face of
-                    # modification of the source loose PEX.
-                    copy_mode = (
-                        CopyMode.SYMLINK
-                        if (pex.layout != Layout.LOOSE and not pex_info.venv_site_packages_copies)
-                        else CopyMode.LINK
-                    )
-
-                    shebang = installer.populate_venv_from_pex(
-                        virtualenv,
-                        pex,
-                        bin_path=pex_info.venv_bin_path,
-                        python=os.path.join(
-                            short_venv_dir,
-                            "venv",
-                            "bin",
-                            os.path.basename(virtualenv.interpreter.binary),
-                        ),
-                        collisions_ok=collisions_ok,
-                        copy_mode=copy_mode,
-                        hermetic_scripts=pex_info.venv_hermetic_scripts,
-                    )
-
-                    # There are popular Linux distributions with shebang length limits
-                    # (BINPRM_BUF_SIZE in /usr/include/linux/binfmts.h) set at 128 characters, so
-                    # we warn in the _very_ unlikely case that our shortened shebang is longer than
-                    # this.
-                    if len(shebang) > 128:
-                        pex_warnings.warn(
-                            "The venv for {pex} at {venv} has script shebangs of {shebang!r} with "
-                            "{count} characters. On some systems this may be too long and cause "
-                            "problems running the venv scripts. You may be able adjust PEX_ROOT "
-                            "from {pex_root} to a shorter path as a work-around.".format(
-                                pex=pex_path,
-                                venv=venv_dir,
-                                shebang=shebang,
-                                count=len(shebang),
-                                pex_root=pex_info.pex_root,
+                            # Loose PEXes don't need to unpack themselves to the PEX_ROOT before
+                            # running; so we'll not have a stable base there to symlink from. As
+                            # such, always copy for loose PEXes to ensure the PEX_ROOT venv is
+                            # stable in the face of modification of the source loose PEX.
+                            copy_mode = (
+                                CopyMode.SYMLINK
+                                if (
+                                    pex.layout != Layout.LOOSE
+                                    and not pex_info.venv_site_packages_copies
+                                )
+                                else CopyMode.LINK
                             )
-                        )
 
-                    break
+                            shebang = installer.populate_venv_from_pex(
+                                virtualenv,
+                                pex,
+                                bin_path=pex_info.venv_bin_path,
+                                python=os.path.join(
+                                    short_venv_dir,
+                                    "venv",
+                                    "bin",
+                                    os.path.basename(virtualenv.interpreter.binary),
+                                ),
+                                collisions_ok=collisions_ok,
+                                copy_mode=copy_mode,
+                                hermetic_scripts=pex_info.venv_hermetic_scripts,
+                            )
+
+                            # There are popular Linux distributions with shebang length limits
+                            # (BINPRM_BUF_SIZE in /usr/include/linux/binfmts.h) set at 128
+                            # characters, so we warn in the _very_ unlikely case that our shortened
+                            # shebang is longer than this.
+                            if len(shebang) > 128:
+                                pex_warnings.warn(
+                                    "The venv for {pex} at {venv} has script shebangs of "
+                                    "{shebang!r} with {count} characters. On some systems this may "
+                                    "be too long and cause problems running the venv scripts. You "
+                                    "may be able adjust PEX_ROOT from {pex_root} to a shorter path "
+                                    "as a work-around.".format(
+                                        pex=pex_path,
+                                        venv=venv_dir,
+                                        shebang=shebang,
+                                        count=len(shebang),
+                                        pex_root=pex_info.pex_root,
+                                    )
+                                )
+
+                            break
 
     return VenvPex(venv_dir, hermetic_scripts=pex_info.venv_hermetic_scripts)
 

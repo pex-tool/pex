@@ -109,6 +109,53 @@ class Platlib(SitePackagesDir):
     pass
 
 
+_PATH_MAPPINGS = {}
+
+
+@contextmanager
+def path_mapping(
+    current_path,  # type: str
+    final_path,  # type: str
+):
+    # type: (...) -> Iterator[None]
+
+    _PATH_MAPPINGS[current_path] = final_path
+    try:
+        yield
+    finally:
+        _PATH_MAPPINGS.pop(current_path)
+
+
+@contextmanager
+def path_mappings(mappings):
+    # type: (Mapping[str, str]) -> Iterator[None]
+
+    _PATH_MAPPINGS.update(mappings)
+    try:
+        yield
+    finally:
+        for current_path in mappings:
+            _PATH_MAPPINGS.pop(current_path)
+
+
+def _adjust_to_final_path(path):
+    # type: (str) -> str
+    for current_path, final_path in _PATH_MAPPINGS.items():
+        if path.startswith(current_path):
+            prefix_pattern = re.escape(current_path)
+            return re.sub(prefix_pattern, final_path, path)
+    return path
+
+
+def _adjust_to_current_path(path):
+    # type: (str) -> str
+    for current_path, final_path in _PATH_MAPPINGS.items():
+        if path.startswith(final_path):
+            prefix_pattern = re.escape(final_path)
+            return re.sub(prefix_pattern, current_path, path)
+    return path
+
+
 class PythonIdentity(object):
     class Error(Exception):
         pass
@@ -333,14 +380,24 @@ class PythonIdentity(object):
         site_packages = []  # type: List[SitePackagesDir]
         for path in site_packages_paths:
             if path == purelib:
-                site_packages.append(Purelib(path))
+                site_packages.append(Purelib(_adjust_to_current_path(path)))
             elif path == platlib:
-                site_packages.append(Platlib(path))
+                site_packages.append(Platlib(_adjust_to_current_path(path)))
             else:
-                site_packages.append(SitePackagesDir(path))
+                site_packages.append(SitePackagesDir(_adjust_to_current_path(path)))
 
         return cls(
+            binary=_adjust_to_current_path(values.pop("binary")),
+            prefix=_adjust_to_current_path(values.pop("prefix")),
+            base_prefix=_adjust_to_current_path(values.pop("base_prefix")),
+            sys_path=[_adjust_to_current_path(entry) for entry in values.pop("sys_path")],
             site_packages=site_packages,
+            extras_paths=[
+                _adjust_to_current_path(extras_path) for extras_path in values.pop("extras_paths")
+            ],
+            paths={
+                name: _adjust_to_current_path(path) for name, path in values.pop("paths").items()
+            },
             version=cast("Tuple[int, int, int]", version),
             pypy_version=cast("Optional[Tuple[int, int, int]]", pypy_version),
             supported_tags=iter_tags(),
@@ -402,26 +459,27 @@ class PythonIdentity(object):
         purelib = None  # type: Optional[str]
         platlib = None  # type: Optional[str]
         for entry in self._site_packages:
-            site_packages.append(entry.path)
+            entry_path = _adjust_to_final_path(entry.path)
+            site_packages.append(entry_path)
             if isinstance(entry, Purelib):
-                purelib = entry.path
+                purelib = entry_path
             elif isinstance(entry, Platlib):
-                platlib = entry.path
+                platlib = entry_path
 
         values = dict(
             __format_version__=self._FORMAT_VERSION,
-            binary=self._binary,
-            prefix=self._prefix,
-            base_prefix=self._base_prefix,
-            sys_path=self._sys_path,
+            binary=_adjust_to_final_path(self._binary),
+            prefix=_adjust_to_final_path(self._prefix),
+            base_prefix=_adjust_to_final_path(self._base_prefix),
+            sys_path=[_adjust_to_final_path(entry) for entry in self._sys_path],
             site_packages=site_packages,
             # N.B.: We encode purelib and platlib site-packages entries on the side like this to
             # ensure older Pex versions that did not know the distinction can still use the
             # interpreter cache.
             purelib=purelib,
             platlib=platlib,
-            extras_paths=self._extras_paths,
-            paths=self._paths,
+            extras_paths=[_adjust_to_final_path(extras_path) for extras_path in self._extras_paths],
+            paths={name: _adjust_to_final_path(path) for name, path in self._paths.items()},
             packaging_version=self._packaging_version,
             python_tag=self._python_tag,
             abi_tag=self._abi_tag,
@@ -1068,20 +1126,25 @@ class PythonInterpreter(object):
                         import os
                         import sys
 
+                        from pex import interpreter
                         from pex.atomic_directory import atomic_directory
                         from pex.common import safe_open
                         from pex.interpreter import PythonIdentity
 
 
-                        encoded_identity = PythonIdentity.get(binary={binary!r}).encode()
-                        with atomic_directory({cache_dir!r}) as cache_dir:
-                            if not cache_dir.is_finalized():
-                                with safe_open(
-                                    os.path.join(cache_dir.work_dir, {info_file!r}), 'w'
-                                ) as fp:
-                                    fp.write(encoded_identity)
+                        with interpreter.path_mappings({path_mappings!r}):
+                            encoded_identity = PythonIdentity.get(binary={binary!r}).encode()
+                            with atomic_directory({cache_dir!r}) as cache_dir:
+                                if not cache_dir.is_finalized():
+                                    with safe_open(
+                                        os.path.join(cache_dir.work_dir, {info_file!r}), 'w'
+                                    ) as fp:
+                                        fp.write(encoded_identity)
                         """.format(
-                            binary=binary, cache_dir=cache_dir, info_file=cls.INTERP_INFO_FILE
+                            path_mappings=_PATH_MAPPINGS,
+                            binary=binary,
+                            cache_dir=cache_dir,
+                            info_file=cls.INTERP_INFO_FILE,
                         )
                     ),
                 ],
