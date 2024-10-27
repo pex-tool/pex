@@ -1,6 +1,7 @@
 # Copyright 2021 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
-
+import glob
+import json
 import os.path
 import re
 import subprocess
@@ -12,7 +13,7 @@ import pytest
 from pex.cache.dirs import CacheDir
 from pex.common import safe_open
 from pex.compatibility import commonpath
-from pex.interpreter import PythonInterpreter
+from pex.interpreter import PythonIdentity, PythonInterpreter
 from pex.interpreter_constraints import InterpreterConstraint
 from pex.pex import PEX
 from pex.pex_bootstrapper import ensure_venv
@@ -21,9 +22,10 @@ from pex.typing import TYPE_CHECKING
 from pex.venv.installer import CollisionError
 from pex.venv.virtualenv import Virtualenv
 from testing import PY38, PY39, PY_VER, ensure_python_interpreter, make_env, run_pex_command
+from testing.pytest.tmp import Tempdir
 
 if TYPE_CHECKING:
-    from typing import Any, Optional, Set, Text
+    from typing import Any, List, Optional, Set, Text
 
 
 def test_ensure_venv_short_link(
@@ -413,4 +415,44 @@ def test_boot_resolve_fail(
     )
     assert pattern.match(error), "Got error:\n{error}\n\nExpected pattern\n{pattern}".format(
         error=error, pattern=pattern.pattern
+    )
+
+
+def test_cached_venv_interpreter_paths(tmpdir):
+    # type: (Tempdir) -> None
+
+    # N.B.: Previously, the path ot the atomic_directory work dir would leak into various cached
+    # paths in the PythonInterpreter INTERP-INFO files instead of the final resting path of the
+    # atomically created venv.
+
+    empty_pex = tmpdir.join("empty.pex")
+    pex_root = tmpdir.join("pex_root")
+    result = run_pex_command(
+        args=[
+            "--pex-root",
+            pex_root,
+            "--runtime-pex-root",
+            pex_root,
+            "--venv",
+            "--seed",
+            "verbose",
+            "-o",
+            empty_pex,
+        ]
+    )
+    result.assert_success()
+    expected_prefix = os.path.dirname(json.loads(result.output)["pex"])
+
+    actual_prefixes = []  # type: List[str]
+    for interp_info in glob.glob(
+        CacheDir.INTERPRETERS.path("*", "*", "*", "INTERP-INFO", pex_root=pex_root)
+    ):
+        with open(interp_info) as fp:
+            actual_prefixes.append(PythonIdentity.decode(fp.read()).prefix)
+
+    assert expected_prefix in actual_prefixes, (
+        "Expected venv prefix of {expected_prefix} not found in actual cached python interpreter "
+        "prefixes:\n{actual_prefixes}".format(
+            expected_prefix=expected_prefix, actual_prefixes="\n".join(actual_prefixes)
+        )
     )
