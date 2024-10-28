@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from typing import Any, Iterable, Iterator, List, Optional, Type, TypeVar, Union
 
     from pex.dist_metadata import ProjectNameAndVersion
+    from pex.interpreter import PythonInterpreter
     from pex.pep_440 import Version
     from pex.pep_503 import ProjectName
     from pex.pip.version import PipVersionValue
@@ -742,3 +743,81 @@ class BuiltWheelDir(AtomicCacheDir):
     def version(self):
         # type: () -> Version
         return self._pnav.canonicalized_version
+
+
+class InterpreterDir(AtomicCacheDir):
+    INTERP_INFO_FILE = "INTERP-INFO"
+
+    @classmethod
+    def iter_all(cls, pex_root=ENV):
+        # type: (Union[str, Variables]) -> Iterator[InterpreterDir]
+
+        for interp_info_file in glob.glob(
+            CacheDir.INTERPRETERS.path("*", "*", "*", cls.INTERP_INFO_FILE, pex_root=pex_root)
+        ):
+            yield cls(path=os.path.dirname(interp_info_file), interp_info_file=interp_info_file)
+
+    @classmethod
+    def create(cls, binary):
+        # type: (str) -> InterpreterDir
+
+        import hashlib
+        import platform
+
+        from pex.common import safe_rmtree
+        from pex.tracer import TRACER
+        from pex.util import CacheHelper
+
+        # Part of the PythonInterpreter data are environment markers that depend on the current OS
+        # release. That data can change when the OS is upgraded but (some of) the installed
+        # interpreters remain the same. As such, include the OS in the hash structure for cached
+        # interpreters.
+        os_digest = hashlib.sha1()
+        for os_identifier in platform.release(), platform.version():
+            os_digest.update(os_identifier.encode("utf-8"))
+        os_hash = os_digest.hexdigest()
+
+        interpreter_cache_dir = CacheDir.INTERPRETERS.path()
+        os_cache_dir = os.path.join(interpreter_cache_dir, os_hash)
+        if os.path.isdir(interpreter_cache_dir) and not os.path.isdir(os_cache_dir):
+            with TRACER.timed("GCing interpreter cache from prior OS version"):
+                safe_rmtree(interpreter_cache_dir)
+
+        interpreter_hash = CacheHelper.hash(binary)
+
+        # Some distributions include more than one copy of the same interpreter via a hard link
+        # (e.g.: python3.7 is a hardlink to python3.7m). To ensure a deterministic INTERP-INFO file
+        # we must emit a separate INTERP-INFO for each link since INTERP-INFO contains the
+        # interpreter path and would otherwise be unstable.
+        #
+        # See PythonInterpreter._REGEXEN for a related affordance.
+        #
+        # N.B.: The path for --venv mode interpreters can be quite long; so we just used a fixed
+        # length hash of the interpreter binary path to ensure uniqueness and not run afoul of file
+        # name length limits.
+        path_id = hashlib.sha1(binary.encode("utf-8")).hexdigest()
+
+        cache_dir = os.path.join(os_cache_dir, interpreter_hash, path_id)
+        cache_file = os.path.join(cache_dir, cls.INTERP_INFO_FILE)
+
+        return cls(path=cache_dir, interp_info_file=cache_file)
+
+    def __init__(
+        self,
+        path,  # type: str
+        interp_info_file,  # type: str
+    ):
+        # type: (...) -> None
+        super(InterpreterDir, self).__init__(path)
+        self.interp_info_file = interp_info_file
+        self._interpreter = None  # type: Optional[PythonInterpreter]
+
+    @property
+    def interpreter(self):
+        # type: () -> PythonInterpreter
+        if self._interpreter is None:
+            with open(self.interp_info_file) as fp:
+                from pex.interpreter import PythonIdentity, PythonInterpreter
+
+                self._interpreter = PythonInterpreter(PythonIdentity.decode(fp.read()))
+        return self._interpreter

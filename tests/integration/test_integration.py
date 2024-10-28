@@ -18,7 +18,7 @@ import pexpect  # type: ignore[import]  # MyPy can't see the types under Python 
 import pytest
 
 from pex import targets
-from pex.cache.dirs import CacheDir
+from pex.cache.dirs import CacheDir, InterpreterDir
 from pex.common import is_exe, safe_mkdir, safe_open, safe_rmtree, temporary_dir, touch
 from pex.compatibility import WINDOWS, commonpath
 from pex.dist_metadata import Distribution, Requirement, is_wheel
@@ -77,8 +77,8 @@ def test_pex_raise():
 
 def assert_interpreters(label, pex_root):
     # type: (str, str) -> None
-    assert os.listdir(
-        CacheDir.INTERPRETERS.path(pex_root=pex_root)
+    assert (
+        len(list(InterpreterDir.iter_all(pex_root=pex_root))) > 0
     ), "Expected {label} pex root to be populated with interpreters.".format(label=label)
 
 
