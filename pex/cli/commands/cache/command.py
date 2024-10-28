@@ -20,6 +20,7 @@ from pex.cache.dirs import (
     CacheDir,
     DownloadDir,
     InstalledWheelDir,
+    InterpreterDir,
     VenvDirs,
 )
 from pex.cli.command import BuildTimeCommand
@@ -627,6 +628,7 @@ class Cache(OutputMixin, BuildTimeCommand):
                 ),
                 file=fp,
             )
+            print(file=fp)
 
         def prune_pip_caches(wheels):
             # type: (Iterable[InstalledWheelDir]) -> None
@@ -718,6 +720,49 @@ class Cache(OutputMixin, BuildTimeCommand):
                         ),
                         file=fp,
                     )
+                print(file=fp)
+
+        venv_dir_paths = {pex_dir.path for pex_dir in pex_dirs if isinstance(pex_dir, VenvDirs)}
+        interpreters_to_prune = []  # type: List[InterpreterDir]
+        for interpreter_dir in InterpreterDir.iter_all():
+            if not interpreter_dir.valid():
+                interpreters_to_prune.append(interpreter_dir)
+            else:
+                venv_dir = interpreter_dir.venv_dir()
+                if not venv_dir:
+                    continue
+                if venv_dir.path in venv_dir_paths:
+                    interpreters_to_prune.append(interpreter_dir)
+
+        def prune_interpreters():
+            # type: () -> None
+
+            if not interpreters_to_prune:
+                return
+
+            print(
+                "{pruned} {count} {cached_interpreter}.".format(
+                    pruned="Would have pruned" if self.options.dry_run else "Pruned",
+                    count=len(interpreters_to_prune),
+                    cached_interpreter=pluralize(interpreters_to_prune, "cached interpreter"),
+                ),
+                file=fp,
+            )
+            print(
+                self._render_usage(
+                    tuple(
+                        iter_map_parallel(
+                            interpreters_to_prune,
+                            function=prune_cache_dir,
+                            noun="interpreter",
+                            verb="prune",
+                            verb_past="pruned",
+                        )
+                    )
+                ),
+                file=fp,
+            )
+            print(file=fp)
 
         if not pex_dirs:
             print(
@@ -733,7 +778,7 @@ class Cache(OutputMixin, BuildTimeCommand):
             print(file=fp)
             unused_wheels = prune_unused_deps()
             prune_pip_caches(unused_wheels)
-            prune_pips()
+            prune_interpreters()
             return Ok()
 
         print(
@@ -783,6 +828,7 @@ class Cache(OutputMixin, BuildTimeCommand):
             )
             print(file=fp)
             prune_pips()
+            prune_interpreters()
         else:
             with cache_data.delete(pex_dirs) as deps_iter:
                 deps = tuple(deps_iter)
@@ -827,4 +873,5 @@ class Cache(OutputMixin, BuildTimeCommand):
             unused_wheels.update(prune_unused_deps(additional=len(disk_usages) > 0))
             prune_pip_caches(unused_wheels)
             prune_pips()
+            prune_interpreters()
         return Ok()

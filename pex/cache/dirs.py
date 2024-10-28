@@ -6,6 +6,8 @@ from __future__ import absolute_import
 import glob
 import os
 
+from pex.common import is_exe, safe_rmtree
+from pex.compatibility import commonpath
 from pex.enum import Enum
 from pex.exceptions import production_assert
 from pex.orderedset import OrderedSet
@@ -764,7 +766,6 @@ class InterpreterDir(AtomicCacheDir):
         import hashlib
         import platform
 
-        from pex.common import safe_rmtree
         from pex.tracer import TRACER
         from pex.util import CacheHelper
 
@@ -806,11 +807,13 @@ class InterpreterDir(AtomicCacheDir):
         self,
         path,  # type: str
         interp_info_file,  # type: str
+        pex_root=ENV,  # type: Union[str, Variables]
     ):
         # type: (...) -> None
         super(InterpreterDir, self).__init__(path)
         self.interp_info_file = interp_info_file
         self._interpreter = None  # type: Optional[PythonInterpreter]
+        self._pex_root = pex_root
 
     @property
     def interpreter(self):
@@ -821,3 +824,21 @@ class InterpreterDir(AtomicCacheDir):
 
                 self._interpreter = PythonInterpreter(PythonIdentity.decode(fp.read()))
         return self._interpreter
+
+    def valid(self):
+        # type: () -> bool
+        return is_exe(self.interpreter.binary)
+
+    def venv_dir(self):
+        # type: () -> Optional[VenvDir]
+
+        if not self.interpreter.is_venv:
+            return None
+        cached_venv_root = CacheDir.VENVS.path()
+        if cached_venv_root != commonpath((cached_venv_root, self.interpreter.prefix)):
+            return None
+        head, contents_hash = os.path.split(self.interpreter.prefix)
+        pex_hash = os.path.basename(head)
+        return VenvDir.create(
+            pex_hash=pex_hash, contents_hash=contents_hash, pex_root=self._pex_root
+        )
