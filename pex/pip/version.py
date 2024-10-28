@@ -303,6 +303,13 @@ class PipVersion(Enum["PipVersionValue"]):
         requires_python=">=3.8,<3.15",
     )
 
+    v24_3_1 = PipVersionValue(
+        version="24.3.1",
+        setuptools_version="75.2.0",
+        wheel_version="0.44.0",
+        requires_python=">=3.8,<3.15",
+    )
+
     VENDORED = v20_3_4_patched
     LATEST = LatestPipVersion()
     DEFAULT = DefaultPipVersion(preferred=(VENDORED, v23_2, v24_1))
