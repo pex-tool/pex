@@ -10,6 +10,7 @@ import subprocess
 from collections import OrderedDict
 from subprocess import CalledProcessError
 
+from pex import toml
 from pex.atomic_directory import atomic_directory
 from pex.cache.dirs import CacheDir
 from pex.common import chmod_plus_x, is_exe, pluralize, safe_mkdtemp, safe_open
@@ -44,9 +45,8 @@ if TYPE_CHECKING:
     from typing import Any, Dict, Iterator, List, Optional, Union, cast
 
     import attr  # vendor:skip
-    import toml  # vendor:skip
 else:
-    from pex.third_party import attr, toml
+    from pex.third_party import attr
 
 
 @attr.s(frozen=True)
@@ -235,7 +235,7 @@ def create_manifests(
                     },
                 },
                 "name": "configure",
-                "exe": "#{cpython:python}",
+                "exe": "#{python-distribution:python}",
                 "args": configure_binding_args,
             }
         ],
@@ -248,12 +248,13 @@ def create_manifests(
         )
 
         interpreter_config = {
-            "id": "cpython",
+            "id": "python-distribution",
             "provider": interpreter.provider.value,
-            "release": interpreter.release,
             "version": interpreter.version_str,
             "lazy": configuration.options.style is ScieStyle.LAZY,
         }
+        if interpreter.release:
+            interpreter_config["release"] = interpreter.release
         if Provider.PythonBuildStandalone is interpreter.provider:
             interpreter_config.update(
                 flavor=(
@@ -263,7 +264,7 @@ def create_manifests(
                 )
             )
 
-        with safe_open(manifest_path, "w") as fp:
+        with safe_open(manifest_path, "wb") as fp:
             toml.dump(
                 {
                     "lift": dict(

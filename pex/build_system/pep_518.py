@@ -6,6 +6,7 @@ from __future__ import absolute_import
 import os.path
 import subprocess
 
+from pex import toml
 from pex.build_system import DEFAULT_BUILD_BACKEND
 from pex.common import REPRODUCIBLE_BUILDS_ENV, CopyMode
 from pex.dist_metadata import Distribution
@@ -26,9 +27,8 @@ if TYPE_CHECKING:
     from typing import Iterable, Mapping, Optional, Tuple, Union
 
     import attr  # vendor:skip
-    import toml  # vendor:skip
 else:
-    from pex.third_party import attr, toml
+    from pex.third_party import attr
 
 
 @attr.s(frozen=True)
@@ -43,8 +43,7 @@ def _read_build_system_table(
 ):
     # type: (...) -> Union[Optional[BuildSystemTable], Error]
     try:
-        with open(pyproject_toml) as fp:
-            data = toml.load(fp)
+        data = toml.load(pyproject_toml)
     except toml.TomlDecodeError as e:
         return Error(
             "Problem parsing toml in {pyproject_toml}: {err}".format(

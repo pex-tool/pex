@@ -4,6 +4,7 @@
 from __future__ import absolute_import
 
 import re
+import sys
 from textwrap import dedent
 
 import pytest
@@ -238,9 +239,15 @@ def test_parse_invalid_toml():
         InvalidMetadataError,
         match=re.escape(
             "The script metadata found in exe.py starting at line 3 embeds malformed toml: "
-            "Empty value is invalid (line 1 column 1 char 0).\n"
+            "{toml_error}.\n"
             "See: https://packaging.python.org/specifications/"
-            "inline-script-metadata#inline-script-metadata"
+            "inline-script-metadata#inline-script-metadata".format(
+                toml_error=(
+                    "Invalid value (at line 1, column 21)"  # N.B.: tomli
+                    if sys.version_info[:2] >= (3, 7)
+                    else "Empty value is invalid (line 1 column 1 char 0)"  # N.B.: toml
+                )
+            )
         ),
     ):
         ScriptMetadata.parse(

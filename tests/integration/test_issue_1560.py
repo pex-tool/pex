@@ -6,16 +6,13 @@ import subprocess
 
 import pytest
 
+from pex import toml
 from pex.typing import TYPE_CHECKING
 from testing import IntegResults, VenvFactory, all_python_venvs, make_source_dir, run_pex_command
 from testing.pythonPI import skip_flit_core_39
 
 if TYPE_CHECKING:
     from typing import Any
-
-    import toml  # vendor:skip
-else:
-    from pex.third_party import toml
 
 
 @pytest.mark.parametrize(
