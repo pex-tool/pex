@@ -8,6 +8,7 @@ import os
 
 from pex.enum import Enum
 from pex.exceptions import production_assert
+from pex.orderedset import OrderedSet
 from pex.typing import TYPE_CHECKING, cast
 from pex.variables import ENV, Variables
 
@@ -357,24 +358,24 @@ class InstalledWheelDir(AtomicCacheDir):
         from pex.dist_metadata import ProjectNameAndVersion
 
         symlinks = []  # type: List[str]
-        dirs = []  # type: List[str]
+        dirs = OrderedSet()  # type: OrderedSet[str]
         for path in glob.glob(CacheDir.INSTALLED_WHEELS.path("*", "*.whl", pex_root=pex_root)):
             if not os.path.isdir(path):
                 continue
             if os.path.islink(path):
                 symlinks.append(path)
             else:
-                dirs.append(path)
+                dirs.add(path)
 
-        seen = set()
         for symlink in symlinks:
+            wheel_dir = os.path.realpath(symlink)
+            dirs.discard(wheel_dir)
+            wheel_hash = os.path.basename(os.path.dirname(wheel_dir))
             symlink_dir = os.path.dirname(symlink)
             install_hash = os.path.basename(symlink_dir)
-            wheel_dir = os.path.realpath(symlink)
-            wheel_hash = os.path.basename(os.path.dirname(wheel_dir))
             wheel_name = os.path.basename(wheel_dir)
             pnav = ProjectNameAndVersion.from_filename(wheel_name)
-            installed_wheel_dir = InstalledWheelDir(
+            yield InstalledWheelDir(
                 wheel_dir,
                 wheel_name=wheel_name,
                 project_name=pnav.canonicalized_project_name,
@@ -383,23 +384,17 @@ class InstalledWheelDir(AtomicCacheDir):
                 wheel_hash=wheel_hash,
                 symlink_dir=symlink_dir,
             )
-            if installed_wheel_dir not in seen:
-                seen.add(installed_wheel_dir)
-                yield installed_wheel_dir
         for wheel_dir in dirs:
             install_hash = os.path.basename(os.path.dirname(wheel_dir))
             wheel_name = os.path.basename(wheel_dir)
             pnav = ProjectNameAndVersion.from_filename(wheel_name)
-            installed_wheel_dir = InstalledWheelDir(
+            yield InstalledWheelDir(
                 wheel_dir,
                 wheel_name=wheel_name,
                 project_name=pnav.canonicalized_project_name,
                 version=pnav.canonicalized_version,
                 install_hash=install_hash,
             )
-            if installed_wheel_dir not in seen:
-                seen.add(installed_wheel_dir)
-                yield installed_wheel_dir
 
     @classmethod
     def create(
