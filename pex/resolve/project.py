@@ -164,17 +164,13 @@ class DependencyGroup(object):
     def parse(cls, spec):
         # type: (str) -> DependencyGroup
         group, sep, project_dir = spec.partition("@")
-        if sep != "@":
-            raise ValueError(
-                "Dependency group specifiers must be in the form "
-                "`<group name>@<project dir path>`, given: {spec}".format(spec=spec)
-            )
-        if not os.path.isdir(project_dir):
+        abs_project_dir = os.path.realpath(project_dir)
+        if not os.path.isdir(abs_project_dir):
             raise ValueError(
                 "The project directory specified by '{spec}' is not a directory".format(spec=spec)
             )
 
-        pyproject_toml = os.path.join(project_dir, "pyproject.toml")
+        pyproject_toml = os.path.join(abs_project_dir, "pyproject.toml")
         if not os.path.isfile(pyproject_toml):
             raise ValueError(
                 "The project directory specified by '{spec}' does not contain a pyproject.toml "
@@ -200,7 +196,7 @@ class DependencyGroup(object):
                 "{pyproject_toml}".format(group=group, spec=spec, pyproject_toml=pyproject_toml)
             )
 
-        return cls(project_dir=project_dir, name=group_name, groups=dependency_groups)
+        return cls(project_dir=abs_project_dir, name=group_name, groups=dependency_groups)
 
     project_dir = attr.ib()  # type: str
     name = attr.ib()  # type: GroupName
@@ -230,8 +226,9 @@ class DependencyGroup(object):
 
         if not isinstance(members, list):
             raise ValueError(
-                "Invalid dependency group '{group}' in the project at {project_dir}. The value "
-                "must be a list containing dependency specifiers or dependency group includes.\n"
+                "Invalid dependency group '{group}' in the project at {project_dir}.\n"
+                "The value must be a list containing dependency specifiers or dependency group "
+                "includes.\n"
                 "See https://peps.python.org/pep-0735/#specification for the specification "
                 "of [dependency-groups] syntax."
             )
@@ -242,8 +239,8 @@ class DependencyGroup(object):
                     yield Requirement.parse(item)
                 except RequirementParseError as e:
                     raise ValueError(
-                        "Invalid [dependency-group] entry '{name}'. Item {index} of '{req}' is "
-                        "an invalid dependency specifier: {err}".format(
+                        "Invalid [dependency-group] entry '{name}'.\n"
+                        "Item {index}: '{req}', is an invalid dependency specifier: {err}".format(
                             name=group.raw, index=index, req=item, err=e
                         )
                     )
@@ -252,17 +249,18 @@ class DependencyGroup(object):
                     yield GroupName(item["include-group"])
                 except KeyError:
                     raise ValueError(
-                        "Invalid [dependency-group] entry '{name}'. Item {index} is a non "
-                        "'include-group' table and only dependency specifiers and single entry "
-                        "'include-group' tables are allowed in group dependency lists.\n"
+                        "Invalid [dependency-group] entry '{name}'.\n"
+                        "Item {index} is a non 'include-group' table and only dependency "
+                        "specifiers and single entry 'include-group' tables are allowed in group "
+                        "dependency lists.\n"
                         "See https://peps.python.org/pep-0735/#specification for the specification "
                         "of [dependency-groups] syntax.\n"
                         "Given: {item}".format(name=group.raw, index=index, item=item)
                     )
             else:
                 raise ValueError(
-                    "Invalid [dependency-group] entry '{name}'. Item {index} is not a "
-                    "dependency specifier or a dependency group include.\n"
+                    "Invalid [dependency-group] entry '{name}'.\n"
+                    "Item {index} is not a dependency specifier or a dependency group include.\n"
                     "See https://peps.python.org/pep-0735/#specification for the specification "
                     "of [dependency-groups] syntax.\n"
                     "Given: {item}".format(name=group.raw, index=index, item=item)
@@ -310,16 +308,19 @@ def register_options(
         "--group",
         "--dependency-group",
         dest="dependency_groups",
-        metavar="GROUP@DIR",
+        metavar="GROUP[@DIR]",
         default=[],
         type=DependencyGroup.parse,
         action="append",
         help=(
             "Pull requirements from the specified PEP-735 dependency group. Dependency groups are "
             "specified by referencing the group name in a given project's pyproject.toml in the "
-            "form `<group name>@<project directory>`; e.g.: `test@local/project/directory`."
-            "Multiple dependency groups across any number of projects can be specified. Read more "
-            "about dependency groups at https://peps.python.org/pep-0735/."
+            "form `<group name>@<project directory>`; e.g.: `test@local/project/directory`. If "
+            "either the `@<project directory>` suffix is not present or the suffix is just `@`, "
+            "the current working directory is assumed to be the project directory to read the "
+            "dependency group information from. Multiple dependency groups across any number of "
+            "projects can be specified. Read more about dependency groups at "
+            "https://peps.python.org/pep-0735/."
         ),
     )
 
