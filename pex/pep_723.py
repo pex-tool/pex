@@ -7,6 +7,7 @@ import os
 import re
 from collections import OrderedDict
 
+from pex import toml
 from pex.common import pluralize
 from pex.compatibility import string
 from pex.dist_metadata import Requirement, RequirementParseError
@@ -17,9 +18,8 @@ if TYPE_CHECKING:
     from typing import Any, List, Mapping, Tuple
 
     import attr  # vendor:skip
-    import toml  # vendor:skip
 else:
-    from pex.third_party import attr, toml
+    from pex.third_party import attr
 
 
 _UNSPECIFIED_SOURCE = "<unspecified source>"

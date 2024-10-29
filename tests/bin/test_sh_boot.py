@@ -5,7 +5,7 @@ import os
 
 import pytest
 
-from pex import sh_boot
+from pex import sh_boot, toml
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import InterpreterConstraints, iter_compatible_versions
 from pex.orderedset import OrderedSet
@@ -18,10 +18,6 @@ from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     from typing import Iterable, List
-
-    import toml  # vendor:skip
-else:
-    from pex.third_party import toml
 
 
 def calculate_binary_names(

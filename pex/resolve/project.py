@@ -3,17 +3,21 @@
 
 from __future__ import absolute_import
 
+import os.path
 from argparse import Namespace, _ActionsContainer
 
-from pex import requirements
+from pex import requirements, toml
 from pex.build_system import pep_517
 from pex.common import pluralize
+from pex.compatibility import string
 from pex.dependency_configuration import DependencyConfiguration
-from pex.dist_metadata import DistMetadata, Requirement
+from pex.dist_metadata import DistMetadata, Requirement, RequirementParseError
 from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.interpreter import PythonInterpreter
 from pex.jobs import Raise, SpawnedJob, execute_parallel
+from pex.orderedset import OrderedSet
 from pex.pep_427 import InstallableType
+from pex.pep_503 import ProjectName
 from pex.pip.version import PipVersionValue
 from pex.requirements import LocalProjectRequirement, ParseError
 from pex.resolve.configured_resolve import resolve
@@ -25,7 +29,7 @@ from pex.targets import LocalInterpreter, Target, Targets
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Iterable, Iterator, List, Optional, Set, Tuple
+    from typing import Any, Iterable, Iterator, List, Mapping, Optional, Set, Tuple, Union
 
     import attr  # vendor:skip
 else:
@@ -148,9 +152,147 @@ class Projects(object):
         return len(self.projects)
 
 
+@attr.s(frozen=True)
+class GroupName(ProjectName):
+    # N.B.: A dependency group name follows the same rules, including canonicalization, as project
+    # names.
+    pass
+
+
+@attr.s(frozen=True)
+class DependencyGroup(object):
+    @classmethod
+    def parse(cls, spec):
+        # type: (str) -> DependencyGroup
+
+        group, sep, project_dir = spec.partition("@")
+        abs_project_dir = os.path.realpath(project_dir)
+        if not os.path.isdir(abs_project_dir):
+            raise ValueError(
+                "The project directory specified by '{spec}' is not a directory".format(spec=spec)
+            )
+
+        pyproject_toml = os.path.join(abs_project_dir, "pyproject.toml")
+        if not os.path.isfile(pyproject_toml):
+            raise ValueError(
+                "The project directory specified by '{spec}' does not contain a pyproject.toml "
+                "file".format(spec=spec)
+            )
+
+        group_name = GroupName(group)
+        try:
+            dependency_groups = {
+                GroupName(name): group
+                for name, group in toml.load(pyproject_toml)["dependency-groups"].items()
+            }  # type: Mapping[GroupName, Any]
+        except (IOError, OSError, KeyError, ValueError, AttributeError) as e:
+            raise ValueError(
+                "Failed to read `[dependency-groups]` metadata from {pyproject_toml} when parsing "
+                "dependency group spec '{spec}': {err}".format(
+                    pyproject_toml=pyproject_toml, spec=spec, err=e
+                )
+            )
+        if group_name not in dependency_groups:
+            raise KeyError(
+                "The dependency group '{group}' specified by '{spec}' does not exist in "
+                "{pyproject_toml}".format(group=group, spec=spec, pyproject_toml=pyproject_toml)
+            )
+
+        return cls(project_dir=abs_project_dir, name=group_name, groups=dependency_groups)
+
+    project_dir = attr.ib()  # type: str
+    name = attr.ib()  # type: GroupName
+    _groups = attr.ib()  # type: Mapping[GroupName, Any]
+
+    def _parse_group_items(
+        self,
+        group,  # type: GroupName
+        required_by=None,  # type: Optional[GroupName]
+    ):
+        # type: (...) -> Iterator[Union[GroupName, Requirement]]
+
+        members = self._groups.get(group)
+        if not members:
+            if not required_by:
+                raise KeyError(
+                    "The dependency group '{group}' does not exist in the project at "
+                    "{project_dir}.".format(group=group, project_dir=self.project_dir)
+                )
+            else:
+                raise KeyError(
+                    "The dependency group '{group}' required by dependency group '{required_by}' "
+                    "does not exist in the project at {project_dir}.".format(
+                        group=group, required_by=required_by, project_dir=self.project_dir
+                    )
+                )
+
+        if not isinstance(members, list):
+            raise ValueError(
+                "Invalid dependency group '{group}' in the project at {project_dir}.\n"
+                "The value must be a list containing dependency specifiers or dependency group "
+                "includes.\n"
+                "See https://peps.python.org/pep-0735/#specification for the specification "
+                "of [dependency-groups] syntax."
+            )
+
+        for index, item in enumerate(members, start=1):
+            if isinstance(item, string):
+                try:
+                    yield Requirement.parse(item)
+                except RequirementParseError as e:
+                    raise ValueError(
+                        "Invalid [dependency-group] entry '{name}'.\n"
+                        "Item {index}: '{req}', is an invalid dependency specifier: {err}".format(
+                            name=group.raw, index=index, req=item, err=e
+                        )
+                    )
+            elif isinstance(item, dict):
+                try:
+                    yield GroupName(item["include-group"])
+                except KeyError:
+                    raise ValueError(
+                        "Invalid [dependency-group] entry '{name}'.\n"
+                        "Item {index} is a non 'include-group' table and only dependency "
+                        "specifiers and single entry 'include-group' tables are allowed in group "
+                        "dependency lists.\n"
+                        "See https://peps.python.org/pep-0735/#specification for the specification "
+                        "of [dependency-groups] syntax.\n"
+                        "Given: {item}".format(name=group.raw, index=index, item=item)
+                    )
+            else:
+                raise ValueError(
+                    "Invalid [dependency-group] entry '{name}'.\n"
+                    "Item {index} is not a dependency specifier or a dependency group include.\n"
+                    "See https://peps.python.org/pep-0735/#specification for the specification "
+                    "of [dependency-groups] syntax.\n"
+                    "Given: {item}".format(name=group.raw, index=index, item=item)
+                )
+
+    def iter_requirements(self):
+        # type: () -> Iterator[Requirement]
+
+        visited_groups = set()  # type: Set[GroupName]
+
+        def iter_group(
+            group,  # type: GroupName
+            required_by=None,  # type: Optional[GroupName]
+        ):
+            # type: (...) -> Iterator[Requirement]
+            if group not in visited_groups:
+                visited_groups.add(group)
+                for item in self._parse_group_items(group, required_by=required_by):
+                    if isinstance(item, Requirement):
+                        yield item
+                    else:
+                        for req in iter_group(item, required_by=group):
+                            yield req
+
+        return iter_group(self.name)
+
+
 def register_options(
     parser,  # type: _ActionsContainer
-    help,  # type: str
+    project_help,  # type: str
 ):
     # type: (...) -> None
 
@@ -161,7 +303,27 @@ def register_options(
         default=[],
         type=str,
         action="append",
-        help=help,
+        help=project_help,
+    )
+
+    parser.add_argument(
+        "--group",
+        "--dependency-group",
+        dest="dependency_groups",
+        metavar="GROUP[@DIR]",
+        default=[],
+        type=DependencyGroup.parse,
+        action="append",
+        help=(
+            "Pull requirements from the specified PEP-735 dependency group. Dependency groups are "
+            "specified by referencing the group name in a given project's pyproject.toml in the "
+            "form `<group name>@<project directory>`; e.g.: `test@local/project/directory`. If "
+            "either the `@<project directory>` suffix is not present or the suffix is just `@`, "
+            "the current working directory is assumed to be the project directory to read the "
+            "dependency group information from. Multiple dependency groups across any number of "
+            "projects can be specified. Read more about dependency groups at "
+            "https://peps.python.org/pep-0735/."
+        ),
     )
 
 
@@ -207,3 +369,13 @@ def get_projects(options):
         )
 
     return Projects(projects=tuple(projects))
+
+
+def get_group_requirements(options):
+    # type: (Namespace) -> Iterable[Requirement]
+
+    group_requirements = OrderedSet()  # type: OrderedSet[Requirement]
+    for dependency_group in options.dependency_groups:
+        for requirement in dependency_group.iter_requirements():
+            group_requirements.add(requirement)
+    return group_requirements

@@ -1,5 +1,17 @@
 # Release Notes
 
+## 2.23.0
+
+This release adds support for drawing requirements from
+[PEP-735][PEP-735] dependency groups when creating PEXes or lock files.
+Groups are requested via `--group <name>@<project dir>` or just
+`--group <name>` if the project directory is the current working
+directory.
+
+* Add support for PEP-735 dependency groups. (#2584)
+
+[PEP-735]: https://peps.python.org/pep-0735/
+
 ## 2.22.0
 
 This release adds support for `--pip-version 24.3.1`.
