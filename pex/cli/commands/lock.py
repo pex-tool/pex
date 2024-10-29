@@ -416,7 +416,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         requirement_options.register(options_group)
         project.register_options(
             options_group,
-            help=(
+            project_help=(
                 "Add the transitive dependencies of the local project at the specified path to "
                 "the lock but do not lock project itself."
             ),
@@ -846,25 +846,28 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
     ):
         # type: (...) -> RequirementConfiguration
         requirement_configuration = requirement_options.configure(self.options)
+        group_requirements = project.get_group_requirements(self.options)
         projects = project.get_projects(self.options)
-        if not projects:
+        if not projects and not group_requirements:
             return requirement_configuration
 
         requirements = OrderedSet(requirement_configuration.requirements)
-        with TRACER.timed(
-            "Collecting requirements from {count} local {projects}".format(
-                count=len(projects), projects=pluralize(projects, "project")
-            )
-        ):
-            requirements.update(
-                str(req)
-                for req in projects.collect_requirements(
-                    resolver=ConfiguredResolver(pip_configuration),
-                    interpreter=targets.interpreter,
-                    pip_version=pip_configuration.version,
-                    max_jobs=pip_configuration.max_jobs,
+        requirements.update(str(req) for req in group_requirements)
+        if projects:
+            with TRACER.timed(
+                "Collecting requirements from {count} local {projects}".format(
+                    count=len(projects), projects=pluralize(projects, "project")
                 )
-            )
+            ):
+                requirements.update(
+                    str(req)
+                    for req in projects.collect_requirements(
+                        resolver=ConfiguredResolver(pip_configuration),
+                        interpreter=targets.interpreter,
+                        pip_version=pip_configuration.version,
+                        max_jobs=pip_configuration.max_jobs,
+                    )
+                )
         return attr.evolve(requirement_configuration, requirements=requirements)
 
     def _create(self):

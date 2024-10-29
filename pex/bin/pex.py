@@ -746,7 +746,7 @@ def configure_clp_sources(parser):
 
     project.register_options(
         parser,
-        help=(
+        project_help=(
             "Add the local project at the specified path to the generated .pex file along with "
             "its transitive dependencies."
         ),
@@ -1015,6 +1015,14 @@ def build_pex(
         if isinstance(resolver_configuration, PipConfiguration)
         else resolver_configuration.pip_configuration
     )
+
+    group_requirements = project.get_group_requirements(options)
+    if group_requirements:
+        requirements = OrderedSet(requirement_configuration.requirements)
+        requirements.update(str(req) for req in group_requirements)
+        requirement_configuration = attr.evolve(
+            requirement_configuration, requirements=requirements
+        )
 
     project_dependencies = OrderedSet()  # type: OrderedSet[Requirement]
     with TRACER.timed(
