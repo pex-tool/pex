@@ -9,6 +9,7 @@ from argparse import Namespace, _ActionsContainer
 from pex import requirements, toml
 from pex.build_system import pep_517
 from pex.common import pluralize
+from pex.compatibility import string
 from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import DistMetadata, Requirement, RequirementParseError
 from pex.fingerprinted_distribution import FingerprintedDistribution
@@ -163,6 +164,7 @@ class DependencyGroup(object):
     @classmethod
     def parse(cls, spec):
         # type: (str) -> DependencyGroup
+
         group, sep, project_dir = spec.partition("@")
         abs_project_dir = os.path.realpath(project_dir)
         if not os.path.isdir(abs_project_dir):
@@ -234,7 +236,7 @@ class DependencyGroup(object):
             )
 
         for index, item in enumerate(members, start=1):
-            if isinstance(item, str):
+            if isinstance(item, string):
                 try:
                     yield Requirement.parse(item)
                 except RequirementParseError as e:
