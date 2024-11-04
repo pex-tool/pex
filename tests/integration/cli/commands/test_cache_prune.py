@@ -9,7 +9,7 @@ import subprocess
 import time
 from datetime import datetime, timedelta
 from textwrap import dedent
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Union
 
 import attr  # vendor:skip
 import colors  # vendor:skip
@@ -61,6 +61,13 @@ def lock(tmpdir):
     return tmpdir.join("lock.json")
 
 
+def du(cache_dir):
+    # type: (Union[CacheDir.Value, str]) -> DiskUsage
+    return DiskUsage.collect(
+        cache_dir.path() if isinstance(cache_dir, CacheDir.Value) else cache_dir
+    )
+
+
 def test_nothing_prunable(
     pex,  # type: str
     pex_root,  # type: str
@@ -71,7 +78,7 @@ def test_nothing_prunable(
     pex_size = os.path.getsize(pex)
 
     subprocess.check_call(args=[pex, "-c", ""])
-    pre_prune_du = DiskUsage.collect(pex_root)
+    pre_prune_du = du(pex_root)
     assert (
         pre_prune_du.size > pex_size
     ), "Expected the unzipped PEX to be larger than the zipped pex."
@@ -79,24 +86,24 @@ def test_nothing_prunable(
     # The default prune threshold should be high enough to never trigger in a test run (it's 2
     # weeks old at the time of writing).
     run_pex3("cache", "prune").assert_success()
-    assert pre_prune_du == DiskUsage.collect(pex_root)
+    assert pre_prune_du == du(pex_root)
 
 
 def test_installed_wheel_prune_build_time(pex):
     # type: (str) -> None
 
     run_pex_command(args=["ansicolors==1.1.8", "-o", pex]).assert_success()
-    installed_wheels_size = DiskUsage.collect(CacheDir.INSTALLED_WHEELS.path()).size
+    installed_wheels_size = du(CacheDir.INSTALLED_WHEELS).size
     assert installed_wheels_size > 0
-    assert 0 == DiskUsage.collect(CacheDir.UNZIPPED_PEXES.path()).size
-    assert 0 == DiskUsage.collect(CacheDir.BOOTSTRAPS.path()).size
-    assert 0 == DiskUsage.collect(CacheDir.USER_CODE.path()).size
+    assert 0 == du(CacheDir.UNZIPPED_PEXES).size
+    assert 0 == du(CacheDir.BOOTSTRAPS).size
+    assert 0 == du(CacheDir.USER_CODE).size
 
     run_pex3("cache", "prune", "--older-than", "0 seconds").assert_success()
-    assert 0 == DiskUsage.collect(CacheDir.UNZIPPED_PEXES.path()).size
-    assert 0 == DiskUsage.collect(CacheDir.INSTALLED_WHEELS.path()).size
-    assert 0 == DiskUsage.collect(CacheDir.BOOTSTRAPS.path()).size
-    assert 0 == DiskUsage.collect(CacheDir.USER_CODE.path()).size
+    assert 0 == du(CacheDir.UNZIPPED_PEXES).size
+    assert 0 == du(CacheDir.INSTALLED_WHEELS).size
+    assert 0 == du(CacheDir.BOOTSTRAPS).size
+    assert 0 == du(CacheDir.USER_CODE).size
 
 
 def test_installed_wheel_prune_run_time(
@@ -109,25 +116,23 @@ def test_installed_wheel_prune_run_time(
     pex_size = os.path.getsize(pex)
 
     shutil.rmtree(pex_root)
-    assert 0 == DiskUsage.collect(pex_root).size
+    assert 0 == du(pex_root).size
 
     assert b"| Moo! |" in subprocess.check_output(args=[pex, "Moo!"])
-    pre_prune_du = DiskUsage.collect(pex_root)
-    assert DiskUsage.collect(CacheDir.INSTALLED_WHEELS.path()).size > 0
-    assert DiskUsage.collect(CacheDir.UNZIPPED_PEXES.path()).size > 0
-    assert DiskUsage.collect(CacheDir.BOOTSTRAPS.path()).size > 0
-    assert (
-        0 == DiskUsage.collect(CacheDir.USER_CODE.path()).size
-    ), "There is no user code in the PEX."
+    pre_prune_du = du(pex_root)
+    assert du(CacheDir.INSTALLED_WHEELS).size > 0
+    assert du(CacheDir.UNZIPPED_PEXES).size > 0
+    assert du(CacheDir.BOOTSTRAPS).size > 0
+    assert 0 == du(CacheDir.USER_CODE).size, "There is no user code in the PEX."
     assert (
         pre_prune_du.size > pex_size
     ), "Expected the unzipped PEX to be larger than the zipped pex."
 
     run_pex3("cache", "prune", "--older-than", "0 seconds").assert_success()
-    assert 0 == DiskUsage.collect(CacheDir.UNZIPPED_PEXES.path()).size
-    assert 0 == DiskUsage.collect(CacheDir.INSTALLED_WHEELS.path()).size
-    assert 0 == DiskUsage.collect(CacheDir.BOOTSTRAPS.path()).size
-    assert 0 == DiskUsage.collect(CacheDir.USER_CODE.path()).size
+    assert 0 == du(CacheDir.UNZIPPED_PEXES).size
+    assert 0 == du(CacheDir.INSTALLED_WHEELS).size
+    assert 0 == du(CacheDir.BOOTSTRAPS).size
+    assert 0 == du(CacheDir.USER_CODE).size
 
 
 @attr.s(frozen=True)
@@ -194,29 +199,29 @@ def test_app_prune(
     # type: (...) -> None
 
     pex_size = os.path.getsize(ansicolors_zipapp_pex.path)
-    installed_wheels_size = DiskUsage.collect(CacheDir.INSTALLED_WHEELS.path()).size
+    installed_wheels_size = du(CacheDir.INSTALLED_WHEELS).size
     assert installed_wheels_size > 0
-    assert 0 == DiskUsage.collect(CacheDir.UNZIPPED_PEXES.path()).size
-    assert 0 == DiskUsage.collect(CacheDir.BOOTSTRAPS.path()).size
-    assert 0 == DiskUsage.collect(CacheDir.USER_CODE.path()).size
+    assert 0 == du(CacheDir.UNZIPPED_PEXES).size
+    assert 0 == du(CacheDir.BOOTSTRAPS).size
+    assert 0 == du(CacheDir.USER_CODE).size
 
     execute_ansicolors_pex(ansicolors_zipapp_pex)
-    pre_prune_du = DiskUsage.collect(pex_root)
+    pre_prune_du = du(pex_root)
     assert (
-        DiskUsage.collect(CacheDir.INSTALLED_WHEELS.path()).size > installed_wheels_size
+        du(CacheDir.INSTALLED_WHEELS).size > installed_wheels_size
     ), "Expected .pyc files to be compiled leading to more disk space usage"
-    assert DiskUsage.collect(CacheDir.UNZIPPED_PEXES.path()).size > 0
-    assert DiskUsage.collect(CacheDir.BOOTSTRAPS.path()).size > 0
-    assert DiskUsage.collect(CacheDir.USER_CODE.path()).size > 0
+    assert du(CacheDir.UNZIPPED_PEXES).size > 0
+    assert du(CacheDir.BOOTSTRAPS).size > 0
+    assert du(CacheDir.USER_CODE).size > 0
     assert (
         pre_prune_du.size > pex_size
     ), "Expected the unzipped PEX to be larger than the zipped pex."
 
     run_pex3("cache", "prune", "--older-than", "0 seconds").assert_success()
-    assert 0 == DiskUsage.collect(CacheDir.UNZIPPED_PEXES.path()).size
-    assert 0 == DiskUsage.collect(CacheDir.INSTALLED_WHEELS.path()).size
-    assert 0 == DiskUsage.collect(CacheDir.BOOTSTRAPS.path()).size
-    assert 0 == DiskUsage.collect(CacheDir.USER_CODE.path()).size
+    assert 0 == du(CacheDir.UNZIPPED_PEXES).size
+    assert 0 == du(CacheDir.INSTALLED_WHEELS).size
+    assert 0 == du(CacheDir.BOOTSTRAPS).size
+    assert 0 == du(CacheDir.USER_CODE).size
 
 
 def set_last_access_ago(
@@ -513,18 +518,31 @@ def pip2(applicable_non_vendored_pips):
     return applicable_non_vendored_pips[1]
 
 
+@pytest.fixture
+def pip3(applicable_non_vendored_pips):
+    # type: (Tuple[PipVersionValue, ...]) -> PipVersionValue
+    if len(applicable_non_vendored_pips) < 3:
+        pytest.skip(
+            "This test requires 3 non-vendored Pip `--version`s be applicable, but only the "
+            "following are: {pips}".format(pips=" ".join(map(str, applicable_non_vendored_pips)))
+        )
+    return applicable_non_vendored_pips[2]
+
+
 def test_pip_prune(
     tmpdir,  # type: Tempdir
     pip1,  # type: PipVersionValue
     pip2,  # type: PipVersionValue
+    pip3,  # type: PipVersionValue
 ):
     # type: (...) -> None
 
     create_ansicolors_pex(tmpdir, "--pip-version", str(pip1))
-    create_ansicolors_pex(tmpdir, "--pip-version", str(pip2), "--no-wheel")
+    create_ansicolors_pex(tmpdir, "--pip-version", str(pip2))
+    create_ansicolors_pex(tmpdir, "--pip-version", str(pip3), "--no-wheel")
 
     pips_by_version = {pip_dir.version: pip_dir for pip_dir in PipPexDir.iter_all()}
-    assert {pip1, pip2}.issubset(pips_by_version)
+    assert {pip1, pip2, pip3}.issubset(pips_by_version)
 
     pip_venvs_by_version = {}  # type: Dict[PipVersionValue, VenvDirs]
     venv_dirs_by_pex_hash = {venv_dirs.pex_hash: venv_dirs for venv_dirs in VenvDirs.iter_all()}
@@ -540,15 +558,25 @@ def test_pip_prune(
         else:
             set_last_access_one_second_ago(venv_dirs.path)
     pex_dir_to_last_access = dict(access.iter_all_cached_pex_dirs())
-    result = run_pex3("cache", "prune", "--older-than", "1 hour")
-    result.assert_success()
+
+    pip2_du = du(pips_by_version[pip2].base_dir)
+    pip3_du = du(pips_by_version[pip3].base_dir)
+    run_pex3("cache", "prune", "--older-than", "1 hour").assert_success()
     assert not os.path.exists(pips_by_version[pip1].base_dir), "Expected a full prune of pip1"
+    assert pip2_du.size == du(pips_by_version[pip2].base_dir).size
+    post_prune_pip3_du = du(pips_by_version[pip3].base_dir)
+    assert (
+        post_prune_pip3_du.size < pip3_du.size
+    ), "Expected pip3 to have a built ansicolors wheel in its cache pruned."
+    assert (
+        post_prune_pip3_du.files == pip3_du.files - 1
+    ), "Expected pip3 to have a built ansicolors wheel in its cache pruned."
 
     pip1_venv_dirs = pip_venvs_by_version.pop(pip1)
     pex_dir_to_last_access.pop(pip1_venv_dirs)
     assert pex_dir_to_last_access == dict(access.iter_all_cached_pex_dirs()), (
         "Expected other Pips to have their last access reset after calling `pip cache ...` to "
-        "prune Pip wheels.\n" + result.error
+        "prune Pip wheels."
     )
     assert set(pip_venvs_by_version) == {
         pip_dir.version for pip_dir in PipPexDir.iter_all()

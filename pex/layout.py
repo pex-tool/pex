@@ -320,8 +320,6 @@ def _ensure_installed(
         if not os.path.exists(install_to):
             with ENV.patch(PEX_ROOT=pex_root):
                 cache_access.read_write()
-        else:
-            cache_access.record_access(install_to)
         with atomic_directory(install_to) as chroot:
             if not chroot.is_finalized():
                 with ENV.patch(PEX_ROOT=pex_root), TRACER.timed(
@@ -374,6 +372,7 @@ def _ensure_installed(
                     layout.extract_pex_info(chroot.work_dir)
                     layout.extract_main(chroot.work_dir)
                     layout.record(chroot.work_dir)
+        cache_access.record_access(install_to)
         return install_to
 
 

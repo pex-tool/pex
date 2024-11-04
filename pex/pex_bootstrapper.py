@@ -507,6 +507,7 @@ def ensure_venv(
     pex,  # type: PEX
     collisions_ok=True,  # type: bool
     copy_mode=None,  # type: Optional[CopyMode.Value]
+    record_access=True,  # type: bool
 ):
     # type: (...) -> VenvPex
     pex_info = pex.pex_info()
@@ -524,8 +525,6 @@ def ensure_venv(
     if not os.path.exists(venv_dir):
         with ENV.patch(PEX_ROOT=pex_info.pex_root):
             cache_access.read_write()
-    else:
-        cache_access.record_access(venv_dir)
     with atomic_directory(venv_dir) as venv:
         if not venv.is_finalized():
             from pex.venv.virtualenv import Virtualenv
@@ -626,7 +625,8 @@ def ensure_venv(
                                 )
 
                             break
-
+    if record_access:
+        cache_access.record_access(venv_dir)
     return VenvPex(venv_dir, hermetic_scripts=pex_info.venv_hermetic_scripts)
 
 

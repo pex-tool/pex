@@ -45,6 +45,7 @@ def _create_pip(
     pip_pex,  # type: PipPexDir
     interpreter=None,  # type: Optional[PythonInterpreter]
     use_system_time=False,  # type: bool
+    record_access=True,  # type: bool
 ):
     # type: (...) -> Pip
 
@@ -52,7 +53,7 @@ def _create_pip(
 
     pip_interpreter = interpreter or PythonInterpreter.get()
     pex = PEX(pip_pex.path, interpreter=pip_interpreter)
-    venv_pex = ensure_venv(pex, copy_mode=CopyMode.SYMLINK)
+    venv_pex = ensure_venv(pex, copy_mode=CopyMode.SYMLINK, record_access=record_access)
     pex_hash = pex.pex_info().pex_hash
     production_assert(pex_hash is not None)
     pip_venv = PipVenv(
@@ -512,8 +513,14 @@ def iter_all(
     interpreter=None,  # type: Optional[PythonInterpreter]
     use_system_time=False,  # type: bool
     pex_root=ENV,  # type: Union[str, Variables]
+    record_access=True,  # type: bool
 ):
     # type: (...) -> Iterator[Pip]
 
     for pip_pex in PipPexDir.iter_all(pex_root=pex_root):
-        yield _create_pip(pip_pex, interpreter=interpreter, use_system_time=use_system_time)
+        yield _create_pip(
+            pip_pex,
+            interpreter=interpreter,
+            use_system_time=use_system_time,
+            record_access=record_access,
+        )
