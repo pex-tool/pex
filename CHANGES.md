@@ -10,7 +10,7 @@ cache sizes down. The default age of 2 weeks can be overridden by
 specifying `--older-than "1 week"` or `--last-access-before 14/3/2024`,
 etc. See `pex3 cache prune --help` for more details.
 
-* Support `pex3 cache prune --older-than ...`. (#2588)
+* Support `pex3 cache prune --older-than ...`. (#2586)
 
 ## 2.23.0
 
