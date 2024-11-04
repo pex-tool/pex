@@ -10,7 +10,7 @@ from contextlib import contextmanager
 
 from pex.atomic_directory import atomic_directory
 from pex.cache import access as cache_access
-from pex.cache.dirs import CacheDir
+from pex.cache.dirs import BootstrapDir, InstalledWheelDir, UserCodeDir
 from pex.common import ZipFileEx, is_script, open_zip, safe_copy, safe_mkdir, safe_mkdtemp
 from pex.enum import Enum
 from pex.tracer import TRACER
@@ -147,6 +147,11 @@ class _Layout(object):
         # type: (str) -> None
         raise NotImplementedError()
 
+    @abstractmethod
+    def extract_import_hook(self, dest_dir):
+        # type: (str) -> None
+        raise NotImplementedError()
+
     def record(self, dest_dir):
         # type: (str) -> None
         self._layout.record(dest_dir)
@@ -163,7 +168,9 @@ def _install_distribution(
 
     location, sha = distribution_info
     is_wheel_file = pex_info.deps_are_wheel_files
-    spread_dest = CacheDir.INSTALLED_WHEELS.path(sha, location, pex_root=pex_info.pex_root)
+    spread_dest = InstalledWheelDir.create(
+        wheel_name=location, install_hash=sha, pex_root=pex_info.pex_root
+    )
     dist_relpath = os.path.join(DEPS_DIR, location)
     source = None if is_wheel_file else layout.dist_strip_prefix(location)
     symlink_src = os.path.relpath(
@@ -313,6 +320,8 @@ def _ensure_installed(
         if not os.path.exists(install_to):
             with ENV.patch(PEX_ROOT=pex_root):
                 cache_access.read_write()
+        else:
+            cache_access.record_access(install_to)
         with atomic_directory(install_to) as chroot:
             if not chroot.is_finalized():
                 with ENV.patch(PEX_ROOT=pex_root), TRACER.timed(
@@ -327,16 +336,14 @@ def _ensure_installed(
                         raise AssertionError(
                             "Expected bootstrap_cache to be populated for {}.".format(layout)
                         )
-                    bootstrap_cache = CacheDir.BOOTSTRAPS.path(
+                    bootstrap_cache = BootstrapDir.create(
                         pex_info.bootstrap_hash, pex_root=pex_info.pex_root
                     )
                     if pex_info.code_hash is None:
                         raise AssertionError(
                             "Expected code_hash to be populated for {}.".format(layout)
                         )
-                    code_cache = CacheDir.USER_CODE.path(
-                        pex_info.code_hash, pex_root=pex_info.pex_root
-                    )
+                    code_cache = UserCodeDir.create(pex_info.code_hash, pex_root=pex_info.pex_root)
 
                     with atomic_directory(
                         bootstrap_cache, source=layout.bootstrap_strip_prefix()
@@ -483,7 +490,7 @@ class _ZipAppPEX(_Layout):
         # type: (str) -> None
         for name in self.names:
             if name not in ("__main__.py", PEX_INFO_PATH) and not name.startswith(
-                (BOOTSTRAP_DIR, DEPS_DIR)
+                ("__pex__", BOOTSTRAP_DIR, DEPS_DIR)
             ):
                 self.zfp.extract(name, dest_dir)
 
@@ -494,6 +501,10 @@ class _ZipAppPEX(_Layout):
     def extract_main(self, dest_dir):
         # type: (str) -> None
         self.zfp.extract("__main__.py", dest_dir)
+
+    def extract_import_hook(self, dest_dir):
+        # type: (str) -> None
+        self.zfp.extract("__pex__/__init__.py", dest_dir)
 
     def __str__(self):
         return "PEX zipfile {}".format(self.path)
@@ -544,7 +555,7 @@ class _PackedPEX(_Layout):
         for root, dirs, files in os.walk(self._path):
             rel_root = os.path.relpath(root, self._path)
             if root == self._path:
-                dirs[:] = [d for d in dirs if d != DEPS_DIR]
+                dirs[:] = [d for d in dirs if d not in ("__pex__", DEPS_DIR)]
                 files[:] = [
                     f for f in files if f not in ("__main__.py", PEX_INFO_PATH, BOOTSTRAP_DIR)
                 ]
@@ -563,6 +574,12 @@ class _PackedPEX(_Layout):
     def extract_main(self, dest_dir):
         # type: (str) -> None
         safe_copy(os.path.join(self._path, "__main__.py"), os.path.join(dest_dir, "__main__.py"))
+
+    def extract_import_hook(self, dest_dir):
+        # type: (str) -> None
+        dest = os.path.join(dest_dir, "__pex__", "__init__.py")
+        safe_mkdir(os.path.dirname(dest))
+        safe_copy(os.path.join(self._path, "__pex__", "__init__.py"), dest)
 
     def __str__(self):
         return "Spread PEX directory {}".format(self._path)
@@ -615,7 +632,7 @@ class _LoosePEX(_Layout):
         for root, dirs, files in os.walk(self._path):
             rel_root = os.path.relpath(root, self._path)
             if root == self._path:
-                dirs[:] = [d for d in dirs if d not in (DEPS_DIR, BOOTSTRAP_DIR)]
+                dirs[:] = [d for d in dirs if d not in ("__pex__", DEPS_DIR, BOOTSTRAP_DIR)]
                 files[:] = [f for f in files if f not in ("__main__.py", PEX_INFO_PATH)]
             for d in dirs:
                 safe_mkdir(os.path.join(dest_dir, rel_root, d))
@@ -632,6 +649,12 @@ class _LoosePEX(_Layout):
     def extract_main(self, dest_dir):
         # type: (str) -> None
         safe_copy(os.path.join(self._path, "__main__.py"), os.path.join(dest_dir, "__main__.py"))
+
+    def extract_import_hook(self, dest_dir):
+        # type: (str) -> None
+        dest = os.path.join(dest_dir, "__pex__", "__init__.py")
+        safe_mkdir(os.path.dirname(dest))
+        safe_copy(os.path.join(self._path, "__pex__", "__init__.py"), dest)
 
     def __str__(self):
         return "Loose PEX directory {}".format(self._path)

@@ -102,6 +102,10 @@ def digest_vcs_archive(
         hashing.dir_hash(
             directory=chroot,
             digest=digest,
-            dir_filter=lambda dir_path: not is_pyc_dir(dir_path) and dir_path != vcs_control_dir,
+            dir_filter=(
+                lambda dir_path: (
+                    not is_pyc_dir(dir_path) and os.path.basename(dir_path) != vcs_control_dir
+                )
+            ),
             file_filter=lambda f: not is_pyc_file(f),
         )

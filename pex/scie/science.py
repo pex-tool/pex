@@ -12,7 +12,7 @@ from subprocess import CalledProcessError
 
 from pex import toml
 from pex.atomic_directory import atomic_directory
-from pex.cache.dirs import CacheDir
+from pex.cache.dirs import CacheDir, UnzipDir
 from pex.common import chmod_plus_x, is_exe, pluralize, safe_mkdtemp, safe_open
 from pex.compatibility import shlex_quote
 from pex.dist_metadata import NamedEntryPoint, parse_entry_point
@@ -131,7 +131,7 @@ def create_manifests(
         else:
             production_assert(pex_info.pex_hash is not None)
             pex_hash = cast(str, pex_info.pex_hash)
-            configure_binding_args.append(CacheDir.UNZIPPED_PEXES.path(pex_hash, pex_root=pex_root))
+            configure_binding_args.append(UnzipDir.create(pex_hash, pex_root=pex_root).path)
 
     commands = []  # type: List[Dict[str, Any]]
     entrypoints = configuration.options.busybox_entrypoints

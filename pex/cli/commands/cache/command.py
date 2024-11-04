@@ -3,26 +3,58 @@
 
 from __future__ import absolute_import, print_function
 
+import functools
+import itertools
 import os
+import re
 from argparse import Action, ArgumentError, _ActionsContainer
-from datetime import datetime
+from collections import Counter, defaultdict
+from datetime import datetime, timedelta
 
 from pex.cache import access as cache_access
-from pex.cache.dirs import CacheDir
+from pex.cache.dirs import (
+    AtomicCacheDir,
+    BootstrapDir,
+    BuiltWheelDir,
+    CacheDir,
+    DownloadDir,
+    InstalledWheelDir,
+    VenvDirs,
+)
+from pex.cache.prunable import Prunable, PrunablePipCache
 from pex.cli.command import BuildTimeCommand
 from pex.cli.commands.cache.bytes import ByteAmount, ByteUnits
 from pex.cli.commands.cache.du import DiskUsage
 from pex.commands.command import OutputMixin
 from pex.common import pluralize, safe_rmtree
+from pex.dist_metadata import ProjectNameAndVersion
 from pex.exceptions import reportable_unexpected_error_msg
-from pex.jobs import iter_map_parallel, map_parallel
+from pex.jobs import SpawnedJob, execute_parallel, iter_map_parallel, map_parallel
 from pex.orderedset import OrderedSet
+from pex.pep_440 import Version
+from pex.pep_503 import ProjectName
 from pex.result import Error, Ok, Result
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
 
 if TYPE_CHECKING:
-    from typing import IO, Dict, Iterable, List, Optional, Tuple, Union
+    import typing
+    from typing import (
+        IO,
+        DefaultDict,
+        Dict,
+        Iterable,
+        Iterator,
+        List,
+        Mapping,
+        Optional,
+        Tuple,
+        Union,
+    )
+
+    import attr  # vendor:skip
+else:
+    from pex.third_party import attr
 
 
 class HandleAmountAction(Action):
@@ -43,6 +75,80 @@ class HandleAmountAction(Action):
                 ),
             )
         setattr(namespace, self.dest, amount_func)
+
+
+@attr.s(frozen=True)
+class Cutoff(object):
+    @classmethod
+    def parse(cls, spec):
+        # type: (str) -> Cutoff
+        match = re.match(
+            r"(?P<amount>\d+)\s+(?P<unit>second|minute|hour|day|week)s?(\s+ago)?",
+            spec.strip(),
+            re.IGNORECASE,
+        )
+        if match:
+            args = {match.group("unit") + "s": int(match.group("amount"))}
+            cutoff = datetime.now() - timedelta(**args)
+        else:
+            cutoff = datetime.strptime(spec.strip(), "%d/%m/%Y")
+        return cls(spec=spec, cutoff=cutoff)
+
+    spec = attr.ib()  # type: str
+    cutoff = attr.ib()  # type: datetime
+
+
+def _prune_cache_dir(
+    dry_run,  # type: bool
+    additional_cache_dirs_by_project_name_and_version,  # type: Mapping[Tuple[ProjectName, Version], Iterable[AtomicCacheDir]]
+    cache_dir,  # type: AtomicCacheDir
+):
+    # type: (...) -> DiskUsage
+    paths_to_prune = []  # type: List[str]
+
+    def prune_if_exists(path):
+        # type: (Optional[str]) -> None
+        if path and os.path.exists(path):
+            paths_to_prune.append(path)
+
+    if isinstance(cache_dir, InstalledWheelDir):
+        paths_to_prune.append(os.path.dirname(cache_dir.path))
+        prune_if_exists(CacheDir.PACKED_WHEELS.path(cache_dir.install_hash))
+        for additional_dir in additional_cache_dirs_by_project_name_and_version.get(
+            (cache_dir.project_name, cache_dir.version), ()
+        ):
+            prune_if_exists(additional_dir)
+    elif isinstance(cache_dir, BootstrapDir):
+        paths_to_prune.append(cache_dir.path)
+        prune_if_exists(CacheDir.BOOTSTRAP_ZIPS.path(cache_dir.bootstrap_hash))
+    else:
+        paths_to_prune.append(cache_dir.path)
+
+    disk_usages = [DiskUsage.collect(path) for path in paths_to_prune]
+    if not dry_run:
+        for path in paths_to_prune:
+            safe_rmtree(path)
+        if isinstance(cache_dir, InstalledWheelDir) and cache_dir.symlink_dir:
+            safe_rmtree(cache_dir.symlink_dir)
+        elif isinstance(cache_dir, VenvDirs):
+            safe_rmtree(cache_dir.short_dir)
+
+    return (
+        disk_usages[0]
+        if len(disk_usages) == 1
+        else DiskUsage.aggregate(cache_dir.path, disk_usages)
+    )
+
+
+def _prune_pip(
+    dry_run,  # type: bool
+    pip_path_to_prune,  # type: str
+):
+    # type: (...) -> DiskUsage
+    du = DiskUsage.collect(pip_path_to_prune)
+    if not dry_run:
+        safe_rmtree(pip_path_to_prune)
+    return du
 
 
 class Cache(OutputMixin, BuildTimeCommand):
@@ -90,6 +196,21 @@ class Cache(OutputMixin, BuildTimeCommand):
         )
         cls.add_output_option(parser, entity="Pex cache information")
 
+    @staticmethod
+    def _add_dry_run_option(parser):
+        # type: (_ActionsContainer) -> None
+
+        parser.add_argument(
+            "-n",
+            "--dry-run",
+            dest="dry_run",
+            action="store_true",
+            help=(
+                "Don't actually purge cache entries; instead, perform a dry run that just prints "
+                "out what actions would be taken"
+            ),
+        )
+
     @classmethod
     def _add_purge_arguments(cls, parser):
         # type: (_ActionsContainer) -> None
@@ -107,17 +228,31 @@ class Cache(OutputMixin, BuildTimeCommand):
                 "other cache entries dependent on those) will be purged."
             ),
         )
+        cls._add_dry_run_option(parser)
+        cls.add_output_option(parser, entity="Pex purge results")
+
+    @classmethod
+    def _add_prune_arguments(cls, parser):
+        # type: (_ActionsContainer) -> None
+
+        cls._add_amount_argument(parser)
         parser.add_argument(
-            "-n",
-            "--dry-run",
-            dest="dry_run",
-            action="store_true",
+            "--older-than",
+            "--last-access",
+            "--last-access-before",
+            dest="cutoff",
+            type=Cutoff.parse,
+            default=Cutoff.parse("2 weeks ago"),
             help=(
-                "Don't actually purge cache entries; instead, perform a dry run that just prints "
-                "out what actions would be taken"
+                "Prune zipapp and venv caches (amongst others) last accessed before the specified "
+                "time. If the dependencies of the selected zipapps and venvs (e.g.: installed "
+                "wheels) are unused by other zipapps and venvs, those dependencies are pruned as "
+                "well. The cutoff time can be specified as a date in the format "
+                "`<day number>/<month number>/<4 digit year>` or as a relative time in the format "
+                "`<amount> [second(s)|minute(s)|hour(s)|day(s)|week(s)]`."
             ),
         )
-
+        cls._add_dry_run_option(parser)
         cls.add_output_option(parser, entity="Pex purge results")
 
     @classmethod
@@ -150,6 +285,14 @@ class Cache(OutputMixin, BuildTimeCommand):
             include_verbosity=False,
         ) as purge_parser:
             cls._add_purge_arguments(purge_parser)
+
+        with subcommands.parser(
+            name="prune",
+            help="Prune the Pex cache safely.",
+            func=cls._prune,
+            include_verbosity=False,
+        ) as prune_parser:
+            cls._add_prune_arguments(prune_parser)
 
     def _dir(self):
         # type: () -> Result
@@ -360,7 +503,7 @@ class Cache(OutputMixin, BuildTimeCommand):
 
             disk_usages = []  # type: List[DiskUsage]
             for cache_dir, du in iter_map_parallel(
-                cache_dirs, self._purge_cache_dir, noun="entries", verb="purge", verb_past="purged"
+                cache_dirs, self._purge_cache_dir, noun="entry", verb="purge", verb_past="purged"
             ):
                 print(
                     "{purged} cache {name} from {rel_path}".format(
@@ -377,4 +520,330 @@ class Cache(OutputMixin, BuildTimeCommand):
                 print(self._render_usage(disk_usages), file=fp)
                 print(file=fp)
 
+        return Ok()
+
+    def _prune(self):
+        # type: () -> Result
+
+        with self.output(self.options) as fp:
+            if not self.options.dry_run:
+                try:
+                    with cache_access.await_delete_lock() as lock_file:
+                        self._log_delete_start(lock_file, out=fp)
+                        print(
+                            "Attempting to acquire cache write lock (press CTRL-C to abort) ...",
+                            file=fp,
+                        )
+                except KeyboardInterrupt:
+                    return Error("No cache entries purged.")
+                finally:
+                    print(file=fp)
+
+        cutoff = self.options.cutoff
+        prunable = Prunable.scan(cutoff.cutoff)
+        unused_deps = tuple(prunable.iter_other_unused_deps())
+        unused_wheels = tuple(dep for dep in unused_deps if isinstance(dep, InstalledWheelDir))
+
+        additional_cache_dirs_by_project_name_and_version = defaultdict(
+            list
+        )  # type: DefaultDict[Tuple[ProjectName, Version], List[AtomicCacheDir]]
+        cached_artifact_dirs = itertools.chain(
+            BuiltWheelDir.iter_all(), DownloadDir.iter_all()
+        )  # type: Iterator[Union[BuiltWheelDir, DownloadDir]]
+        for cache_dir in cached_artifact_dirs:
+            additional_cache_dirs_by_project_name_and_version[
+                (cache_dir.project_name, cache_dir.version)
+            ].append(cache_dir)
+
+        prune_cache_dir = functools.partial(
+            _prune_cache_dir,
+            self.options.dry_run,
+            additional_cache_dirs_by_project_name_and_version,
+        )
+        prune_pip = functools.partial(_prune_pip, self.options.dry_run)
+
+        def prune_unused_deps(additional=False):
+            # type: (bool) -> None
+
+            if not unused_deps:
+                return
+            disk_usages = tuple(
+                iter_map_parallel(
+                    unused_deps,
+                    prune_cache_dir,
+                    noun="cached PEX dependency",
+                    verb="prune",
+                    verb_past="pruned",
+                )
+            )
+            if disk_usages:
+                print(
+                    "Pruned {count} {additional}unused PEX {dependencies}.".format(
+                        count=len(disk_usages),
+                        additional="additional " if additional else "",
+                        dependencies=pluralize(disk_usages, "dependency"),
+                    ),
+                    file=fp,
+                )
+                print(self._render_usage(disk_usages))
+                print(file=fp)
+
+        def prune_pips():
+            # type: () -> None
+            if not prunable.pips.paths:
+                return
+
+            print(
+                "{pruned} {count} {cached_pex}.".format(
+                    pruned="Would have pruned" if self.options.dry_run else "Pruned",
+                    count=len(prunable.pips.paths),
+                    cached_pex=pluralize(prunable.pips.paths, "Pip PEX"),
+                ),
+                file=fp,
+            )
+            print(
+                self._render_usage(
+                    tuple(
+                        iter_map_parallel(
+                            prunable.pips.paths,
+                            function=prune_pip,
+                            noun="Pip",
+                            verb="prune",
+                            verb_past="pruned",
+                        )
+                    )
+                ),
+                file=fp,
+            )
+            print(file=fp)
+
+        def prune_pip_caches():
+            # type: () -> None
+
+            prunable_wheels = set()
+            for wheel in unused_wheels:
+                prunable_pnav = ProjectNameAndVersion.from_filename(wheel.wheel_name)
+                prunable_wheels.add(
+                    (prunable_pnav.canonicalized_project_name, prunable_pnav.canonicalized_version)
+                )
+            if not prunable_wheels:
+                return
+
+            def spawn_list(prunable_pip_cache):
+                # type: (PrunablePipCache) -> SpawnedJob[Tuple[ProjectNameAndVersion, ...]]
+                return SpawnedJob.stdout(
+                    job=prunable_pip_cache.pip.spawn_cache_list(),
+                    result_func=lambda stdout: tuple(
+                        ProjectNameAndVersion.from_filename(wheel_file)
+                        for wheel_file in stdout.decode("utf-8").splitlines()
+                        if wheel_file
+                    ),
+                )
+
+            pip_removes = []  # type: List[Tuple[PrunablePipCache, str]]
+            for prunable_pip_cache, project_name_and_versions in zip(
+                prunable.pips.caches,
+                execute_parallel(inputs=prunable.pips.caches, spawn_func=spawn_list),
+            ):
+                for pnav in project_name_and_versions:
+                    if (
+                        pnav.canonicalized_project_name,
+                        pnav.canonicalized_version,
+                    ) in prunable_wheels:
+                        pip_removes.append(
+                            (
+                                prunable_pip_cache,
+                                "{project_name}-{version}*".format(
+                                    project_name=pnav.project_name, version=pnav.version
+                                ),
+                            )
+                        )
+
+            def parse_remove(stdout):
+                # type: (bytes) -> int
+
+                # The output from `pip cache remove` is a line like:
+                # Files removed: 42
+                _, sep, count = stdout.decode("utf-8").partition(":")
+                if sep != ":" or not count:
+                    return 0
+                try:
+                    return int(count)
+                except ValueError:
+                    return 0
+
+            def spawn_remove(args):
+                # type: (Tuple[PrunablePipCache, str]) -> SpawnedJob[int]
+                prunable_pip_cache, wheel_name_glob = args
+                return SpawnedJob.stdout(
+                    job=prunable_pip_cache.pip.spawn_cache_remove(wheel_name_glob),
+                    result_func=parse_remove,
+                )
+
+            removes_by_pip = Counter()  # type: typing.Counter[str]
+            for prunable_pip_cache, remove_count in zip(
+                [prunable_pip_cache for prunable_pip_cache, _ in pip_removes],
+                execute_parallel(inputs=pip_removes, spawn_func=spawn_remove),
+            ):
+                removes_by_pip[prunable_pip_cache.pip.version.value] += remove_count
+                cache_access.record_access(
+                    prunable_pip_cache.pex_dir, last_access=prunable_pip_cache.last_access
+                )
+            if removes_by_pip:
+                total = sum(removes_by_pip.values())
+                print(
+                    "Pruned {total} cached {wheels} from {count} Pip {version}:".format(
+                        total=total,
+                        wheels=pluralize(total, "wheel"),
+                        count=len(removes_by_pip),
+                        version=pluralize(removes_by_pip, "version"),
+                    ),
+                    file=fp,
+                )
+                for pip_version, remove_count in sorted(removes_by_pip.items()):
+                    print(
+                        "Pip {version}: removed {remove_count} {wheels}".format(
+                            version=pip_version,
+                            remove_count=remove_count,
+                            wheels=pluralize(remove_count, "wheel"),
+                        ),
+                        file=fp,
+                    )
+                print(file=fp)
+
+        def prune_interpreters():
+            # type: () -> None
+
+            interpreters_to_prune = tuple(prunable.iter_interpreters())
+            if not interpreters_to_prune:
+                return
+
+            print(
+                "{pruned} {count} {cached_interpreter}.".format(
+                    pruned="Would have pruned" if self.options.dry_run else "Pruned",
+                    count=len(interpreters_to_prune),
+                    cached_interpreter=pluralize(interpreters_to_prune, "cached interpreter"),
+                ),
+                file=fp,
+            )
+            print(
+                self._render_usage(
+                    tuple(
+                        iter_map_parallel(
+                            interpreters_to_prune,
+                            function=prune_cache_dir,
+                            noun="interpreter",
+                            verb="prune",
+                            verb_past="pruned",
+                        )
+                    )
+                ),
+                file=fp,
+            )
+            print(file=fp)
+
+        if not prunable.pex_dirs:
+            print(
+                "There are no cached PEX zipapps or venvs last accessed prior to {cutoff}.".format(
+                    cutoff=(
+                        cutoff.spec
+                        if cutoff.spec.endswith("ago") or cutoff.spec[-1].isdigit()
+                        else "{cutoff} ago".format(cutoff=cutoff.spec)
+                    ),
+                ),
+                file=fp,
+            )
+            print(file=fp)
+            prune_unused_deps()
+            prune_pip_caches()
+            prune_interpreters()
+            return Ok()
+
+        print(
+            "{pruned} {count} {cached_pex}.".format(
+                pruned="Would have pruned" if self.options.dry_run else "Pruned",
+                count=len(prunable.pex_dirs),
+                cached_pex=pluralize(prunable.pex_dirs, "cached PEX"),
+            ),
+            file=fp,
+        )
+        print(
+            self._render_usage(
+                tuple(
+                    iter_map_parallel(
+                        prunable.pex_dirs,
+                        prune_cache_dir,
+                        noun="cached PEX",
+                        verb="prune",
+                        verb_past="pruned",
+                    )
+                )
+            ),
+            file=fp,
+        )
+        print(file=fp)
+
+        deps = tuple(prunable.iter_pex_unused_deps())
+        if self.options.dry_run:
+            print(
+                "Might have pruned up to {count} {cached_pex_dependency}.".format(
+                    count=len(deps),
+                    cached_pex_dependency=pluralize(deps, "cached PEX dependency"),
+                ),
+                file=fp,
+            )
+            print(
+                self._render_usage(
+                    tuple(
+                        iter_map_parallel(
+                            deps,
+                            prune_cache_dir,
+                            noun="cached PEX dependency",
+                            verb="prune",
+                            verb_past="pruned",
+                        )
+                    )
+                )
+            )
+            print(file=fp)
+            prune_pips()
+            prune_interpreters()
+        else:
+            disk_usages = tuple(
+                iter_map_parallel(
+                    deps,
+                    prune_cache_dir,
+                    noun="cached PEX dependency",
+                    verb="prune",
+                    verb_past="pruned",
+                )
+            )
+            if deps and not disk_usages:
+                print(
+                    "No cached PEX dependencies were able to be pruned; all have un-pruned "
+                    "cached PEX dependents.",
+                    file=fp,
+                )
+            elif len(deps) == 1:
+                print("Pruned the 1 cached PEX dependency.", file=fp)
+            elif len(deps) > 1 and len(deps) == len(disk_usages):
+                print(
+                    "Pruned all {count} cached PEX dependencies.".format(count=len(deps)),
+                    file=fp,
+                )
+            elif len(deps) > 1:
+                print(
+                    "Pruned {count} of {total} cached PEX dependencies.".format(
+                        count=len(disk_usages), total=len(deps)
+                    ),
+                    file=fp,
+                )
+            if disk_usages:
+                print(self._render_usage(disk_usages))
+            if deps or disk_usages:
+                print(file=fp)
+            prune_unused_deps(additional=len(disk_usages) > 0)
+            prune_pip_caches()
+            prune_pips()
+            prune_interpreters()
         return Ok()

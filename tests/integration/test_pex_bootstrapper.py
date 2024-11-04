@@ -1,6 +1,5 @@
 # Copyright 2021 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
-import glob
 import json
 import os.path
 import re
@@ -10,10 +9,10 @@ from textwrap import dedent
 
 import pytest
 
-from pex.cache.dirs import CacheDir
+from pex.cache.dirs import CacheDir, InterpreterDir
 from pex.common import safe_open
 from pex.compatibility import commonpath
-from pex.interpreter import PythonIdentity, PythonInterpreter
+from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import InterpreterConstraint
 from pex.pex import PEX
 from pex.pex_bootstrapper import ensure_venv
@@ -444,11 +443,8 @@ def test_cached_venv_interpreter_paths(tmpdir):
     expected_prefix = os.path.dirname(json.loads(result.output)["pex"])
 
     actual_prefixes = []  # type: List[str]
-    for interp_info in glob.glob(
-        CacheDir.INTERPRETERS.path("*", "*", "*", "INTERP-INFO", pex_root=pex_root)
-    ):
-        with open(interp_info) as fp:
-            actual_prefixes.append(PythonIdentity.decode(fp.read()).prefix)
+    for interp_dir in InterpreterDir.iter_all(pex_root=pex_root):
+        actual_prefixes.append(interp_dir.interpreter.prefix)
 
     assert expected_prefix in actual_prefixes, (
         "Expected venv prefix of {expected_prefix} not found in actual cached python interpreter "

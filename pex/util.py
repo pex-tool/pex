@@ -22,7 +22,7 @@ from pex.orderedset import OrderedSet
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import IO, Any, Callable, Iterator, Optional, Text
+    from typing import IO, Any, Callable, Container, Iterator, Optional, Text
 
     from pex.hashing import Hasher
 
@@ -80,16 +80,29 @@ class CacheHelper(object):
         return digest.hexdigest()
 
     @classmethod
-    def pex_code_hash(cls, directory):
-        # type: (str) -> str
-        """Return a reproducible hash of the contents of a loose PEX; excluding all `.pyc` files."""
+    def pex_code_hash(
+        cls,
+        directory,
+        exclude_dirs=(),  # type: Container[str]
+        exclude_files=(),  # type: Container[str]
+    ):
+        # type: (...) -> str
+        """Return a reproducible hash of the user code of a loose PEX; excluding all `.pyc` files.
+
+        If no code is found, `None` is returned.
+        """
         digest = hashlib.sha1()
         hashing.dir_hash(
             directory=directory,
             digest=digest,
-            dir_filter=lambda d: not is_pyc_dir(d),
-            file_filter=lambda file_path: not is_pyc_file(file_path)
-            and not file_path.startswith("."),
+            dir_filter=lambda d: not is_pyc_dir(d) and d not in exclude_dirs,
+            file_filter=(
+                lambda f: (
+                    not is_pyc_file(f)
+                    and not os.path.basename(f).startswith(".")
+                    and f not in exclude_files
+                )
+            ),
         )
         return digest.hexdigest()
 

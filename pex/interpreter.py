@@ -5,10 +5,8 @@
 
 from __future__ import absolute_import
 
-import hashlib
 import json
 import os
-import platform
 import re
 import subprocess
 import sys
@@ -18,7 +16,7 @@ from contextlib import contextmanager
 from textwrap import dedent
 
 from pex import third_party
-from pex.cache.dirs import CacheDir
+from pex.cache.dirs import InterpreterDir
 from pex.common import is_exe, safe_mkdtemp, safe_rmtree
 from pex.executor import Executor
 from pex.jobs import Job, Retain, SpawnedJob, execute_parallel
@@ -32,7 +30,6 @@ from pex.third_party.packaging import __version__ as packaging_version
 from pex.third_party.packaging import tags
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast, overload
-from pex.util import CacheHelper
 
 if TYPE_CHECKING:
     from typing import (
@@ -109,7 +106,7 @@ class Platlib(SitePackagesDir):
     pass
 
 
-_PATH_MAPPINGS = {}
+_PATH_MAPPINGS = {}  # type: Dict[str, str]
 
 
 @contextmanager
@@ -1053,8 +1050,6 @@ class PythonInterpreter(object):
                 return python
         return binary
 
-    INTERP_INFO_FILE = "INTERP-INFO"
-
     @classmethod
     def _spawn_from_binary_external(cls, binary):
         # type: (str) -> SpawnedJob[PythonInterpreter]
@@ -1078,39 +1073,10 @@ class PythonInterpreter(object):
                 )
             return interpreter
 
-        # Part of the PythonInterpreter data are environment markers that depend on the current OS
-        # release. That data can change when the OS is upgraded but (some of) the installed interpreters
-        # remain the same. As such, include the OS in the hash structure for cached interpreters.
-        os_digest = hashlib.sha1()
-        for os_identifier in platform.release(), platform.version():
-            os_digest.update(os_identifier.encode("utf-8"))
-        os_hash = os_digest.hexdigest()
-
-        interpreter_cache_dir = CacheDir.INTERPRETERS.path()
-        os_cache_dir = os.path.join(interpreter_cache_dir, os_hash)
-        if os.path.isdir(interpreter_cache_dir) and not os.path.isdir(os_cache_dir):
-            with TRACER.timed("GCing interpreter cache from prior OS version"):
-                safe_rmtree(interpreter_cache_dir)
-
-        interpreter_hash = CacheHelper.hash(binary)
-
-        # Some distributions include more than one copy of the same interpreter via a hard link (e.g.:
-        # python3.7 is a hardlink to python3.7m). To ensure a deterministic INTERP-INFO file we must
-        # emit a separate INTERP-INFO for each link since INTERP-INFO contains the interpreter path and
-        # would otherwise be unstable.
-        #
-        # See cls._REGEXEN for a related affordance.
-        #
-        # N.B.: The path for --venv mode interpreters can be quite long; so we just used a fixed
-        # length hash of the interpreter binary path to ensure uniqueness and not run afoul of file
-        # name length limits.
-        path_id = hashlib.sha1(binary.encode("utf-8")).hexdigest()
-
-        cache_dir = os.path.join(os_cache_dir, interpreter_hash, path_id)
-        cache_file = os.path.join(cache_dir, cls.INTERP_INFO_FILE)
-        if os.path.isfile(cache_file):
+        cache_dir = InterpreterDir.create(binary)
+        if os.path.isfile(cache_dir.interp_info_file):
             try:
-                with open(cache_file, "rb") as fp:
+                with open(cache_dir.interp_info_file, "rb") as fp:
                     return SpawnedJob.completed(create_interpreter(fp.read(), check_binary=True))
             except (IOError, OSError, cls.Error, PythonIdentity.Error):
                 safe_rmtree(cache_dir)
@@ -1143,8 +1109,8 @@ class PythonInterpreter(object):
                         """.format(
                             path_mappings=_PATH_MAPPINGS,
                             binary=binary,
-                            cache_dir=cache_dir,
-                            info_file=cls.INTERP_INFO_FILE,
+                            cache_dir=cache_dir.path,
+                            info_file=InterpreterDir.INTERP_INFO_FILE,
                         )
                     ),
                 ],
@@ -1157,7 +1123,9 @@ class PythonInterpreter(object):
                 cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd
             )
             job = Job(command=cmd, process=process, finalizer=lambda _: safe_rmtree(cwd))
-            return SpawnedJob.file(job, output_file=cache_file, result_func=create_interpreter)
+            return SpawnedJob.file(
+                job, output_file=cache_dir.interp_info_file, result_func=create_interpreter
+            )
 
     @classmethod
     def _expand_path(cls, path):

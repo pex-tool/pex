@@ -46,6 +46,7 @@ from pex.result import Error, try_
 from pex.targets import Target, Targets
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
+from pex.variables import ENV, Variables
 from pex.version import __version__
 
 if TYPE_CHECKING:
@@ -67,7 +68,7 @@ class CreateLockDownloadManager(DownloadManager[Artifact]):
         cls,
         download_dir,  # type: str
         locked_resolves,  # type: Iterable[LockedResolve]
-        pex_root=None,  # type: Optional[str]
+        pex_root=ENV,  # type: Union[str, Variables]
     ):
         # type: (...) -> CreateLockDownloadManager
 
@@ -107,7 +108,7 @@ class CreateLockDownloadManager(DownloadManager[Artifact]):
     def __init__(
         self,
         path_by_artifact_and_project_name,  # type: Mapping[Tuple[Artifact, ProjectName], str]
-        pex_root=None,  # type: Optional[str]
+        pex_root=ENV,  # type: Union[str, Variables]
     ):
         # type: (...) -> None
         super(CreateLockDownloadManager, self).__init__(pex_root=pex_root)

@@ -4,7 +4,9 @@
 from __future__ import absolute_import, print_function
 
 import fcntl
+import itertools
 import os
+import time
 from contextlib import contextmanager
 
 from pex.common import safe_mkdir
@@ -12,7 +14,9 @@ from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
 
 if TYPE_CHECKING:
-    from typing import Iterator, Optional, Tuple
+    from typing import Iterator, Optional, Tuple, Union
+
+    from pex.cache.dirs import AtomicCacheDir, UnzipDir, VenvDirs  # noqa
 
 
 # N.B.: The lock file path is last in the lock state tuple to allow for a simple encoding scheme in
@@ -99,3 +103,30 @@ def await_delete_lock():
     lock_file = _lock(exclusive=False)
     yield lock_file
     _lock(exclusive=True)
+
+
+def record_access(
+    atomic_cache_dir,  # type: AtomicCacheDir
+    last_access=None,  # type: Optional[float]
+):
+    # type: (...) -> None
+
+    # N.B.: We explicitly set atime and do not rely on the filesystem implicitly setting it when the
+    # directory is read since filesystems may be mounted noatime, nodiratime or relatime on Linux
+    # and similar toggles exist, at least in part, for some macOS file systems.
+    atime = last_access or time.time()
+    mtime = os.stat(atomic_cache_dir.path).st_mtime
+    os.utime(atomic_cache_dir.path, (atime, mtime))
+
+
+def iter_all_cached_pex_dirs():
+    # type: () -> Iterator[Tuple[Union[UnzipDir, VenvDirs], float]]
+
+    from pex.cache.dirs import UnzipDir, VenvDirs
+
+    pex_dirs = itertools.chain(
+        UnzipDir.iter_all(), VenvDirs.iter_all()
+    )  # type: Iterator[Union[UnzipDir, VenvDirs]]
+    for pex_dir in pex_dirs:
+        last_access = os.stat(pex_dir.path).st_atime
+        yield pex_dir, last_access
