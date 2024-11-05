@@ -532,11 +532,19 @@ def can_write_dir(path):
     return os.path.isdir(path) and os.access(path, os.R_OK | os.W_OK | os.X_OK)
 
 
-def touch(file):
-    # type: (_Text) -> _Text
-    """Equivalent of unix `touch path`."""
+def touch(
+    file,  # type: _Text
+    times=None,  # type: Optional[Union[int, float, Tuple[int, int], Tuple[float, float]]]
+):
+    # type: (...) -> _Text
+    """Equivalent of unix `touch path`.
+
+    If no times is passed, the current time is used to set atime and mtime. If a single int or float
+    is passed for times, it is used for both atime and mtime. If a 2-tuple of ints or floats is
+    passed, the 1st slot is the atime and the 2nd the mtime, just as for `os.utime`.
+    """
     with safe_open(file, "a"):
-        os.utime(file, None)
+        os.utime(file, (times, times) if isinstance(times, (int, float)) else times)
     return file
 
 

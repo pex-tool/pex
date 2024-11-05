@@ -10,6 +10,7 @@ from collections import Counter, OrderedDict, defaultdict
 from textwrap import dedent
 
 from pex import layout, pex_warnings, repl
+from pex.cache import access as cache_access
 from pex.common import CopyMode, chmod_plus_x, iter_copytree, pluralize
 from pex.compatibility import is_valid_python_identifier
 from pex.dist_metadata import Distribution
@@ -534,6 +535,7 @@ class PEXSources(object):
                 "__main__.py",
                 "__pex__",
                 "__pycache__",
+                cache_access.LAST_ACCESS_FILE,
                 layout.BOOTSTRAP_DIR,
                 layout.DEPS_DIR,
                 layout.PEX_INFO_PATH,

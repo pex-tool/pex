@@ -1,5 +1,15 @@
 # Release Notes
 
+## 2.24.1
+
+This release fixes `pex3 cache prune` handling of cached Pips.
+Previously, performing a `pex3 cache prune` would bump the last access
+time of all un-pruned cached Pips artificially. If you ran
+`pex3 cache prune` in a daily or weekly cron job, this would mean Pips
+would never be pruned.
+
+* Fix `pex3 cache prune` handling of cached Pips. (#2589)
+
 ## 2.24.0
 
 This release adds `pex3 cache prune` as a likely more useful Pex cache

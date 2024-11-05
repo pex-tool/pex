@@ -21,7 +21,7 @@ from pex.cache.dirs import (
     InstalledWheelDir,
     VenvDirs,
 )
-from pex.cache.prunable import Prunable, PrunablePipCache
+from pex.cache.prunable import Prunable
 from pex.cli.command import BuildTimeCommand
 from pex.cli.commands.cache.bytes import ByteAmount, ByteUnits
 from pex.cli.commands.cache.du import DiskUsage
@@ -33,6 +33,7 @@ from pex.jobs import SpawnedJob, execute_parallel, iter_map_parallel, map_parall
 from pex.orderedset import OrderedSet
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
+from pex.pip.tool import Pip
 from pex.result import Error, Ok, Result
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
@@ -629,10 +630,10 @@ class Cache(OutputMixin, BuildTimeCommand):
             if not prunable_wheels:
                 return
 
-            def spawn_list(prunable_pip_cache):
-                # type: (PrunablePipCache) -> SpawnedJob[Tuple[ProjectNameAndVersion, ...]]
+            def spawn_list(pip):
+                # type: (Pip) -> SpawnedJob[Tuple[ProjectNameAndVersion, ...]]
                 return SpawnedJob.stdout(
-                    job=prunable_pip_cache.pip.spawn_cache_list(),
+                    job=pip.spawn_cache_list(),
                     result_func=lambda stdout: tuple(
                         ProjectNameAndVersion.from_filename(wheel_file)
                         for wheel_file in stdout.decode("utf-8").splitlines()
@@ -640,10 +641,10 @@ class Cache(OutputMixin, BuildTimeCommand):
                     ),
                 )
 
-            pip_removes = []  # type: List[Tuple[PrunablePipCache, str]]
-            for prunable_pip_cache, project_name_and_versions in zip(
-                prunable.pips.caches,
-                execute_parallel(inputs=prunable.pips.caches, spawn_func=spawn_list),
+            pip_removes = []  # type: List[Tuple[Pip, str]]
+            for pip, project_name_and_versions in zip(
+                prunable.pips.pips,
+                execute_parallel(inputs=prunable.pips.pips, spawn_func=spawn_list),
             ):
                 for pnav in project_name_and_versions:
                     if (
@@ -652,7 +653,7 @@ class Cache(OutputMixin, BuildTimeCommand):
                     ) in prunable_wheels:
                         pip_removes.append(
                             (
-                                prunable_pip_cache,
+                                pip,
                                 "{project_name}-{version}*".format(
                                     project_name=pnav.project_name, version=pnav.version
                                 ),
@@ -673,22 +674,19 @@ class Cache(OutputMixin, BuildTimeCommand):
                     return 0
 
             def spawn_remove(args):
-                # type: (Tuple[PrunablePipCache, str]) -> SpawnedJob[int]
-                prunable_pip_cache, wheel_name_glob = args
+                # type: (Tuple[Pip, str]) -> SpawnedJob[int]
+                pip, wheel_name_glob = args
                 return SpawnedJob.stdout(
-                    job=prunable_pip_cache.pip.spawn_cache_remove(wheel_name_glob),
+                    job=pip.spawn_cache_remove(wheel_name_glob),
                     result_func=parse_remove,
                 )
 
             removes_by_pip = Counter()  # type: typing.Counter[str]
-            for prunable_pip_cache, remove_count in zip(
-                [prunable_pip_cache for prunable_pip_cache, _ in pip_removes],
+            for pip, remove_count in zip(
+                [pip for pip, _ in pip_removes],
                 execute_parallel(inputs=pip_removes, spawn_func=spawn_remove),
             ):
-                removes_by_pip[prunable_pip_cache.pip.version.value] += remove_count
-                cache_access.record_access(
-                    prunable_pip_cache.pex_dir, last_access=prunable_pip_cache.last_access
-                )
+                removes_by_pip[pip.version.value] += remove_count
             if removes_by_pip:
                 total = sum(removes_by_pip.values())
                 print(

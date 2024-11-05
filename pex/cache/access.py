@@ -6,17 +6,16 @@ from __future__ import absolute_import, print_function
 import fcntl
 import itertools
 import os
-import time
 from contextlib import contextmanager
 
-from pex.common import safe_mkdir
+from pex.common import safe_mkdir, touch
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
 
 if TYPE_CHECKING:
     from typing import Iterator, Optional, Tuple, Union
 
-    from pex.cache.dirs import AtomicCacheDir, UnzipDir, VenvDirs  # noqa
+    from pex.cache.dirs import UnzipDir, VenvDir, VenvDirs  # noqa
 
 
 # N.B.: The lock file path is last in the lock state tuple to allow for a simple encoding scheme in
@@ -105,18 +104,21 @@ def await_delete_lock():
     _lock(exclusive=True)
 
 
+LAST_ACCESS_FILE = ".last-access"
+
+
+def _last_access_file(pex_dir):
+    # type: (Union[UnzipDir, VenvDir, VenvDirs]) -> str
+    return os.path.join(pex_dir.path, LAST_ACCESS_FILE)
+
+
 def record_access(
-    atomic_cache_dir,  # type: AtomicCacheDir
+    pex_dir,  # type: Union[UnzipDir, VenvDir]
     last_access=None,  # type: Optional[float]
 ):
     # type: (...) -> None
 
-    # N.B.: We explicitly set atime and do not rely on the filesystem implicitly setting it when the
-    # directory is read since filesystems may be mounted noatime, nodiratime or relatime on Linux
-    # and similar toggles exist, at least in part, for some macOS file systems.
-    atime = last_access or time.time()
-    mtime = os.stat(atomic_cache_dir.path).st_mtime
-    os.utime(atomic_cache_dir.path, (atime, mtime))
+    touch(_last_access_file(pex_dir), last_access)
 
 
 def iter_all_cached_pex_dirs():
@@ -128,5 +130,5 @@ def iter_all_cached_pex_dirs():
         UnzipDir.iter_all(), VenvDirs.iter_all()
     )  # type: Iterator[Union[UnzipDir, VenvDirs]]
     for pex_dir in pex_dirs:
-        last_access = os.stat(pex_dir.path).st_atime
+        last_access = os.stat(_last_access_file(pex_dir)).st_mtime
         yield pex_dir, last_access
