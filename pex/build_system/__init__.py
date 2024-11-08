@@ -10,3 +10,4 @@ from __future__ import absolute_import
 #
 # See: https://peps.python.org/pep-0517/#source-trees
 DEFAULT_BUILD_BACKEND = "setuptools.build_meta:__legacy__"
+DEFAULT_BUILD_REQUIRES = ("setuptools",)
