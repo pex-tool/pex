@@ -7,7 +7,7 @@ import os.path
 import subprocess
 
 from pex import toml
-from pex.build_system import DEFAULT_BUILD_BACKEND
+from pex.build_system import DEFAULT_BUILD_BACKEND, DEFAULT_BUILD_REQUIRES
 from pex.common import REPRODUCIBLE_BUILDS_ENV, CopyMode
 from pex.dist_metadata import Distribution
 from pex.interpreter import PythonInterpreter
@@ -159,6 +159,25 @@ class BuildSystem(object):
     env = attr.ib()  # type: Mapping[str, str]
 
 
+def _maybe_load_build_system_table(project_directory):
+    # type: (str) -> Union[Optional[BuildSystemTable], Error]
+
+    # The interface is spec'd here: https://peps.python.org/pep-0518/
+    pyproject_toml = os.path.join(project_directory, "pyproject.toml")
+    if not os.path.isfile(pyproject_toml):
+        return None
+    return _read_build_system_table(pyproject_toml)
+
+
+def load_build_system_table(project_directory):
+    # type: (str) -> Union[BuildSystemTable, Error]
+
+    maybe_build_system_table_or_error = _maybe_load_build_system_table(project_directory)
+    if maybe_build_system_table_or_error is not None:
+        return maybe_build_system_table_or_error
+    return BuildSystemTable(requires=DEFAULT_BUILD_REQUIRES, build_backend=DEFAULT_BUILD_BACKEND)
+
+
 def load_build_system(
     target,  # type: Target
     resolver,  # type: Resolver
@@ -167,12 +186,7 @@ def load_build_system(
 ):
     # type: (...) -> Union[Optional[BuildSystem], Error]
 
-    # The interface is spec'd here: https://peps.python.org/pep-0518/
-    pyproject_toml = os.path.join(project_directory, "pyproject.toml")
-    if not os.path.isfile(pyproject_toml):
-        return None
-
-    maybe_build_system_table_or_error = _read_build_system_table(pyproject_toml)
+    maybe_build_system_table_or_error = _maybe_load_build_system_table(project_directory)
     if not isinstance(maybe_build_system_table_or_error, BuildSystemTable):
         return maybe_build_system_table_or_error
     build_system_table = maybe_build_system_table_or_error
