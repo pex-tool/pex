@@ -833,6 +833,7 @@ def test_resolved():
         locked_resolve = LockedResolve.create(
             resolved_requirements=(),
             dist_metadatas=(),
+            build_system_oracle=None,
             fingerprinter=DevNullFingerprinter(),
         )
         assert Resolved(
