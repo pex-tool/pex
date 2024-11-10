@@ -1,17 +1,19 @@
 # Copyright 2022 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-from __future__ import absolute_import
+from __future__ import absolute_import, print_function
 
+import hashlib
 import itertools
 import os
+import zipfile
 from abc import abstractmethod
 from collections import OrderedDict, defaultdict
 
-from pex import pex_warnings
+from pex import pex_warnings, targets
 from pex.common import pluralize
 from pex.dependency_configuration import DependencyConfiguration
-from pex.dist_metadata import Distribution, Requirement
+from pex.dist_metadata import Distribution, Requirement, is_wheel
 from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.pep_427 import InstallableType
 from pex.pep_503 import ProjectName
@@ -20,6 +22,7 @@ from pex.resolve.lockfile.model import Lockfile
 from pex.sorted_tuple import SortedTuple
 from pex.targets import AbbreviatedPlatform, Target, Targets
 from pex.typing import TYPE_CHECKING
+from pex.util import CacheHelper
 
 if TYPE_CHECKING:
     from typing import DefaultDict, Iterable, List, Optional, Tuple
@@ -216,6 +219,48 @@ class ResolveResult(object):
     type = attr.ib()  # type: InstallableType.Value
 
 
+def fingerprint_path(path):
+    # type: (str) -> str
+
+    # We switched from sha1 to sha256 at the transition from using `pip install --target` to
+    # `pip install --prefix` to serve two purposes:
+    # 1. Insulate the new installation scheme from the old.
+    # 2. Move past sha1 which was shown to have practical collision attacks in 2019.
+    #
+    # The installation scheme switch was the primary purpose and switching hashes proved a pragmatic
+    # insulation. If the `pip install --prefix` re-arrangement scheme evolves, then some other
+    # option than switching hashing algorithms will be needed, like post-fixing a running version
+    # integer or just mixing one into the hashed content.
+    #
+    # See: https://github.com/pex-tool/pex/issues/1655 for a general overview of these cache
+    # structure concerns.
+    hasher = hashlib.sha256
+
+    if os.path.isdir(path):
+        return CacheHelper.dir_hash(path, hasher=hasher)
+    return CacheHelper.hash(path, hasher=hasher)
+
+
+@attr.s(frozen=True)
+class LocalDistribution(object):
+    path = attr.ib()  # type: str
+    fingerprint = attr.ib()  # type: str
+    target = attr.ib(factory=targets.current)  # type: Target
+
+    @fingerprint.default
+    def _calculate_fingerprint(self):
+        return fingerprint_path(self.path)
+
+    @property
+    def is_wheel(self):
+        return is_wheel(self.path) and zipfile.is_zipfile(self.path)
+
+
+@attr.s(frozen=True)
+class Downloaded(object):
+    local_distributions = attr.ib()  # type: Tuple[LocalDistribution, ...]
+
+
 class Resolver(object):
     @abstractmethod
     def is_default_repos(self):
@@ -248,4 +293,16 @@ class Resolver(object):
         result_type=InstallableType.INSTALLED_WHEEL_CHROOT,  # type: InstallableType.Value
     ):
         # type: (...) -> ResolveResult
+        raise NotImplementedError()
+
+    @abstractmethod
+    def download_requirements(
+        self,
+        requirements,  # type: Iterable[str]
+        targets=Targets(),  # type: Targets
+        pip_version=None,  # type: Optional[PipVersionValue]
+        transitive=None,  # type: Optional[bool]
+        extra_resolver_requirements=None,  # type: Optional[Tuple[Requirement, ...]]
+    ):
+        # type: (...) -> Downloaded
         raise NotImplementedError()

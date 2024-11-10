@@ -5,6 +5,7 @@ from __future__ import absolute_import, print_function
 
 import os
 
+from pex.build_system import BuildSystemTable
 from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import Constraint, Requirement
 from pex.orderedset import OrderedSet
@@ -36,6 +37,7 @@ class Lockfile(object):
         style,  # type: LockStyle.Value
         requires_python,  # type: Iterable[str]
         target_systems,  # type: Iterable[TargetSystem.Value]
+        lock_build_systems,  # type: bool
         requirements,  # type: Iterable[Union[Requirement, ParsedRequirement]]
         constraints,  # type: Iterable[Constraint]
         allow_prereleases,  # type: bool
@@ -44,6 +46,7 @@ class Lockfile(object):
         excluded,  # type: Iterable[Requirement]
         overridden,  # type: Iterable[Requirement]
         locked_resolves,  # type: Iterable[LockedResolve]
+        build_systems=None,  # type: Optional[Mapping[BuildSystemTable, Iterable[LockedResolve]]]
         source=None,  # type: Optional[str]
         pip_version=None,  # type: Optional[PipVersionValue]
         resolver_version=None,  # type: Optional[ResolverVersion.Value]
@@ -94,10 +97,11 @@ class Lockfile(object):
             style=style,
             requires_python=SortedTuple(requires_python),
             target_systems=SortedTuple(target_systems),
+            lock_build_systems=lock_build_systems,
             pip_version=pip_ver,
             resolver_version=resolver_version or ResolverVersion.default(pip_ver),
-            requirements=SortedTuple(resolve_requirements, key=str),
-            constraints=SortedTuple(constraints, key=str),
+            requirements=SortedTuple(resolve_requirements),
+            constraints=SortedTuple(constraints),
             allow_prereleases=allow_prereleases,
             allow_wheels=build_configuration.allow_wheels,
             only_wheels=SortedTuple(build_configuration.only_wheels),
@@ -111,6 +115,10 @@ class Lockfile(object):
             excluded=SortedTuple(excluded),
             overridden=SortedTuple(overridden),
             locked_resolves=SortedTuple(locked_resolves),
+            build_systems={
+                build_system_table: SortedTuple(locked_resolves)
+                for build_system_table, locked_resolves in (build_systems or {}).items()
+            },
             local_project_requirement_mapping=requirement_by_local_project_directory,
             source=source,
         )
@@ -119,6 +127,7 @@ class Lockfile(object):
     style = attr.ib()  # type: LockStyle.Value
     requires_python = attr.ib()  # type: SortedTuple[str]
     target_systems = attr.ib()  # type: SortedTuple[TargetSystem.Value]
+    lock_build_systems = attr.ib()  # type: bool
     pip_version = attr.ib()  # type: PipVersionValue
     resolver_version = attr.ib()  # type: ResolverVersion.Value
     requirements = attr.ib()  # type: SortedTuple[Requirement]
@@ -136,6 +145,7 @@ class Lockfile(object):
     excluded = attr.ib()  # type: SortedTuple[Requirement]
     overridden = attr.ib()  # type: SortedTuple[Requirement]
     locked_resolves = attr.ib()  # type: SortedTuple[LockedResolve]
+    build_systems = attr.ib()  # type: Mapping[BuildSystemTable, SortedTuple[LockedResolve]]
     local_project_requirement_mapping = attr.ib(eq=False)  # type: Mapping[str, Requirement]
     source = attr.ib(default=None, eq=False)  # type: Optional[str]
 

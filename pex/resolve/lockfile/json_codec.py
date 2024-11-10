@@ -4,8 +4,10 @@
 from __future__ import absolute_import
 
 import json
+from collections import defaultdict
 
 from pex import compatibility
+from pex.build_system import BuildSystemTable
 from pex.dist_metadata import Requirement, RequirementParseError
 from pex.enum import Enum
 from pex.pep_440 import Version
@@ -13,10 +15,13 @@ from pex.pep_503 import ProjectName
 from pex.pip.version import PipVersion
 from pex.resolve.locked_resolve import (
     Artifact,
+    FileArtifact,
+    LocalProjectArtifact,
     LockedRequirement,
     LockedResolve,
     LockStyle,
     TargetSystem,
+    VCSArtifact,
 )
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.path_mappings import PathMappings
@@ -31,6 +36,7 @@ if TYPE_CHECKING:
     from typing import (
         Any,
         Container,
+        DefaultDict,
         Dict,
         List,
         Mapping,
@@ -337,6 +343,7 @@ def loads(
         style=get_enum_value(LockStyle, "style"),
         requires_python=get("requires_python", list),
         target_systems=target_systems,
+        lock_build_systems=get("lock_build_systems", bool, optional=True) or False,
         pip_version=get_enum_value(
             PipVersion,
             "pip_version",
@@ -386,7 +393,59 @@ def as_json_data(
     path_mappings=PathMappings(),  # type: PathMappings
 ):
     # type: (...) -> Dict[str, Any]
-    return {
+
+    build_systems_by_backend = defaultdict(
+        dict
+    )  # type: DefaultDict[str, Dict[BuildSystemTable, str]]
+
+    def serialize_artifact(artifact):
+        # type: (Union[FileArtifact, LocalProjectArtifact, VCSArtifact]) -> Dict[str, Any]
+
+        artifact_data = {
+            "url": path_mappings.maybe_canonicalize(artifact.url.download_url),
+            "algorithm": artifact.fingerprint.algorithm,
+            "hash": artifact.fingerprint.hash,
+        }
+        if artifact.build_system_table:
+            backend = artifact.build_system_table.build_backend
+            tables = build_systems_by_backend[backend]
+            artifact_data["build_system"] = tables.setdefault(
+                artifact.build_system_table,
+                "{backend}-{index}".format(backend=backend, index=len(tables)),
+            )
+        return artifact_data
+
+    def serialize_locked_resolve(locked_resolve):
+        # type: (LockedResolve) -> Dict[str, Any]
+        return {
+            "platform_tag": [
+                locked_resolve.platform_tag.interpreter,
+                locked_resolve.platform_tag.abi,
+                locked_resolve.platform_tag.platform,
+            ]
+            if locked_resolve.platform_tag
+            else None,
+            "locked_requirements": [
+                {
+                    "project_name": str(req.pin.project_name),
+                    # N.B.: We store the raw version so that `===` can work as intended against
+                    # the un-normalized form of versions that are non-legacy and thus
+                    # normalizable.
+                    "version": req.pin.version.raw,
+                    "requires_dists": [
+                        path_mappings.maybe_canonicalize(str(dependency))
+                        for dependency in req.requires_dists
+                    ],
+                    "requires_python": str(req.requires_python) if req.requires_python else None,
+                    "artifacts": [
+                        serialize_artifact(artifact) for artifact in req.iter_artifacts()
+                    ],
+                }
+                for req in locked_resolve.locked_requirements
+            ],
+        }
+
+    lock_data = {
         "pex_version": lockfile.pex_version,
         "style": str(lockfile.style),
         "requires_python": list(lockfile.requires_python),
@@ -410,43 +469,24 @@ def as_json_data(
         "excluded": [str(exclude) for exclude in lockfile.excluded],
         "overridden": [str(override) for override in lockfile.overridden],
         "locked_resolves": [
-            {
-                "platform_tag": [
-                    locked_resolve.platform_tag.interpreter,
-                    locked_resolve.platform_tag.abi,
-                    locked_resolve.platform_tag.platform,
-                ]
-                if locked_resolve.platform_tag
-                else None,
-                "locked_requirements": [
-                    {
-                        "project_name": str(req.pin.project_name),
-                        # N.B.: We store the raw version so that `===` can work as intended against
-                        # the un-normalized form of versions that are non-legacy and thus
-                        # normalizable.
-                        "version": req.pin.version.raw,
-                        "requires_dists": [
-                            path_mappings.maybe_canonicalize(str(dependency))
-                            for dependency in req.requires_dists
-                        ],
-                        "requires_python": str(req.requires_python)
-                        if req.requires_python
-                        else None,
-                        "artifacts": [
-                            {
-                                "url": path_mappings.maybe_canonicalize(artifact.url.download_url),
-                                "algorithm": artifact.fingerprint.algorithm,
-                                "hash": artifact.fingerprint.hash,
-                            }
-                            for artifact in req.iter_artifacts()
-                        ],
-                    }
-                    for req in locked_resolve.locked_requirements
-                ],
-            }
-            for locked_resolve in lockfile.locked_resolves
+            serialize_locked_resolve(locked_resolve) for locked_resolve in lockfile.locked_resolves
         ],
         "path_mappings": {
             path_mapping.name: path_mapping.description for path_mapping in path_mappings.mappings
         },
     }
+    if build_systems_by_backend:
+        lock_data["build_systems"] = {
+            build_system_id: {
+                "build_backend": build_system_table.build_backend,
+                "requires": build_system_table.requires,
+                "backend_path": build_system_table.backend_path,
+                "locked_resolves": [
+                    serialize_locked_resolve(locked_resolve)
+                    for locked_resolve in lockfile.build_systems[build_system_table]
+                ],
+            }
+            for build_system in build_systems_by_backend.values()
+            for build_system_table, build_system_id in build_system.items()
+        }
+    return lock_data

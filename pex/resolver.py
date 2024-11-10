@@ -6,14 +6,12 @@ from __future__ import absolute_import, print_function
 
 import functools
 import glob
-import hashlib
 import itertools
 import os
 import zipfile
 from abc import abstractmethod
 from collections import OrderedDict, defaultdict
 
-from pex import targets
 from pex.atomic_directory import AtomicDirectory, atomic_directory
 from pex.auth import PasswordEntry
 from pex.cache.dirs import BuiltWheelDir, CacheDir
@@ -36,17 +34,19 @@ from pex.requirements import LocalProjectRequirement
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import BuildConfiguration, PipLog, ResolverVersion
 from pex.resolve.resolvers import (
+    Downloaded,
+    LocalDistribution,
     ResolvedDistribution,
     Resolver,
     ResolveResult,
     Unsatisfiable,
     Untranslatable,
     check_resolve,
+    fingerprint_path,
 )
 from pex.targets import AbbreviatedPlatform, CompletePlatform, LocalInterpreter, Target, Targets
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
-from pex.util import CacheHelper
 from pex.variables import ENV
 
 if TYPE_CHECKING:
@@ -275,28 +275,6 @@ class DownloadResult(object):
 
 class IntegrityError(Exception):
     pass
-
-
-def fingerprint_path(path):
-    # type: (str) -> str
-
-    # We switched from sha1 to sha256 at the transition from using `pip install --target` to
-    # `pip install --prefix` to serve two purposes:
-    # 1. Insulate the new installation scheme from the old.
-    # 2. Move past sha1 which was shown to have practical collision attacks in 2019.
-    #
-    # The installation scheme switch was the primary purpose and switching hashes proved a pragmatic
-    # insulation. If the `pip install --prefix` re-arrangement scheme evolves, then some other
-    # option than switching hashing algorithms will be needed, like post-fixing a running version
-    # integer or just mixing one into the hashed content.
-    #
-    # See: https://github.com/pex-tool/pex/issues/1655 for a general overview of these cache
-    # structure concerns.
-    hasher = hashlib.sha256
-
-    if os.path.isdir(path):
-        return CacheHelper.dir_hash(path, hasher=hasher)
-    return CacheHelper.hash(path, hasher=hasher)
 
 
 @attr.s(frozen=True)
@@ -1222,26 +1200,6 @@ def _download_internal(
         dest=dest, max_parallel_jobs=max_parallel_jobs
     )
     return local_projects, download_results
-
-
-@attr.s(frozen=True)
-class LocalDistribution(object):
-    path = attr.ib()  # type: str
-    fingerprint = attr.ib()  # type: str
-    target = attr.ib(factory=targets.current)  # type: Target
-
-    @fingerprint.default
-    def _calculate_fingerprint(self):
-        return fingerprint_path(self.path)
-
-    @property
-    def is_wheel(self):
-        return is_wheel(self.path) and zipfile.is_zipfile(self.path)
-
-
-@attr.s(frozen=True)
-class Downloaded(object):
-    local_distributions = attr.ib()  # type: Tuple[LocalDistribution, ...]
 
 
 class ResolveObserver(object):

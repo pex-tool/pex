@@ -665,6 +665,7 @@ class LockUpdater(object):
             style=lock_file.style,
             requires_python=lock_file.requires_python,
             target_systems=lock_file.target_systems,
+            lock_build_systems=lock_file.lock_build_systems,
         )
         pip_configuration = PipConfiguration(
             version=lock_file.pip_version,

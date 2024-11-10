@@ -13,7 +13,8 @@ from pex.resolve.locked_resolve import LockConfiguration, LockedResolve, LockSty
 from pex.resolve.lockfile.create import LockObserver
 from pex.resolve.resolved_requirement import Pin
 from pex.resolve.resolver_configuration import PipConfiguration
-from pex.resolver import Downloaded, LocalDistribution, WheelBuilder
+from pex.resolve.resolvers import Downloaded, LocalDistribution
+from pex.resolver import WheelBuilder
 from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper
 from testing.resolve import normalize_locked_resolve

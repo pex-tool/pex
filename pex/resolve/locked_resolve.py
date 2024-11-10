@@ -8,6 +8,7 @@ import os
 from collections import OrderedDict, defaultdict, deque
 from functools import total_ordering
 
+from pex.build_system import BuildSystemTable
 from pex.common import pluralize
 from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import DistMetadata, Requirement, is_sdist, is_wheel
@@ -87,6 +88,7 @@ class LockConfiguration(object):
     style = attr.ib()  # type: LockStyle.Value
     requires_python = attr.ib(default=())  # type: Tuple[str, ...]
     target_systems = attr.ib(default=())  # type: Tuple[TargetSystem.Value, ...]
+    lock_build_systems = attr.ib(default=False)  # type: bool
 
     @requires_python.validator
     @target_systems.validator
@@ -116,13 +118,16 @@ class Artifact(object):
         artifact_url,  # type: ArtifactURL
         fingerprint,  # type: Fingerprint
         verified=False,  # type: bool
+        build_system_table=None,  # type: Optional[BuildSystemTable]
     ):
         # type: (...) -> Union[FileArtifact, LocalProjectArtifact, VCSArtifact]
         if isinstance(artifact_url.scheme, VCSScheme):
-            return VCSArtifact.from_artifact_url(
-                artifact_url=artifact_url,
+            return VCSArtifact(
+                url=artifact_url,
                 fingerprint=fingerprint,
                 verified=verified,
+                vcs=artifact_url.scheme.vcs,
+                build_system_table=build_system_table,
             )
 
         if "file" == artifact_url.scheme and os.path.isdir(artifact_url.path):
@@ -132,6 +137,7 @@ class Artifact(object):
                 fingerprint=fingerprint,
                 verified=verified,
                 directory=directory,
+                build_system_table=build_system_table,
             )
 
         filename = os.path.basename(artifact_url.path)
@@ -140,6 +146,7 @@ class Artifact(object):
             fingerprint=fingerprint,
             verified=verified,
             filename=filename,
+            build_system_table=build_system_table,
         )
 
     @classmethod
@@ -148,10 +155,14 @@ class Artifact(object):
         url,  # type: str
         fingerprint,  # type: Fingerprint
         verified=False,  # type: bool
+        build_system_table=None,  # type: Optional[BuildSystemTable]
     ):
         # type: (...) -> Union[FileArtifact, LocalProjectArtifact, VCSArtifact]
         return cls.from_artifact_url(
-            artifact_url=ArtifactURL.parse(url), fingerprint=fingerprint, verified=verified
+            artifact_url=ArtifactURL.parse(url),
+            fingerprint=fingerprint,
+            verified=verified,
+            build_system_table=build_system_table,
         )
 
     url = attr.ib()  # type: ArtifactURL
@@ -168,6 +179,19 @@ class Artifact(object):
 @attr.s(frozen=True, order=False)
 class FileArtifact(Artifact):
     filename = attr.ib()  # type: str
+    build_system_table = attr.ib(default=None)  # type: Optional[BuildSystemTable]
+
+    @build_system_table.validator
+    def _validate_only_set_for_sdist(
+        self,
+        attribute,  # type: Any
+        value,  # type: Optional[BuildSystemTable]
+    ):
+        if value and not self.is_source:
+            raise ValueError(
+                "A build system table was provided but this is a whl artifact that does not need "
+                "to be built: {url}".format(url=self.url.raw_url)
+            )
 
     @property
     def is_source(self):
@@ -184,6 +208,7 @@ class FileArtifact(Artifact):
 @attr.s(frozen=True, order=False)
 class LocalProjectArtifact(Artifact):
     directory = attr.ib()  # type: str
+    build_system_table = attr.ib(default=None)  # type: Optional[BuildSystemTable]
 
     @property
     def is_source(self):
@@ -193,28 +218,8 @@ class LocalProjectArtifact(Artifact):
 
 @attr.s(frozen=True, order=False)
 class VCSArtifact(Artifact):
-    @classmethod
-    def from_artifact_url(
-        cls,
-        artifact_url,  # type: ArtifactURL
-        fingerprint,  # type: Fingerprint
-        verified=False,  # type: bool
-    ):
-        # type: (...) -> VCSArtifact
-        if not isinstance(artifact_url.scheme, VCSScheme):
-            raise ValueError(
-                "The given artifact URL is not that of a VCS artifact: {url}".format(
-                    url=artifact_url.raw_url
-                )
-            )
-        return cls(
-            url=artifact_url,
-            fingerprint=fingerprint,
-            verified=verified,
-            vcs=artifact_url.scheme.vcs,
-        )
-
     vcs = attr.ib()  # type: VCS.Value
+    build_system_table = attr.ib(default=None)  # type: Optional[BuildSystemTable]
 
     @property
     def is_source(self):
@@ -252,7 +257,7 @@ class LockedRequirement(object):
         return cls(
             pin=pin,
             artifact=artifact,
-            requires_dists=SortedTuple(requires_dists, key=str),
+            requires_dists=SortedTuple(requires_dists),
             requires_python=requires_python,
             additional_artifacts=SortedTuple(additional_artifacts),
         )
@@ -442,7 +447,7 @@ class DownloadableArtifact(object):
         return cls(
             pin=pin,
             artifact=artifact,
-            satisfied_direct_requirements=SortedTuple(satisfied_direct_requirements, key=str),
+            satisfied_direct_requirements=SortedTuple(satisfied_direct_requirements),
         )
 
     pin = attr.ib()  # type: Pin
@@ -518,6 +523,11 @@ class Resolved(object):
 
 if TYPE_CHECKING:
 
+    class BuildSystemOracle(Protocol):
+        def determine_build_systems(self, artifacts):
+            # type: (Iterable[PartialArtifact]) -> Iterator[Tuple[PartialArtifact, Optional[BuildSystemTable]]]
+            pass
+
     class Fingerprinter(Protocol):
         def fingerprint(self, artifacts):
             # type: (Iterable[PartialArtifact]) -> Iterator[FileArtifact]
@@ -531,10 +541,23 @@ class LockedResolve(object):
         cls,
         resolved_requirements,  # type: Iterable[ResolvedRequirement]
         dist_metadatas,  # type: Iterable[DistMetadata]
+        build_system_oracle,  # type: Optional[BuildSystemOracle]
         fingerprinter,  # type: Fingerprinter
         platform_tag=None,  # type: Optional[tags.Tag]
     ):
         # type: (...) -> LockedResolve
+
+        artifacts_to_lock = OrderedSet(
+            itertools.chain.from_iterable(
+                resolved_requirement.iter_artifacts_to_lock()
+                for resolved_requirement in resolved_requirements
+            )
+        )
+        build_system_table_by_partial_artifact = (
+            dict(build_system_oracle.determine_build_systems(artifacts_to_lock))
+            if build_system_oracle
+            else {}
+        )
 
         artifacts_to_fingerprint = OrderedSet(
             itertools.chain.from_iterable(
@@ -568,6 +591,7 @@ class LockedResolve(object):
                 artifact_url=partial_artifact.url,
                 fingerprint=partial_artifact.fingerprint,
                 verified=partial_artifact.verified,
+                build_system_table=build_system_table_by_partial_artifact.get(partial_artifact),
             )
 
         dist_metadata_by_pin = {
