@@ -10,11 +10,10 @@ from textwrap import dedent
 
 from pex import third_party
 from pex.build_system import DEFAULT_BUILD_BACKEND
-from pex.build_system.pep_518 import BuildSystem, load_build_system, load_build_system_table
+from pex.build_system.pep_518 import BuildSystem, load_build_system
 from pex.common import safe_mkdtemp
 from pex.dist_metadata import DistMetadata, Distribution, MetadataType
 from pex.jobs import Job, SpawnedJob
-from pex.orderedset import OrderedSet
 from pex.pip.version import PipVersion, PipVersionValue
 from pex.resolve.resolvers import Resolver
 from pex.result import Error, try_
@@ -257,8 +256,6 @@ def get_requires_for_build_wheel(
 ):
     # type: (...) -> Tuple[str, ...]
 
-    build_system_table = try_(load_build_system_table(project_directory))
-    requires = OrderedSet(build_system_table.requires)
     spawned_job = try_(
         _invoke_build_hook(
             project_directory,
@@ -269,11 +266,11 @@ def get_requires_for_build_wheel(
         )
     )
     try:
-        requires.update(spawned_job.await_result())
+        return tuple(spawned_job.await_result())
     except Job.Error as e:
         if e.exitcode != _HOOK_UNAVAILABLE_EXIT_CODE:
             raise e
-    return tuple(requires)
+    return ()
 
 
 def spawn_prepare_metadata(
