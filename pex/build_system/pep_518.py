@@ -7,7 +7,7 @@ import os.path
 import subprocess
 
 from pex import toml
-from pex.build_system import DEFAULT_BUILD_BACKEND, DEFAULT_BUILD_REQUIRES
+from pex.build_system import DEFAULT_BUILD_BACKEND, DEFAULT_BUILD_SYSTEM_TABLE, BuildSystemTable
 from pex.common import REPRODUCIBLE_BUILDS_ENV, CopyMode
 from pex.dist_metadata import Distribution
 from pex.interpreter import PythonInterpreter
@@ -29,13 +29,6 @@ if TYPE_CHECKING:
     import attr  # vendor:skip
 else:
     from pex.third_party import attr
-
-
-@attr.s(frozen=True)
-class BuildSystemTable(object):
-    requires = attr.ib()  # type: Tuple[str, ...]
-    build_backend = attr.ib(default=DEFAULT_BUILD_BACKEND)  # type: str
-    backend_path = attr.ib(default=())  # type: Tuple[str, ...]
 
 
 def _read_build_system_table(
@@ -175,7 +168,7 @@ def load_build_system_table(project_directory):
     maybe_build_system_table_or_error = _maybe_load_build_system_table(project_directory)
     if maybe_build_system_table_or_error is not None:
         return maybe_build_system_table_or_error
-    return BuildSystemTable(requires=DEFAULT_BUILD_REQUIRES, build_backend=DEFAULT_BUILD_BACKEND)
+    return DEFAULT_BUILD_SYSTEM_TABLE
 
 
 def load_build_system(

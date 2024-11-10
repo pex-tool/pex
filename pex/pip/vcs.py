@@ -7,6 +7,8 @@ import os
 import re
 
 from pex import hashing
+from pex.build_system import BuildSystemTable
+from pex.build_system.pep_518 import load_build_system_table
 from pex.common import is_pyc_dir, is_pyc_file, open_zip, temporary_dir
 from pex.hashing import Sha256
 from pex.pep_440 import Version
@@ -61,7 +63,7 @@ def fingerprint_downloaded_vcs_archive(
     version,  # type: str
     vcs,  # type: VCS.Value
 ):
-    # type: (...) -> Tuple[Fingerprint, str]
+    # type: (...) -> Tuple[Fingerprint, BuildSystemTable, str]
 
     archive_path = try_(
         _find_built_source_dist(
@@ -69,8 +71,8 @@ def fingerprint_downloaded_vcs_archive(
         )
     )
     digest = Sha256()
-    digest_vcs_archive(archive_path=archive_path, vcs=vcs, digest=digest)
-    return Fingerprint.from_digest(digest), archive_path
+    build_system_table = digest_vcs_archive(archive_path=archive_path, vcs=vcs, digest=digest)
+    return Fingerprint.from_digest(digest), build_system_table, archive_path
 
 
 def digest_vcs_archive(
@@ -78,7 +80,7 @@ def digest_vcs_archive(
     vcs,  # type: VCS.Value
     digest,  # type: HintedDigest
 ):
-    # type: (...) -> None
+    # type: (...) -> BuildSystemTable
 
     # All VCS requirements are prepared as zip archives as encoded in:
     # `pip._internal.req.req_install.InstallRequirement.archive`.
@@ -109,3 +111,5 @@ def digest_vcs_archive(
             ),
             file_filter=lambda f: not is_pyc_file(f),
         )
+
+        return try_(load_build_system_table(chroot))
