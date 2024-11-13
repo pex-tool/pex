@@ -481,6 +481,14 @@ def register_repos_options(parser):
         type=str,
         help="Additional cheeseshop indices to use to satisfy requirements.",
     )
+    parser.add_argument(
+        "--with-extra-pip-arg",
+        metavar="PIP_ARG",
+        action="append",
+        dest="extra_pip_args",
+        type=str,
+        help="Additional arguments to pass through to pip.",
+    )
 
 
 def register_network_options(parser):

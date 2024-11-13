@@ -1023,6 +1023,7 @@ def resolve(
     resolver=None,  # type: Optional[Resolver]
     use_pip_config=False,  # type: bool
     extra_pip_requirements=(),  # type: Tuple[Requirement, ...]
+    extra_pip_args=(),  # type: Tuple[str, ...]
     result_type=InstallableType.INSTALLED_WHEEL_CHROOT,  # type: InstallableType.Value
     dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
 ):
@@ -1108,6 +1109,7 @@ def resolve(
         password_entries=password_entries,
         use_pip_config=use_pip_config,
         extra_pip_requirements=extra_pip_requirements,
+        extra_pip_args=extra_pip_args,
     )
 
     if not build_configuration.allow_wheels:
