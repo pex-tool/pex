@@ -182,7 +182,10 @@ def test_reproducible_build_c_flag_from_source(
             dedent(
                 """\
                 [build-system]
-                requires = ["setuptools"]
+                # As of the 75.4 release on 11/11/2024, wheel builds are no longer reproducible.
+                # This band-aids this test, but https://github.com/pex-tool/pex/issues/2594 tracks
+                # isolating the issue and reporting / fixing over at setuptools.
+                requires = ["setuptools<75.4"]
                 build-backend =  "setuptools.build_meta"
                 """
             )
