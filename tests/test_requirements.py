@@ -8,7 +8,7 @@ from textwrap import dedent
 
 import pytest
 
-from pex.common import safe_open, temporary_dir, touch
+from pex.common import environment_as, safe_open, temporary_dir, touch
 from pex.dist_metadata import Requirement
 from pex.fetcher import URLFetcher
 from pex.requirements import (
@@ -30,7 +30,6 @@ from pex.requirements import (
 )
 from pex.third_party.packaging.markers import Marker
 from pex.typing import TYPE_CHECKING
-from testing import environment_as
 
 if TYPE_CHECKING:
     from typing import Any, Iterable, Iterator, List, Optional, Union

@@ -17,6 +17,7 @@ import threading
 import time
 import zipfile
 from collections import defaultdict, namedtuple
+from contextlib import contextmanager
 from datetime import datetime
 from uuid import uuid4
 from zipfile import ZipFile, ZipInfo
@@ -917,3 +918,28 @@ def iter_copytree(
         if copy_mode is CopyMode.SYMLINK:
             # Once we've symlinked the top-level directories and files, we've "copied" everything.
             return
+
+
+@contextmanager
+def environment_as(**kwargs):
+    # type: (**Any) -> Iterator[None]
+    """Mutates the `os.environ` for the duration of the context.
+
+    Keyword arguments with None values are removed from os.environ (if present) and all other
+    keyword arguments are added or updated in `os.environ` with the values taken from the
+    stringification (`str(...)`) of each value.
+    """
+    existing = {key: os.environ.get(key) for key in kwargs}
+
+    def adjust_environment(mapping):
+        for key, value in mapping.items():
+            if value is not None:
+                os.environ[key] = str(value)
+            else:
+                os.environ.pop(key, None)
+
+    adjust_environment(kwargs)
+    try:
+        yield
+    finally:
+        adjust_environment(existing)

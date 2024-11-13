@@ -17,7 +17,7 @@ from threading import BoundedSemaphore, Event, Thread
 from pex.common import pluralize
 from pex.compatibility import Queue, cpu_count
 from pex.tracer import TRACER
-from pex.typing import TYPE_CHECKING, Generic, cast
+from pex.typing import TYPE_CHECKING, Generic
 
 if TYPE_CHECKING:
     from typing import (
@@ -679,12 +679,8 @@ if TYPE_CHECKING:
 @contextmanager
 def _mp_pool(size):
     # type: (int) -> Iterator[Pool]
-    try:
-        context = multiprocessing.get_context("fork")  # type: ignore[attr-defined]
-        pool = cast("Pool", context.Pool(processes=size))
-    except (AttributeError, ValueError):
-        pool = multiprocessing.Pool(processes=size)
 
+    pool = multiprocessing.Pool(processes=size)
     try:
         yield pool
     finally:
