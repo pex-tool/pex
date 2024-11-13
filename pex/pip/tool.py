@@ -115,7 +115,6 @@ class PackageIndexConfiguration(object):
         yield "--timeout"
         yield str(network_configuration.timeout)
 
-
     @staticmethod
     def _calculate_env(
         network_configuration,  # type: NetworkConfiguration
@@ -152,7 +151,7 @@ class PackageIndexConfiguration(object):
         password_entries=(),  # type: Iterable[PasswordEntry]
         use_pip_config=False,  # type: bool
         extra_pip_requirements=(),  # type: Tuple[Requirement, ...]
-        extra_pip_args=(),  # type: Tuple[str, ...]
+        keychain_provider=None,  # type: Optional[str]
     ):
         # type: (...) -> PackageIndexConfiguration
         resolver_version = resolver_version or ResolverVersion.default(pip_version)
@@ -176,7 +175,7 @@ class PackageIndexConfiguration(object):
             use_pip_config=use_pip_config,
             extra_pip_requirements=extra_pip_requirements,
             password_entries=password_entries,
-            extra_pip_args=extra_pip_args,
+            keychain_provider=keychain_provider,
         )
 
     def __init__(
@@ -189,7 +188,7 @@ class PackageIndexConfiguration(object):
         password_entries=(),  # type: Iterable[PasswordEntry]
         pip_version=None,  # type: Optional[PipVersionValue]
         extra_pip_requirements=(),  # type: Tuple[Requirement, ...]
-        extra_pip_args=(),  # type: Tuple[str, ...]
+        keychain_provider=None,  # type: Optional[str]
     ):
         # type: (...) -> None
         self.resolver_version = resolver_version  # type: ResolverVersion.Value
@@ -200,7 +199,7 @@ class PackageIndexConfiguration(object):
         self.password_entries = password_entries  # type: Iterable[PasswordEntry]
         self.pip_version = pip_version  # type: Optional[PipVersionValue]
         self.extra_pip_requirements = extra_pip_requirements  # type: Tuple[Requirement, ...]
-        self.extra_pip_args = extra_pip_args  # type: Tuple[str, ...]
+        self.keychain_provider = keychain_provider  # type: Optional[str]
 
 
 if TYPE_CHECKING:
@@ -398,6 +397,11 @@ class Pip(object):
             # `~/.config/pip/pip.conf`.
             pip_args.append("--isolated")
 
+        # Configure a keychain provider if so configured.
+        if package_index_configuration and package_index_configuration.keychain_provider:
+            pip_args.append("--keychain-provider")
+            pip_args.append(package_index_configuration.keychain_provider)
+
         if log:
             pip_args.append("--log")
             pip_args.append(log)
@@ -413,10 +417,6 @@ class Pip(object):
         pip_args.extend(["--cache-dir", self.cache_dir])
 
         command = pip_args + list(args)
-
-        # Append any pass-through pip args.
-        if package_index_configuration:
-            command.extend(package_index_configuration.extra_pip_args)
 
         # N.B.: Package index options in Pep always have the same option names, but they are
         # registered as subcommand-specific, so we must append them here _after_ the pip subcommand

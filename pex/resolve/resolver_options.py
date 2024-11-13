@@ -135,7 +135,17 @@ def register(
             "See: https://pip.pypa.io/en/stable/topics/authentication/#keyring-support"
         ),
     )
+
     register_use_pip_config(parser)
+
+    parser.add_argument(
+        "--keychain-provider",
+        metavar="PROVIDER",
+        dest="keychain_provider",
+        type=str,
+        default=None,
+        help="Keychain provider to configure `pip` to use.",
+    )
 
     register_repos_options(parser)
     register_network_options(parser)
@@ -481,14 +491,6 @@ def register_repos_options(parser):
         type=str,
         help="Additional cheeseshop indices to use to satisfy requirements.",
     )
-    parser.add_argument(
-        "--with-extra-pip-arg",
-        metavar="PIP_ARG",
-        action="append",
-        dest="extra_pip_args",
-        type=str,
-        help="Additional arguments to pass through to pip.",
-    )
 
 
 def register_network_options(parser):
@@ -689,6 +691,7 @@ def create_pip_configuration(
         allow_version_fallback=options.allow_pip_version_fallback,
         use_pip_config=get_use_pip_config_value(options),
         extra_requirements=tuple(options.extra_pip_requirements),
+        keychain_provider=options.keychain_provider,
     )
 
 

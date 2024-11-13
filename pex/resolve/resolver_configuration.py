@@ -200,8 +200,8 @@ class PipConfiguration(object):
     allow_version_fallback = attr.ib(default=True)  # type: bool
     use_pip_config = attr.ib(default=False)  # type: bool
     extra_requirements = attr.ib(default=())  # type Tuple[Requirement, ...]
-    extra_pip_args = attr.ib(default=())  # type: Tuple[str, ...]
-    
+    keychain_provider = attr.ib(default=None)  # type: Optional[str]
+
 
 @attr.s(frozen=True)
 class PexRepositoryConfiguration(object):

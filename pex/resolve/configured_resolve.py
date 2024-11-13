@@ -64,6 +64,7 @@ def resolve(
                     pip_version=lock.pip_version,
                     use_pip_config=pip_configuration.use_pip_config,
                     extra_pip_requirements=pip_configuration.extra_requirements,
+                    keychain_provider=pip_configuration.keychain_provider,
                     result_type=result_type,
                     dependency_configuration=dependency_configuration,
                 )

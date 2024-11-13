@@ -115,15 +115,21 @@ def test_no_duplicate_constraints_pex_warnings(
 def package_index_configuration(
     pip_version,  # type: PipVersionValue
     use_pip_config=False,  # type: bool
+    keychain_provider=None,  # type: Optional[str]
 ):
     # type: (...) -> PackageIndexConfiguration
     if pip_version is PipVersion.v23_2:
         # N.B.: Pip 23.2 has a bug handling PEP-658 metadata with the legacy resolver; so we use the
         # 2020 resolver to work around. See: https://github.com/pypa/pip/issues/12156
         return PackageIndexConfiguration.create(
-            pip_version, resolver_version=ResolverVersion.PIP_2020, use_pip_config=use_pip_config
+            pip_version,
+            resolver_version=ResolverVersion.PIP_2020,
+            use_pip_config=use_pip_config,
+            keychain_provider=keychain_provider,
         )
-    return PackageIndexConfiguration.create(use_pip_config=use_pip_config)
+    return PackageIndexConfiguration.create(
+        use_pip_config=use_pip_config, keychain_provider=keychain_provider
+    )
 
 
 @pytest.mark.skipif(
@@ -393,6 +399,34 @@ def test_use_pip_config(
             job.wait()
         assert not os.path.exists(download_dir)
         assert "invalid --python-version value: 'invalid'" in str(exc.value.stderr)
+
+
+@applicable_pip_versions
+def test_keychain_provider(
+    create_pip,  # type: CreatePip
+    version,  # type: PipVersionValue
+    current_interpreter,  # type: PythonInterpreter
+    tmpdir,  # type: Any
+):
+    # type: (...) -> None
+
+    pip = create_pip(current_interpreter, version=version)
+
+    download_dir = os.path.join(str(tmpdir), "downloads")
+    assert not os.path.exists(download_dir)
+
+    with ENV.patch(PIP_KEYCHAIN_PROVIDER="invalid") as env, environment_as(**env):
+        assert "invalid" == os.environ["PIP_KEYCHAIN_PROVIDER"]
+        job = pip.spawn_download_distributions(
+            download_dir=download_dir,
+            requirements=["ansicolors==1.1.8"],
+            package_index_configuration=package_index_configuration(
+                pip_version=version, keychain_provider="auto"
+            ),
+        )
+        assert "--keychain-provider" in job._command, "\n".join(job._command)
+        with pytest.raises(Job.Error) as exc:
+            job.wait()
 
 
 @applicable_pip_versions
