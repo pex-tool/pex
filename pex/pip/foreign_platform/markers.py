@@ -27,11 +27,10 @@ def patch():
         production_assert(
             isinstance(environment, EvaluationEnvironment),
             "Expected environment to come from the {function} function, "
-            "which we patch to return {expected_type}, but was {actual_type}".format(
-                function=markers.default_environment,
-                expected_type=EvaluationEnvironment,
-                actual_type=type(environment),
-            ),
+            "which we patch to return {expected_type}, but was {actual_type}",
+            function=markers.default_environment,
+            expected_type=EvaluationEnvironment,
+            actual_type=type(environment),
         )
         return environment[name]
 

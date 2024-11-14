@@ -167,10 +167,10 @@ def create(
     except CompatibilityTagsParseError as e:
         production_assert(
             cached,
-            (
-                "Unexpectedly generated invalid abbreviated platform compatibility tags from "
-                "{platform}: {err}".format(platform=platform, err=e)
-            ),
+            "Unexpectedly generated invalid abbreviated platform compatibility tags from "
+            "{platform}: {err}",
+            platform=platform,
+            err=e,
         )
         TRACER.log(str(e))
         safe_rmtree(disk_cache_key)

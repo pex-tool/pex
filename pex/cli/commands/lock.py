@@ -1270,10 +1270,9 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                         project_name not in requirements_by_project_name,
                         "Deletes should have been unconditionally removed from requirements "
                         "earlier. Found deleted project {project_name} in updated requirements:\n"
-                        "{requirements}".format(
-                            project_name=project_name,
-                            requirements="\n".join(map(str, requirements_by_project_name.values())),
-                        ),
+                        "{requirements}",
+                        project_name=project_name,
+                        requirements="\n".join(map(str, requirements_by_project_name.values())),
                     )
                     constraints_by_project_name.pop(project_name, None)
                 elif isinstance(update, VersionUpdate):

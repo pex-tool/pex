@@ -91,9 +91,9 @@ class DependencyManager(object):
                     len(root_reqs) > 0,
                     "The deep --exclude mechanism failed to exclude {dist} from transitive "
                     "requirements. It should have been excluded by configured excludes: "
-                    "{excludes} but was not.".format(
-                        dist=fingerprinted_dist.distribution, excludes=excludes
-                    ),
+                    "{excludes} but was not.",
+                    dist=fingerprinted_dist.distribution,
+                    excludes=excludes,
                 )
                 pex_warnings.warn(
                     "The distribution {dist} was required by the input {requirements} "
