@@ -131,6 +131,7 @@ def resolve(
                 resolver=ConfiguredResolver(pip_configuration=resolver_configuration),
                 use_pip_config=resolver_configuration.use_pip_config,
                 extra_pip_requirements=resolver_configuration.extra_requirements,
+                keychain_provider=pip_configuration.keychain_provider,
                 result_type=result_type,
                 dependency_configuration=dependency_configuration,
             )

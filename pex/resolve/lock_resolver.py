@@ -95,6 +95,7 @@ class VCSArtifactDownloadManager(DownloadManager[VCSArtifact]):
         resolver=None,  # type: Optional[Resolver]
         use_pip_config=False,  # type: bool
         extra_pip_requirements=(),  # type: Tuple[Requirement, ...]
+        keychain_provider=None,  # type: Optional[str]
     ):
         super(VCSArtifactDownloadManager, self).__init__(
             pex_root=pex_root, file_lock_style=file_lock_style
@@ -117,6 +118,7 @@ class VCSArtifactDownloadManager(DownloadManager[VCSArtifact]):
         self._resolver = resolver
         self._use_pip_config = use_pip_config
         self._extra_pip_requirements = extra_pip_requirements
+        self._keychain_provider = keychain_provider
 
     def save(
         self,
@@ -143,6 +145,7 @@ class VCSArtifactDownloadManager(DownloadManager[VCSArtifact]):
             resolver=self._resolver,
             use_pip_config=self._use_pip_config,
             extra_pip_requirements=self._extra_pip_requirements,
+            keychain_provider=self._keychain_provider,
         )
         if len(downloaded_vcs.local_distributions) != 1:
             return Error(
@@ -334,6 +337,7 @@ def resolve_from_lock(
             resolver=resolver,
             use_pip_config=use_pip_config,
             extra_pip_requirements=extra_pip_requirements,
+            keychain_provider=keychain_provider,
         )
         for resolved_subset in subset_result.subsets
     }
