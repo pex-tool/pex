@@ -415,8 +415,8 @@ def test_keyring_provider(
     download_dir = os.path.join(str(tmpdir), "downloads")
     assert not os.path.exists(download_dir)
 
-    with ENV.patch(PIP_KEYCHAIN_PROVIDER="invalid") as env, environment_as(**env):
-        assert "invalid" == os.environ["PIP_KEYCHAIN_PROVIDER"]
+    with ENV.patch(PIP_KEYRING_PROVIDER="invalid") as env, environment_as(**env):
+        assert "invalid" == os.environ["PIP_KEYRING_PROVIDER"]
         job = pip.spawn_download_distributions(
             download_dir=download_dir,
             requirements=["ansicolors==1.1.8"],
@@ -424,7 +424,12 @@ def test_keyring_provider(
                 pip_version=version, keyring_provider="auto"
             ),
         )
-        assert "--keyring-provider" in job._command, "\n".join(job._command)
+        keyring_arg = job._command.index("--keyring-provider")
+        if keyring_arg != -1:
+            assert job._command[keyring_arg : keyring_arg + 2] == ("--keyring-provider", "auto")
+        else:
+            pytest.fail("--keyring-provider was not present in the invoked pip command")
+
         with pytest.raises(Job.Error) as exc:
             job.wait()
 

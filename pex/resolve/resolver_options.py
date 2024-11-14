@@ -144,7 +144,7 @@ def register(
         dest="keyring_provider",
         type=str,
         default=None,
-        help="Keychain provider to configure `pip` to use.",
+        help="`keyring` provider to configure `pip` to use.",
     )
 
     register_repos_options(parser)
