@@ -1023,7 +1023,7 @@ def resolve(
     resolver=None,  # type: Optional[Resolver]
     use_pip_config=False,  # type: bool
     extra_pip_requirements=(),  # type: Tuple[Requirement, ...]
-    keychain_provider=None,  # type: Optional[str]
+    keyring_provider=None,  # type: Optional[str]
     result_type=InstallableType.INSTALLED_WHEEL_CHROOT,  # type: InstallableType.Value
     dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
 ):
@@ -1109,7 +1109,7 @@ def resolve(
         password_entries=password_entries,
         use_pip_config=use_pip_config,
         extra_pip_requirements=extra_pip_requirements,
-        keychain_provider=keychain_provider,
+        keyring_provider=keyring_provider,
     )
 
     if not build_configuration.allow_wheels:
@@ -1278,7 +1278,7 @@ def download(
     resolver=None,  # type: Optional[Resolver]
     use_pip_config=False,  # type: bool
     extra_pip_requirements=(),  # type: Tuple[Requirement, ...]
-    keychain_provider=None,  # type: Optional[str]
+    keyring_provider=None,  # type: Optional[str]
     dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
 ):
     # type: (...) -> Downloaded
@@ -1325,7 +1325,7 @@ def download(
         password_entries=password_entries,
         use_pip_config=use_pip_config,
         extra_pip_requirements=extra_pip_requirements,
-        keychain_provider=keychain_provider,
+        keyring_provider=keyring_provider,
     )
     build_requests, download_results = _download_internal(
         targets=targets,

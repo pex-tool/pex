@@ -139,9 +139,9 @@ def register(
     register_use_pip_config(parser)
 
     parser.add_argument(
-        "--keychain-provider",
+        "--keyring-provider",
         metavar="PROVIDER",
-        dest="keychain_provider",
+        dest="keyring_provider",
         type=str,
         default=None,
         help="Keychain provider to configure `pip` to use.",
@@ -691,7 +691,7 @@ def create_pip_configuration(
         allow_version_fallback=options.allow_pip_version_fallback,
         use_pip_config=get_use_pip_config_value(options),
         extra_requirements=tuple(options.extra_pip_requirements),
-        keychain_provider=options.keychain_provider,
+        keyring_provider=options.keyring_provider,
     )
 
 

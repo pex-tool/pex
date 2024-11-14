@@ -379,7 +379,7 @@ def create(
         ),
         use_pip_config=pip_configuration.use_pip_config,
         extra_pip_requirements=pip_configuration.extra_requirements,
-        keychain_provider=pip_configuration.keychain_provider,
+        keyring_provider=pip_configuration.keyring_provider,
     )
 
     configured_resolver = ConfiguredResolver(pip_configuration=pip_configuration)
@@ -428,7 +428,7 @@ def create(
             resolver=configured_resolver,
             use_pip_config=pip_configuration.use_pip_config,
             extra_pip_requirements=pip_configuration.extra_requirements,
-            keychain_provider=pip_configuration.keychain_provider,
+            keyring_provider=pip_configuration.keyring_provider,
             dependency_configuration=dependency_configuration,
         )
     except resolvers.ResolveError as e:

@@ -115,7 +115,7 @@ def test_no_duplicate_constraints_pex_warnings(
 def package_index_configuration(
     pip_version,  # type: PipVersionValue
     use_pip_config=False,  # type: bool
-    keychain_provider=None,  # type: Optional[str]
+    keyring_provider=None,  # type: Optional[str]
 ):
     # type: (...) -> PackageIndexConfiguration
     if pip_version is PipVersion.v23_2:
@@ -125,10 +125,10 @@ def package_index_configuration(
             pip_version,
             resolver_version=ResolverVersion.PIP_2020,
             use_pip_config=use_pip_config,
-            keychain_provider=keychain_provider,
+            keyring_provider=keyring_provider,
         )
     return PackageIndexConfiguration.create(
-        use_pip_config=use_pip_config, keychain_provider=keychain_provider
+        use_pip_config=use_pip_config, keyring_provider=keyring_provider
     )
 
 
@@ -402,7 +402,7 @@ def test_use_pip_config(
 
 
 @applicable_pip_versions
-def test_keychain_provider(
+def test_keyring_provider(
     create_pip,  # type: CreatePip
     version,  # type: PipVersionValue
     current_interpreter,  # type: PythonInterpreter
@@ -421,10 +421,10 @@ def test_keychain_provider(
             download_dir=download_dir,
             requirements=["ansicolors==1.1.8"],
             package_index_configuration=package_index_configuration(
-                pip_version=version, keychain_provider="auto"
+                pip_version=version, keyring_provider="auto"
             ),
         )
-        assert "--keychain-provider" in job._command, "\n".join(job._command)
+        assert "--keyring-provider" in job._command, "\n".join(job._command)
         with pytest.raises(Job.Error) as exc:
             job.wait()
 
