@@ -589,6 +589,9 @@ class Seed(Enum["Seed.Value"]):
     VERBOSE = Value("verbose")
 
 
+Seed.seal()
+
+
 class HandleSeedAction(Action):
     def __init__(self, *args, **kwargs):
         kwargs["nargs"] = "?"

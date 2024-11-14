@@ -39,6 +39,9 @@ class RemoveScope(Enum["RemoveScope.Value"]):
     PEX_AND_PEX_ROOT = Value("all")
 
 
+RemoveScope.seal()
+
+
 @attr.s(frozen=True)
 class InstallScopeState(object):
     @classmethod

@@ -855,6 +855,9 @@ class CopyMode(Enum["CopyMode.Value"]):
     SYMLINK = Value("symlink")
 
 
+CopyMode.seal()
+
+
 def iter_copytree(
     src,  # type: Text
     dst,  # type: Text

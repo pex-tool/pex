@@ -49,6 +49,9 @@ class InstallLayout(Enum["InstallLayout.Value"]):
     FLAT_ZIPPED = Value("flat-zipped")
 
 
+InstallLayout.seal()
+
+
 class Venv(OutputMixin, JsonMixin, BuildTimeCommand):
     @classmethod
     def _add_inspect_arguments(cls, parser):

@@ -53,6 +53,9 @@ class InstallableType(Enum["InstallableType.Value"]):
     WHEEL_FILE = Value(".whl file")
 
 
+InstallableType.seal()
+
+
 @attr.s(frozen=True)
 class InstallPaths(object):
 

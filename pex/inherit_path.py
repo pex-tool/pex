@@ -33,3 +33,6 @@ class InheritPath(Enum["InheritPath.Value"]):
                     value, type(value)
                 )
             )
+
+
+InheritPath.seal()

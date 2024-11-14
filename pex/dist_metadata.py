@@ -201,6 +201,9 @@ class MetadataType(Enum["MetadataType.Value"]):
     PKG_INFO = Value("PKG-INFO")
 
 
+MetadataType.seal()
+
+
 @attr.s(frozen=True)
 class MetadataKey(object):
     metadata_type = attr.ib()  # type: MetadataType.Value
@@ -961,6 +964,9 @@ class DistributionType(Enum["DistributionType.Value"]):
         if is_wheel(location) and zipfile.is_zipfile(location):
             return cls.WHEEL
         return cls.SDIST
+
+
+DistributionType.seal()
 
 
 @attr.s(frozen=True)

@@ -1,5 +1,10 @@
 # Copyright 2021 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+from __future__ import absolute_import
+
+import multiprocessing
+import pickle
 import re
 
 import pytest
@@ -8,6 +13,10 @@ from pex.atomic_directory import AtomicDirectory
 from pex.common import ZipFileEx
 from pex.compatibility import PY2
 from pex.enum import Enum, qualified_name
+from pex.typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import Any
 
 
 class Color(Enum["Color.Value"]):
@@ -17,6 +26,9 @@ class Color(Enum["Color.Value"]):
     RED = Value("red")
     GREEN = Value("green")
     BLUE = Value("blue")
+
+
+Color.seal()
 
 
 def test_basics():
@@ -57,6 +69,8 @@ def test_ordinal():
         BAR = Value("bar")
         BAZ = Value("baz")
 
+    PlaceHolder.seal()
+
     assert [0, 1, 2] == [place_holder.ordinal for place_holder in PlaceHolder.values()]
 
 
@@ -78,6 +92,8 @@ def test_comparable():
 
         ADD = Value("+")
         SUB = Value("-")
+
+    Op.seal()
 
     with pytest.raises(
         TypeError,
@@ -130,3 +146,31 @@ def test_qualified_name():
     assert expected_prefix + "static" == qualified_name(
         Test.static
     ), "Expected @staticmethod to be handled."
+
+
+def test_pickle_identity_preserved():
+    # type: () -> None
+
+    assert Color.RED is pickle.loads(pickle.dumps(Color.RED))
+    assert Color.BLUE is pickle.loads(pickle.dumps(Color.BLUE))
+    assert Color.GREEN is pickle.loads(pickle.dumps(Color.GREEN))
+
+
+def _identity(x):
+    # type: (Any) -> Any
+    return x
+
+
+def test_multiprocessing_identity_preserved():
+    # type: () -> None
+
+    # N.B.: Multiprocessing uses pickle; so this test is redundant to the test above, but it is more
+    # on point since we directly use multiprocessing and no-where use pickle.
+
+    pool = multiprocessing.Pool()
+    try:
+        for input_, output in zip(Color.values(), pool.map(_identity, Color.values())):
+            assert input_ is output
+    finally:
+        pool.close()
+        pool.join()
