@@ -43,9 +43,8 @@ jobs:
         with:
           tox-env: format-check,lint-check,typecheck
       - name: Check Enum Types
-        uses: pantsbuild/actions/run-tox@b16b9cf47cd566acfe217b1dafc5b452e27e6fd7
-        with:
-          tox-env: enum-check -- -v --require-py27
+        run: |
+          BASE_MODE=pull ./dtox.sh -e enum-check -- -v --require-py27
       - name: Check Vendoring
         uses: pantsbuild/actions/run-tox@b16b9cf47cd566acfe217b1dafc5b452e27e6fd7
         with:
