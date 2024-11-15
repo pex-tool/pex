@@ -23,7 +23,7 @@ jobs:
       - name: Noop
         run: "true"
   checks:
-    name: tox -e format-check,lint-check,typecheck,vendor-check,package,docs
+    name: tox -e format-check,lint-check,typecheck,enum-check,vendor-check,package,docs
     needs: org-check
     runs-on: ubuntu-24.04
     steps:
