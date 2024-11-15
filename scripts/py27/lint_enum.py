@@ -88,9 +88,14 @@ def lint_enum(python_file):
                 )
             enum_base = enum_bases[0]
             if not isinstance(enum_base.slice, ast.Index):
-                yield "XXX"
-            elif not isinstance(enum_base.slice.value, ast.Str):
-                yield "YYY"
+                yield (
+                    "line {line} col {col}: class {name} subclasses Enum but its type parameter is "
+                    "not a single Enum.Value type name item.".format(
+                        line=top_level_node.lineno,
+                        col=top_level_node.col_offset,
+                        name=top_level_node.name,
+                    )
+                )
             else:
                 unsealed_enums[
                     top_level_node.name
