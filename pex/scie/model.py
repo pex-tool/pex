@@ -35,6 +35,9 @@ class ScieStyle(Enum["ScieStyle.Value"]):
     EAGER = Value("eager")
 
 
+ScieStyle.seal()
+
+
 class PlatformNamingStyle(Enum["PlatformNamingStyle.Value"]):
     class Value(Enum.Value):
         pass
@@ -42,6 +45,9 @@ class PlatformNamingStyle(Enum["PlatformNamingStyle.Value"]):
     DYNAMIC = Value("dynamic")
     PARENT_DIR = Value("platform-parent-dir")
     FILE_SUFFIX = Value("platform-file-suffix")
+
+
+PlatformNamingStyle.seal()
 
 
 @attr.s(frozen=True)
@@ -295,12 +301,18 @@ class SciePlatform(Enum["SciePlatform.Value"]):
         return cls.CURRENT if "current" == value else cls.for_value(value)
 
 
+SciePlatform.seal()
+
+
 class Provider(Enum["Provider.Value"]):
     class Value(Enum.Value):
         pass
 
     PythonBuildStandalone = Value("PythonBuildStandalone")
     PyPy = Value("PyPy")
+
+
+Provider.seal()
 
 
 @attr.s(frozen=True)

@@ -13,3 +13,6 @@ class InstallScope(Enum["InstallScope.Value"]):
     ALL = Value("all")
     DEPS_ONLY = Value("deps")
     SOURCE_ONLY = Value("srcs")
+
+
+InstallScope.seal()

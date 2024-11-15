@@ -320,3 +320,6 @@ class PipVersion(Enum["PipVersionValue"]):
     VENDORED = v20_3_4_patched
     LATEST = LatestPipVersion()
     DEFAULT = DefaultPipVersion(preferred=(VENDORED, v23_2, v24_1))
+
+
+PipVersion.seal()

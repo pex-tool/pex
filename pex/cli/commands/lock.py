@@ -89,6 +89,9 @@ class FingerprintMismatch(Enum["FingerprintMismatch.Value"]):
     ERROR = Value("error")
 
 
+FingerprintMismatch.seal()
+
+
 class ExportFormat(Enum["ExportFormat.Value"]):
     class Value(Enum.Value):
         pass
@@ -96,6 +99,9 @@ class ExportFormat(Enum["ExportFormat.Value"]):
     PIP = Value("pip")
     PIP_NO_HASHES = Value("pip-no-hashes")
     PEP_665 = Value("pep-665")
+
+
+ExportFormat.seal()
 
 
 class ExportSortBy(Enum["ExportSortBy.Value"]):
@@ -106,12 +112,18 @@ class ExportSortBy(Enum["ExportSortBy.Value"]):
     PROJECT_NAME = Value("project-name")
 
 
+ExportSortBy.seal()
+
+
 class DryRunStyle(Enum["DryRunStyle.Value"]):
     class Value(Enum.Value):
         pass
 
     DISPLAY = Value("display")
     CHECK = Value("check")
+
+
+DryRunStyle.seal()
 
 
 class HandleDryRunAction(Action):
@@ -1270,10 +1282,9 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                         project_name not in requirements_by_project_name,
                         "Deletes should have been unconditionally removed from requirements "
                         "earlier. Found deleted project {project_name} in updated requirements:\n"
-                        "{requirements}".format(
-                            project_name=project_name,
-                            requirements="\n".join(map(str, requirements_by_project_name.values())),
-                        ),
+                        "{requirements}",
+                        project_name=project_name,
+                        requirements="\n".join(map(str, requirements_by_project_name.values())),
                     )
                     constraints_by_project_name.pop(project_name, None)
                 elif isinstance(update, VersionUpdate):

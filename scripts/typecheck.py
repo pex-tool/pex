@@ -46,8 +46,16 @@ def main() -> None:
         files=sorted(find_files_to_check(include=["docs"])),
         subject="sphinx_pex",
     )
+    py27_scripts = os.path.join("scripts", "py27")
     run_mypy(
-        "3.9", files=sorted(find_files_to_check(include=["package", "scripts"])), subject="scripts"
+        "2.7",
+        files=sorted(find_files_to_check(include=[py27_scripts])),
+        subject="Python 2.7 scripts",
+    )
+    run_mypy(
+        "3.9",
+        files=sorted(find_files_to_check(include=["package", "scripts"], exclude=[py27_scripts])),
+        subject="scripts",
     )
 
     source_and_tests = sorted(

@@ -41,6 +41,9 @@ class ByteUnits(Enum["ByteUnits.Value"]):
     PB = Value("PB", 1000 * TB.multiple)
 
 
+ByteUnits.seal()
+
+
 @attr.s(frozen=True)
 class ByteAmount(object):
     @classmethod

@@ -109,12 +109,10 @@ class _CertConfig(object):
         # [^7]: https://gitlab.com/redhat-crypto/fedora-crypto-policies/-/merge_requests/110/diffs#269a48e71ac25ad1d07ff00db2390834c8ba7596_11_16
         production_assert(
             in_main_thread(),
-            msg=(
-                "An SSLContext must be initialized from the main thread. An attempt was made to "
-                "initialize an SSLContext for {cert_config} from thread {thread}.".format(
-                    cert_config=self, thread=threading.current_thread()
-                )
-            ),
+            "An SSLContext must be initialized from the main thread. An attempt was made to "
+            "initialize an SSLContext for {cert_config} from thread {thread}.",
+            cert_config=self,
+            thread=threading.current_thread(),
         )
         with guard_stdout():
             # We import ssl lazily as an affordance to PEXes that use gevent SSL monkeypatching,

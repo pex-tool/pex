@@ -148,6 +148,9 @@ class InstallationChoice(Enum["InstallationChoice.Value"]):
     UPGRADED = Value("upgraded")
 
 
+InstallationChoice.seal()
+
+
 class Virtualenv(object):
     VIRTUALENV_VERSION = "16.7.12"
 

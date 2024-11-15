@@ -13,3 +13,6 @@ class BinPath(Enum["BinPath.Value"]):
     FALSE = Value("false")
     PREPEND = Value("prepend")
     APPEND = Value("append")
+
+
+BinPath.seal()

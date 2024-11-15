@@ -23,7 +23,7 @@ jobs:
       - name: Noop
         run: "true"
   checks:
-    name: tox -e format-check,lint-check,typecheck,vendor-check,package,docs
+    name: tox -e format-check,lint-check,typecheck,enum-check,vendor-check,package,docs
     needs: org-check
     runs-on: ubuntu-24.04
     steps:
@@ -42,6 +42,9 @@ jobs:
         uses: pantsbuild/actions/run-tox@b16b9cf47cd566acfe217b1dafc5b452e27e6fd7
         with:
           tox-env: format-check,lint-check,typecheck
+      - name: Check Enum Types
+        run: |
+          BASE_MODE=pull ./dtox.sh -e enum-check -- -v --require-py27
       - name: Check Vendoring
         uses: pantsbuild/actions/run-tox@b16b9cf47cd566acfe217b1dafc5b452e27e6fd7
         with:

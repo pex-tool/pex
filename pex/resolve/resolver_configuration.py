@@ -57,6 +57,9 @@ class ResolverVersion(Enum["ResolverVersion.Value"]):
     PIP_2020 = Value("pip-2020-resolver")
 
 
+ResolverVersion.seal()
+
+
 @attr.s(frozen=True)
 class ReposConfiguration(object):
     @classmethod

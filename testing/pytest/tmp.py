@@ -30,6 +30,9 @@ class RetentionPolicy(Enum["RetentionPolicy.Value"]):
     NONE = Value("none")
 
 
+RetentionPolicy.seal()
+
+
 def _realpath(path):
     # type: (str) -> str
     return os.path.realpath(path)

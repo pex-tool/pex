@@ -204,6 +204,8 @@ class CacheDir(Enum["CacheDir.Value"]):
     )
 
 
+CacheDir.seal()
+
 if TYPE_CHECKING:
     _AtomicCacheDir = TypeVar("_AtomicCacheDir", bound="AtomicCacheDir")
 

@@ -611,6 +611,9 @@ class InterpreterImplementation(Enum["InterpreterImplementation.Value"]):
     PyPy = Value("PyPy")
 
 
+InterpreterImplementation.seal()
+
+
 def find_python_interpreter(
     version=(),  # type: Tuple[int, ...]
     implementation=InterpreterImplementation.CPython,  # type: InterpreterImplementation.Value
