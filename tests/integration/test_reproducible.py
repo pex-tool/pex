@@ -12,7 +12,10 @@ import pytest
 from pex.common import safe_open, temporary_dir
 from pex.compatibility import PY2
 from pex.interpreter import PythonInterpreter
+from pex.pep_440 import Version
+from pex.pep_503 import ProjectName
 from pex.pip.version import PipVersion, PipVersionValue
+from pex.resolve.lockfile import json_codec
 from pex.targets import LocalInterpreter
 from pex.typing import TYPE_CHECKING
 from testing import (
@@ -29,6 +32,7 @@ from testing import (
     run_command_with_jitter,
     run_commands_with_jitter,
 )
+from testing.cli import run_pex3
 from testing.pytest.tmp import Tempdir
 
 if TYPE_CHECKING:
@@ -170,11 +174,44 @@ def test_reproducible_build_m_flag(mixed_major_pythons):
     assert_reproducible_build(["-m", "pydoc"], pythons=mixed_major_pythons)
 
 
+def find_compatible_setuptools(pythons):
+    # type: (Iterable[str]) -> Version
+    py_versions = sorted(PythonInterpreter.from_binary(py).version for py in pythons)
+    assert len(py_versions) > 0
+    min_py_version = py_versions[0]
+    max_py_version = py_versions[-1]
+    interpreter_constraint = ">={min},<={max}".format(
+        min=".".join(map(str, min_py_version)), max=".".join(map(str, max_py_version))
+    )
+    result = run_pex3(
+        "lock",
+        "create",
+        "--interpreter-constraint",
+        interpreter_constraint,
+        "--style",
+        "universal",
+        "setuptools",
+    )
+    result.assert_success()
+    lockfile = json_codec.loads(result.output)
+    assert len(lockfile.locked_resolves) == 1
+    locked_requirements = {
+        locked_req.pin.project_name: locked_req.pin.version
+        for locked_req in lockfile.locked_resolves[0].locked_requirements
+    }
+    return locked_requirements.pop(ProjectName("setuptools"))
+
+
 def test_reproducible_build_c_flag_from_source(
     tmpdir,  # type: Tempdir
     major_compatible_pythons,  # type: Tuple[str, ...]
 ):
     # type: (...) -> None
+
+    # We go through some hoops here to find a setuptools version that works for all
+    # major_compatible_pythons to ensure we don't introduce variability though a changing setuptools
+    # version.
+    setuptools_version = find_compatible_setuptools(major_compatible_pythons)
 
     project_dir = tmpdir.join("project")
     with safe_open(os.path.join(project_dir, "pyproject.toml"), "w") as fp:
@@ -182,12 +219,11 @@ def test_reproducible_build_c_flag_from_source(
             dedent(
                 """\
                 [build-system]
-                # As of the 75.4 release on 11/11/2024, wheel builds are no longer reproducible.
-                # This band-aids this test, but https://github.com/pex-tool/pex/issues/2594 tracks
-                # isolating the issue and reporting / fixing over at setuptools.
-                requires = ["setuptools<75.4"]
+                requires = ["setuptools=={version}"]
                 build-backend =  "setuptools.build_meta"
-                """
+                """.format(
+                    version=setuptools_version
+                )
             )
         )
     with safe_open(os.path.join(project_dir, "setup.cfg"), "w") as fp:
