@@ -675,25 +675,6 @@ def all_python_venvs(system_site_packages=False):
 
 
 @contextmanager
-def environment_as(**kwargs):
-    # type: (**Any) -> Iterator[None]
-    existing = {key: os.environ.get(key) for key in kwargs}
-
-    def adjust_environment(mapping):
-        for key, value in mapping.items():
-            if value is not None:
-                os.environ[key] = str(value)
-            else:
-                os.environ.pop(key, None)
-
-    adjust_environment(kwargs)
-    try:
-        yield
-    finally:
-        adjust_environment(existing)
-
-
-@contextmanager
 def pushd(directory):
     # type: (Text) -> Iterator[None]
     cwd = os.getcwd()

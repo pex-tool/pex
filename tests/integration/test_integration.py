@@ -19,7 +19,15 @@ import pytest
 
 from pex import targets
 from pex.cache.dirs import CacheDir, InterpreterDir
-from pex.common import is_exe, safe_mkdir, safe_open, safe_rmtree, temporary_dir, touch
+from pex.common import (
+    environment_as,
+    is_exe,
+    safe_mkdir,
+    safe_open,
+    safe_rmtree,
+    temporary_dir,
+    touch,
+)
 from pex.compatibility import WINDOWS, commonpath
 from pex.dist_metadata import Distribution, Requirement, is_wheel
 from pex.fetcher import URLFetcher
@@ -46,7 +54,6 @@ from testing import (
     IntegResults,
     built_wheel,
     ensure_python_interpreter,
-    environment_as,
     get_dep_dist_names_from_pex,
     make_env,
     run_pex_command,

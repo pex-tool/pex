@@ -13,7 +13,7 @@ from typing import Dict
 
 import pytest
 
-from pex.common import safe_rmtree
+from pex.common import environment_as, safe_rmtree
 from pex.dist_metadata import Distribution, Requirement
 from pex.interpreter import PythonInterpreter
 from pex.jobs import Job
@@ -29,7 +29,7 @@ from pex.targets import AbbreviatedPlatform, LocalInterpreter, Target
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
 from pex.venv.virtualenv import Virtualenv
-from testing import IS_LINUX, PY310, ensure_python_interpreter, environment_as
+from testing import IS_LINUX, PY310, ensure_python_interpreter
 from testing.pytest.tmp import Tempdir
 
 if TYPE_CHECKING:
