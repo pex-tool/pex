@@ -29,6 +29,7 @@ def run_autoflake(*args: str) -> None:
             "package",
             "pex",
             "scripts",
+            "setup.py",
             "testing",
             "tests",
         ],

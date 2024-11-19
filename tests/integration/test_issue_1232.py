@@ -80,11 +80,17 @@ def test_isolated_pex_zip(tmpdir):
     shutil.copytree("pex", os.path.join(modified_pex_src, "pex"))
     with open(os.path.join(modified_pex_src, "pex", "version.py"), "a") as fp:
         fp.write("# modified\n")
-    # N.B.: build-backend/, README.rst and LICENSE are needed by the build process: we configure
-    # our PEP-517 project to use these paths for the in-tree build backend, distribution readme
-    # and distribution license respectively.
+    # N.B.: Both the build-backend/, directory and the individual files copied below are used by
+    # our PEP-517 build process.
     shutil.copytree("build-backend", os.path.join(modified_pex_src, "build-backend"))
-    for build_file in ("pyproject.toml", "README.rst", "LICENSE"):
+    for build_file in (
+        "LICENSE",
+        "MANIFEST.in",
+        "README.rst",
+        "pyproject.toml",
+        "setup.cfg",
+        "setup.py",
+    ):
         shutil.copy(build_file, os.path.join(modified_pex_src, build_file))
 
     modified_pex = os.path.join(str(tmpdir), "modified.pex")
