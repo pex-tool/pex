@@ -14,10 +14,11 @@ import pexpect  # type: ignore[import]  # MyPy can't see the types under Python 
 import pytest
 from colors import color  # vendor:skip
 
+from pex.common import environment_as
 from pex.pex_info import PexInfo
 from pex.typing import TYPE_CHECKING
 from pex.version import __version__
-from testing import IS_PYPY, environment_as, make_env, run_pex_command, scie
+from testing import IS_PYPY, make_env, run_pex_command, scie
 
 if TYPE_CHECKING:
     from typing import Any, Iterable, Iterator, List, Tuple

@@ -112,6 +112,9 @@ class Check(Enum["Check.Value"]):
     ERROR = Value("error")
 
 
+Check.seal()
+
+
 class PEXBuilder(object):
     """Helper for building PEX environments."""
 

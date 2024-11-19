@@ -67,6 +67,9 @@ class LockStyle(Enum["LockStyle.Value"]):
     UNIVERSAL = Value("universal")
 
 
+LockStyle.seal()
+
+
 class TargetSystem(Enum["TargetSystem.Value"]):
     class Value(Enum.Value):
         pass
@@ -74,6 +77,9 @@ class TargetSystem(Enum["TargetSystem.Value"]):
     LINUX = Value("linux")
     MAC = Value("mac")
     WINDOWS = Value("windows")
+
+
+TargetSystem.seal()
 
 
 @attr.s(frozen=True)

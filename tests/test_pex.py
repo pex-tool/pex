@@ -16,7 +16,7 @@ from types import ModuleType
 import pytest
 
 from pex import resolver
-from pex.common import safe_mkdir, safe_open, temporary_dir
+from pex.common import environment_as, safe_mkdir, safe_open, temporary_dir
 from pex.compatibility import PY2, WINDOWS, to_bytes
 from pex.dist_metadata import Distribution
 from pex.interpreter import PythonIdentity, PythonInterpreter
@@ -33,7 +33,6 @@ from testing import (
     PY_VER,
     WheelBuilder,
     ensure_python_interpreter,
-    environment_as,
     install_wheel,
     make_bdist,
     run_simple_pex,

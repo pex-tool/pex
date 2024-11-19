@@ -328,6 +328,8 @@ class Lifecycle(Enum["Lifecycle.Value"]):
     EOL = Value("eol")
 
 
+Lifecycle.seal()
+
 # This value is based off of:
 # 1. Past releases: https://www.python.org/downloads/ where the max patch level was achieved by
 #    2.7.18.

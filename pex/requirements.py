@@ -164,6 +164,9 @@ class VCS(Enum["VCS.Value"]):
     Subversion = Value("svn")
 
 
+VCS.seal()
+
+
 @attr.s(frozen=True)
 class VCSRequirement(object):
     """A requirement realized by building a distribution from sources retrieved from a VCS."""
@@ -276,6 +279,9 @@ class ArchiveScheme(Enum["ArchiveScheme.Value"]):
     FTP = Value("ftp")
     HTTP = Value("http")
     HTTPS = Value("https")
+
+
+ArchiveScheme.seal()
 
 
 @attr.s(frozen=True)

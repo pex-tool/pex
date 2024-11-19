@@ -75,6 +75,9 @@ class Layout(Enum["Layout.Value"]):
         return cls.Value.try_load(pex) or Layout.LOOSE
 
 
+Layout.seal()
+
+
 class _Layout(object):
     def __init__(
         self,

@@ -27,13 +27,13 @@ from pex.cache.dirs import (
     VenvDirs,
 )
 from pex.cli.commands.cache.du import DiskUsage
-from pex.common import safe_open
+from pex.common import environment_as, safe_open
 from pex.pep_503 import ProjectName
 from pex.pex_info import PexInfo
 from pex.pip.version import PipVersion, PipVersionValue
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
-from testing import environment_as, run_pex_command
+from testing import run_pex_command
 from testing.cli import run_pex3
 from testing.pytest.tmp import Tempdir
 

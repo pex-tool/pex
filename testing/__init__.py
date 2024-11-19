@@ -611,6 +611,9 @@ class InterpreterImplementation(Enum["InterpreterImplementation.Value"]):
     PyPy = Value("PyPy")
 
 
+InterpreterImplementation.seal()
+
+
 def find_python_interpreter(
     version=(),  # type: Tuple[int, ...]
     implementation=InterpreterImplementation.CPython,  # type: InterpreterImplementation.Value
@@ -669,25 +672,6 @@ def all_python_venvs(system_site_packages=False):
         )
         for version in ALL_PY_VERSIONS
     )
-
-
-@contextmanager
-def environment_as(**kwargs):
-    # type: (**Any) -> Iterator[None]
-    existing = {key: os.environ.get(key) for key in kwargs}
-
-    def adjust_environment(mapping):
-        for key, value in mapping.items():
-            if value is not None:
-                os.environ[key] = str(value)
-            else:
-                os.environ.pop(key, None)
-
-    adjust_environment(kwargs)
-    try:
-        yield
-    finally:
-        adjust_environment(existing)
 
 
 @contextmanager

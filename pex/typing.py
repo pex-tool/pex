@@ -38,6 +38,7 @@ TYPE_CHECKING = False
 # runtime use.
 if TYPE_CHECKING:
     from typing import Generic as Generic
+    from typing import Type
     from typing import cast as cast
     from typing import overload as overload
 
@@ -62,7 +63,24 @@ else:
 
     class _Generic(type):
         def __getitem__(cls, type_var):
+            # type: (str) -> Type
+            setattr(cls, "_type_var", type_var)
             return cls
+
+        @property
+        def type_var(self):
+            # type: () -> str
+
+            from pex.exceptions import production_assert
+
+            type_var = getattr(self, "_type_var", None)
+            production_assert(
+                isinstance(type_var, str),
+                "Expected a string _type_var attribute on {cls}, found {type_var}",
+                cls=self,
+                type_var=type_var,
+            )
+            return type_var
 
     if sys.version_info[0] == 2:
 

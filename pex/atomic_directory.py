@@ -181,6 +181,9 @@ class FileLockStyle(Enum["FileLockStyle.Value"]):
     POSIX = Value("posix")
 
 
+FileLockStyle.seal()
+
+
 def _is_bsd_lock(lock_style=None):
     # type: (Optional[FileLockStyle.Value]) -> bool
 

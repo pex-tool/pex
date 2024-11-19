@@ -57,6 +57,9 @@ class PythonInterfaceOption(Enum["PythonInterfaceOption.Value"]):
     DIRECTORY = Value("<dir>")
 
 
+PythonInterfaceOption.seal()
+
+
 @pytest.fixture
 def execution_configuration(
     request,  # type: Any

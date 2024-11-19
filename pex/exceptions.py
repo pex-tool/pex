@@ -8,7 +8,12 @@ import platform
 import sys
 from textwrap import dedent
 
+from pex.typing import TYPE_CHECKING
 from pex.version import __version__
+
+if TYPE_CHECKING:
+    from typing import Any
+
 
 _ASSERT_DETAILS = (
     dedent(
@@ -39,10 +44,14 @@ _ASSERT_ADVICE = dedent(
 ).strip()
 
 
-def reportable_unexpected_error_msg(msg=""):
-    # type: (str) -> str
+def reportable_unexpected_error_msg(
+    msg="",  # type: str
+    *args,  # type: Any
+    **kwargs  # type: Any
+):
+    # type: (...) -> str
 
-    message = [msg, "---", _ASSERT_DETAILS]
+    message = [msg.format(*args, **kwargs), "---", _ASSERT_DETAILS]
     pex = os.environ.get("PEX")
     if pex:
         try:
@@ -67,8 +76,10 @@ def reportable_unexpected_error_msg(msg=""):
 def production_assert(
     condition,  # type: bool
     msg="",  # type: str
+    *args,  # type: Any
+    **kwargs  # type: Any
 ):
     # type: (...) -> None
 
     if not condition:
-        raise AssertionError(reportable_unexpected_error_msg(msg=msg))
+        raise AssertionError(reportable_unexpected_error_msg(msg, *args, **kwargs))
