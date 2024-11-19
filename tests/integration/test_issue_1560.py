@@ -53,7 +53,7 @@ def test_build_isolation(
     python, pip = venv_factory.create_venv()
     run_pex_command(args=[project_dir, "--no-build-isolation"], python=python).assert_failure(
         expected_error_re=r".*ModuleNotFoundError: No module named 'flit_core'.*",
-        re_flags=re.DOTALL
+        re_flags=re.DOTALL,
     )
 
     subprocess.check_call(args=[pip, "install"] + build_requirements)
