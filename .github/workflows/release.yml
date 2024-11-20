@@ -56,7 +56,7 @@ jobs:
         with:
           python-version: "3.11"
       - name: Build sdist and wheel
-        uses: pantsbuild/actions/run-tox@b16b9cf47cd566acfe217b1dafc5b452e27e6fd7
+        uses: pex-tool/actions/run-tox@c53dadd8b410bbd66480de91067e9e45d2b3af38
         with:
           tox-env: package -- --no-pex --additional-format sdist --additional-format wheel --embed-docs --clean-docs
       - name: Publish Pex ${{ needs.determine-tag.outputs.release-tag }}
@@ -86,11 +86,11 @@ jobs:
         with:
           python-version: "3.11"
       - name: Package Pex ${{ needs.determine-tag.outputs.release-tag }} PEX
-        uses: pantsbuild/actions/run-tox@b16b9cf47cd566acfe217b1dafc5b452e27e6fd7
+        uses: pex-tool/actions/run-tox@c53dadd8b410bbd66480de91067e9e45d2b3af38
         with:
           tox-env: package -- --embed-docs --scies --gen-md-table-of-hash-and-size dist/hashes.md
       - name: Generate Pex ${{ needs.determine-tag.outputs.release-tag }} PDF
-        uses: pantsbuild/actions/run-tox@b16b9cf47cd566acfe217b1dafc5b452e27e6fd7
+        uses: pex-tool/actions/run-tox@c53dadd8b410bbd66480de91067e9e45d2b3af38
         with:
           tox-env: docs -- --no-html --pdf
       - name: Generate Pex ${{ needs.determine-tag.outputs.release-tag }} Artifact Attestations
