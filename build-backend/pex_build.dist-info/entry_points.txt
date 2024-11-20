@@ -1,2 +1,0 @@
-[hatch]
-pex-dynamic-requires-python = pex_build.hatchling.hooks
