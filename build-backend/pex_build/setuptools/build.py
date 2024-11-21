@@ -14,8 +14,9 @@ import setuptools.build_meta
 # We re-export all setuptools' PEP-517 build backend hooks here for the build frontend to call.
 from setuptools.build_meta import *  # NOQA
 
-from pex import hashing
+from pex import hashing, requirements
 from pex.common import open_zip, temporary_dir
+from pex.orderedset import OrderedSet
 from pex.pep_376 import Hash, InstalledFile, Record
 from pex.version import __version__
 
@@ -26,17 +27,14 @@ if pex_build.TYPE_CHECKING:
 def get_requires_for_build_wheel(config_settings=None):
     # type: (Optional[Dict[str, Any]]) -> List[str]
 
-    reqs = setuptools.build_meta.get_requires_for_build_wheel(
-        config_settings=config_settings
-    )  # type: List[str]
+    reqs = OrderedSet(
+        setuptools.build_meta.get_requires_for_build_wheel(config_settings=config_settings)
+    )  # type: OrderedSet[str]
     if pex_build.INCLUDE_DOCS:
-        with open("docs-requirements.txt") as fp:
-            for raw_req in fp.readlines():
-                req = raw_req.strip()
-                if not req or req.startswith("#"):
-                    continue
-                reqs.append(req)
-    return reqs
+        reqs.update(
+            str(req) for req in requirements.parse_requirement_file("docs-requirements.txt")
+        )
+    return list(reqs)
 
 
 def build_wheel(

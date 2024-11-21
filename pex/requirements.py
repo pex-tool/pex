@@ -136,19 +136,26 @@ class Source(object):
 
 
 @attr.s(frozen=True)
-class PyPIRequirement(object):
+class _ParsedRequirement(object):
+    line = attr.ib()  # type: LogicalLine
+
+    def __str__(self):
+        # type: () -> str
+        return str(self.line.processed_text)
+
+
+@attr.s(frozen=True)
+class PyPIRequirement(_ParsedRequirement):
     """A requirement realized through a package index or find links repository."""
 
-    line = attr.ib()  # type: LogicalLine
     requirement = attr.ib()  # type: Requirement
     editable = attr.ib(default=False)  # type: bool
 
 
 @attr.s(frozen=True)
-class URLRequirement(object):
+class URLRequirement(_ParsedRequirement):
     """A requirement realized through a distribution archive at a fixed URL."""
 
-    line = attr.ib()  # type: LogicalLine
     url = attr.ib()  # type: Text
     requirement = attr.ib()  # type: Requirement
     editable = attr.ib(default=False)  # type: bool
@@ -168,10 +175,9 @@ VCS.seal()
 
 
 @attr.s(frozen=True)
-class VCSRequirement(object):
+class VCSRequirement(_ParsedRequirement):
     """A requirement realized by building a distribution from sources retrieved from a VCS."""
 
-    line = attr.ib()  # type: LogicalLine
     vcs = attr.ib()  # type: VCS.Value
     url = attr.ib()  # type: Text
     requirement = attr.ib()  # type: Requirement
@@ -219,10 +225,9 @@ def parse_requirement_from_dist(
 
 
 @attr.s(frozen=True)
-class LocalProjectRequirement(object):
+class LocalProjectRequirement(_ParsedRequirement):
     """A requirement realized by building a distribution from local sources."""
 
-    line = attr.ib()  # type: LogicalLine
     path = attr.ib()  # type: str
     extras = attr.ib(default=(), converter=attrs.str_tuple_from_iterable)  # type: Tuple[str, ...]
     marker = attr.ib(default=None)  # type: Optional[Marker]
@@ -241,8 +246,7 @@ if TYPE_CHECKING:
 
 
 @attr.s(frozen=True)
-class Constraint(object):
-    line = attr.ib()  # type: LogicalLine
+class Constraint(_ParsedRequirement):
     requirement = attr.ib()  # type: Requirement
 
 
