@@ -135,7 +135,17 @@ def register(
             "See: https://pip.pypa.io/en/stable/topics/authentication/#keyring-support"
         ),
     )
+
     register_use_pip_config(parser)
+
+    parser.add_argument(
+        "--keyring-provider",
+        metavar="PROVIDER",
+        dest="keyring_provider",
+        type=str,
+        default=None,
+        help="`keyring` provider to configure `pip` to use.",
+    )
 
     register_repos_options(parser)
     register_network_options(parser)
@@ -681,6 +691,7 @@ def create_pip_configuration(
         allow_version_fallback=options.allow_pip_version_fallback,
         use_pip_config=get_use_pip_config_value(options),
         extra_requirements=tuple(options.extra_pip_requirements),
+        keyring_provider=options.keyring_provider,
     )
 
 

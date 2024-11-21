@@ -151,6 +151,7 @@ class PackageIndexConfiguration(object):
         password_entries=(),  # type: Iterable[PasswordEntry]
         use_pip_config=False,  # type: bool
         extra_pip_requirements=(),  # type: Tuple[Requirement, ...]
+        keyring_provider=None,  # type: Optional[str]
     ):
         # type: (...) -> PackageIndexConfiguration
         resolver_version = resolver_version or ResolverVersion.default(pip_version)
@@ -174,6 +175,7 @@ class PackageIndexConfiguration(object):
             use_pip_config=use_pip_config,
             extra_pip_requirements=extra_pip_requirements,
             password_entries=password_entries,
+            keyring_provider=keyring_provider,
         )
 
     def __init__(
@@ -186,6 +188,7 @@ class PackageIndexConfiguration(object):
         password_entries=(),  # type: Iterable[PasswordEntry]
         pip_version=None,  # type: Optional[PipVersionValue]
         extra_pip_requirements=(),  # type: Tuple[Requirement, ...]
+        keyring_provider=None,  # type: Optional[str]
     ):
         # type: (...) -> None
         self.resolver_version = resolver_version  # type: ResolverVersion.Value
@@ -196,6 +199,7 @@ class PackageIndexConfiguration(object):
         self.password_entries = password_entries  # type: Iterable[PasswordEntry]
         self.pip_version = pip_version  # type: Optional[PipVersionValue]
         self.extra_pip_requirements = extra_pip_requirements  # type: Tuple[Requirement, ...]
+        self.keyring_provider = keyring_provider  # type: Optional[str]
 
 
 if TYPE_CHECKING:
@@ -392,6 +396,11 @@ class Pip(object):
             # Don't read PIP_ environment variables or pip configuration files like
             # `~/.config/pip/pip.conf`.
             pip_args.append("--isolated")
+
+        # Configure a keychain provider if so configured.
+        if package_index_configuration and package_index_configuration.keyring_provider:
+            pip_args.append("--keyring-provider")
+            pip_args.append(package_index_configuration.keyring_provider)
 
         if log:
             pip_args.append("--log")

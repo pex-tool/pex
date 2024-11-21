@@ -77,6 +77,7 @@ class ConfiguredResolver(Resolver):
                 pip_version=pip_version or self.pip_configuration.version,
                 use_pip_config=self.pip_configuration.use_pip_config,
                 extra_pip_requirements=self.pip_configuration.extra_requirements,
+                keyring_provider=self.pip_configuration.keyring_provider,
                 result_type=result_type,
             )
         )
@@ -113,5 +114,6 @@ class ConfiguredResolver(Resolver):
                 if extra_resolver_requirements is not None
                 else self.pip_configuration.extra_requirements
             ),
+            keyring_provider=self.pip_configuration.keyring_provider,
             result_type=result_type,
         )
