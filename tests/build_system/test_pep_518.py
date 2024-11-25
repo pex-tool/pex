@@ -5,8 +5,7 @@ import os.path
 import subprocess
 from textwrap import dedent
 
-from pex.build_system import pep_518
-from pex.build_system.pep_518 import BuildSystem
+from pex.build_system import BuildSystem, pep_518
 from pex.common import touch
 from pex.pep_503 import ProjectName
 from pex.resolve.configured_resolver import ConfiguredResolver
