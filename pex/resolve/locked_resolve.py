@@ -455,6 +455,11 @@ class DownloadableArtifact(object):
     artifact = attr.ib()  # type: Union[FileArtifact, LocalProjectArtifact, VCSArtifact]
     satisfied_direct_requirements = attr.ib(default=SortedTuple())  # type: SortedTuple[Requirement]
 
+    @property
+    def build_system_table(self):
+        # type: () -> Optional[BuildSystemTable]
+        return self.artifact.build_system_table
+
 
 @attr.s(frozen=True)
 class Resolved(object):
