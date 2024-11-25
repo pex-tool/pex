@@ -3,7 +3,6 @@
 
 from __future__ import absolute_import
 
-
 from pex.auth import PasswordDatabase, PasswordEntry
 from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import Requirement, is_wheel
@@ -12,9 +11,7 @@ from pex.pep_427 import InstallableType
 from pex.pip.tool import PackageIndexConfiguration
 from pex.pip.version import PipVersionValue
 from pex.resolve.lock_downloader import LockDownloader
-from pex.resolve.locked_resolve import (
-    LocalProjectArtifact,
-)
+from pex.resolve.locked_resolve import LocalProjectArtifact
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.lockfile.subset import subset
 from pex.resolve.requirement_configuration import RequirementConfiguration
