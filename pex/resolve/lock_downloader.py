@@ -237,6 +237,7 @@ class LockDownloader(object):
                         style=lock.style,
                         requires_python=lock.requires_python,
                         target_systems=lock.target_systems,
+                        lock_build_systems=lock.lock_build_systems,
                     ),
                     target=target,
                     package_index_configuration=PackageIndexConfiguration.create(
