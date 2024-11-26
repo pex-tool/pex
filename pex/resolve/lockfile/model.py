@@ -12,7 +12,13 @@ from pex.orderedset import OrderedSet
 from pex.pep_503 import ProjectName
 from pex.pip.version import PipVersion, PipVersionValue
 from pex.requirements import LocalProjectRequirement
-from pex.resolve.locked_resolve import LocalProjectArtifact, LockedResolve, LockStyle, TargetSystem
+from pex.resolve.locked_resolve import (
+    LocalProjectArtifact,
+    LockConfiguration,
+    LockedResolve,
+    LockStyle,
+    TargetSystem,
+)
 from pex.resolve.resolved_requirement import Pin
 from pex.resolve.resolver_configuration import BuildConfiguration, ResolverVersion
 from pex.sorted_tuple import SortedTuple
@@ -148,6 +154,14 @@ class Lockfile(object):
     build_systems = attr.ib()  # type: Mapping[BuildSystemTable, SortedTuple[LockedResolve]]
     local_project_requirement_mapping = attr.ib(eq=False)  # type: Mapping[str, Requirement]
     source = attr.ib(default=None, eq=False)  # type: Optional[str]
+
+    def lock_configuration(self):
+        return LockConfiguration(
+            style=self.style,
+            requires_python=self.requires_python,
+            target_systems=self.target_systems,
+            lock_build_systems=self.lock_build_systems,
+        )
 
     def build_configuration(self):
         # type: () -> BuildConfiguration
