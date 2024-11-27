@@ -25,7 +25,7 @@ from pex.util import CacheHelper
 from testing import IS_PYPY, PY_VER, built_wheel, make_env, run_pex_command
 from testing.cli import run_pex3
 from testing.lock import index_lock_artifacts
-from testing.pytest.tmp import TempdirFactory
+from testing.pytest.tmp import Tempdir, TempdirFactory
 
 if TYPE_CHECKING:
     from typing import Any, Mapping, Tuple
@@ -280,29 +280,31 @@ def test_unavailable_artifacts(
     )
 
 
-@pytest.fixture(scope="module")
-def requests_lock_universal(
-    tmpdir_factory,  # type: TempdirFactory
-    request,  # type: Any
-):
-    # type: (...) -> str
-
-    lock = tmpdir_factory.mktemp("locks", request=request).join("requests-universal.lock")
-    run_pex3(
-        "lock", "create", "--style", "universal", "requests[security]==2.25.1", "-o", lock
-    ).assert_success()
-    return lock
-
-
 def test_multiplatform(
-    tmpdir,  # type: Any
-    requests_lock_universal,  # type: str
+    tmpdir,  # type: Tempdir
     py38,  # type: PythonInterpreter
     py310,  # type: PythonInterpreter
 ):
     # type: (...) -> None
 
-    pex_file = os.path.join(str(tmpdir), "pex.file")
+    requests_lock_universal = tmpdir.join("requests-universal.lock")
+    run_pex3(
+        "lock",
+        "create",
+        "--resolver-version",
+        "pip-2020-resolver",
+        "--style",
+        "universal",
+        "--interpreter-constraint",
+        # N.B.: Ensure the lock covers 3.8 and 3.10, which we use below to build a multiplatform
+        # PEX.
+        ">=3.8,!=3.9.*,<3.11",
+        "requests[security]==2.25.1",
+        "-o",
+        requests_lock_universal,
+    ).assert_success()
+
+    pex_file = tmpdir.join("pex.file")
     run_pex_command(
         args=[
             "--python",
