@@ -7,6 +7,7 @@ import hashlib
 import os.path
 import subprocess
 import sys
+from zipfile import ZIP_DEFLATED
 
 import pex_build
 import setuptools.build_meta
@@ -76,7 +77,7 @@ def build_wheel(
                         InstalledFile(path=dst, hash=Hash.create(hasher), size=os.path.getsize(src))
                     )
             Record.write(record_path, installed_files)
-            with open_zip(wheel_path, "w") as zip_fp:
+            with open_zip(wheel_path, "w", compression=ZIP_DEFLATED) as zip_fp:
 
                 def add_top_level_dir(name):
                     # type: (str) -> None
