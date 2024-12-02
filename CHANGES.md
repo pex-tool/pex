@@ -1,5 +1,19 @@
 # Release Notes
 
+## 2.24.2
+
+This release fixes a long-standing bug in "YOLO-mode" foreign platform
+speculative wheel builds. Previously if the speculatively built wheel
+had tags that did not match the foreign platform, the process errored
+pre-emptively. This was correct for complete foreign platforms, where 
+all tag information is known, but not for all cases of abbreviated
+platforms, where the failure was overly aggressive in some cases. Now
+foreign abbreviated platform speculative builds are only rejected when
+there is enough information to be sure the speculatively built wheel
+definitely cannot work on the foreign abbreviated platform.
+
+* Accept more foreign `--platform` "YOLO-mode" wheels. (#2607)
+
 ## 2.24.1
 
 This release fixes `pex3 cache prune` handling of cached Pips.
