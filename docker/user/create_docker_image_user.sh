@@ -3,12 +3,16 @@
 set -xeuo pipefail
 
 if (( $# != 4 )); then
-  echo >2 "Usage $0 <user> <uid> <group> <gid>"
+  echo >&2 "Usage $0 <user> <uid> <group> <gid>"
   exit 1
 fi
 
 uid=$2
 gid=$4
+
+if id -un ubuntu; then
+  userdel -r ubuntu
+fi
 
 if ! id -g ${gid} >/dev/null; then
   group=$3
