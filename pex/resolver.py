@@ -1029,10 +1029,11 @@ class BuildAndInstallRequest(object):
             except WheelError as e:
                 raise Untranslatable("Failed to install a wheel: {err}".format(err=e))
 
+        installations = list(direct_requirements.adjust(installations))
         if not ignore_errors:
             with TRACER.timed("Checking install"):
                 check_resolve(self._dependency_configuration, installations)
-        return direct_requirements.adjust(installations)
+        return installations
 
 
 def _parse_reqs(

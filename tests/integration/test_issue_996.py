@@ -3,9 +3,12 @@
 
 import multiprocessing
 import os
+import re
 import subprocess
+from textwrap import dedent
 
 from pex.interpreter import PythonInterpreter
+from pex.targets import AbbreviatedPlatform
 from pex.typing import TYPE_CHECKING
 from testing import PY39, PY310, IntegResults, ensure_python_interpreter, make_env, run_pex_command
 from testing.pytest.tmp import Tempdir
@@ -20,10 +23,13 @@ def test_resolve_local_platform(tmpdir):
     python310 = ensure_python_interpreter(PY310)
     pex_python_path = os.pathsep.join((python39, python310))
 
+    platform = PythonInterpreter.from_binary(python310).platform
+    target = AbbreviatedPlatform.create(platform)
+
     def create_platform_pex(args):
         # type: (List[str]) -> IntegResults
         return run_pex_command(
-            args=["--platform", str(PythonInterpreter.from_binary(python310).platform)] + args,
+            args=["--platform", str(platform)] + args,
             python=python39,
             env=make_env(PEX_PYTHON_PATH=pex_python_path),
         )
@@ -34,11 +40,25 @@ def test_resolve_local_platform(tmpdir):
     # distribution has no dependencies.
     build_args = ["psutil==5.7.0", "-o", pex_file]
     check_args = [python310, pex_file, "-c", "import psutil; print(psutil.cpu_count())"]
-    check_env = make_env(PEX_PYTHON_PATH=python310, PEX_VERBOSE=1)
+    check_env = make_env(PEX_PYTHON_PATH=python310)
 
     # By default, no --platforms are resolved and so the yolo build process will produce a wheel
-    # using Python 3.9, which is not compatible with Python 3.10.
-    create_platform_pex(build_args).assert_success()
+    # using Python 3.9, which is not compatible with Python 3.10. Since we can't be sure of this,
+    # we allow the build but warn it may be incompatible.
+    create_platform_pex(build_args).assert_success(
+        expected_error_re=dedent(
+            r"""
+            .* PEXWarning: The resolved distributions for 1 target may not be compatible:
+            1: {target} may not be compatible with:
+                psutil==5\.7\.0 was requested but 1 incompatible dist was resolved:
+                    psutil-5\.7\.0-cp39-cp39-.+\.whl
+            .*
+            """
+        )
+        .format(target=re.escape(target.render_description()))
+        .strip(),
+        re_flags=re.DOTALL | re.MULTILINE,
+    )
     process = subprocess.Popen(check_args, env=check_env, stderr=subprocess.PIPE)
     _, stderr = process.communicate()
     error = stderr.decode("utf-8")
