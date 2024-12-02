@@ -395,16 +395,25 @@ class BuildResult(object):
                 abbreviated_target_platform_tags, is_linux_abbreviated_target = collect_platforms(
                     self.request.target.supported_tags
                 )
-
                 # N.B.: We can't say much about whether an abbreviated platform will match in the
                 # end unless the platform is a mismatch (i.e. linux vs mac). We check only for that
                 # sort of mismatch here. Further, we don't wade into manylinux compatibility and
                 # just consider a locally built linux wheel may match a linux target.
                 if not (is_linux_wheel and is_linux_abbreviated_target):
-                    incompatible = (
-                        is_linux_wheel ^ is_linux_abbreviated_target
-                        or not abbreviated_target_platform_tags.intersection(wheel_platform_tags)
-                    )
+                    if is_linux_wheel ^ is_linux_abbreviated_target:
+                        incompatible = True
+                    else:
+                        common_platforms = abbreviated_target_platform_tags.intersection(
+                            wheel_platform_tags
+                        )
+                        if not common_platforms:
+                            incompatible = True
+                        elif common_platforms == frozenset(["any"]):
+                            # N.B.: In the "any" platform case, we know we have complete information
+                            # about the foreign abbreviated target platform (the `pip debug` command
+                            # we run to learn compatible tags has enough information to give us all
+                            # the "any" tags accurately); so we can expect an exact wheel tag match.
+                            incompatible = not wheel_tag_match
             if incompatible:
                 raise ValueError(
                     "No pre-built wheel was available for {project_name} {version}.{eol}"
