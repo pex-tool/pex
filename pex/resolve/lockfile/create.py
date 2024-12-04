@@ -3,6 +3,7 @@
 
 from __future__ import absolute_import
 
+import itertools
 import os
 import shutil
 import tarfile
@@ -11,10 +12,16 @@ from multiprocessing.pool import ThreadPool
 
 from pex import hashing, resolver
 from pex.auth import PasswordDatabase
-from pex.build_system import pep_517
+from pex.build_system import BuildSystemTable, pep_517
 from pex.common import open_zip, pluralize, safe_mkdtemp
 from pex.dependency_configuration import DependencyConfiguration
-from pex.dist_metadata import DistMetadata, ProjectNameAndVersion, is_tar_sdist, is_zip_sdist
+from pex.dist_metadata import (
+    Constraint,
+    DistMetadata,
+    ProjectNameAndVersion,
+    is_tar_sdist,
+    is_zip_sdist,
+)
 from pex.fetcher import URLFetcher
 from pex.jobs import Job, Retain, SpawnedJob, execute_parallel
 from pex.orderedset import OrderedSet
@@ -22,6 +29,7 @@ from pex.pep_503 import ProjectName
 from pex.pip.download_observer import DownloadObserver
 from pex.pip.tool import PackageIndexConfiguration
 from pex.resolve import lock_resolver, locker, resolvers
+from pex.resolve.build_systems import BuildSystems
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.downloads import ArtifactDownloader
 from pex.resolve.locked_resolve import (
@@ -40,8 +48,8 @@ from pex.resolve.pep_691.fingerprint_service import FingerprintService
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolved_requirement import Pin, ResolvedRequirement
 from pex.resolve.resolver_configuration import PipConfiguration
-from pex.resolve.resolvers import Resolver
-from pex.resolver import BuildRequest, Downloaded, ResolveObserver, WheelBuilder
+from pex.resolve.resolvers import Downloaded, Resolver
+from pex.resolver import BuildRequest, ResolveObserver, WheelBuilder
 from pex.result import Error, try_
 from pex.targets import Target, Targets
 from pex.tracer import TRACER
@@ -50,7 +58,7 @@ from pex.variables import ENV, Variables
 from pex.version import __version__
 
 if TYPE_CHECKING:
-    from typing import DefaultDict, Dict, Iterable, List, Mapping, Optional, Tuple, Union
+    from typing import DefaultDict, Dict, Iterable, Iterator, List, Mapping, Optional, Tuple, Union
 
     import attr  # vendor:skip
 
@@ -334,6 +342,11 @@ class LockObserver(ResolveObserver):
             LockedResolve.create(
                 resolved_requirements=resolved_requirements,
                 dist_metadatas=dist_metadatas_by_target[target],
+                build_system_oracle=(
+                    BuildSystems(resolver=self.resolver)
+                    if self.lock_configuration.lock_build_systems
+                    else None
+                ),
                 fingerprinter=ArtifactDownloader(
                     resolver=self.resolver,
                     lock_configuration=self.lock_configuration,
@@ -341,23 +354,31 @@ class LockObserver(ResolveObserver):
                     package_index_configuration=self.package_index_configuration,
                     max_parallel_jobs=self.max_parallel_jobs,
                 ),
-                platform_tag=None
-                if self.lock_configuration.style == LockStyle.UNIVERSAL
-                else target.platform.tag,
+                platform_tag=(
+                    None
+                    if self.lock_configuration.style is LockStyle.UNIVERSAL
+                    else target.platform.tag
+                ),
             )
             for target, resolved_requirements in resolved_requirements_by_target.items()
         )
 
 
-def create(
+@attr.s(frozen=True)
+class _LockResult(object):
+    requirements = attr.ib()  # type: Tuple[ParsedRequirement, ...]
+    constraints = attr.ib()  # type: Tuple[Constraint, ...]
+    locked_resolves = attr.ib()  # type: Tuple[LockedResolve, ...]
+
+
+def _lock(
     lock_configuration,  # type: LockConfiguration
     requirement_configuration,  # type: RequirementConfiguration
     targets,  # type: Targets
     pip_configuration,  # type: PipConfiguration
     dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
 ):
-    # type: (...) -> Union[Lockfile, Error]
-    """Create a lock file for the given resolve configurations."""
+    # type: (...) -> Union[_LockResult, Error]
 
     network_configuration = pip_configuration.network_configuration
     parsed_requirements = tuple(requirement_configuration.parse_requirements(network_configuration))
@@ -441,21 +462,165 @@ def create(
         )
         create_lock_download_manager.store_all()
 
+    return _LockResult(parsed_requirements, constraints, locked_resolves)
+
+
+def _lock_build_system(
+    build_system_table,  # type: BuildSystemTable
+    lock_configuration,  # type: LockConfiguration
+    targets,  # type: Targets
+    pip_configuration,  # type: PipConfiguration
+    dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
+):
+    # type: (...) -> Union[Tuple[BuildSystemTable, Tuple[LockedResolve, ...]], Error]
+
+    requirement_configuration = RequirementConfiguration(requirements=build_system_table.requires)
+    result = _lock(
+        lock_configuration,
+        requirement_configuration,
+        targets,
+        pip_configuration,
+        dependency_configuration=dependency_configuration,
+    )
+    if isinstance(result, Error):
+        return result
+
+    source_artifacts = OrderedSet(
+        artifact.url.download_url
+        for artifact in itertools.chain.from_iterable(
+            locked_requirement.iter_artifacts()
+            for locked_resolve in result.locked_resolves
+            for locked_requirement in locked_resolve.locked_requirements
+        )
+        if not artifact.url.is_wheel
+    )
+    if source_artifacts:
+        return Error(
+            "Failed to lock build backend {build_backend} which requires {requires}.\n"
+            "The following {packages} had source artifacts locked and recursive build system "
+            "locking is not supported:\n"
+            "{source_artifacts}".format(
+                build_backend=build_system_table.build_backend,
+                requires=", ".join(build_system_table.requires),
+                packages=pluralize(source_artifacts, "package"),
+                source_artifacts="\n".join(source_artifacts),
+            )
+        )
+    return build_system_table, result.locked_resolves
+
+
+def _lock_build_systems(
+    locked_resolves,  # type: Tuple[LockedResolve, ...]
+    lock_configuration,  # type: LockConfiguration
+    targets,  # type: Targets
+    pip_configuration,  # type: PipConfiguration
+    dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
+):
+    # type: (...) -> Iterator[Union[Tuple[BuildSystemTable, Tuple[LockedResolve, ...]], Error]]
+
+    if not lock_configuration.lock_build_systems:
+        return
+
+    build_systems = OrderedSet(
+        artifact.build_system_table
+        for artifact in itertools.chain.from_iterable(
+            locked_requirement.iter_artifacts()
+            for locked_resolve in locked_resolves
+            for locked_requirement in locked_resolve.locked_requirements
+        )
+        if artifact.build_system_table
+    )
+    if not build_systems:
+        return
+
+    build_system_pip_config = attr.evolve(
+        pip_configuration,
+        build_configuration=attr.evolve(
+            pip_configuration.build_configuration, allow_builds=False, allow_wheels=True
+        ),
+    )
+    # TODO(John Sirois): Re-introduce iter_map_parallel after sorting out nested
+    #  multiprocessing.Pool illegal usage. Currently this nets:
+    #   File "/home/jsirois/dev/pex-tool/pex/pex/resolve/lockfile/create.py", line 588, in create
+    #     for result in _lock_build_systems(
+    #   File "/home/jsirois/dev/pex-tool/pex/pex/jobs.py", line 787, in iter_map_parallel
+    #     for pid, result, elapsed_secs in pool.imap_unordered(apply_function, input_items):
+    #   File "/home/jsirois/.pyenv/versions/3.11.10/lib/python3.11/multiprocessing/pool.py", line 873, in next
+    #     raise value
+    #  AssertionError: daemonic processes are not allowed to have children
+    for build_system_table in build_systems:
+        yield _lock_build_system(
+            build_system_table=build_system_table,
+            lock_configuration=lock_configuration,
+            targets=targets,
+            pip_configuration=build_system_pip_config,
+            dependency_configuration=dependency_configuration,
+        )
+
+
+def create(
+    lock_configuration,  # type: LockConfiguration
+    requirement_configuration,  # type: RequirementConfiguration
+    targets,  # type: Targets
+    pip_configuration,  # type: PipConfiguration
+    dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
+):
+    # type: (...) -> Union[Lockfile, Error]
+    """Create a lock file for the given resolve configurations."""
+
+    lock_result = try_(
+        _lock(
+            lock_configuration,
+            requirement_configuration,
+            targets,
+            pip_configuration,
+            dependency_configuration=dependency_configuration,
+        )
+    )
+
+    build_system_lock_errors = []  # type: List[str]
+    build_systems = {}  # type: Dict[BuildSystemTable, Tuple[LockedResolve, ...]]
+    for result in _lock_build_systems(
+        locked_resolves=lock_result.locked_resolves,
+        lock_configuration=lock_configuration,
+        targets=targets,
+        pip_configuration=pip_configuration,
+        dependency_configuration=dependency_configuration,
+    ):
+        if isinstance(result, Error):
+            build_system_lock_errors.append(str(result))
+        else:
+            build_system_table, locked_resolves = result
+            build_systems[build_system_table] = locked_resolves
+    if build_system_lock_errors:
+        return Error(
+            "Failed to lock {count} build {systems}:\n{errors}".format(
+                count=len(build_system_lock_errors),
+                systems=pluralize(build_system_lock_errors, "system"),
+                errors="\n".join(
+                    "{index}. {error}".format(index=index, error=error)
+                    for index, error in enumerate(build_system_lock_errors, start=1)
+                ),
+            )
+        )
+
     lock = Lockfile.create(
         pex_version=__version__,
         style=lock_configuration.style,
         requires_python=lock_configuration.requires_python,
         target_systems=lock_configuration.target_systems,
+        lock_build_systems=lock_configuration.lock_build_systems,
         pip_version=pip_configuration.version,
         resolver_version=pip_configuration.resolver_version,
-        requirements=parsed_requirements,
-        constraints=constraints,
+        requirements=lock_result.requirements,
+        constraints=lock_result.constraints,
         allow_prereleases=pip_configuration.allow_prereleases,
         build_configuration=pip_configuration.build_configuration,
         transitive=pip_configuration.transitive,
         excluded=dependency_configuration.excluded,
         overridden=dependency_configuration.all_overrides(),
-        locked_resolves=locked_resolves,
+        locked_resolves=lock_result.locked_resolves,
+        build_systems=build_systems,
     )
 
     if lock_configuration.style is LockStyle.UNIVERSAL and (
@@ -471,11 +636,11 @@ def create(
                 lock_resolver.resolve_from_lock(
                     targets=check_targets,
                     lock=lock,
-                    resolver=configured_resolver,
+                    resolver=ConfiguredResolver(pip_configuration=pip_configuration),
                     indexes=pip_configuration.repos_configuration.indexes,
                     find_links=pip_configuration.repos_configuration.find_links,
                     resolver_version=pip_configuration.resolver_version,
-                    network_configuration=network_configuration,
+                    network_configuration=pip_configuration.network_configuration,
                     password_entries=pip_configuration.repos_configuration.password_entries,
                     build_configuration=pip_configuration.build_configuration,
                     transitive=pip_configuration.transitive,
