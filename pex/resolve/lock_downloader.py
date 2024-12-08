@@ -25,7 +25,6 @@ from pex.resolve.locked_resolve import (
     DownloadableArtifact,
     FileArtifact,
     LocalProjectArtifact,
-    LockConfiguration,
     VCSArtifact,
 )
 from pex.resolve.lockfile.download_manager import DownloadedArtifact, DownloadManager
@@ -233,11 +232,7 @@ class LockDownloader(object):
                 file_lock_style=file_lock_style,
                 downloader=ArtifactDownloader(
                     resolver=resolver,
-                    lock_configuration=LockConfiguration(
-                        style=lock.style,
-                        requires_python=lock.requires_python,
-                        target_systems=lock.target_systems,
-                    ),
+                    lock_configuration=lock.lock_configuration(),
                     target=target,
                     package_index_configuration=PackageIndexConfiguration.create(
                         pip_version=pip_version,
