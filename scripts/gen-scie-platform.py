@@ -195,6 +195,7 @@ def create_lock(
             ),
             "--pip-version",
             "latest",
+            "--elide-unused-requires-dist",
             "--indent",
             "2",
             "--lock",
@@ -285,6 +286,7 @@ def main(out: IO[str]) -> str | int | None:
     parser.add_argument("--all", action="store_true")
     parser.add_argument("-f", "--force", action="store_true")
     parser.add_argument("--lock-file", type=Path, default=PACKAGE_DIR / "pex-scie.lock")
+    parser.add_argument("-L", "--only-sync-lock", action="store_true")
     parser.add_argument("-v", "--verbose", action="store_true")
     try:
         options = parser.parse_args()
@@ -298,39 +300,40 @@ def main(out: IO[str]) -> str | int | None:
     logging.basicConfig(level=logging.INFO if options.verbose else logging.WARNING)
 
     generated_files: list[Path] = []
-    if options.all:
-        try:
-            generated_files.extend(
-                ensure_all_complete_platforms(
-                    dest_dir=options.dest_dir, scie_config=scie_config, force=options.force
+    if not options.only_sync_lock:
+        if options.all:
+            try:
+                generated_files.extend(
+                    ensure_all_complete_platforms(
+                        dest_dir=options.dest_dir, scie_config=scie_config, force=options.force
+                    )
                 )
-            )
-        except (
-            GitHubError,
-            github.GithubException,
-            github.BadAttributeException,
-            httpx.HTTPError,
-        ) as e:
-            return str(e)
+            except (
+                GitHubError,
+                github.GithubException,
+                github.BadAttributeException,
+                httpx.HTTPError,
+            ) as e:
+                return str(e)
+        else:
+            complete_platform_file = options.dest_dir / f"{plat}.json"
+            try:
+                create_complete_platform(
+                    complete_platform_file=complete_platform_file, scie_config=scie_config
+                )
+            except subprocess.CalledProcessError as e:
+                return str(e)
+            generated_files.append(complete_platform_file)
 
-        try:
-            create_lock(
-                lock_file=options.lock_file,
-                complete_platforms=generated_files,
-                scie_config=scie_config,
-            )
-        except subprocess.CalledProcessError as e:
-            return str(e)
-        generated_files.append(options.lock_file)
-    else:
-        complete_platform_file = options.dest_dir / f"{plat}.json"
-        try:
-            create_complete_platform(
-                complete_platform_file=complete_platform_file, scie_config=scie_config
-            )
-        except subprocess.CalledProcessError as e:
-            return str(e)
-        generated_files.append(complete_platform_file)
+    try:
+        create_lock(
+            lock_file=options.lock_file,
+            complete_platforms=tuple(options.dest_dir.glob("*.json")),
+            scie_config=scie_config,
+        )
+    except subprocess.CalledProcessError as e:
+        return str(e)
+    generated_files.append(options.lock_file)
 
     for file in generated_files:
         print(str(file), file=out)

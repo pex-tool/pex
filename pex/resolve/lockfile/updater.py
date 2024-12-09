@@ -190,11 +190,38 @@ class ArtifactsUpdate(object):
 
 
 @attr.s(frozen=True)
+class RequirementsUpdate(object):
+    @classmethod
+    def calculate(
+        cls,
+        version,  # type: Version
+        original,  # type: Tuple[Requirement, ...]
+        updated,  # type: Tuple[Requirement, ...]
+    ):
+        # type: (...) -> RequirementsUpdate
+        added = []  # type: List[Requirement]
+        removed = []  # type: List[Requirement]
+        for req in updated:
+            if req not in original:
+                added.append(req)
+        for req in original:
+            if req not in updated:
+                removed.append(req)
+        return cls(version=version, added=tuple(added), removed=tuple(removed))
+
+    version = attr.ib()  # type: Version
+    added = attr.ib()  # type: Tuple[Requirement, ...]
+    removed = attr.ib()  # type: Tuple[Requirement, ...]
+
+
+if TYPE_CHECKING:
+    Update = Union[DeleteUpdate, VersionUpdate, ArtifactsUpdate, RequirementsUpdate]
+
+
+@attr.s(frozen=True)
 class ResolveUpdate(object):
     updated_resolve = attr.ib()  # type: LockedResolve
-    updates = attr.ib(
-        factory=dict
-    )  # type: Mapping[ProjectName, Optional[Union[DeleteUpdate, VersionUpdate, ArtifactsUpdate]]]
+    updates = attr.ib(factory=dict)  # type: Mapping[ProjectName, Optional[Update]]
 
 
 @attr.s(frozen=True)
@@ -481,9 +508,7 @@ class ResolveUpdater(object):
                     updated_resolve = updated_lock_file.locked_resolves[0]
                     updated_requirements = updated_lock_file.requirements
 
-        updates = (
-            OrderedDict()
-        )  # type: OrderedDict[ProjectName, Optional[Union[DeleteUpdate, VersionUpdate, ArtifactsUpdate]]]
+        updates = OrderedDict()  # type: OrderedDict[ProjectName, Optional[Update]]
 
         if self.deletes or self.dependency_configuration.excluded:
             reduced_requirements = [
@@ -533,6 +558,8 @@ class ResolveUpdater(object):
             updated_pin = updated_requirement.pin
             original_artifacts = tuple(locked_requirement.iter_artifacts())
             updated_artifacts = tuple(updated_requirement.iter_artifacts())
+            original_requirements = locked_requirement.requires_dists
+            updated_requirements = updated_requirement.requires_dists
 
             # N.B.: We use a custom key for artifact equality comparison since `Artifact`
             # contains a `verified` attribute that can both vary based on Pex's current
@@ -613,6 +640,12 @@ class ResolveUpdater(object):
                     original=original_artifacts,
                     updated=updated_artifacts,
                 )
+            elif original_requirements != updated_requirements:
+                updates[project_name] = RequirementsUpdate.calculate(
+                    version=original_pin.version,
+                    original=original_requirements,
+                    updated=updated_requirements,
+                )
             elif project_name in self.update_constraints_by_project_name:
                 updates[project_name] = None
 
@@ -661,11 +694,6 @@ class LockUpdater(object):
     ):
         # type: (...) -> LockUpdater
 
-        lock_configuration = LockConfiguration(
-            style=lock_file.style,
-            requires_python=lock_file.requires_python,
-            target_systems=lock_file.target_systems,
-        )
         pip_configuration = PipConfiguration(
             version=lock_file.pip_version,
             resolver_version=lock_file.resolver_version,
@@ -680,7 +708,7 @@ class LockUpdater(object):
         )
         return cls(
             lock_file=lock_file,
-            lock_configuration=lock_configuration,
+            lock_configuration=lock_file.lock_configuration(),
             pip_configuration=pip_configuration,
             dependency_configuration=dependency_configuration,
         )
@@ -767,7 +795,7 @@ class LockUpdater(object):
         )  # type: OrderedDict[Optional[tags.Tag], LockedResolve]
         resolve_updates_by_platform_tag = (
             {}
-        )  # type: Dict[Optional[tags.Tag], Mapping[ProjectName, Optional[Union[DeleteUpdate, VersionUpdate, ArtifactsUpdate]]]]
+        )  # type: Dict[Optional[tags.Tag], Mapping[ProjectName, Optional[Update]]]
 
         # TODO(John Sirois): Consider parallelizing this. The underlying Jobs are down a few layers;
         #  so this will likely require using multiprocessing.

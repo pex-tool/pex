@@ -11,7 +11,14 @@ from pex.orderedset import OrderedSet
 from pex.pep_503 import ProjectName
 from pex.pip.version import PipVersion, PipVersionValue
 from pex.requirements import LocalProjectRequirement
-from pex.resolve.locked_resolve import LocalProjectArtifact, LockedResolve, LockStyle, TargetSystem
+from pex.resolve.locked_resolve import (
+    LocalProjectArtifact,
+    LockConfiguration,
+    LockedResolve,
+    LockStyle,
+    TargetSystem,
+)
+from pex.resolve.lockfile import requires_dist
 from pex.resolve.resolved_requirement import Pin
 from pex.resolve.resolver_configuration import BuildConfiguration, ResolverVersion
 from pex.sorted_tuple import SortedTuple
@@ -47,6 +54,7 @@ class Lockfile(object):
         source=None,  # type: Optional[str]
         pip_version=None,  # type: Optional[PipVersionValue]
         resolver_version=None,  # type: Optional[ResolverVersion.Value]
+        elide_unused_requires_dist=False,  # type: bool
     ):
         # type: (...) -> Lockfile
 
@@ -94,6 +102,7 @@ class Lockfile(object):
             style=style,
             requires_python=SortedTuple(requires_python),
             target_systems=SortedTuple(target_systems),
+            elide_unused_requires_dist=elide_unused_requires_dist,
             pip_version=pip_ver,
             resolver_version=resolver_version or ResolverVersion.default(pip_ver),
             requirements=SortedTuple(resolve_requirements, key=str),
@@ -110,7 +119,14 @@ class Lockfile(object):
             transitive=transitive,
             excluded=SortedTuple(excluded),
             overridden=SortedTuple(overridden),
-            locked_resolves=SortedTuple(locked_resolves),
+            locked_resolves=SortedTuple(
+                (
+                    requires_dist.remove_unused_requires_dist(resolve_requirements, locked_resolve)
+                    if elide_unused_requires_dist
+                    else locked_resolve
+                )
+                for locked_resolve in locked_resolves
+            ),
             local_project_requirement_mapping=requirement_by_local_project_directory,
             source=source,
         )
@@ -119,6 +135,7 @@ class Lockfile(object):
     style = attr.ib()  # type: LockStyle.Value
     requires_python = attr.ib()  # type: SortedTuple[str]
     target_systems = attr.ib()  # type: SortedTuple[TargetSystem.Value]
+    elide_unused_requires_dist = attr.ib()  # type: bool
     pip_version = attr.ib()  # type: PipVersionValue
     resolver_version = attr.ib()  # type: ResolverVersion.Value
     requirements = attr.ib()  # type: SortedTuple[Requirement]
@@ -138,6 +155,15 @@ class Lockfile(object):
     locked_resolves = attr.ib()  # type: SortedTuple[LockedResolve]
     local_project_requirement_mapping = attr.ib(eq=False)  # type: Mapping[str, Requirement]
     source = attr.ib(default=None, eq=False)  # type: Optional[str]
+
+    def lock_configuration(self):
+        # type: () -> LockConfiguration
+        return LockConfiguration(
+            style=self.style,
+            requires_python=self.requires_python,
+            target_systems=self.target_systems,
+            elide_unused_requires_dist=self.elide_unused_requires_dist,
+        )
 
     def build_configuration(self):
         # type: () -> BuildConfiguration

@@ -341,9 +341,11 @@ class LockObserver(ResolveObserver):
                     package_index_configuration=self.package_index_configuration,
                     max_parallel_jobs=self.max_parallel_jobs,
                 ),
-                platform_tag=None
-                if self.lock_configuration.style == LockStyle.UNIVERSAL
-                else target.platform.tag,
+                platform_tag=(
+                    None
+                    if self.lock_configuration.style == LockStyle.UNIVERSAL
+                    else target.platform.tag
+                ),
             )
             for target, resolved_requirements in resolved_requirements_by_target.items()
         )
@@ -456,6 +458,7 @@ def create(
         excluded=dependency_configuration.excluded,
         overridden=dependency_configuration.all_overrides(),
         locked_resolves=locked_resolves,
+        elide_unused_requires_dist=lock_configuration.elide_unused_requires_dist,
     )
 
     if lock_configuration.style is LockStyle.UNIVERSAL and (

@@ -494,7 +494,15 @@ UPDATE_LOCKFILE_CONTENTS = """\
             }
           ],
           "project_name": "urllib3",
-          "requires_dists": [],
+          "requires_dists": [
+            "brotlipy>=0.6.0; extra == \\"brotli\\"",
+            "pyOpenSSL>=0.14; extra == \\"secure\\"",
+            "cryptography>=1.3.4; extra == \\"secure\\"",
+            "idna>=2.0.0; extra == \\"secure\\"",
+            "certifi; extra == \\"secure\\"",
+            "ipaddress; python_version == \\"2.7\\" and extra == \\"secure\\"",
+            "PySocks!=1.5.7,<2.0,>=1.5.6; extra == \\"socks\\""
+          ],
           "requires_python": null,
           "version": "1.25.11"
         }

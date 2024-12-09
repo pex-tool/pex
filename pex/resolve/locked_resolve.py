@@ -87,6 +87,7 @@ class LockConfiguration(object):
     style = attr.ib()  # type: LockStyle.Value
     requires_python = attr.ib(default=())  # type: Tuple[str, ...]
     target_systems = attr.ib(default=())  # type: Tuple[TargetSystem.Value, ...]
+    elide_unused_requires_dist = attr.ib(default=False)  # type: bool
 
     @requires_python.validator
     @target_systems.validator

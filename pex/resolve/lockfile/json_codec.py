@@ -209,6 +209,8 @@ def loads(
         for index, target_system in enumerate(get("target_systems", list, optional=True) or ())
     ]
 
+    elide_unused_requires_dist = get("elide_unused_requires_dist", bool, optional=True) or False
+
     only_wheels = [
         parse_project_name(project_name, path=".only_wheels[{index}]".format(index=index))
         for index, project_name in enumerate(get("only_wheels", list, optional=True) or ())
@@ -231,7 +233,7 @@ def loads(
         for index, constraint in enumerate(get("constraints", list))
     ]
 
-    use_system_time = get("use_system_time", bool, optional=True)
+    use_system_time = get("use_system_time", bool, optional=True) or False
 
     excluded = [
         parse_requirement(req, path=".excluded[{index}]".format(index=index))
@@ -337,6 +339,7 @@ def loads(
         style=get_enum_value(LockStyle, "style"),
         requires_python=get("requires_python", list),
         target_systems=target_systems,
+        elide_unused_requires_dist=elide_unused_requires_dist,
         pip_version=get_enum_value(
             PipVersion,
             "pip_version",
@@ -354,10 +357,7 @@ def loads(
             prefer_older_binary=get("prefer_older_binary", bool),
             use_pep517=get("use_pep517", bool, optional=True),
             build_isolation=get("build_isolation", bool),
-            # N.B.: Although locks are now always generated under SOURCE_DATE_EPOCH=fixed and
-            # PYTHONHASHSEED=0 (aka: `use_system_time=False`), that did not use to be the case. In
-            # those old locks there was no "use_system_time" field.
-            use_system_time=use_system_time if use_system_time is not None else True,
+            use_system_time=use_system_time,
         ),
         transitive=get("transitive", bool),
         excluded=excluded,
@@ -391,6 +391,7 @@ def as_json_data(
         "style": str(lockfile.style),
         "requires_python": list(lockfile.requires_python),
         "target_systems": [str(target_system) for target_system in lockfile.target_systems],
+        "elide_unused_requires_dist": lockfile.elide_unused_requires_dist,
         "pip_version": str(lockfile.pip_version),
         "resolver_version": str(lockfile.resolver_version),
         "requirements": [
