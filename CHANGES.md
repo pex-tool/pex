@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.25.1
+
+This is a hotfix release that fixes a bug in the implementation of the
+`--elide-unused-requires-dist` lock option introduced in Pex 2.25.0.
+
+* Fix `--elide-unused-requires-dist` for unactivated deps. (#2615)
 ## 2.25.0
 
 This release adds support for
