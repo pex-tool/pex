@@ -6,6 +6,7 @@ from __future__ import absolute_import
 import hashlib
 
 from pex import hashing
+from pex.build_system import BuildSystemTable
 from pex.compatibility import url_unquote, urlparse
 from pex.dist_metadata import ProjectNameAndVersion, Requirement, is_wheel
 from pex.hashing import HashlibHasher
@@ -167,6 +168,7 @@ class PartialArtifact(object):
     url = attr.ib(converter=_convert_url)  # type: ArtifactURL
     fingerprint = attr.ib(default=None)  # type: Optional[Fingerprint]
     verified = attr.ib(default=False)  # type: bool
+    build_system_table = attr.ib(default=None)  # type: Optional[BuildSystemTable]
 
 
 @attr.s(frozen=True)
@@ -185,4 +187,9 @@ class ResolvedRequirement(object):
         # type: () -> Iterator[PartialArtifact]
         for artifact in self.iter_artifacts():
             if not artifact.fingerprint:
+                yield artifact
+
+    def iter_artifacts_to_lock(self):
+        for artifact in self.iter_artifacts():
+            if not artifact.url.is_wheel:
                 yield artifact

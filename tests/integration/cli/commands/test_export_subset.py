@@ -59,7 +59,7 @@ def test_full(
     if sys.version_info[0] == 2:
         expected_requirements.append(Requirement.parse(to_unicode("enum34==1.1.10")))
 
-    assert sorted(expected_requirements, key=str) == sorted(actual_requirements, key=str)
+    assert sorted(expected_requirements) == sorted(actual_requirements)
 
 
 def test_subset(
