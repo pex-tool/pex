@@ -46,7 +46,7 @@ def test_remove_unused_requires_dist_noop():
         locked_req("baz", "1.0"),
     )
     assert locked_resolve_with_no_extras == requires_dist.remove_unused_requires_dist(
-        locked_resolve_with_no_extras
+        resolve_requirements=[req("foo")], locked_resolve=locked_resolve_with_no_extras
     )
 
 
@@ -58,7 +58,8 @@ def test_remove_unused_requires_dist_simple():
         locked_req("bar", "1.0"),
         locked_req("spam", "1.0"),
     ) == requires_dist.remove_unused_requires_dist(
-        locked_resolve(
+        resolve_requirements=[req("foo")],
+        locked_resolve=locked_resolve(
             locked_req("foo", "1.0", "bar", "baz; extra == 'tests'", "spam"),
             locked_req("bar", "1.0"),
             locked_req("spam", "1.0"),
@@ -74,7 +75,8 @@ def test_remove_unused_requires_dist_mixed_extras():
         locked_req("bar", "1.0"),
         locked_req("spam", "1.0"),
     ) == requires_dist.remove_unused_requires_dist(
-        locked_resolve(
+        resolve_requirements=[req("foo[extra1]")],
+        locked_resolve=locked_resolve(
             locked_req("foo", "1.0", "bar; extra == 'extra1'", "baz; extra == 'tests'", "spam"),
             locked_req("bar", "1.0"),
             locked_req("spam", "1.0"),
@@ -97,7 +99,8 @@ def test_remove_unused_requires_dist_mixed_markers():
         locked_req("baz", "1.0"),
         locked_req("spam", "1.0"),
     ) == requires_dist.remove_unused_requires_dist(
-        locked_resolve(
+        resolve_requirements=[req("foo[extra1]")],
+        locked_resolve=locked_resolve(
             locked_req(
                 "foo",
                 "1.0",
@@ -124,7 +127,8 @@ def test_remove_unused_requires_dist_mixed_markers():
         locked_req("bar", "1.0"),
         locked_req("spam", "1.0"),
     ) == requires_dist.remove_unused_requires_dist(
-        locked_resolve(
+        resolve_requirements=[req("foo[extra1]")],
+        locked_resolve=locked_resolve(
             locked_req(
                 "foo",
                 "1.0",
@@ -151,7 +155,8 @@ def test_remove_unused_requires_dist_complex_markers():
         locked_req("bar", "1.0"),
         locked_req("spam", "1.0"),
     ) == requires_dist.remove_unused_requires_dist(
-        locked_resolve(
+        resolve_requirements=[req("foo")],
+        locked_resolve=locked_resolve(
             locked_req(
                 "foo",
                 "1.0",
@@ -173,7 +178,8 @@ def test_remove_unused_requires_dist_not_present_due_to_other_markers():
         locked_req("bar", "1.0"),
         locked_req("spam", "1.0"),
     ) == requires_dist.remove_unused_requires_dist(
-        locked_resolve(
+        resolve_requirements=[req("foo")],
+        locked_resolve=locked_resolve(
             locked_req(
                 "foo",
                 "1.0",

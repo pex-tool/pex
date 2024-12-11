@@ -1,5 +1,22 @@
 # Release Notes
 
+## 2.25.2
+
+This release fixes the `--elide-unused-requires-dist` lock option once
+again. The fix in 2.25.1 could lead to locked requirements having only
+a partial graph of extras which would allow a subsequent subset of those
+partial extras to silently resolve an incomplete set of dependencies.
+
+In addition, the Pex REPL for PEXes without entry points or else when
+forced with `PEX_INTERPRETER=1` is now fixed such that readline support
+always works. Previously, the yellow foreground color applied to the PS1
+and PS2 prompts would interfere with the tracked cursor position in some
+Pythons; so the yellow foreground color for those prompts is now
+dropped.
+
+* Fix `--elide-unused-requires-dist`: don't expose partial extras. (#2618)
+* Fix Pex REPL prompt. (#2617)
+
 ## 2.25.1
 
 This is a hotfix release that fixes a bug in the implementation of the
