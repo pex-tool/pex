@@ -27,6 +27,10 @@ jobs:
             os: ubuntu-24.04
             docker-arch: arm64
             artifact-name: linux-aarch64
+          - platform: Linux armv7l
+            os: ubuntu-24.04
+            docker-arch: arm/v7
+            artifact-name: linux-armv7l
           - platform: macOS x86_64
             os: macos-13
             artifact-name: macos-x86_64

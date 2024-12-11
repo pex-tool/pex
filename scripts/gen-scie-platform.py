@@ -212,6 +212,8 @@ def current_platform() -> str:
     machine = platform.machine().lower()
     if machine in ("aarch64", "arm64"):
         return f"{system}-aarch64"
+    elif machine in ("armv7l", "armv8l"):
+        return f"{system}-armv7l"
     elif machine in ("amd64", "x86_64"):
         return f"{system}-x86_64"
     raise ValueError(f"Unexpected platform.machine(): {platform.machine()}")

@@ -8,6 +8,7 @@ pex-extras = [
 
 platforms = [
     "linux-aarch64",
+    "linux-armv7l",
     "linux-x86_64",
     "macos-aarch64",
     "macos-x86_64",

@@ -1,5 +1,9 @@
 # Release Notes
 
+## 2.26.0
+
+This release adds support for Linux ARM (armv7l and armv8l 32 bit mode).
+
 ## 2.25.2
 
 This release fixes the `--elide-unused-requires-dist` lock option once

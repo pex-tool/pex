@@ -78,8 +78,8 @@ def _science_binary_url(suffix=""):
     )
 
 
-PTEX_VERSION = "1.1.1"
-SCIE_JUMP_VERSION = "1.1.1"
+PTEX_VERSION = "1.4.0"
+SCIE_JUMP_VERSION = "1.4.1"
 
 
 @attr.s(frozen=True)
