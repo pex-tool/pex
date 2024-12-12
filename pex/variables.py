@@ -905,7 +905,7 @@ def venv_dir(
     if (
         ENV.PEX_PYTHON
         and not precise_pex_python
-        and not re.match(r".*[^\d][\d]+\.[\d+]$", ENV.PEX_PYTHON)
+        and not re.match(r".*[^\d][\d]+\.[\d]+$", ENV.PEX_PYTHON)
     ):
         warn(
             dedent(
