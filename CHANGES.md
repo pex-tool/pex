@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.27.0
+
+This release adds a Pex PEX scie for armv7l.
+
+* Add a Pex PEX scie for armv7l. (#2624)
+
 ## 2.26.0
 
 This release adds Pex `--scie {eager,lazy}` support for Linux armv7l.
