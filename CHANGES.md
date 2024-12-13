@@ -1,5 +1,15 @@
 # Release Notes
 
+## 2.26.0
+
+This release adds Pex `--scie {eager,lazy}` support for Linux armv7l.
+
+In addition, a spurious warning when using `PEX_PYTHON=pythonX.Y`
+against a venv PEX has been fixed.
+
+* Added support for armv7l (#2620)
+* Fix incorrect regex for `PEX_PYTHON` precision warning (#2622)
+
 ## 2.25.2
 
 This release fixes the `--elide-unused-requires-dist` lock option once
