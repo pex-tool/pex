@@ -30,12 +30,14 @@ class PlatformConfig:
             pbs_release=platform_data.get("pbs-release", default_pbs_release),
             python_version=platform_data.get("python-version", default_python_version),
             extra_lock_args=tuple(platform_data.get("extra-lock-args", ())),
+            required=platform_data.get("required", True),
         )
 
     name: str
     pbs_release: str
     python_version: str
     extra_lock_args: tuple[str, ...] = ()
+    required: bool = True
 
 
 @dataclass(frozen=True)

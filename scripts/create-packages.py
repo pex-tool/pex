@@ -77,19 +77,21 @@ def build_pex_scies(
     missing_platforms: list[str] = []
     platforms: list[tuple[PlatformConfig, Path]] = []
     for platform_config in scie_config.platforms:
-        complete_platform = PACKAGE_DIR / "complete-platforms" / f"{platform_config}.json"
-        if not complete_platform.exists():
-            missing_platforms.append(platform_config.name)
-        else:
+        complete_platform = PACKAGE_DIR / "complete-platforms" / f"{platform_config.name}.json"
+        if complete_platform.exists():
             platforms.append((platform_config, complete_platform))
+        elif platform_config.required:
+            missing_platforms.append(platform_config.name)
+
     if missing_platforms:
         missing = "\n".join(
             f"{index}. {missing_platform}"
             for index, missing_platform in enumerate(missing_platforms, start=1)
         )
         raise SystemExit(
-            f"Of the {len(platforms)} expected Pex scie complete platforms, "
-            f"{len(missing)} {'is' if len(missing) == 1 else 'are'} missing:\n{missing}"
+            f"Of the {len(scie_config.platforms)} expected Pex scie complete platforms, "
+            f"{len(missing_platforms)} {'is' if len(missing_platforms) == 1 else 'are'} missing:\n"
+            f"{missing}"
         )
 
     for platform_config, complete_platform in platforms:
