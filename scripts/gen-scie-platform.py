@@ -195,7 +195,8 @@ def create_lock(
             "2",
             "--lock",
             str(lock_file),
-        ],
+        ]
+        + list(scie_config.extra_lock_args),
         check=True,
     )
 

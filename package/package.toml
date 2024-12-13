@@ -6,12 +6,14 @@ pex-extras = [
     "management",
 ]
 
+# This customization gets us a lockable psutil wheel for armv7l.
+extra-lock-args = ["--index", "https://www.piwheels.org/simple"]
+
 [scie.platforms.linux-aarch64]
 
 [scie.platforms.linux-armv7l]
 # This customization gets us a lockable psutil wheel.
 python-version = "3.11.11"
-extra-lock-args = ["--index", "https://www.piwheels.org/simple"]
 # TODO(John Sirois): Remove once the complete platform file is generated.
 required = false
 

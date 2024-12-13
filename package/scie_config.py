@@ -29,14 +29,12 @@ class PlatformConfig:
             name=name,
             pbs_release=platform_data.get("pbs-release", default_pbs_release),
             python_version=platform_data.get("python-version", default_python_version),
-            extra_lock_args=tuple(platform_data.get("extra-lock-args", ())),
             required=platform_data.get("required", True),
         )
 
     name: str
     pbs_release: str
     python_version: str
-    extra_lock_args: tuple[str, ...] = ()
     required: bool = True
 
 
@@ -58,9 +56,7 @@ class ScieConfig:
             scie_config = toml.loads(data.decode())["scie"]
         default_pbs_release = pbs_release or scie_config["pbs-release"]
         default_python_version = python_version or scie_config["python-version"]
-
         return cls(
-            pex_extras=tuple(scie_config["pex-extras"]),
             platforms=tuple(
                 PlatformConfig.load(
                     name=platform_name,
@@ -68,12 +64,15 @@ class ScieConfig:
                     default_pbs_release=default_pbs_release,
                     default_python_version=default_python_version,
                 )
-                for platform_name, platform_data in scie_config.get("platforms", {}).items()
+                for platform_name, platform_data in scie_config["platforms"].items()
             ),
+            pex_extras=tuple(scie_config.get("pex-extras", ())),
+            extra_lock_args=tuple(scie_config.get("extra-lock-args", ())),
         )
 
-    pex_extras: tuple[str, ...]
     platforms: tuple[PlatformConfig, ...]
+    pex_extras: tuple[str, ...] = ()
+    extra_lock_args: tuple[str, ...] = ()
 
     def current_platform(self) -> PlatformConfig:
         system = platform.system().lower()
@@ -114,8 +113,6 @@ class ScieConfig:
                 data["pbs-release"] = platform_config.pbs_release
             if platform_config.python_version != default_python_version:
                 data["python-version"] = platform_config.python_version
-            if platform_config.extra_lock_args:
-                data["extra-lock-args"] = platform_config.extra_lock_args
             if not platform_config.required:
                 data["required"] = False
             platforms[platform_config.name] = data
@@ -126,6 +123,7 @@ class ScieConfig:
                     "pbs-release": default_pbs_release,
                     "python-version": default_python_version,
                     "pex-extras": self.pex_extras,
+                    "extra-lock-args": self.extra_lock_args,
                     "platforms": platforms,
                 }
             ).encode()
