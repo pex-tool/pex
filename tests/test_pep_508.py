@@ -93,6 +93,7 @@ def test_platform_marker_environment_issue_1488():
     assert_platform_machine("x86_64", "manylinux2014-x86_64-cp-37-cp37m")
     assert_platform_machine("x86_64", "manylinux_2_5-x86_64-cp-37-cp37m")
     assert_platform_machine("aarch64", "manylinux_2_77-aarch64-cp-37-cp37m")
+    assert_platform_machine("armv7l", "linux-armv7l-cp-311-cp311")
 
     assert_platform_machine("x86_64", "macosx-10.15-x86_64-cp-38-m")
     assert_platform_machine("arm64", "macosx-11.0-arm64-cp-39-cp39")

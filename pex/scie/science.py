@@ -64,7 +64,7 @@ class Manifest(object):
 
 
 SCIENCE_RELEASES_URL = "https://github.com/a-scie/lift/releases"
-MIN_SCIENCE_VERSION = Version("0.8.0")
+MIN_SCIENCE_VERSION = Version("0.9.0")
 SCIENCE_REQUIREMENT = SpecifierSet("~={min_version}".format(min_version=MIN_SCIENCE_VERSION))
 
 
@@ -78,8 +78,8 @@ def _science_binary_url(suffix=""):
     )
 
 
-PTEX_VERSION = "1.1.1"
-SCIE_JUMP_VERSION = "1.1.1"
+PTEX_VERSION = "1.4.0"
+SCIE_JUMP_VERSION = "1.4.1"
 
 
 @attr.s(frozen=True)
@@ -367,6 +367,8 @@ def _ensure_science(
                     shutil.copy(path_science, target_science)
             if not os.path.exists(target_science):
                 fetcher = url_fetcher or URLFetcher()
+                url = science_binary or _science_binary_url()
+                TRACER.log("Fetching science binary from {url}...".format(url=url))
                 with open(target_science, "wb") as write_fp, fetcher.get_body_stream(
                     science_binary or _science_binary_url()
                 ) as read_fp:

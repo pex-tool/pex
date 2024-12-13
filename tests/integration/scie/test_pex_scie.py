@@ -161,6 +161,8 @@ def test_multiple_platforms(tmpdir):
                 "--platform",
                 "linux-aarch64-cp-39-cp39",
                 "--platform",
+                "linux-armv7l-cp-311-cp311",
+                "--platform",
                 "linux-x86_64-cp-310-cp310",
                 "--platform",
                 "macosx-10.9-arm64-cp-311-cp311",
@@ -172,6 +174,7 @@ def test_multiple_platforms(tmpdir):
 
     python_version_by_platform = {
         SciePlatform.LINUX_AARCH64: "3.9",
+        SciePlatform.LINUX_ARMV7L: "3.11",
         SciePlatform.LINUX_X86_64: "3.10",
         SciePlatform.MACOS_AARCH64: "3.11",
         SciePlatform.MACOS_X86_64: "3.12",
@@ -228,13 +231,14 @@ def test_multiple_platforms(tmpdir):
         output_dir=all_platforms_output_dir,
         expected_platforms=(
             SciePlatform.LINUX_AARCH64,
+            SciePlatform.LINUX_ARMV7L,
             SciePlatform.LINUX_X86_64,
             SciePlatform.MACOS_AARCH64,
             SciePlatform.MACOS_X86_64,
         ),
     )
 
-    # Now restrict the PEX's implied natural platform set of 4 down to 2 or 3 using
+    # Now restrict the PEX's implied natural platform set of 5 down to 2 or 3 using
     # `--scie-platform`.
     restricted_platforms_output_dir = os.path.join(str(tmpdir), "restricted-platforms")
     create_scies(
@@ -298,7 +302,7 @@ def test_specified_science_binary(tmpdir):
 
     local_science_binary = os.path.join(str(tmpdir), "science")
     with open(local_science_binary, "wb") as write_fp, URLFetcher().get_body_stream(
-        "https://github.com/a-scie/lift/releases/download/v0.8.0/{binary}".format(
+        "https://github.com/a-scie/lift/releases/download/v0.9.0/{binary}".format(
             binary=SciePlatform.CURRENT.qualified_binary_name("science")
         )
     ) as read_fp:
@@ -342,7 +346,7 @@ def test_specified_science_binary(tmpdir):
         cached_science_binaries
     ), "Expected the local science binary to be used but not cached."
     assert (
-        "0.8.0"
+        "0.9.0"
         == subprocess.check_output(args=[local_science_binary, "--version"]).decode("utf-8").strip()
     )
 
@@ -389,6 +393,7 @@ def test_custom_lazy_urls(tmpdir):
                         "aarch64-apple-darwin",
                         "x86_64-apple-darwin",
                         "aarch64-unknown-linux-gnu",
+                        "armv7-unknown-linux-gnueabihf",
                         "x86_64-unknown-linux-gnu",
                     )
                 }
@@ -412,6 +417,8 @@ def test_custom_lazy_urls(tmpdir):
     expected_platform = None  # type: Optional[str]
     if SciePlatform.CURRENT is SciePlatform.LINUX_AARCH64:
         expected_platform = "aarch64-unknown-linux-gnu"
+    elif SciePlatform.CURRENT is SciePlatform.LINUX_ARMV7L:
+        expected_platform = "armv7-unknown-linux-gnueabihf"
     elif SciePlatform.CURRENT is SciePlatform.LINUX_X86_64:
         expected_platform = "x86_64-unknown-linux-gnu"
     elif SciePlatform.CURRENT is SciePlatform.MACOS_AARCH64:

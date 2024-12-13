@@ -2,11 +2,8 @@ name: Generate Pex Scie Complete Platforms
 on:
   workflow_dispatch:
     inputs:
-      pbs-release:
-        description: The PBS release to use.
-        required: true
-      python-version:
-        description: The PBS Python version to use.
+      encoded-scie-config:
+        description: The encoded Pex PEX scie package.toml config to use.
         required: true
 defaults:
   run:
@@ -27,6 +24,10 @@ jobs:
             os: ubuntu-24.04
             docker-arch: arm64
             artifact-name: linux-aarch64
+          - platform: Linux armv7l
+            os: ubuntu-24.04
+            docker-arch: arm/v7
+            artifact-name: linux-armv7l
           - platform: macOS x86_64
             os: macos-13
             artifact-name: macos-x86_64
@@ -53,8 +54,7 @@ jobs:
 
           tox -e gen-scie-platform -- \
             -d "${dest_dir}" \
-            --pbs-release ${{ github.event.inputs.pbs-release }} \
-            --python-version ${{ github.event.inputs.python-version }}
+            --encoded-scie-config ${{ github.event.inputs.encoded-scie-config }}
           EOF
           chmod +x ./gen-scie-platform.sh
       - name: Setup Docker QEMU Emulation
@@ -71,7 +71,7 @@ jobs:
             -v $PWD:/code \
             -w /code \
             --platform linux/${{ matrix.docker-arch }} \
-            python:3.11-slim-bullseye bash ./gen-scie-platform.sh
+            python:3.11-slim-bookworm bash ./gen-scie-platform.sh
       - name: Setup Python 3.11
         if: ${{ ! matrix.docker-arch }}
         uses: actions/setup-python@v5

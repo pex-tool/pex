@@ -53,7 +53,8 @@ class Platform(Enum):
             return cls.Windows_x86_64
 
         raise ValueError(
-            f"The current operating system / machine pair is not supported!: {system} / {machine}"
+            "The current operating system / machine pair is not supported for building docs!: "
+            f"{system} / {machine}"
         )
 
     @property

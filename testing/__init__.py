@@ -67,8 +67,10 @@ IS_LINUX = platform.system() == "Linux"
 IS_MAC = platform.system() == "Darwin"
 IS_X86_64 = platform.machine().lower() in ("amd64", "x86_64")
 IS_ARM_64 = platform.machine().lower() in ("arm64", "aarch64")
+IS_ARMV7L = platform.machine().lower() in ("armv7l", "armv8l")
 IS_LINUX_X86_64 = IS_LINUX and IS_X86_64
 IS_LINUX_ARM64 = IS_LINUX and IS_ARM_64
+IS_LINUX_ARMV7L = IS_LINUX and IS_ARMV7L
 IS_MAC_X86_64 = IS_MAC and IS_X86_64
 IS_MAC_ARM64 = IS_MAC and IS_ARM_64
 NOT_CPYTHON27_OR_OSX = NOT_CPYTHON27 or not IS_LINUX
