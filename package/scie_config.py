@@ -116,6 +116,8 @@ class ScieConfig:
                 data["python-version"] = platform_config.python_version
             if platform_config.extra_lock_args:
                 data["extra-lock-args"] = platform_config.extra_lock_args
+            if not platform_config.required:
+                data["required"] = False
             platforms[platform_config.name] = data
 
         return base64.urlsafe_b64encode(
