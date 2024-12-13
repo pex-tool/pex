@@ -2,11 +2,8 @@ name: Generate Pex Scie Complete Platforms
 on:
   workflow_dispatch:
     inputs:
-      pbs-release:
-        description: The PBS release to use.
-        required: true
-      python-version:
-        description: The PBS Python version to use.
+      encoded-scie-config:
+        description: The encoded Pex PEX scie package.toml config to use.
         required: true
 defaults:
   run:
@@ -57,8 +54,7 @@ jobs:
 
           tox -e gen-scie-platform -- \
             -d "${dest_dir}" \
-            --pbs-release ${{ github.event.inputs.pbs-release }} \
-            --python-version ${{ github.event.inputs.python-version }}
+            --encoded-scie-config ${{ github.event.inputs.encoded-scie-config }}
           EOF
           chmod +x ./gen-scie-platform.sh
       - name: Setup Docker QEMU Emulation

@@ -7,7 +7,6 @@ import itertools
 import json
 import logging
 import os.path
-import platform
 import subprocess
 import sys
 import tempfile
@@ -24,7 +23,7 @@ import httpx
 from github import Github
 from github.WorkflowRun import WorkflowRun
 
-from package.scie_config import ScieConfig
+from package.scie_config import PlatformConfig, ScieConfig
 
 logger = logging.getLogger(__name__)
 
@@ -51,19 +50,15 @@ def create_all_complete_platforms(
         f"https://github.com/pex-tool/pex/actions/workflows/{GEN_SCIE_PLATFORMS_WORKFLOW}"
     )
     workflow = repo.get_workflow(GEN_SCIE_PLATFORMS_WORKFLOW)
+    encoded_scie_config = scie_config.encode()
     if not workflow.create_dispatch(
-        ref="main",
-        inputs={
-            "pbs-release": scie_config.pbs_release,
-            "python-version": scie_config.python_version,
-        },
+        ref="main", inputs={"encoded-scie-config": encoded_scie_config}
     ):
         raise GitHubError(
             dedent(
                 f"""\
                 Failed to dispatch {GEN_SCIE_PLATFORMS_WORKFLOW} with parameters:
-                + pbs-release={scie_config.pbs_release}
-                + python-version={scie_config.python_version}
+                + encoded-scie-config={encoded_scie_config[:16]}...
                 """
             )
         )
@@ -146,16 +141,16 @@ def ensure_all_complete_platforms(
         if complete_platforms and force:
             print("Force regenerating complete platform files.", file=out)
         else:
-            for platform_name in scie_config.platforms:
-                complete_platform_file = dest_dir / f"{platform_name}.json"
+            for platform in scie_config.platforms:
+                complete_platform_file = dest_dir / f"{platform.name}.json"
                 if not complete_platform_file.exists():
                     continue
                 with complete_platform_file.open() as fp:
                     meta_data = json.load(fp).get("__meta_data__")
                     if (
                         not meta_data
-                        or scie_config.pbs_release != meta_data["pbs-release"]
-                        or scie_config.python_version != meta_data["python-version"]
+                        or platform.pbs_release != meta_data["pbs-release"]
+                        or platform.python_version != meta_data["python-version"]
                     ):
                         print(
                             "The complete platform file "
@@ -205,22 +200,8 @@ def create_lock(
     )
 
 
-def current_platform() -> str:
-    system = platform.system().lower()
-    if system == "darwin":
-        system = "macos"
-    machine = platform.machine().lower()
-    if machine in ("aarch64", "arm64"):
-        return f"{system}-aarch64"
-    elif machine in ("armv7l", "armv8l"):
-        return f"{system}-armv7l"
-    elif machine in ("amd64", "x86_64"):
-        return f"{system}-x86_64"
-    raise ValueError(f"Unexpected platform.machine(): {platform.machine()}")
-
-
 @contextmanager
-def pex3_binary(scie_config: ScieConfig) -> Iterator[str]:
+def pex3_binary(platform: PlatformConfig) -> Iterator[str]:
     with tempfile.TemporaryDirectory() as td:
         pex3 = os.path.join(td, "pex3")
         subprocess.run(
@@ -234,9 +215,9 @@ def pex3_binary(scie_config: ScieConfig) -> Iterator[str]:
                 "--scie",
                 "lazy",
                 "--scie-pbs-release",
-                scie_config.pbs_release,
+                platform.pbs_release,
                 "--scie-python-version",
-                scie_config.python_version,
+                platform.python_version,
                 "-o",
                 pex3,
             ],
@@ -245,8 +226,8 @@ def pex3_binary(scie_config: ScieConfig) -> Iterator[str]:
         yield pex3
 
 
-def create_complete_platform(complete_platform_file: Path, scie_config: ScieConfig) -> None:
-    with pex3_binary(scie_config=scie_config) as pex3:
+def create_complete_platform(complete_platform_file: Path, platform: PlatformConfig) -> None:
+    with pex3_binary(platform=platform) as pex3:
         complete_platform = json.loads(
             subprocess.run(
                 args=[pex3, "interpreter", "inspect", "--markers", "--tags"],
@@ -260,12 +241,12 @@ def create_complete_platform(complete_platform_file: Path, scie_config: ScieConf
             "comment": (
                 "DO NOT EDIT - Generated via: `tox -e gen-scie-platform -- "
                 "--pbs-release {pbs_release} --python-version {python_version}`.".format(
-                    pbs_release=scie_config.pbs_release,
-                    python_version=scie_config.python_version,
+                    pbs_release=platform.pbs_release,
+                    python_version=platform.python_version,
                 )
             ),
-            "pbs-release": scie_config.pbs_release,
-            "python-version": scie_config.python_version,
+            "pbs-release": platform.pbs_release,
+            "python-version": platform.python_version,
         }
 
         logger.info(f"Generating {complete_platform_file} using Python at:\n{path}")
@@ -276,15 +257,11 @@ def create_complete_platform(complete_platform_file: Path, scie_config: ScieConf
 
 
 def main(out: IO[str]) -> str | int | None:
-    try:
-        plat = current_platform()
-    except ValueError as e:
-        sys.exit((str(e)))
-
     parser = argparse.ArgumentParser()
     parser.add_argument("-d", "--dest-dir", type=Path, default=PACKAGE_DIR / "complete-platforms")
     parser.add_argument("--pbs-release")
     parser.add_argument("--python-version")
+    parser.add_argument("--encoded-scie-config")
     parser.add_argument("--all", action="store_true")
     parser.add_argument("-f", "--force", action="store_true")
     parser.add_argument("--lock-file", type=Path, default=PACKAGE_DIR / "pex-scie.lock")
@@ -296,7 +273,9 @@ def main(out: IO[str]) -> str | int | None:
         return str(e)
 
     scie_config = ScieConfig.load(
-        pbs_release=options.pbs_release, python_version=options.python_version
+        pbs_release=options.pbs_release,
+        python_version=options.python_version,
+        encoded_config=options.encoded_scie_config,
     )
 
     logging.basicConfig(level=logging.INFO if options.verbose else logging.WARNING)
@@ -318,10 +297,11 @@ def main(out: IO[str]) -> str | int | None:
             ) as e:
                 return str(e)
         else:
-            complete_platform_file = options.dest_dir / f"{plat}.json"
+            current_platform = scie_config.current_platform()
+            complete_platform_file = options.dest_dir / f"{current_platform.name}.json"
             try:
                 create_complete_platform(
-                    complete_platform_file=complete_platform_file, scie_config=scie_config
+                    complete_platform_file=complete_platform_file, platform=current_platform
                 )
             except subprocess.CalledProcessError as e:
                 return str(e)

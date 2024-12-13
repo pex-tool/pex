@@ -18,7 +18,7 @@ from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path, PurePath
 from typing import Dict, Iterator, Optional, Tuple, cast
 
-from package.scie_config import ScieConfig
+from package.scie_config import PlatformConfig, ScieConfig
 from pex.common import safe_mkdtemp
 
 DIST_DIR = Path("dist")
@@ -62,7 +62,7 @@ def build_pex_pex(
 
 def build_pex_scies(
     scie_dest_dir: Path, verbosity: int = 0, env: Optional[Dict[str, str]] = None
-) -> Iterator[tuple[Path, str]]:
+) -> Iterator[tuple[Path, PlatformConfig]]:
     scie_config = ScieConfig.load()
 
     pex_requirement = f".[{','.join(scie_config.pex_extras)}]"
@@ -75,13 +75,13 @@ def build_pex_scies(
         )
 
     missing_platforms: list[str] = []
-    platforms: list[tuple[str, Path]] = []
-    for platform in scie_config.platforms:
-        complete_platform = PACKAGE_DIR / "complete-platforms" / f"{platform}.json"
+    platforms: list[tuple[PlatformConfig, Path]] = []
+    for platform_config in scie_config.platforms:
+        complete_platform = PACKAGE_DIR / "complete-platforms" / f"{platform_config}.json"
         if not complete_platform.exists():
-            missing_platforms.append(platform)
+            missing_platforms.append(platform_config.name)
         else:
-            platforms.append((platform, complete_platform))
+            platforms.append((platform_config, complete_platform))
     if missing_platforms:
         missing = "\n".join(
             f"{index}. {missing_platform}"
@@ -92,7 +92,7 @@ def build_pex_scies(
             f"{len(missing)} {'is' if len(missing) == 1 else 'are'} missing:\n{missing}"
         )
 
-    for platform, complete_platform in platforms:
+    for platform_config, complete_platform in platforms:
         dest_dir = safe_mkdtemp()
         output_file = os.path.join(dest_dir, "pex")
         args = [
@@ -116,11 +116,11 @@ def build_pex_scies(
             "--scie-name-style",
             "platform-file-suffix",
             "--scie-platform",
-            platform,
+            platform_config.name,
             "--scie-pbs-release",
-            scie_config.pbs_release,
+            platform_config.pbs_release,
             "--scie-python-version",
-            scie_config.python_version,
+            platform_config.python_version,
             "--scie-pbs-stripped",
             "--scie-hash-alg",
             "sha256",
@@ -147,7 +147,7 @@ def build_pex_scies(
         for artifact in artifacts:
             shutil.move(artifact, scie_dest_dir / os.path.basename(artifact))
 
-        yield scie_dest_dir / scie_name, platform
+        yield scie_dest_dir / scie_name, platform_config
 
 
 def describe_rev() -> str:
@@ -251,7 +251,7 @@ def main(
         print(f"Building Pex scies to `{scie_dest_dir}` ...")
         for scie, platform in build_pex_scies(scie_dest_dir, verbosity, env=env):
             hash_table[scie] = describe_file(scie)
-            print(f"  Built Pex scie for {platform} at `{scie}`")
+            print(f"  Built Pex scie for {platform.name} at `{scie}`")
 
     if markdown_hash_table_file and hash_table:
         with markdown_hash_table_file.open(mode="w") as fp:

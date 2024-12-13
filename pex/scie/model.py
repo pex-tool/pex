@@ -481,7 +481,7 @@ class ScieConfiguration(object):
                     and plat_python_version < (3, 7)
                 ):
                     continue
-                # PyPy distributions is not available for Linux armv7l
+                # PyPy distributions are not available for Linux armv7l
                 if SciePlatform.LINUX_ARMV7L is scie_platform:
                     continue
                 # PyPy distributions for Mac arm64 start with 3.8 (and PyPy always releases for

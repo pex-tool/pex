@@ -26,7 +26,6 @@ PAGEFIND_VERSION = "1.0.4"
 
 class Platform(Enum):
     Linux_aarch64 = "aarch64-unknown-linux-musl"
-    Linux_armv7l = "armv7-unknown-linux-musleabihf"
     Linux_x86_64 = "x86_64-unknown-linux-musl"
     Macos_aarch64 = "aarch64-apple-darwin"
     Macos_x86_64 = "x86_64-apple-darwin"
@@ -43,8 +42,6 @@ class Platform(Enum):
         if system == "linux":
             if machine in ("aarch64", "arm64"):
                 return cls.Linux_aarch64
-            elif machine in ("armv7l", "armv8l"):
-                return cls.Linux_armv7l
             elif machine in ("amd64", "x86_64"):
                 return cls.Linux_x86_64
         elif system == "darwin":
@@ -56,7 +53,8 @@ class Platform(Enum):
             return cls.Windows_x86_64
 
         raise ValueError(
-            f"The current operating system / machine pair is not supported!: {system} / {machine}"
+            "The current operating system / machine pair is not supported for building docs!: "
+            f"{system} / {machine}"
         )
 
     @property

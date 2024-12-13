@@ -1,15 +1,18 @@
 [scie]
-pbs-release = "20241016"
-python-version = "3.13.0"
+pbs-release = "20241206"
+python-version = "3.13.1"
 
 pex-extras = [
     "management",
 ]
 
-platforms = [
-    "linux-aarch64",
-    "linux-armv7l",
-    "linux-x86_64",
-    "macos-aarch64",
-    "macos-x86_64",
-]
+[scie.platforms.linux-aarch64]
+
+[scie.platforms.linux-armv7l]
+# This customization gets us a lockable psutil wheel.
+python-version = "3.11.11"
+extra-lock-args = ["--index", "https://www.piwheels.org/simple"]
+
+[scie.platforms.linux-x86_64]
+[scie.platforms.macos-aarch64]
+[scie.platforms.macos-x86_64]
