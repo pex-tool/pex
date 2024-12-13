@@ -174,31 +174,29 @@ def create_lock(
     out: IO[str] = sys.stderr,
 ) -> None:
     print(f"Generating strict wheel-only lock for {len(complete_platforms)} platforms...", file=out)
-    subprocess.run(
-        args=[
-            sys.executable,
-            "-m",
-            "pex.cli",
-            "lock",
-            "sync",
-            "--project",
-            f".[{','.join(scie_config.pex_extras)}]",
-            "--no-build",
-            *itertools.chain.from_iterable(
-                ("--complete-platform", str(complete_platform))
-                for complete_platform in sorted(complete_platforms)
-            ),
-            "--pip-version",
-            "latest",
-            "--elide-unused-requires-dist",
-            "--indent",
-            "2",
-            "--lock",
-            str(lock_file),
-        ]
-        + list(scie_config.extra_lock_args),
-        check=True,
-    )
+    args = [
+        sys.executable,
+        "-m",
+        "pex.cli",
+        "lock",
+        "sync",
+        "--project",
+        f".[{','.join(scie_config.pex_extras)}]",
+        "--no-build",
+        *itertools.chain.from_iterable(
+            ("--complete-platform", str(complete_platform))
+            for complete_platform in sorted(complete_platforms)
+        ),
+        "--pip-version",
+        "latest",
+        "--elide-unused-requires-dist",
+        "--indent",
+        "2",
+        "--lock",
+        str(lock_file),
+    ]
+    args.extend(scie_config.extra_lock_args)
+    subprocess.run(args=args, check=True)
 
 
 @contextmanager
@@ -266,7 +264,11 @@ def main(out: IO[str]) -> str | int | None:
     parser.add_argument("--all", action="store_true")
     parser.add_argument("-f", "--force", action="store_true")
     parser.add_argument("--lock-file", type=Path, default=PACKAGE_DIR / "pex-scie.lock")
-    parser.add_argument("-L", "--only-sync-lock", action="store_true")
+    sync_lock_options = parser.add_mutually_exclusive_group()
+    sync_lock_options.add_argument("-L", "--only-sync-lock", default=False, action="store_true")
+    sync_lock_options.add_argument(
+        "--no-sync-lock", dest="sync_lock", default=True, action="store_false"
+    )
     parser.add_argument("-v", "--verbose", action="store_true")
     try:
         options = parser.parse_args()
@@ -308,15 +310,16 @@ def main(out: IO[str]) -> str | int | None:
                 return str(e)
             generated_files.append(complete_platform_file)
 
-    try:
-        create_lock(
-            lock_file=options.lock_file,
-            complete_platforms=tuple(options.dest_dir.glob("*.json")),
-            scie_config=scie_config,
-        )
-    except subprocess.CalledProcessError as e:
-        return str(e)
-    generated_files.append(options.lock_file)
+    if options.only_sync_lock or options.sync_lock:
+        try:
+            create_lock(
+                lock_file=options.lock_file,
+                complete_platforms=tuple(options.dest_dir.glob("*.json")),
+                scie_config=scie_config,
+            )
+        except subprocess.CalledProcessError as e:
+            return str(e)
+        generated_files.append(options.lock_file)
 
     for file in generated_files:
         print(str(file), file=out)
