@@ -1,5 +1,14 @@
 # Release Notes
 
+## 2.27.1
+
+This release fixes a bug in `PEX_ROOT` handling that could manifest
+with symlinked `HOME` dirs or more generally symlinked dirs being
+parents of the `PEX_ROOT`. Although this was claimed to be fixed in
+the Pex 2.20.4 release by #2574, there was one missing case not handled.
+
+* Ensure that the `PEX_ROOT` is always a realpath. (#2626)
+
 ## 2.27.0
 
 This release adds a Pex PEX scie for armv7l.
