@@ -380,7 +380,7 @@ def test_custom_lazy_urls(tmpdir):
     def make_20240415_3_10_14_url(platform):
         # type: (str) -> str
         return (
-            "https://github.com/indygreg/python-build-standalone/releases/download/20240415/"
+            "https://github.com/astral-sh/python-build-standalone/releases/download/20240415/"
             "cpython-3.10.14+20240415-{platform}-install_only.tar.gz".format(platform=platform)
         )
 
