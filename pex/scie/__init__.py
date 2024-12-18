@@ -187,7 +187,7 @@ def register_options(parser):
             "The Python Standalone Builds release to use when a CPython interpreter distribution "
             "is needed for the PEX scie. Currently, releases are dates of the form YYYYMMDD, "
             "e.g.: '20240713'. See their GitHub releases page at"
-            "https://github.com/indygreg/python-build-standalone/releases to discover available "
+            "https://github.com/astral-sh/python-build-standalone/releases to discover available "
             "releases. If left unspecified the latest release is used. N.B.: The latest lookup is "
             "cached for 5 days. To force a fresh lookup you can remove the cache at "
             "<USER CACHE DIR>/science/downloads."
@@ -219,7 +219,7 @@ def register_options(parser):
             "If you don't specify this option, Pex will do its best to guess appropriate portable "
             "CPython versions. N.B.: Python Standalone Builds does not provide all patch versions; "
             "so you should check their releases at "
-            "https://github.com/indygreg/python-build-standalone/releases if you wish to pin down "
+            "https://github.com/astral-sh/python-build-standalone/releases if you wish to pin down "
             "to the patch level."
         ),
     )
@@ -365,7 +365,7 @@ def extract_options(options):
                 "Invalid Python version: '{python_version}'.\n"
                 "Scies are built using Python Standalone Builds which only supports Python >=3.8.\n"
                 "To find supported Python versions, you can browse the releases here:\n"
-                "  https://github.com/indygreg/python-build-standalone/releases".format(
+                "  https://github.com/astral-sh/python-build-standalone/releases".format(
                     python_version=options.scie_python_version
                 )
             )

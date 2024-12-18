@@ -47,7 +47,7 @@ def test_ssl_context(
             )
         )
 
-    pbs_release = "https://github.com/indygreg/python-build-standalone/releases/download/20240107"
+    pbs_release = "https://github.com/astral-sh/python-build-standalone/releases/download/20240107"
     pbs_archive = "cpython-3.9.18+20240107-{arch}-unknown-linux-gnu-install_only.tar.gz".format(
         arch="x86_64" if IS_X86_64 else "aarch64"
     )

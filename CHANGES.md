@@ -453,7 +453,7 @@ platform the PEX supports). These PEX scies are single file
 executables that look and behave like traditional PEXes, but unlike
 PEXes they can run on a machine with no Python interpreter available.
 
-[PBS]: https://github.com/indygreg/python-build-standalone
+[PBS]: https://github.com/astral-sh/python-build-standalone
 [scie]: https://github.com/a-scie
 
 * Add `--scie` option to produce native PEX exes. (#2466)
