@@ -12,7 +12,7 @@ from pex.dist_metadata import Requirement
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.requirements import LocalProjectRequirement, parse_requirement_strings
-from pex.resolve.locked_resolve import Resolved
+from pex.resolve.locked_resolve import LockedResolve, Resolved
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import BuildConfiguration
@@ -41,6 +41,41 @@ class Subset(object):
 class SubsetResult(object):
     requirements = attr.ib()  # type: Tuple[ParsedRequirement, ...]
     subsets = attr.ib()  # type: Tuple[Subset, ...]
+
+
+def subset_for_target(
+    target,  # type: Target
+    locked_resolves,  # type: Iterable[LockedResolve]
+    requirements_to_resolve,  # type: Iterable[Requirement]
+    constraints=(),  # type: Iterable[Requirement]
+    source=None,  # type: Optional[str]
+    build_configuration=BuildConfiguration(),  # type: BuildConfiguration
+    transitive=True,  # type: bool
+    include_all_matches=False,  # type: bool
+    dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
+):
+    # type: (...) -> Union[Resolved, Tuple[Error, ...]]
+    resolveds = []
+    errors = []
+    for locked_resolve in locked_resolves:
+        resolve_result = locked_resolve.resolve(
+            target,
+            requirements_to_resolve,
+            constraints=constraints,
+            source=source,
+            build_configuration=build_configuration,
+            transitive=transitive,
+            include_all_matches=include_all_matches,
+            dependency_configuration=dependency_configuration,
+            # TODO(John Sirois): Plumb `--ignore-errors` to support desired but technically
+            #  invalid `pip-legacy-resolver` locks:
+            #  https://github.com/pex-tool/pex/issues/1652
+        )
+        if isinstance(resolve_result, Resolved):
+            resolveds.append(resolve_result)
+        else:
+            errors.append(resolve_result)
+    return Resolved.most_specific(resolveds) if resolveds else tuple(errors)
 
 
 def subset(
@@ -105,31 +140,21 @@ def subset(
         )
     ):
         for target in targets.unique_targets():
-            resolveds = []
-            errors = []
-            for locked_resolve in lock.locked_resolves:
-                resolve_result = locked_resolve.resolve(
-                    target,
-                    requirements_to_resolve,
-                    constraints=constraints,
-                    source=lock.source,
-                    build_configuration=build_configuration,
-                    transitive=transitive,
-                    include_all_matches=include_all_matches,
-                    dependency_configuration=dependency_configuration,
-                    # TODO(John Sirois): Plumb `--ignore-errors` to support desired but technically
-                    #  invalid `pip-legacy-resolver` locks:
-                    #  https://github.com/pex-tool/pex/issues/1652
-                )
-                if isinstance(resolve_result, Resolved):
-                    resolveds.append(resolve_result)
-                else:
-                    errors.append(resolve_result)
-
-            if resolveds:
-                resolved_by_target[target] = Resolved.most_specific(resolveds)
-            elif errors:
-                errors_by_target[target] = tuple(errors)
+            result = subset_for_target(
+                target,
+                locked_resolves=lock.locked_resolves,
+                requirements_to_resolve=requirements_to_resolve,
+                constraints=constraints,
+                source=lock.source,
+                build_configuration=build_configuration,
+                transitive=transitive,
+                include_all_matches=include_all_matches,
+                dependency_configuration=dependency_configuration,
+            )
+            if isinstance(result, Resolved):
+                resolved_by_target[target] = result
+            elif len(result) > 0:
+                errors_by_target[target] = result
 
     if errors_by_target:
         return Error(
