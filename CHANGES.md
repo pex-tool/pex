@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.28.0
+
+This release adds Pex `--scie {eager,lazy}` support for Linux ppc64le
+and s390x.
+
+* Add `--scie` support for Linux ppc64le and s390x. (#2635)
+
 ## 2.27.1
 
 This release fixes a bug in `PEX_ROOT` handling that could manifest
