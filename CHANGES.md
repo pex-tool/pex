@@ -5,7 +5,7 @@
 This release adds Pex `--scie {eager,lazy}` support for Linux ppc64le
 and s390x.
 
-* Add support for Linux ppc64le and s390x. (#2635)
+* Add `--scie` support for Linux ppc64le and s390x. (#2635)
 
 ## 2.27.1
 
