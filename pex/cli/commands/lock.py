@@ -542,6 +542,20 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 "extras deps that are never activated, but may trim more in the future."
             ),
         )
+        create_parser.add_argument(
+            "--lock-build-systems",
+            "--no-lock-build-systems",
+            dest="lock_build_systems",
+            default=False,
+            action=HandleBoolAction,
+            type=bool,
+            help=(
+                "When creating a lock that includes sdists, VCS requirements or local project "
+                "directories that will later need to be built into wheels when using the lock, "
+                "also lock the build system for each of these source tree artifacts to ensure "
+                "consistent build environments at future times."
+            ),
+        )
         cls._add_lock_options(create_parser)
         cls._add_resolve_options(create_parser)
         cls.add_json_options(create_parser, entity="lock", include_switch=False)
@@ -818,6 +832,33 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         ) as sync_parser:
             cls._add_sync_arguments(sync_parser)
 
+    def _get_lock_configuration(self, target_configuration):
+        # type: (TargetConfiguration) -> Union[LockConfiguration, Error]
+        if self.options.style is LockStyle.UNIVERSAL:
+            return LockConfiguration(
+                style=LockStyle.UNIVERSAL,
+                requires_python=tuple(
+                    str(interpreter_constraint.requires_python)
+                    for interpreter_constraint in target_configuration.interpreter_constraints
+                ),
+                target_systems=tuple(self.options.target_systems),
+                elide_unused_requires_dist=self.options.elide_unused_requires_dist,
+                lock_build_systems=self.options.lock_build_systems,
+            )
+
+        if self.options.target_systems:
+            return Error(
+                "The --target-system option only applies to --style {universal} locks.".format(
+                    universal=LockStyle.UNIVERSAL.value
+                )
+            )
+
+        return LockConfiguration(
+            style=self.options.style,
+            elide_unused_requires_dist=self.options.elide_unused_requires_dist,
+            lock_build_systems=self.options.lock_build_systems,
+        )
+
     def _resolve_targets(
         self,
         action,  # type: str
@@ -907,28 +948,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         target_configuration = target_options.configure(
             self.options, pip_configuration=pip_configuration
         )
-        if self.options.style == LockStyle.UNIVERSAL:
-            lock_configuration = LockConfiguration(
-                style=LockStyle.UNIVERSAL,
-                requires_python=tuple(
-                    str(interpreter_constraint.requires_python)
-                    for interpreter_constraint in target_configuration.interpreter_constraints
-                ),
-                target_systems=tuple(self.options.target_systems),
-                elide_unused_requires_dist=self.options.elide_unused_requires_dist,
-            )
-        elif self.options.target_systems:
-            return Error(
-                "The --target-system option only applies to --style {universal} locks.".format(
-                    universal=LockStyle.UNIVERSAL.value
-                )
-            )
-        else:
-            lock_configuration = LockConfiguration(
-                style=self.options.style,
-                elide_unused_requires_dist=self.options.elide_unused_requires_dist,
-            )
-
+        lock_configuration = try_(self._get_lock_configuration(target_configuration))
         targets = try_(
             self._resolve_targets(
                 action="creating",
@@ -1491,8 +1511,8 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 lock_file=attr.evolve(
                     lock_file,
                     pex_version=__version__,
-                    requirements=SortedTuple(requirements_by_project_name.values(), key=str),
-                    constraints=SortedTuple(constraints_by_project_name.values(), key=str),
+                    requirements=SortedTuple(requirements_by_project_name.values()),
+                    constraints=SortedTuple(constraints_by_project_name.values()),
                     locked_resolves=SortedTuple(
                         resolve_update.updated_resolve for resolve_update in lock_update.resolves
                     ),
@@ -1576,28 +1596,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         target_configuration = target_options.configure(
             self.options, pip_configuration=pip_configuration
         )
-        if self.options.style == LockStyle.UNIVERSAL:
-            lock_configuration = LockConfiguration(
-                style=LockStyle.UNIVERSAL,
-                requires_python=tuple(
-                    str(interpreter_constraint.requires_python)
-                    for interpreter_constraint in target_configuration.interpreter_constraints
-                ),
-                target_systems=tuple(self.options.target_systems),
-                elide_unused_requires_dist=self.options.elide_unused_requires_dist,
-            )
-        elif self.options.target_systems:
-            return Error(
-                "The --target-system option only applies to --style {universal} locks.".format(
-                    universal=LockStyle.UNIVERSAL.value
-                )
-            )
-        else:
-            lock_configuration = LockConfiguration(
-                style=self.options.style,
-                elide_unused_requires_dist=self.options.elide_unused_requires_dist,
-            )
-
+        lock_configuration = try_(self._get_lock_configuration(target_configuration))
         lock_file_path = self.options.lock
         if os.path.exists(lock_file_path):
             build_configuration = pip_configuration.build_configuration
