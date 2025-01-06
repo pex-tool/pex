@@ -310,7 +310,7 @@ def test_specified_science_binary(tmpdir):
 
     local_science_binary = os.path.join(str(tmpdir), "science")
     with open(local_science_binary, "wb") as write_fp, URLFetcher().get_body_stream(
-        "https://github.com/a-scie/lift/releases/download/v0.10.0/{binary}".format(
+        "https://github.com/a-scie/lift/releases/download/v0.10.1/{binary}".format(
             binary=SciePlatform.CURRENT.qualified_binary_name("science")
         )
     ) as read_fp:
@@ -354,7 +354,7 @@ def test_specified_science_binary(tmpdir):
         cached_science_binaries
     ), "Expected the local science binary to be used but not cached."
     assert (
-        "0.10.0"
+        "0.10.1"
         == subprocess.check_output(args=[local_science_binary, "--version"]).decode("utf-8").strip()
     )
 
