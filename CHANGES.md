@@ -1,5 +1,14 @@
 # Release Notes
 
+## 2.28.1
+
+This release upgrades `science` for use in building PEX scies with
+`--scie {eager,lazy}`. The upgraded `science` fixes issues dealing
+handling failed Python distribution downloads and should now be more
+robust and clear when downloads fail.
+
+* Upgrade `science` minimum requirement to 0.10.1. (#2637)
+
 ## 2.28.0
 
 This release adds Pex `--scie {eager,lazy}` support for Linux ppc64le
