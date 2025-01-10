@@ -660,7 +660,7 @@ class Variables(object):
 
     @PEX_ROOT.validator
     def _ensure_writeable_pex_root(self, raw_pex_root):
-        pex_root = os.path.expanduser(raw_pex_root)
+        pex_root = os.path.realpath(os.path.expanduser(raw_pex_root))
         if not can_write_dir(pex_root):
             tmp_root = os.path.realpath(safe_mkdtemp())
             pex_warnings.warn(
@@ -905,7 +905,7 @@ def venv_dir(
     if (
         ENV.PEX_PYTHON
         and not precise_pex_python
-        and not re.match(r".*[^\d][\d]+\.[\d+]$", ENV.PEX_PYTHON)
+        and not re.match(r".*[^\d][\d]+\.[\d]+$", ENV.PEX_PYTHON)
     ):
         warn(
             dedent(

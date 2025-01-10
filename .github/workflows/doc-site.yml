@@ -33,7 +33,7 @@ jobs:
         with:
           python-version: "3.11"
       - name: Build Doc Site
-        uses: pantsbuild/actions/run-tox@b16b9cf47cd566acfe217b1dafc5b452e27e6fd7
+        uses: pex-tool/actions/run-tox@c53dadd8b410bbd66480de91067e9e45d2b3af38
         with:
           tox-env: docs -- --linkcheck --pdf --clean-html
       - name: Setup Pages

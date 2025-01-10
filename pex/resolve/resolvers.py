@@ -92,6 +92,7 @@ def check_resolve(
     resolved_distributions,  # type: Iterable[ResolvedDistribution]
 ):
     # type: (...) -> None
+
     resolved_distributions_by_project_name = (
         OrderedDict()
     )  # type: OrderedDict[ProjectName, List[ResolvedDistribution]]
@@ -102,11 +103,77 @@ def check_resolve(
 
     maybe_unsatisfied = defaultdict(list)  # type: DefaultDict[Target, List[str]]
     unsatisfied = defaultdict(list)  # type: DefaultDict[Target, List[str]]
+
+    def check(
+        target,  # type: Target
+        dist,  # type: Distribution
+        requirement,  # type: Requirement
+        root=False,  # type: bool
+    ):
+        # type: (...) -> None
+
+        required_by = (
+            "{requirement} was requested".format(requirement=requirement)
+            if root
+            else "{dist} requires {requirement}".format(dist=dist, requirement=requirement)
+        )
+        installed_requirement_dists = resolved_distributions_by_project_name.get(
+            requirement.project_name
+        )
+        if not installed_requirement_dists:
+            unsatisfied[target].append(
+                "{required_by} but no version was resolved".format(required_by=required_by)
+            )
+        else:
+            resolved_dists = [
+                installed_requirement_dist.distribution
+                for installed_requirement_dist in installed_requirement_dists
+            ]
+            version_matches = any(
+                (
+                    # We don't attempt a match against a legacy version in order to avoid false
+                    # negatives.
+                    resolved_dist.metadata.version.is_legacy
+                    or requirement.specifier.contains(resolved_dist.version, prereleases=True)
+                )
+                for resolved_dist in resolved_dists
+            )
+            tags_match = any(
+                target.wheel_applies(resolved_dist) for resolved_dist in resolved_dists
+            )
+            if not version_matches or not tags_match:
+                message = (
+                    "{required_by} but {count} incompatible {dists_were} resolved:\n"
+                    "        {dists}".format(
+                        required_by=required_by,
+                        count=len(resolved_dists),
+                        dists_were="dists were" if len(resolved_dists) > 1 else "dist was",
+                        dists="\n        ".join(
+                            os.path.basename(resolved_dist.location)
+                            for resolved_dist in resolved_dists
+                        ),
+                    )
+                )
+                if version_matches and not tags_match and isinstance(target, AbbreviatedPlatform):
+                    # We don't know for sure an abbreviated platform doesn't match a wheels tags
+                    # until we are running on that platform; so just warn for these instead of
+                    # hard erroring.
+                    maybe_unsatisfied[target].append(message)
+                else:
+                    unsatisfied[target].append(message)
+
     for resolved_distribution in itertools.chain.from_iterable(
         resolved_distributions_by_project_name.values()
     ):
-        dist = resolved_distribution.distribution
         target = resolved_distribution.target
+        for root_req in resolved_distribution.direct_requirements:
+            check(
+                target=target,
+                dist=resolved_distribution.distribution,
+                requirement=root_req,
+                root=True,
+            )
+        dist = resolved_distribution.distribution
 
         for requirement in dist.requires():
             if dependency_configuration.excluded_by(requirement):
@@ -116,53 +183,7 @@ def check_resolve(
             )
             if not target.requirement_applies(requirement):
                 continue
-
-            installed_requirement_dists = resolved_distributions_by_project_name.get(
-                requirement.project_name
-            )
-            if not installed_requirement_dists:
-                unsatisfied[target].append(
-                    "{dist} requires {requirement} but no version was resolved".format(
-                        dist=dist.as_requirement(), requirement=requirement
-                    )
-                )
-            else:
-                resolved_dists = [
-                    installed_requirement_dist.distribution
-                    for installed_requirement_dist in installed_requirement_dists
-                ]
-                version_matches = any(
-                    requirement.specifier.contains(resolved_dist.version, prereleases=True)
-                    for resolved_dist in resolved_dists
-                )
-                tags_match = any(
-                    target.wheel_applies(resolved_dist) for resolved_dist in resolved_dists
-                )
-                if not version_matches or not tags_match:
-                    message = (
-                        "{dist} requires {requirement} but {count} incompatible {dists_were} "
-                        "resolved:\n        {dists}".format(
-                            dist=dist,
-                            requirement=requirement,
-                            count=len(resolved_dists),
-                            dists_were="dists were" if len(resolved_dists) > 1 else "dist was",
-                            dists="\n        ".join(
-                                os.path.basename(resolved_dist.location)
-                                for resolved_dist in resolved_dists
-                            ),
-                        )
-                    )
-                    if (
-                        version_matches
-                        and not tags_match
-                        and isinstance(target, AbbreviatedPlatform)
-                    ):
-                        # We don't know for sure an abbreviated platform doesn't match a wheels tags
-                        # until we are running on that platform; so just warn for these instead of
-                        # hard erroring.
-                        maybe_unsatisfied[target].append(message)
-                    else:
-                        unsatisfied[target].append(message)
+            check(target, dist, requirement)
 
     if unsatisfied:
         unsatisfieds = []

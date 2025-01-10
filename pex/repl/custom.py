@@ -107,11 +107,10 @@ def repl_loop(
     custom_commands=None,  # type: Optional[Mapping[str, Tuple[Callable, str]]]
     history=False,  # type: bool
     history_file=None,  # type: Optional[str]
-    use_libedit_color_prompt_workaround=False,  # type: bool
 ):
     # type: (...) -> Callable[[], Dict[str, Any]]
 
-    libedit = _try_enable_readline(history=history, history_file=history_file)
+    _try_enable_readline(history=history, history_file=history_file)
 
     _custom_commands = custom_commands or {}
 
@@ -147,20 +146,6 @@ def repl_loop(
 
         if not use_color:
             text = _ANSI_RE.sub("", text)
-        elif prompt and libedit and use_libedit_color_prompt_workaround:
-            # Most versions of libedit do not support ansi terminal escape sequences, but they do
-            # support a readline back door where you can bracket characters that should be ignored
-            # for prompt width calculation but otherwise passed through unaltered to the terminal.
-            # This back door is defined in readline.h, which libedit implements, with the
-            # RL_PROMPT_START_IGNORE and RL_PROMPT_END_IGNORE character constants which we use
-            # below to bracket ansi terminal escape sequences.
-            #
-            # See:
-            # + https://tiswww.cwru.edu/php/chet/readline/readline.html#index-rl_005fexpand_005fprompt
-            # + https://git.savannah.gnu.org/cgit/readline.git/tree/readline.h?id=037d85f199a8c6e5b16689a46c8bc31b586a0c94#n884
-            text = _ANSI_RE.sub(
-                lambda match: "\001{ansi_sequence}\002".format(ansi_sequence=match.group(0)), text
-            )
         return text + " " if prompt else text
 
     repl_banner = fixup_ansi(banner) if banner else banner

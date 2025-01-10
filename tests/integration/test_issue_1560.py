@@ -2,17 +2,20 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os.path
+import re
 import subprocess
+from textwrap import dedent
 
 import pytest
 
-from pex import toml
+from pex.common import safe_open, touch
 from pex.typing import TYPE_CHECKING
 from testing import IntegResults, VenvFactory, all_python_venvs, make_source_dir, run_pex_command
+from testing.pytest.tmp import Tempdir
 from testing.pythonPI import skip_flit_core_39
 
 if TYPE_CHECKING:
-    from typing import Any
+    pass
 
 
 @pytest.mark.parametrize(
@@ -24,33 +27,42 @@ if TYPE_CHECKING:
 )
 def test_build_isolation(
     venv_factory,  # type: VenvFactory
-    pex_project_dir,  # type: str
-    tmpdir,  # type: Any
+    tmpdir,  # type: Tempdir
 ):
     # type: (...) -> None
 
+    project_dir = tmpdir.join("project")
+    build_requirements = ["flit_core"]
+    with safe_open(os.path.join(project_dir, "pyproject.toml"), "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                [build-system]
+                requires = {build_requirements!r}
+                build-backend = "flit_core.buildapi"
+
+                [project]
+                name = "foo"
+                version = "0.0.1"
+                description = "Quality bars."
+                """
+            ).format(build_requirements=build_requirements)
+        )
+    touch(os.path.join(project_dir, "foo.py"))
+
     python, pip = venv_factory.create_venv()
-
-    pyproject = toml.load(os.path.join(pex_project_dir, "pyproject.toml"))
-    build_requirements = pyproject["build-system"]["requires"]
-    assert len(build_requirements) > 0
-
-    subprocess.check_call(args=[pip, "uninstall", "-y"] + build_requirements)
-    result = run_pex_command(args=[pex_project_dir, "--no-build-isolation"], python=python)
-    result.assert_failure()
-    assert "ModuleNotFoundError: " in result.error, (
-        "With build isolation turned off, it's expected that any build requirements "
-        "(setuptools for Pex) are pre-installed. They are not; so we expect a failure here. Got:\n"
-        "{error}".format(error=result.error)
+    run_pex_command(args=[project_dir, "--no-build-isolation"], python=python).assert_failure(
+        expected_error_re=r".*ModuleNotFoundError: No module named 'flit_core'.*",
+        re_flags=re.DOTALL,
     )
 
     subprocess.check_call(args=[pip, "install"] + build_requirements)
 
     pex = os.path.join(str(tmpdir), "pex")
     run_pex_command(
-        args=[pex_project_dir, "--no-build-isolation", "-o", pex], python=python
+        args=[project_dir, "--no-build-isolation", "-o", pex], python=python
     ).assert_success()
-    subprocess.check_call(args=[python, pex, "-c", "import pex"])
+    subprocess.check_call(args=[python, pex, "-c", "import foo"])
 
 
 @skip_flit_core_39

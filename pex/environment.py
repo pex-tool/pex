@@ -527,20 +527,18 @@ class PEXEnvironment(object):
                 )
                 unavailable_dists = self._unavailable_dists_by_project_name.get(project_name)
                 if unavailable_dists:
-                    message += (
-                        "\nFound {count} {distributions} for {project_name} that do not apply:\n"
-                        "{unavailable_dists}".format(
-                            count=len(unavailable_dists),
-                            distributions=pluralize(unavailable_dists, "distribution"),
-                            project_name=project_name,
-                            unavailable_dists="\n".join(
-                                "{index}.) {message}".format(
-                                    index=index,
-                                    message=unavailable_dist.render_message(self._target),
-                                )
-                                for index, unavailable_dist in enumerate(unavailable_dists, start=1)
-                            ),
-                        )
+                    message += "\nFound {count} {distributions} for {project_name} that {does} not apply:\n" "{unavailable_dists}".format(
+                        count=len(unavailable_dists),
+                        distributions=pluralize(unavailable_dists, "distribution"),
+                        project_name=project_name,
+                        does="does" if len(unavailable_dists) == 1 else "do",
+                        unavailable_dists="\n".join(
+                            "{index}.) {message}".format(
+                                index=index,
+                                message=unavailable_dist.render_message(self._target),
+                            )
+                            for index, unavailable_dist in enumerate(unavailable_dists, start=1)
+                        ),
                     )
                 raise ResolveError(message)
             candidates = [

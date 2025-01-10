@@ -151,7 +151,14 @@ class VendorSpec(
         if not self.rewrite:
             # The extra package structure is only required by Pex for vendored code used via import
             # rewrites.
-            return
+
+            # N.B.: Although we've historically early-returned here, the switch from flit to
+            # setuptools for our build backend necessitates all vendored dists are seen as part of
+            # the `pex` package tree by setuptools to get all vendored code properly included in
+            # our distribution.
+            # TODO(John Sirois): re-introduce early return once it is no longer foils our build
+            #  process.
+            pass
 
         for index, _ in enumerate(self._subpath_components):
             relpath = _PACKAGE_COMPONENTS + self._subpath_components[: index + 1] + ["__init__.py"]
@@ -180,9 +187,11 @@ class VendorSpec(
 #     bringing it up to date with certifi 2024.7.4.
 # 5.) https://github.com/pex-tool/pip/commit/963e2d662597bfa4298eb3c0c51bc113c4508a80
 #     Automated update of Pip's vendored certifi's cacert.pem to that from certifi 2024.8.30.
+# 6.) https://github.com/pex-tool/pip/commit/b83e4ef396a98599111e96bfdcd19c5f3ee7c5c7
+#     Automated update of Pip's vendored certifi's cacert.pem to that from certifi 2024.12.14.
 PIP_SPEC = VendorSpec.git(
     repo="https://github.com/pex-tool/pip",
-    commit="963e2d662597bfa4298eb3c0c51bc113c4508a80",
+    commit="b83e4ef396a98599111e96bfdcd19c5f3ee7c5c7",
     project_name="pip",
     rewrite=False,
 )

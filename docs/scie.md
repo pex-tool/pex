@@ -21,7 +21,7 @@ system as well.
 When you add the `--scie eager` option to your `pex` command line, Pex uses the [science](
 https://science.scie.app/) [projects](https://github.com/a-scie/) to produce what is known as a
 `scie` (pronounced like "ski") binary powered by the [Python Standalone Builds](
-https://github.com/indygreg/python-build-standalone) CPython distributions or the distributions
+https://github.com/astral-sh/python-build-standalone) CPython distributions or the distributions
 released by [PyPy](https://pypy.org/download.html) depending on which interpreter your PEX targets.
 The end product looks and behaves like a traditional PEX except in two aspects:
 + The PEX scie file is larger than the equivalent PEX file since it contains a Python distribution.
@@ -190,7 +190,7 @@ content hash does not match, the PEX scie will fail to boot. For example:
 @@ -1,5 +1,5 @@
  {
    "ptex": {
--    "cpython-3.11.9+20240726-x86_64-unknown-linux-gnu-install_only.tar.gz": "https://github.com/indygreg/python-build-standalone/releases/download/20240726/cpython-3.11.9%2B20240726-x86_64-unknown-linux-gnu-install_only.tar.gz"
+-    "cpython-3.11.9+20240726-x86_64-unknown-linux-gnu-install_only.tar.gz": "https://github.com/astral-sh/python-build-standalone/releases/download/20240726/cpython-3.11.9%2B20240726-x86_64-unknown-linux-gnu-install_only.tar.gz"
 +    "cpython-3.11.9+20240726-x86_64-unknown-linux-gnu-install_only.tar.gz": "file:///etc/hosts"
    }
  }
@@ -208,7 +208,7 @@ size 410 had unexpected hash: 16183c427758316754b82e4d48d63c265ee46ec5ae96a40d90
 can correct this by re-pointing to a valid file:
 ```sh
 # Download the expected dstribution:
-:; curl -fL https://github.com/indygreg/python-build-standalone/releases/download/20240726/cpython-3.11.9%2B20240726-x86_64-unknown-linux-gnu-install_only.tar.gz > /tmp/example
+:; curl -fL https://github.com/astral-sh/python-build-standalone/releases/download/20240726/cpython-3.11.9%2B20240726-x86_64-unknown-linux-gnu-install_only.tar.gz > /tmp/example
 
 # Re-point to the now valid copy of the expected Python distribution:
 :; jq 'first(.ptex | .[]) = "file:///tmp/example"' starter.json > pythons.json
@@ -218,7 +218,7 @@ can correct this by re-pointing to a valid file:
 @@ -1,5 +1,5 @@
  {
    "ptex": {
--    "cpython-3.11.9+20240726-x86_64-unknown-linux-gnu-install_only.tar.gz": "https://github.com/indygreg/python-build-standalone/releases/download/20240726/cpython-3.11.9%2B20240726-x86_64-unknown-linux-gnu-install_only.tar.gz"
+-    "cpython-3.11.9+20240726-x86_64-unknown-linux-gnu-install_only.tar.gz": "https://github.com/astral-sh/python-build-standalone/releases/download/20240726/cpython-3.11.9%2B20240726-x86_64-unknown-linux-gnu-install_only.tar.gz"
 +    "cpython-3.11.9+20240726-x86_64-unknown-linux-gnu-install_only.tar.gz": "file:///tmp/example"
    }
  }

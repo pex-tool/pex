@@ -40,7 +40,7 @@ MUSL_LIBC_CAPABLE_PIP_VERSIONS = tuple(musl_libc_capable_pip_versions())
 def statically_linked_musl_libc_cpython(shared_integration_test_tmpdir):
     # type: (str) -> str
     pbs_distribution_url = (
-        "https://github.com/indygreg/python-build-standalone/releases/download/20221220/"
+        "https://github.com/astral-sh/python-build-standalone/releases/download/20221220/"
         "cpython-3.10.9+20221220-x86_64_v3-unknown-linux-musl-install_only.tar.gz"
     )
     tarball_name = os.path.basename(urlparse.urlparse(pbs_distribution_url).path)

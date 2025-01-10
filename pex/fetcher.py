@@ -105,7 +105,7 @@ class _CertConfig(object):
         # [^3]: https://github.com/openssl/openssl/blob/c3cc0f1386b0544383a61244a4beeb762b67498f/crypto/objects/obj_dat.c#L326-L340
         # [^4]: https://github.com/openssl/openssl/blob/c3cc0f1386b0544383a61244a4beeb762b67498f/ssl/ssl_lib.c#L3194-L3212
         # [^5]: https://github.com/openssl/openssl/blob/c3cc0f1386b0544383a61244a4beeb762b67498f/ssl/ssl_init.c#L86-L116
-        # [^6]: https://github.com/indygreg/python-build-standalone/releases/tag/20240107
+        # [^6]: https://github.com/astral-sh/python-build-standalone/releases/tag/20240107
         # [^7]: https://gitlab.com/redhat-crypto/fedora-crypto-policies/-/merge_requests/110/diffs#269a48e71ac25ad1d07ff00db2390834c8ba7596_11_16
         production_assert(
             in_main_thread(),

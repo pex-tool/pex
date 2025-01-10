@@ -76,6 +76,8 @@ if TYPE_CHECKING:
     from typing import IO, Dict, Iterable, List, Mapping, Optional, Set, Text, Tuple, Union
 
     import attr  # vendor:skip
+
+    from pex.resolve.lockfile.updater import Update
 else:
     from pex.third_party import attr
 
@@ -526,6 +528,20 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 )
             ),
         )
+        create_parser.add_argument(
+            "--elide-unused-requires-dist",
+            "--no-elide-unused-requires-dist",
+            dest="elide_unused_requires_dist",
+            type=bool,
+            default=False,
+            action=HandleBoolAction,
+            help=(
+                "When creating the lock, elide dependencies from the 'requires_dists' lists that "
+                "can never be active due to markers. This does not change the reachable content of "
+                "the lock, but it does cut down on lock file size. This currently only elides "
+                "extras deps that are never activated, but may trim more in the future."
+            ),
+        )
         cls._add_lock_options(create_parser)
         cls._add_resolve_options(create_parser)
         cls.add_json_options(create_parser, entity="lock", include_switch=False)
@@ -899,6 +915,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                     for interpreter_constraint in target_configuration.interpreter_constraints
                 ),
                 target_systems=tuple(self.options.target_systems),
+                elide_unused_requires_dist=self.options.elide_unused_requires_dist,
             )
         elif self.options.target_systems:
             return Error(
@@ -907,7 +924,10 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 )
             )
         else:
-            lock_configuration = LockConfiguration(style=self.options.style)
+            lock_configuration = LockConfiguration(
+                style=self.options.style,
+                elide_unused_requires_dist=self.options.elide_unused_requires_dist,
+            )
 
         targets = try_(
             self._resolve_targets(
@@ -1242,7 +1262,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         dry_run = self.options.dry_run
         path_mappings = self._get_path_mappings()
         output = sys.stdout if dry_run is DryRunStyle.DISPLAY else sys.stderr
-        updates = []  # type: List[Union[DeleteUpdate, VersionUpdate, ArtifactsUpdate]]
+        updates = []  # type: List[Update]
         warnings = []  # type: List[str]
         for resolve_update in lock_update.resolves:
             platform = resolve_update.updated_resolve.target_platform
@@ -1317,7 +1337,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                         )
                         if update_req:
                             requirements_by_project_name[project_name] = update_req
-                else:
+                elif isinstance(update, ArtifactsUpdate):
                     message_lines = [
                         "  {lead_in} {project_name} {version} artifacts:".format(
                             lead_in="Would update" if dry_run else "Updated",
@@ -1351,8 +1371,25 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                             )
                             for artifact in update.removed
                         )
-
                     print("\n".join(message_lines), file=output)
+                else:
+                    message_lines = [
+                        "  {lead_in} {project_name} {version} requirements:".format(
+                            lead_in="Would update" if dry_run else "Updated",
+                            project_name=project_name,
+                            version=update.version,
+                        )
+                    ]
+                    if update.added:
+                        message_lines.extend(
+                            "    + {added}".format(added=req) for req in update.added
+                        )
+                    if update.removed:
+                        message_lines.extend(
+                            "    - {removed}".format(removed=req) for req in update.removed
+                        )
+                    print("\n".join(message_lines), file=output)
+
             if fingerprint_updates:
                 warnings.append(
                     "Detected fingerprint changes in the following locked {projects} for lock "
@@ -1547,6 +1584,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                     for interpreter_constraint in target_configuration.interpreter_constraints
                 ),
                 target_systems=tuple(self.options.target_systems),
+                elide_unused_requires_dist=self.options.elide_unused_requires_dist,
             )
         elif self.options.target_systems:
             return Error(
@@ -1555,7 +1593,10 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 )
             )
         else:
-            lock_configuration = LockConfiguration(style=self.options.style)
+            lock_configuration = LockConfiguration(
+                style=self.options.style,
+                elide_unused_requires_dist=self.options.elide_unused_requires_dist,
+            )
 
         lock_file_path = self.options.lock
         if os.path.exists(lock_file_path):
@@ -1566,6 +1607,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 style=lock_configuration.style,
                 requires_python=SortedTuple(lock_configuration.requires_python),
                 target_systems=SortedTuple(lock_configuration.target_systems),
+                elide_unused_requires_dist=lock_configuration.elide_unused_requires_dist,
                 pip_version=pip_configuration.version,
                 resolver_version=pip_configuration.resolver_version,
                 allow_prereleases=pip_configuration.allow_prereleases,

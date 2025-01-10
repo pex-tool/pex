@@ -45,7 +45,7 @@ def test_resolved_wheel_tag_platform_mismatch_warns(
                 ENV PATH=/pex/venv/bin:$PATH
 
                 RUN mkdir /work
-                WORKDIR = /work
+                WORKDIR /work
                 """.format(
                     pex_wheel=os.path.basename(pex_wheel)
                 )
@@ -77,7 +77,8 @@ def test_resolved_wheel_tag_platform_mismatch_warns(
         stderr=subprocess.PIPE,
     )
     stdout, stderr = process.communicate()
-    assert 0 == process.returncode
+    error = stderr.decode("utf-8")
+    assert 0 == process.returncode, error
 
     # N.B.: The tags calculated for manylinux_2_28_x86_64-cp-3.11.9-cp311 via `pip -v debug ...`
     # are:
@@ -93,12 +94,14 @@ def test_resolved_wheel_tag_platform_mismatch_warns(
     #
     # Instead of failing the resolve check though, we should just see a warning since both of these
     # tags may be compatible at runtime, and, in fact, they are.
-    error = stderr.decode("utf-8")
     assert (
         dedent(
             """\
             PEXWarning: The resolved distributions for 1 target may not be compatible:
             1: abbreviated platform cp311-cp311-manylinux_2_28_x86_64 may not be compatible with:
+                cffi==1.16.0 was requested but 2 incompatible dists were resolved:
+                    cffi-1.16.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+                    cffi-1.16.0-cp311-cp311-linux_x86_64.whl
                 cryptography 42.0.8 requires cffi>=1.12; platform_python_implementation != "PyPy" but 2 incompatible dists were resolved:
                     cffi-1.16.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
                     cffi-1.16.0-cp311-cp311-linux_x86_64.whl

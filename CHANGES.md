@@ -1,5 +1,105 @@
 # Release Notes
 
+## 2.28.1
+
+This release upgrades `science` for use in building PEX scies with
+`--scie {eager,lazy}`. The upgraded `science` fixes issues dealing
+handling failed Python distribution downloads and should now be more
+robust and clear when downloads fail.
+
+* Upgrade `science` minimum requirement to 0.10.1. (#2637)
+
+## 2.28.0
+
+This release adds Pex `--scie {eager,lazy}` support for Linux ppc64le
+and s390x.
+
+* Add `--scie` support for Linux ppc64le and s390x. (#2635)
+
+## 2.27.1
+
+This release fixes a bug in `PEX_ROOT` handling that could manifest
+with symlinked `HOME` dirs or more generally symlinked dirs being
+parents of the `PEX_ROOT`. Although this was claimed to be fixed in
+the Pex 2.20.4 release by #2574, there was one missing case not handled.
+
+* Ensure that the `PEX_ROOT` is always a realpath. (#2626)
+
+## 2.27.0
+
+This release adds a Pex PEX scie for armv7l.
+
+* Add a Pex PEX scie for armv7l. (#2624)
+
+## 2.26.0
+
+This release adds Pex `--scie {eager,lazy}` support for Linux armv7l.
+
+In addition, a spurious warning when using `PEX_PYTHON=pythonX.Y`
+against a venv PEX has been fixed.
+
+* Added support for armv7l (#2620)
+* Fix incorrect regex for `PEX_PYTHON` precision warning (#2622)
+
+## 2.25.2
+
+This release fixes the `--elide-unused-requires-dist` lock option once
+again. The fix in 2.25.1 could lead to locked requirements having only
+a partial graph of extras which would allow a subsequent subset of those
+partial extras to silently resolve an incomplete set of dependencies.
+
+In addition, the Pex REPL for PEXes without entry points or else when
+forced with `PEX_INTERPRETER=1` is now fixed such that readline support
+always works. Previously, the yellow foreground color applied to the PS1
+and PS2 prompts would interfere with the tracked cursor position in some
+Pythons; so the yellow foreground color for those prompts is now
+dropped.
+
+* Fix `--elide-unused-requires-dist`: don't expose partial extras. (#2618)
+* Fix Pex REPL prompt. (#2617)
+
+## 2.25.1
+
+This is a hotfix release that fixes a bug in the implementation of the
+`--elide-unused-requires-dist` lock option introduced in Pex 2.25.0.
+
+* Fix `--elide-unused-requires-dist` for unactivated deps. (#2615)
+## 2.25.0
+
+This release adds support for
+`pex3 lock {create,sync} --elide-unused-requires-dist`. This new lock
+option causes any dependencies of a locked requirement that can never
+be activated to be elided from the lock file. This leads to no material
+difference in lock file use, but it does cut down on the lock file size.
+
+* Add `--elide-unused-requires-dist` lock option. (#2613)
+
+## 2.24.3
+
+This release fixes a long-standing bug in resolve checking. Previously,
+only resolve dependency chains where checked, but not the resolved
+distributions that satisfied the input root requirements.
+
+In addition, the 2.24.2 release included a wheel with no compression
+(~11MB instead of ~3.5MB). The Pex wheel is now fixed to be compressed.
+
+* Fix resolve check to cover dists satisfying root reqs. (#2610)
+* Fix build process to produce a compressed `.whl`. (#2609)
+
+## 2.24.2
+
+This release fixes a long-standing bug in "YOLO-mode" foreign platform
+speculative wheel builds. Previously if the speculatively built wheel
+had tags that did not match the foreign platform, the process errored
+pre-emptively. This was correct for complete foreign platforms, where 
+all tag information is known, but not for all cases of abbreviated
+platforms, where the failure was overly aggressive in some cases. Now
+foreign abbreviated platform speculative builds are only rejected when
+there is enough information to be sure the speculatively built wheel
+definitely cannot work on the foreign abbreviated platform.
+
+* Accept more foreign `--platform` "YOLO-mode" wheels. (#2607)
+
 ## 2.24.1
 
 This release fixes `pex3 cache prune` handling of cached Pips.
@@ -369,7 +469,7 @@ platform the PEX supports). These PEX scies are single file
 executables that look and behave like traditional PEXes, but unlike
 PEXes they can run on a machine with no Python interpreter available.
 
-[PBS]: https://github.com/indygreg/python-build-standalone
+[PBS]: https://github.com/astral-sh/python-build-standalone
 [scie]: https://github.com/a-scie
 
 * Add `--scie` option to produce native PEX exes. (#2466)

@@ -39,24 +39,24 @@ jobs:
           # We need to keep Python 3.9 for consistent vendoring with tox.
           python-version: "3.9"
       - name: Check Formatting, Lints and Types
-        uses: pantsbuild/actions/run-tox@b16b9cf47cd566acfe217b1dafc5b452e27e6fd7
+        uses: pex-tool/actions/run-tox@c53dadd8b410bbd66480de91067e9e45d2b3af38
         with:
           tox-env: format-check,lint-check,typecheck
       - name: Check Enum Types
         run: |
           BASE_MODE=pull ./dtox.sh -e enum-check -- -v --require-py27
       - name: Check Vendoring
-        uses: pantsbuild/actions/run-tox@b16b9cf47cd566acfe217b1dafc5b452e27e6fd7
+        uses: pex-tool/actions/run-tox@c53dadd8b410bbd66480de91067e9e45d2b3af38
         with:
           tox-env: vendor-check
       - name: Check Packaging
-        uses: pantsbuild/actions/run-tox@b16b9cf47cd566acfe217b1dafc5b452e27e6fd7
+        uses: pex-tool/actions/run-tox@c53dadd8b410bbd66480de91067e9e45d2b3af38
         with:
           tox-env: >-
             package -- --additional-format sdist --additional-format wheel --embed-docs --clean-docs
             --scies --gen-md-table-of-hash-and-size dist/hashes.md
       - name: Check Docs
-        uses: pantsbuild/actions/run-tox@b16b9cf47cd566acfe217b1dafc5b452e27e6fd7
+        uses: pex-tool/actions/run-tox@c53dadd8b410bbd66480de91067e9e45d2b3af38
         with:
           tox-env: docs -- --linkcheck --pdf --clean-html
 
@@ -171,7 +171,7 @@ jobs:
         with:
           python-version: "${{ join(matrix.python-version, '.') }}"
       - name: Expose Pythons
-        uses: pantsbuild/actions/expose-pythons@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
+        uses: pex-tool/actions/expose-pythons@c53dadd8b410bbd66480de91067e9e45d2b3af38
       - name: Restore Cached Pyenv Interpreters
         id: restore-pyenv-interpreters
         uses: actions/cache/restore@v4
@@ -196,7 +196,7 @@ jobs:
         with:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
       - name: Run Tests
-        uses: pantsbuild/actions/run-tox@b16b9cf47cd566acfe217b1dafc5b452e27e6fd7
+        uses: pex-tool/actions/run-tox@c53dadd8b410bbd66480de91067e9e45d2b3af38
         with:
           path: repo/tox.ini
           python: ${{ matrix.tox-env-python }}

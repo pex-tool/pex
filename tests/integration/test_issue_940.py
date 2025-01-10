@@ -51,10 +51,9 @@ def test_resolve_arbitrary_equality(tmpdir):
     ) as whl:
         pex_root = os.path.join(str(tmpdir), "pex_root")
         pex_file = os.path.join(str(tmpdir), "pex")
-        results = run_pex_command(
+        run_pex_command(
             args=["-o", pex_file, "--pex-root", pex_root, "--runtime-pex-root", pex_root, whl]
-        )
-        results.assert_success()
+        ).assert_success()
 
         output, returncode = run_simple_pex(pex_file, args=["-c", "import foo"])
         assert returncode == 0, output

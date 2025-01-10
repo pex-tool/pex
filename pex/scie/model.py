@@ -239,6 +239,12 @@ class _CurrentPlatform(object):
             if "linux" == system:
                 if machine in ("aarch64", "arm64"):
                     self._current = SciePlatform.LINUX_AARCH64
+                elif machine in ("armv7l", "armv8l"):
+                    self._current = SciePlatform.LINUX_ARMV7L
+                elif machine == "ppc64le":
+                    self._current = SciePlatform.LINUX_PPC64LE
+                elif machine == "s390x":
+                    self._current = SciePlatform.LINUX_S390X
                 elif machine in ("amd64", "x86_64"):
                     self._current = SciePlatform.LINUX_X86_64
             elif "darwin" == system:
@@ -288,6 +294,9 @@ class SciePlatform(Enum["SciePlatform.Value"]):
             return "{stem}-{platform}{ext}".format(stem=stem, platform=self, ext=ext)
 
     LINUX_AARCH64 = Value("linux-aarch64")
+    LINUX_ARMV7L = Value("linux-armv7l")
+    LINUX_PPC64LE = Value("linux-powerpc64")
+    LINUX_S390X = Value("linux-s390x")
     LINUX_X86_64 = Value("linux-x86_64")
     MACOS_AARCH64 = Value("macos-aarch64")
     MACOS_X86_64 = Value("macos-x86_64")
@@ -441,14 +450,24 @@ class ScieConfiguration(object):
 
             platform_str = platform_spec.platform
             is_aarch64 = "arm64" in platform_str or "aarch64" in platform_str
+            is_armv7l = "armv7l" in platform_str or "armv8l" in platform_str
+            is_ppc64le = "ppc64le" in platform_str
+            is_s390x = "s390x" in platform_str
             is_x86_64 = "amd64" in platform_str or "x86_64" in platform_str
-            if not is_aarch64 ^ is_x86_64:
+            if not is_aarch64 ^ is_armv7l ^ is_ppc64le ^ is_s390x ^ is_x86_64:
                 continue
 
             if "linux" in platform_str:
-                scie_platform = (
-                    SciePlatform.LINUX_AARCH64 if is_aarch64 else SciePlatform.LINUX_X86_64
-                )
+                if is_aarch64:
+                    scie_platform = SciePlatform.LINUX_AARCH64
+                elif is_armv7l:
+                    scie_platform = SciePlatform.LINUX_ARMV7L
+                elif is_ppc64le:
+                    scie_platform = SciePlatform.LINUX_PPC64LE
+                elif is_s390x:
+                    scie_platform = SciePlatform.LINUX_S390X
+                else:
+                    scie_platform = SciePlatform.LINUX_X86_64
             elif "mac" in platform_str:
                 scie_platform = (
                     SciePlatform.MACOS_AARCH64 if is_aarch64 else SciePlatform.MACOS_X86_64
@@ -472,6 +491,16 @@ class ScieConfiguration(object):
                     SciePlatform.LINUX_AARCH64 is scie_platform
                     and plat_python_version[0] == 3
                     and plat_python_version < (3, 7)
+                ):
+                    continue
+                # PyPy distributions are not available for Linux armv7l
+                if SciePlatform.LINUX_ARMV7L is scie_platform:
+                    continue
+                # PyPy distributions for Linux ppc64le are only available for 2.7 and 3.{5,6}.
+                if (
+                    SciePlatform.LINUX_PPC64LE is scie_platform
+                    and plat_python_version[0] == 3
+                    and plat_python_version >= (3, 7)
                 ):
                     continue
                 # PyPy distributions for Mac arm64 start with 3.8 (and PyPy always releases for

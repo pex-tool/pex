@@ -3,47 +3,25 @@
 
 from __future__ import absolute_import
 
-import functools
-import os.path
-import shutil
-from collections import OrderedDict
-from multiprocessing.pool import ThreadPool
-
-from pex import resolver
-from pex.atomic_directory import FileLockStyle
 from pex.auth import PasswordDatabase, PasswordEntry
-from pex.common import pluralize
-from pex.compatibility import cpu_count
 from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import Requirement, is_wheel
 from pex.network_configuration import NetworkConfiguration
-from pex.orderedset import OrderedSet
 from pex.pep_427 import InstallableType
-from pex.pep_503 import ProjectName
-from pex.pip.local_project import digest_local_project
 from pex.pip.tool import PackageIndexConfiguration
-from pex.pip.vcs import digest_vcs_archive
 from pex.pip.version import PipVersionValue
-from pex.resolve.downloads import ArtifactDownloader
-from pex.resolve.locked_resolve import (
-    DownloadableArtifact,
-    FileArtifact,
-    LocalProjectArtifact,
-    LockConfiguration,
-    VCSArtifact,
-)
-from pex.resolve.lockfile.download_manager import DownloadedArtifact, DownloadManager
+from pex.resolve.lock_downloader import LockDownloader
+from pex.resolve.locked_resolve import LocalProjectArtifact
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.lockfile.subset import subset
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import BuildConfiguration, ResolverVersion
-from pex.resolve.resolvers import MAX_PARALLEL_DOWNLOADS, Resolver, ResolveResult
+from pex.resolve.resolvers import Resolver, ResolveResult
 from pex.resolver import BuildAndInstallRequest, BuildRequest, InstallRequest
-from pex.result import Error, catch, try_
-from pex.targets import Target, Targets
+from pex.result import Error, try_
+from pex.targets import Targets
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
-from pex.variables import ENV, Variables
 
 if TYPE_CHECKING:
     from typing import Dict, Iterable, Mapping, Optional, Sequence, Tuple, Union
@@ -282,7 +260,7 @@ def resolve_from_lock(
             dependency_configuration=dependency_configuration,
         )
     )
-    downloadable_artifacts_and_targets = OrderedSet(
+    downloadable_artifacts_and_targets = tuple(
         (downloadable_artifact, resolved_subset.target)
         for resolved_subset in subset_result.subsets
         for downloadable_artifact in resolved_subset.resolved.downloadable_artifacts
@@ -362,60 +340,13 @@ def resolve_from_lock(
             requirement_count=len(subset_result.requirements),
         )
     ):
-        pool = ThreadPool(processes=max_threads)
-        try:
-            download_results = tuple(
-                zip(
-                    tuple(
-                        downloadable_artifact
-                        for downloadable_artifact, _ in downloadable_artifacts_and_targets
-                    ),
-                    pool.map(
-                        functools.partial(
-                            download_artifact,
-                            file_download_managers_by_target=file_download_managers_by_target,
-                            vcs_download_managers_by_target=vcs_download_managers_by_target,
-                            local_project_download_managers_by_target=local_project_download_managers_by_target,
-                        ),
-                        downloadable_artifacts_and_targets,
-                    ),
-                )
-            )
-        finally:
-            pool.close()
-            pool.join()
+        downloaded_artifacts = lock_downloader.download_artifacts(
+            downloadable_artifacts_and_targets
+        )
+        if isinstance(downloaded_artifacts, Error):
+            return downloaded_artifacts
 
-    with TRACER.timed("Categorizing {} downloaded artifacts".format(len(download_results))):
-        downloaded_artifacts = {}  # type: Dict[DownloadableArtifact, DownloadedArtifact]
-        download_errors = OrderedDict()  # type: OrderedDict[DownloadableArtifact, Error]
-        for downloadable_artifact, download_result in download_results:
-            if isinstance(download_result, DownloadedArtifact):
-                downloaded_artifacts[downloadable_artifact] = download_result
-            else:
-                download_errors[downloadable_artifact] = download_result
-
-        if download_errors:
-            error_count = len(download_errors)
-            return Error(
-                "There {were} {count} {errors} downloading required artifacts:\n"
-                "{error_details}".format(
-                    were="was" if error_count == 1 else "were",
-                    count=error_count,
-                    errors=pluralize(download_errors, "error"),
-                    error_details="\n".join(
-                        "{index}. {pin} from {url}\n    {error}".format(
-                            index=index,
-                            pin=downloadable_artifact.pin,
-                            url=downloadable_artifact.artifact.url.download_url,
-                            error="\n    ".join(str(error).splitlines()),
-                        )
-                        for index, (downloadable_artifact, error) in enumerate(
-                            download_errors.items(), start=1
-                        )
-                    ),
-                )
-            )
-
+    with TRACER.timed("Categorizing {} downloaded artifacts".format(len(downloaded_artifacts))):
         build_requests = []
         install_requests = []
         for resolved_subset in subset_result.subsets:
