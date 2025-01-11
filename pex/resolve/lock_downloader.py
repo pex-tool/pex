@@ -220,6 +220,7 @@ class LockDownloader(object):
         build_configuration=BuildConfiguration(),  # type: BuildConfiguration
         use_pip_config=False,  # type: bool
         extra_pip_requirements=(),  # type: Tuple[Requirement, ...]
+        keyring_provider=None,  # type: Optional[str]
     ):
         # type: (...) -> LockDownloader
 
@@ -248,6 +249,7 @@ class LockDownloader(object):
                         ),
                         use_pip_config=use_pip_config,
                         extra_pip_requirements=extra_pip_requirements,
+                        keyring_provider=keyring_provider,
                     ),
                     max_parallel_jobs=max_parallel_jobs,
                 ),
@@ -269,6 +271,7 @@ class LockDownloader(object):
                 resolver=resolver,
                 use_pip_config=use_pip_config,
                 extra_pip_requirements=extra_pip_requirements,
+                keyring_provider=keyring_provider,
             )
             for target in targets
         }

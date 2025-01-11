@@ -75,73 +75,21 @@ def resolve_from_lock(
         for downloadable_artifact in resolved_subset.resolved.downloadable_artifacts
     )
 
-    # Since the download managers are stored to via a thread pool, we need to use BSD style locks.
-    # These locks are not as portable as POSIX style locks but work with threading unlike POSIX
-    # locks which are subject to threading-unaware deadlock detection per the standard. Linux, in
-    # fact, implements deadlock detection for POSIX locks; so we can run afoul of false EDEADLCK
-    # errors under the right interleaving of processes and threads and download artifact targets.
-    file_lock_style = FileLockStyle.BSD
-
-    file_download_managers_by_target = {
-        resolved_subset.target: FileArtifactDownloadManager(
-            file_lock_style=file_lock_style,
-            downloader=ArtifactDownloader(
-                resolver=resolver,
-                lock_configuration=LockConfiguration(
-                    style=lock.style,
-                    requires_python=lock.requires_python,
-                    target_systems=lock.target_systems,
-                ),
-                target=resolved_subset.target,
-                package_index_configuration=PackageIndexConfiguration.create(
-                    pip_version=pip_version,
-                    resolver_version=resolver_version,
-                    indexes=indexes,
-                    find_links=find_links,
-                    network_configuration=network_configuration,
-                    password_entries=PasswordDatabase.from_netrc().append(password_entries).entries,
-                    use_pip_config=use_pip_config,
-                    extra_pip_requirements=extra_pip_requirements,
-                    keyring_provider=keyring_provider,
-                ),
-                max_parallel_jobs=max_parallel_jobs,
-            ),
-        )
-        for resolved_subset in subset_result.subsets
-    }
-
-    vcs_download_managers_by_target = {
-        resolved_subset.target: VCSArtifactDownloadManager(
-            target=resolved_subset.target,
-            file_lock_style=file_lock_style,
-            indexes=indexes,
-            find_links=find_links,
-            resolver_version=resolver_version,
-            network_configuration=network_configuration,
-            password_entries=password_entries,
-            build_configuration=build_configuration,
-            pip_version=pip_version,
-            resolver=resolver,
-            use_pip_config=use_pip_config,
-            extra_pip_requirements=extra_pip_requirements,
-            keyring_provider=keyring_provider,
-        )
-        for resolved_subset in subset_result.subsets
-    }
-
-    local_project_download_managers_by_target = {
-        resolved_subset.target: LocalProjectDownloadManager(
-            file_lock_style=file_lock_style,
-            pip_version=pip_version,
-            target=resolved_subset.target,
-            resolver=resolver,
-        )
-        for resolved_subset in subset_result.subsets
-    }
-
-    max_threads = min(
-        len(downloadable_artifacts_and_targets) or 1,
-        min(MAX_PARALLEL_DOWNLOADS, 4 * (max_parallel_jobs or cpu_count() or 1)),
+    lock_downloader = LockDownloader.create(
+        targets=tuple(resolved_subset.target for resolved_subset in subset_result.subsets),
+        lock=lock,
+        resolver=resolver,
+        indexes=indexes,
+        find_links=find_links,
+        max_parallel_jobs=max_parallel_jobs,
+        pip_version=pip_version,
+        resolver_version=resolver_version,
+        network_configuration=network_configuration,
+        password_entries=password_entries,
+        build_configuration=build_configuration,
+        use_pip_config=use_pip_config,
+        extra_pip_requirements=extra_pip_requirements,
+        keyring_provider=keyring_provider,
     )
     with TRACER.timed(
         "Downloading {url_count} distributions to satisfy {requirement_count} requirements".format(
