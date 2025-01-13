@@ -12,6 +12,7 @@ import shutil
 import warnings
 from typing import Dict
 
+from pex.pex_warnings import PEXWarning
 import pytest
 
 from pex.common import environment_as, safe_rmtree
@@ -419,9 +420,9 @@ def test_keyring_provider(
     download_dir = os.path.join(str(tmpdir), "downloads")
     assert not os.path.exists(download_dir)
 
-    with ENV.patch(PIP_KEYRING_PROVIDER="invalid") as env, environment_as(**env), caplog.at_level(
-        logging.WARNING
-    ):
+    with ENV.patch(PIP_KEYRING_PROVIDER="invalid") as env, environment_as(
+        **env
+    ), warnings.catch_warnings(record=True) as events:
         assert "invalid" == os.environ["PIP_KEYRING_PROVIDER"]
         job = pip.spawn_download_distributions(
             download_dir=download_dir,
@@ -444,7 +445,9 @@ def test_keyring_provider(
         else:
             assert "--keyring-provider" not in cmd_args
             job.wait()
-            assert "does not support the `--keyring-provider` option" in caplog.text
+            assert len(events) == 1
+            assert PEXWarning == events[0].category
+            assert "does not support the `--keyring-provider` option" in str(events[0].message)
 
 
 @applicable_pip_versions
