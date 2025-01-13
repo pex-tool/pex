@@ -5,6 +5,7 @@ from __future__ import absolute_import
 
 import hashlib
 import json
+import logging
 import os
 import re
 import shutil
@@ -407,15 +408,20 @@ def test_keyring_provider(
     version,  # type: PipVersionValue
     current_interpreter,  # type: PythonInterpreter
     tmpdir,  # type: Any
+    caplog,  # type: Any
 ):
     # type: (...) -> None
+
+    has_keyring_provider_option = version >= PipVersion.v23_1
 
     pip = create_pip(current_interpreter, version=version)
 
     download_dir = os.path.join(str(tmpdir), "downloads")
     assert not os.path.exists(download_dir)
 
-    with ENV.patch(PIP_KEYRING_PROVIDER="invalid") as env, environment_as(**env):
+    with ENV.patch(PIP_KEYRING_PROVIDER="invalid") as env, environment_as(**env), caplog.at_level(
+        logging.WARNING
+    ):
         assert "invalid" == os.environ["PIP_KEYRING_PROVIDER"]
         job = pip.spawn_download_distributions(
             download_dir=download_dir,
@@ -424,14 +430,21 @@ def test_keyring_provider(
                 pip_version=version, keyring_provider="auto"
             ),
         )
-        keyring_arg = job._command.index("--keyring-provider")
-        if keyring_arg != -1:
-            assert job._command[keyring_arg : keyring_arg + 2] == ("--keyring-provider", "auto")
-        else:
-            pytest.fail("--keyring-provider was not present in the invoked pip command")
 
-        with pytest.raises(Job.Error) as exc:
+        cmd_args = tuple(job._command)
+        if has_keyring_provider_option:
+            assert "--keyring-provider" in cmd_args
+            keyring_arg_index = job._command.index("--keyring-provider")
+            assert cmd_args[keyring_arg_index : keyring_arg_index + 2] == (
+                "--keyring-provider",
+                "auto",
+            )
+            with pytest.raises(Job.Error) as exc:
+                job.wait()
+        else:
+            assert "--keyring-provider" not in cmd_args
             job.wait()
+            assert "does not support the `--keyring-provider` option" in caplog.text
 
 
 @applicable_pip_versions
