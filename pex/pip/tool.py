@@ -6,7 +6,6 @@ from __future__ import absolute_import, print_function
 
 import glob
 import hashlib
-import logging
 import os
 import re
 import subprocess
@@ -42,9 +41,6 @@ from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
 from pex.venv.virtualenv import Virtualenv
-
-logger = logging.getLogger(__name__)
-
 
 if TYPE_CHECKING:
     from typing import (

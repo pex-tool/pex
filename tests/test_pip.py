@@ -408,7 +408,6 @@ def test_keyring_provider(
     version,  # type: PipVersionValue
     current_interpreter,  # type: PythonInterpreter
     tmpdir,  # type: Any
-    caplog,  # type: Any
 ):
     # type: (...) -> None
 
