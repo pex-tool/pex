@@ -244,6 +244,8 @@ def test_subprocess_provider(
             ).geturl()
         )
 
+        # If we are testing the `--keyring-provider`option, then do not put the option into the environment
+        # since it will be passed on the command-line.
         new_path = os.pathsep.join((keyring_venv.path_element, os.environ.get("PATH", os.defpath)))
         if use_keyring_provider_option:
             env = make_env(PATH=new_path, **devpi_clean_env)
@@ -314,6 +316,8 @@ def test_import_provider(
             ).geturl()
         )
 
+        # If we are testing the `--keyring-provider`option, then do not put the option into the environment
+        # since it will be passed on the command-line.
         if use_keyring_provider_option:
             env = make_env(**devpi_clean_env)
         else:

@@ -6,6 +6,7 @@ from __future__ import absolute_import, print_function
 
 import glob
 import hashlib
+import logging
 import os
 import re
 import subprocess
@@ -40,6 +41,9 @@ from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
 from pex.venv.virtualenv import Virtualenv
+
+logger = logging.getLogger(__name__)
+
 
 if TYPE_CHECKING:
     from typing import (
@@ -397,10 +401,35 @@ class Pip(object):
             # `~/.config/pip/pip.conf`.
             pip_args.append("--isolated")
 
-        # Configure a keychain provider if so configured.
+        # Configure a keychain provider if so configured and the version of Pip supports the option.
+        # Warn the user if Pex cannot pass the `--keyring-provider` option and suggest a solution.
         if package_index_configuration and package_index_configuration.keyring_provider:
-            pip_args.append("--keyring-provider")
-            pip_args.append(package_index_configuration.keyring_provider)
+            if self.version.version >= PipVersion.v23_1.version:
+                pip_args.append("--keyring-provider")
+                pip_args.append(package_index_configuration.keyring_provider)
+            else:
+                logger.warning(
+                    "".join(
+                        [
+                            "The PEX_KEYRING_PROVIDER option is set, but Pip v{} does not support ".format(
+                                self.version.version
+                            ),
+                            "the `--keyring-provider` option which is only available in Pip v{} and higher. ".format(
+                                PipVersion.v23_1
+                            ),
+                            "Pex is ignoring PEX_KEYRING_PROVIDER for this particular Pip invocation.\n\n",
+                            "Note: If this Pex invocation fails, it may be because Pex is trying to use its vendored Pip ",
+                            "v{} to bootstrap a newer Pip version which does support `--keyring-provider`, ".format(
+                                PipVersion.VENDORED.version
+                            ),
+                            "but you configured Pex/Pip to use a Python package index which is not available ",
+                            "without additional authentication.\n\n",
+                            "In that case, please manually create a `find-links` directory with that newer version of Pip, so ",
+                            "that Pex will still be able to install the newer version of Pip from the `find-links` directory (which does ",
+                            "not require authentication).",
+                        ]
+                    )
+                )
 
         if log:
             pip_args.append("--log")
