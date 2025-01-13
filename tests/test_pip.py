@@ -12,7 +12,6 @@ import shutil
 import warnings
 from typing import Dict
 
-from pex.pex_warnings import PEXWarning
 import pytest
 
 from pex.common import environment_as, safe_rmtree
@@ -21,6 +20,7 @@ from pex.interpreter import PythonInterpreter
 from pex.jobs import Job
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
+from pex.pex_warnings import PEXWarning
 from pex.pip.installation import _PIP, PipInstallation, get_pip
 from pex.pip.tool import PackageIndexConfiguration, Pip
 from pex.pip.version import PipVersion, PipVersionValue

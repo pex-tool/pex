@@ -419,9 +419,9 @@ class Pip(object):
                     to bootstrap a newer Pip version which does support `--keyring-provider`, but you configured Pex/Pip
                     to use a Python package index which is not available without additional authentication.
 
-                    In that case, please manually create a `find-links` directory with that newer version of Pip, so
-                    that Pex will still be able to install the newer version of Pip from the `find-links` directory (which does
-                    not require authentication).
+                    In that case, you might wish to consider manually creating a `find-links` directory with that newer version
+                    of Pip, so that Pex will still be able to install the newer version of Pip from the `find-links` directory
+                    (which does not require authentication).
                     """.format(
                         THIS_VERSION=self.version.version,
                         VERSION_23_1=PipVersion.v23_1,
