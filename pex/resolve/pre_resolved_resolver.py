@@ -102,6 +102,7 @@ def resolve_from_dists(
                 password_entries=pip_configuration.repos_configuration.password_entries,
                 use_pip_config=pip_configuration.use_pip_config,
                 extra_pip_requirements=pip_configuration.extra_requirements,
+                keyring_provider=pip_configuration.keyring_provider,
             )
             build_and_install = BuildAndInstallRequest(
                 build_requests=[

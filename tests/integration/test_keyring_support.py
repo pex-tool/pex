@@ -210,6 +210,7 @@ def download_pip_requirements(
 
 @skip_if_required_keyring_version_not_supported
 @keyring_provider_pip_versions
+@pytest.mark.parametrize("use_keyring_provider_option", [False, True])
 def test_subprocess_provider(
     proxy,  # type: Proxy
     pip_version,  # type: PipVersionValue
@@ -218,6 +219,7 @@ def test_subprocess_provider(
     index_reverse_proxy_target,  # type: str
     devpi_clean_env,  # type: Mapping[str, Any]
     tmpdir,  # type: Any
+    use_keyring_provider_option,  # type: bool
 ):
     # type: (...) -> None
 
@@ -241,6 +243,15 @@ def test_subprocess_provider(
                 ),
             ).geturl()
         )
+
+        # If we are testing the `--keyring-provider`option, then do not put the option into the environment
+        # since it will be passed on the command-line.
+        new_path = os.pathsep.join((keyring_venv.path_element, os.environ.get("PATH", os.defpath)))
+        if use_keyring_provider_option:
+            env = make_env(PATH=new_path, **devpi_clean_env)
+        else:
+            env = make_env(PIP_KEYRING_PROVIDER="subprocess", PATH=new_path, **devpi_clean_env)
+
         run_pex_command(
             args=[
                 "--pex-root",
@@ -254,25 +265,22 @@ def test_subprocess_provider(
                 find_links,
                 "--pip-version",
                 str(pip_version),
-                "--use-pip-config",
+                "--keyring-provider=subprocess"
+                if use_keyring_provider_option
+                else "--use-pip-config",
                 "cowsay==5.0",
                 "-c",
                 "cowsay",
                 "--",
                 "Subprocess Auth!",
             ],
-            env=make_env(
-                PIP_KEYRING_PROVIDER="subprocess",
-                PATH=os.pathsep.join(
-                    (keyring_venv.path_element, os.environ.get("PATH", os.defpath))
-                ),
-                **devpi_clean_env
-            ),
+            env=env,
         ).assert_success(expected_output_re=r"^.*\| Subprocess Auth! \|.*$", re_flags=re.DOTALL)
 
 
 @skip_if_required_keyring_version_not_supported
 @keyring_provider_pip_versions
+@pytest.mark.parametrize("use_keyring_provider_option", [False, True])
 def test_import_provider(
     proxy,  # type: Proxy
     pip_version,  # type: PipVersionValue
@@ -281,6 +289,7 @@ def test_import_provider(
     index_reverse_proxy_target,  # type: str
     devpi_clean_env,  # type: Mapping[str, Any]
     tmpdir,  # type: Any
+    use_keyring_provider_option,  # type: bool
 ):
     # type: (...) -> None
 
@@ -306,6 +315,14 @@ def test_import_provider(
                 netloc="localhost:{port}".format(port=port),
             ).geturl()
         )
+
+        # If we are testing the `--keyring-provider`option, then do not put the option into the environment
+        # since it will be passed on the command-line.
+        if use_keyring_provider_option:
+            env = make_env(**devpi_clean_env)
+        else:
+            env = make_env(PIP_KEYRING_PROVIDER="import", **devpi_clean_env)
+
         run_pex_command(
             args=[
                 "--pex-root",
@@ -321,12 +338,12 @@ def test_import_provider(
                 str(keyring_venv.backend.project_name),
                 "--pip-version",
                 str(pip_version),
-                "--use-pip-config",
+                "--keyring-provider=import" if use_keyring_provider_option else "--use-pip-config",
                 "cowsay==5.0",
                 "-c",
                 "cowsay",
                 "--",
                 "Import Auth!",
             ],
-            env=make_env(PIP_KEYRING_PROVIDER="import", **devpi_clean_env),
+            env=env,
         ).assert_success(expected_output_re=r"^.*\| Import Auth! \|.*$", re_flags=re.DOTALL)

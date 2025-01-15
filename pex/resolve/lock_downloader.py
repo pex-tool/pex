@@ -86,6 +86,7 @@ class VCSArtifactDownloadManager(DownloadManager[VCSArtifact]):
         resolver=None,  # type: Optional[Resolver]
         use_pip_config=False,  # type: bool
         extra_pip_requirements=(),  # type: Tuple[Requirement, ...]
+        keyring_provider=None,  # type: Optional[str]
     ):
         super(VCSArtifactDownloadManager, self).__init__(
             pex_root=pex_root, file_lock_style=file_lock_style
@@ -108,6 +109,7 @@ class VCSArtifactDownloadManager(DownloadManager[VCSArtifact]):
         self._resolver = resolver
         self._use_pip_config = use_pip_config
         self._extra_pip_requirements = extra_pip_requirements
+        self._keyring_provider = keyring_provider
 
     def save(
         self,
@@ -134,6 +136,7 @@ class VCSArtifactDownloadManager(DownloadManager[VCSArtifact]):
             resolver=self._resolver,
             use_pip_config=self._use_pip_config,
             extra_pip_requirements=self._extra_pip_requirements,
+            keyring_provider=self._keyring_provider,
         )
         if len(downloaded_vcs.local_distributions) != 1:
             return Error(
@@ -217,6 +220,7 @@ class LockDownloader(object):
         build_configuration=BuildConfiguration(),  # type: BuildConfiguration
         use_pip_config=False,  # type: bool
         extra_pip_requirements=(),  # type: Tuple[Requirement, ...]
+        keyring_provider=None,  # type: Optional[str]
     ):
         # type: (...) -> LockDownloader
 
@@ -245,6 +249,7 @@ class LockDownloader(object):
                         ),
                         use_pip_config=use_pip_config,
                         extra_pip_requirements=extra_pip_requirements,
+                        keyring_provider=keyring_provider,
                     ),
                     max_parallel_jobs=max_parallel_jobs,
                 ),
@@ -266,6 +271,7 @@ class LockDownloader(object):
                 resolver=resolver,
                 use_pip_config=use_pip_config,
                 extra_pip_requirements=extra_pip_requirements,
+                keyring_provider=keyring_provider,
             )
             for target in targets
         }

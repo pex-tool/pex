@@ -10,9 +10,10 @@ import os
 import re
 import subprocess
 import sys
+import textwrap
 from collections import deque
 
-from pex import targets
+from pex import pex_warnings, targets
 from pex.atomic_directory import atomic_directory
 from pex.auth import PasswordEntry
 from pex.cache.dirs import PipPexDir
@@ -151,6 +152,7 @@ class PackageIndexConfiguration(object):
         password_entries=(),  # type: Iterable[PasswordEntry]
         use_pip_config=False,  # type: bool
         extra_pip_requirements=(),  # type: Tuple[Requirement, ...]
+        keyring_provider=None,  # type: Optional[str]
     ):
         # type: (...) -> PackageIndexConfiguration
         resolver_version = resolver_version or ResolverVersion.default(pip_version)
@@ -174,6 +176,7 @@ class PackageIndexConfiguration(object):
             use_pip_config=use_pip_config,
             extra_pip_requirements=extra_pip_requirements,
             password_entries=password_entries,
+            keyring_provider=keyring_provider,
         )
 
     def __init__(
@@ -186,6 +189,7 @@ class PackageIndexConfiguration(object):
         password_entries=(),  # type: Iterable[PasswordEntry]
         pip_version=None,  # type: Optional[PipVersionValue]
         extra_pip_requirements=(),  # type: Tuple[Requirement, ...]
+        keyring_provider=None,  # type: Optional[str]
     ):
         # type: (...) -> None
         self.resolver_version = resolver_version  # type: ResolverVersion.Value
@@ -196,6 +200,7 @@ class PackageIndexConfiguration(object):
         self.password_entries = password_entries  # type: Iterable[PasswordEntry]
         self.pip_version = pip_version  # type: Optional[PipVersionValue]
         self.extra_pip_requirements = extra_pip_requirements  # type: Tuple[Requirement, ...]
+        self.keyring_provider = keyring_provider  # type: Optional[str]
 
 
 if TYPE_CHECKING:
@@ -392,6 +397,35 @@ class Pip(object):
             # Don't read PIP_ environment variables or pip configuration files like
             # `~/.config/pip/pip.conf`.
             pip_args.append("--isolated")
+
+        # Configure a keychain provider if so configured and the version of Pip supports the option.
+        # Warn the user if Pex cannot pass the `--keyring-provider` option and suggest a solution.
+        if package_index_configuration and package_index_configuration.keyring_provider:
+            if self.version.version >= PipVersion.v23_1.version:
+                pip_args.append("--keyring-provider")
+                pip_args.append(package_index_configuration.keyring_provider)
+            else:
+                warn_msg = textwrap.dedent(
+                    """
+                    The --keyring-provider option is set to `{PROVIDER}`, but Pip v{THIS_VERSION} does not support the
+                    `--keyring-provider` option (which is only available in Pip v{VERSION_23_1} and later versions).
+                    Consequently, Pex is ignoring the --keyring-provider option for this particular Pip invocation.
+
+                    Note: If this Pex invocation fails, it may be because Pex is trying to use its vendored Pip v{VENDORED_VERSION}
+                    to bootstrap a newer Pip version which does support `--keyring-provider`, but you configured Pex/Pip
+                    to use a Python package index which is not available without additional authentication.
+
+                    In that case, you might wish to consider manually creating a `find-links` directory with that newer version
+                    of Pip, so that Pex will still be able to install the newer version of Pip from the `find-links` directory
+                    (which does not require authentication).
+                    """.format(
+                        PROVIDER=package_index_configuration.keyring_provider,
+                        THIS_VERSION=self.version.version,
+                        VERSION_23_1=PipVersion.v23_1,
+                        VENDORED_VERSION=PipVersion.VENDORED.version,
+                    )
+                )
+                pex_warnings.warn(warn_msg)
 
         if log:
             pip_args.append("--log")

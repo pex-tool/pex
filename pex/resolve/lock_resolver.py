@@ -47,6 +47,7 @@ def resolve_from_lock(
     pip_version=None,  # type: Optional[PipVersionValue]
     use_pip_config=False,  # type: bool
     extra_pip_requirements=(),  # type: Tuple[Requirement, ...]
+    keyring_provider=None,  # type: Optional[str]
     result_type=InstallableType.INSTALLED_WHEEL_CHROOT,  # type: InstallableType.Value
     dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
 ):
@@ -88,6 +89,7 @@ def resolve_from_lock(
         build_configuration=build_configuration,
         use_pip_config=use_pip_config,
         extra_pip_requirements=extra_pip_requirements,
+        keyring_provider=keyring_provider,
     )
     with TRACER.timed(
         "Downloading {url_count} distributions to satisfy {requirement_count} requirements".format(
@@ -142,6 +144,7 @@ def resolve_from_lock(
                 password_entries=PasswordDatabase.from_netrc().append(password_entries).entries,
                 use_pip_config=use_pip_config,
                 extra_pip_requirements=extra_pip_requirements,
+                keyring_provider=keyring_provider,
             ),
             compile=compile,
             build_configuration=build_configuration,

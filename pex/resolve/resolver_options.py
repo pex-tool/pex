@@ -135,7 +135,24 @@ def register(
             "See: https://pip.pypa.io/en/stable/topics/authentication/#keyring-support"
         ),
     )
+
     register_use_pip_config(parser)
+
+    parser.add_argument(
+        "--keyring-provider",
+        metavar="PROVIDER",
+        dest="keyring_provider",
+        type=str,
+        default=None,
+        help=(
+            "Configure Pip to use the given keyring provider to obtain authentication for package indexes. "
+            "Please note that keyring support is only available in Pip v23.1 and later versions. "
+            "There is obviously a bootstrap issue here if your only available index is secured; "
+            "so you may need to use an additional --find-links repo or --index that is not "
+            "secured in order to bootstrap a version of Pip which supports keyring. "
+            "See: https://pip.pypa.io/en/stable/topics/authentication/#keyring-support"
+        ),
+    )
 
     register_repos_options(parser)
     register_network_options(parser)
@@ -681,6 +698,7 @@ def create_pip_configuration(
         allow_version_fallback=options.allow_pip_version_fallback,
         use_pip_config=get_use_pip_config_value(options),
         extra_requirements=tuple(options.extra_pip_requirements),
+        keyring_provider=options.keyring_provider,
     )
 
 

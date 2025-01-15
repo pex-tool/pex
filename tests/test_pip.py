@@ -19,6 +19,7 @@ from pex.interpreter import PythonInterpreter
 from pex.jobs import Job
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
+from pex.pex_warnings import PEXWarning
 from pex.pip.installation import _PIP, PipInstallation, get_pip
 from pex.pip.tool import PackageIndexConfiguration, Pip
 from pex.pip.version import PipVersion, PipVersionValue
@@ -115,15 +116,21 @@ def test_no_duplicate_constraints_pex_warnings(
 def package_index_configuration(
     pip_version,  # type: PipVersionValue
     use_pip_config=False,  # type: bool
+    keyring_provider=None,  # type: Optional[str]
 ):
     # type: (...) -> PackageIndexConfiguration
     if pip_version is PipVersion.v23_2:
         # N.B.: Pip 23.2 has a bug handling PEP-658 metadata with the legacy resolver; so we use the
         # 2020 resolver to work around. See: https://github.com/pypa/pip/issues/12156
         return PackageIndexConfiguration.create(
-            pip_version, resolver_version=ResolverVersion.PIP_2020, use_pip_config=use_pip_config
+            pip_version,
+            resolver_version=ResolverVersion.PIP_2020,
+            use_pip_config=use_pip_config,
+            keyring_provider=keyring_provider,
         )
-    return PackageIndexConfiguration.create(use_pip_config=use_pip_config)
+    return PackageIndexConfiguration.create(
+        use_pip_config=use_pip_config, keyring_provider=keyring_provider
+    )
 
 
 @pytest.mark.skipif(
@@ -393,6 +400,53 @@ def test_use_pip_config(
             job.wait()
         assert not os.path.exists(download_dir)
         assert "invalid --python-version value: 'invalid'" in str(exc.value.stderr)
+
+
+@applicable_pip_versions
+def test_keyring_provider(
+    create_pip,  # type: CreatePip
+    version,  # type: PipVersionValue
+    current_interpreter,  # type: PythonInterpreter
+    tmpdir,  # type: Any
+):
+    # type: (...) -> None
+
+    has_keyring_provider_option = version >= PipVersion.v23_1
+
+    pip = create_pip(current_interpreter, version=version)
+
+    download_dir = os.path.join(str(tmpdir), "downloads")
+    assert not os.path.exists(download_dir)
+
+    with ENV.patch(PIP_KEYRING_PROVIDER="invalid") as env, environment_as(
+        **env
+    ), warnings.catch_warnings(record=True) as events:
+        assert "invalid" == os.environ["PIP_KEYRING_PROVIDER"]
+        job = pip.spawn_download_distributions(
+            download_dir=download_dir,
+            requirements=["ansicolors==1.1.8"],
+            package_index_configuration=package_index_configuration(
+                pip_version=version, keyring_provider="auto"
+            ),
+        )
+
+        cmd_args = tuple(job._command)
+        if has_keyring_provider_option:
+            assert "--keyring-provider" in cmd_args
+            keyring_arg_index = job._command.index("--keyring-provider")
+            assert cmd_args[keyring_arg_index : keyring_arg_index + 2] == (
+                "--keyring-provider",
+                "auto",
+            )
+            with pytest.raises(Job.Error) as exc:
+                job.wait()
+        else:
+            assert "--keyring-provider" not in cmd_args
+            job.wait()
+            assert len(events) == 1
+            assert PEXWarning == events[0].category
+            message = str(events[0].message).replace("\n", " ")
+            assert "does not support the `--keyring-provider` option" in message
 
 
 @applicable_pip_versions
