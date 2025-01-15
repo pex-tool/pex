@@ -151,7 +151,7 @@ def register(
             "so you may need to use an additional --find-links repo or --index that is not "
             "secured in order to bootstrap a version of Pip which supports keyring. "
             "See: https://pip.pypa.io/en/stable/topics/authentication/#keyring-support"
-        )
+        ),
     )
 
     register_repos_options(parser)
