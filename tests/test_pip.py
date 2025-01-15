@@ -445,7 +445,8 @@ def test_keyring_provider(
             job.wait()
             assert len(events) == 1
             assert PEXWarning == events[0].category
-            assert "does not support the `--keyring-provider` option" in str(events[0].message)
+            message = str(events[0].message).replace("\n", " ")
+            assert "does not support the `--keyring-provider` option" in message
 
 
 @applicable_pip_versions

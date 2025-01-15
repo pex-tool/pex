@@ -407,9 +407,9 @@ class Pip(object):
             else:
                 warn_msg = textwrap.dedent(
                     """
-                    The PIP_KEYRING_PROVIDER option is set, but Pip v{THIS_VERSION} does not support the `--keyring-provider` option
-                    which is only available in Pip v{VERSION_23_1} and higher. Pex is ignoring PIP_KEYRING_PROVIDER for this
-                    particular Pip invocation.
+                    The --keyring-provider option is set to `{PROVIDER}`, but Pip v{THIS_VERSION} does not support the
+                    `--keyring-provider` option (which is only available in Pip v{VERSION_23_1} and later versions).
+                    Consequently, Pex is ignoring the --keyring-provider option for this particular Pip invocation.
 
                     Note: If this Pex invocation fails, it may be because Pex is trying to use its vendored Pip v{VENDORED_VERSION}
                     to bootstrap a newer Pip version which does support `--keyring-provider`, but you configured Pex/Pip
@@ -419,6 +419,7 @@ class Pip(object):
                     of Pip, so that Pex will still be able to install the newer version of Pip from the `find-links` directory
                     (which does not require authentication).
                     """.format(
+                        PROVIDER=package_index_configuration.keyring_provider,
                         THIS_VERSION=self.version.version,
                         VERSION_23_1=PipVersion.v23_1,
                         VENDORED_VERSION=PipVersion.VENDORED.version,
