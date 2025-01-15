@@ -31,7 +31,7 @@ from pex.docs.command import serve_html_docs
 from pex.enum import Enum
 from pex.fetcher import URLFetcher
 from pex.inherit_path import InheritPath
-from pex.interpreter_constraints import InterpreterConstraint, InterpreterConstraints
+from pex.interpreter_constraints import InterpreterConstraints
 from pex.layout import Layout, ensure_installed
 from pex.orderedset import OrderedSet
 from pex.pep_427 import InstallableType
@@ -56,6 +56,7 @@ from pex.resolve.resolver_configuration import (
     PipConfiguration,
 )
 from pex.resolve.resolvers import Unsatisfiable, sorted_requirements
+from pex.resolve.script_metadata import apply_script_metadata
 from pex.result import Error, ResultError, catch, try_
 from pex.scie import ScieConfiguration
 from pex.targets import Targets
@@ -1163,14 +1164,16 @@ def configure_requirements_and_targets(
 
     requirement_configuration = requirement_options.configure(options)
     target_config = target_options.configure(options, pip_configuration=pip_configuration)
-    script_metadata = ScriptMetadata()
+    script_metadata = None  # type: Optional[ScriptMetadata]
 
     if options.executable and options.enable_script_metadata:
-        with open(options.executable) as fp:
-            script_metadata = ScriptMetadata.parse(fp.read(), source=fp.name)
-
+        script_metadata_application = apply_script_metadata(
+            [options.executable],
+            requirement_configuration=requirement_configuration,
+            target_configuration=target_config,
+        )
+        script_metadata = script_metadata_application.scripts[0]
         if script_metadata.dependencies:
-            requirements = OrderedSet(str(req) for req in script_metadata.dependencies)
             TRACER.log(
                 "Will resolve dependencies discovered in PEP-723 script metadata from {source}"
                 "{in_addition_to}: {dependencies}".format(
@@ -1180,34 +1183,25 @@ def configure_requirements_and_targets(
                         if requirement_configuration.has_requirements
                         else ""
                     ),
-                    dependencies=" ".join(requirements),
+                    dependencies=" ".join(
+                        OrderedSet(str(req) for req in script_metadata.dependencies)
+                    ),
                 )
             )
-            if requirement_configuration.requirements:
-                requirements.update(requirement_configuration.requirements)
-            requirement_configuration = attr.evolve(
-                requirement_configuration,
-                requirements=requirements,
-            )
+        requirement_configuration = script_metadata_application.requirement_configuration
 
         if (
             script_metadata.requires_python
             and not target_config.interpreter_configuration.interpreter_constraints
         ):
-            interpreter_constraint = InterpreterConstraint(script_metadata.requires_python)
             TRACER.log(
                 "Will target interpreters matching requires-python discovered in PEP-723 script "
                 "metadata from {source}: {interpreter_constraint}".format(
-                    source=script_metadata.source, interpreter_constraint=interpreter_constraint
+                    source=options.executable,
+                    interpreter_constraint=script_metadata.requires_python,
                 )
             )
-            target_config = attr.evolve(
-                target_config,
-                interpreter_configuration=attr.evolve(
-                    target_config.interpreter_configuration,
-                    interpreter_constraints=InterpreterConstraints((interpreter_constraint,)),
-                ),
-            )
+        target_config = script_metadata_application.target_configuration
 
     try:
         targets = target_config.resolve_targets()
@@ -1216,7 +1210,7 @@ def configure_requirements_and_targets(
     except target_configuration.InterpreterConstraintsNotSatisfied as e:
         return Error(str(e), exit_code=CANNOT_SETUP_INTERPRETER)
 
-    if script_metadata.requires_python:
+    if script_metadata and script_metadata.requires_python:
         incompatible_targets = []  # type: List[str]
         for target in targets.unique_targets():
             if not target.requires_python_applies(
