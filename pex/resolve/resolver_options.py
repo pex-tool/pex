@@ -146,7 +146,7 @@ def register(
         default=None,
         help=(
             "Configure Pip to use the given keyring provider to obtain authentication for package indexes. "
-            "You must be using Pip v23.1 or higher in order since keyring support was only added in Pip v23.1. "
+            "You must be using Pip v23.1 or higher since keyring support was only added in Pip v23.1. "
             "There is obviously a bootstrap issue here if your only available index is secured; "
             "so you may need to use an additional --find-links repo or --index that is not "
             "secured in order to bootstrap a version of Pip which supports keyring. "
