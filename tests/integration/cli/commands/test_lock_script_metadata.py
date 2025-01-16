@@ -7,7 +7,6 @@ import os
 import re
 from textwrap import dedent
 
-import colors
 import pytest
 
 from pex.interpreter import PythonInterpreter
@@ -19,7 +18,10 @@ from testing.pytest.tmp import Tempdir
 if TYPE_CHECKING:
     from typing import Union
 
+    import colors  # vendor:skip
     from typing_extensions import Literal
+else:
+    from pex.third_party import colors
 
 
 @pytest.fixture
