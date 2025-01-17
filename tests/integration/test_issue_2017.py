@@ -12,8 +12,9 @@ from textwrap import dedent
 import pytest
 
 from pex.atomic_directory import atomic_directory
-from pex.common import is_exe, safe_open
+from pex.common import safe_open
 from pex.compatibility import urlparse
+from pex.executables import is_exe
 from pex.fetcher import URLFetcher
 from pex.pip.version import PipVersion, PipVersionValue
 from pex.typing import TYPE_CHECKING

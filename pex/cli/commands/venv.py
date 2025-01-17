@@ -11,9 +11,10 @@ from argparse import ArgumentParser, _ActionsContainer
 from pex import pex_warnings
 from pex.cli.command import BuildTimeCommand
 from pex.commands.command import JsonMixin, OutputMixin
-from pex.common import DETERMINISTIC_DATETIME, CopyMode, is_script, open_zip, pluralize
+from pex.common import DETERMINISTIC_DATETIME, CopyMode, open_zip, pluralize
 from pex.dist_metadata import Distribution
 from pex.enum import Enum
+from pex.executables import is_script
 from pex.executor import Executor
 from pex.pex import PEX
 from pex.pex_info import PexInfo

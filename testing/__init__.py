@@ -423,7 +423,7 @@ def create_pex_command(
     # type: (...) -> List[str]
     cmd = [python or sys.executable, "-mpex"]
     if not quiet:
-        cmd.append("-vvvvv")
+        cmd.append("-v")
     if args:
         cmd.extend(args)
     return cmd

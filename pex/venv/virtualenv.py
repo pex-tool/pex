@@ -15,10 +15,11 @@ from fileinput import FileInput
 from textwrap import dedent
 
 from pex.atomic_directory import AtomicDirectory, atomic_directory
-from pex.common import is_exe, safe_mkdir, safe_open
+from pex.common import safe_mkdir, safe_open
 from pex.compatibility import commonpath, get_stdout_bytes_buffer
 from pex.dist_metadata import Distribution, find_distributions
 from pex.enum import Enum
+from pex.executables import is_exe
 from pex.executor import Executor
 from pex.fetcher import URLFetcher
 from pex.interpreter import (

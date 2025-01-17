@@ -9,7 +9,8 @@ from textwrap import dedent
 
 import pytest
 
-from pex.common import chmod_plus_x, is_exe, safe_mkdtemp
+from pex.common import safe_mkdtemp
+from pex.executables import chmod_plus_x, is_exe
 from pex.typing import TYPE_CHECKING
 from testing import pex_project_dir
 

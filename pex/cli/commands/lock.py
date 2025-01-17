@@ -14,7 +14,7 @@ from pex import dependency_configuration, pex_warnings
 from pex.argparse import HandleBoolAction
 from pex.cli.command import BuildTimeCommand
 from pex.commands.command import JsonMixin, OutputMixin
-from pex.common import is_exe, pluralize, safe_delete, safe_open
+from pex.common import pluralize, safe_delete, safe_open
 from pex.compatibility import commonpath, shlex_quote
 from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import (
@@ -26,6 +26,7 @@ from pex.dist_metadata import (
 )
 from pex.enum import Enum
 from pex.exceptions import production_assert
+from pex.executables import is_exe
 from pex.interpreter import PythonInterpreter
 from pex.orderedset import OrderedSet
 from pex.pep_376 import InstalledWheel, Record

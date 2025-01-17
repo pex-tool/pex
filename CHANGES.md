@@ -1,5 +1,15 @@
 # Release Notes
 
+## 2.30.0
+
+This release brings `--sh-boot` support to PEXes with
+`--layout {loose,packed}`. Previously, the `--sh-boot` option only took
+effect for traditional PEX zip files. Now all PEX output and runtime
+schemes, in any combination, can benefit from the reduced boot latency
+`--sh-boot` brings on all runs of a PEX after the first.
+
+* Support `--sh-boot` for `--layout {loose,packed}`. (#2645)
+
 ## 2.29.0
 
 This release brings 1st class support for newer Pip's

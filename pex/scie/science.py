@@ -13,10 +13,11 @@ from subprocess import CalledProcessError
 from pex import toml
 from pex.atomic_directory import atomic_directory
 from pex.cache.dirs import CacheDir, UnzipDir
-from pex.common import chmod_plus_x, is_exe, pluralize, safe_mkdtemp, safe_open
+from pex.common import pluralize, safe_mkdtemp, safe_open
 from pex.compatibility import shlex_quote
 from pex.dist_metadata import NamedEntryPoint, parse_entry_point
 from pex.exceptions import production_assert
+from pex.executables import chmod_plus_x, is_exe
 from pex.fetcher import URLFetcher
 from pex.hashing import Sha256
 from pex.layout import Layout

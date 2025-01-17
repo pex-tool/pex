@@ -17,7 +17,8 @@ from textwrap import dedent
 
 from pex import third_party
 from pex.cache.dirs import InterpreterDir
-from pex.common import is_exe, safe_mkdtemp, safe_rmtree
+from pex.common import safe_mkdtemp, safe_rmtree
+from pex.executables import is_exe
 from pex.executor import Executor
 from pex.jobs import Job, Retain, SpawnedJob, execute_parallel
 from pex.orderedset import OrderedSet

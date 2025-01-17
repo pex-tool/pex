@@ -1349,6 +1349,7 @@ def do_main(
                     pex_name=pex_file,
                     targets=targets,
                     python_shebang=options.python_shebang,
+                    layout=options.layout,
                 )
 
         pex_builder.build(

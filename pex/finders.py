@@ -6,7 +6,7 @@ from __future__ import absolute_import
 import ast
 import os
 
-from pex.common import is_python_script, open_zip, safe_mkdtemp
+from pex.common import open_zip, safe_mkdtemp
 from pex.dist_metadata import (
     CallableEntryPoint,
     Distribution,
@@ -14,6 +14,7 @@ from pex.dist_metadata import (
     ModuleEntryPoint,
     NamedEntryPoint,
 )
+from pex.executables import is_python_script
 from pex.pep_376 import InstalledWheel
 from pex.pep_503 import ProjectName
 from pex.typing import TYPE_CHECKING, cast

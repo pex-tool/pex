@@ -6,10 +6,11 @@ from __future__ import absolute_import
 import glob
 import os
 
-from pex.common import is_exe, safe_rmtree
+from pex.common import safe_rmtree
 from pex.compatibility import commonpath
 from pex.enum import Enum
 from pex.exceptions import production_assert
+from pex.executables import is_exe
 from pex.orderedset import OrderedSet
 from pex.typing import TYPE_CHECKING, cast
 from pex.variables import ENV, Variables
