@@ -1,5 +1,26 @@
 # Release Notes
 
+## 2.29.0
+
+This release brings 1st class support for newer Pip's
+`--keyring-provider` option. Previously you could only use `keyring`
+based authentication via `--use-pip-config` and either the
+`PIP_KEYRING_PROVIDER` environment variable or Pip config files.
+Although using `--keyring-provider import` is generally unusable in the
+face of Pex hermeticity strictures, `--keyring-provider subprocess` is
+viable; just ensure you have a keyring provider on the `PATH`. You can
+read more [here][Pip-KRP-subprocess].
+
+This release also brings [PEP-723][PEP-723] support to Pex locks. You
+can now pass `pex3 lock {create,sync,update} --exe <script> ...` to
+include the PEP-723 declared script requirements in the lock.
+
+* add `--keyring-provider` flag to configure keyring-based authentication (#2592)
+* Support locking PEP-723 requirements. (#2642)
+
+[Pip-KRP-subprocess]: https://pip.pypa.io/en/stable/topics/authentication/#using-keyring-as-a-command-line-application
+[PEP-723]: https://peps.python.org/pep-0723
+
 ## 2.28.1
 
 This release upgrades `science` for use in building PEX scies with

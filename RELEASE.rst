@@ -69,12 +69,3 @@ If you're on macOS and commit signing fails, try setting ``export GPG_TTY=$(tty)
 
 Open the Release workflow run and wait for it to go green:
 https://github.com/pex-tool/pex/actions?query=workflow%3ARelease+branch%3Av2.1.29
-
-Edit the Github Release Page
-----------------------------
-
-Open the release page for edit:
-https://github.com/pex-tool/pex/releases/edit/v2.1.29
-
-1. Copy and paste the most recent CHANGES.rst section.
-2. Adapt the syntax from RestructuredText to Markdown (e.g. remove RST links ```PR #... <...>`_``).

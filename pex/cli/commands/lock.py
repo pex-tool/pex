@@ -63,6 +63,7 @@ from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolved_requirement import Fingerprint, Pin
 from pex.resolve.resolver_configuration import LockRepositoryConfiguration, PipConfiguration
 from pex.resolve.resolver_options import parse_lockfile
+from pex.resolve.script_metadata import ScriptMetadataApplication, apply_script_metadata
 from pex.resolve.target_configuration import InterpreterConstraintsNotSatisfied, TargetConfiguration
 from pex.result import Error, Ok, Result, try_
 from pex.sorted_tuple import SortedTuple
@@ -397,6 +398,54 @@ class LockUpdateRequest(object):
         )
 
 
+@attr.s(frozen=True)
+class LockingConfiguration(object):
+    requirement_configuration = attr.ib()  # type: RequirementConfiguration
+    target_configuration = attr.ib()  # type: TargetConfiguration
+    lock_configuration = attr.ib()  # type: LockConfiguration
+    script_metadata_application = attr.ib(default=None)  # type: Optional[ScriptMetadataApplication]
+
+    def check_scripts(self, targets):
+        # type: (Targets) -> Optional[Error]
+
+        if self.script_metadata_application is None:
+            return None
+
+        errors = []  # type: List[str]
+        for target in targets.unique_targets():
+            scripts = self.script_metadata_application.target_does_not_apply(target)
+            if scripts:
+                errors.append(
+                    "{target} is not compatible with {count} {scripts}:\n"
+                    "{script_incompatibilities}".format(
+                        target=target.render_description(),
+                        count=len(scripts),
+                        scripts=pluralize(scripts, "script"),
+                        script_incompatibilities="\n".join(
+                            "   + {source} requires Python '{requires_python}'".format(
+                                source=script.source,
+                                requires_python=script.requires_python,
+                            )
+                            for script in scripts
+                        ),
+                    )
+                )
+        if errors:
+            return Error(
+                "PEP-723 scripts were specified that are incompatible with {count} lock "
+                "{targets}:\n{errors}".format(
+                    count=len(errors),
+                    targets=pluralize(errors, "target"),
+                    errors="\n".join(
+                        "{index}. {error}".format(index=index, error=error)
+                        for index, error in enumerate(errors, start=1)
+                    ),
+                )
+            )
+
+        return None
+
+
 class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
     """Operate on PEX lock files."""
 
@@ -426,6 +475,17 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         options_group = parser.add_argument_group(
             title="Requirement options",
             description="Indicate which distributions should be resolved",
+        )
+        options_group.add_argument(
+            "--exe",
+            "--script",
+            dest="scripts",
+            default=[],
+            action="append",
+            help=(
+                "Specify scripts with PEP-723 metadata to gather requirements and interpreter "
+                "constraints from as lock inputs."
+            ),
         )
         requirement_options.register(options_group)
         project.register_options(
@@ -867,13 +927,13 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             complete_platforms=target_config.complete_platforms,
         )
 
-    def _gather_requirements(
+    def _merge_project_requirements(
         self,
+        requirement_configuration,  # type: RequirementConfiguration
         pip_configuration,  # type: PipConfiguration
         targets,  # type: Targets
     ):
         # type: (...) -> RequirementConfiguration
-        requirement_configuration = requirement_options.configure(self.options)
         group_requirements = project.get_group_requirements(self.options)
         projects = project.get_projects(self.options)
         if not projects and not group_requirements:
@@ -898,15 +958,19 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 )
         return attr.evolve(requirement_configuration, requirements=requirements)
 
-    def _create(self):
-        # type: () -> Result
-
-        pip_configuration = resolver_options.create_pip_configuration(
-            self.options, use_system_time=False
-        )
+    def _locking_configuration(self, pip_configuration):
+        # type: (PipConfiguration) -> Union[LockingConfiguration, Error]
+        requirement_configuration = requirement_options.configure(self.options)
         target_configuration = target_options.configure(
             self.options, pip_configuration=pip_configuration
         )
+        script_metadata_application = None  # type: Optional[ScriptMetadataApplication]
+        if self.options.scripts:
+            script_metadata_application = apply_script_metadata(
+                self.options.scripts, requirement_configuration, target_configuration
+            )
+            requirement_configuration = script_metadata_application.requirement_configuration
+            target_configuration = script_metadata_application.target_configuration
         if self.options.style == LockStyle.UNIVERSAL:
             lock_configuration = LockConfiguration(
                 style=LockStyle.UNIVERSAL,
@@ -928,14 +992,28 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 style=self.options.style,
                 elide_unused_requires_dist=self.options.elide_unused_requires_dist,
             )
+        return LockingConfiguration(
+            requirement_configuration,
+            target_configuration,
+            lock_configuration,
+            script_metadata_application=script_metadata_application,
+        )
 
+    def _create(self):
+        # type: () -> Result
+
+        pip_configuration = resolver_options.create_pip_configuration(
+            self.options, use_system_time=False
+        )
+        locking_configuration = try_(self._locking_configuration(pip_configuration))
         targets = try_(
             self._resolve_targets(
                 action="creating",
                 style=self.options.style,
-                target_configuration=target_configuration,
+                target_configuration=locking_configuration.target_configuration,
             )
         )
+        try_(locking_configuration.check_scripts(targets))
         pip_configuration = try_(
             finalize_resolve_config(
                 resolver_configuration=pip_configuration,
@@ -943,12 +1021,14 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 context="lock creation",
             )
         )
-        requirement_configuration = self._gather_requirements(pip_configuration, targets)
+        requirement_configuration = self._merge_project_requirements(
+            locking_configuration.requirement_configuration, pip_configuration, targets
+        )
         dependency_config = dependency_configuration.configure(self.options)
         self._dump_lockfile(
             try_(
                 create(
-                    lock_configuration=lock_configuration,
+                    lock_configuration=locking_configuration.lock_configuration,
                     requirement_configuration=requirement_configuration,
                     targets=targets,
                     pip_configuration=pip_configuration,
@@ -1571,35 +1651,11 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         )
         production_assert(isinstance(resolver_configuration, LockRepositoryConfiguration))
         pip_configuration = resolver_configuration.pip_configuration
+        locking_configuration = try_(self._locking_configuration(pip_configuration))
         dependency_config = dependency_configuration.configure(self.options)
-
-        target_configuration = target_options.configure(
-            self.options, pip_configuration=pip_configuration
-        )
-        if self.options.style == LockStyle.UNIVERSAL:
-            lock_configuration = LockConfiguration(
-                style=LockStyle.UNIVERSAL,
-                requires_python=tuple(
-                    str(interpreter_constraint.requires_python)
-                    for interpreter_constraint in target_configuration.interpreter_constraints
-                ),
-                target_systems=tuple(self.options.target_systems),
-                elide_unused_requires_dist=self.options.elide_unused_requires_dist,
-            )
-        elif self.options.target_systems:
-            return Error(
-                "The --target-system option only applies to --style {universal} locks.".format(
-                    universal=LockStyle.UNIVERSAL.value
-                )
-            )
-        else:
-            lock_configuration = LockConfiguration(
-                style=self.options.style,
-                elide_unused_requires_dist=self.options.elide_unused_requires_dist,
-            )
-
         lock_file_path = self.options.lock
         if os.path.exists(lock_file_path):
+            lock_configuration = locking_configuration.lock_configuration
             build_configuration = pip_configuration.build_configuration
             original_lock_file = try_(parse_lockfile(self.options, lock_file_path=lock_file_path))
             lock_file = attr.evolve(
@@ -1629,8 +1685,18 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                     dependency_config=dependency_config,
                 )
             )
-            requirement_configuration = self._gather_requirements(
-                pip_configuration, lock_update_request.targets
+            try_(locking_configuration.check_scripts(lock_update_request.targets))
+            pip_configuration = try_(
+                finalize_resolve_config(
+                    resolver_configuration=pip_configuration,
+                    targets=lock_update_request.targets,
+                    context="lock syncing",
+                )
+            )
+            requirement_configuration = self._merge_project_requirements(
+                locking_configuration.requirement_configuration,
+                pip_configuration,
+                lock_update_request.targets,
             )
             lock_update = lock_update_request.sync(
                 requirement_configuration=requirement_configuration,
@@ -1644,13 +1710,23 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 self._resolve_targets(
                     action="creating",
                     style=self.options.style,
-                    target_configuration=target_configuration,
+                    target_configuration=locking_configuration.target_configuration,
                 )
             )
-            requirement_configuration = self._gather_requirements(pip_configuration, targets)
+            try_(locking_configuration.check_scripts(targets))
+            pip_configuration = try_(
+                finalize_resolve_config(
+                    resolver_configuration=pip_configuration,
+                    targets=targets,
+                    context="lock creation",
+                )
+            )
+            requirement_configuration = self._merge_project_requirements(
+                locking_configuration.requirement_configuration, pip_configuration, targets
+            )
             lockfile = try_(
                 create(
-                    lock_configuration=lock_configuration,
+                    lock_configuration=locking_configuration.lock_configuration,
                     requirement_configuration=requirement_configuration,
                     targets=targets,
                     pip_configuration=pip_configuration,
