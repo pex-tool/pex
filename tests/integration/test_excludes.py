@@ -430,7 +430,7 @@ def test_exclude_deep(
     # Building a Pex that requires bar should (transitively) aggressively blow up in normal
     # circumstances.
     run_pex_command(
-        args=list(pip_options.iter_args()) + ["-f", find_links, "--no-pypi", "foo"]
+        args=list(pip_options.iter_args()) + ["-f", find_links, "--no-pypi", "foo", "-vv"]
     ).assert_failure(expected_error_re=r".*I'm an evil package\..*", re_flags=re.DOTALL)
 
     # But an `--exclude bar` should solve this by never resolving bar at all.
