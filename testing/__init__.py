@@ -492,7 +492,9 @@ def bootstrap_python_installer(dest):
     # type: (str) -> None
     for index in range(3):
         try:
-            subprocess.check_call(args=["git", "clone", "https://github.com/pyenv/pyenv", dest])
+            subprocess.check_call(
+                args=["git", "clone", "--depth", "1", "https://github.com/pyenv/pyenv", dest]
+            )
             return
         except subprocess.CalledProcessError as e:
             print("Error cloning pyenv on attempt", index + 1, "of 3:", e, file=sys.stderr)
