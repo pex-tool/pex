@@ -223,7 +223,11 @@ def test_issue_1782(
         + execution_mode_args
     ).assert_success()
 
-    if sys.version_info[:2] >= (3, 14) and "--venv" not in execution_mode_args:
+    if (
+        sys.version_info[:2] >= (3, 14)
+        and "--venv" not in execution_mode_args
+        and layout is not Layout.LOOSE
+    ):
         argv0 = r"python(?:3(?:\.\d{{2,}})?)? {pex}".format(pex=re.escape(pex_exe))
     else:
         argv0 = re.escape(os.path.basename(pex_exe))
