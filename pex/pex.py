@@ -542,6 +542,7 @@ class PEX(object):  # noqa: T000
 
         This function makes assumptions that it is the last function called by the interpreter.
         """
+        pex_file = self._vars.PEX
         if self._vars.PEX_TOOLS:
             if not self._pex_info.includes_tools:
                 die(
@@ -551,11 +552,10 @@ class PEX(object):  # noqa: T000
 
             from pex.tools import main as tools
 
-            sys.exit(tools.main(pex=PEX(sys.argv[0])))
+            sys.exit(tools.main(pex=PEX(pex_file or sys.argv[0])))
 
         self.activate()
 
-        pex_file = self._vars.PEX
         if pex_file:
             try:
                 from setproctitle import setproctitle  # type: ignore[import]

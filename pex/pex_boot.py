@@ -115,7 +115,7 @@ def __maybe_run_venv__(
 ):
     # type: (...) -> Optional[str]
 
-    from pex.common import is_exe
+    from pex.executables import is_exe
     from pex.tracer import TRACER
     from pex.variables import venv_dir
 
@@ -180,7 +180,13 @@ def boot(
                 break
 
     installed_from = os.environ.pop(__INSTALLED_FROM__, None)
-    sys.argv[0] = installed_from or sys.argv[0]
+    if installed_from:
+        if os.path.isfile(installed_from):
+            sys.argv[0] = installed_from
+        else:
+            pex_exe = os.path.join(installed_from, "pex")
+            if os.path.isfile(pex_exe):
+                sys.argv[0] = pex_exe
 
     sys.path[0] = os.path.abspath(sys.path[0])
     sys.path.insert(0, os.path.abspath(os.path.join(entry_point, bootstrap_dir)))

@@ -14,7 +14,8 @@ from textwrap import dedent
 import pytest
 
 from pex.cache.dirs import InterpreterDir
-from pex.common import chmod_plus_x, environment_as, safe_mkdir, safe_mkdtemp, temporary_dir, touch
+from pex.common import environment_as, safe_mkdir, safe_mkdtemp, temporary_dir, touch
+from pex.executables import chmod_plus_x
 from pex.executor import Executor
 from pex.interpreter import PythonInterpreter, create_shebang
 from pex.jobs import Job

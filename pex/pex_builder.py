@@ -17,7 +17,6 @@ from pex.cache.dirs import CacheDir
 from pex.common import (
     Chroot,
     CopyMode,
-    chmod_plus_x,
     deterministic_walk,
     is_pyc_file,
     is_pyc_temporary_file,
@@ -31,6 +30,7 @@ from pex.compatibility import commonpath, to_bytes
 from pex.compiler import Compiler
 from pex.dist_metadata import Distribution, DistributionType, MetadataError
 from pex.enum import Enum
+from pex.executables import chmod_plus_x, create_sh_python_redirector_shebang
 from pex.finders import get_entry_point_from_console_script, get_script_from_distributions
 from pex.interpreter import PythonInterpreter
 from pex.layout import Layout
@@ -660,6 +660,19 @@ class PEXBuilder(object):
                 compress=compress,
                 bytecode_compile=bytecode_compile,
             )
+        if layout in (Layout.LOOSE, Layout.PACKED):
+            pex_script = os.path.join(tmp_pex, "pex")
+            if self._header:
+                main_py = os.path.join(tmp_pex, "__main__.py")
+                with open(pex_script, "w") as script_fp:
+                    print(self._shebang, file=script_fp)
+                    print(self._header, file=script_fp)
+                    with open(main_py) as main_fp:
+                        main_fp.readline()  # Throw away shebang line.
+                        shutil.copyfileobj(main_fp, script_fp)
+                chmod_plus_x(pex_script)
+                os.rename(pex_script, main_py)
+            os.symlink("__main__.py", pex_script)
 
         if os.path.isdir(path):
             shutil.rmtree(path, True)
@@ -673,19 +686,26 @@ class PEXBuilder(object):
         pex_name,  # type: str
         targets,  # type: Targets
         python_shebang,  # type: Optional[str]
+        layout=Layout.ZIPAPP,  # type: Layout.Value
     ):
         if not self._frozen:
             raise Exception("Generating a sh_boot script requires the pex to be frozen.")
 
-        self.set_shebang("/bin/sh")
         script = create_sh_boot_script(
             pex_name=pex_name,
             pex_info=self._pex_info,
             targets=targets,
             interpreter=self.interpreter,
             python_shebang=python_shebang,
+            layout=layout,
         )
-        self.set_header(script)
+        if layout is Layout.ZIPAPP:
+            self.set_shebang("/bin/sh")
+            self.set_header(script)
+        else:
+            shebang, header = create_sh_python_redirector_shebang(script)
+            self.set_shebang(shebang)
+            self.set_header(header)
 
     def _build_packedapp(
         self,

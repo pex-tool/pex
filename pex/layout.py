@@ -11,8 +11,9 @@ from contextlib import contextmanager
 from pex.atomic_directory import atomic_directory
 from pex.cache import access as cache_access
 from pex.cache.dirs import BootstrapDir, InstalledWheelDir, UserCodeDir
-from pex.common import ZipFileEx, is_script, open_zip, safe_copy, safe_mkdir, safe_mkdtemp
+from pex.common import ZipFileEx, open_zip, safe_copy, safe_mkdir, safe_mkdtemp
 from pex.enum import Enum
+from pex.executables import is_script
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV, unzip_dir
@@ -559,7 +560,9 @@ class _PackedPEX(_Layout):
             if root == self._path:
                 dirs[:] = [d for d in dirs if d not in ("__pex__", DEPS_DIR)]
                 files[:] = [
-                    f for f in files if f not in ("__main__.py", PEX_INFO_PATH, BOOTSTRAP_DIR)
+                    f
+                    for f in files
+                    if f not in ("__main__.py", "pex", PEX_INFO_PATH, BOOTSTRAP_DIR)
                 ]
             for d in dirs:
                 safe_mkdir(os.path.join(dest_dir, rel_root, d))
@@ -635,7 +638,7 @@ class _LoosePEX(_Layout):
             rel_root = os.path.relpath(root, self._path)
             if root == self._path:
                 dirs[:] = [d for d in dirs if d not in ("__pex__", DEPS_DIR, BOOTSTRAP_DIR)]
-                files[:] = [f for f in files if f not in ("__main__.py", PEX_INFO_PATH)]
+                files[:] = [f for f in files if f not in ("__main__.py", "pex", PEX_INFO_PATH)]
             for d in dirs:
                 safe_mkdir(os.path.join(dest_dir, rel_root, d))
             for f in files:

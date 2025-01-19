@@ -13,6 +13,7 @@ from pex.compatibility import shlex_quote
 from pex.dist_metadata import Distribution
 from pex.interpreter import PythonInterpreter, calculate_binary_name
 from pex.interpreter_constraints import InterpreterConstraints, iter_compatible_versions
+from pex.layout import Layout
 from pex.orderedset import OrderedSet
 from pex.pep_440 import Version
 from pex.pex_info import PexInfo
@@ -123,6 +124,7 @@ def create_sh_boot_script(
     targets,  # type: Targets
     interpreter,  # type: PythonInterpreter
     python_shebang=None,  # type: Optional[str]
+    layout=Layout.ZIPAPP,  # type: Layout.Value
 ):
     # type: (...) -> str
     """Creates the body of a POSIX `sh` compatible script that executes a PEX ZIPAPP appended to it.
@@ -199,7 +201,7 @@ def create_sh_boot_script(
             # We're a --venv execution mode PEX installed under the PEX_ROOT and the venv
             # interpreter to use is embedded in the shebang of our venv pex script; so just
             # execute that script directly.
-            export PEX="$0"
+            export PEX="{pex}"
             exec "${{INSTALLED_PEX}}/bin/python" ${{VENV_PYTHON_ARGS}} "${{INSTALLED_PEX}}" \\
                 "$@"
         fi
@@ -227,7 +229,7 @@ def create_sh_boot_script(
                 # We're a --zipapp execution mode PEX installed under the PEX_ROOT with a
                 # __main__.py in our top-level directory; so execute Python against that
                 # directory.
-                export __PEX_EXE__="$0"
+                export __PEX_EXE__="{pex}"
                 exec "${{python_exe}}" ${{PYTHON_ARGS}} "${{INSTALLED_PEX}}" "$@"
             else
                 # The slow path: this PEX zipapp is not installed yet. Run the PEX zipapp so it
@@ -261,4 +263,5 @@ def create_sh_boot_script(
         venv_python_args=" ".join(
             shlex_quote(venv_python_arg) for venv_python_arg in venv_python_args
         ),
+        pex="$0" if layout is Layout.ZIPAPP else '$(dirname "$0")',
     )

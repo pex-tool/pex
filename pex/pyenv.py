@@ -7,7 +7,7 @@ import os
 import re
 import subprocess
 
-from pex.common import is_exe
+from pex.executables import is_exe
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 

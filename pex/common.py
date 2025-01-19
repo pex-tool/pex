@@ -23,6 +23,7 @@ from uuid import uuid4
 from zipfile import ZipFile, ZipInfo
 
 from pex.enum import Enum
+from pex.executables import chmod_plus_x
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
@@ -444,72 +445,6 @@ def safe_sleep(seconds):
             remaining_time = seconds - (current_time - start_time)
             time.sleep(remaining_time)
             current_time = time.time()
-
-
-def chmod_plus_x(path):
-    # type: (Text) -> None
-    """Equivalent of unix `chmod a+x path`"""
-    path_mode = os.stat(path).st_mode
-    path_mode &= int("777", 8)
-    if path_mode & stat.S_IRUSR:
-        path_mode |= stat.S_IXUSR
-    if path_mode & stat.S_IRGRP:
-        path_mode |= stat.S_IXGRP
-    if path_mode & stat.S_IROTH:
-        path_mode |= stat.S_IXOTH
-    os.chmod(path, path_mode)
-
-
-def chmod_plus_w(path):
-    # type: (str) -> None
-    """Equivalent of unix `chmod +w path`"""
-    path_mode = os.stat(path).st_mode
-    path_mode &= int("777", 8)
-    path_mode |= stat.S_IWRITE
-    os.chmod(path, path_mode)
-
-
-def is_exe(path):
-    # type: (str) -> bool
-    """Determines if the given path is a file executable by the current user.
-
-    :param path: The path to check.
-    :return: `True if the given path is a file executable by the current user.
-    """
-    return os.path.isfile(path) and os.access(path, os.R_OK | os.X_OK)
-
-
-def is_script(
-    path,  # type: str
-    pattern=None,  # type: Optional[str]
-    check_executable=True,  # type: bool
-):
-    # type: (...) -> bool
-    """Determines if the given path is a script.
-
-    A script is a file that starts with a shebang (#!...) line.
-
-    :param path: The path to check.
-    :param pattern: An optional pattern to match against the shebang (excluding the leading #!).
-    :param check_executable: Check that the script is executable by the current user.
-    :return: True if the given path is a script.
-    """
-    if check_executable and not is_exe(path):
-        return False
-    with open(path, "rb") as fp:
-        if b"#!" != fp.read(2):
-            return False
-        if not pattern:
-            return True
-        return bool(re.match(pattern, fp.readline().decode("utf-8")))
-
-
-def is_python_script(
-    path,  # type: str
-    check_executable=True,  # type: bool
-):
-    # type: (...) -> bool
-    return is_script(path, pattern=r"(?i)^.*(?:python|pypy)", check_executable=check_executable)
 
 
 def can_write_dir(path):

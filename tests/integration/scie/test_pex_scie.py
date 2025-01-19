@@ -16,7 +16,8 @@ from typing import Optional
 import pytest
 
 from pex.cache.dirs import CacheDir
-from pex.common import chmod_plus_x, is_exe, safe_open
+from pex.common import safe_open
+from pex.executables import chmod_plus_x, is_exe
 from pex.fetcher import URLFetcher
 from pex.layout import Layout
 from pex.orderedset import OrderedSet

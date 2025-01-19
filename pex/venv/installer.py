@@ -11,10 +11,11 @@ from textwrap import dedent
 
 from pex import layout, pex_warnings, repl
 from pex.cache import access as cache_access
-from pex.common import CopyMode, chmod_plus_x, iter_copytree, pluralize
+from pex.common import CopyMode, iter_copytree, pluralize
 from pex.compatibility import is_valid_python_identifier
 from pex.dist_metadata import Distribution
 from pex.environment import PEXEnvironment
+from pex.executables import chmod_plus_x
 from pex.orderedset import OrderedSet
 from pex.pep_376 import InstalledWheel
 from pex.pep_440 import Version
@@ -535,6 +536,7 @@ class PEXSources(object):
                 "__main__.py",
                 "__pex__",
                 "__pycache__",
+                "pex",
                 cache_access.LAST_ACCESS_FILE,
                 layout.BOOTSTRAP_DIR,
                 layout.DEPS_DIR,

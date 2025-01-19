@@ -101,7 +101,7 @@ def test_lockfile_style_sources(
     def use_lock(target):
         # type: (Target) -> IntegResults
         return run_pex_command(
-            args=["--lock", lockfile, "--", "-c", "import p537"],
+            args=["--lock", lockfile, "-vv", "--", "-c", "import p537"],
             python=target.get_interpreter().binary,
         )
 

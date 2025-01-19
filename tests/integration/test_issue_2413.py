@@ -10,7 +10,8 @@ from textwrap import dedent
 
 import pytest
 
-from pex.common import is_exe, safe_open
+from pex.common import safe_open
+from pex.executables import is_exe
 from pex.pep_503 import ProjectName
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import InstallationChoice, Virtualenv

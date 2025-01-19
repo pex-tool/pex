@@ -14,10 +14,11 @@ from fileinput import FileInput
 from textwrap import dedent
 
 from pex import pex_warnings
-from pex.common import chmod_plus_x, is_pyc_file, iter_copytree, open_zip, safe_open, touch
+from pex.common import is_pyc_file, iter_copytree, open_zip, safe_open, touch
 from pex.compatibility import commonpath, get_stdout_bytes_buffer
 from pex.dist_metadata import CallableEntryPoint, Distribution, ProjectNameAndVersion
 from pex.enum import Enum
+from pex.executables import chmod_plus_x
 from pex.interpreter import PythonInterpreter
 from pex.pep_376 import InstalledFile, InstalledWheel, Record
 from pex.pep_503 import ProjectName

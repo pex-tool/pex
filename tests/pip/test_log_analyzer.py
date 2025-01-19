@@ -9,7 +9,7 @@ from textwrap import dedent
 
 import pytest
 
-from pex.common import chmod_plus_x
+from pex.executables import chmod_plus_x
 from pex.jobs import Job
 from pex.pip.log_analyzer import ErrorAnalyzer, ErrorMessage, LogAnalyzer, LogScrapeJob
 from pex.typing import TYPE_CHECKING

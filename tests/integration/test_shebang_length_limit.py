@@ -15,7 +15,8 @@ import pytest
 
 from pex.atomic_directory import atomic_directory
 from pex.cache.dirs import CacheDir
-from pex.common import chmod_plus_x, safe_open, touch
+from pex.common import safe_open, touch
+from pex.executables import chmod_plus_x
 from pex.typing import TYPE_CHECKING
 from testing import IS_PYPY, make_project, run_pex_command
 from testing.cli import run_pex3

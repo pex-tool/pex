@@ -5,11 +5,11 @@ from __future__ import print_function
 
 import os
 import sys
-from types import CodeType
 
 TYPE_CHECKING = False
 
 if TYPE_CHECKING:
+    from types import CodeType
     from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 _PY2_EXEC_FUNCTION = """
@@ -101,7 +101,12 @@ def boot(
     pex_file = os.environ.get("PEX", None)
     if pex_file:
         pex_file_path = os.path.realpath(pex_file)
-        sys.argv[0] = pex_file_path
+        if os.path.isfile(pex_file_path):
+            sys.argv[0] = pex_file_path
+        else:
+            pex_exe = os.path.join(pex_file_path, "pex")
+            if os.path.isfile(pex_exe):
+                sys.argv[0] = pex_exe
         os.environ["PEX"] = pex_file_path
         try:
             from setproctitle import setproctitle  # type: ignore[import]
