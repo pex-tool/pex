@@ -22,7 +22,7 @@ from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from typing import Any, Dict, Iterable, List, Mapping, Optional, Set, Text, Union
+    from typing import Any, Dict, Iterable, List, Mapping, Optional, Set, Union
 
 _DEFAULT_BUILD_SYSTEMS = {}  # type: Dict[PipVersionValue, BuildSystem]
 
@@ -205,7 +205,7 @@ def build_sdist(
     resolver,  # type: Resolver
     pip_version=None,  # type: Optional[PipVersionValue]
 ):
-    # type: (...) -> Union[Text, Error]
+    # type: (...) -> Union[str, Error]
 
     extra_requirements = []
     spawned_job_or_error = _invoke_build_hook(

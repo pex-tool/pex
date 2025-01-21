@@ -16,7 +16,7 @@ from pex.third_party.packaging.markers import Marker, Variable
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from typing import Callable, DefaultDict, Dict, Iterable, List, Optional, Tuple, Union
+    from typing import Callable, DefaultDict, Dict, Iterable, Iterator, List, Optional, Tuple, Union
 
     import attr  # vendor:skip
 
@@ -111,15 +111,20 @@ def _parse_marker_for_extra_check(marker):
     return eval_extra
 
 
-def _evaluate_for_extras(
-    marker,  # type: Optional[Marker]
-    extras,  # type: Iterable[str]
+def filter_dependencies(
+    requirement,  # type: Requirement
+    locked_requirement,  # type: LockedRequirement
 ):
-    # type: (...) -> bool
-    if not marker:
-        return True
-    eval_extra = _parse_marker_for_extra_check(marker)
-    return any(eval_extra(ProjectName(extra)) for extra in (extras or [""]))
+    # type: (...) -> Iterator[Requirement]
+
+    extras = requirement.extras or [""]
+    for dep in locked_requirement.requires_dists:
+        if not dep.marker:
+            yield dep
+        else:
+            eval_extra = _parse_marker_for_extra_check(dep.marker)
+            if any(eval_extra(ProjectName(extra)) for extra in extras):
+                yield dep
 
 
 def remove_unused_requires_dist(
@@ -146,10 +151,8 @@ def remove_unused_requires_dist(
         if not locked_req:
             continue
 
-        for dep in locked_req.requires_dists:
-            if dep.project_name in locked_req_by_project_name and _evaluate_for_extras(
-                dep.marker, requirement.extras
-            ):
+        for dep in filter_dependencies(requirement, locked_req):
+            if dep.project_name in locked_req_by_project_name:
                 requires_dist_by_locked_req[locked_req].add(dep)
                 requirements.append(dep)
 
