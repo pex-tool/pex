@@ -624,10 +624,10 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         # name metadata from.
         cls._add_resolve_options(subset_parser)
 
-        cls._add_lockfile_option(subset_parser, verb="export", positional=True)
+        cls._add_lockfile_option(subset_parser, verb="subset", positional=False)
         cls._add_lock_options(subset_parser)
-        cls.add_output_option(subset_parser, entity="lock")
-        cls.add_json_options(subset_parser, entity="lock", include_switch=False)
+        cls.add_output_option(subset_parser, entity="lock subset")
+        cls.add_json_options(subset_parser, entity="lock subset", include_switch=False)
 
     @classmethod
     def _add_export_arguments(
