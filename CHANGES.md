@@ -1,5 +1,14 @@
 # Release Notes
 
+## 2.31.0
+
+This release adds `pex3 lock subset <reqs...> --lock existing.lock` for
+creating a subset of an existing lock file. This is a fast operation
+that just trims un-used locked requirements from the lock but otherwise
+leaves the lock unchanged.
+
+* Add support for `pex3 lock subset`. (#2647)
+
 ## 2.30.0
 
 This release brings `--sh-boot` support to PEXes with
