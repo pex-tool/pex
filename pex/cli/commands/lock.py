@@ -3,24 +3,28 @@
 
 from __future__ import absolute_import, print_function
 
+import functools
 import itertools
 import os.path
 import sys
 from argparse import Action, ArgumentError, ArgumentParser, ArgumentTypeError, _ActionsContainer
-from collections import OrderedDict
+from collections import OrderedDict, deque
+from multiprocessing.pool import ThreadPool
 from operator import attrgetter
 
 from pex import dependency_configuration, pex_warnings
 from pex.argparse import HandleBoolAction
+from pex.build_system import pep_517
 from pex.cli.command import BuildTimeCommand
 from pex.commands.command import JsonMixin, OutputMixin
-from pex.common import pluralize, safe_delete, safe_open
+from pex.common import pluralize, safe_delete, safe_mkdtemp, safe_open
 from pex.compatibility import commonpath, shlex_quote
 from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import (
     Constraint,
     Distribution,
     MetadataType,
+    ProjectNameAndVersion,
     Requirement,
     RequirementParseError,
 )
@@ -33,6 +37,8 @@ from pex.pep_376 import InstalledWheel, Record
 from pex.pep_427 import InstallableType
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
+from pex.pip.version import PipVersionValue
+from pex.requirements import LocalProjectRequirement
 from pex.resolve import project, requirement_options, resolver_options, target_options
 from pex.resolve.config import finalize as finalize_resolve_config
 from pex.resolve.configured_resolver import ConfiguredResolver
@@ -40,12 +46,13 @@ from pex.resolve.lock_resolver import resolve_from_lock
 from pex.resolve.locked_resolve import (
     LocalProjectArtifact,
     LockConfiguration,
+    LockedResolve,
     LockStyle,
     Resolved,
     TargetSystem,
     VCSArtifact,
 )
-from pex.resolve.lockfile import json_codec
+from pex.resolve.lockfile import json_codec, requires_dist
 from pex.resolve.lockfile.create import create
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.lockfile.subset import subset
@@ -64,11 +71,12 @@ from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolved_requirement import Fingerprint, Pin
 from pex.resolve.resolver_configuration import LockRepositoryConfiguration, PipConfiguration
 from pex.resolve.resolver_options import parse_lockfile
+from pex.resolve.resolvers import Resolver
 from pex.resolve.script_metadata import ScriptMetadataApplication, apply_script_metadata
 from pex.resolve.target_configuration import InterpreterConstraintsNotSatisfied, TargetConfiguration
 from pex.result import Error, Ok, Result, try_
 from pex.sorted_tuple import SortedTuple
-from pex.targets import LocalInterpreter, Targets
+from pex.targets import LocalInterpreter, Target, Targets
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
 from pex.venv.virtualenv import InvalidVirtualenvError, Virtualenv
@@ -608,6 +616,20 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         cls.add_json_options(create_parser, entity="lock", include_switch=False)
 
     @classmethod
+    def _add_subset_arguments(cls, subset_parser):
+        # type: (_ActionsContainer) -> None
+
+        # N.B.: Needed to handle the case of local project requirements as lock subset input, these
+        # will need to resolve and run a PEP-517 build system to produce an sdist to grab project
+        # name metadata from.
+        cls._add_resolve_options(subset_parser)
+
+        cls._add_lockfile_option(subset_parser, verb="subset", positional=False)
+        cls._add_lock_options(subset_parser)
+        cls.add_output_option(subset_parser, entity="lock subset")
+        cls.add_json_options(subset_parser, entity="lock subset", include_switch=False)
+
+    @classmethod
     def _add_export_arguments(
         cls,
         export_parser,  # type: _ActionsContainer
@@ -846,6 +868,10 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             name="create", help="Create a lock file.", func=cls._create
         ) as create_parser:
             cls._add_create_arguments(create_parser)
+        with subcommands.parser(
+            name="subset", help="Subset a lock file.", func=cls._subset
+        ) as subset_parser:
+            cls._add_subset_arguments(subset_parser)
         with subcommands.parser(
             name="export",
             help="Export a Pex lock file for a single targeted environment in a different format.",
@@ -1203,8 +1229,250 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         return Ok()
 
     def _export_subset(self):
+        # type: () -> Result
         requirement_configuration = requirement_options.configure(self.options)
         return self._export(requirement_configuration=requirement_configuration)
+
+    def _build_sdist(
+        self,
+        local_project_requirement,  # type: LocalProjectRequirement
+        target,  # type: Target
+        resolver,  # type: Resolver
+        pip_version=None,  # type: Optional[PipVersionValue]
+    ):
+        # type: (...) -> Union[str, Error]
+        return pep_517.build_sdist(
+            local_project_requirement.path,
+            dist_dir=safe_mkdtemp(),
+            target=target,
+            resolver=resolver,
+            pip_version=pip_version,
+        )
+
+    def _build_sdists(
+        self,
+        target,  # type: Target
+        pip_configuration,  # type: PipConfiguration
+        local_project_requirements,  # type: Iterable[LocalProjectRequirement]
+    ):
+        # type: (...) -> Iterable[Tuple[LocalProjectRequirement, Union[str, Error]]]
+
+        func = functools.partial(
+            self._build_sdist,
+            target=target,
+            resolver=ConfiguredResolver(pip_configuration),
+            pip_version=pip_configuration.version,
+        )
+        pool = ThreadPool(processes=pip_configuration.max_jobs)
+        try:
+            return zip(local_project_requirements, pool.map(func, local_project_requirements))
+        finally:
+            pool.close()
+            pool.join()
+
+    def _process_local_project_requirements(
+        self,
+        target,  # type: Target
+        pip_configuration,  # type: PipConfiguration
+        local_project_requirements,  # type: Iterable[LocalProjectRequirement]
+    ):
+        # type: (...) -> Union[Mapping[LocalProjectRequirement, Requirement], Error]
+
+        errors = []  # type: List[str]
+        requirement_by_local_project_requirement = (
+            {}
+        )  # type: Dict[LocalProjectRequirement, Requirement]
+        for lpr, sdist_or_error in self._build_sdists(
+            target, pip_configuration, local_project_requirements
+        ):
+            if isinstance(sdist_or_error, Error):
+                errors.append("{project}: {err}".format(project=lpr.path, err=sdist_or_error))
+            else:
+                requirement_by_local_project_requirement[lpr] = lpr.as_requirement(sdist_or_error)
+        if errors:
+            return Error(
+                "Failed to determine the names and version of {count} local project input "
+                "{requirements} to the lock subset:\n{errors}".format(
+                    count=len(errors),
+                    requirements=pluralize(errors, "requirement"),
+                    errors="\n".join(
+                        "{index}. {error}".format(index=index, error=error)
+                        for index, error in enumerate(errors, start=1)
+                    ),
+                )
+            )
+        return requirement_by_local_project_requirement
+
+    def _subset(self):
+        # type: () -> Result
+
+        lockfile_path, lock_file = self._load_lockfile()
+
+        pip_configuration = resolver_options.create_pip_configuration(
+            self.options, use_system_time=False
+        )
+        target_configuration = target_options.configure(
+            self.options, pip_configuration=pip_configuration
+        )
+        requirement_configuration = requirement_options.configure(self.options)
+        script_metadata_application = None  # type: Optional[ScriptMetadataApplication]
+        if self.options.scripts:
+            script_metadata_application = apply_script_metadata(
+                self.options.scripts, requirement_configuration, target_configuration
+            )
+            requirement_configuration = script_metadata_application.requirement_configuration
+            target_configuration = script_metadata_application.target_configuration
+        locking_configuration = LockingConfiguration(
+            requirement_configuration,
+            target_configuration=target_configuration,
+            lock_configuration=lock_file.lock_configuration(),
+            script_metadata_application=script_metadata_application,
+        )
+        targets = try_(
+            self._resolve_targets(
+                action="creating",
+                style=lock_file.style,
+                target_configuration=locking_configuration.target_configuration,
+            )
+        )
+        try_(locking_configuration.check_scripts(targets))
+        pip_configuration = try_(
+            finalize_resolve_config(
+                resolver_configuration=pip_configuration,
+                targets=targets,
+                context="lock creation",
+            )
+        )
+        requirement_configuration = self._merge_project_requirements(
+            locking_configuration.requirement_configuration, pip_configuration, targets
+        )
+
+        network_configuration = resolver_options.create_network_configuration(self.options)
+        parsed_requirements = requirement_configuration.parse_requirements(
+            network_configuration=network_configuration
+        )
+
+        # This target is used to build an sdist for each local project in the lock input
+        # requirements in order to extract the project name from the local project metadata.
+        # The project will need to be compatible with all targets in the lock; so any target should
+        # do.
+        representative_target = targets.unique_targets().pop(last=False)
+        local_project_requirements = try_(
+            self._process_local_project_requirements(
+                target=representative_target,
+                pip_configuration=pip_configuration,
+                local_project_requirements=[
+                    req for req in parsed_requirements if isinstance(req, LocalProjectRequirement)
+                ],
+            )
+        )
+        root_requirements = {
+            (
+                local_project_requirements[req]
+                if isinstance(req, LocalProjectRequirement)
+                else req.requirement
+            )
+            for req in parsed_requirements
+        }
+
+        constraint_by_project_name = OrderedDict(
+            (constraint.requirement.project_name, constraint.requirement.as_constraint())
+            for constraint in requirement_configuration.parse_constraints(
+                network_configuration=network_configuration
+            )
+        )
+
+        resolve_subsets = []  # type: List[LockedResolve]
+        for locked_resolve in lock_file.locked_resolves:
+            available = {
+                locked_req.pin.project_name: (
+                    ProjectNameAndVersion(
+                        locked_req.pin.project_name.raw, locked_req.pin.version.raw
+                    ),
+                    locked_req,
+                )
+                for locked_req in locked_resolve.locked_requirements
+            }
+            retain = set()
+            to_resolve = deque(root_requirements)
+            while to_resolve:
+                req = to_resolve.popleft()
+                if req.project_name in retain:
+                    continue
+                retain.add(req.project_name)
+                dep = available.get(req.project_name)
+                if not dep:
+                    return Error(
+                        "There is no lock entry for {project} in {lock_file} to satisfy the "
+                        "{transitive}'{req}' requirement.".format(
+                            project=req.project_name,
+                            lock_file=lockfile_path,
+                            transitive="" if req in root_requirements else "transitive ",
+                            req=req,
+                        )
+                    )
+                elif dep:
+                    pnav, locked_req = dep
+                    if pnav not in req:
+                        production_assert(
+                            req in root_requirements,
+                            "Transitive requirements in a lock should always match existing lock "
+                            "entries. Found {project} {version} in {lock_file}, which does not "
+                            "satisfy transitive requirement '{req}' found in the same lock.".format(
+                                project=pnav.project_name,
+                                version=pnav.version,
+                                lock_file=lockfile_path,
+                                req=req,
+                            ),
+                        )
+                        return Error(
+                            "The locked version of {project} in {lock_file} is {version} which "
+                            "does not satisfy the '{req}' requirement.".format(
+                                project=pnav.project_name,
+                                lock_file=lockfile_path,
+                                version=pnav.version,
+                                req=req,
+                            )
+                        )
+                    elif (
+                        req.project_name in constraint_by_project_name
+                        and pnav not in constraint_by_project_name[req.project_name]
+                    ):
+                        return Error(
+                            "The locked version of {project} in {lock_file} is {version} which "
+                            "does not satisfy the '{constraint}' constraint.".format(
+                                project=pnav.project_name,
+                                lock_file=lockfile_path,
+                                version=pnav.version,
+                                constraint=constraint_by_project_name[req.project_name],
+                            )
+                        )
+                    to_resolve.extend(requires_dist.filter_dependencies(req, locked_req))
+
+            resolve_subsets.append(
+                attr.evolve(
+                    locked_resolve,
+                    locked_requirements=SortedTuple(
+                        locked_requirement
+                        for locked_requirement in locked_resolve.locked_requirements
+                        if locked_requirement.pin.project_name in retain
+                    ),
+                )
+            )
+
+        self._dump_lockfile(
+            attr.evolve(
+                lock_file,
+                locked_resolves=SortedTuple(resolve_subsets),
+                constraints=(
+                    SortedTuple(constraint_by_project_name.values(), key=str)
+                    if constraint_by_project_name
+                    else lock_file.constraints
+                ),
+                requirements=SortedTuple(root_requirements, key=str),
+            )
+        )
+        return Ok()
 
     def _create_lock_update_request(
         self,
