@@ -17,7 +17,7 @@ import pytest
 
 from pex import resolver
 from pex.common import environment_as, safe_mkdir, safe_open, temporary_dir
-from pex.compatibility import PY2, WINDOWS, to_bytes
+from pex.compatibility import PY2, WINDOWS, commonpath, to_bytes
 from pex.dist_metadata import Distribution
 from pex.interpreter import PythonIdentity, PythonInterpreter
 from pex.pex import PEX, IsolatedSysPath
@@ -235,7 +235,14 @@ def test_site_libs_symlink(tmpdir):
     # bit of stdlib is on the sys.path. We get this by grabbing its sys.path entry, which contains
     # the whole stdlib in addition to it.
     assert sysconfig.__file__
-    sys_path_entry = os.path.dirname(sysconfig.__file__)
+
+    sys_path_entries = tuple(
+        entry
+        for entry in PythonIdentity.get().sys_path
+        if entry == commonpath((entry, sysconfig.__file__))
+    )
+    assert len(sys_path_entries) == 1
+    sys_path_entry = sys_path_entries[0]
 
     sys_path_entry_link = os.path.join(str(tmpdir), "lib-link")
     os.symlink(sys_path_entry, sys_path_entry_link)
