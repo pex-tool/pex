@@ -19,6 +19,7 @@ from pex.dist_metadata import (
     Constraint,
     DistMetadata,
     ProjectNameAndVersion,
+    Requirement,
     is_tar_sdist,
     is_zip_sdist,
 )
@@ -42,6 +43,7 @@ from pex.resolve.locked_resolve import (
     VCSArtifact,
 )
 from pex.resolve.locker import Locker
+from pex.resolve.lockfile import requires_dist
 from pex.resolve.lockfile.download_manager import DownloadManager
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.pep_691.fingerprint_service import FingerprintService
@@ -508,7 +510,19 @@ def _lock_build_system(
                 source_artifacts="\n".join(source_artifacts),
             )
         )
-    return build_system_table, result.locked_resolves
+    return (
+        build_system_table,
+        (
+            tuple(
+                requires_dist.remove_unused_requires_dist(
+                    tuple(Requirement.parse(req) for req in build_system_table.requires), lr
+                )
+                for lr in result.locked_resolves
+            )
+            if lock_configuration.elide_unused_requires_dist
+            else result.locked_resolves
+        ),
+    )
 
 
 def _lock_build_systems(
