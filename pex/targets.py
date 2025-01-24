@@ -43,7 +43,7 @@ class WheelEvaluation(object):
     __nonzero__ = __bool__
 
 
-@attr.s(frozen=True)
+@attr.s(frozen=True, repr=False)
 class Target(object):
     id = attr.ib()  # type: str
     platform = attr.ib()  # type: Platform
@@ -195,8 +195,12 @@ class Target(object):
     def render_description(self):
         raise NotImplementedError()
 
+    def __repr__(self):
+        # type: () -> str
+        return "{clazz}({self!r})".format(clazz=type(self).__name__, self=str(self))
 
-@attr.s(frozen=True)
+
+@attr.s(frozen=True, repr=False)
 class LocalInterpreter(Target):
     @classmethod
     def create(cls, interpreter=None):
@@ -248,7 +252,7 @@ class LocalInterpreter(Target):
         )
 
 
-@attr.s(frozen=True)
+@attr.s(frozen=True, repr=False)
 class AbbreviatedPlatform(Target):
     @classmethod
     def create(cls, platform):
@@ -273,7 +277,7 @@ def current():
     return LocalInterpreter.create()
 
 
-@attr.s(frozen=True)
+@attr.s(frozen=True, repr=False)
 class CompletePlatform(Target):
     @classmethod
     def from_interpreter(cls, interpreter):
