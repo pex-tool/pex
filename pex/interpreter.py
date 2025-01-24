@@ -406,6 +406,7 @@ class PythonIdentity(object):
 
     @classmethod
     def _find_interpreter_name(cls, python_tag):
+        # type: (str) -> str
         for abbr, interpreter in cls.ABBR_TO_INTERPRETER_NAME.items():
             if python_tag.startswith(abbr):
                 return interpreter
@@ -453,6 +454,7 @@ class PythonIdentity(object):
         self._configured_macosx_deployment_target = configured_macosx_deployment_target
 
     def encode(self):
+        # type: () -> str
         site_packages = []  # type: List[str]
         purelib = None  # type: Optional[str]
         platlib = None  # type: Optional[str]
@@ -494,6 +496,7 @@ class PythonIdentity(object):
 
     @property
     def binary(self):
+        # type: () -> str
         return self._binary
 
     @property
@@ -533,14 +536,17 @@ class PythonIdentity(object):
 
     @property
     def python_tag(self):
+        # type: () -> str
         return self._python_tag
 
     @property
     def abi_tag(self):
+        # type: () -> str
         return self._abi_tag
 
     @property
     def platform_tag(self):
+        # type: () -> str
         return self._platform_tag
 
     @property
@@ -589,6 +595,7 @@ class PythonIdentity(object):
 
     @property
     def interpreter(self):
+        # type: () -> str
         return self._interpreter_name
 
     def iter_supported_platforms(self):
@@ -651,12 +658,14 @@ class PythonIdentity(object):
         )
 
     def _tup(self):
+        # type: () -> Tuple[str, str, str, str, Tuple[int, int, int]]
         return self._binary, self._python_tag, self._abi_tag, self._platform_tag, self._version
 
     def __eq__(self, other):
-        if type(other) is not type(self):
-            return NotImplemented
-        return self._tup() == other._tup()
+        # type: (Any) -> bool
+        if isinstance(other, PythonIdentity):
+            return self._tup() == other._tup()
+        return NotImplemented
 
     def __hash__(self):
         # type: () -> int
