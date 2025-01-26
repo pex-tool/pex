@@ -1,0 +1,38 @@
+name: Build ./dtox.sh Cache Image
+on:
+  schedule:
+    # 2:00 AM US-Pacific on Wednesdays
+    - cron: '0 9 * * 3'
+  workflow_dispatch:
+defaults:
+  run:
+    shell: bash
+env:
+  SCIENCE_AUTH_API_GITHUB_COM_BEARER: ${{ secrets.GITHUB_TOKEN }}
+jobs:
+  build-cache-image:
+    name: Build ./dtox.sh Cache Image
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Pex
+        uses: actions/checkout@v4
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Build & Push Cache Image
+        run: |
+          python -mvenv .venv
+          source .venv/bin/activate
+          python -V
+
+          pip install -U pip
+          pip -V
+
+          pip install tox
+          tox --version
+
+          echo "${{ secrets.GITHUB_TOKEN }}" | \
+            docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+          tox -e build-cache-image -- --color --push
