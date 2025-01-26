@@ -9,8 +9,8 @@ import os
 # N.B.: The following environment variable is used by the Pex runtime to control Pip and must be
 # kept in-sync with `__init__.py`.
 with open(os.environ.pop("_PEX_PYTHON_VERSIONS_FILE")) as fp:
-    PYTHON_FULL_VERSIONS = json.load(fp)
-PYTHON_VERSIONS = sorted(set((version[0], version[1]) for version in PYTHON_FULL_VERSIONS))
+    PYTHON_FULL_VERSIONS = sorted(tuple(version) for version in json.load(fp))
+PYTHON_VERSIONS = sorted(set(version[:2] for version in PYTHON_FULL_VERSIONS))
 
 
 def patch():

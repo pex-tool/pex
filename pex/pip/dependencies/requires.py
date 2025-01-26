@@ -4,6 +4,7 @@
 from __future__ import absolute_import, print_function
 
 import logging
+import sys
 
 logger = logging.getLogger(__name__)
 
@@ -78,10 +79,14 @@ def patch():
     # `pkg_resources.Distribution` objects to a `pip._internal.metadata` interface. The
     # `pip._internal.metadata.pkg_resources.Distribution` type delegates to
     # `pip._vendor.pkg_resources.Distribution`, which we've patched above, but the
-    # `pip._internal.metadata.importlib.Distribution` type needs its own patching.
-    try:
-        from pip._internal.metadata.importlib import Distribution  # type: ignore[import]
+    # `pip._internal.metadata.importlib.Distribution` type needs its own patching. N.B.: Pip only
+    # uses the pip._internal.metadata.importlib package for Python >=3.11 and code in that package
+    # relies on that fact, using some syntax not supported in earlier Python versions; so we guard
+    # this patch. See discussion here: https://github.com/pypa/pip/pull/11685/files#r1929802395
+    if sys.version_info[:2] >= (3, 11):
+        try:
+            from pip._internal.metadata.importlib import Distribution  # type: ignore[import]
 
-        patch_requires_dists(Distribution, "iter_dependencies")
-    except ImportError:
-        pass
+            patch_requires_dists(Distribution, "iter_dependencies")
+        except ImportError:
+            pass

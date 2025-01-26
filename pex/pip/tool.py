@@ -374,8 +374,6 @@ class Pip(object):
         pip_args = [
             # We vendor the version of pip we want so pip should never check for updates.
             "--disable-pip-version-check",
-            # If we want to warn about a version of python we support, we should do it, not pip.
-            "--no-python-version-warning",
             # If pip encounters a duplicate file path during its operations we don't want it to
             # prompt and we'd also like to know about this since it should never occur. We leverage
             # the pip global option:
@@ -387,6 +385,12 @@ class Pip(object):
             # We are not interactive.
             "--no-input",
         ]
+        if self.version < PipVersion.v25_0:
+            # If we want to warn about a version of python we support, we should do it, not pip.
+            # That said, the option does nothing in Pip 25.0 and is deprecated and slated for
+            # removal.
+            pip_args.append("--no-python-version-warning")
+
         python_interpreter = interpreter or PythonInterpreter.get()
         pip_args.extend(
             self._calculate_resolver_version_args(

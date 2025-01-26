@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.32.0
+
+This release adds support for Pip 25.0.
+
+* Add support for `--pip-version 25.0`. (#2652)
+
 ## 2.31.0
 
 This release adds `pex3 lock subset <reqs...> --lock existing.lock` for
