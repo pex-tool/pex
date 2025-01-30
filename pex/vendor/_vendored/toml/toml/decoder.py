@@ -5,9 +5,9 @@ import re
 import sys
 
 if "toml" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from toml.tz import TomlTz  # vendor:skip
+    from toml.tz import TomlTz  # vendor:skip
 else:
-  from pex.third_party.toml.tz import TomlTz
+    from pex.third_party.toml.tz import TomlTz
 
 
 if sys.version_info < (3,):

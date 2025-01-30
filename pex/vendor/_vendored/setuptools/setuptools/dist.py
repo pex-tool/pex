@@ -26,63 +26,63 @@ from distutils.util import rfc822_escape
 from distutils.version import StrictVersion
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.extern import six  # vendor:skip
+    from setuptools.extern import six  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern import six
+    from pex.third_party.setuptools.extern import six
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.extern import packaging  # vendor:skip
+    from setuptools.extern import packaging  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern import packaging
+    from pex.third_party.setuptools.extern import packaging
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.extern import ordered_set  # vendor:skip
+    from setuptools.extern import ordered_set  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern import ordered_set
+    from pex.third_party.setuptools.extern import ordered_set
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.extern.six.moves import map, filter, filterfalse  # vendor:skip
+    from setuptools.extern.six.moves import map, filter, filterfalse  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern.six.moves import map, filter, filterfalse
+    from pex.third_party.setuptools.extern.six.moves import map, filter, filterfalse
 
 
 from . import SetuptoolsDeprecationWarning
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.depends import Require  # vendor:skip
+    from setuptools.depends import Require  # vendor:skip
 else:
-  from pex.third_party.setuptools.depends import Require
+    from pex.third_party.setuptools.depends import Require
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools import windows_support  # vendor:skip
+    from setuptools import windows_support  # vendor:skip
 else:
-  from pex.third_party.setuptools import windows_support
+    from pex.third_party.setuptools import windows_support
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.monkey import get_unpatched  # vendor:skip
+    from setuptools.monkey import get_unpatched  # vendor:skip
 else:
-  from pex.third_party.setuptools.monkey import get_unpatched
+    from pex.third_party.setuptools.monkey import get_unpatched
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.config import parse_configuration  # vendor:skip
+    from setuptools.config import parse_configuration  # vendor:skip
 else:
-  from pex.third_party.setuptools.config import parse_configuration
+    from pex.third_party.setuptools.config import parse_configuration
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  import pkg_resources  # vendor:skip
+    import pkg_resources  # vendor:skip
 else:
-  import pex.third_party.pkg_resources as pkg_resources
+    import pex.third_party.pkg_resources as pkg_resources
 
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  __import__('setuptools.extern.packaging.specifiers')  # vendor:skip
+    __import__('setuptools.extern.packaging.specifiers')  # vendor:skip
 else:
-  __import__('pex.third_party.setuptools.extern.packaging.specifiers')
+    __import__('pex.third_party.setuptools.extern.packaging.specifiers')
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  __import__('setuptools.extern.packaging.version')  # vendor:skip
+    __import__('setuptools.extern.packaging.version')  # vendor:skip
 else:
-  __import__('pex.third_party.setuptools.extern.packaging.version')
+    __import__('pex.third_party.setuptools.extern.packaging.version')
 
 
 
@@ -613,9 +613,9 @@ class Distribution(_Distribution):
         ways.
         """
         if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-          from setuptools.extern.six.moves.configparser import ConfigParser  # vendor:skip
+            from setuptools.extern.six.moves.configparser import ConfigParser  # vendor:skip
         else:
-          from pex.third_party.setuptools.extern.six.moves.configparser import ConfigParser
+            from pex.third_party.setuptools.extern.six.moves.configparser import ConfigParser
 
 
         # Ignore install directory options if we have a venv
@@ -822,9 +822,9 @@ class Distribution(_Distribution):
     def fetch_build_egg(self, req):
         """Fetch an egg needed for building"""
         if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-          from setuptools.installer import fetch_build_egg  # vendor:skip
+            from setuptools.installer import fetch_build_egg  # vendor:skip
         else:
-          from pex.third_party.setuptools.installer import fetch_build_egg
+            from pex.third_party.setuptools.installer import fetch_build_egg
 
         return fetch_build_egg(self, req)
 

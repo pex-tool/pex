@@ -10,39 +10,39 @@ import re
 import zipfile
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  import pkg_resources  # vendor:skip
+    import pkg_resources  # vendor:skip
 else:
-  import pex.third_party.pkg_resources as pkg_resources
+    import pex.third_party.pkg_resources as pkg_resources
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  import setuptools  # vendor:skip
+    import setuptools  # vendor:skip
 else:
-  import pex.third_party.setuptools as setuptools
+    import pex.third_party.setuptools as setuptools
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from pkg_resources import parse_version  # vendor:skip
+    from pkg_resources import parse_version  # vendor:skip
 else:
-  from pex.third_party.pkg_resources import parse_version
+    from pex.third_party.pkg_resources import parse_version
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.extern.packaging.tags import sys_tags  # vendor:skip
+    from setuptools.extern.packaging.tags import sys_tags  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern.packaging.tags import sys_tags
+    from pex.third_party.setuptools.extern.packaging.tags import sys_tags
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.extern.packaging.utils import canonicalize_name  # vendor:skip
+    from setuptools.extern.packaging.utils import canonicalize_name  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern.packaging.utils import canonicalize_name
+    from pex.third_party.setuptools.extern.packaging.utils import canonicalize_name
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.extern.six import PY3  # vendor:skip
+    from setuptools.extern.six import PY3  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern.six import PY3
+    from pex.third_party.setuptools.extern.six import PY3
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.command.egg_info import write_requirements  # vendor:skip
+    from setuptools.command.egg_info import write_requirements  # vendor:skip
 else:
-  from pex.third_party.setuptools.command.egg_info import write_requirements
+    from pex.third_party.setuptools.command.egg_info import write_requirements
 
 
 

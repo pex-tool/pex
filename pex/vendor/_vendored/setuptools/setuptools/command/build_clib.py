@@ -2,9 +2,9 @@ import distutils.command.build_clib as orig
 from distutils.errors import DistutilsSetupError
 from distutils import log
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.dep_util import newer_pairwise_group  # vendor:skip
+    from setuptools.dep_util import newer_pairwise_group  # vendor:skip
 else:
-  from pex.third_party.setuptools.dep_util import newer_pairwise_group
+    from pex.third_party.setuptools.dep_util import newer_pairwise_group
 
 
 

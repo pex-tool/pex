@@ -5,15 +5,15 @@ import re
 import functools
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.extern.six.moves import urllib, http_client, map, filter  # vendor:skip
+    from setuptools.extern.six.moves import urllib, http_client, map, filter  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern.six.moves import urllib, http_client, map, filter
+    from pex.third_party.setuptools.extern.six.moves import urllib, http_client, map, filter
 
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from pkg_resources import ResolutionError, ExtractionError  # vendor:skip
+    from pkg_resources import ResolutionError, ExtractionError  # vendor:skip
 else:
-  from pex.third_party.pkg_resources import ResolutionError, ExtractionError
+    from pex.third_party.pkg_resources import ResolutionError, ExtractionError
 
 
 try:

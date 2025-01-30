@@ -9,14 +9,14 @@ from distutils.errors import DistutilsError
 from distutils import log
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.extension import Library  # vendor:skip
+    from setuptools.extension import Library  # vendor:skip
 else:
-  from pex.third_party.setuptools.extension import Library
+    from pex.third_party.setuptools.extension import Library
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.extern import six  # vendor:skip
+    from setuptools.extern import six  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern import six
+    from pex.third_party.setuptools.extern import six
 
 
 if six.PY2:

@@ -9,9 +9,9 @@ import contextlib
 from distutils.errors import DistutilsError
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from pkg_resources import ensure_directory  # vendor:skip
+    from pkg_resources import ensure_directory  # vendor:skip
 else:
-  from pex.third_party.pkg_resources import ensure_directory
+    from pex.third_party.pkg_resources import ensure_directory
 
 
 __all__ = [

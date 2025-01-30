@@ -9,7 +9,7 @@ import sys
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 if "packaging" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from pyparsing import (  # noqa: N817
+    from pyparsing import (  # noqa: N817
     Forward,
     Group,
     Literal as L,
@@ -21,7 +21,7 @@ if "packaging" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
     stringStart,
 )  # vendor:skip
 else:
-  from pex.third_party.pyparsing import (  # noqa: N817
+    from pex.third_party.pyparsing import (  # noqa: N817
     Forward,
     Group,
     Literal as L,

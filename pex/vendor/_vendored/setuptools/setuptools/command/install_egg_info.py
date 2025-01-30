@@ -2,24 +2,24 @@ from distutils import log, dir_util
 import os
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools import Command  # vendor:skip
+    from setuptools import Command  # vendor:skip
 else:
-  from pex.third_party.setuptools import Command
+    from pex.third_party.setuptools import Command
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools import namespaces  # vendor:skip
+    from setuptools import namespaces  # vendor:skip
 else:
-  from pex.third_party.setuptools import namespaces
+    from pex.third_party.setuptools import namespaces
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.archive_util import unpack_archive  # vendor:skip
+    from setuptools.archive_util import unpack_archive  # vendor:skip
 else:
-  from pex.third_party.setuptools.archive_util import unpack_archive
+    from pex.third_party.setuptools.archive_util import unpack_archive
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  import pkg_resources  # vendor:skip
+    import pkg_resources  # vendor:skip
 else:
-  import pex.third_party.pkg_resources as pkg_resources
+    import pex.third_party.pkg_resources as pkg_resources
 
 
 

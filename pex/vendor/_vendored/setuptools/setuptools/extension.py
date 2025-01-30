@@ -5,9 +5,9 @@ import distutils.errors
 import distutils.extension
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.extern.six.moves import map  # vendor:skip
+    from setuptools.extern.six.moves import map  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern.six.moves import map
+    from pex.third_party.setuptools.extern.six.moves import map
 
 
 from .monkey import get_unpatched

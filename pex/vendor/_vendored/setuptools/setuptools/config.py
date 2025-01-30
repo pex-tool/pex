@@ -12,19 +12,19 @@ from importlib import import_module
 
 from distutils.errors import DistutilsOptionError, DistutilsFileError
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.extern.packaging.version import LegacyVersion, parse  # vendor:skip
+    from setuptools.extern.packaging.version import LegacyVersion, parse  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern.packaging.version import LegacyVersion, parse
+    from pex.third_party.setuptools.extern.packaging.version import LegacyVersion, parse
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.extern.packaging.specifiers import SpecifierSet  # vendor:skip
+    from setuptools.extern.packaging.specifiers import SpecifierSet  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern.packaging.specifiers import SpecifierSet
+    from pex.third_party.setuptools.extern.packaging.specifiers import SpecifierSet
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.extern.six import string_types, PY3  # vendor:skip
+    from setuptools.extern.six import string_types, PY3  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern.six import string_types, PY3
+    from pex.third_party.setuptools.extern.six import string_types, PY3
 
 
 
@@ -49,9 +49,9 @@ def read_configuration(
     :rtype: dict
     """
     if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-      from setuptools.dist import Distribution, _Distribution  # vendor:skip
+        from setuptools.dist import Distribution, _Distribution  # vendor:skip
     else:
-      from pex.third_party.setuptools.dist import Distribution, _Distribution
+        from pex.third_party.setuptools.dist import Distribution, _Distribution
 
 
     filepath = os.path.abspath(filepath)
@@ -598,15 +598,15 @@ class ConfigOptionsHandler(ConfigHandler):
 
         if findns:
             if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-              from setuptools import find_namespace_packages as find_packages  # vendor:skip
+                from setuptools import find_namespace_packages as find_packages  # vendor:skip
             else:
-              from pex.third_party.setuptools import find_namespace_packages as find_packages
+                from pex.third_party.setuptools import find_namespace_packages as find_packages
 
         else:
             if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-              from setuptools import find_packages  # vendor:skip
+                from setuptools import find_packages  # vendor:skip
             else:
-              from pex.third_party.setuptools import find_packages
+                from pex.third_party.setuptools import find_packages
 
 
         return find_packages(**find_kwargs)
