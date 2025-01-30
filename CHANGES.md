@@ -1,5 +1,16 @@
 # Release Notes
 
+## 2.32.1
+
+This release fixes a long-standing bug handling development versions of
+CPython (any non-tagged release of the interpreter). These interpreters
+report a full version of `X.Y.Z+` and the trailing `+` leads to a non
+PEP-440 compliant version number. This, in turn, causes issues with the
+`packaging` library leading to failures to evaluate markers for these
+interpreters which surface as inscrutable Pex errors.
+
+* Fix support for CPython development releases. (#2655)
+
 ## 2.32.0
 
 This release adds support for Pip 25.0.
