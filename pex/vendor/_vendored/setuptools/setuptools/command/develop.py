@@ -6,30 +6,30 @@ import glob
 import io
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.extern import six  # vendor:skip
+    from setuptools.extern import six  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern import six
+    from pex.third_party.setuptools.extern import six
 
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  import pkg_resources  # vendor:skip
+    import pkg_resources  # vendor:skip
 else:
-  import pex.third_party.pkg_resources as pkg_resources
+    import pex.third_party.pkg_resources as pkg_resources
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.command.easy_install import easy_install  # vendor:skip
+    from setuptools.command.easy_install import easy_install  # vendor:skip
 else:
-  from pex.third_party.setuptools.command.easy_install import easy_install
+    from pex.third_party.setuptools.command.easy_install import easy_install
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools import namespaces  # vendor:skip
+    from setuptools import namespaces  # vendor:skip
 else:
-  from pex.third_party.setuptools import namespaces
+    from pex.third_party.setuptools import namespaces
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  import setuptools  # vendor:skip
+    import setuptools  # vendor:skip
 else:
-  import pex.third_party.setuptools as setuptools
+    import pex.third_party.setuptools as setuptools
 
 
 __metaclass__ = type

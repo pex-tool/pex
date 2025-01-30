@@ -6,24 +6,24 @@ from distutils import log
 from distutils.errors import DistutilsError
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  import pkg_resources  # vendor:skip
+    import pkg_resources  # vendor:skip
 else:
-  import pex.third_party.pkg_resources as pkg_resources
+    import pex.third_party.pkg_resources as pkg_resources
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.command.easy_install import easy_install  # vendor:skip
+    from setuptools.command.easy_install import easy_install  # vendor:skip
 else:
-  from pex.third_party.setuptools.command.easy_install import easy_install
+    from pex.third_party.setuptools.command.easy_install import easy_install
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.extern import six  # vendor:skip
+    from setuptools.extern import six  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern import six
+    from pex.third_party.setuptools.extern import six
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.wheel import Wheel  # vendor:skip
+    from setuptools.wheel import Wheel  # vendor:skip
 else:
-  from pex.third_party.setuptools.wheel import Wheel
+    from pex.third_party.setuptools.wheel import Wheel
 
 
 from .py31compat import TemporaryDirectory

@@ -11,12 +11,300 @@ import subprocess
 import sys
 from argparse import ArgumentParser
 from collections import OrderedDict, defaultdict
+from typing import FrozenSet, Iterator, List
 
+import libcst
 from colors import bold, green, yellow  # vendor:skip
-from redbaron import CommentNode, LiteralyEvaluable, NameNode, RedBaron
+from libcst import (
+    Arg,
+    AsName,
+    Attribute,
+    BaseCompoundStatement,
+    BaseExpression,
+    BaseStatement,
+    Call,
+    Comment,
+    CSTNode,
+    CSTTransformer,
+    CSTVisitor,
+    FlattenSentinel,
+    If,
+    Module,
+    Name,
+    RemovalSentinel,
+    SimpleStatementLine,
+    SimpleString,
+)
 
 from pex.common import safe_delete, safe_mkdir, safe_mkdtemp, safe_open, safe_rmtree
+from pex.typing import TYPE_CHECKING
 from pex.vendor import VendorSpec, iter_vendor_specs
+
+if TYPE_CHECKING:
+    from typing import Union
+
+    from libcst import BaseSmallStatement, Import, ImportAlias, ImportFrom
+
+
+class _VendorSkipVisitor(CSTVisitor):
+    @classmethod
+    def skipped(cls, node):
+        # type: (CSTNode) -> bool
+
+        visitor = cls()
+        node.visit(visitor)
+        return visitor._skipped
+
+    def __init__(self):
+        # type: () -> None
+        super(_VendorSkipVisitor, self).__init__()
+        self._skipped = False
+
+    def visit_Comment(self, node):
+        # type: (Comment) -> None
+        if node.value.strip() == "# vendor:skip":
+            self._skipped = True
+
+
+class _ImportRewriter(CSTTransformer):
+    # The leading indents surrounding the if/else import blocks we inject can be wrong in some
+    # cases. We work around this by letting these comment lines suffer the mis-indenting and then
+    # removing these lines from the final output.
+    _VENDORED_IMPORT_SENTINEL = "#__vendored_import_begin__"
+
+    @classmethod
+    def iter_lines(cls, module):
+        # type: (Module) -> Iterator[str]
+        for line in module.code.splitlines(keepends=True):
+            if line.strip() != cls._VENDORED_IMPORT_SENTINEL:
+                yield line
+
+    def __init__(
+        self,
+        module,  # type: Module
+        project_name,  # type: str
+        prefix,  # type: str
+        packages,  # type: FrozenSet[str]
+    ):
+        # type: (...) -> None
+        super(_ImportRewriter, self).__init__()
+        self._module = module
+        self._project_name = project_name
+        self._raw_prefix = prefix
+        self._prefix = libcst.parse_expression(prefix, config=self._module.config_for_parsing)
+        self._packages = packages
+        self.modifications = OrderedDict()  # type: OrderedDict[str, str]
+        self._skipping = False
+
+    def visit_SimpleStatementLine(self, node):
+        # type: (SimpleStatementLine) -> None
+
+        if _VendorSkipVisitor.skipped(node):
+            print(
+                "Skipping {line} as directed by # vendor:skip".format(
+                    line=self._module.code_for_node(node).strip()
+                )
+            )
+            self._skipping = True
+
+    def leave_SimpleStatementLine(
+        self,
+        original_node,  # type: SimpleStatementLine
+        updated_node,  # type: SimpleStatementLine
+    ):
+        # type: (...) -> Union[BaseStatement, FlattenSentinel[BaseStatement], RemovalSentinel]
+
+        self._skipping = False
+
+        # libcst parses an import as part of a simple statement, but an `If` can't be in a
+        # `SimpleStatementLine`. Use `FlattenSentinel` to fix it.
+        if any(isinstance(b, If) for b in updated_node.body):
+            nodes = list(updated_node.leading_lines)  # type: List[CSTNode]
+            nodes.extend(updated_node.body)
+            nodes.append(updated_node.trailing_whitespace)
+            return FlattenSentinel(nodes=nodes)  # type: ignore[arg-type]
+        return updated_node
+
+    def leave_Call(
+        self,
+        original_node,  # type: Call
+        updated_node,  # type: Call
+    ):
+        # type: (...) -> BaseExpression
+
+        if self._skipping:
+            return updated_node
+
+        if not isinstance(updated_node.func, Name) or updated_node.func.value != "__import__":
+            return updated_node
+
+        original = self._module.code_for_node(original_node)
+
+        def warn_skip():
+            # type: () -> BaseExpression
+            print(
+                yellow("WARNING: Skipping {statement}".format(statement=original)), file=sys.stderr
+            )
+            return updated_node
+
+        if len(updated_node.args) != 1:
+            return warn_skip()
+
+        arg0 = updated_node.args[0].value
+        if not isinstance(arg0, SimpleString):
+            return warn_skip()
+
+        if arg0.raw_value.split(".")[0] not in self._packages:
+            return updated_node
+
+        updated = self._module.code_for_node(
+            updated_node.with_changes(
+                args=tuple(
+                    [
+                        Arg(  # type: ignore[call-arg]
+                            arg0.with_changes(
+                                value="{quote}{prefix}.{value}{quote}".format(
+                                    quote=arg0.quote, prefix=self._raw_prefix, value=arg0.raw_value
+                                )
+                            )
+                        )
+                    ]
+                )
+            )
+        )
+        modified = self._modify_import(original, updated)
+        self.modifications[original] = self._module.code_for_node(modified)
+        return modified  # type: ignore[return-value]
+
+    def leave_Import(
+        self,
+        original_node,  # type: Import
+        updated_node,  # type: Import
+    ):
+        # type: (...) -> Union[BaseSmallStatement, FlattenSentinel[BaseSmallStatement], RemovalSentinel]
+
+        if self._skipping:
+            return updated_node
+
+        names = []  # type: List[ImportAlias]
+        modified = False
+        for index, import_alias in enumerate(updated_node.names):
+            root_package = import_alias.name
+            while isinstance(root_package, Attribute):
+                root_package = root_package.value  # type: ignore[assignment]
+            assert isinstance(root_package, Name)
+            if root_package.value not in self._packages:
+                names.append(import_alias)
+                continue
+
+            modified = True
+
+            # We need to handle 4 possible cases:
+            # 1. a -> pex.third_party.a as a
+            # 2. a.b -> pex.third_party.a.b, pex.third_party.a as a
+            # 3. a as b -> pex.third_party.a as b
+            # 4. a.b as c -> pex.third_party.a.b as c
+            #
+            # Of these, 2 is the interesting case. The code in question would be like:
+            # ```
+            # import a.b.c
+            # ...
+            # a.b.c.func()
+            # ```
+            # So we need to have imported `a.b.c` but also exposed the root of that package path, `a`
+            # under the name expected by code. The import of the `a.b.c` leaf ensures all parent
+            # packages have been imported (getting the middle `b` in this case which is not explicitly
+            # imported). This ensures the code can traverse from the re-named root - `a` in this
+            # example, through middle nodes (`a.b`) all the way to the leaf target (`a.b.c`).
+
+            def prefixed_fullname():
+                # type: () -> ImportAlias
+                return import_alias.with_changes(
+                    name=Attribute(
+                        self._prefix, import_alias.name  # type: ignore[arg-type, call-arg]
+                    )
+                )
+
+            if import_alias.asname:  # Cases 3 and 4.
+                names.append(prefixed_fullname())
+            else:
+                if isinstance(import_alias.name, Attribute):  # Case 2.
+                    names.insert(index, prefixed_fullname())
+
+                # Cases 1 and 2.
+                names.append(
+                    import_alias.with_changes(
+                        name=Attribute(self._prefix, root_package),  # type: ignore[call-arg]
+                        asname=AsName(root_package),  # type: ignore[call-arg]
+                    )
+                )
+
+        if not modified:
+            return updated_node
+
+        original = self._module.code_for_node(original_node)
+        updated = self._module.code_for_node(updated_node.with_changes(names=tuple(names)))
+        modified_import = self._modify_import(original, updated)
+        self.modifications[original] = self._module.code_for_node(modified_import)
+        return modified_import  # type: ignore[return-value]
+
+    def leave_ImportFrom(
+        self,
+        original_node,  # type: ImportFrom
+        updated_node,  # type: ImportFrom
+    ):
+        # type: (...) -> Union[BaseSmallStatement, FlattenSentinel[BaseSmallStatement], RemovalSentinel]
+
+        if self._skipping:
+            return updated_node
+
+        # We don't care about relative imports which will point back into vendored code if the
+        # origin is within vendored code.
+        if not original_node.module or original_node.relative:
+            return updated_node
+
+        package = original_node.module
+        while isinstance(package, Attribute):
+            package = package.value  # type: ignore[assignment]
+        assert isinstance(package, Name)
+        if package.value not in self._packages:
+            return updated_node
+
+        original = self._module.code_for_node(original_node)
+        updated = self._module.code_for_node(
+            updated_node.with_changes(
+                module=Attribute(
+                    self._prefix, original_node.module  # type: ignore[arg-type, call-arg]
+                )
+            )
+        )
+        modified = self._modify_import(original, updated)
+        self.modifications[original] = self._module.code_for_node(modified)
+        return modified  # type: ignore[return-value]
+
+    def _modify_import(
+        self,
+        original,  # type: str
+        modified,  # type: str
+    ):
+        # type: (...) -> Union[SimpleStatementLine, BaseCompoundStatement]
+
+        lines = (
+            self._VENDORED_IMPORT_SENTINEL,
+            'if "{project_name}" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):'.format(
+                project_name=self._project_name
+            ),
+            "{indent}{original_import}  # vendor:skip".format(
+                indent=self._module.default_indent, original_import=original
+            ),
+            "else:",
+            "{indent}{modified_import}".format(
+                indent=self._module.default_indent, modified_import=modified
+            ),
+        )
+        return libcst.parse_statement(
+            self._module.default_newline.join(lines), config=self._module.config_for_parsing
+        )
 
 
 class ImportRewriter(object):
@@ -26,57 +314,6 @@ class ImportRewriter(object):
     importer that can keep shaded code isolated from the normal ``sys.path`` robust vendoring of
     third party code can be achieved.
     """
-
-    @staticmethod
-    def _parse(python_file):
-        with open(python_file) as fp:
-            # NB: RedBaron is used instead of ``ast`` since it can round-trip from source code without
-            # losing formatting. See: https://github.com/PyCQA/redbaron
-            return RedBaron(fp.read())
-
-    @staticmethod
-    def _skip(node):
-        next_node = node.next_recursive
-        if isinstance(next_node, CommentNode) and next_node.value.strip() == "# vendor:skip":
-            print("Skipping {} as directed by {}".format(node, next_node))
-            return True
-        return False
-
-    @staticmethod
-    def _find_literal_node(statement, call_argument):
-        # The list of identifiers is large and they represent disjoint types:
-        #   'StringNode'
-        #   'BinaryStringNode'
-        #   'RawStringNode'
-        #   'InterpolatedRawStringNode'
-        #   ...
-        # Instead of trying to keep track of that, since we're specialized to the context of __import__,
-        # Just accept any LiteralyEvaluable node (a mixin the above all implement) that python
-        # accepts - except NameNode which we don't want and whose existence as a LiteralyEvaluable is
-        # questionable to boot. In other words, we do not want to attempt to transform:
-        #   variable = 'bob'
-        #   __import__(variable, ...)
-        # We just accept we'll miss more complex imports like this and have to fix by hand.
-
-        if isinstance(call_argument.value, NameNode):
-            print(yellow("WARNING: Skipping {}".format(statement)), file=sys.stderr)
-        elif isinstance(call_argument.value, LiteralyEvaluable):
-            return call_argument.value
-
-    @staticmethod
-    def _modify_import(project_name, original, modified):
-        indent = " " * (modified.absolute_bounding_box.top_left.column - 1)
-        return os.linesep.join(
-            indent + line
-            for line in (
-                'if "{project_name}" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):'.format(
-                    project_name=project_name
-                ),
-                "  {original_import}  # vendor:skip".format(original_import=original),
-                "else:",
-                "  {modified_import}".format(modified_import=modified),
-            )
-        )
 
     @classmethod
     def for_path_items(cls, prefix, path_items):
@@ -88,116 +325,20 @@ class ImportRewriter(object):
         self._packages = packages
 
     def rewrite(self, project_name, python_file):
-        modififications = OrderedDict()
-
-        red_baron = self._parse(python_file)
-        modififications.update(self._modify__import__calls(red_baron, project_name))
-        modififications.update(self._modify_import_statements(red_baron, project_name))
-        modififications.update(self._modify_from_import_statements(red_baron, project_name))
-
-        if modififications:
+        with open(python_file) as fp:
+            module = libcst.parse_module(fp.read())
+        import_rewriter = _ImportRewriter(
+            module=module,
+            project_name=project_name,
+            prefix=self._prefix,
+            packages=self._packages,
+        )
+        rewritten_module = module.visit(import_rewriter)
+        if import_rewriter.modifications:
             with open(python_file, "w") as fp:
-                fp.write(red_baron.dumps())
-            return modififications
-
-    def _modify__import__calls(
-        self, red_baron, project_name
-    ):  # noqa: We want __import__ as part of the name.
-        for call_node in red_baron.find_all("CallNode"):
-            if call_node.previous and call_node.previous.value == "__import__":
-                if self._skip(call_node):
-                    continue
-
-                parent = call_node.parent_find("AtomtrailersNode")
-                original = parent.copy()
-                first_argument = call_node[0]
-                raw_value = self._find_literal_node(parent, first_argument)
-                if raw_value:
-                    value = raw_value.to_python()
-                    root_package = value.split(".")[0]
-                    if root_package in self._packages:
-                        raw_value.replace("{!r}".format(self._prefix + "." + value))
-
-                        parent.replace(self._modify_import(project_name, original, parent))
-                        yield original, parent
-
-    def _modify_import_statements(self, red_baron, project_name):
-        for import_node in red_baron.find_all("ImportNode"):
-            modified = False
-            if self._skip(import_node):
-                continue
-
-            original = import_node.copy()
-            for index, import_module in enumerate(import_node):
-                root_package = import_module[0]
-                if root_package.value not in self._packages:
-                    continue
-
-                # We need to handle 4 possible cases:
-                # 1. a -> pex.third_party.a as a
-                # 2. a.b -> pex.third_party.a.b, pex.third_party.a as a
-                # 3. a as b -> pex.third_party.a as b
-                # 4. a.b as c -> pex.third_party.a.b as c
-                #
-                # Of these, 2 is the interesting case. The code in question would be like:
-                # ```
-                # import a.b.c
-                # ...
-                # a.b.c.func()
-                # ```
-                # So we need to have imported `a.b.c` but also exposed the root of that package path, `a`
-                # under the name expected by code. The import of the `a.b.c` leaf ensures all parent
-                # packages have been imported (getting the middle `b` in this case which is not explicitly
-                # imported). This ensures the code can traverse from the re-named root - `a` in this
-                # example, through middle nodes (`a.b`) all the way to the leaf target (`a.b.c`).
-
-                modified = True
-
-                def prefixed_fullname():
-                    return "{prefix}.{module}".format(
-                        prefix=self._prefix, module=".".join(map(str, import_module))
-                    )
-
-                if import_module.target:  # Cases 3 and 4.
-                    import_module.value = prefixed_fullname()
-                else:
-                    if len(import_module) > 1:  # Case 2.
-                        import_node.insert(index, prefixed_fullname())
-
-                    # Cases 1 and 2.
-                    import_module.value = "{prefix}.{root}".format(
-                        prefix=self._prefix, root=root_package.value
-                    )
-                    import_module.target = root_package.value
-
-            if modified:
-                import_node.replace(self._modify_import(project_name, original, import_node))
-                yield original, import_node
-
-    def _modify_from_import_statements(self, red_baron, project_name):
-        for from_import_node in red_baron.find_all("FromImportNode"):
-            if self._skip(from_import_node):
-                continue
-
-            # We don't care about relative imports which will point back into vendored code if the
-            # origin is within vendored code.
-            # NB: `from . import ...` has length 0.
-            if len(from_import_node) == 0 or from_import_node.full_path_modules()[0].startswith(
-                "."
-            ):
-                continue
-
-            original = from_import_node.copy()
-            root_package = from_import_node[0]
-            if root_package.value in self._packages:
-                root_package.replace(
-                    "{prefix}.{root}".format(prefix=self._prefix, root=root_package.value)
-                )
-
-                from_import_node.replace(
-                    self._modify_import(project_name, original, from_import_node)
-                )
-                yield original, from_import_node
+                for line in _ImportRewriter.iter_lines(rewritten_module):
+                    fp.write(line)
+            return import_rewriter.modifications
 
 
 class VendorizeError(Exception):

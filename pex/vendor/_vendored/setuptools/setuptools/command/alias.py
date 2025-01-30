@@ -1,15 +1,15 @@
 from distutils.errors import DistutilsOptionError
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.extern.six.moves import map  # vendor:skip
+    from setuptools.extern.six.moves import map  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern.six.moves import map
+    from pex.third_party.setuptools.extern.six.moves import map
 
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.command.setopt import edit_config, option_base, config_file  # vendor:skip
+    from setuptools.command.setopt import edit_config, option_base, config_file  # vendor:skip
 else:
-  from pex.third_party.setuptools.command.setopt import edit_config, option_base, config_file
+    from pex.third_party.setuptools.command.setopt import edit_config, option_base, config_file
 
 
 

@@ -2,9 +2,9 @@ from distutils import log
 import distutils.command.register as orig
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.errors import RemovedCommandError  # vendor:skip
+    from setuptools.errors import RemovedCommandError  # vendor:skip
 else:
-  from pex.third_party.setuptools.errors import RemovedCommandError
+    from pex.third_party.setuptools.errors import RemovedCommandError
 
 
 

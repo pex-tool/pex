@@ -28,24 +28,24 @@ import platform
 import itertools
 import distutils.errors
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.extern.packaging.version import LegacyVersion  # vendor:skip
+    from setuptools.extern.packaging.version import LegacyVersion  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern.packaging.version import LegacyVersion
+    from pex.third_party.setuptools.extern.packaging.version import LegacyVersion
 
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.extern.six.moves import filterfalse  # vendor:skip
+    from setuptools.extern.six.moves import filterfalse  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern.six.moves import filterfalse
+    from pex.third_party.setuptools.extern.six.moves import filterfalse
 
 
 from .monkey import get_unpatched
 
 if platform.system() == 'Windows':
     if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-      from setuptools.extern.six.moves import winreg  # vendor:skip
+        from setuptools.extern.six.moves import winreg  # vendor:skip
     else:
-      from pex.third_party.setuptools.extern.six.moves import winreg
+        from pex.third_party.setuptools.extern.six.moves import winreg
 
     from os import environ
 else:

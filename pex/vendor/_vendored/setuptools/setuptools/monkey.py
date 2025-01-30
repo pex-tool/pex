@@ -11,15 +11,15 @@ from importlib import import_module
 import inspect
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.extern import six  # vendor:skip
+    from setuptools.extern import six  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern import six
+    from pex.third_party.setuptools.extern import six
 
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  import setuptools  # vendor:skip
+    import setuptools  # vendor:skip
 else:
-  import pex.third_party.setuptools as setuptools
+    import pex.third_party.setuptools as setuptools
 
 
 __all__ = []

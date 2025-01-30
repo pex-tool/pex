@@ -44,75 +44,75 @@ import io
 from sysconfig import get_config_vars, get_path
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools import SetuptoolsDeprecationWarning  # vendor:skip
+    from setuptools import SetuptoolsDeprecationWarning  # vendor:skip
 else:
-  from pex.third_party.setuptools import SetuptoolsDeprecationWarning
+    from pex.third_party.setuptools import SetuptoolsDeprecationWarning
 
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.extern import six  # vendor:skip
+    from setuptools.extern import six  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern import six
+    from pex.third_party.setuptools.extern import six
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.extern.six.moves import configparser, map  # vendor:skip
+    from setuptools.extern.six.moves import configparser, map  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern.six.moves import configparser, map
+    from pex.third_party.setuptools.extern.six.moves import configparser, map
 
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools import Command  # vendor:skip
+    from setuptools import Command  # vendor:skip
 else:
-  from pex.third_party.setuptools import Command
+    from pex.third_party.setuptools import Command
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.sandbox import run_setup  # vendor:skip
+    from setuptools.sandbox import run_setup  # vendor:skip
 else:
-  from pex.third_party.setuptools.sandbox import run_setup
+    from pex.third_party.setuptools.sandbox import run_setup
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.py27compat import rmtree_safe  # vendor:skip
+    from setuptools.py27compat import rmtree_safe  # vendor:skip
 else:
-  from pex.third_party.setuptools.py27compat import rmtree_safe
+    from pex.third_party.setuptools.py27compat import rmtree_safe
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.command import setopt  # vendor:skip
+    from setuptools.command import setopt  # vendor:skip
 else:
-  from pex.third_party.setuptools.command import setopt
+    from pex.third_party.setuptools.command import setopt
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.archive_util import unpack_archive  # vendor:skip
+    from setuptools.archive_util import unpack_archive  # vendor:skip
 else:
-  from pex.third_party.setuptools.archive_util import unpack_archive
+    from pex.third_party.setuptools.archive_util import unpack_archive
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.package_index import (
+    from setuptools.package_index import (
     PackageIndex, parse_requirement_arg, URL_SCHEME,
 )  # vendor:skip
 else:
-  from pex.third_party.setuptools.package_index import (
+    from pex.third_party.setuptools.package_index import (
     PackageIndex, parse_requirement_arg, URL_SCHEME,
 )
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.command import bdist_egg, egg_info  # vendor:skip
+    from setuptools.command import bdist_egg, egg_info  # vendor:skip
 else:
-  from pex.third_party.setuptools.command import bdist_egg, egg_info
+    from pex.third_party.setuptools.command import bdist_egg, egg_info
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.wheel import Wheel  # vendor:skip
+    from setuptools.wheel import Wheel  # vendor:skip
 else:
-  from pex.third_party.setuptools.wheel import Wheel
+    from pex.third_party.setuptools.wheel import Wheel
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from pkg_resources import (
+    from pkg_resources import (
     yield_lines, normalize_path, resource_string, ensure_directory,
     get_distribution, find_distributions, Environment, Requirement,
     Distribution, PathMetadata, EggMetadata, WorkingSet, DistributionNotFound,
     VersionConflict, DEVELOP_DIST,
 )  # vendor:skip
 else:
-  from pex.third_party.pkg_resources import (
+    from pex.third_party.pkg_resources import (
     yield_lines, normalize_path, resource_string, ensure_directory,
     get_distribution, find_distributions, Environment, Requirement,
     Distribution, PathMetadata, EggMetadata, WorkingSet, DistributionNotFound,
@@ -120,9 +120,9 @@ else:
 )
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  import pkg_resources.py31compat  # vendor:skip
+    import pkg_resources.py31compat  # vendor:skip
 else:
-  import pex.third_party.pkg_resources.py31compat, pex.third_party.pkg_resources as pkg_resources
+    import pex.third_party.pkg_resources.py31compat, pex.third_party.pkg_resources as pkg_resources
 
 
 __metaclass__ = type
@@ -2351,9 +2351,9 @@ def current_umask():
 def bootstrap():
     # This function is called when setuptools*.egg is run using /bin/sh
     if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-      import setuptools  # vendor:skip
+        import setuptools  # vendor:skip
     else:
-      import pex.third_party.setuptools as setuptools
+        import pex.third_party.setuptools as setuptools
 
 
     argv0 = os.path.dirname(setuptools.__path__[0])
@@ -2364,14 +2364,14 @@ def bootstrap():
 
 def main(argv=None, **kw):
     if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-      from setuptools import setup  # vendor:skip
+        from setuptools import setup  # vendor:skip
     else:
-      from pex.third_party.setuptools import setup
+        from pex.third_party.setuptools import setup
 
     if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-      from setuptools.dist import Distribution  # vendor:skip
+        from setuptools.dist import Distribution  # vendor:skip
     else:
-      from pex.third_party.setuptools.dist import Distribution
+        from pex.third_party.setuptools.dist import Distribution
 
 
     class DistributionWithoutHelpCommands(Distribution):

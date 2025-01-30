@@ -8,7 +8,7 @@ import urllib.parse
 from typing import List, Optional as TOptional, Set
 
 if "packaging" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from pyparsing import (  # noqa
+    from pyparsing import (  # noqa
     Combine,
     Literal as L,
     Optional,
@@ -21,7 +21,7 @@ if "packaging" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
     stringStart,
 )  # vendor:skip
 else:
-  from pex.third_party.pyparsing import (  # noqa
+    from pex.third_party.pyparsing import (  # noqa
     Combine,
     Literal as L,
     Optional,

@@ -8,7 +8,7 @@ import string
 import sys
 
 if "packaging" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from pyparsing import (  # noqa: N817
+    from pyparsing import (  # noqa: N817
     Combine,
     Literal as L,
     Optional,
@@ -21,7 +21,7 @@ if "packaging" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
     stringStart,
 )  # vendor:skip
 else:
-  from pex.third_party.pyparsing import (  # noqa: N817
+    from pex.third_party.pyparsing import (  # noqa: N817
     Combine,
     Literal as L,
     Optional,

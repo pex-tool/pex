@@ -7,24 +7,24 @@ import string
 import re
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.extern.pyparsing import stringStart, stringEnd, originalTextFor, ParseException  # vendor:skip
+    from setuptools.extern.pyparsing import stringStart, stringEnd, originalTextFor, ParseException  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern.pyparsing import stringStart, stringEnd, originalTextFor, ParseException
+    from pex.third_party.setuptools.extern.pyparsing import stringStart, stringEnd, originalTextFor, ParseException
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.extern.pyparsing import ZeroOrMore, Word, Optional, Regex, Combine  # vendor:skip
+    from setuptools.extern.pyparsing import ZeroOrMore, Word, Optional, Regex, Combine  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern.pyparsing import ZeroOrMore, Word, Optional, Regex, Combine
+    from pex.third_party.setuptools.extern.pyparsing import ZeroOrMore, Word, Optional, Regex, Combine
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.extern.pyparsing import Literal as L  # vendor:skip
+    from setuptools.extern.pyparsing import Literal as L  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern.pyparsing import Literal as L
+    from pex.third_party.setuptools.extern.pyparsing import Literal as L
   # noqa
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.extern.six.moves.urllib import parse as urlparse  # vendor:skip
+    from setuptools.extern.six.moves.urllib import parse as urlparse  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern.six.moves.urllib import parse as urlparse
+    from pex.third_party.setuptools.extern.six.moves.urllib import parse as urlparse
 
 
 from .markers import MARKER_EXPR, Marker

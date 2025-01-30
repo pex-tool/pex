@@ -9,29 +9,29 @@ from distutils import log
 from unittest import TestLoader
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.extern import six  # vendor:skip
+    from setuptools.extern import six  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern import six
+    from pex.third_party.setuptools.extern import six
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.extern.six.moves import map, filter  # vendor:skip
+    from setuptools.extern.six.moves import map, filter  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern.six.moves import map, filter
+    from pex.third_party.setuptools.extern.six.moves import map, filter
 
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from pkg_resources import (resource_listdir, resource_exists, normalize_path,
+    from pkg_resources import (resource_listdir, resource_exists, normalize_path,
                            working_set, _namespace_packages, evaluate_marker,
                            add_activation_listener, require, EntryPoint)  # vendor:skip
 else:
-  from pex.third_party.pkg_resources import (resource_listdir, resource_exists, normalize_path,
+    from pex.third_party.pkg_resources import (resource_listdir, resource_exists, normalize_path,
                            working_set, _namespace_packages, evaluate_marker,
                            add_activation_listener, require, EntryPoint)
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools import Command  # vendor:skip
+    from setuptools import Command  # vendor:skip
 else:
-  from pex.third_party.setuptools import Command
+    from pex.third_party.setuptools import Command
 
 from .build_py import _unique_everseen
 

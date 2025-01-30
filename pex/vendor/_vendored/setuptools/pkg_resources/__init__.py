@@ -55,14 +55,14 @@ except NameError:
     FileExistsError = OSError
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from pkg_resources.extern import six  # vendor:skip
+    from pkg_resources.extern import six  # vendor:skip
 else:
-  from pex.third_party.pkg_resources.extern import six
+    from pex.third_party.pkg_resources.extern import six
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from pkg_resources.extern.six.moves import urllib, map, filter  # vendor:skip
+    from pkg_resources.extern.six.moves import urllib, map, filter  # vendor:skip
 else:
-  from pex.third_party.pkg_resources.extern.six.moves import urllib, map, filter
+    from pex.third_party.pkg_resources.extern.six.moves import urllib, map, filter
 
 
 # capture these to bypass sandboxing
@@ -86,34 +86,34 @@ except ImportError:
 
 from . import py31compat
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from pkg_resources.extern import appdirs  # vendor:skip
+    from pkg_resources.extern import appdirs  # vendor:skip
 else:
-  from pex.third_party.pkg_resources.extern import appdirs
+    from pex.third_party.pkg_resources.extern import appdirs
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from pkg_resources.extern import packaging  # vendor:skip
+    from pkg_resources.extern import packaging  # vendor:skip
 else:
-  from pex.third_party.pkg_resources.extern import packaging
+    from pex.third_party.pkg_resources.extern import packaging
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  __import__('pkg_resources.extern.packaging.version')  # vendor:skip
+    __import__('pkg_resources.extern.packaging.version')  # vendor:skip
 else:
-  __import__('pex.third_party.pkg_resources.extern.packaging.version')
+    __import__('pex.third_party.pkg_resources.extern.packaging.version')
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  __import__('pkg_resources.extern.packaging.specifiers')  # vendor:skip
+    __import__('pkg_resources.extern.packaging.specifiers')  # vendor:skip
 else:
-  __import__('pex.third_party.pkg_resources.extern.packaging.specifiers')
+    __import__('pex.third_party.pkg_resources.extern.packaging.specifiers')
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  __import__('pkg_resources.extern.packaging.requirements')  # vendor:skip
+    __import__('pkg_resources.extern.packaging.requirements')  # vendor:skip
 else:
-  __import__('pex.third_party.pkg_resources.extern.packaging.requirements')
+    __import__('pex.third_party.pkg_resources.extern.packaging.requirements')
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  __import__('pkg_resources.extern.packaging.markers')  # vendor:skip
+    __import__('pkg_resources.extern.packaging.markers')  # vendor:skip
 else:
-  __import__('pex.third_party.pkg_resources.extern.packaging.markers')
+    __import__('pex.third_party.pkg_resources.extern.packaging.markers')
 
 
 

@@ -34,26 +34,26 @@ import shutil
 import contextlib
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  import setuptools  # vendor:skip
+    import setuptools  # vendor:skip
 else:
-  import pex.third_party.setuptools as setuptools
+    import pex.third_party.setuptools as setuptools
 
 import distutils
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.py31compat import TemporaryDirectory  # vendor:skip
+    from setuptools.py31compat import TemporaryDirectory  # vendor:skip
 else:
-  from pex.third_party.setuptools.py31compat import TemporaryDirectory
+    from pex.third_party.setuptools.py31compat import TemporaryDirectory
 
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from pkg_resources import parse_requirements  # vendor:skip
+    from pkg_resources import parse_requirements  # vendor:skip
 else:
-  from pex.third_party.pkg_resources import parse_requirements
+    from pex.third_party.pkg_resources import parse_requirements
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from pkg_resources.py31compat import makedirs  # vendor:skip
+    from pkg_resources.py31compat import makedirs  # vendor:skip
 else:
-  from pex.third_party.pkg_resources.py31compat import makedirs
+    from pex.third_party.pkg_resources.py31compat import makedirs
 
 
 __all__ = ['get_requires_for_build_sdist',

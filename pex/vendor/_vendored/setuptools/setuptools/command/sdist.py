@@ -6,17 +6,17 @@ import io
 import contextlib
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.extern import six, ordered_set  # vendor:skip
+    from setuptools.extern import six, ordered_set  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern import six, ordered_set
+    from pex.third_party.setuptools.extern import six, ordered_set
 
 
 from .py36compat import sdist_add_defaults
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  import pkg_resources  # vendor:skip
+    import pkg_resources  # vendor:skip
 else:
-  import pex.third_party.pkg_resources as pkg_resources
+    import pex.third_party.pkg_resources as pkg_resources
 
 
 _default_revctrl = list

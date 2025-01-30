@@ -1,7 +1,7 @@
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.command.setopt import edit_config, option_base  # vendor:skip
+    from setuptools.command.setopt import edit_config, option_base  # vendor:skip
 else:
-  from pex.third_party.setuptools.command.setopt import edit_config, option_base
+    from pex.third_party.setuptools.command.setopt import edit_config, option_base
 
 
 

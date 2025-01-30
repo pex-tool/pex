@@ -17,20 +17,20 @@ import itertools
 import functools
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.extern import six  # vendor:skip
+    from setuptools.extern import six  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern import six
+    from pex.third_party.setuptools.extern import six
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.extern.six.moves import http_client, urllib  # vendor:skip
+    from setuptools.extern.six.moves import http_client, urllib  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern.six.moves import http_client, urllib
+    from pex.third_party.setuptools.extern.six.moves import http_client, urllib
 
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from pkg_resources import iter_entry_points  # vendor:skip
+    from pkg_resources import iter_entry_points  # vendor:skip
 else:
-  from pex.third_party.pkg_resources import iter_entry_points
+    from pex.third_party.pkg_resources import iter_entry_points
 
 from .upload import upload
 

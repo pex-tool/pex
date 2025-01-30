@@ -6,9 +6,9 @@ import platform
 import distutils.command.install as orig
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  import setuptools  # vendor:skip
+    import setuptools  # vendor:skip
 else:
-  import pex.third_party.setuptools as setuptools
+    import pex.third_party.setuptools as setuptools
 
 
 # Prior to numpy 1.9, NumPy relies on the '_install' name, so provide it for

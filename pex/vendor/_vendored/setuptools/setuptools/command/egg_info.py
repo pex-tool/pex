@@ -17,70 +17,70 @@ import time
 import collections
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.extern import six  # vendor:skip
+    from setuptools.extern import six  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern import six
+    from pex.third_party.setuptools.extern import six
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.extern.six.moves import map  # vendor:skip
+    from setuptools.extern.six.moves import map  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern.six.moves import map
+    from pex.third_party.setuptools.extern.six.moves import map
 
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools import Command  # vendor:skip
+    from setuptools import Command  # vendor:skip
 else:
-  from pex.third_party.setuptools import Command
+    from pex.third_party.setuptools import Command
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.command.sdist import sdist  # vendor:skip
+    from setuptools.command.sdist import sdist  # vendor:skip
 else:
-  from pex.third_party.setuptools.command.sdist import sdist
+    from pex.third_party.setuptools.command.sdist import sdist
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.command.sdist import walk_revctrl  # vendor:skip
+    from setuptools.command.sdist import walk_revctrl  # vendor:skip
 else:
-  from pex.third_party.setuptools.command.sdist import walk_revctrl
+    from pex.third_party.setuptools.command.sdist import walk_revctrl
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.command.setopt import edit_config  # vendor:skip
+    from setuptools.command.setopt import edit_config  # vendor:skip
 else:
-  from pex.third_party.setuptools.command.setopt import edit_config
+    from pex.third_party.setuptools.command.setopt import edit_config
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.command import bdist_egg  # vendor:skip
+    from setuptools.command import bdist_egg  # vendor:skip
 else:
-  from pex.third_party.setuptools.command import bdist_egg
+    from pex.third_party.setuptools.command import bdist_egg
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from pkg_resources import (
+    from pkg_resources import (
     parse_requirements, safe_name, parse_version,
     safe_version, yield_lines, EntryPoint, iter_entry_points, to_filename)  # vendor:skip
 else:
-  from pex.third_party.pkg_resources import (
+    from pex.third_party.pkg_resources import (
     parse_requirements, safe_name, parse_version,
     safe_version, yield_lines, EntryPoint, iter_entry_points, to_filename)
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  import setuptools.unicode_utils as unicode_utils  # vendor:skip
+    import setuptools.unicode_utils as unicode_utils  # vendor:skip
 else:
-  import pex.third_party.setuptools.unicode_utils as unicode_utils
+    import pex.third_party.setuptools.unicode_utils as unicode_utils
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.glob import glob  # vendor:skip
+    from setuptools.glob import glob  # vendor:skip
 else:
-  from pex.third_party.setuptools.glob import glob
+    from pex.third_party.setuptools.glob import glob
 
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.extern import packaging  # vendor:skip
+    from setuptools.extern import packaging  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern import packaging
+    from pex.third_party.setuptools.extern import packaging
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools import SetuptoolsDeprecationWarning  # vendor:skip
+    from setuptools import SetuptoolsDeprecationWarning  # vendor:skip
 else:
-  from pex.third_party.setuptools import SetuptoolsDeprecationWarning
+    from pex.third_party.setuptools import SetuptoolsDeprecationWarning
 
 
 def translate_pattern(glob):

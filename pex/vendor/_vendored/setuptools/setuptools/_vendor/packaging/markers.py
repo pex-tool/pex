@@ -9,19 +9,19 @@ import platform
 import sys
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.extern.pyparsing import ParseException, ParseResults, stringStart, stringEnd  # vendor:skip
+    from setuptools.extern.pyparsing import ParseException, ParseResults, stringStart, stringEnd  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern.pyparsing import ParseException, ParseResults, stringStart, stringEnd
+    from pex.third_party.setuptools.extern.pyparsing import ParseException, ParseResults, stringStart, stringEnd
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.extern.pyparsing import ZeroOrMore, Group, Forward, QuotedString  # vendor:skip
+    from setuptools.extern.pyparsing import ZeroOrMore, Group, Forward, QuotedString  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern.pyparsing import ZeroOrMore, Group, Forward, QuotedString
+    from pex.third_party.setuptools.extern.pyparsing import ZeroOrMore, Group, Forward, QuotedString
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.extern.pyparsing import Literal as L  # vendor:skip
+    from setuptools.extern.pyparsing import Literal as L  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern.pyparsing import Literal as L
+    from pex.third_party.setuptools.extern.pyparsing import Literal as L
   # noqa
 
 from ._compat import string_types

@@ -9,21 +9,21 @@ import distutils.errors
 import itertools
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.extern import six  # vendor:skip
+    from setuptools.extern import six  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern import six
+    from pex.third_party.setuptools.extern import six
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.extern.six.moves import map, filter, filterfalse  # vendor:skip
+    from setuptools.extern.six.moves import map, filter, filterfalse  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern.six.moves import map, filter, filterfalse
+    from pex.third_party.setuptools.extern.six.moves import map, filter, filterfalse
 
 
 try:
     if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-      from setuptools.lib2to3_ex import Mixin2to3  # vendor:skip
+        from setuptools.lib2to3_ex import Mixin2to3  # vendor:skip
     else:
-      from pex.third_party.setuptools.lib2to3_ex import Mixin2to3
+        from pex.third_party.setuptools.lib2to3_ex import Mixin2to3
 
 except ImportError:
 

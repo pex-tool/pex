@@ -13,30 +13,30 @@ import textwrap
 import marshal
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.extern import six  # vendor:skip
+    from setuptools.extern import six  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern import six
+    from pex.third_party.setuptools.extern import six
 
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from pkg_resources import get_build_platform, Distribution, ensure_directory  # vendor:skip
+    from pkg_resources import get_build_platform, Distribution, ensure_directory  # vendor:skip
 else:
-  from pex.third_party.pkg_resources import get_build_platform, Distribution, ensure_directory
+    from pex.third_party.pkg_resources import get_build_platform, Distribution, ensure_directory
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from pkg_resources import EntryPoint  # vendor:skip
+    from pkg_resources import EntryPoint  # vendor:skip
 else:
-  from pex.third_party.pkg_resources import EntryPoint
+    from pex.third_party.pkg_resources import EntryPoint
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.extension import Library  # vendor:skip
+    from setuptools.extension import Library  # vendor:skip
 else:
-  from pex.third_party.setuptools.extension import Library
+    from pex.third_party.setuptools.extension import Library
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools import Command  # vendor:skip
+    from setuptools import Command  # vendor:skip
 else:
-  from pex.third_party.setuptools import Command
+    from pex.third_party.setuptools import Command
 
 
 try:

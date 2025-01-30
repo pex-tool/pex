@@ -12,9 +12,9 @@ from distutils import log
 from lib2to3.refactor import RefactoringTool, get_fixers_from_package
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  import setuptools  # vendor:skip
+    import setuptools  # vendor:skip
 else:
-  import pex.third_party.setuptools as setuptools
+    import pex.third_party.setuptools as setuptools
 
 
 

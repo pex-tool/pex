@@ -5,15 +5,15 @@ import distutils
 import os
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools.extern.six.moves import configparser  # vendor:skip
+    from setuptools.extern.six.moves import configparser  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern.six.moves import configparser
+    from pex.third_party.setuptools.extern.six.moves import configparser
 
 
 if "setuptools" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from setuptools import Command  # vendor:skip
+    from setuptools import Command  # vendor:skip
 else:
-  from pex.third_party.setuptools import Command
+    from pex.third_party.setuptools import Command
 
 
 __all__ = ['config_file', 'edit_config', 'option_base', 'setopt']

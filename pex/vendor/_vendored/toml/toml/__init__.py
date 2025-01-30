@@ -4,14 +4,14 @@ Released under the MIT license.
 """
 
 if "toml" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from toml import encoder  # vendor:skip
+    from toml import encoder  # vendor:skip
 else:
-  from pex.third_party.toml import encoder
+    from pex.third_party.toml import encoder
 
 if "toml" in __import__("os").environ.get("__PEX_UNVENDORED__", ""):
-  from toml import decoder  # vendor:skip
+    from toml import decoder  # vendor:skip
 else:
-  from pex.third_party.toml import decoder
+    from pex.third_party.toml import decoder
 
 
 __version__ = "0.10.2"
