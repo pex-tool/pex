@@ -15,6 +15,24 @@ else:
     from pex.third_party import attr
 
 
+def _convert_non_pep_440_dev_versions(python_full_version):
+    # type: (Optional[str]) -> Optional[str]
+
+    # This applies the same workaround that exists in packaging as of its 24.1 release.
+    # See:
+    # + https://github.com/pypa/packaging/pull/802
+    # + https://github.com/pypa/packaging/pull/825
+    #
+    # N.B.: We can't simply upgrade to packaging >= 24.1 since those changes unconditionally access
+    # the `python_full_version` marker and our `AbbreviatedPlatform` can lead to marker environments
+    # without that marker filled in. Even if we could upgrade packaging though, that would only help
+    # Pex users on Python >= 3.8 whereas this fix applies to all Pex users.
+    if python_full_version and python_full_version.endswith("+"):
+        return python_full_version + "local"
+
+    return python_full_version
+
+
 @attr.s(frozen=True)
 class MarkerEnvironment(object):
     """A PEP-508 marker environment.
@@ -125,7 +143,9 @@ class MarkerEnvironment(object):
     platform_release = attr.ib(default=None)  # type: Optional[str]
     platform_system = attr.ib(default=None)  # type: Optional[str]
     platform_version = attr.ib(default=None)  # type: Optional[str]
-    python_full_version = attr.ib(default=None)  # type: Optional[str]
+    python_full_version = attr.ib(
+        default=None, converter=_convert_non_pep_440_dev_versions
+    )  # type: Optional[str]
     python_version = attr.ib(default=None)  # type: Optional[str]
     sys_platform = attr.ib(default=None)  # type: Optional[str]
 

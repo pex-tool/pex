@@ -99,3 +99,11 @@ def test_platform_marker_environment_issue_1488():
 
     assert_platform_machine("x86_64", "macosx-10.15-x86_64-cp-38-m")
     assert_platform_machine("arm64", "macosx-11.0-arm64-cp-39-cp39")
+
+
+def test_cpython_dev_release():
+    env = MarkerEnvironment(python_full_version="3.10.16+").as_dict()
+    assert evaluate_marker("python_full_version >= '3.10.16'", env)
+    assert evaluate_marker("python_full_version <= '3.10.17'", env)
+    assert evaluate_marker("python_full_version == '3.10.16'", env)
+    assert not evaluate_marker("python_full_version === '3.10.16'", env)
