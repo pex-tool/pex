@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: packaging
-Version: 23.1
+Version: 24.0
 Summary: Core utilities for Python packages
 Author-email: Donald Stufft <donald@stufft.io>
 Requires-Python: >=3.7
@@ -17,6 +17,7 @@ Classifier: Programming Language :: Python :: 3.8
 Classifier: Programming Language :: Python :: 3.9
 Classifier: Programming Language :: Python :: 3.10
 Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
 Classifier: Programming Language :: Python :: Implementation :: CPython
 Classifier: Programming Language :: Python :: Implementation :: PyPy
 Classifier: Typing :: Typed
@@ -58,6 +59,8 @@ Installation
 Use ``pip`` to install these utilities::
 
     pip install packaging
+
+The ``packaging`` library uses calendar-based versioning (``YY.N``).
 
 Discussion
 ----------
