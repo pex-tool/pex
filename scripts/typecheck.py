@@ -9,7 +9,12 @@ from typing import Iterable, Iterator, Sequence
 from pex.common import safe_mkdtemp
 
 
-def find_files_to_check(include: Iterable[str], exclude: Iterable[str] = ()) -> Iterator[str]:
+def find_files_to_check(
+    include: Iterable[str],
+    include_files: Iterable[str] = (),
+    exclude: Iterable[str] = (),
+    exclude_files: Iterable[str] = (),
+) -> Iterator[str]:
     excluded = frozenset(os.path.normpath(e) for e in exclude)
     for root, dirs, files in os.walk(os.curdir):
         if os.path.realpath(root) == os.path.realpath(os.curdir):
@@ -20,8 +25,13 @@ def find_files_to_check(include: Iterable[str], exclude: Iterable[str] = ()) -> 
             ]
 
         for f in files:
-            if f.endswith(".py"):
-                yield os.path.join(root, f)
+            if not f.endswith(".py"):
+                continue
+            if os.path.relpath(os.path.join(root, f), os.curdir) in exclude_files:
+                continue
+            yield os.path.join(root, f)
+    for f in include_files:
+        yield f
 
 
 def run_mypy(python_version: str, files: Sequence[str], subject: str = "files") -> None:
@@ -52,9 +62,14 @@ def main() -> None:
         files=sorted(find_files_to_check(include=[py27_scripts])),
         subject="Python 2.7 scripts",
     )
+    vendor_main = os.path.join("pex", "vendor", "__main__.py")
     run_mypy(
         "3.9",
-        files=sorted(find_files_to_check(include=["package", "scripts"], exclude=[py27_scripts])),
+        files=sorted(
+            find_files_to_check(
+                include=["package", "scripts"], include_files=[vendor_main], exclude=[py27_scripts]
+            )
+        ),
         subject="scripts",
     )
 
@@ -62,6 +77,7 @@ def main() -> None:
         find_files_to_check(
             include=["pex", "testing", "tests"],
             exclude=[os.path.join("pex", "vendor", "_vendored")],
+            exclude_files=[vendor_main],
         )
     )
     for python_version in ("3.13", "3.5", "2.7"):
