@@ -235,13 +235,18 @@ def iter_vendor_specs(filter_requires_python=None):
             "packaging", "20.9", import_path="packaging_20_9", constraints=("pyparsing<3",)
         )
     if not python_major_minor or python_major_minor == (3, 6):
-        # N.B.: The pyparsing constraint is needed because our import re-writer (RedBaron) chokes on
-        # newer versions.
+        # N.B.: Introduced to add support for musllinux wheels via:
+        #   https://github.com/pex-tool/pex/issues/1933
+        # N.B.: The pyparsing constraint is needed for 3.6 support.
         yield VendorSpec.pinned(
-            "packaging", "21.3", import_path="packaging_21_3", constraints=("pyparsing<3",)
+            "packaging", "21.3", import_path="packaging_21_3", constraints=("pyparsing<3.0.8",)
         )
     if not python_major_minor or python_major_minor >= (3, 7):
-        yield VendorSpec.pinned("packaging", "23.1", import_path="packaging_23_1")
+        # Modern packaging for everyone else.
+        # N.B.: We can't upgrade past 24.0 without re-working marker evaluation for
+        # AbbreviatedPlatform since modern versions of packaging unconditionally assume the
+        # `python_full_version` marker will always be populated.
+        yield VendorSpec.pinned("packaging", "24.0", import_path="packaging_24_0")
 
     # We use toml to read pyproject.toml when building sdists from local source projects.
     # The toml project provides compatibility back to Python 2.7, but is frozen in time in 2020

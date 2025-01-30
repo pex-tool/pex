@@ -314,24 +314,33 @@ def test_pex_builder_exclude_bootstrap_testing(
 
     bootstrap_location = os.path.join(pex_path, pb.info.bootstrap)
     bootstrap_files = set()  # type: Set[Text]
+    vendor_dir_relpath = os.path.join("pex", "vendor", "_vendored")
     if Layout.ZIPAPP == layout:
         with open_zip(pex_path) as zf:
+            vendor_dir = os.path.join(pb.info.bootstrap, vendor_dir_relpath)
             bootstrap_files.update(
                 os.path.relpath(f, pb.info.bootstrap)
                 for f in zf.namelist()
-                if f.startswith(pb.info.bootstrap)
+                if f.startswith(pb.info.bootstrap) and not f.startswith(vendor_dir)
             )
     elif Layout.PACKED == layout:
         with open_zip(bootstrap_location) as zf:
-            bootstrap_files.update(zf.namelist())
+            bootstrap_files.update(
+                name for name in zf.namelist() if not name.startswith(vendor_dir_relpath)
+            )
     else:
-        bootstrap_files.update(
-            os.path.relpath(os.path.join(root, f), bootstrap_location)
-            for root, _, files in os.walk(bootstrap_location)
-            for f in files
-        )
+        for root, dirs, files in os.walk(bootstrap_location):
+            dirs[:] = [
+                d
+                for d in dirs
+                if os.path.relpath(os.path.join(root, d), bootstrap_location) != vendor_dir_relpath
+            ]
+            for f in files:
+                bootstrap_files.add(os.path.relpath(os.path.join(root, f), bootstrap_location))
 
-    assert {"pex/pex_bootstrapper.py", "pex/pex_info.py", "pex/pex.py"}.issubset(
+    assert {
+        os.path.join("pex", f) for f in ("pex_bootstrapper.py", "pex_info.py", "pex.py")
+    }.issubset(
         bootstrap_files
     ), "Expected the `.bootstrap` to contain at least some of the key Pex runtime modules."
     assert not [
