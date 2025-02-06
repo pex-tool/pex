@@ -11,7 +11,7 @@ DEADSNAKES_VERSIONS=(
   "3.8 {dev,venv,distutils}=3.8.20"
   "3.9 {dev,venv,distutils}=3.9.21"
   "3.10 {dev,venv,distutils}=3.10.16"
-  "3.13 {dev,venv}=3.13.1"
+  "3.13 {dev,venv}=3.13.2"
   "3.14 {dev,venv}=3.14.0~a4"
 )
 
@@ -37,7 +37,7 @@ PYENV_VERSIONS=(
   2.7.18
   3.5.10
   3.6.15
-  3.12.8
+  3.12.9
   pypy2.7-7.3.17
   pypy3.5-7.0.0
   pypy3.6-7.3.3
