@@ -8,6 +8,7 @@ import sys
 import pytest
 
 from pex.compatibility import PY3
+from pex.fs import safe_symlink
 from pex.typing import TYPE_CHECKING
 from testing import PY38, ensure_python_interpreter, run_pex_command
 
@@ -45,7 +46,7 @@ def test_symlink_preserved_in_argv0(
     )
 
     cowsay = os.path.join(str(tmpdir), "cowsay")
-    os.symlink(pex, cowsay)
+    safe_symlink(pex, cowsay)
     assert "5.0" == subprocess.check_output(args=[cowsay, "--version"]).decode("utf-8").strip(), (
         "Expected the symlink used to launch this PEX to be preserved in sys.argv[0] such that "
         "conscript could observe it and select the cowsay console script inside the PEX for"
@@ -58,7 +59,7 @@ def test_symlink_preserved_in_argv0(
     with open(fortune_file, "w") as fp:
         fp.write("Just the one")
     fortune = os.path.join(str(tmpdir), "fortune")
-    os.symlink(pex, fortune)
+    safe_symlink(pex, fortune)
 
     # N.B.: This fortune implementation uses print(..., file=...) without
     # `from __future__ import print_function`; so fails under Python 2.7 despite the fact its

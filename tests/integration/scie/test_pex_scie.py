@@ -17,10 +17,11 @@ import pytest
 
 from pex.cache.dirs import CacheDir
 from pex.common import safe_open
-from pex.executables import chmod_plus_x, is_exe
+from pex.executables import chmod_plus_x
 from pex.fetcher import URLFetcher
 from pex.layout import Layout
 from pex.orderedset import OrderedSet
+from pex.os import is_exe
 from pex.scie import SciePlatform, ScieStyle
 from pex.targets import LocalInterpreter
 from pex.typing import TYPE_CHECKING

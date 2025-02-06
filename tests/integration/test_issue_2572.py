@@ -7,6 +7,7 @@ import os
 import shutil
 import subprocess
 
+from pex.fs import safe_symlink
 from testing import make_env, run_pex_command
 from testing.pytest.tmp import Tempdir
 
@@ -16,7 +17,7 @@ def test_symlinked_home(tmpdir):
 
     real_home = tmpdir.join("a", "b", "c")
     symlinked_home = tmpdir.join("lnk")
-    os.symlink(real_home, symlinked_home)
+    safe_symlink(real_home, symlinked_home)
 
     pex = tmpdir.join("pex")
     run_pex_command(

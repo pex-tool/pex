@@ -19,9 +19,9 @@ from pex.common import safe_mkdir, safe_open
 from pex.compatibility import commonpath, get_stdout_bytes_buffer
 from pex.dist_metadata import Distribution, find_distributions
 from pex.enum import Enum
-from pex.executables import is_exe
 from pex.executor import Executor
 from pex.fetcher import URLFetcher
+from pex.fs import safe_symlink
 from pex.interpreter import (
     Platlib,
     Purelib,
@@ -31,6 +31,8 @@ from pex.interpreter import (
     create_shebang,
 )
 from pex.orderedset import OrderedSet
+from pex.os import is_exe
+from pex.sysconfig import SCRIPT_DIR, script_name
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
 from pex.util import named_temporary_file
@@ -380,7 +382,7 @@ class Virtualenv(object):
                     V=3,
                 )
                 os.unlink(abs_path)
-                os.symlink(rel_dst, abs_path)
+                safe_symlink(rel_dst, abs_path)
 
         return virtualenv
 
@@ -393,8 +395,8 @@ class Virtualenv(object):
         # type: (...) -> None
         self._venv_dir = venv_dir
         self._custom_prompt = custom_prompt
-        self._bin_dir = os.path.join(venv_dir, "bin")
-        python_exe_path = os.path.join(self._bin_dir, python_exe_name)
+        self._bin_dir = os.path.join(venv_dir, SCRIPT_DIR)
+        python_exe_path = os.path.join(self._bin_dir, script_name(python_exe_name))
         try:
             self._interpreter = PythonInterpreter.from_binary(python_exe_path)
         except PythonInterpreter.Error as e:
@@ -451,7 +453,7 @@ class Virtualenv(object):
 
     def bin_path(self, *components):
         # type: (*str) -> str
-        return os.path.join(self._bin_dir, *components)
+        return script_name(os.path.join(self._bin_dir, *components))
 
     @property
     def bin_dir(self):

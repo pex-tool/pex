@@ -15,6 +15,7 @@ import pytest
 
 from pex.common import environment_as, safe_rmtree
 from pex.dist_metadata import Distribution, Requirement
+from pex.fs import safe_symlink
 from pex.interpreter import PythonInterpreter
 from pex.jobs import Job
 from pex.pep_440 import Version
@@ -346,7 +347,7 @@ def test_pip_pex_interpreter_venv_hash_issue_1885(
     _PIP.pop(installation, None)
     binary = current_interpreter.binary
     binary_link = os.path.join(str(tmpdir), "python")
-    os.symlink(binary, binary_link)
+    safe_symlink(binary, binary_link)
     pip_w_linked_ppp = create_pip(current_interpreter, PEX_PYTHON_PATH=binary_link)
     print("binary link real path resolves to: {}".format(os.path.realpath(binary_link)))
     venv_contents_hash = hashlib.sha1(

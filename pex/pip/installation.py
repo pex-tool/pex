@@ -16,6 +16,7 @@ from pex.common import REPRODUCIBLE_BUILDS_ENV, CopyMode, pluralize, safe_mkdtem
 from pex.dist_metadata import Requirement
 from pex.exceptions import production_assert
 from pex.executor import Executor
+from pex.fs import safe_symlink
 from pex.interpreter import PythonInterpreter
 from pex.jobs import iter_map_parallel
 from pex.orderedset import OrderedSet
@@ -234,7 +235,7 @@ def _install_wheel(wheel_path):
                     relative_target_path = os.path.relpath(
                         installed_wheel_dir, runtime_key_dir.symlink_dir
                     )
-                    os.symlink(relative_target_path, source_path)
+                    safe_symlink(relative_target_path, source_path)
     return installed_wheel_dir
 
 

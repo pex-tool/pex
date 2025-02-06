@@ -14,8 +14,8 @@ from pex.cli_util import prog_path
 from pex.common import pluralize
 from pex.compatibility import commonpath
 from pex.dist_metadata import Distribution
-from pex.executables import is_exe
 from pex.layout import Layout
+from pex.os import is_exe
 from pex.pex_info import PexInfo
 from pex.repl import custom
 from pex.repl.custom import repl_loop

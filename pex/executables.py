@@ -8,6 +8,7 @@ import re
 import stat
 from textwrap import dedent
 
+from pex.os import is_exe
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -26,16 +27,6 @@ def chmod_plus_x(path):
     if path_mode & stat.S_IROTH:
         path_mode |= stat.S_IXOTH
     os.chmod(path, path_mode)
-
-
-def is_exe(path):
-    # type: (Text) -> bool
-    """Determines if the given path is a file executable by the current user.
-
-    :param path: The path to check.
-    :return: True if the given path is a file executable by the current user.
-    """
-    return os.path.isfile(path) and os.access(path, os.R_OK | os.X_OK)
 
 
 def is_script(

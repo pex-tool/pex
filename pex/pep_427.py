@@ -22,6 +22,7 @@ from pex.executables import chmod_plus_x
 from pex.interpreter import PythonInterpreter
 from pex.pep_376 import InstalledFile, InstalledWheel, Record
 from pex.pep_503 import ProjectName
+from pex.sysconfig import SCRIPT_DIR
 from pex.typing import TYPE_CHECKING, cast
 from pex.wheel import Wheel
 
@@ -74,7 +75,7 @@ class InstallPaths(object):
             purelib=destination,
             platlib=destination,
             headers=os.path.join(base, "include", "site", "pythonX.Y", project_name.raw),
-            scripts=os.path.join(base, "bin"),
+            scripts=os.path.join(base, SCRIPT_DIR),
             data=base,
         )
 

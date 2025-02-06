@@ -10,10 +10,11 @@ import zipfile
 from pex import layout, pex_warnings, variables
 from pex.cache import root as cache_root
 from pex.common import can_write_dir, open_zip, safe_mkdtemp
-from pex.compatibility import PY2, WINDOWS
+from pex.compatibility import PY2
 from pex.compatibility import string as compatibility_string
 from pex.inherit_path import InheritPath
 from pex.orderedset import OrderedSet
+from pex.os import WINDOWS
 from pex.typing import TYPE_CHECKING, cast
 from pex.variables import ENV, Variables
 from pex.venv.bin_path import BinPath

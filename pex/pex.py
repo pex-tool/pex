@@ -23,6 +23,7 @@ from pex.inherit_path import InheritPath
 from pex.interpreter import PythonIdentity, PythonInterpreter
 from pex.layout import Layout
 from pex.orderedset import OrderedSet
+from pex.os import safe_execv
 from pex.pex_info import PexInfo
 from pex.targets import LocalInterpreter
 from pex.tracer import TRACER
@@ -719,7 +720,7 @@ class PEX(object):  # noqa: T000
             for arg in python_options
         ):
             os.environ["PYTHONINSPECT"] = "1"
-        os.execv(python, cmdline)
+        safe_execv(cmdline)
 
     def execute_script(self, script_name):
         # type: (str) -> Any

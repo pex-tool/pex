@@ -8,9 +8,10 @@ import json
 import os
 
 from pex import hashing
-from pex.atomic_directory import FileLockStyle, atomic_directory
+from pex.atomic_directory import atomic_directory
 from pex.cache.dirs import DownloadDir
 from pex.common import safe_rmtree
+from pex.fs.lock import FileLockStyle
 from pex.pep_503 import ProjectName
 from pex.resolve.locked_resolve import Artifact
 from pex.result import Error, ResultError, try_

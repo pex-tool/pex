@@ -17,6 +17,7 @@ from pex.dist_metadata import (
 from pex.executables import is_python_script
 from pex.pep_376 import InstalledWheel
 from pex.pep_503 import ProjectName
+from pex.sysconfig import SCRIPT_DIR, script_name
 from pex.typing import TYPE_CHECKING, cast
 from pex.wheel import Wheel
 
@@ -38,14 +39,16 @@ class DistributionScript(object):
     ):
         # type: (...) -> Optional[DistributionScript]
         if dist.type is DistributionType.WHEEL:
-            script_path = Wheel.load(dist.location).data_path("scripts", name)
+            script_path = Wheel.load(dist.location).data_path("scripts", script_name(name))
             with open_zip(dist.location) as zfp:
                 try:
                     zfp.getinfo(script_path)
                 except KeyError:
                     return None
         elif dist.type is DistributionType.INSTALLED:
-            script_path = InstalledWheel.load(dist.location).stashed_path("bin", name)
+            script_path = InstalledWheel.load(dist.location).stashed_path(
+                SCRIPT_DIR, script_name(name)
+            )
             if not os.path.isfile(script_path):
                 return None
         else:

@@ -15,6 +15,7 @@ from fileinput import FileInput
 
 from pex import hashing
 from pex.common import CopyMode, is_pyc_dir, is_pyc_file, safe_mkdir, safe_open
+from pex.fs import safe_link, safe_symlink
 from pex.interpreter import PythonInterpreter
 from pex.typing import TYPE_CHECKING, cast
 from pex.util import CacheHelper
@@ -372,7 +373,7 @@ class InstalledWheel(object):
                     # go missing leaving the dst dangling.
                     if link and not os.path.islink(src):
                         try:
-                            os.link(src, dst)
+                            safe_link(src, dst)
                             continue
                         except OSError as e:
                             if e.errno != errno.EXDEV:
@@ -415,7 +416,7 @@ class InstalledWheel(object):
                         dst_parent = os.path.dirname(dst_entry)
                         safe_mkdir(dst_parent)
                         rel_src = os.path.relpath(src_entry, dst_parent)
-                        os.symlink(rel_src, dst_entry)
+                        safe_symlink(rel_src, dst_entry)
                         traverse.discard(path)
                     elif is_dir:
                         safe_mkdir(dst_entry)
@@ -425,7 +426,7 @@ class InstalledWheel(object):
                         # target could later go missing leaving the dst_entry dangling.
                         if link and not os.path.islink(src_entry):
                             try:
-                                os.link(src_entry, dst_entry)
+                                safe_link(src_entry, dst_entry)
                                 continue
                             except OSError as e:
                                 if e.errno != errno.EXDEV:
