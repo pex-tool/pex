@@ -15,7 +15,7 @@ def filtered_stream(exclude: str, dest: TextIO) -> Iterator[int]:
     read_fd, write_fd = os.pipe()
 
     def filter_stream() -> None:
-        with os.fdopen(read_fd, "r") as fh:
+        with os.fdopen(read_fd, "r", encoding="utf-8") as fh:
             for line in fh:
                 if not re.search(exclude, line):
                     dest.write(line)
@@ -50,6 +50,7 @@ def run_black(*args: str) -> None:
             ],
             stdout=out_fd,
             stderr=subprocess.STDOUT,
+            encoding="utf-8",
             check=True,
         )
 

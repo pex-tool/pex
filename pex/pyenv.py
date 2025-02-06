@@ -7,7 +7,8 @@ import os
 import re
 import subprocess
 
-from pex.os import is_exe
+from pex.os import WINDOWS, is_exe
+from pex.sysconfig import SCRIPT_DIR, script_name
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 
@@ -31,9 +32,20 @@ class Pyenv(object):
             pyenv_root = os.environ.get("PYENV_ROOT", "")
             if not pyenv_root:
                 for path_entry in os.environ.get("PATH", "").split(os.pathsep):
-                    pyenv_exe = os.path.join(path_entry, "pyenv")
+                    pyenv_exe = os.path.join(path_entry, "pyenv.bat" if WINDOWS else "pyenv")
                     if is_exe(pyenv_exe):
-                        process = subprocess.Popen(args=[pyenv_exe, "root"], stdout=subprocess.PIPE)
+                        try:
+                            process = subprocess.Popen(
+                                args=[pyenv_exe, "root"], stdout=subprocess.PIPE
+                            )
+                        except OSError as e:
+                            TRACER.log(
+                                "Skipping {pyenv_exe} executable. Not executable: {err}".format(
+                                    pyenv_exe=pyenv_exe, err=e
+                                ),
+                                V=6,
+                            )
+                            continue
                         stdout, _ = process.communicate()
                         if process.returncode == 0:
                             pyenv_root = str(stdout).strip()
@@ -74,6 +86,10 @@ class Pyenv(object):
                     [a-z]?
                 )?
             )?
+            (?:
+                # Under pyenv-win.
+                \.bat
+            )?
             $
             """,
             flags=re.VERBOSE,
@@ -107,7 +123,7 @@ class Pyenv(object):
             with TRACER.timed("Calculating active version for {}...".format(self), V=6):
                 active_versions = self.pyenv.active_versions(search_dir=search_dir)
                 if active_versions:
-                    binary_name = os.path.basename(self.path)
+                    binary_name, _ = os.path.splitext(os.path.basename(self.path))
                     if self.name == "python" and not self.major and not self.minor:
                         for pyenv_version in active_versions:
                             if pyenv_version[0] in self._PYENV_CPYTHON_VERSION_LEADING_CHARS:
@@ -204,9 +220,14 @@ class Pyenv(object):
         # N.B.: Pyenv creates a 'python' symlink for both the CPython and PyPy versions it installs;
         # so counting on 'python' is OK here. We do resolve the symlink though to return a canonical
         # direct path to the python binary.
-        binary_name = binary_name or "python"
+        binary_name = script_name(binary_name or "python")
 
-        python = os.path.realpath(
-            os.path.join(self.root, "versions", pyenv_version, "bin", binary_name)
-        )
+        if WINDOWS:
+            python = os.path.realpath(
+                os.path.join(self.root, "versions", pyenv_version, binary_name)
+            )
+        else:
+            python = os.path.realpath(
+                os.path.join(self.root, "versions", pyenv_version, SCRIPT_DIR, binary_name)
+            )
         return python if is_exe(python) else None

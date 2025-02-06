@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "compatible-tox-hack"
+version = "0.1.0"
+dependencies = [
+    "tox<4; platform_system != 'Windows'",
+    "tox; platform_system == 'Windows'",
+    "virtualenv<20.16; platform_system != 'Windows'",
+    "virtualenv; platform_system == 'Windows'",
+]
