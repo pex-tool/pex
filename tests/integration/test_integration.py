@@ -20,13 +20,14 @@ import pytest
 from pex import targets
 from pex.cache.dirs import CacheDir, InterpreterDir
 from pex.common import environment_as, safe_mkdir, safe_open, safe_rmtree, temporary_dir, touch
-from pex.compatibility import WINDOWS, commonpath
+from pex.compatibility import commonpath
 from pex.dist_metadata import Distribution, Requirement, is_wheel
-from pex.executables import is_exe
 from pex.fetcher import URLFetcher
+from pex.fs import safe_symlink
 from pex.interpreter import PythonInterpreter
 from pex.layout import Layout
 from pex.network_configuration import NetworkConfiguration
+from pex.os import WINDOWS, is_exe
 from pex.pep_427 import InstallableType
 from pex.pex_info import PexInfo
 from pex.pip.version import PipVersion
@@ -341,7 +342,7 @@ def test_pex_repl_tab_complete(
 def test_pex_python_symlink(tmpdir):
     # type: (Any) -> None
     symlink_path = os.path.join(str(tmpdir), "python-symlink")
-    os.symlink(sys.executable, symlink_path)
+    safe_symlink(sys.executable, symlink_path)
     pexrc_path = os.path.join(str(tmpdir), ".pexrc")
     with open(pexrc_path, "w") as pexrc:
         pexrc.write("PEX_PYTHON=%s" % symlink_path)

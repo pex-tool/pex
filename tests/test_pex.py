@@ -17,9 +17,11 @@ import pytest
 
 from pex import resolver
 from pex.common import environment_as, safe_mkdir, safe_open, temporary_dir
-from pex.compatibility import PY2, WINDOWS, commonpath, to_bytes
+from pex.compatibility import PY2, commonpath, to_bytes
 from pex.dist_metadata import Distribution
+from pex.fs import safe_symlink
 from pex.interpreter import PythonIdentity, PythonInterpreter
+from pex.os import WINDOWS
 from pex.pex import PEX, IsolatedSysPath
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
@@ -245,7 +247,7 @@ def test_site_libs_symlink(tmpdir):
     sys_path_entry = sys_path_entries[0]
 
     sys_path_entry_link = os.path.join(str(tmpdir), "lib-link")
-    os.symlink(sys_path_entry, sys_path_entry_link)
+    safe_symlink(sys_path_entry, sys_path_entry_link)
 
     with mock.patch.object(site, "getsitepackages") as mock_site_packages, mock.patch(
         "sys.path", new=[sys_path_entry_link]
@@ -253,7 +255,7 @@ def test_site_libs_symlink(tmpdir):
         site_packages = os.path.join(str(tmpdir), "site-packages")
         os.mkdir(site_packages)
         site_packages_link = os.path.join(str(tmpdir), "site-packages-link")
-        os.symlink(site_packages, site_packages_link)
+        safe_symlink(site_packages, site_packages_link)
         mock_site_packages.return_value = [site_packages_link]
 
         isolated_sys_path = IsolatedSysPath.for_pex(

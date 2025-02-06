@@ -14,6 +14,7 @@ import pytest
 
 from pex.atomic_directory import atomic_directory
 from pex.common import safe_open
+from pex.fs import safe_symlink
 from pex.pep_503 import ProjectName
 from pex.pex import PEX
 from pex.pip.version import PipVersion
@@ -182,7 +183,7 @@ def test_pre_resolved_dists_offline(
     for dist in glob.glob(os.path.join(dists, "*")):
         dest_dist = os.path.join(offline, os.path.basename(dist))
         if not os.path.exists(dest_dist):
-            os.symlink(dist, dest_dist)
+            safe_symlink(dist, dest_dist)
 
     pex = os.path.join(str(tmpdir), "pex")
     run_pex_command(

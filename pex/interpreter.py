@@ -18,15 +18,16 @@ from textwrap import dedent
 from pex import third_party
 from pex.cache.dirs import InterpreterDir
 from pex.common import safe_mkdtemp, safe_rmtree
-from pex.executables import is_exe
 from pex.executor import Executor
 from pex.jobs import Job, Retain, SpawnedJob, execute_parallel
 from pex.orderedset import OrderedSet
+from pex.os import WINDOWS, is_exe
 from pex.pep_425 import CompatibilityTags
 from pex.pep_508 import MarkerEnvironment
 from pex.platforms import Platform
 from pex.pth import iter_pth_paths
 from pex.pyenv import Pyenv
+from pex.sysconfig import EXE_EXTENSION, SCRIPT_DIR, script_name
 from pex.third_party.packaging import __version__ as packaging_version
 from pex.third_party.packaging import tags
 from pex.tracer import TRACER
@@ -140,8 +141,7 @@ def _adjust_to_final_path(path):
     # type: (str) -> str
     for current_path, final_path in _PATH_MAPPINGS.items():
         if path.startswith(current_path):
-            prefix_pattern = re.escape(current_path)
-            return re.sub(prefix_pattern, final_path, path)
+            return final_path + path[len(current_path) :]
     return path
 
 
@@ -149,8 +149,7 @@ def _adjust_to_current_path(path):
     # type: (str) -> str
     for current_path, final_path in _PATH_MAPPINGS.items():
         if path.startswith(final_path):
-            prefix_pattern = re.escape(final_path)
-            return re.sub(prefix_pattern, current_path, path)
+            return current_path + path[len(final_path) :]
     return path
 
 
@@ -798,7 +797,7 @@ class PyVenvCfg(object):
 class PythonInterpreter(object):
     _REGEXEN = (
         # NB: OSX ships python binaries named Python with a capital-P; so we allow for this.
-        re.compile(r"^Python$"),
+        re.compile(r"^Python{extension}$".format(extension=re.escape(EXE_EXTENSION))),
         re.compile(
             r"""
             ^
@@ -818,8 +817,11 @@ class PythonInterpreter(object):
                     [a-z]?
                 )?
             )?
+            {extension}
             $
-            """,
+            """.format(
+                extension=re.escape(EXE_EXTENSION)
+            ),
             flags=re.VERBOSE,
         ),
     )
@@ -1423,11 +1425,17 @@ class PythonInterpreter(object):
 
         prefix = "pypy" if self.is_pypy else "python"
         suffixes = ("{}.{}".format(version[0], version[1]), str(version[0]), "")
-        candidate_binaries = tuple("{}{}".format(prefix, suffix) for suffix in suffixes)
+        candidate_binaries = tuple(
+            script_name("{}{}".format(prefix, suffix)) for suffix in suffixes
+        )
 
         def iter_base_candidate_binary_paths(interpreter):
             # type: (PythonInterpreter) -> Iterator[str]
-            bin_dir = os.path.join(interpreter._identity.base_prefix, "bin")
+            bin_dir = (
+                interpreter._identity.base_prefix
+                if WINDOWS
+                else os.path.join(interpreter._identity.base_prefix, SCRIPT_DIR)
+            )
             for candidate_binary in candidate_binaries:
                 candidate_binary_path = os.path.join(bin_dir, candidate_binary)
                 if is_exe(candidate_binary_path):

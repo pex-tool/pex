@@ -4,17 +4,18 @@
 from __future__ import absolute_import
 
 import errno
-import fcntl
 import hashlib
 import os
 import threading
 from contextlib import contextmanager
 from uuid import uuid4
 
+import pex
 from pex import pex_warnings
 from pex.common import safe_mkdir, safe_rmtree
-from pex.enum import Enum
-from pex.typing import TYPE_CHECKING, cast
+from pex.fs import lock
+from pex.fs.lock import FileLockStyle
+from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from typing import Callable, Dict, Iterator, Optional
@@ -161,7 +162,7 @@ class AtomicDirectory(object):
             #
             # We have satisfied the single filesystem constraint by arranging the `work_dir` to be a
             # sibling of the `target_dir`.
-            os.rename(source, self._target_dir)
+            pex.fs.safe_rename(source, self._target_dir)
         except OSError as e:
             if e.errno not in (errno.EEXIST, errno.ENOTEMPTY):
                 raise e
@@ -173,19 +174,8 @@ class AtomicDirectory(object):
         safe_rmtree(self._work_dir)
 
 
-class FileLockStyle(Enum["FileLockStyle.Value"]):
-    class Value(Enum.Value):
-        pass
-
-    BSD = Value("bsd")
-    POSIX = Value("posix")
-
-
-FileLockStyle.seal()
-
-
-def _is_bsd_lock(lock_style=None):
-    # type: (Optional[FileLockStyle.Value]) -> bool
+def _lock_style(lock_style=None):
+    # type: (Optional[FileLockStyle.Value]) -> FileLockStyle.Value
 
     # The atomic_directory file locking has used POSIX locks since inception. These have maximum
     # compatibility across OSes and stand a decent chance of working over modern NFS. With the
@@ -194,10 +184,9 @@ def _is_bsd_lock(lock_style=None):
     # `lock_style` to atomic_directory. In order to allow experimenting with / debugging possible
     # file locking bugs, we allow a `_PEX_FILE_LOCK_STYLE` back door private ~API to upgrade all
     # locks to BSD style locks. This back door can be removed at any time.
-    file_lock_style = lock_style or FileLockStyle.for_value(
+    return lock_style or FileLockStyle.for_value(
         os.environ.get("_PEX_FILE_LOCK_STYLE", FileLockStyle.POSIX.value)
     )
-    return file_lock_style is FileLockStyle.BSD
 
 
 @attr.s(frozen=True)
@@ -209,29 +198,14 @@ class _FileLock(object):
     def acquire(self):
         # type: () -> Callable[[], None]
         self._in_process_lock.acquire()
-
-        # N.B.: We don't actually write anything to the lock file but the fcntl file locking
-        # operations only work on files opened for at least write.
-        safe_mkdir(os.path.dirname(self._path))
-        lock_fd = os.open(self._path, os.O_CREAT | os.O_WRONLY)
-
-        lock_api = cast(
-            "Callable[[int, int], None]",
-            fcntl.flock if _is_bsd_lock(self._style) else fcntl.lockf,
-        )
-
-        # N.B.: Since lockf and flock operate on an open file descriptor and these are
-        # guaranteed to be closed by the operating system when the owning process exits,
-        # this lock is immune to staleness.
-        lock_api(lock_fd, fcntl.LOCK_EX)  # A blocking write lock.
+        file_lock = lock.acquire(self._path, exclusive=True, style=_lock_style(self._style))
 
         def release():
             # type: () -> None
             try:
-                lock_api(lock_fd, fcntl.LOCK_UN)
+                file_lock.release()
             finally:
-                os.close(lock_fd)
-            self._in_process_lock.release()
+                self._in_process_lock.release()
 
         return release
 

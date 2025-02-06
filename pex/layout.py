@@ -14,6 +14,7 @@ from pex.cache.dirs import BootstrapDir, InstalledWheelDir, UserCodeDir
 from pex.common import ZipFileEx, open_zip, safe_copy, safe_mkdir, safe_mkdtemp
 from pex.enum import Enum
 from pex.executables import is_script
+from pex.fs import safe_symlink
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV, unzip_dir
@@ -192,7 +193,7 @@ def _install_distribution(
             )
 
     safe_mkdir(os.path.dirname(symlink_dest))
-    os.symlink(symlink_src, symlink_dest)
+    safe_symlink(symlink_src, symlink_dest)
     return location
 
 
@@ -352,7 +353,7 @@ def _ensure_installed(
                     ) as bootstrap_zip_chroot:
                         if not bootstrap_zip_chroot.is_finalized():
                             layout.extract_bootstrap(bootstrap_zip_chroot.work_dir)
-                    os.symlink(
+                    safe_symlink(
                         os.path.join(os.path.relpath(bootstrap_cache, install_to)),
                         os.path.join(chroot.work_dir, BOOTSTRAP_DIR),
                     )
@@ -368,7 +369,7 @@ def _ensure_installed(
                         if not code_chroot.is_finalized():
                             layout.extract_code(code_chroot.work_dir)
                     for path in os.listdir(code_cache):
-                        os.symlink(
+                        safe_symlink(
                             os.path.join(os.path.relpath(code_cache, install_to), path),
                             os.path.join(chroot.work_dir, path),
                         )

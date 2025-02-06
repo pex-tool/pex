@@ -32,6 +32,7 @@ from pex.dist_metadata import Distribution, DistributionType, MetadataError
 from pex.enum import Enum
 from pex.executables import chmod_plus_x, create_sh_python_redirector_shebang
 from pex.finders import get_entry_point_from_console_script, get_script_from_distributions
+from pex.fs import safe_rename, safe_symlink
 from pex.interpreter import PythonInterpreter
 from pex.layout import Layout
 from pex.orderedset import OrderedSet
@@ -551,7 +552,7 @@ class PEXBuilder(object):
         )
 
         bootstrap_digest = hashlib.sha1()
-        bootstrap_packages = ["cache", "repl", "third_party", "venv"]
+        bootstrap_packages = ["cache", "fs", "repl", "third_party", "venv"]
         if self._pex_info.includes_tools:
             bootstrap_packages.extend(["commands", "tools"])
 
@@ -671,15 +672,15 @@ class PEXBuilder(object):
                         main_fp.readline()  # Throw away shebang line.
                         shutil.copyfileobj(main_fp, script_fp)
                 chmod_plus_x(pex_script)
-                os.rename(pex_script, main_py)
-            os.symlink("__main__.py", pex_script)
+                safe_rename(pex_script, main_py)
+            safe_symlink("__main__.py", pex_script)
 
         if os.path.isdir(path):
             shutil.rmtree(path, True)
         elif os.path.isdir(tmp_pex):
             safe_delete(path)
         check.perform_check(layout, tmp_pex)
-        os.rename(tmp_pex, path)
+        safe_rename(tmp_pex, path)
 
     def set_sh_boot_script(
         self,

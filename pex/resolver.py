@@ -22,6 +22,7 @@ from pex.compatibility import url_unquote, urlparse
 from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import DistMetadata, Distribution, Requirement, is_wheel
 from pex.fingerprinted_distribution import FingerprintedDistribution
+from pex.fs import safe_symlink
 from pex.jobs import Raise, SpawnedJob, execute_parallel, iter_map_parallel
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
@@ -574,7 +575,7 @@ class InstallResult(object):
                 source_path = os.path.join(atomic_dir.work_dir, self.request.wheel_file)
                 start_dir = os.path.dirname(source_path)
                 relative_target_path = os.path.relpath(self.install_chroot, start_dir)
-                os.symlink(relative_target_path, source_path)
+                safe_symlink(relative_target_path, source_path)
 
         return self._iter_resolved_distributions(install_requests, fingerprint=wheel_dir_hash)
 

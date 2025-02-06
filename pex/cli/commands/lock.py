@@ -30,9 +30,9 @@ from pex.dist_metadata import (
 )
 from pex.enum import Enum
 from pex.exceptions import production_assert
-from pex.executables import is_exe
 from pex.interpreter import PythonInterpreter
 from pex.orderedset import OrderedSet
+from pex.os import is_exe, safe_execv
 from pex.pep_376 import InstalledWheel, Record
 from pex.pep_427 import InstallableType
 from pex.pep_440 import Version
@@ -344,7 +344,7 @@ class SyncTarget(object):
 
         if self.command:
             try:
-                os.execv(self.command[0], self.command)
+                safe_execv(self.command)
             except OSError as e:
                 return Error("Failed to execute {exe}: {err}".format(exe=self.command[0], err=e))
 

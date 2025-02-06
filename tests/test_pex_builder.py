@@ -15,9 +15,11 @@ import pytest
 
 from pex.cache.dirs import CacheDir
 from pex.common import CopyMode, open_zip, safe_open, temporary_dir, touch
-from pex.compatibility import WINDOWS, commonpath
+from pex.compatibility import commonpath
 from pex.executor import Executor
+from pex.fs import safe_rename
 from pex.layout import Layout
+from pex.os import WINDOWS
 from pex.pex import PEX
 from pex.pex_builder import Check, InvalidZipAppError, PEXBuilder
 from pex.pex_warnings import PEXWarning
@@ -551,7 +553,7 @@ def test_check(tmpdir):
         fp.write("\n")
     accum = file_too_big + ".accum"
     for _ in range(32):
-        os.rename(file_too_big, accum)
+        safe_rename(file_too_big, accum)
         with open(file_too_big, "wb") as dest:
             subprocess.check_call(args=["cat", accum, accum], stdout=dest.fileno())
     os.unlink(accum)

@@ -8,8 +8,9 @@ from contextlib import contextmanager
 
 import pytest
 
-from pex.atomic_directory import AtomicDirectory, FileLockStyle, _is_bsd_lock, atomic_directory
+from pex.atomic_directory import AtomicDirectory, _lock_style, atomic_directory
 from pex.common import environment_as, temporary_dir, touch
+from pex.fs.lock import FileLockStyle
 from pex.typing import TYPE_CHECKING
 
 try:
@@ -24,24 +25,24 @@ if TYPE_CHECKING:
 def test_is_bsd_lock():
     # type: () -> None
 
-    assert not _is_bsd_lock(
+    assert FileLockStyle.BSD is not _lock_style(
         lock_style=None
     ), "Expected the default lock style to be POSIX for maximum compatibility."
-    assert not _is_bsd_lock(lock_style=FileLockStyle.POSIX)
-    assert _is_bsd_lock(lock_style=FileLockStyle.BSD)
+    assert FileLockStyle.BSD is not _lock_style(lock_style=FileLockStyle.POSIX)
+    assert FileLockStyle.BSD is _lock_style(lock_style=FileLockStyle.BSD)
 
     # The hard-coded default is already POSIX, so setting the env var default changes nothing.
     with environment_as(_PEX_FILE_LOCK_STYLE="posix"):
-        assert not _is_bsd_lock(lock_style=None)
-        assert not _is_bsd_lock(lock_style=FileLockStyle.POSIX)
-        assert _is_bsd_lock(lock_style=FileLockStyle.BSD)
+        assert FileLockStyle.BSD is not _lock_style(lock_style=None)
+        assert FileLockStyle.BSD is not _lock_style(lock_style=FileLockStyle.POSIX)
+        assert FileLockStyle.BSD is _lock_style(lock_style=FileLockStyle.BSD)
 
     with environment_as(_PEX_FILE_LOCK_STYLE="bsd"):
-        assert _is_bsd_lock(
+        assert FileLockStyle.BSD is _lock_style(
             lock_style=None
         ), "Expected the default lock style to be taken from the environment when defined."
-        assert not _is_bsd_lock(lock_style=FileLockStyle.POSIX)
-        assert _is_bsd_lock(lock_style=FileLockStyle.BSD)
+        assert FileLockStyle.BSD is not _lock_style(lock_style=FileLockStyle.POSIX)
+        assert FileLockStyle.BSD is _lock_style(lock_style=FileLockStyle.BSD)
 
 
 @contextmanager
@@ -58,7 +59,7 @@ def maybe_raises(exception=None):
 
 def atomic_directory_finalize_test(errno, expect_raises=None):
     # type: (int, Optional[Type[Exception]]) -> None
-    with mock.patch("os.rename", spec_set=True, autospec=True) as mock_rename:
+    with mock.patch("pex.fs.safe_rename", spec_set=True, autospec=True) as mock_rename:
         mock_rename.side_effect = OSError(errno, os.strerror(errno))
         with maybe_raises(expect_raises):
             AtomicDirectory("to.dir").finalize()

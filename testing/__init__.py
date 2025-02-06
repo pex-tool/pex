@@ -23,6 +23,7 @@ from pex.dist_metadata import Distribution
 from pex.enum import Enum
 from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
+from pex.os import LINUX, MAC
 from pex.pep_427 import install_wheel_chroot
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
@@ -63,8 +64,8 @@ IS_PYPY = hasattr(sys, "pypy_version_info")
 IS_PYPY2 = IS_PYPY and sys.version_info[0] == 2
 IS_PYPY3 = IS_PYPY and sys.version_info[0] == 3
 NOT_CPYTHON27 = IS_PYPY or PY_VER != (2, 7)
-IS_LINUX = platform.system() == "Linux"
-IS_MAC = platform.system() == "Darwin"
+IS_LINUX = LINUX
+IS_MAC = MAC
 IS_X86_64 = platform.machine().lower() in ("amd64", "x86_64")
 IS_ARM_64 = platform.machine().lower() in ("arm64", "aarch64")
 IS_LINUX_X86_64 = IS_LINUX and IS_X86_64

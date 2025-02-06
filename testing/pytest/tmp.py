@@ -13,6 +13,7 @@ import attr
 
 from pex.common import safe_delete, safe_mkdir, safe_rmtree
 from pex.enum import Enum
+from pex.fs import safe_symlink
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -99,7 +100,7 @@ class TempdirFactory(object):
                 if long_name:
                     symlink = os.path.join(self.path, long_name)
                     safe_delete(symlink)
-                    os.symlink(tempdir_name, symlink)
+                    safe_symlink(tempdir_name, symlink)
                 return Tempdir(tempdir, symlink=symlink)
             except OSError as e:
                 if e.errno == errno.EEXIST:

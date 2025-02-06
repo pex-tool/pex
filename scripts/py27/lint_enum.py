@@ -12,6 +12,7 @@ from collections import OrderedDict
 from pex.common import pluralize
 from pex.interpreter_constraints import InterpreterConstraint
 from pex.typing import cast
+from pex.venv.venv_pex import safe_execv
 
 # When running under MyPy, this will be set to True for us automatically; so we can use it as a
 # typing module import guard to protect Python 2 imports of typing - which is not normally available
@@ -180,7 +181,7 @@ def main():
 
         python = pythons[0]
         os.environ["PYTHONPATH"] = os.getcwd()
-        os.execv(python.binary, [python.binary] + sys.argv)
+        safe_execv([python.binary] + sys.argv)
     return lint()
 
 

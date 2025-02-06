@@ -3,12 +3,14 @@
 
 from __future__ import absolute_import, print_function
 
-import fcntl
 import itertools
 import os
 from contextlib import contextmanager
 
-from pex.common import safe_mkdir, touch
+from pex.common import touch
+from pex.fs import lock
+from pex.fs.lock import FileLockStyle
+from pex.os import WINDOWS
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
 
@@ -64,21 +66,14 @@ def _lock(exclusive):
         existing_exclusive, lock_fd, existing_lock_file = _LOCK
         if existing_exclusive == exclusive:
             return existing_lock_file
+        elif WINDOWS:
+            # Windows shared locks are not re-entrant; so this is the best we can do.
+            lock.release(lock_fd)
 
     lock_file = os.path.join(ENV.PEX_ROOT, "access.lck")
 
-    if lock_fd is None:
-        # N.B.: We don't actually write anything to the lock file but the fcntl file locking
-        # operations only work on files opened for at least write.
-        safe_mkdir(os.path.dirname(lock_file))
-        lock_fd = os.open(lock_file, os.O_CREAT | os.O_WRONLY)
-
-    # N.B.: Since flock operates on an open file descriptor and these are
-    # guaranteed to be closed by the operating system when the owning process exits,
-    # this lock is immune to staleness.
-    fcntl.flock(lock_fd, fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH)
-
-    _LOCK = exclusive, lock_fd, lock_file
+    file_lock = lock.acquire(lock_file, exclusive=exclusive, style=FileLockStyle.BSD, fd=lock_fd)
+    _LOCK = exclusive, file_lock.fd, lock_file
     return lock_file
 
 

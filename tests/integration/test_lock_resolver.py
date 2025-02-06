@@ -16,6 +16,7 @@ import pytest
 from pex import dist_metadata
 from pex.common import open_zip, safe_open
 from pex.dist_metadata import ProjectNameAndVersion
+from pex.fs import safe_rename
 from pex.interpreter import PythonInterpreter
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
@@ -379,7 +380,7 @@ def test_issue_1413_portable_find_links(tmpdir):
     # Now simulate using the portable lock file on another machine where the find-links repo is
     # mounted at a different absolute path than it was when creating the lock.
     moved_find_links = os.path.join(str(tmpdir), "find-links", "moved")
-    os.rename(original_find_links, moved_find_links)
+    safe_rename(original_find_links, moved_find_links)
     assert not os.path.exists(original_find_links)
 
     result = run_pex_command(

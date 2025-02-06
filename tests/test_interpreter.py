@@ -17,6 +17,7 @@ from pex.cache.dirs import InterpreterDir
 from pex.common import environment_as, safe_mkdir, safe_mkdtemp, temporary_dir, touch
 from pex.executables import chmod_plus_x
 from pex.executor import Executor
+from pex.fs import safe_rename, safe_symlink
 from pex.interpreter import PythonInterpreter, create_shebang
 from pex.jobs import Job
 from pex.pyenv import Pyenv
@@ -200,7 +201,7 @@ class TestPythonInterpreter(object):
             # doesn't impact this test.
             bin_dir = os.path.join(tmpdir, "bin_dir")
             os.mkdir(bin_dir)
-            os.symlink(test_interpreter2, os.path.join(bin_dir, "jake"))
+            safe_symlink(test_interpreter2, os.path.join(bin_dir, "jake"))
 
             # Verify path filtering happens before interpreter resolution, which os.path.realpaths
             # the interpreter binary. This supports specifying a path filter like
@@ -298,13 +299,13 @@ class TestPythonInterpreter(object):
             # should be re-read and found invalid.
             py37_version_dir = os.path.dirname(os.path.dirname(py38))
             py37_deleted = "{}.uninstalled".format(py37_version_dir)
-            os.rename(py37_version_dir, py37_deleted)
+            safe_rename(py37_version_dir, py37_deleted)
             try:
                 assert_shim_inactive("python")
                 assert_shim_inactive("python3")
                 assert_shim_inactive("python3.8")
             finally:
-                os.rename(py37_deleted, py37_version_dir)
+                safe_rename(py37_deleted, py37_version_dir)
 
             assert_shim("python", py38)
 
@@ -451,7 +452,7 @@ def macos_monterey_interpeter(
     chmod_plus_x(pythonwrapper)
 
     python = tmpdir_factory.mktemp("bin", request=request).join("python")
-    os.symlink(pythonwrapper, python)
+    safe_symlink(pythonwrapper, python)
     return python
 
 

@@ -10,7 +10,7 @@ TYPE_CHECKING = False
 
 if TYPE_CHECKING:
     from types import CodeType
-    from typing import Any, Dict, Iterable, List, Optional, Tuple
+    from typing import Any, Dict, Iterable, List, NoReturn, Optional, Tuple
 
 _PY2_EXEC_FUNCTION = """
 def exec_function(ast, globals_map):
@@ -40,8 +40,24 @@ else:
         return locals_map
 
 
+if sys.platform == "win32":
+
+    def safe_execv(argv):
+        # type: (List[str]) -> NoReturn
+        import subprocess
+
+        sys.exit(subprocess.call(args=argv))
+
+else:
+
+    def safe_execv(argv):
+        # type: (List[str]) -> NoReturn
+        os.execv(argv[0], argv)
+
+
 def boot(
     shebang_python,  # type: str
+    venv_bin_dir,  # type: str
     bin_path,  # type: str
     strip_pex_env,  # type: bool
     inject_env,  # type: Iterable[Tuple[str, str]]
@@ -53,7 +69,7 @@ def boot(
     # type: (...) -> None
 
     venv_dir = os.path.abspath(os.path.dirname(__file__))
-    venv_bin_dir = os.path.join(venv_dir, "bin")
+    venv_bin_dir = os.path.join(venv_dir, venv_bin_dir)
     python = os.path.join(venv_bin_dir, os.path.basename(shebang_python))
 
     def iter_valid_venv_pythons():
@@ -96,7 +112,7 @@ def boot(
         if hermetic_re_exec:
             argv.append("-sE")
         argv.extend(sys.argv)
-        os.execv(python, argv)
+        safe_execv(argv)
 
     pex_file = os.environ.get("PEX", None)
     if pex_file:
@@ -233,7 +249,7 @@ def boot(
     pex_script = pex_overrides.get("PEX_SCRIPT") if pex_overrides else script
     if pex_script:
         script_path = os.path.join(venv_bin_dir, pex_script)
-        os.execv(script_path, [script_path] + sys.argv[1:])
+        safe_execv([script_path] + sys.argv[1:])
 
     pex_interpreter = pex_overrides.get("PEX_INTERPRETER", "").lower() in ("1", "true")
     entry_point = None if pex_interpreter else pex_overrides.get("PEX_MODULE", entry_point)
@@ -279,7 +295,7 @@ def boot(
                 "Re-executing with Python interpreter options: "
                 "cmdline={cmdline!r}".format(cmdline=" ".join(cmdline))
             )
-            os.execv(python, cmdline)
+            safe_execv(cmdline)
 
         arg = args[0]
         if arg == "-m":

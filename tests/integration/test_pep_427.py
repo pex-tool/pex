@@ -8,7 +8,7 @@ from glob import glob
 from textwrap import dedent
 
 from pex.common import safe_open
-from pex.executables import is_exe
+from pex.os import is_exe
 from pex.pep_427 import install_wheel_interpreter
 from pex.pip.installation import get_pip
 from pex.resolve.configured_resolver import ConfiguredResolver

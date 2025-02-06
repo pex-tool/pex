@@ -7,6 +7,7 @@ import os
 import pytest
 
 from pex import dist_metadata, resolver, targets
+from pex.fs import safe_symlink
 from pex.pip.tool import PackageIndexConfiguration
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.locked_resolve import LockConfiguration, LockedResolve, LockStyle
@@ -134,7 +135,7 @@ def test_lock_single_target(
     find_links_repo = os.path.join(str(tmpdir), "find-links")
     os.mkdir(find_links_repo)
     for local_dist in downloaded.local_distributions:
-        os.symlink(
+        safe_symlink(
             local_dist.path, os.path.join(find_links_repo, os.path.basename(local_dist.path))
         )
     _, find_links_locked_resolves = create_lock(

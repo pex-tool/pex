@@ -9,11 +9,11 @@ from collections import OrderedDict
 from multiprocessing.pool import ThreadPool
 
 from pex import resolver
-from pex.atomic_directory import FileLockStyle
 from pex.auth import PasswordDatabase, PasswordEntry
 from pex.common import pluralize
 from pex.compatibility import cpu_count
 from pex.dist_metadata import Requirement
+from pex.fs.lock import FileLockStyle
 from pex.network_configuration import NetworkConfiguration
 from pex.pep_503 import ProjectName
 from pex.pip.local_project import digest_local_project

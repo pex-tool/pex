@@ -24,6 +24,7 @@ from zipfile import ZipFile, ZipInfo
 
 from pex.enum import Enum
 from pex.executables import chmod_plus_x
+from pex.fs import safe_link, safe_rename, safe_symlink
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
@@ -119,13 +120,13 @@ def safe_copy(source, dest, overwrite=False):
         # type: () -> None
         temp_dest = dest + uuid4().hex
         shutil.copy(source, temp_dest)
-        os.rename(temp_dest, dest)
+        safe_rename(temp_dest, dest)
 
     # If the platform supports hard-linking, use that and fall back to copying.
     # Windows does not support hard-linking.
     if hasattr(os, "link"):
         try:
-            os.link(source, dest)
+            safe_link(source, dest)
         except OSError as e:
             if e.errno == errno.EEXIST:
                 # File already exists.  If overwrite=True, write otherwise skip.
@@ -618,7 +619,7 @@ class Chroot(object):
         self._ensure_parent(dst)
         abs_src = os.path.realpath(src)
         abs_dst = os.path.realpath(os.path.join(self.chroot, dst))
-        os.symlink(os.path.relpath(abs_src, os.path.dirname(abs_dst)), abs_dst)
+        safe_symlink(os.path.relpath(abs_src, os.path.dirname(abs_dst)), abs_dst)
 
     def write(
         self,
@@ -779,7 +780,7 @@ def relative_symlink(
     """
     dst_parent = os.path.dirname(dst)
     rel_src = os.path.relpath(src, dst_parent)
-    os.symlink(rel_src, dst)
+    safe_symlink(rel_src, dst)
 
 
 class CopyMode(Enum["CopyMode.Value"]):
@@ -839,7 +840,7 @@ def iter_copytree(
                     # later go missing leaving the dst_entry dangling.
                     if link and not os.path.islink(src_entry):
                         try:
-                            os.link(src_entry, dst_entry)
+                            safe_link(src_entry, dst_entry)
                             continue
                         except OSError as e:
                             if e.errno != errno.EXDEV:
