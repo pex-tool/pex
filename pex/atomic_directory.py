@@ -10,9 +10,10 @@ import threading
 from contextlib import contextmanager
 from uuid import uuid4
 
+import pex
 from pex import pex_warnings
 from pex.common import safe_mkdir, safe_rmtree
-from pex.fs import lock, safe_rename
+from pex.fs import lock
 from pex.fs.lock import FileLockStyle
 from pex.typing import TYPE_CHECKING
 
@@ -161,7 +162,7 @@ class AtomicDirectory(object):
             #
             # We have satisfied the single filesystem constraint by arranging the `work_dir` to be a
             # sibling of the `target_dir`.
-            safe_rename(source, self._target_dir)
+            pex.fs.safe_rename(source, self._target_dir)
         except OSError as e:
             if e.errno not in (errno.EEXIST, errno.ENOTEMPTY):
                 raise e

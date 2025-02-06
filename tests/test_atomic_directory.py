@@ -59,7 +59,7 @@ def maybe_raises(exception=None):
 
 def atomic_directory_finalize_test(errno, expect_raises=None):
     # type: (int, Optional[Type[Exception]]) -> None
-    with mock.patch("os.rename", spec_set=True, autospec=True) as mock_rename:
+    with mock.patch("pex.fs.safe_rename", spec_set=True, autospec=True) as mock_rename:
         mock_rename.side_effect = OSError(errno, os.strerror(errno))
         with maybe_raises(expect_raises):
             AtomicDirectory("to.dir").finalize()
