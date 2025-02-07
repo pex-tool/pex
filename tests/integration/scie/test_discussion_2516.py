@@ -9,7 +9,7 @@ import subprocess
 from textwrap import dedent
 
 from pex.common import safe_open
-from pex.scie import SciePlatform
+from pex.sysconfig import SysPlatform
 from pex.typing import TYPE_CHECKING
 from testing import make_env, run_pex_command
 
@@ -97,7 +97,7 @@ def test_discussion_2516_op(tmpdir):
         os.path.join(str(tmpdir), "ardia*")
     ), "We expected no PEX or scie leaked in the CWD."
 
-    native_scie = os.path.join(out_dir, SciePlatform.CURRENT.value, "ardia")
+    native_scie = os.path.join(out_dir, SysPlatform.CURRENT.value, "ardia")
     output = subprocess.check_output(
         args=[native_scie, "Tux", "says", "Moo?"], env=make_env(PATH=None)
     ).decode("utf-8")

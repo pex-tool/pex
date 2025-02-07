@@ -32,10 +32,10 @@ from pex.scie.model import (
     Provider,
     ScieConfiguration,
     ScieInfo,
-    SciePlatform,
     ScieStyle,
     Url,
 )
+from pex.sysconfig import SysPlatform
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.third_party.packaging.version import InvalidVersion
 from pex.tracer import TRACER
@@ -75,7 +75,7 @@ def _science_binary_url(suffix=""):
     return "{science_releases_url}/download/v{version}/{binary}{suffix}".format(
         science_releases_url=SCIENCE_RELEASES_URL,
         version=MIN_SCIENCE_VERSION.raw,
-        binary=SciePlatform.CURRENT.qualified_binary_name("science-fat"),
+        binary=SysPlatform.CURRENT.qualified_binary_name("science-fat"),
         suffix=suffix,
     )
 
@@ -290,10 +290,10 @@ def _science_dir(
 
 def _science_binary_names():
     # type: () -> Iterator[str]
-    yield SciePlatform.CURRENT.binary_name("science-fat")
-    yield SciePlatform.CURRENT.qualified_binary_name("science-fat")
-    yield SciePlatform.CURRENT.binary_name("science")
-    yield SciePlatform.CURRENT.qualified_binary_name("science")
+    yield SysPlatform.CURRENT.binary_name("science-fat")
+    yield SysPlatform.CURRENT.qualified_binary_name("science-fat")
+    yield SysPlatform.CURRENT.binary_name("science")
+    yield SysPlatform.CURRENT.qualified_binary_name("science")
 
 
 def _is_compatible_science_binary(

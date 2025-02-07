@@ -23,11 +23,11 @@ from pex.scie.model import (
     ScieConfiguration,
     ScieInfo,
     ScieOptions,
-    SciePlatform,
     ScieStyle,
     Url,
 )
 from pex.scie.science import SCIENCE_RELEASES_URL, SCIENCE_REQUIREMENT
+from pex.sysconfig import SysPlatform
 from pex.typing import TYPE_CHECKING, cast
 from pex.variables import ENV, Variables
 
@@ -40,7 +40,6 @@ __all__ = (
     "ScieConfiguration",
     "ScieInfo",
     "ScieOptions",
-    "SciePlatform",
     "ScieStyle",
     "build",
     "extract_options",
@@ -162,11 +161,11 @@ def register_options(parser):
         dest="scie_platforms",
         default=[],
         action="append",
-        type=SciePlatform.parse,
+        type=SysPlatform.parse,
         choices=[
             platform
-            for platform in SciePlatform.values()
-            if platform not in (SciePlatform.WINDOWS_AARCH64, SciePlatform.WINDOWS_X86_64)
+            for platform in SysPlatform.values()
+            if platform not in (SysPlatform.WINDOWS_AARCH64, SysPlatform.WINDOWS_X86_64)
         ],
         help=(
             "The platform to produce the native PEX scie executable for. Can be specified multiple "

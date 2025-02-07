@@ -9,4 +9,5 @@ __pycache__/
 /compatible-tox-hack/compatible_tox_hack.egg-info/
 /dist/
 /docs/_static_dynamic/
+/pex/windows/stubs/
 

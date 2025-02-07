@@ -5,7 +5,7 @@ from __future__ import absolute_import
 
 import pytest
 
-from pex.scie import SciePlatform
+from pex.sysconfig import SysPlatform
 from testing import IS_PYPY, PY_VER
 
 
@@ -15,9 +15,9 @@ def has_provider():
         if PY_VER == (2, 7):
             return True
 
-        if SciePlatform.LINUX_AARCH64 is SciePlatform.CURRENT:
+        if SysPlatform.LINUX_AARCH64 is SysPlatform.CURRENT:
             return PY_VER >= (3, 7)
-        elif SciePlatform.MACOS_AARCH64 is SciePlatform.CURRENT:
+        elif SysPlatform.MACOS_AARCH64 is SysPlatform.CURRENT:
             return PY_VER >= (3, 8)
         else:
             return PY_VER >= (3, 6)

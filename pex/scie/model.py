@@ -4,8 +4,6 @@
 from __future__ import absolute_import
 
 import itertools
-import os
-import platform
 from collections import OrderedDict, defaultdict
 
 from pex.common import pluralize
@@ -15,6 +13,7 @@ from pex.finders import get_entry_point_from_console_script
 from pex.pep_503 import ProjectName
 from pex.pex import PEX
 from pex.platforms import PlatformSpec
+from pex.sysconfig import SysPlatform
 from pex.targets import Targets
 from pex.third_party.packaging import tags  # noqa
 from pex.typing import TYPE_CHECKING, cast
@@ -230,89 +229,6 @@ class BusyBoxEntryPoints(object):
     ad_hoc_entry_points = attr.ib()  # type: Tuple[NamedEntryPoint, ...]
 
 
-class _CurrentPlatform(object):
-    def __get__(self, obj, objtype=None):
-        # type: (...) -> SciePlatform.Value
-        if not hasattr(self, "_current"):
-            system = platform.system().lower()
-            machine = platform.machine().lower()
-            if "linux" == system:
-                if machine in ("aarch64", "arm64"):
-                    self._current = SciePlatform.LINUX_AARCH64
-                elif machine in ("armv7l", "armv8l"):
-                    self._current = SciePlatform.LINUX_ARMV7L
-                elif machine == "ppc64le":
-                    self._current = SciePlatform.LINUX_PPC64LE
-                elif machine == "s390x":
-                    self._current = SciePlatform.LINUX_S390X
-                elif machine in ("amd64", "x86_64"):
-                    self._current = SciePlatform.LINUX_X86_64
-            elif "darwin" == system:
-                if machine in ("aarch64", "arm64"):
-                    self._current = SciePlatform.MACOS_AARCH64
-                elif machine in ("amd64", "x86_64"):
-                    self._current = SciePlatform.MACOS_X86_64
-            elif "windows" == system:
-                if machine in ("aarch64", "arm64"):
-                    self._current = SciePlatform.WINDOWS_AARCH64
-                elif machine in ("amd64", "x86_64"):
-                    self._current = SciePlatform.WINDOWS_X86_64
-            if not hasattr(self, "_current"):
-                raise ValueError(
-                    "The current operating system / machine pair is not supported!: "
-                    "{system} / {machine}".format(system=system, machine=machine)
-                )
-        return self._current
-
-
-class SciePlatform(Enum["SciePlatform.Value"]):
-    class Value(Enum.Value):
-        @property
-        def extension(self):
-            # type: () -> str
-            return (
-                ".exe"
-                if self in (SciePlatform.WINDOWS_AARCH64, SciePlatform.WINDOWS_X86_64)
-                else ""
-            )
-
-        def binary_name(self, binary_name):
-            # type: (str) -> str
-            return "{binary_name}{extension}".format(
-                binary_name=binary_name, extension=self.extension
-            )
-
-        def qualified_binary_name(self, binary_name):
-            # type: (str) -> str
-            return "{binary_name}-{platform}{extension}".format(
-                binary_name=binary_name, platform=self, extension=self.extension
-            )
-
-        def qualified_file_name(self, file_name):
-            # type: (str) -> str
-            stem, ext = os.path.splitext(file_name)
-            return "{stem}-{platform}{ext}".format(stem=stem, platform=self, ext=ext)
-
-    LINUX_AARCH64 = Value("linux-aarch64")
-    LINUX_ARMV7L = Value("linux-armv7l")
-    LINUX_PPC64LE = Value("linux-powerpc64")
-    LINUX_S390X = Value("linux-s390x")
-    LINUX_X86_64 = Value("linux-x86_64")
-    MACOS_AARCH64 = Value("macos-aarch64")
-    MACOS_X86_64 = Value("macos-x86_64")
-    WINDOWS_AARCH64 = Value("windows-aarch64")
-    WINDOWS_X86_64 = Value("windows-x86_64")
-    CURRENT = _CurrentPlatform()
-
-    @classmethod
-    def parse(cls, value):
-        # type: (str) -> SciePlatform.Value
-        return cls.CURRENT if "current" == value else cls.for_value(value)
-
-
-SciePlatform.seal()
-
-
 class Provider(Enum["Provider.Value"]):
     class Value(Enum.Value):
         pass
@@ -327,7 +243,7 @@ Provider.seal()
 @attr.s(frozen=True)
 class InterpreterDistribution(object):
     provider = attr.ib()  # type: Provider.Value
-    platform = attr.ib()  # type: SciePlatform.Value
+    platform = attr.ib()  # type: SysPlatform.Value
     version = attr.ib()  # type: Union[Tuple[int, int], Tuple[int, int, int]]
     release = attr.ib(default=None)  # type: Optional[str]
 
@@ -357,7 +273,7 @@ class ScieInfo(object):
 
     @property
     def platform(self):
-        # type: () -> SciePlatform.Value
+        # type: () -> SysPlatform.Value
         return self.interpreter.platform
 
     @property
@@ -381,7 +297,7 @@ class ScieOptions(object):
     scie_only = attr.ib(default=False)  # type: bool
     busybox_entrypoints = attr.ib(default=None)  # type: Optional[BusyBoxEntryPoints]
     busybox_pex_entrypoint_env_passthrough = attr.ib(default=False)  # type: bool
-    platforms = attr.ib(default=())  # type: Tuple[SciePlatform.Value, ...]
+    platforms = attr.ib(default=())  # type: Tuple[SysPlatform.Value, ...]
     pbs_release = attr.ib(default=None)  # type: Optional[str]
     pypy_release = attr.ib(default=None)  # type: Optional[str]
     python_version = attr.ib(
@@ -433,7 +349,7 @@ class ScieConfiguration(object):
         python_version = options.python_version
         python_versions_by_platform = defaultdict(
             set
-        )  # type: DefaultDict[SciePlatform.Value, Set[Union[Tuple[int, int], Tuple[int, int, int]]]]
+        )  # type: DefaultDict[SysPlatform.Value, Set[Union[Tuple[int, int], Tuple[int, int, int]]]]
         for platform_spec in platform_specs:
             if python_version:
                 plat_python_version = python_version
@@ -459,22 +375,22 @@ class ScieConfiguration(object):
 
             if "linux" in platform_str:
                 if is_aarch64:
-                    scie_platform = SciePlatform.LINUX_AARCH64
+                    scie_platform = SysPlatform.LINUX_AARCH64
                 elif is_armv7l:
-                    scie_platform = SciePlatform.LINUX_ARMV7L
+                    scie_platform = SysPlatform.LINUX_ARMV7L
                 elif is_ppc64le:
-                    scie_platform = SciePlatform.LINUX_PPC64LE
+                    scie_platform = SysPlatform.LINUX_PPC64LE
                 elif is_s390x:
-                    scie_platform = SciePlatform.LINUX_S390X
+                    scie_platform = SysPlatform.LINUX_S390X
                 else:
-                    scie_platform = SciePlatform.LINUX_X86_64
+                    scie_platform = SysPlatform.LINUX_X86_64
             elif "mac" in platform_str:
                 scie_platform = (
-                    SciePlatform.MACOS_AARCH64 if is_aarch64 else SciePlatform.MACOS_X86_64
+                    SysPlatform.MACOS_AARCH64 if is_aarch64 else SysPlatform.MACOS_X86_64
                 )
             elif "win" in platform_str:
                 scie_platform = (
-                    SciePlatform.WINDOWS_AARCH64 if is_aarch64 else SciePlatform.WINDOWS_X86_64
+                    SysPlatform.WINDOWS_AARCH64 if is_aarch64 else SysPlatform.WINDOWS_X86_64
                 )
             else:
                 continue
@@ -488,17 +404,17 @@ class ScieConfiguration(object):
                 # PyPy distributions for Linux aarch64 start with 3.7 (and PyPy always releases for
                 # 2.7).
                 if (
-                    SciePlatform.LINUX_AARCH64 is scie_platform
+                    SysPlatform.LINUX_AARCH64 is scie_platform
                     and plat_python_version[0] == 3
                     and plat_python_version < (3, 7)
                 ):
                     continue
                 # PyPy distributions are not available for Linux armv7l
-                if SciePlatform.LINUX_ARMV7L is scie_platform:
+                if SysPlatform.LINUX_ARMV7L is scie_platform:
                     continue
                 # PyPy distributions for Linux ppc64le are only available for 2.7 and 3.{5,6}.
                 if (
-                    SciePlatform.LINUX_PPC64LE is scie_platform
+                    SysPlatform.LINUX_PPC64LE is scie_platform
                     and plat_python_version[0] == 3
                     and plat_python_version >= (3, 7)
                 ):
@@ -506,7 +422,7 @@ class ScieConfiguration(object):
                 # PyPy distributions for Mac arm64 start with 3.8 (and PyPy always releases for
                 # 2.7).
                 if (
-                    SciePlatform.MACOS_AARCH64 is scie_platform
+                    SysPlatform.MACOS_AARCH64 is scie_platform
                     and plat_python_version[0] == 3
                     and plat_python_version < (3, 8)
                 ):

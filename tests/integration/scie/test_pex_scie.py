@@ -22,7 +22,8 @@ from pex.fetcher import URLFetcher
 from pex.layout import Layout
 from pex.orderedset import OrderedSet
 from pex.os import is_exe
-from pex.scie import SciePlatform, ScieStyle
+from pex.scie import ScieStyle
+from pex.sysconfig import SysPlatform
 from pex.targets import LocalInterpreter
 from pex.typing import TYPE_CHECKING
 from pex.version import __version__
@@ -179,19 +180,19 @@ def test_multiple_platforms(tmpdir):
         ).assert_success()
 
     python_version_by_platform = {
-        SciePlatform.LINUX_AARCH64: "3.9",
-        SciePlatform.LINUX_ARMV7L: "3.11",
-        SciePlatform.LINUX_PPC64LE: "3.12",
-        SciePlatform.LINUX_S390X: "3.13",
-        SciePlatform.LINUX_X86_64: "3.10",
-        SciePlatform.MACOS_AARCH64: "3.11",
-        SciePlatform.MACOS_X86_64: "3.12",
+        SysPlatform.LINUX_AARCH64: "3.9",
+        SysPlatform.LINUX_ARMV7L: "3.11",
+        SysPlatform.LINUX_PPC64LE: "3.12",
+        SysPlatform.LINUX_S390X: "3.13",
+        SysPlatform.LINUX_X86_64: "3.10",
+        SysPlatform.MACOS_AARCH64: "3.11",
+        SysPlatform.MACOS_X86_64: "3.12",
     }
-    assert SciePlatform.CURRENT in python_version_by_platform
+    assert SysPlatform.CURRENT in python_version_by_platform
 
     def assert_platforms(
         output_dir,  # type: str
-        expected_platforms,  # type: Iterable[SciePlatform.Value]
+        expected_platforms,  # type: Iterable[SysPlatform.Value]
     ):
         # type: (...) -> None
 
@@ -209,7 +210,7 @@ def test_multiple_platforms(tmpdir):
             assert is_exe(scie), "Expected --scie build to produce a {binary} binary.".format(
                 binary=binary
             )
-            if platform is SciePlatform.CURRENT:
+            if platform is SysPlatform.CURRENT:
                 assert b"| PEX-scie wabbit! |" in subprocess.check_output(
                     args=[scie, "PEX-scie wabbit!"], env=make_env(PATH=None)
                 )
@@ -238,13 +239,13 @@ def test_multiple_platforms(tmpdir):
     assert_platforms(
         output_dir=all_platforms_output_dir,
         expected_platforms=(
-            SciePlatform.LINUX_AARCH64,
-            SciePlatform.LINUX_ARMV7L,
-            SciePlatform.LINUX_PPC64LE,
-            SciePlatform.LINUX_S390X,
-            SciePlatform.LINUX_X86_64,
-            SciePlatform.MACOS_AARCH64,
-            SciePlatform.MACOS_X86_64,
+            SysPlatform.LINUX_AARCH64,
+            SysPlatform.LINUX_ARMV7L,
+            SysPlatform.LINUX_PPC64LE,
+            SysPlatform.LINUX_S390X,
+            SysPlatform.LINUX_X86_64,
+            SysPlatform.MACOS_AARCH64,
+            SysPlatform.MACOS_X86_64,
         ),
     )
 
@@ -257,17 +258,17 @@ def test_multiple_platforms(tmpdir):
             "--scie-platform",
             "current",
             "--scie-platform",
-            str(SciePlatform.LINUX_AARCH64),
+            str(SysPlatform.LINUX_AARCH64),
             "--scie-platform",
-            str(SciePlatform.LINUX_X86_64),
+            str(SysPlatform.LINUX_X86_64),
         ],
     )
     assert_platforms(
         output_dir=restricted_platforms_output_dir,
         expected_platforms=(
-            SciePlatform.CURRENT,
-            SciePlatform.LINUX_AARCH64,
-            SciePlatform.LINUX_X86_64,
+            SysPlatform.CURRENT,
+            SysPlatform.LINUX_AARCH64,
+            SysPlatform.LINUX_X86_64,
         ),
     )
 
@@ -313,7 +314,7 @@ def test_specified_science_binary(tmpdir):
     local_science_binary = os.path.join(str(tmpdir), "science")
     with open(local_science_binary, "wb") as write_fp, URLFetcher().get_body_stream(
         "https://github.com/a-scie/lift/releases/download/v0.10.1/{binary}".format(
-            binary=SciePlatform.CURRENT.qualified_binary_name("science")
+            binary=SysPlatform.CURRENT.qualified_binary_name("science")
         )
     ) as read_fp:
         shutil.copyfileobj(read_fp, write_fp)
@@ -427,19 +428,19 @@ def test_custom_lazy_urls(tmpdir):
     )
 
     expected_platform = None  # type: Optional[str]
-    if SciePlatform.CURRENT is SciePlatform.LINUX_AARCH64:
+    if SysPlatform.CURRENT is SysPlatform.LINUX_AARCH64:
         expected_platform = "aarch64-unknown-linux-gnu"
-    elif SciePlatform.CURRENT is SciePlatform.LINUX_ARMV7L:
+    elif SysPlatform.CURRENT is SysPlatform.LINUX_ARMV7L:
         expected_platform = "armv7-unknown-linux-gnueabihf"
-    elif SciePlatform.CURRENT is SciePlatform.LINUX_PPC64LE:
+    elif SysPlatform.CURRENT is SysPlatform.LINUX_PPC64LE:
         expected_platform = "ppc64le-unknown-linux-gnu"
-    elif SciePlatform.CURRENT is SciePlatform.LINUX_S390X:
+    elif SysPlatform.CURRENT is SysPlatform.LINUX_S390X:
         expected_platform = "s390x-unknown-linux-gnu"
-    elif SciePlatform.CURRENT is SciePlatform.LINUX_X86_64:
+    elif SysPlatform.CURRENT is SysPlatform.LINUX_X86_64:
         expected_platform = "x86_64-unknown-linux-gnu"
-    elif SciePlatform.CURRENT is SciePlatform.MACOS_AARCH64:
+    elif SysPlatform.CURRENT is SysPlatform.MACOS_AARCH64:
         expected_platform = "aarch64-apple-darwin"
-    elif SciePlatform.CURRENT is SciePlatform.MACOS_X86_64:
+    elif SysPlatform.CURRENT is SysPlatform.MACOS_X86_64:
         expected_platform = "x86_64-apple-darwin"
     assert expected_platform is not None
 
@@ -1118,7 +1119,7 @@ def test_scie_name_style_platform_file_suffix(tmpdir):
     run_pex_command(
         args=["--scie", "lazy", "--scie-name-style", "platform-file-suffix", "-o", output_file]
     ).assert_success()
-    assert sorted(["app", SciePlatform.CURRENT.qualified_binary_name("app")]) == sorted(
+    assert sorted(["app", SysPlatform.CURRENT.qualified_binary_name("app")]) == sorted(
         os.listdir(dist_dir)
     )
 
@@ -1128,7 +1129,7 @@ def test_scie_name_style_platform_parent_dir(tmpdir):
     # type: (Any) -> None
 
     foreign_platform = next(
-        plat for plat in SciePlatform.values() if SciePlatform.CURRENT is not plat
+        plat for plat in SysPlatform.values() if SysPlatform.CURRENT is not plat
     )
     dist_dir = os.path.join(str(tmpdir), "dist")
     output_file = os.path.join(dist_dir, "app")
