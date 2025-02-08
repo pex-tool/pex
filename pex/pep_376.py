@@ -14,8 +14,15 @@ import shutil
 from fileinput import FileInput
 
 from pex import hashing
-from pex.common import CopyMode, is_pyc_dir, is_pyc_file, safe_mkdir, safe_open
-from pex.fs import safe_link, safe_symlink
+from pex.common import (
+    CopyMode,
+    is_pyc_dir,
+    is_pyc_file,
+    safe_mkdir,
+    safe_open,
+    safe_relative_symlink,
+)
+from pex.fs import safe_link
 from pex.interpreter import PythonInterpreter
 from pex.typing import TYPE_CHECKING, cast
 from pex.util import CacheHelper
@@ -413,10 +420,7 @@ class InstalledWheel(object):
                     if copy_mode is CopyMode.SYMLINK and not (
                         src_entry.endswith(".dist-info") and os.path.isdir(src_entry)
                     ):
-                        dst_parent = os.path.dirname(dst_entry)
-                        safe_mkdir(dst_parent)
-                        rel_src = os.path.relpath(src_entry, dst_parent)
-                        safe_symlink(rel_src, dst_entry)
+                        safe_relative_symlink(src_entry, dst_entry)
                         traverse.discard(path)
                     elif is_dir:
                         safe_mkdir(dst_entry)
