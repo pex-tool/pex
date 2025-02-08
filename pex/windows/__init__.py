@@ -67,7 +67,21 @@ def _fetch_stub(stub_name):
 @attr.s(frozen=True)
 class Stub(object):
     path = attr.ib()  # type: str
-    data = attr.ib()  # type: bytes
+    _data = attr.ib(default=None, eq=False)  # type: Optional[bytes]
+    cached = attr.ib(init=False)  # type: bool
+
+    def __attrs_post_init__(self):
+        # type: () -> None
+        object.__setattr__(self, "cached", self._data is None)
+
+    def read_data(self):
+        # type: () -> bytes
+        if self._data is not None:
+            return self._data
+        with open(self.path, "rb") as fp:
+            data = fp.read()
+            object.__setattr__(self, "_data", data)
+            return data
 
 
 def _load_stub(
@@ -79,8 +93,7 @@ def _load_stub(
     stub_name = _stub_name(platform=platform, gui=gui)
     stub_dst = os.path.join(os.path.dirname(__file__), "stubs", stub_name)
     if os.path.exists(stub_dst):
-        with open(stub_dst, "rb") as fp:
-            return Stub(path=stub_dst, data=fp.read())
+        return Stub(path=stub_dst)
 
     stub = _fetch_stub(stub_name)
     with safe_open(
@@ -108,7 +121,7 @@ def create_script(
     # type: (...) -> None
 
     with open("{path}.{unique}".format(path=path, unique=uuid.uuid4().hex), "wb") as fp:
-        fp.write(_load_stub(platform=platform, gui=gui).data)
+        fp.write(_load_stub(platform=platform, gui=gui).read_data())
         with contextlib.closing(zipfile.ZipFile(fp, "a")) as zip_fp:
             zip_fp.writestr("__main__.py", contents.encode("utf-8"), zipfile.ZIP_STORED)
         python_path_bytes = platform.binary_name(

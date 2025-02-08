@@ -134,6 +134,7 @@ def boot(
             )
         except ImportError:
             pass
+
     ignored_pex_env_vars = [
         "{}={}".format(name, value)
         for name, value in os.environ.items()
@@ -194,11 +195,12 @@ def boot(
             "_PEX_CACHE_ACCESS_LOCK",
         )
     ]
-
     if ignored_pex_env_vars:
         maybe_log(
             "Ignoring the following environment variables in Pex venv mode:\n"
-            "{}".format(os.linesep.join(sorted(ignored_pex_env_vars)))
+            "{ignored_env_vars}".format(
+                ignored_env_vars=os.linesep.join(sorted(ignored_pex_env_vars))
+            )
         )
 
     os.environ["VIRTUAL_ENV"] = venv_dir
