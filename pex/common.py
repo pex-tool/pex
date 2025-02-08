@@ -619,7 +619,7 @@ class Chroot(object):
         self._ensure_parent(dst)
         abs_src = os.path.realpath(src)
         abs_dst = os.path.realpath(os.path.join(self.chroot, dst))
-        safe_symlink(os.path.relpath(abs_src, os.path.dirname(abs_dst)), abs_dst)
+        safe_relative_symlink(abs_src, abs_dst)
 
     def write(
         self,
@@ -768,7 +768,7 @@ class Chroot(object):
                 write_entry(filename, arcname)
 
 
-def relative_symlink(
+def safe_relative_symlink(
     src,  # type: Text
     dst,  # type: Text
 ):
@@ -779,6 +779,7 @@ def relative_symlink(
     :param dst: The path to create the symlink at.
     """
     dst_parent = os.path.dirname(dst)
+    safe_mkdir(dst_parent)
     rel_src = os.path.relpath(src, dst_parent)
     safe_symlink(rel_src, dst)
 
@@ -831,7 +832,7 @@ def iter_copytree(
                 yield src_entry, dst_entry
             try:
                 if copy_mode is CopyMode.SYMLINK:
-                    relative_symlink(src_entry, dst_entry)
+                    safe_relative_symlink(src_entry, dst_entry)
                 elif is_dir:
                     os.mkdir(dst_entry)
                 else:

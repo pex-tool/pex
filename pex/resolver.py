@@ -17,12 +17,11 @@ from pex import targets
 from pex.atomic_directory import AtomicDirectory, atomic_directory
 from pex.auth import PasswordEntry
 from pex.cache.dirs import BuiltWheelDir, CacheDir
-from pex.common import pluralize, safe_mkdir, safe_mkdtemp, safe_open
+from pex.common import pluralize, safe_mkdir, safe_mkdtemp, safe_open, safe_relative_symlink
 from pex.compatibility import url_unquote, urlparse
 from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import DistMetadata, Distribution, Requirement, is_wheel
 from pex.fingerprinted_distribution import FingerprintedDistribution
-from pex.fs import safe_symlink
 from pex.jobs import Raise, SpawnedJob, execute_parallel, iter_map_parallel
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
@@ -572,10 +571,9 @@ class InstallResult(object):
                 # Note: Create a relative path symlink between the two directories so that the
                 # PEX_ROOT can be used within a chroot environment where the prefix of the path may
                 # change between programs running inside and outside of the chroot.
-                source_path = os.path.join(atomic_dir.work_dir, self.request.wheel_file)
-                start_dir = os.path.dirname(source_path)
-                relative_target_path = os.path.relpath(self.install_chroot, start_dir)
-                safe_symlink(relative_target_path, source_path)
+                safe_relative_symlink(
+                    self.install_chroot, os.path.join(atomic_dir.work_dir, self.request.wheel_file)
+                )
 
         return self._iter_resolved_distributions(install_requests, fingerprint=wheel_dir_hash)
 
