@@ -8,6 +8,11 @@ on:
       tag:
         description: The tag to manually run a deploy for.
         required: true
+env:
+  # We build Pex `--scie`s that fetch from science.
+  SCIENCE_AUTH_API_GITHUB_COM_BEARER: ${{ secrets.GITHUB_TOKEN }}
+  # We fetch Windows script executable stubs when building Pex.
+  _PEX_FETCH_WINDOWS_STUBS_BEARER: ${{ secrets.GITHUB_TOKEN }}
 jobs:
   org-check:
     name: Check GitHub Organization

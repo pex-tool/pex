@@ -44,13 +44,23 @@ def _stub_name(
 
 
 _TRAMPOLINE_VERSION = "0.5.29"
+_EXTRA_HEADERS = (
+    {
+        "Authorization": "Bearer {bearer}".format(
+            bearer=os.environ["_PEX_FETCH_WINDOWS_STUBS_BEARER"]
+        )
+    }
+    if "_PEX_FETCH_WINDOWS_STUBS_BEARER" in os.environ
+    else None
+)
 
 
 def _fetch_stub(stub_name):
     # type: (str) -> bytes
     with URLFetcher().get_body_stream(
         "https://raw.githubusercontent.com/astral-sh/uv/refs/tags/{version}/crates/uv-trampoline/"
-        "trampolines/{stub_name}".format(version=_TRAMPOLINE_VERSION, stub_name=stub_name)
+        "trampolines/{stub_name}".format(version=_TRAMPOLINE_VERSION, stub_name=stub_name),
+        extra_headers=_EXTRA_HEADERS,
     ) as in_fp:
         return in_fp.read()
 
