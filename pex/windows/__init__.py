@@ -8,7 +8,6 @@ import os.path
 import struct
 import uuid
 import zipfile
-from typing import Iterator, Optional
 
 from pex.common import safe_open
 from pex.fetcher import URLFetcher
@@ -18,7 +17,7 @@ from pex.sysconfig import SysPlatform
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Text
+    from typing import Iterator, Optional, Text
 
     import attr  # vendor:skip
 else:
