@@ -435,7 +435,7 @@ def test_exclude_deep(
 
     # Building a Pex that requires bar should (transitively) aggressively blow up in normal
     # circumstances.
-    run_pex("-f", find_links, "--no-pypi", "foo", "-vv").assert_failure(
+    run_pex("-f", find_links, "--no-pypi", "foo", "-vvv").assert_failure(
         expected_error_re=r".*I'm an evil package\..*", re_flags=re.DOTALL
     )
 
