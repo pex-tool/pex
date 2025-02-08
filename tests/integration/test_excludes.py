@@ -316,18 +316,6 @@ def test_exclude_deep(
 ):
     # type: (...) -> None
 
-    pex_root = tmpdir.join("pex_root")
-
-    def run_pex(*args):
-        # type: (str) -> IntegResults
-        return run_pex_command(
-            args=["--pex-root", pex_root] + list(pip_options.iter_args()) + list(args)
-        )
-
-    # Bootstrap the Pip version being used if needed before we turn off PyPI.
-    if pip_options.pip_version is not PipVersion.VENDORED:
-        run_pex("ansicolors==1.1.8", "--", "-c", "").assert_success()
-
     venv = Virtualenv.create(
         venv_dir=tmpdir.join("venv"),
         install_pip=InstallationChoice.UPGRADED,
@@ -337,6 +325,13 @@ def test_exclude_deep(
     pip = venv.bin_path("pip")
 
     find_links = tmpdir.join("find_links")
+
+    # Bootstrap the Pip version being used if needed before we turn off PyPI.
+    if pip_options.pip_version is not PipVersion.VENDORED:
+        subprocess.check_call(
+            [pip, "wheel", "-w", find_links] + list(map(str, pip_options.pip_version.requirements))
+        )
+
     project_dir = tmpdir.join("projects")
 
     foo_dir = os.path.join(project_dir, "foo")
@@ -433,9 +428,29 @@ def test_exclude_deep(
         args=["setup.py", "sdist", "--dist-dir", find_links], cwd=bar_dir, env=make_env(BEHAVE=1)
     )
 
+    pex_root = tmpdir.join("pex_root")
+
+    def run_pex(*args):
+        # type: (str) -> IntegResults
+        return run_pex_command(
+            args=(
+                [
+                    "--pex-root",
+                    pex_root,
+                    "--runtime-pex-root",
+                    pex_root,
+                    "-f",
+                    find_links,
+                    "--no-pypi",
+                ]
+                + list(pip_options.iter_args())
+                + list(args)
+            )
+        )
+
     # Building a Pex that requires bar should (transitively) aggressively blow up in normal
     # circumstances.
-    run_pex("-f", find_links, "--no-pypi", "foo", "-vvv").assert_failure(
+    run_pex("foo", "-vvv").assert_failure(
         expected_error_re=r".*I'm an evil package\..*", re_flags=re.DOTALL
     )
 
@@ -458,20 +473,7 @@ def test_exclude_deep(
             )
         )
     pex = tmpdir.join("pex")
-    run_pex(
-        "--runtime-pex-root",
-        pex_root,
-        "-f",
-        find_links,
-        "--no-pypi",
-        "foo",
-        "--exclude",
-        "bar",
-        "-o",
-        pex,
-        "--exe",
-        exe,
-    ).assert_success()
+    run_pex("foo", "--exclude", "bar", "-o", pex, "--exe", exe).assert_success()
 
     # The `--exclude bar` should hobble the PEX by default though, since bar is needed but missing.
     assert_stderr_contains(
