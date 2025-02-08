@@ -38,13 +38,14 @@ PYENV_VERSIONS=(
   3.5.10
   3.6.15
   3.12.9
-  pypy2.7-7.3.17
+  pypy2.7-7.3.18
   pypy3.5-7.0.0
   pypy3.6-7.3.3
   pypy3.7-7.3.9
   pypy3.8-7.3.11
   pypy3.9-7.3.16
-  pypy3.10-7.3.17
+  pypy3.10-7.3.18
+  pypy3.11-7.3.18
 )
 git clone --depth 1 "${PYENV_REPO:-https://github.com/pyenv/pyenv}" "${PYENV_ROOT}" && (
   cd "${PYENV_ROOT}" && git checkout "${PYENV_SHA:-HEAD}" && src/configure && make -C src
