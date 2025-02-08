@@ -20,6 +20,7 @@ os.environ["_PEX_TEST_PROJECT_DIR"] = str(
 )
 sys.path.insert(0, os.environ["_PEX_TEST_PROJECT_DIR"])
 
+from pex import windows
 from pex.compatibility import urlparse
 from pex.typing import TYPE_CHECKING, cast
 from testing import devpi, pex_project_dir
@@ -106,6 +107,12 @@ def main():
     logger.log(
         logging.root.level, "Logging configured at level {level}.".format(level=options.log_level)
     )
+
+    # Ensure we have stubs available to alleviate tests from having to distinguish a special loose
+    # source state of the Pex codebase vs a packaged state.
+    for stub in windows.fetch_all_stubs():
+        if not stub.cached:
+            logger.info("Fetched windows script executable stub: {stub}".format(stub=stub.path))
 
     if options.devpi:
         if options.shutdown_devpi:

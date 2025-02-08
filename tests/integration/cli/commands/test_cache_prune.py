@@ -297,8 +297,8 @@ def test_zipapp_prune_shared_bootstrap(
     assert_installed_wheels(
         expected_pip_wheels_plus("ansicolors"),
         message=(
-            "There should be an ansicolors wheel for the pex as well as pip, setuptools and wheel wheels "
-            "for at least 1 Pip."
+            "There should be an ansicolors wheel for the pex as well as pip, setuptools and wheel "
+            "wheels for at least 1 Pip."
         ),
     )
 

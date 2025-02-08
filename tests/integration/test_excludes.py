@@ -28,10 +28,10 @@ from pex.resolve.resolver_configuration import ResolverVersion
 from pex.sorted_tuple import SortedTuple
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import InstallationChoice, Virtualenv
-from testing import PY_VER, data, make_env, run_pex_command
+from testing import PY_VER, IntegResults, data, make_env, run_pex_command
 from testing.cli import run_pex3
 from testing.lock import extract_lock_option_args, index_lock_artifacts
-from testing.pytest.tmp import TempdirFactory
+from testing.pytest.tmp import Tempdir, TempdirFactory
 
 if TYPE_CHECKING:
     from typing import Any
@@ -311,27 +311,28 @@ class PipOptions(object):
     [pytest.param(pip_options, id=str(pip_options)) for pip_options in PipOptions.iter()],
 )
 def test_exclude_deep(
-    tmpdir,  # type: Any
+    tmpdir,  # type: Tempdir
     pip_options,  # type: PipOptions
 ):
     # type: (...) -> None
 
-    # Bootstrap the Pip version being used if needed before we turn off PyPI.
-    if pip_options.pip_version is not PipVersion.VENDORED:
-        run_pex_command(
-            args=list(pip_options.iter_args()) + ["ansicolors==1.1.8", "--", "-c", ""]
-        ).assert_success()
-
     venv = Virtualenv.create(
-        os.path.join(str(tmpdir), "venv"),
+        venv_dir=tmpdir.join("venv"),
         install_pip=InstallationChoice.UPGRADED,
         install_setuptools=InstallationChoice.UPGRADED,
         install_wheel=InstallationChoice.UPGRADED,
     )
     pip = venv.bin_path("pip")
 
-    find_links = os.path.join(str(tmpdir), "find_links")
-    project_dir = os.path.join(str(tmpdir), "projects")
+    find_links = tmpdir.join("find_links")
+
+    # Bootstrap the Pip version being used if needed before we turn off PyPI.
+    if pip_options.pip_version is not PipVersion.VENDORED:
+        subprocess.check_call(
+            [pip, "wheel", "-w", find_links] + list(map(str, pip_options.pip_version.requirements))
+        )
+
+    project_dir = tmpdir.join("projects")
 
     foo_dir = os.path.join(project_dir, "foo")
     with safe_open(os.path.join(foo_dir, "foo.py"), "w") as fp:
@@ -427,14 +428,34 @@ def test_exclude_deep(
         args=["setup.py", "sdist", "--dist-dir", find_links], cwd=bar_dir, env=make_env(BEHAVE=1)
     )
 
+    pex_root = tmpdir.join("pex_root")
+
+    def run_pex(*args):
+        # type: (str) -> IntegResults
+        return run_pex_command(
+            args=(
+                [
+                    "--pex-root",
+                    pex_root,
+                    "--runtime-pex-root",
+                    pex_root,
+                    "-f",
+                    find_links,
+                    "--no-pypi",
+                ]
+                + list(pip_options.iter_args())
+                + list(args)
+            )
+        )
+
     # Building a Pex that requires bar should (transitively) aggressively blow up in normal
     # circumstances.
-    run_pex_command(
-        args=list(pip_options.iter_args()) + ["-f", find_links, "--no-pypi", "foo", "-vv"]
-    ).assert_failure(expected_error_re=r".*I'm an evil package\..*", re_flags=re.DOTALL)
+    run_pex("foo", "-vvv").assert_failure(
+        expected_error_re=r".*I'm an evil package\..*", re_flags=re.DOTALL
+    )
 
     # But an `--exclude bar` should solve this by never resolving bar at all.
-    exe = os.path.join(str(tmpdir), "exe.py")
+    exe = tmpdir.join("exe.py")
     with safe_open(exe, "w") as fp:
         fp.write(
             dedent(
@@ -451,11 +472,8 @@ def test_exclude_deep(
                 """
             )
         )
-    pex = os.path.join(str(tmpdir), "pex")
-    run_pex_command(
-        args=list(pip_options.iter_args())
-        + ["-f", find_links, "--no-pypi", "foo", "--exclude", "bar", "-o", pex, "--exe", exe]
-    ).assert_success()
+    pex = tmpdir.join("pex")
+    run_pex("foo", "--exclude", "bar", "-o", pex, "--exe", exe).assert_success()
 
     # The `--exclude bar` should hobble the PEX by default though, since bar is needed but missing.
     assert_stderr_contains(

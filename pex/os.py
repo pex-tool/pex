@@ -6,15 +6,49 @@ from __future__ import absolute_import
 import os
 import sys
 
+from pex.enum import Enum
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from typing import Any, List, NoReturn, Text, Tuple, Union
 
+
+class _CurrentOs(object):
+    def __get__(self, obj, objtype=None):
+        # type: (...) -> Os.Value
+        if not hasattr(self, "_current"):
+            # N.B.: Python 2.7 uses "linux2".
+            if sys.platform.startswith("linux"):
+                self._current = Os.LINUX
+            elif sys.platform == "darwin":
+                self._current = Os.MACOS
+            elif sys.platform == "win32":
+                self._current = Os.WINDOWS
+            if not hasattr(self, "_current"):
+                raise ValueError(
+                    "The current operating system is not supported!: {system}".format(
+                        system=sys.platform
+                    )
+                )
+        return self._current
+
+
+class Os(Enum["Os.Value"]):
+    class Value(Enum.Value):
+        pass
+
+    LINUX = Value("linux")
+    MACOS = Value("macos")
+    WINDOWS = Value("windows")
+    CURRENT = _CurrentOs()
+
+
+Os.seal()
+
 # N.B.: Python 2.7 uses "linux2".
-LINUX = sys.platform.startswith("linux")
-MAC = sys.platform == "darwin"
-WINDOWS = sys.platform == "win32"
+LINUX = Os.CURRENT is Os.LINUX
+MAC = Os.CURRENT is Os.MACOS
+WINDOWS = Os.CURRENT is Os.WINDOWS
 
 
 HOME_ENV_VAR = "USERPROFILE" if WINDOWS else "HOME"

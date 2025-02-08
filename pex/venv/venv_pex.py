@@ -167,6 +167,7 @@ def boot(
             "__PEX_UNVENDORED__",
             # These are _not_ used at runtime, but are present under testing / CI and
             # simplest to add an exception for here and not warn about in CI runs.
+            "_PEX_FETCH_WINDOWS_STUBS_BEARER",
             "_PEX_PEXPECT_TIMEOUT",
             "_PEX_PIP_VERSION",
             "_PEX_REQUIRES_PYTHON",
@@ -197,7 +198,9 @@ def boot(
     if ignored_pex_env_vars:
         maybe_log(
             "Ignoring the following environment variables in Pex venv mode:\n"
-            "{}".format(os.linesep.join(sorted(ignored_pex_env_vars)))
+            "{ignored_env_vars}".format(
+                ignored_env_vars=os.linesep.join(sorted(ignored_pex_env_vars))
+            )
         )
 
     os.environ["VIRTUAL_ENV"] = venv_dir
