@@ -55,7 +55,13 @@ def assert_force_local_implicit_ns_packages_issues_598(
 ):
     def create_foo_bar_setup(name, **extra_args):
         # type: (str, **Any) -> str
-        setup_args = dict(name=name, version="0.0.1", packages=["foo", "foo.bar"])
+        setup_args = dict(
+            name=name,
+            version="0.0.1",
+            packages=["foo", "foo.bar"],
+            # Ensure we generate a universal wheel:
+            options={"bdist_wheel": {"python_tag": "py2.py3"}},
+        )
         if create_ns_packages:
             setup_args.update(namespace_packages=["foo", "foo.bar"])
         if requirements:
