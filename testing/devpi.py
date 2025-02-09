@@ -3,7 +3,6 @@
 
 from __future__ import absolute_import
 
-import errno
 import json
 import logging
 import os
@@ -18,6 +17,7 @@ from pex.atomic_directory import atomic_directory
 from pex.common import safe_open, safe_rmtree
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import InterpreterConstraint
+from pex.subprocess import subprocess_daemon_kwargs
 from pex.typing import TYPE_CHECKING, cast
 from pex.venv.virtualenv import InvalidVirtualenvError, Virtualenv
 from testing import PEX_TEST_DEV_ROOT
@@ -65,10 +65,9 @@ class Pidfile(object):
         while time.time() - start < timeout:
             with open(log) as fp:
                 for line in fp:
-                    if line.endswith(os.linesep):
-                        match = re.search(r"Serving on (?P<url>http://\S+)$", line)
-                        if match:
-                            return match.group("url")
+                    match = re.search(r"Serving on (?P<url>http://\S+)$", line)
+                    if match:
+                        return match.group("url")
         return None
 
     @staticmethod
@@ -196,7 +195,6 @@ def launch(
 
     devpi_server = ensure_devpi_server()
 
-    # Not proper daemonization, but good enough.
     log = os.path.join(DEVPI_DIR, "log.txt")
     with safe_open(log, "w") as fp:
         process = subprocess.Popen(
@@ -211,17 +209,17 @@ def launch(
                 str(request_timeout),
             ),
             cwd=DEVPI_DIR,
-            preexec_fn=os.setsid,
             stdout=fp.fileno(),
             stderr=subprocess.STDOUT,
+            **subprocess_daemon_kwargs()
         )
 
     pidfile = Pidfile.record(log=log, pid=process.pid, timeout=timeout)
     if not pidfile:
         try:
-            os.kill(process.pid, signal.SIGKILL)
-        except OSError as e:
-            if e.errno != errno.ESRCH:  # No such process.
+            psutil.Process(process.pid).kill()
+        except psutil.Error as e:
+            if not isinstance(e, psutil.NoSuchProcess):
                 raise
         return log
 

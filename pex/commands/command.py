@@ -19,7 +19,9 @@ from pex.argparse import HandleBoolAction
 from pex.cache import access as cache_access
 from pex.common import environment_as, safe_mkdtemp, safe_open
 from pex.compatibility import shlex_quote
+from pex.os import LINUX
 from pex.result import Error, Ok, Result
+from pex.subprocess import subprocess_daemon_kwargs
 from pex.typing import TYPE_CHECKING, Generic, cast
 from pex.variables import ENV, Variables
 from pex.version import __version__
@@ -57,8 +59,9 @@ def try_run_program(
 ):
     # type: (...) -> Result
     cmd = [program] + list(args)
+    kwargs = dict(subprocess_daemon_kwargs() if disown else {}, **kwargs)
     try:
-        process = subprocess.Popen(cmd, preexec_fn=os.setsid if disown else None, **kwargs)
+        process = subprocess.Popen(cmd, **kwargs)
         if not disown and process.wait() != 0:
             return Error(
                 str(
@@ -91,7 +94,7 @@ def try_open_file(
     url = None  # type: Optional[str]
     if open_program:
         opener = open_program
-    elif "Linux" == os.uname()[0]:
+    elif LINUX:
         opener = "xdg-open"
         url = "https://www.freedesktop.org/wiki/Software/xdg-utils/"
     else:

@@ -15,6 +15,7 @@ import pytest
 
 from pex.common import DETERMINISTIC_DATETIME, open_zip, safe_open, temporary_dir
 from pex.dist_metadata import Distribution, Requirement
+from pex.os import kill
 from pex.pip.installation import get_pip
 from pex.pip.version import PipVersion
 from pex.resolve.configured_resolver import ConfiguredResolver
@@ -288,7 +289,7 @@ def test_extract_lifecycle(pex, pex_tools_env, tmpdir):
         # Ensure the server is shut down. Under Python 2.7 somehow the above process.wait is not
         # enough.
         try:
-            os.kill(int(pid), signal.SIGKILL)
+            kill(int(pid))
         except OSError:
             pass
 

@@ -11,6 +11,7 @@ from textwrap import dedent
 
 from pex.common import safe_open
 from pex.fetcher import URLFetcher
+from pex.os import WINDOWS
 from pex.typing import TYPE_CHECKING
 from testing.docker import skip_unless_docker
 
@@ -65,10 +66,15 @@ def test_confounding_encoding(
 
 
                 def chown_dest():
+                    chown = {chown!r}
+                    if chown is None:
+                        return
+
+                    uid, gid = chown
                     for root, dirs, files in os.walk("/dest", topdown=False):
                         for path in dirs + files:
-                            os.chown(os.path.join(root, path), {uid}, {gid})
-                    os.chown("/dest", {uid}, {gid})
+                            os.chown(os.path.join(root, path), uid, gid)
+                    os.chown("/dest", uid, gid)
 
 
                 atexit.register(chown_dest)
@@ -85,7 +91,12 @@ def test_confounding_encoding(
                 with open_zip("/sdists/CherryPy-7.1.0.zip") as zf:
                     zf.extractall("/dest")
                 """.format(
-                    uid=os.getuid(), gid=os.getgid()
+                    chown=None
+                    if WINDOWS
+                    else (
+                        os.getuid(),  # type: ignore[attr-defined]
+                        os.getgid(),  # type: ignore[attr-defined]
+                    )
                 )
             ),
         ]

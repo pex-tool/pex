@@ -79,8 +79,7 @@ def pagefind_executable() -> str:
 
 
 def ensure_pagefind() -> PurePath:
-    pagefind_exe = pagefind_executable()
-    pagefind_exe_path = PEX_DEV_DIR / pagefind_exe
+    pagefind_exe_path = PEX_DEV_DIR / pagefind_executable()
     if pagefind_exe_path.is_file() and os.access(pagefind_exe_path, os.R_OK | os.X_OK):
         return pagefind_exe_path
 
@@ -100,9 +99,10 @@ def ensure_pagefind() -> PurePath:
     ) as out_fp:
         for chunk in response.iter_bytes():
             out_fp.write(chunk)
+    pagefind_exe = CURRENT_PLATFORM.binary_name(PAGEFIND_NAME)
     with tarfile.open(out_path) as tf:
-        tf.extract(PAGEFIND_NAME, path=str(download_dir))
-    (download_dir / PAGEFIND_NAME).rename(pagefind_exe_path)
+        tf.extract(pagefind_exe, path=str(download_dir))
+    (download_dir / pagefind_exe).rename(pagefind_exe_path)
 
     return pagefind_exe_path
 
