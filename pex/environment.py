@@ -301,11 +301,12 @@ class PEXEnvironment(object):
             ):
                 with identify_layout(self.source_pex) as layout:
                     for distribution_name, fingerprint in self._pex_info.distributions.items():
-                        dist_relpath = os.path.join(
-                            self._pex_info.internal_cache, distribution_name
-                        )
                         yield FingerprintedDistribution(
-                            distribution=Distribution.load(layout.wheel_file_path(dist_relpath)),
+                            distribution=Distribution.load(
+                                layout.wheel_file_path(
+                                    (self._pex_info.internal_cache, distribution_name)
+                                )
+                            ),
                             fingerprint=fingerprint,
                         )
         else:

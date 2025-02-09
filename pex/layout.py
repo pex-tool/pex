@@ -116,7 +116,7 @@ class _Layout(object):
     @abstractmethod
     def dist_size(
         self,
-        dist_relpath,  # type: str
+        dist_relpath_components,  # type: Tuple[str, ...]
         is_wheel_file,  # type: bool
     ):
         # type: (...) -> int
@@ -126,15 +126,15 @@ class _Layout(object):
     def extract_dist(
         self,
         dest_dir,  # type: str
-        dist_relpath,  # type: str
+        dist_relpath_components,  # type: Tuple[str, ...]
         is_wheel_file,  # type: bool
     ):
         # type: (...) -> None
         raise NotImplementedError()
 
     @abstractmethod
-    def wheel_file_path(self, dist_relpath):
-        # type: (str) -> str
+    def wheel_file_path(self, dist_relpath_components):
+        # type: (Tuple[str, ...]) -> str
         raise NotImplementedError()
 
     @abstractmethod
@@ -176,7 +176,8 @@ def _install_distribution(
     spread_dest = InstalledWheelDir.create(
         wheel_name=location, install_hash=sha, pex_root=pex_info.pex_root
     )
-    dist_relpath = os.path.join(DEPS_DIR, location)
+    dist_relpath_components = (DEPS_DIR, location)
+    dist_relpath = os.path.join(*dist_relpath_components)
     source = None if is_wheel_file else layout.dist_strip_prefix(location)
     symlink_src = os.path.relpath(
         spread_dest,
@@ -188,7 +189,7 @@ def _install_distribution(
         if not spread_chroot.is_finalized():
             layout.extract_dist(
                 dest_dir=spread_chroot.work_dir,
-                dist_relpath=dist_relpath,
+                dist_relpath_components=dist_relpath_components,
                 is_wheel_file=is_wheel_file,
             )
 
@@ -239,7 +240,7 @@ def _ensure_distributions_installed_parallel(
         verb_past="installed",
         max_jobs=max_jobs,
         costing_function=lambda item: layout.dist_size(
-            os.path.join(DEPS_DIR, item[0]), is_wheel_file=pex_info.deps_are_wheel_files
+            (DEPS_DIR, item[0]), is_wheel_file=pex_info.deps_are_wheel_files
         ),
     )
 
@@ -267,7 +268,7 @@ def _ensure_distributions_installed(
     install_serial = dist_count == 1 or pex_info.max_install_jobs == 1
     if not install_serial and pex_info.max_install_jobs == -1:
         total_size = sum(
-            layout.dist_size(os.path.join(DEPS_DIR, location), pex_info.deps_are_wheel_files)
+            layout.dist_size((DEPS_DIR, location), pex_info.deps_are_wheel_files)
             for location in pex_info.distributions
         )
         average_distribution_size = total_size // dist_count
@@ -455,40 +456,42 @@ class _ZipAppPEX(_Layout):
 
     def dist_size(
         self,
-        dist_relpath,  # type: str
+        dist_relpath_components,  # type: Tuple[str, ...]
         is_wheel_file,  # type: bool
     ):
         # type: (...) -> int
+        zip_relpath = "/".join(dist_relpath_components)
         if is_wheel_file:
-            return self.zfp.getinfo(dist_relpath).file_size
+            return self.zfp.getinfo(zip_relpath).file_size
         else:
             return sum(
                 self.zfp.getinfo(name).file_size
                 for name in self.names
-                if name.startswith(dist_relpath)
+                if name.startswith(zip_relpath)
             )
 
     def extract_dist(
         self,
         dest_dir,  # type: str
-        dist_relpath,  # type: str
+        dist_relpath_components,  # type: Tuple[str, ...]
         is_wheel_file,  # type: bool
     ):
         # type: (...) -> None
         if is_wheel_file:
             from pex.pep_427 import install_wheel_chroot
 
-            install_wheel_chroot(self.wheel_file_path(dist_relpath), dest_dir)
+            install_wheel_chroot(self.wheel_file_path(dist_relpath_components), dest_dir)
         else:
+            zip_relpath = "/".join(dist_relpath_components)
             for name in self.names:
-                if name.startswith(dist_relpath) and not name.endswith("/"):
+                if name.startswith(zip_relpath) and not name.endswith("/"):
                     self.zfp.extract(name, dest_dir)
 
-    def wheel_file_path(self, dist_relpath):
-        # type: (str) -> str
+    def wheel_file_path(self, dist_relpath_components):
+        # type: (Tuple[str, ...]) -> str
         extract_chroot = safe_mkdtemp()
-        self.zfp.extract(dist_relpath, extract_chroot)
-        return os.path.join(extract_chroot, dist_relpath)
+        self.zfp.extract("/".join(dist_relpath_components), extract_chroot)
+        return os.path.join(extract_chroot, *dist_relpath_components)
 
     def extract_code(self, dest_dir):
         # type: (str) -> None
@@ -526,20 +529,21 @@ class _PackedPEX(_Layout):
 
     def dist_size(
         self,
-        dist_relpath,  # type: str
+        dist_relpath_components,  # type: Tuple[str, ...]
         is_wheel_file,  # type: bool
     ):
         # type: (...) -> int
-        return os.path.getsize(os.path.join(self._path, dist_relpath))
+        return os.path.getsize(os.path.join(self._path, *dist_relpath_components))
 
     def extract_dist(
         self,
         dest_dir,  # type: str
-        dist_relpath,  # type: str
+        dist_relpath_components,  # type: Tuple[str, ...]
         is_wheel_file,  # type: bool
     ):
         # type: (...) -> None
-        dist_path = self.wheel_file_path(dist_relpath)
+        dist_relpath = os.path.join(*dist_relpath_components)
+        dist_path = self.wheel_file_path(dist_relpath_components)
         if is_wheel_file:
             from pex.pep_427 import install_wheel_chroot
 
@@ -550,9 +554,9 @@ class _PackedPEX(_Layout):
                 with open_zip(dist_path) as zfp:
                     zfp.extractall(dest_dir)
 
-    def wheel_file_path(self, dist_relpath):
-        # type: (str) -> str
-        return os.path.join(self._path, dist_relpath)
+    def wheel_file_path(self, dist_relpath_components):
+        # type: (Tuple[str, ...]) -> str
+        return os.path.join(self._path, *dist_relpath_components)
 
     def extract_code(self, dest_dir):
         # type: (str) -> None
@@ -607,31 +611,34 @@ class _LoosePEX(_Layout):
 
     def dist_size(
         self,
-        dist_relpath,  # type: str
+        dist_relpath_components,  # type: Tuple[str, ...]
         is_wheel_file,  # type: bool
     ):
         assert (
             is_wheel_file
         ), "Expected loose layout install to be skipped when deps are pre-installed wheel chroots."
-        return os.path.getsize(os.path.join(self._path, dist_relpath))
+        return os.path.getsize(os.path.join(self._path, *dist_relpath_components))
 
     def extract_dist(
         self,
         dest_dir,
-        dist_relpath,  # type: str
+        dist_relpath_components,  # type: Tuple[str, ...]
         is_wheel_file,  # type: bool
     ):
+        # type: (...) -> None
         assert (
             is_wheel_file
         ), "Expected loose layout install to be skipped when deps are pre-installed wheel chroots."
         from pex.pep_427 import install_wheel_chroot
 
-        with TRACER.timed("Installing wheel file {}".format(dist_relpath)):
-            install_wheel_chroot(self.wheel_file_path(dist_relpath), dest_dir)
+        with TRACER.timed(
+            "Installing wheel file {}".format(os.path.join(*dist_relpath_components))
+        ):
+            install_wheel_chroot(self.wheel_file_path(dist_relpath_components), dest_dir)
 
-    def wheel_file_path(self, dist_relpath):
-        # type: (str) -> str
-        return os.path.join(self._path, dist_relpath)
+    def wheel_file_path(self, dist_relpath_components):
+        # type: (Tuple[str, ...]) -> str
+        return os.path.join(self._path, *dist_relpath_components)
 
     def extract_code(self, dest_dir):
         # type: (str) -> None

@@ -17,7 +17,7 @@ from pex.sysconfig import SysPlatform
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Iterator, Optional, Text
+    from typing import Iterator, Optional, Text, TypeVar
 
     import attr  # vendor:skip
 else:
@@ -111,16 +111,20 @@ def fetch_all_stubs():
             yield _load_stub(platform=platform, gui=gui)
 
 
+if TYPE_CHECKING:
+    _Text = TypeVar("_Text", str, Text)
+
+
 def create_script(
-    path,  # type: Text
+    path,  # type: _Text
     contents,  # type: Text
     platform=SysPlatform.CURRENT,  # type: SysPlatform.Value
     gui=False,  # type: bool
     python_path=None,  # type: Optional[Text]
 ):
-    # type: (...) -> None
+    # type: (...) -> _Text
 
-    with open("{path}.{unique}".format(path=path, unique=uuid.uuid4().hex), "wb") as fp:
+    with safe_open("{path}.{unique}".format(path=path, unique=uuid.uuid4().hex), "wb") as fp:
         fp.write(_load_stub(platform=platform, gui=gui).read_data())
         with contextlib.closing(zipfile.ZipFile(fp, "a")) as zip_fp:
             zip_fp.writestr("__main__.py", contents.encode("utf-8"), zipfile.ZIP_STORED)
@@ -130,4 +134,6 @@ def create_script(
         fp.write(python_path_bytes)
         fp.write(struct.pack("<I", len(python_path_bytes)))
         fp.write(b"UVSC")
-    safe_rename(fp.name, platform.binary_name(path))
+    script = platform.binary_name(path)
+    safe_rename(fp.name, script)
+    return script
