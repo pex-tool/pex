@@ -76,8 +76,8 @@ jobs:
           - tox-env: py27-pip20
           - tox-env: py38-pip22_3_1
           - tox-env: py311-pip23_3_2
-          - tox-env: py313-pip25_0
-          - tox-env: py314-pip25_0
+          - tox-env: py313-pip25_0_1
+          - tox-env: py314-pip25_0_1
           - tox-env: pypy310-pip24_3_1
 
           # Integration tests, split most into two shards:
@@ -96,14 +96,14 @@ jobs:
           - tox-env: py311-pip23_3_2-integration
             pex-test-pos-args: --shard 2/2
 
-          - tox-env: py313-pip25_0-integration
+          - tox-env: py313-pip25_0_1-integration
             pex-test-pos-args: --shard 1/2
-          - tox-env: py313-pip25_0-integration
+          - tox-env: py313-pip25_0_1-integration
             pex-test-pos-args: --shard 2/2
 
-          - tox-env: py314-pip25_0-integration
+          - tox-env: py314-pip25_0_1-integration
             pex-test-pos-args: --shard 1/2
-          - tox-env: py314-pip25_0-integration
+          - tox-env: py314-pip25_0_1-integration
             pex-test-pos-args: --shard 2/2
 
           - tox-env: pypy310-pip24_3_1-integration
@@ -151,14 +151,14 @@ jobs:
       matrix:
         include:
           - python-version: [ 3, 13 ]
-            tox-env: py313-pip25_0
+            tox-env: py313-pip25_0_1
             tox-env-python: python3.11
           - python-version: [ 3, 13 ]
-            tox-env: py313-pip25_0-integration
+            tox-env: py313-pip25_0_1-integration
             tox-env-python: python3.11
             pex-test-pos-args: --shard 1/2
           - python-version: [ 3, 13 ]
-            tox-env: py313-pip25_0-integration
+            tox-env: py313-pip25_0_1-integration
             tox-env-python: python3.11
             pex-test-pos-args: --shard 2/2
     steps:
