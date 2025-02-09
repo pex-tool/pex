@@ -118,9 +118,9 @@ def create_script(
     gui=False,  # type: bool
     python_path=None,  # type: Optional[Text]
 ):
-    # type: (...) -> None
+    # type: (...) -> Text
 
-    with open("{path}.{unique}".format(path=path, unique=uuid.uuid4().hex), "wb") as fp:
+    with safe_open("{path}.{unique}".format(path=path, unique=uuid.uuid4().hex), "wb") as fp:
         fp.write(_load_stub(platform=platform, gui=gui).read_data())
         with contextlib.closing(zipfile.ZipFile(fp, "a")) as zip_fp:
             zip_fp.writestr("__main__.py", contents.encode("utf-8"), zipfile.ZIP_STORED)
@@ -130,4 +130,6 @@ def create_script(
         fp.write(python_path_bytes)
         fp.write(struct.pack("<I", len(python_path_bytes)))
         fp.write(b"UVSC")
-    safe_rename(fp.name, platform.binary_name(path))
+    script = platform.binary_name(path)
+    safe_rename(fp.name, script)
+    return script

@@ -376,6 +376,10 @@ def iter_metadata_files(
 ):
     # type: (...) -> Iterator[MetadataFiles]
 
+    # TODO(John Sirois): Explain or limit this Windows hack.
+    #  See: https://github.com/pex-tool/pex/issues/2660#issuecomment-2635441311
+    location = os.path.realpath(location)
+
     files = []
     for metadata_type in restrict_types_to or MetadataType.values():
         key = MetadataKey(metadata_type=metadata_type, location=location)

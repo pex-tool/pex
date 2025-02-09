@@ -336,6 +336,10 @@ class VenvDirs(AtomicCacheDir):
         for venv_short_dir_symlink in glob.glob(
             CacheDir.VENVS.path("s", "*", cls.SHORT_SYMLINK_NAME, pex_root=pex_root)
         ):
+            # TODO(John Sirois): Explain or limit this Windows hack.
+            #  See: https://github.com/pex-tool/pex/issues/2660#issuecomment-2635441311
+            venv_short_dir_symlink = os.path.realpath(venv_short_dir_symlink)
+
             if not os.path.isdir(venv_short_dir_symlink):
                 continue
 

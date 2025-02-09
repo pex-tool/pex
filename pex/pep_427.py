@@ -13,13 +13,14 @@ from contextlib import closing
 from fileinput import FileInput
 from textwrap import dedent
 
-from pex import pex_warnings
+from pex import pex_warnings, windows
 from pex.common import is_pyc_file, iter_copytree, open_zip, safe_open, touch
 from pex.compatibility import commonpath, get_stdout_bytes_buffer
 from pex.dist_metadata import CallableEntryPoint, Distribution, ProjectNameAndVersion
 from pex.enum import Enum
 from pex.executables import chmod_plus_x
 from pex.interpreter import PythonInterpreter
+from pex.os import WINDOWS
 from pex.pep_376 import InstalledFile, InstalledWheel, Record
 from pex.pep_503 import ProjectName
 from pex.sysconfig import SCRIPT_DIR
@@ -287,8 +288,9 @@ def install_wheel(
 
     dist = Distribution(location=dest, metadata=wheel.dist_metadata())
     entry_points = dist.get_entry_map()
-    for named_entry_point in itertools.chain.from_iterable(
-        entry_points.get(key, {}).values() for key in ("console_scripts", "gui_scripts")
+    for named_entry_point, gui in itertools.chain.from_iterable(
+        ((value, gui) for value in entry_points.get(key, {}).values())
+        for key, gui in (("console_scripts", False), ("gui_scripts", True))
     ):
         entry_point = named_entry_point.entry_point
         if isinstance(entry_point, CallableEntryPoint):
@@ -328,9 +330,12 @@ def install_wheel(
                 modname=entry_point.module,
             )
         script_abspath = os.path.join(install_paths.scripts, named_entry_point.name)
-        with safe_open(script_abspath, "w") as fp:
-            fp.write(script)
-        chmod_plus_x(fp.name)
+        if WINDOWS:
+            script_abspath = windows.create_script(script_abspath, script, gui=gui)
+        else:
+            with safe_open(script_abspath, "w") as fp:
+                fp.write(script)
+            chmod_plus_x(fp.name)
         installed_files.append(
             InstalledWheel.create_installed_file(path=script_abspath, dest_dir=dest)
         )

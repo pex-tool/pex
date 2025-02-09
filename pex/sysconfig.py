@@ -9,7 +9,7 @@ import platform
 from sysconfig import get_config_var
 
 from pex.enum import Enum
-from pex.os import WINDOWS, Os
+from pex.os import Os
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -33,12 +33,6 @@ def script_name(name):
         return name
     stem, ext = os.path.splitext(name)
     return name if (ext and ext.lower() in EXE_EXTENSIONS) else name + EXE_EXTENSION
-
-
-# TODO(John Sirois): Consider using `sysconfig.get_path("scripts", expand=False)` in combination
-#  with either sysconfig.get_config_vars() or Formatter().parse() to pick apart the script dir
-#  suffix from any base dir template.
-SCRIPT_DIR = "Scripts" if WINDOWS else "bin"
 
 
 class _CurrentPlatform(object):
@@ -90,6 +84,11 @@ class _PlatformValue(Enum.Value):
         # type: () -> str
         return ".exe" if self.os is Os.WINDOWS else ""
 
+    @property
+    def venv_bin_dir(self):
+        # type: () -> str
+        return "Scripts" if self.os is Os.WINDOWS else "bin"
+
     def binary_name(self, binary_name):
         # type: (_Text) -> _Text
         return "{binary_name}{extension}".format(binary_name=binary_name, extension=self.extension)
@@ -128,3 +127,9 @@ class SysPlatform(Enum["SysPlatform.Value"]):
 
 
 SysPlatform.seal()
+
+
+# TODO(John Sirois): Consider using `sysconfig.get_path("scripts", expand=False)` in combination
+#  with either sysconfig.get_config_vars() or Formatter().parse() to pick apart the script dir
+#  suffix from any base dir template.
+SCRIPT_DIR = SysPlatform.CURRENT.venv_bin_dir
