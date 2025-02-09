@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.33.0
+
+This release adds support for Pip 25.0.1.
+
+* Add support for `--pip-version 25.0.1`. (#2671)
+
 ## 2.32.1
 
 This release fixes a long-standing bug handling development versions of
