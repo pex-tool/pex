@@ -557,7 +557,7 @@ def ensure_python_distribution(version):
                 # linking the wrong libpython, force `RPATH`, which is searched 1st by the linker,
                 # with with `--disable-new-dtags`.
                 env["LDFLAGS"] = "-Wl,--disable-new-dtags"
-            subprocess.check_call([pyenv, "install", "--keep", version], env=env)
+            subprocess.check_call([pyenv, "install", version], env=env)
             subprocess.check_call([pip, "install", "-U", "pip<22.1"])
 
     major, minor = version.split(".")[:2]

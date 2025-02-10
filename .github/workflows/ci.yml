@@ -75,6 +75,8 @@ jobs:
     strategy:
       matrix:
         include:
+          # N.B.: When editing these, also edit build-cache-image.yml.
+
           # Unit tests:
           # -----------
           - tox-env: py27-pip20
