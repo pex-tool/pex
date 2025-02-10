@@ -29,7 +29,7 @@ jobs:
         run: |
           echo "This is a dummy step that will never run."
   checks:
-    name: tox -e format-check,lint-check,typecheck,enum-check,vendor-check,package,docs
+    name: "Unix: tox -e format-check,lint-check,typecheck,enum-check,vendor-check,package,docs"
     needs: setup
     runs-on: ubuntu-24.04
     steps:
@@ -298,6 +298,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
       - uses: actions/upload-artifact@v4
         with:
           name: test-results
