@@ -17,7 +17,7 @@ jobs:
       with:
         artifact: test-results
         name: pytest results
-        path: 'dist/reports/tests-*.xml'
+        path: tests-*.xml
         reporter: java-junit
         fail-on-error: false
         fail-on-empty: false
