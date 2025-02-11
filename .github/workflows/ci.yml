@@ -275,6 +275,7 @@ jobs:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
       - name: Run Tests
         uses: pex-tool/actions/run-tox@c53dadd8b410bbd66480de91067e9e45d2b3af38
+        continue-on-error: true
         with:
           path: repo/tox.ini
           tox-env: >-
@@ -293,6 +294,7 @@ jobs:
           path: ${{ env._PEX_TEST_DEV_ROOT }}/devpi
           key: ${{ steps.restore-devpi-server.outputs.cache-primary-key }}
   windows-reports:
+    name: Consolidate Windows Test Results
     needs: windows-tests
     if: always()
     runs-on: ubuntu-24.04
