@@ -16,7 +16,7 @@ jobs:
     - uses: dorny/test-reporter@v1
       with:
         artifact: test-results
-        name: pytest results
+        name: Windows Test Results
         path: dist/test-results/*.xml
         reporter: java-junit
         fail-on-error: false
