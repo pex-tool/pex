@@ -44,17 +44,17 @@ def _try_enable_readline(
         # See https://docs.python.org/3/library/readline.html
         if "libedit" in readline.__doc__:
             # Mac can use libedit, and libedit has different config syntax.
-            readline.parse_and_bind("bind ^I rl_complete")
+            readline.parse_and_bind("bind ^I rl_complete")  # type: ignore[attr-defined]
             libedit = True
         else:
-            readline.parse_and_bind("tab: complete")
+            readline.parse_and_bind("tab: complete")  # type: ignore[attr-defined]
 
         try:
             # Under current PyPy readline does not implement read_init_file and emits a
             # warning; so we squelch that noise.
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
-                readline.read_init_file()
+                readline.read_init_file()  # type: ignore[attr-defined]
         except AttributeError:
             # A PyPy version that has dropped read_init_file support altogether.
             pass
@@ -67,8 +67,8 @@ def _try_enable_readline(
 
             histfile = os.path.expanduser(history_file or os.path.join("~", ".python_history"))
             try:
-                readline.read_history_file(histfile)
-                readline.set_history_length(1000)
+                readline.read_history_file(histfile)  # type: ignore[attr-defined]
+                readline.set_history_length(1000)  # type: ignore[attr-defined]
             except (IOError, OSError) as e:
                 sys.stderr.write(
                     "Failed to read history file at {path} due to: {err}\n".format(
@@ -76,7 +76,7 @@ def _try_enable_readline(
                     )
                 )
 
-            atexit.register(readline.write_history_file, histfile)
+            atexit.register(readline.write_history_file, histfile)  # type: ignore[attr-defined]
 
     return libedit
 

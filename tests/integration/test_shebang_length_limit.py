@@ -18,6 +18,7 @@ from pex.cache.dirs import CacheDir
 from pex.common import safe_open, touch
 from pex.executables import chmod_plus_x
 from pex.fs import safe_symlink
+from pex.os import WINDOWS
 from pex.typing import TYPE_CHECKING
 from testing import IS_PYPY, make_project, run_pex_command
 from testing.cli import run_pex3
@@ -51,7 +52,12 @@ def find_max_length(
 
 # Pytest fails to cleanup tmp dirs used probing file_path_length_limit and this squashes a very
 # large ream of warnings.
-pytestmark = pytest.mark.filterwarnings("ignore:\\(rm_rf\\) error removing.*:pytest.PytestWarning")
+if WINDOWS:
+    pytestmark = pytest.mark.skip("The current process of probing limits can break Windows.")
+else:
+    pytestmark = pytest.mark.filterwarnings(
+        "ignore:\\(rm_rf\\) error removing.*:pytest.PytestWarning"
+    )
 
 
 @pytest.fixture(scope="session")

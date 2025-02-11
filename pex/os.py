@@ -90,6 +90,7 @@ if WINDOWS:
 
         global _GBT
         if _GBT is None:
+            # https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-getbinarytypew
             gbt = ctypes.windll.kernel32.GetBinaryTypeW  # type: ignore[attr-defined]
             gbt.argtypes = (
                 # lpApplicationName
@@ -100,7 +101,6 @@ if WINDOWS:
             gbt.restype = BOOL
             _GBT = gbt
 
-        # See: https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-getbinarytypew
         # N.B.: We don't care about the binary type, just the bool which tells us it is or is not an
         # executable.
         _binary_type = DWORD(0)
@@ -116,3 +116,68 @@ else:
         :return: `True if the given path is a file executable by the current user.
         """
         return os.path.isfile(path) and os.access(path, os.R_OK | os.X_OK)
+
+
+if WINDOWS:
+
+    # https://learn.microsoft.com/en-us/windows/win32/procthread/process-security-and-access-rights
+    _PROCESS_TERMINATE = 0x1  # Required to terminate a process using TerminateProcess.
+
+    _OP = None  # type: Any
+    _TP = None  # type: Any
+
+    def kill(pid):
+        # type: (int) -> None
+
+        import ctypes
+        from ctypes.wintypes import BOOL, DWORD, HANDLE, UINT
+
+        global _OP
+        if _OP is None:
+            # https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-openprocess
+            op = ctypes.windll.kernel32.OpenProcess  # type: ignore[attr-defined]
+            op.argtypes = (
+                DWORD,  # dwDesiredAccess
+                BOOL,  # bInheritHandle
+                DWORD,  # dwProcessId
+            )
+            op.restype = HANDLE
+            _OP = op
+
+        phandle = _OP(_PROCESS_TERMINATE, False, pid)
+        if not phandle:
+            # TODO(John Sirois): Review literature / experiment and don't raise if this just means
+            #  the process is already dead.
+            #  See: https://github.com/pex-tool/pex/issues/2670
+            raise ctypes.WinError()  # type: ignore[attr-defined]
+
+        global _TP
+        if _TP is None:
+            # https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-terminateprocess
+            tp = ctypes.windll.kernel32.OpenProcess  # type: ignore[attr-defined]
+            tp.argtypes = (
+                HANDLE,  # hProcess
+                UINT,  # uExitCode
+            )
+            tp.restype = BOOL
+            _TP = tp
+
+        if not _TP(phandle, 1):
+            # TODO(John Sirois): Review literature / experiment and don't raise if this just means
+            #  the process is already dead (may need to consult GetLastError).
+            #  See: https://github.com/pex-tool/pex/issues/2670
+            raise ctypes.WinError()  # type: ignore[attr-defined]
+
+else:
+
+    def kill(pid):
+        # type: (int) -> None
+
+        import errno
+        import signal
+
+        try:
+            os.kill(pid, signal.SIGKILL)  # type: ignore[attr-defined]
+        except OSError as e:
+            if e.errno != errno.ESRCH:  # No such process.
+                raise

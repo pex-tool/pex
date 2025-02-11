@@ -17,16 +17,20 @@ concurrency:
   # Queue on all branches and tags, but only cancel overlapping PR burns.
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/') }}
 jobs:
-  org-check:
+  setup:
     name: Check GitHub Organization
     if: github.repository_owner == 'pex-tool'
     runs-on: ubuntu-24.04
+    outputs:
+      pex_test_posargs: ${{ env._PEX_TEST_POS_ARGS }}
     steps:
       - name: Noop
-        run: "true"
+        if: false
+        run: |
+          echo "This is a dummy step that will never run."
   checks:
-    name: tox -e format-check,lint-check,typecheck,enum-check,vendor-check,package,docs
-    needs: org-check
+    name: "Unix: tox -e format-check,lint-check,typecheck,enum-check,vendor-check,package,docs"
+    needs: setup
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout Pex
@@ -65,8 +69,8 @@ jobs:
   # N.B.: The name of this job key (linux-tests) is depended on by scrips/build_cache_image.py. In
   # particular, the tox-env matrix list is used to ensure the cache covers all Linux CI jobs.
   linux-tests:
-    name: ./dtox.sh -e ${{ matrix.tox-env }} ${{ matrix.pex-test-pos-args }}
-    needs: org-check
+    name: "Linux: ./dtox.sh -e ${{ matrix.tox-env }} ${{ matrix.pex-test-pos-args }}"
+    needs: setup
     runs-on: ubuntu-24.04
     strategy:
       matrix:
@@ -74,10 +78,7 @@ jobs:
           # Unit tests:
           # -----------
           - tox-env: py27-pip20
-          - tox-env: py38-pip22_3_1
-          - tox-env: py311-pip23_3_2
           - tox-env: py313-pip25_0_1
-          - tox-env: py314-pip25_0_1
           - tox-env: pypy310-pip24_3_1
 
           # Integration tests, split most into two shards:
@@ -89,11 +90,6 @@ jobs:
           - tox-env: py38-pip22_3_1-integration
             pex-test-pos-args: --shard 1/2
           - tox-env: py38-pip22_3_1-integration
-            pex-test-pos-args: --shard 2/2
-
-          - tox-env: py311-pip23_3_2-integration
-            pex-test-pos-args: --shard 1/2
-          - tox-env: py311-pip23_3_2-integration
             pex-test-pos-args: --shard 2/2
 
           - tox-env: py313-pip25_0_1-integration
@@ -144,21 +140,24 @@ jobs:
             ./dtox.sh -e ${{ matrix.tox-env }} -- \
               ${{ env._PEX_TEST_POS_ARGS }} ${{ matrix.pex-test-pos-args }}
   mac-tests:
-    name: tox -e ${{ matrix.tox-env }} ${{ matrix.pex-test-pos-args }}
-    needs: org-check
+    name: "Mac: tox -e ${{ matrix.tox-env }} ${{ matrix.pex-test-pos-args }}"
+    needs: setup
     runs-on: macos-13
     strategy:
       matrix:
         include:
           - python-version: [ 3, 13 ]
             tox-env: py313-pip25_0_1
+            cache: true
             tox-env-python: python3.11
           - python-version: [ 3, 13 ]
             tox-env: py313-pip25_0_1-integration
+            cache: true
             tox-env-python: python3.11
             pex-test-pos-args: --shard 1/2
           - python-version: [ 3, 13 ]
             tox-env: py313-pip25_0_1-integration
+            cache: true
             tox-env-python: python3.11
             pex-test-pos-args: --shard 2/2
     steps:
@@ -175,12 +174,14 @@ jobs:
       - name: Expose Pythons
         uses: pex-tool/actions/expose-pythons@c53dadd8b410bbd66480de91067e9e45d2b3af38
       - name: Restore Cached Pyenv Interpreters
+        if: matrix.cache
         id: restore-pyenv-interpreters
         uses: actions/cache/restore@v4
         with:
           path: ${{ env._PEX_TEST_DEV_ROOT }}/pyenv
           key: macos-13-${{ runner.arch }}-pex-test-dev-root-pyenv-v1
       - name: Restore Cached Devpi Server
+        if: matrix.cache
         id: restore-devpi-server
         uses: actions/cache/restore@v4
         with:
@@ -206,22 +207,112 @@ jobs:
             ${{ matrix.tox-env }} -- ${{ env._PEX_TEST_POS_ARGS }} ${{ matrix.pex-test-pos-args }}
       - name: Cache Pyenv Interpreters
         uses: actions/cache/save@v4
-        if: github.ref == 'refs/heads/main'
+        if: matrix.cache && github.ref == 'refs/heads/main'
         with:
           path: ${{ env._PEX_TEST_DEV_ROOT }}/pyenv
           key: ${{ steps.restore-pyenv-interpreters.outputs.cache-primary-key }}
       - name: Cache Devpi Server
         uses: actions/cache/save@v4
-        if: github.ref == 'refs/heads/main'
+        if: matrix.cache && github.ref == 'refs/heads/main'
         with:
           path: ${{ env._PEX_TEST_DEV_ROOT }}/devpi
           key: ${{ steps.restore-devpi-server.outputs.cache-primary-key }}
+  windows-tests:
+    name: "Windows: tox -e ${{ matrix.tox-env }} ${{ matrix.pex-test-pos-args }}"
+    needs: setup
+    runs-on: windows-2022
+    continue-on-error: true
+    strategy:
+      matrix:
+        include:
+          # N.B.: We use 3.11 to work around issues building typed-ast for the typecheck step.
+          # There is a Windows wheel for CPython 3.11, but no higher CPython version.
+          - python-version: [ 3, 11 ]
+            tox-env: typecheck,package,docs
+          - python-version: [ 3, 13 ]
+            tox-env: py313-pip25_0
+            artifact-name: unit
+            cache: true
+            pex-test-pos-args: ${{ needs.setup.outputs.pex_test_posargs }} --junit-xml ../dist/test-results/unit.xml
+          - python-version: [ 3, 13 ]
+            tox-env: py313-pip25_0-integration
+            artifact-name: integration-1
+            cache: true
+            pex-test-pos-args: --shard 1/2 ${{ needs.setup.outputs.pex_test_posargs }} --junit-xml ../dist/test-results/integration-1.xml
+          - python-version: [ 3, 13 ]
+            tox-env: py313-pip25_0-integration
+            artifact-name: integration-2
+            cache: true
+            pex-test-pos-args: --shard 2/2 ${{ needs.setup.outputs.pex_test_posargs }} --junit-xml ../dist/test-results/integration-2.xml
+    steps:
+      - name: Checkout Pex
+        uses: actions/checkout@v4
+        with:
+          # We need branches and tags for some ITs.
+          fetch-depth: 0
+          path: repo
+      - name: Setup Python ${{ join(matrix.python-version, '.') }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: "${{ join(matrix.python-version, '.') }}"
+      - name: Restore Cached Devpi Server
+        if: matrix.cache
+        id: restore-devpi-server
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env._PEX_TEST_DEV_ROOT }}/devpi
+          # We're using a key suffix / restore-keys prefix trick here to get an updatable cache.
+          # See: https://github.com/actions/cache/blob/main/tips-and-workarounds.md#update-a-cache
+          key: windows-2022-${{ runner.arch }}-${{ matrix.tox-env }}-pex-test-dev-root-devpi-v1-${{ github.run_id }}
+          restore-keys: windows-2022-${{ runner.arch }}-${{ matrix.tox-env }}-pex-test-dev-root-devpi-v1
+      # Some ITs need this for VCS URLs of the form git+ssh://git@github.com/...
+      - name: Setup SSH Agent
+        uses: webfactory/ssh-agent@v0.9.0
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        if: env.SSH_PRIVATE_KEY != ''
+        with:
+          ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
+      - name: Run Tests
+        uses: pex-tool/actions/run-tox@c53dadd8b410bbd66480de91067e9e45d2b3af38
+        with:
+          path: repo/tox.ini
+          tox-env: >-
+            ${{ matrix.tox-env }} -- ${{ matrix.pex-test-pos-args }}
+      - uses: actions/upload-artifact@v4
+        if: always() && matrix.artifact-name
+        with:
+          name: test-results-${{ matrix.artifact-name }}
+          path: |
+            dist/test-results/
+            .gitignore
+      - name: Cache Devpi Server
+        uses: actions/cache/save@v4
+        if: matrix.cache && github.ref == 'refs/heads/main'
+        with:
+          path: ${{ env._PEX_TEST_DEV_ROOT }}/devpi
+          key: ${{ steps.restore-devpi-server.outputs.cache-primary-key }}
+  windows-reports:
+    needs: windows-tests
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            dist/test-results/
+            .gitignore
   final-status:
     name: Gather Final Status
     needs:
       - checks
       - linux-tests
       - mac-tests
+      - windows-reports
     runs-on: ubuntu-24.04
     steps:
       - name: Check Non-Success

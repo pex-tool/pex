@@ -25,6 +25,7 @@ from pex.layout import Layout
 from pex.orderedset import OrderedSet
 from pex.os import safe_execv
 from pex.pex_info import PexInfo
+from pex.subprocess import subprocess_daemon_kwargs
 from pex.targets import LocalInterpreter
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
@@ -839,11 +840,12 @@ class PEX(object):  # noqa: T000
             env = os.environ.copy()
             self._clean_environment(env=env)
 
+        kwargs = dict(subprocess_daemon_kwargs() if setsid else {}, **kwargs)
+
         TRACER.log("PEX.run invoking {}".format(" ".join(self.cmdline(args))))
         _, process = self._interpreter.open_process(
             [self._pex] + list(args),
             cwd=self._pex if with_chroot else os.getcwd(),
-            preexec_fn=os.setsid if setsid else None,
             stdin=kwargs.pop("stdin", None),
             stdout=kwargs.pop("stdout", None),
             stderr=kwargs.pop("stderr", None),

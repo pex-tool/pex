@@ -13,6 +13,8 @@ import time
 
 from pex.cache.dirs import CacheDir
 from pex.common import safe_open
+from pex.os import kill
+from pex.subprocess import subprocess_daemon_kwargs
 from pex.typing import TYPE_CHECKING
 from pex.version import __version__
 
@@ -165,25 +167,24 @@ def launch(
             args=[sys.executable, "-m", http_server_module, str(port)],
             env=env,
             cwd=document_root,
-            preexec_fn=os.setsid,
             bufsize=1,
             stdout=fp.fileno(),
             stderr=subprocess.STDOUT,
+            **subprocess_daemon_kwargs()
         )
 
     pidfile = Pidfile.record(server_log=log, pid=process.pid, timeout=timeout)
     if not pidfile:
         try:
-            os.kill(process.pid, signal.SIGKILL)
+            kill(process.pid)
         except OSError as e:
-            if e.errno != errno.ESRCH:  # No such process.
-                raise LaunchError(
-                    log,
-                    additional_msg=(
-                        "Also failed to kill the partially launched server at pid {pid}: "
-                        "{err}".format(pid=process.pid, err=e)
-                    ),
-                )
+            raise LaunchError(
+                log,
+                additional_msg=(
+                    "Also failed to kill the partially launched server at pid {pid}: "
+                    "{err}".format(pid=process.pid, err=e)
+                ),
+            )
         raise LaunchError(log)
     return LaunchResult(server_info=pidfile.server_info, already_running=False)
 
