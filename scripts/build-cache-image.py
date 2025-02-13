@@ -195,7 +195,9 @@ def main() -> Any:
         atexit.register(shutil.rmtree, str(chroot), ignore_errors=True)
 
         tarballs = glob.glob(str(options.dist_dir / "cache-*.tar"))
-        if len(tarballs) == 1:
+        if not tarballs:
+            return colors.red(f"No cache-*.tar files found under {options.dist_dir}!")
+        elif len(tarballs) == 1:
             merged_tarball = Path(tarballs[0])
         else:
             for index, tarball in enumerate(tarballs, start=1):

@@ -68,6 +68,8 @@ jobs:
         with:
           python-version: "3.11"
       - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
       - name: Merge & Push Cache Image
         run: |
           python -mvenv .venv
