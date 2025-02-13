@@ -201,7 +201,14 @@ def main() -> Any:
             for index, tarball in enumerate(tarballs, start=1):
                 logger.info(f"Extracting {index} of {len(tarballs)} tarballs at {tarball}...")
                 with tarfile.open(tarball) as tf:
-                    tf.extractall(chroot)
+                    while True:
+                        tar_info = tf.next()
+                        if not tar_info:
+                            break
+                        if not tar_info.isdir() and (chroot / tar_info.name).exists():
+                            logger.debug(f"Skipping already extracted {tar_info.name}")
+                            continue
+                        tf.extract(tar_info, chroot)
 
             logger.info(f"Merging {len(tarballs)} extracted tarballs...")
             merged_tarball = export_tarball_path()

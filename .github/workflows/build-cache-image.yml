@@ -55,6 +55,7 @@ jobs:
           path: |
             export/*.tar
             .gitignore
+          name: 'cache-${{ matrix.tox-env }}'
   build-cache-image:
     name: Merge and push unified ./dtox.sh Cache Image
     runs-on: ubuntu-24.04
