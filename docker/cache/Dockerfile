@@ -1,8 +1,9 @@
 # A data image with the necessary binaries and libraries to develop pex.
 
 # Populate the ~/.pex_dev cache.
-FROM ghcr.io/pex-tool/pex/base:latest as cache
+FROM ghcr.io/pex-tool/pex/base:latest AS cache
 
+ARG FINGERPRINT=unset
 ARG PEX_REPO=https://github.com/pex-tool/pex
 ARG GIT_REF=HEAD
 
@@ -15,7 +16,8 @@ RUN git clone "${PEX_REPO}" /development/pex && \
 
 WORKDIR /development/pex
 COPY populate_cache.sh /root/
-RUN /root/populate_cache.sh /development/pex_dev "${TOX_ENVS}"
+RUN /root/populate_cache.sh /development/pex_dev "${TOX_ENVS}" && \
+    touch "/development/pex_dev/.fingerprint-${FINGERPRINT}"
 
 # Grab just the ~/.pex_dev cache files for the final data-only image.
 FROM scratch
