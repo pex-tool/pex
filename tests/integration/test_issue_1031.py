@@ -20,13 +20,13 @@ if TYPE_CHECKING:
         pytest.param(
             lambda system_site_packages: ensure_python_venv(
                 PY27, system_site_packages=system_site_packages
-            )[0],
+            ).interpreter.binary,
             id="virtualenv-16.7.10",
         ),
         pytest.param(
             lambda system_site_packages: ensure_python_venv(
                 PY310, system_site_packages=system_site_packages
-            )[0],
+            ).interpreter.binary,
             id="pyvenv",
         ),
     ],
