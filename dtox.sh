@@ -78,7 +78,7 @@ if [[ "${CACHE_MODE}" == "pull" ]]; then
   docker run \
     --rm \
     --volume pex-caches:/development/pex_dev \
-    "ghcr.io/pex-tool/pex/cache:${CACHE_TAG}" || true
+    "ghcr.io/pex-tool/pex/cache:${CACHE_TAG}" true || true
   docker run \
     --rm \
     --volume pex-caches:/development/pex_dev \
