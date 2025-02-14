@@ -43,7 +43,7 @@ def assert_colors_import_error(
 @pytest.fixture
 def system_python_with_colors(tmpdir):
     # type: (Any) -> str
-    location, _, _, _ = ensure_python_distribution(PY310)
+    location = ensure_python_distribution(PY310).home
     system_python_distribution = os.path.join(str(tmpdir), "py310")
     shutil.copytree(location, system_python_distribution)
     system_python = os.path.join(system_python_distribution, "bin", "python")

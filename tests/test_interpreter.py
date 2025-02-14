@@ -1,6 +1,8 @@
 # Copyright 2014 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+from __future__ import absolute_import
+
 import glob
 import json
 import os
@@ -218,7 +220,10 @@ class TestPythonInterpreter(object):
 
     def test_pyenv_shims(self, tmpdir):
         # type: (Any) -> None
-        _, py38, _, run_pyenv = ensure_python_distribution(PY38)
+        py38_dist = ensure_python_distribution(PY38)
+        py38 = py38_dist.binary
+        run_pyenv = py38_dist.run_pyenv
+
         py310 = ensure_python_interpreter(PY310)
 
         pyenv_root = str(run_pyenv(["root"]).strip())
@@ -415,7 +420,10 @@ def test_resolve_venv_ambient():
 def test_identify_cwd_isolation_issues_1231(tmpdir):
     # type: (Any) -> None
 
-    python38, pip = ensure_python_venv(PY38)
+    venv = ensure_python_venv(PY38)
+    python38 = venv.interpreter.binary
+    pip = venv.bin_path("pip")
+
     polluted_cwd = os.path.join(str(tmpdir), "dir")
     subprocess.check_call(args=[pip, "install", "--target", polluted_cwd, "pex==2.1.16"])
 

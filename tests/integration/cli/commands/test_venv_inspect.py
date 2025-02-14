@@ -136,7 +136,9 @@ def test_inspect_venv_non_pex(
 ):
     # type: (...) -> None
 
-    python, _ = ensure_python_venv(python_version, system_site_packages=system_site_packages)
+    venv = ensure_python_venv(python_version, system_site_packages=system_site_packages)
+    python = venv.interpreter.binary
+
     python_major_version = int(python_version.split(".")[0])
     assert_inspect(
         target=python,

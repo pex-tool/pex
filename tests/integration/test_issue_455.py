@@ -44,7 +44,10 @@ def test_exclude(tmpdir):
     ).assert_success()
 
     env = os.environ.copy()
-    python, pip = ensure_python_venv(PY310)
+    py310_venv = ensure_python_venv(PY310)
+    python = py310_venv.interpreter.binary
+    pip = py310_venv.bin_path("pip")
+
     subprocess.check_call(args=[pip, "install", "MacFSEvents" if IS_MAC else "pyinotify"])
     env["PEX_INHERIT_PATH"] = "fallback"
 

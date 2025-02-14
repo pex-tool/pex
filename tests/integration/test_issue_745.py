@@ -15,7 +15,10 @@ def test_extras_isolation():
     # type: () -> None
     # Here we ensure one of our extras, `subprocess32`, is properly isolated in the transition from
     # pex bootstrapping where it is imported by `pex.executor` to execution of user code.
-    python, pip = ensure_python_venv(PY27)
+    venv = ensure_python_venv(PY27)
+    python = venv.interpreter.binary
+    pip = venv.bin_path("pip")
+
     subprocess.check_call([pip, "install", "subprocess32"])
     with temporary_dir() as td:
         src_dir = os.path.join(td, "src")

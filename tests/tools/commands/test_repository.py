@@ -267,7 +267,8 @@ def test_extract_lifecycle(pex, pex_tools_env, tmpdir):
     )
     result.assert_success()
 
-    _, pip = ensure_python_venv(PY310)
+    venv = ensure_python_venv(PY310)
+    pip = venv.bin_path("pip")
     subprocess.check_call(
         args=[
             pip,
@@ -280,7 +281,7 @@ def test_extract_lifecycle(pex, pex_tools_env, tmpdir):
             "example",
         ]
     )
-    example_console_script = os.path.join(os.path.dirname(pip), "example")
+    example_console_script = venv.bin_path("example")
 
     find_links_server.send_signal(signal.SIGTERM)
     assert -1 * int(signal.SIGTERM) == find_links_server.wait()

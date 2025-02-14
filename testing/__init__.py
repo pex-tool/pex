@@ -18,19 +18,19 @@ from textwrap import dedent
 
 from pex.atomic_directory import atomic_directory
 from pex.common import open_zip, safe_mkdir, safe_mkdtemp, safe_rmtree, safe_sleep, temporary_dir
-from pex.compatibility import to_unicode
 from pex.dist_metadata import Distribution
 from pex.enum import Enum
 from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
-from pex.os import LINUX, MAC
+from pex.os import LINUX, MAC, WINDOWS
 from pex.pep_427 import install_wheel_chroot
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
 from pex.pip.installation import get_pip
 from pex.resolve.configured_resolver import ConfiguredResolver
-from pex.typing import TYPE_CHECKING
+from pex.sysconfig import SCRIPT_DIR, script_name
+from pex.typing import TYPE_CHECKING, cast
 from pex.util import named_temporary_file
 from pex.venv.virtualenv import InstallationChoice, Virtualenv
 
@@ -150,8 +150,8 @@ def make_project(
             zip_safe=%(zip_safe)r,
             packages=[%(project_name)r],
             scripts=[
-              'scripts/hello_world',
-              'scripts/shell_script',
+              'scripts/%(hello_world_script_name)s',
+              'scripts/%(shell_script_name)s',
             ],
             package_data={%(project_name)r: ['package_data/*.dat']},
             install_requires=%(install_requires)r,
@@ -162,13 +162,35 @@ def make_project(
             )
             """
         ),
-        "scripts/hello_world": '#!/usr/bin/env python\nprint("hello world from py script!")\n',
-        "scripts/shell_script": "#!/usr/bin/env bash\necho hello world from shell script\n",
         os.path.join(name, "__init__.py"): 0,
         os.path.join(name, "my_module.py"): 'def do_something():\n  print("hello world!")\n',
         os.path.join(name, "package_data/resource1.dat"): 1000,
         os.path.join(name, "package_data/resource2.dat"): 1000,
     }  # type: Dict[str, Union[str, int]]
+
+    if WINDOWS:
+        project_content.update(
+            (
+                (
+                    "scripts/hello_world.py",
+                    '#!/usr/bin/env python\r\nprint("hello world from py script!")\r\n',
+                ),
+                ("scripts/shell_script.bat", "@echo off\r\necho hello world from shell script\r\n"),
+            )
+        )
+    else:
+        project_content.update(
+            (
+                (
+                    "scripts/hello_world",
+                    '#!/usr/bin/env python\nprint("hello world from py script!")\n',
+                ),
+                (
+                    "scripts/shell_script",
+                    "#!/usr/bin/env bash\necho hello world from shell script\n",
+                ),
+            )
+        )
 
     interp = {
         "project_name": name,
@@ -179,6 +201,8 @@ def make_project(
         "entry_points": entry_points or {},
         "python_requires": python_requires,
         "universal": universal,
+        "hello_world_script_name": "hello_world.py" if WINDOWS else "hello_world",
+        "shell_script_name": "shell_script.bat" if WINDOWS else "shell_script",
     }
 
     with temporary_content(project_content, interp=interp) as td:
@@ -486,13 +510,16 @@ def run_simple_pex_test(
         return run_simple_pex(pex, args=args, env=env, interpreter=interpreter)
 
 
+PYENV_GIT_URL = "https://github.com/{pyenv}".format(
+    pyenv="pyenv-win/pyenv-win" if WINDOWS else "pyenv/pyenv"
+)
+
+
 def bootstrap_python_installer(dest):
     # type: (str) -> None
     for index in range(3):
         try:
-            subprocess.check_call(
-                args=["git", "clone", "--depth", "1", "https://github.com/pyenv/pyenv", dest]
-            )
+            subprocess.check_call(args=["git", "clone", "--depth", "1", PYENV_GIT_URL, dest])
             return
         except subprocess.CalledProcessError as e:
             print("Error cloning pyenv on attempt", index + 1, "of 3:", e, file=sys.stderr)
@@ -523,19 +550,74 @@ PEX_TEST_DEV_ROOT = os.path.abspath(
 )
 
 
+@attr.s(frozen=True)
+class PythonDistribution(object):
+    @classmethod
+    def from_venv(cls, venv):
+        # type: (str) -> PythonDistribution
+        virtualenv = Virtualenv(venv)
+        return cls(home=venv, interpreter=virtualenv.interpreter, pip=virtualenv.bin_path("pip"))
+
+    home = attr.ib()  # type: str
+    interpreter = attr.ib()  # type: PythonInterpreter
+    pip = attr.ib()  # type: str
+
+    @property
+    def binary(self):
+        # type: () -> str
+        return self.interpreter.binary
+
+
+@attr.s(frozen=True)
+class PyenvPythonDistribution(PythonDistribution):
+    pyenv_root = attr.ib()  # type: str
+    _pyenv_script = attr.ib()  # type: str
+
+    def pyenv_env(self, **extra_env):
+        # type: (**str) -> Dict[str, str]
+        env = os.environ.copy()
+        env.update(extra_env)
+        env["PYENV_ROOT"] = self.pyenv_root
+        env["PATH"] = os.pathsep.join(
+            [os.path.join(self.pyenv_root, path) for path in ("bin", "shims")]
+            + os.getenv("PATH", os.defpath).split(os.pathsep)
+        )
+        return env
+
+    def run_pyenv(
+        self,
+        args,  # type: Iterable[str]
+        **popen_kwargs  # type: Any
+    ):
+        # type: (...) -> Text
+        return cast(
+            "Text",
+            subprocess.check_output(
+                args=[self._pyenv_script] + list(args),
+                env=self.pyenv_env(**popen_kwargs.pop("env", {})),
+                **popen_kwargs
+            ).decode("utf-8"),
+        )
+
+
 def ensure_python_distribution(version):
-    # type: (str) -> Tuple[str, str, str, Callable[[Iterable[str]], Text]]
+    # type: (str) -> PyenvPythonDistribution
     if version not in ALL_PY_VERSIONS:
         raise ValueError("Please constrain version to one of {}".format(ALL_PY_VERSIONS))
 
-    pyenv_root = os.path.join(PEX_TEST_DEV_ROOT, "pyenv")
+    assert not WINDOWS or _ALL_PY_VERSIONS_TO_VERSION_INFO[version][:2] >= (
+        3,
+        8,
+    ), "Test uses pyenv {} interpreter which is not supported on Windows.".format(version)
+
+    clone_dir = os.path.abspath(
+        os.path.join(PEX_TEST_DEV_ROOT, "pyenv-win" if WINDOWS else "pyenv")
+    )
+    pyenv_root = os.path.join(clone_dir, "pyenv-win") if WINDOWS else clone_dir
     interpreter_location = os.path.join(pyenv_root, "versions", version)
 
-    pyenv = os.path.join(pyenv_root, "bin", "pyenv")
-    pyenv_env = os.environ.copy()
-    pyenv_env["PYENV_ROOT"] = pyenv_root
-
-    pip = os.path.join(interpreter_location, "bin", "pip")
+    pyenv = os.path.join(pyenv_root, "bin", "pyenv.bat" if WINDOWS else "pyenv")
+    pip = os.path.join(interpreter_location, SCRIPT_DIR, script_name("pip"))
 
     with atomic_directory(target_dir=pyenv_root) as pyenv_root_atomic_dir:
         if not pyenv_root_atomic_dir.is_finalized():
@@ -546,7 +628,8 @@ def ensure_python_distribution(version):
             with pyenv_root_atomic_dir.locked():
                 subprocess.check_call(args=["git", "pull", "--ff-only"], cwd=pyenv_root)
 
-            env = pyenv_env.copy()
+            env = os.environ.copy()
+            env["PYENV_ROOT"] = pyenv_root
             if sys.platform.lower().startswith("linux"):
                 env["CONFIGURE_OPTS"] = "--enable-shared"
                 # The pyenv builder detects `--enable-shared` and sets up `RPATH` via
@@ -555,21 +638,26 @@ def ensure_python_distribution(version):
                 # though which is searched _after_ the `LD_LIBRARY_PATH` environment variable. To
                 # ensure an inopportune `LD_LIBRARY_PATH` doesn't fool the pyenv python binary into
                 # linking the wrong libpython, force `RPATH`, which is searched 1st by the linker,
-                # with with `--disable-new-dtags`.
+                # with `--disable-new-dtags`.
                 env["LDFLAGS"] = "-Wl,--disable-new-dtags"
             subprocess.check_call([pyenv, "install", version], env=env)
             subprocess.check_call([pip, "install", "-U", "pip<22.1"])
 
-    major, minor = version.split(".")[:2]
-    python = os.path.join(
-        interpreter_location, "bin", "python{major}.{minor}".format(major=major, minor=minor)
+    if WINDOWS:
+        python = os.path.join(interpreter_location, "python.exe")
+    else:
+        major, minor = version.split(".")[:2]
+        python = os.path.join(
+            interpreter_location, "bin", "python{major}.{minor}".format(major=major, minor=minor)
+        )
+
+    return PyenvPythonDistribution(
+        home=interpreter_location,
+        interpreter=PythonInterpreter.from_binary(python),
+        pip=pip,
+        pyenv_root=pyenv_root,
+        pyenv_script=pyenv,
     )
-
-    def run_pyenv(args):
-        # type: (Iterable[str]) -> Text
-        return to_unicode(subprocess.check_output([pyenv] + list(args), env=pyenv_env))
-
-    return interpreter_location, python, pip, run_pyenv
 
 
 def ensure_python_venv(
@@ -577,30 +665,29 @@ def ensure_python_venv(
     latest_pip=True,  # type: bool
     system_site_packages=False,  # type: bool
 ):
-    # type: (...) -> Tuple[str, str]
-    _, python, pip, _ = ensure_python_distribution(version)
+    # type: (...) -> Virtualenv
+    pyenv_distribution = ensure_python_distribution(version)
     venv = safe_mkdtemp()
     if _ALL_PY_VERSIONS_TO_VERSION_INFO[version][0] == 3:
-        args = [python, "-m", "venv", venv]
+        args = [pyenv_distribution.binary, "-m", "venv", venv]
         if system_site_packages:
             args.append("--system-site-packages")
         subprocess.check_call(args=args)
     else:
-        subprocess.check_call(args=[pip, "install", "virtualenv==16.7.10"])
-        args = [python, "-m", "virtualenv", venv, "-q"]
+        subprocess.check_call(args=[pyenv_distribution.pip, "install", "virtualenv==16.7.10"])
+        args = [pyenv_distribution.binary, "-m", "virtualenv", venv, "-q"]
         if system_site_packages:
             args.append("--system-site-packages")
         subprocess.check_call(args=args)
     python, pip = tuple(os.path.join(venv, "bin", exe) for exe in ("python", "pip"))
     if latest_pip:
         subprocess.check_call(args=[pip, "install", "-U", "pip"])
-    return python, pip
+    return Virtualenv(venv)
 
 
 def ensure_python_interpreter(version):
     # type: (str) -> str
-    _, python, _, _ = ensure_python_distribution(version)
-    return python
+    return ensure_python_distribution(version).binary
 
 
 class InterpreterImplementation(Enum["InterpreterImplementation.Value"]):
@@ -648,19 +735,28 @@ def python_venv(
     return venv.interpreter.binary, venv.bin_path("pip")
 
 
+def _applicable_py_versions():
+    # type: () -> Iterable[str]
+    for version in ALL_PY_VERSIONS:
+        if WINDOWS and _ALL_PY_VERSIONS_TO_VERSION_INFO[version][:2] < (3, 8):
+            continue
+        yield version
+
+
 def all_pythons():
     # type: () -> Tuple[str, ...]
-    return tuple(ensure_python_interpreter(version) for version in ALL_PY_VERSIONS)
+    return tuple(ensure_python_interpreter(version) for version in _applicable_py_versions())
 
 
 @attr.s(frozen=True)
 class VenvFactory(object):
     python_version = attr.ib()  # type: str
-    _factory = attr.ib()  # type: Callable[[], Tuple[str, str]]
+    _factory = attr.ib()  # type: Callable[[], Virtualenv]
 
     def create_venv(self):
         # type: () -> Tuple[str, str]
-        return self._factory()
+        venv = self._factory()
+        return venv.interpreter.binary, venv.bin_path("pip")
 
 
 def all_python_venvs(system_site_packages=False):
@@ -670,7 +766,7 @@ def all_python_venvs(system_site_packages=False):
             python_version=version,
             factory=lambda: ensure_python_venv(version, system_site_packages=system_site_packages),
         )
-        for version in ALL_PY_VERSIONS
+        for version in _applicable_py_versions()
     )
 
 

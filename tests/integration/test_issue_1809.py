@@ -24,7 +24,9 @@ if TYPE_CHECKING:
 def test_excepthook_scrubbing(tmpdir):
     # type: (Any) -> None
 
-    original_python_installation, original_python, _, _ = ensure_python_distribution(PY310)
+    py310_dist = ensure_python_distribution(PY310)
+    original_python_installation = py310_dist.home
+    original_python = py310_dist.binary
 
     custom_python_installation = os.path.join(str(tmpdir), "custom")
     shutil.copytree(original_python_installation, custom_python_installation)

@@ -1,31 +1,34 @@
 # Copyright 2021 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-import errno
+from __future__ import absolute_import
+
 import os
 import uuid
 
 import pytest
 
-from pex.common import temporary_dir
+from pex.common import safe_delete, temporary_dir
 from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
+from pex.typing import TYPE_CHECKING
 from testing import PY310, ensure_python_venv, make_env, run_pex_command, run_simple_pex
+
+if TYPE_CHECKING:
+    from typing import Callable, Iterator
 
 
 @pytest.fixture
 def create_pth():
-    def safe_rm(path):
-        try:
-            os.unlink(path)
-        except OSError as e:
-            if e.errno != errno.ENOENT:
-                raise
-
+    # type: () -> Iterator[Callable[[str, str], None]]
     cleanups = []
 
-    def write_pth(pth_path, sitedir):
-        cleanups.append(lambda: safe_rm(pth_path))
+    def write_pth(
+        pth_path,  # type: str
+        sitedir,  # type: str
+    ):
+        # type: (...) -> None
+        cleanups.append(lambda: safe_delete(pth_path))
         with open(pth_path, "w") as fp:
             fp.write("import site; site.addsitedir({!r})\n".format(sitedir))
 
@@ -37,7 +40,11 @@ def create_pth():
 
 
 def test_extras_isolation(create_pth):
-    python, pip = ensure_python_venv(PY310)
+    # type: (Callable[[str, str], None]) -> None
+    venv = ensure_python_venv(PY310)
+    python = venv.interpreter.binary
+    pip = venv.bin_path("pip")
+
     interpreter = PythonInterpreter.from_binary(python)
     _, stdout, _ = interpreter.execute(args=["-c", "import site; print(site.getsitepackages()[0])"])
     with temporary_dir() as tmpdir:

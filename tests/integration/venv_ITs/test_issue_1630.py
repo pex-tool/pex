@@ -21,7 +21,9 @@ if TYPE_CHECKING:
 def test_data_files(tmpdir):
     # type: (Any) -> None
 
-    py38, pip = ensure_python_venv(PY38)
+    venv = ensure_python_venv(PY38)
+    py38 = venv.interpreter.binary
+    pip = venv.bin_path("pip")
 
     pex_file = os.path.join(str(tmpdir), "pex.file")
     pex_root = os.path.join(str(tmpdir), "pex_root")

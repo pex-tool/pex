@@ -1094,13 +1094,15 @@ class PythonInterpreter(object):
                 safe_rmtree(cache_dir)
                 return cls._spawn_from_binary_external(binary)
         else:
-            pythonpath = third_party.expose(["pex"])
+            pythonpath = tuple(third_party.expose(["pex"]))
             cmd, env = cls._create_isolated_cmd(
                 binary,
                 args=[
                     "-c",
                     dedent(
                         """\
+                        from __future__ import absolute_import
+
                         import os
                         import sys
 
