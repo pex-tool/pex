@@ -187,7 +187,9 @@ def test_lock_subset_target_systems_and_ics_issue_2683(tmpdir):
 
     lock = data.path("locks", "issue-2683.lock.json")
     subset_lock = tmpdir.join("subset-lock.json")
-    run_pex3("lock", "subset", "--lock", lock, "click", "-o", subset_lock, "--indent", "2").assert_success()
+    run_pex3(
+        "lock", "subset", "--lock", lock, "click", "-o", subset_lock, "--indent", "2"
+    ).assert_success()
 
     subset_lockfile, subset_locked_reqs = index(subset_lock)
     assert SortedTuple([Requirement.parse("click")]) == subset_lockfile.requirements
