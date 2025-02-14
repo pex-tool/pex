@@ -1,5 +1,22 @@
 # Release Notes
 
+## 2.33.1
+
+This release fixes a bug in both `pex3 lock subset` and
+`pex3 lock {create,sync,update} --elide-unused-requires-dist` for `--style universal` locks whose
+locked requirements have dependencies de-selected by the following environment markers:
++ `os_name`
++ `platform_system`
++ `sys_platform`
++ `python_version`
++ `python_full_version`
+
+The first three could lead to errors when the universal lock was generated with `--target-system`s
+and the last two could lead to errors when the universal lock was generated with
+`--interpreter-constraint`.
+
+* Fix `pex3 lock subset`. (#2684)
+
 ## 2.33.0
 
 This release adds support for Pip 25.0.1.
