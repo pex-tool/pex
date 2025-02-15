@@ -5,7 +5,6 @@ from __future__ import absolute_import
 
 import operator
 from collections import defaultdict, deque
-from typing import Any, FrozenSet, Type, TypeVar
 
 from pex.dist_metadata import Requirement
 from pex.exceptions import production_assert
@@ -19,7 +18,21 @@ from pex.third_party.packaging.markers import Marker, Variable
 from pex.typing import TYPE_CHECKING, Generic, cast
 
 if TYPE_CHECKING:
-    from typing import Callable, DefaultDict, Dict, Iterable, Iterator, List, Optional, Tuple, Union
+    from typing import (
+        Any,
+        Callable,
+        DefaultDict,
+        Dict,
+        FrozenSet,
+        Iterable,
+        Iterator,
+        List,
+        Optional,
+        Tuple,
+        Type,
+        TypeVar,
+        Union,
+    )
 
     import attr  # vendor:skip
 
