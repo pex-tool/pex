@@ -34,8 +34,14 @@ jobs:
           python-version: "3.11"
       - name: Build Doc Site
         uses: pex-tool/actions/run-tox@c53dadd8b410bbd66480de91067e9e45d2b3af38
+        if: github.repository_owner == 'pex-tool'
         with:
           tox-env: docs -- --linkcheck --pdf --clean-html
+      - name: Build Fork Doc Site
+        uses: pex-tool/actions/run-tox@c53dadd8b410bbd66480de91067e9e45d2b3af38
+        if: github.repository_owner != 'pex-tool'
+        with:
+          tox-env: docs -- --linkcheck --pdf --clean-html --subdir ${{ github.event.repository.name }}
       - name: Setup Pages
         uses: actions/configure-pages@v4
       - name: Upload artifact
