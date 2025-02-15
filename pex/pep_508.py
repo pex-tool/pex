@@ -37,7 +37,7 @@ def _convert_non_pep_440_dev_versions(python_full_version):
 class MarkerEnvironment(object):
     """A PEP-508 marker environment.
 
-    See: https://www.python.org/dev/peps/pep-0508/#environment-markers
+    See: https://peps.python.org/pep-0508/#environment-markers
     """
 
     @classmethod
@@ -89,13 +89,13 @@ class MarkerEnvironment(object):
                 # + linux_x86_64
                 # + manylinux{1,2010,2014}_x86_64
                 # For the manylinux* See:
-                # + manylinux1: https://www.python.org/dev/peps/pep-0513/
-                # + manylinux2010: https://www.python.org/dev/peps/pep-0571/
-                # + manylinux2014: https://www.python.org/dev/peps/pep-0599/
+                # + manylinux1: https://peps.python.org/pep-0513/
+                # + manylinux2010: https://peps.python.org/pep-0571/
+                # + manylinux2014: https://peps.python.org/pep-0599/
                 platform_machine = platform.platform.split("_", 1)[-1]
             else:
                 # E.G.: manylinux_<glibc major>_<glibc_minor>_x86_64
-                # See: https://www.python.org/dev/peps/pep-0600/
+                # See: https://peps.python.org/pep-0600/
                 platform_machine = platform.platform.split("_", 3)[-1]
             platform_system = "Linux"
             sys_platform = "linux2" if major_version == 2 else "linux"

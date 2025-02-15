@@ -28,7 +28,7 @@ def _ensure_ascii_str(text):
 class ProjectName(object):
     """Encodes a canonicalized project name as per PEP-503.
 
-    See: https://www.python.org/dev/peps/pep-0503/#normalized-names
+    See: https://peps.python.org/pep-0503/#normalized-names
     """
 
     class InvalidError(ValueError):

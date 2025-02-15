@@ -304,7 +304,7 @@ class PythonIdentity(object):
                 # Old virtualenv (16 series and lower) sets `sys.real_prefix` in all cases.
                 cast("Optional[str]", getattr(sys, "real_prefix", None))
                 # Both pyvenv and virtualenv 20+ set `sys.base_prefix` as per
-                # https://www.python.org/dev/peps/pep-0405/.
+                # https://peps.python.org/pep-0405/.
                 or cast(str, getattr(sys, "base_prefix", sys.prefix))
             ),
             sys_path=sys_path,
@@ -674,7 +674,7 @@ class PythonIdentity(object):
 class PyVenvCfg(object):
     """Represents a pyvenv.cfg file.
 
-    See: https://www.python.org/dev/peps/pep-0405/#specification
+    See: https://peps.python.org/pep-0405/#specification
     """
 
     class Error(ValueError):
@@ -688,7 +688,7 @@ class PyVenvCfg(object):
         :param path: The path of putative pyvenv.cfg file.
         :raises: :class:`PyVenvCfg.Error` if the given `path` doesn't contain a pyvenv.cfg home key.
         """
-        # See: https://www.python.org/dev/peps/pep-0405/#specification
+        # See: https://peps.python.org/pep-0405/#specification
         config = {}
         with open(path) as fp:
             for line in fp:
@@ -703,7 +703,7 @@ class PyVenvCfg(object):
     @classmethod
     def _get_pyvenv_cfg(cls, path):
         # type: (str) -> Optional[PyVenvCfg]
-        # See: https://www.python.org/dev/peps/pep-0405/#specification
+        # See: https://peps.python.org/pep-0405/#specification
         pyvenv_cfg_path = os.path.join(path, "pyvenv.cfg")
         if os.path.isfile(pyvenv_cfg_path):
             try:
@@ -734,7 +734,7 @@ class PyVenvCfg(object):
         #
         # In practice, we see layout 2 in the wild, but layout 1 is also allowed by the spec.
         #
-        # See: # See: https://www.python.org/dev/peps/pep-0405/#specification
+        # See: # See: https://peps.python.org/pep-0405/#specification
         maybe_venv_bin_dir = os.path.dirname(python_binary)
         pyvenv_cfg = cls._get_pyvenv_cfg(maybe_venv_bin_dir)
         if not pyvenv_cfg:
@@ -1032,7 +1032,7 @@ class PythonInterpreter(object):
     #
     # See:
     # + https://github.com/python/mypy/issues/4211
-    # + https://www.python.org/dev/peps/pep-0484/#the-typing-module
+    # + https://peps.python.org/pep-0484/#the-typing-module
     _PYENV = ()  # type: Union[Tuple[()],Optional[Pyenv]]
 
     @classmethod

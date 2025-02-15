@@ -192,7 +192,7 @@ def test_minimum_sys_modules():
     assert tainted_module.__path__ == ["good_path"]  # type: ignore[attr-defined]
 
     # If __path__ is not a list the module is removed; typically this implies
-    # it's a namespace package (https://www.python.org/dev/peps/pep-0420/) where
+    # it's a namespace package (https://peps.python.org/pep-0420/) where
     # __path__ is a _NamespacePath.
     try:
         from importlib._bootstrap_external import _NamespacePath  # type: ignore

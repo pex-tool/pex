@@ -21,7 +21,7 @@ import httpx
 PEX_DEV_DIR = Path("~/.pex_dev").expanduser()
 
 PAGEFIND_NAME = "pagefind"
-PAGEFIND_VERSION = "1.0.4"
+PAGEFIND_VERSION = "1.3.0"
 
 
 class Platform(Enum):

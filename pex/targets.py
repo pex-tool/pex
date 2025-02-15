@@ -116,9 +116,9 @@ class Target(object):
 
         # N.B.: The `python_version_str` will be of the form `X.Y` for traditional
         # AbbreviatedPlatform targets with a PYVER of the form `XY`. The Requires-Python metadata
-        # (see: https://www.python.org/dev/peps/pep-0345/#requires-python) can contain full versions
+        # (see: https://peps.python.org/pep-0345/#requires-python) can contain full versions
         # in its version specifier like `>=3.8.1`. PEP-440 (
-        # https://www.python.org/dev/peps/pep-0440/#version-specifiers) specifier missing version
+        # https://peps.python.org/pep-0440/#version-specifiers) specifier missing version
         # components are padded with zeros for all comparison operators besides `===` which can
         # silently lead to incorrect results. If the target platform has a PYVER of 38 we don't know
         # if that platform represents a final target of 3.8.0 or 3.8.1 or some other 3.8 version,

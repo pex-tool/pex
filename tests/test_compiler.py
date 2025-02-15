@@ -55,7 +55,7 @@ def test_compile_success():
             with open(compiled_abspath, "rb") as fp:
                 fp.read(4)  # Skip the magic header.
                 if sys.version_info[:2] >= (3, 7):
-                    # We're in PEP-552 mode: https://www.python.org/dev/peps/pep-0552
+                    # We're in PEP-552 mode: https://peps.python.org/pep-0552
                     fp.read(4)  # Skip the invalidation mode bitfield.
                 fp.read(4)  # Skip the timestamp.
                 if compatibility.PY3:

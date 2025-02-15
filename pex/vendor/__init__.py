@@ -145,7 +145,7 @@ class VendorSpec(
           pex/vendor/_vendored/requests/__init__.py
 
         These package files allow for standard python importers to find vendored code via re-directs
-        from a `PEP-302 <https://www.python.org/dev/peps/pep-0302/>`_ importer like
+        from a `PEP-302 <https://peps.python.org/pep-0302/>`_ importer like
         :class:`pex.third_party.VendorImporter`.
         """
         if not self.rewrite:

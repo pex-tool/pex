@@ -334,7 +334,7 @@ def test_parse_requirements_stress(chroot):
                 beautifulsoup4
                 #
                 ###### Requirements with Version Specifiers ######
-                #   See https://www.python.org/dev/peps/pep-0440/#version-specifiers
+                #   See https://peps.python.org/pep-0440/#version-specifiers
                 docopt == 0.6.1             # Version Matching. Must be version 0.6.1
                 keyring >= 4.1.1            # Minimum version 4.1.1
                 coverage != 3.5             # Version Exclusion. Anything except version 3.5

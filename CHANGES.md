@@ -1855,7 +1855,7 @@ Pex version range.
 
 This is another hotfix release for 2.1.68 that fixes a bug in `*.data/*`
 file handling for installed wheels which is outlined in [PEP
-427](https://www.python.org/dev/peps/pep-0427/#installing-a-wheel-distribution-1-0-py32-none-any-whl)
+427](https://peps.python.org/pep-0427/#installing-a-wheel-distribution-1-0-py32-none-any-whl)
 
 * Handle `*.data/*` RECORD entries not existing. (#1644)
 

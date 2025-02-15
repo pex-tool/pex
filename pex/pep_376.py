@@ -112,7 +112,7 @@ def find_and_replace_path_components(
 class InstalledFile(object):
     """The record of a single installed file from a PEP 376 RECORD file.
 
-    See: https://www.python.org/dev/peps/pep-0376/#record
+    See: https://peps.python.org/pep-0376/#record
     """
 
     _PYTHON_VER_PLACEHOLDER = "pythonX.Y"
@@ -469,7 +469,7 @@ class DistInfoFile(object):
 class Record(object):
     """Represents the PEP-376 RECORD of an installed wheel.
 
-    See: https://www.python.org/dev/peps/pep-0376/#record
+    See: https://peps.python.org/pep-0376/#record
     """
 
     @classmethod
@@ -481,7 +481,7 @@ class Record(object):
         # type: (...) -> None
 
         # The RECORD is a csv file with the path to each installed file in the 1st column.
-        # See: https://www.python.org/dev/peps/pep-0376/#record
+        # See: https://peps.python.org/pep-0376/#record
         with safe_open(dst, "w") as fp:
             csv_writer = cast(
                 "CSVWriter",
@@ -499,7 +499,7 @@ class Record(object):
         # type: (...) -> Iterator[InstalledFile]
 
         # The RECORD is a csv file with the path to each installed file in the 1st column.
-        # See: https://www.python.org/dev/peps/pep-0376/#record
+        # See: https://peps.python.org/pep-0376/#record
         for line, (path, fingerprint, file_size) in enumerate(
             csv.reader(lines, delimiter=",", quotechar='"'), start=1
         ):

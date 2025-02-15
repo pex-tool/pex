@@ -34,7 +34,7 @@ def _ensure_ascii_str(text):
 @functools.total_ordering
 @attr.s(frozen=True, order=False)
 class Version(object):
-    """A PEP-440 normalized version: https://www.python.org/dev/peps/pep-0440/#normalization"""
+    """A PEP-440 normalized version: https://peps.python.org/pep-0440/#normalization"""
 
     raw = attr.ib(eq=False, converter=_ensure_ascii_str)  # type: str
     normalized = attr.ib(init=False)  # type: str
@@ -45,7 +45,7 @@ class Version(object):
     def __attrs_post_init__(self):
         # type: () -> None
 
-        # Although https://www.python.org/dev/peps/pep-0440 which does not allow a `-` in modern
+        # Although https://peps.python.org/pep-0440 which does not allow a `-` in modern
         # versions, it also stipulates that all versions (legacy) must be handled. It turns out
         # wheel normalizes `-` to `_` and Pip has had to deal with this:
         #   https://github.com/pypa/pip/issues/1150
