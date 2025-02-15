@@ -303,7 +303,7 @@ def register(
         action=HandleBoolAction,
         help=(
             "Whether to force use of PEP 517 for building source distributions into wheels ("
-            "https://www.python.org/dev/peps/pep-0517) or force direct invocation of"
+            "https://peps.python.org/pep-0517) or force direct invocation of"
             "`setup.py bdist_wheel` (which requires all source distributions have a `setup.py` "
             "based build). Defaults to using PEP-517 only when a `pyproject.toml` file is present "
             "with a `build-system` section. If PEP-517 is forced (--use-pep517 is passed) and no "
@@ -321,7 +321,7 @@ def register(
         action=HandleBoolAction,
         help=(
             "Disable `sys.path` isolation when building a modern source distribution. Build "
-            "dependencies specified by PEP 518 (https://www.python.org/dev/peps/pep-0518) must "
+            "dependencies specified by PEP 518 (https://peps.python.org/pep-0518) must "
             "already be installed on the `sys.path` if this option is used."
         ),
     )

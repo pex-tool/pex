@@ -396,7 +396,7 @@ string (e.g., ``3.6`` or ``3.10.1``) and ``ABI`` is the ABI tag (e.g., ``cp36m``
 ``abi3``, ``none``). A complete example: ``linux_x86_64-cp-36-cp36m``.
 
 **Constraints**: when ``--platform`` is used the
-`environment marker <https://www.python.org/dev/peps/pep-0508/#environment-markers>`_
+`environment marker <https://peps.python.org/pep-0508/#environment-markers>`_
 ``python_full_version`` will not be available if ``PYVER`` is not given as a three component dotted
 version since ``python_full_version`` is meant to have 3 digits (e.g., ``3.8.10``). If a
 ``python_full_version`` environment marker is encountered during a resolve, an
@@ -414,11 +414,11 @@ The complete platform can be either a path to a file containing JSON data or els
 literal. In either case, the JSON object is expected to have two fields with any other fields
 ignored. The ``marker_environment`` field should have an object value with string field values
 corresponding to
-`PEP-508 marker environment <https://www.python.org/dev/peps/pep-0508/#environment-markers>`_
+`PEP-508 marker environment <https://peps.python.org/pep-0508/#environment-markers>`_
 entries. It is OK to only have a subset of valid marker environment fields but it is not valid to
 present entries not defined in PEP-508. The ``compatible_tags`` field should have an array of
 strings value containing the compatible tags in order from most specific first to least
-specific last as defined in `PEP-425 <https://www.python.org/dev/peps/pep-0425>`_. Pex can create
+specific last as defined in `PEP-425 <https://peps.python.org/pep-0425>`_. Pex can create
 complete platform JSON for you by running it on the target platform like so:
 ``pex3 interpreter inspect --markers --tags``. For more options, particularly to select the desired
 target interpreter see: ``pex3 interpreter inspect --help``.

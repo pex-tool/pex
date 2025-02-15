@@ -333,7 +333,7 @@ Lifecycle.seal()
 # This value is based off of:
 # 1. Past releases: https://www.python.org/downloads/ where the max patch level was achieved by
 #    2.7.18.
-# 2. The 3.9+ annual release cycle formalization: https://www.python.org/dev/peps/pep-0602/ where
+# 2. The 3.9+ annual release cycle formalization: https://peps.python.org/pep-0602/ where
 #    the last bugfix release will be at a patch level of ~10 and then 3.5 years of security fixes
 #    as needed before going to EOL at the 5-year mark.
 DEFAULT_MAX_PATCH = 30

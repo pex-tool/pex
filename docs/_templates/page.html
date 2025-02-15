@@ -1,0 +1,9 @@
+{% extends "!page.html" %}
+
+{% block scripts -%}
+{{ super() }}
+<script type="module">
+    await import('{{ pex_site_subdir | default() }}/_pagefind/pagefind-highlight.js');
+    new PagefindHighlight({ highlightParam: "highlight" });
+</script>
+{%- endblock scripts %}

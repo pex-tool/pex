@@ -37,7 +37,7 @@ def iter_platform_args(
     # the machines it controls. This is in contrast to the public PyPI index which does not
     # allow non-manylinux-compliant wheels to be uploaded at all since the wheels it serves can
     # be used on unknown target linux machines (for background on this, see:
-    # https://www.python.org/dev/peps/pep-0513/#rationale). If that organization wishes to
+    # https://peps.python.org/pep-0513/#rationale). If that organization wishes to
     # consume both its own custom-built wheels as well as other manylinux-compliant wheels in
     # the same application, it needs to advertise that the target machine supports both
     # `linux_x86_64` wheels and `manylinux2014_x86_64` wheels (for example).

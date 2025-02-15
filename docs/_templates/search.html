@@ -1,4 +1,4 @@
-{% extends "page.html" %}
+{% extends "!page.html" %}
 
 {%- block htmltitle -%}
 <title>{{ _("Search") }} - {{ docstitle }}</title>
@@ -11,11 +11,12 @@
 
 {% block scripts -%}
 {{ super() }}
-<script src="/_pagefind/pagefind-ui.js" type="text/javascript"></script>
+<script src="{{ pex_site_subdir | default() }}/_pagefind/pagefind-ui.js" type="text/javascript"></script>
 <script>
   window.addEventListener("DOMContentLoaded", () => {
     new PagefindUI({
       element: "#search",
+      highlightParam: "highlight",
       showSubResults: true,
     });
 

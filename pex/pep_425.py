@@ -51,7 +51,7 @@ class CompatibilityTags(object):
     Tags are ordered most specific 1st to most generic last. The more specific a tag, the lower its
     rank value, with the most specific tag (best match) being ranked 0.
 
-    See: https://www.python.org/dev/peps/pep-0425/#use
+    See: https://peps.python.org/pep-0425/#use
     """
 
     @classmethod
@@ -65,7 +65,7 @@ class CompatibilityTags(object):
                 )
             )
         wheel_stem, _ = os.path.splitext(os.path.basename(wheel))
-        # Wheel filename format: https://www.python.org/dev/peps/pep-0427/#file-name-convention
+        # Wheel filename format: https://peps.python.org/pep-0427/#file-name-convention
         # `{distribution}-{version}(-{build tag})?-{python tag}-{abi tag}-{platform tag}.whl`
         wheel_components = wheel_stem.rsplit("-", 3)
         if len(wheel_components) != 4:

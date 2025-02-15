@@ -398,13 +398,13 @@ def _try_parse_pip_local_formats(
     # Requirements strings can optionally include:
     REQUIREMENT_PARTS_START = (
         # + Trailing extras denoted by `[...]`.
-        #   See: https://www.python.org/dev/peps/pep-0508/#extras
+        #   See: https://peps.python.org/pep-0508/#extras
         r"\[",
         # + A version specifier denoted by a leading `!=`, `==`, `===`, `>=`, `<=` or `~=`.
-        #   See: https://www.python.org/dev/peps/pep-0508/#grammar
+        #   See: https://peps.python.org/pep-0508/#grammar
         r"!=><~",
         # + Environment markers denoted by `;...`
-        #   See: https://www.python.org/dev/peps/pep-0508/#environment-markers
+        #   See: https://peps.python.org/pep-0508/#environment-markers
         r";",
         # + A trailing whitespace character separating any of the above
         r"\s",
@@ -562,7 +562,7 @@ def _parse_requirement_line(
             # PEP-440 requirement.
             pass
 
-    # Handle PEP-440. See: https://www.python.org/dev/peps/pep-0440.
+    # Handle PEP-440. See: https://peps.python.org/pep-0440.
     #
     # The `pex.dist_metadata.Requirement.parse` method does all of this for us (via
     # `packaging.requirements.Requirement`) except for the handling of PEP-440 direct url

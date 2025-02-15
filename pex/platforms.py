@@ -44,8 +44,8 @@ class PlatformSpec(object):
                     2. Abbreviated: <platform>-<python impl abbr>-<python version>-<abbr abi>
 
                     These fields stem from wheel name conventions as outlined in
-                    https://www.python.org/dev/peps/pep-0427#file-name-convention and influenced by
-                    https://www.python.org/dev/peps/pep-0425 except as otherwise noted below.
+                    https://peps.python.org/pep-0427#file-name-convention and influenced by
+                    https://peps.python.org/pep-0425 except as otherwise noted below.
 
                     Given a canonical platform string for CPython 3.7.5 running on 64 bit Linux of:
                       linux-x86_64-cp-37-cp37m
@@ -74,7 +74,7 @@ class PlatformSpec(object):
                     markers that use `python_full_version`. See the `--complete-platform` help as
                     well as:
                     + https://docs.pex-tool.org/buildingpex.html#complete-platform
-                    + https://www.python.org/dev/peps/pep-0508/#environment-markers
+                    + https://peps.python.org/pep-0508/#environment-markers
                     """
                 )
             )
@@ -110,7 +110,7 @@ class PlatformSpec(object):
                 )
 
             # Here version is py_version_nodot (e.g.: "37" or "310") as outlined in
-            # https://www.python.org/dev/peps/pep-0425/#python-tag
+            # https://peps.python.org/pep-0425/#python-tag
             version_components = [component[0], component[1:]]
 
         try:
@@ -130,7 +130,7 @@ class PlatformSpec(object):
         # type: (tags.Tag) -> PlatformSpec
         """Creates a platform corresponding to wheel compatibility tags.
 
-        See: https://www.python.org/dev/peps/pep-0425/#details
+        See: https://peps.python.org/pep-0425/#details
         """
         impl, version = tag.interpreter[:2], tag.interpreter[2:]
 

@@ -117,8 +117,8 @@ def _register_platform_options(
             "current interpreter you can pass `current`. To target any other platform you pass a "
             "string composed of fields: <platform>-<python impl abbr>-<python version>-<abi>. "
             "These fields stem from wheel name conventions as outlined in "
-            "https://www.python.org/dev/peps/pep-0427#file-name-convention and influenced by "
-            "https://www.python.org/dev/peps/pep-0425. To find out more, try "
+            "https://peps.python.org/pep-0427#file-name-convention and influenced by "
+            "https://peps.python.org/pep-0425. To find out more, try "
             "`{all_interpreters_info_cmd}` to print out the platform for all interpreters on the "
             "$PATH or `{single_interpreter_info_cmd}` to inspect the single interpreter "
             "{current_interpreter}.".format(
@@ -142,11 +142,11 @@ def _register_platform_options(
             "JSON object is expected to have two fields with any other fields ignored. The "
             "'marker_environment' field should have an object value with string field values "
             "corresponding to PEP-508 marker environment entries (See: "
-            "https://www.python.org/dev/peps/pep-0508/#environment-markers). It is OK to only have "
+            "https://peps.python.org/pep-0508/#environment-markers). It is OK to only have "
             "a subset of valid marker environment fields but it is not valid to present entries "
             "not defined in PEP-508. The 'compatible_tags' field should have an array of strings "
             "value containing the compatible tags in order from most specific first to least "
-            "specific last as defined in PEP-425 (See: https://www.python.org/dev/peps/pep-0425). "
+            "specific last as defined in PEP-425 (See: https://peps.python.org/pep-0425). "
             "Pex can create complete platform JSON for you by running it on the target platform "
             "like so: `pex3 interpreter inspect --markers --tags`. For more options, particularly "
             "to select the desired target interpreter see: `pex3 interpreter inspect --help`."
@@ -229,7 +229,7 @@ def _create_complete_platform(value):
     except TypeError as e:
         raise ArgumentTypeError(
             "Invalid environment entry provided: {err}\n"
-            "See https://www.python.org/dev/peps/pep-0508/#environment-markers for valid "
+            "See https://peps.python.org/pep-0508/#environment-markers for valid "
             "entries.".format(err=e)
         )
 

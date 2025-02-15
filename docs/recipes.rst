@@ -100,7 +100,7 @@ The Pex ``venv`` tool will:
 2) Pre-compile all PEX Python code installed in the venv.
 
 Notably, the PEX venv install is done using a
-`multi-stage build <https://docs.docker.com/develop/develop-images/multistage-build/>`_ to ensure
+`multi-stage build <https://docs.docker.com/build/building/multi-stage/>`_ to ensure
 only the final venv remains on disk and it uses two layers to ensure changes to application code
 do not lead to re-builds of lower layers. This accommodates the common case of modifying and
 re-deploying first party code more often than third party dependencies.
@@ -167,4 +167,4 @@ While building pex files, you may need to fetch dependencies through a proxy. Th
 
     $ pex -v pex
 
-For more information on the requests module support for proxies via environment variables, see the official documentation here: http://docs.python-requests.org/en/master/user/advanced/#proxies.
+For more information on the requests module support for proxies via environment variables, see the official documentation here: https://docs.python-requests.org/en/latest/user/advanced/#proxies.

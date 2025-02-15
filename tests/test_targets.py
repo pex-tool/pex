@@ -204,7 +204,7 @@ def test_requires_python_abbreviated_platform():
     assert_requires_python(True, "===3.7")
 
     # There is no zeo-padding for the `===` operator:
-    # https://www.python.org/dev/peps/pep-0440/#arbitrary-equality
+    # https://peps.python.org/pep-0440/#arbitrary-equality
     assert_requires_python(False, "===3.7.0")
 
     assert_requires_python(False, "===3.7.1")

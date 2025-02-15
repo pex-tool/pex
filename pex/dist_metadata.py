@@ -469,7 +469,7 @@ class ProjectNameAndVersion(object):
         # Handle wheels:
         #
         # The wheel filename convention is specified here:
-        #   https://www.python.org/dev/peps/pep-0427/#file-name-convention.
+        #   https://peps.python.org/pep-0427/#file-name-convention.
         if is_wheel(path):
             project_name, version, _ = os.path.basename(path).split("-", 2)
             return cls(project_name=project_name, version=version)
@@ -477,11 +477,11 @@ class ProjectNameAndVersion(object):
         # Handle sdists:
         #
         # The sdist name format has no accepted specification yet, but there is a proposal here:
-        #   https://www.python.org/dev/peps/pep-0625/#specification.
+        #   https://peps.python.org/pep-0625/#specification.
         #
         # We do the best we can to support the current landscape. A version number can technically
         # contain a dash though, even under the standards, in un-normalized form:
-        #   https://www.python.org/dev/peps/pep-0440/#pre-release-separators.
+        #   https://peps.python.org/pep-0440/#pre-release-separators.
         # For those cases this logic will produce incorrect results and it does not seem there is
         # much we can do since both project names and versions can contain both alphanumeric
         # characters and dashes.
@@ -551,7 +551,7 @@ def requires_python(location):
     # type: (Union[Distribution, MetadataFiles, Text]) -> Optional[SpecifierSet]
     """Examines dist for `Python-Requires` metadata and returns version constraints if any.
 
-    See: https://www.python.org/dev/peps/pep-0345/#requires-python
+    See: https://peps.python.org/pep-0345/#requires-python
 
     :param location: A distribution to check for `Python-Requires` metadata.
     :return: The required python version specifiers.
@@ -624,8 +624,8 @@ def requires_dists(location):
     comes in.
 
     See:
-    + https://www.python.org/dev/peps/pep-0345/#requires-dist-multiple-use
-    + https://www.python.org/dev/peps/pep-0314/#requires-multiple-use
+    + https://peps.python.org/pep-0345/#requires-dist-multiple-use
+    + https://peps.python.org/pep-0314/#requires-multiple-use
 
     :param location: A distribution to check for requirement metadata.
     :return: All requirements found.
@@ -719,7 +719,7 @@ def requires_dists(location):
 class RequirementParseError(Exception):
     """Indicates and invalid requirement string.
 
-    See PEP-508: https://www.python.org/dev/peps/pep-0508
+    See PEP-508: https://peps.python.org/pep-0508
     """
 
     error = attr.ib()  # type: Any

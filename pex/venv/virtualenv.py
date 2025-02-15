@@ -64,7 +64,7 @@ def _is_python_script(executable):
         return bool(
             # Support the `#!python` shebang that wheel installers should recognize as a special
             # form to convert to a localized shebang upon install.
-            # See: https://www.python.org/dev/peps/pep-0427/#recommended-installer-features
+            # See: https://peps.python.org/pep-0427/#recommended-installer-features
             interpreter == b"python\n"
             or re.search(
                 br"""

@@ -565,7 +565,7 @@ class Locker(LogAnalyzer):
         return self._lock_result
 
 
-# See https://www.python.org/dev/peps/pep-0508/#environment-markers for more about these values.
+# See https://peps.python.org/pep-0508/#environment-markers for more about these values.
 _OS_NAME = {
     TargetSystem.LINUX: "posix",
     TargetSystem.MAC: "posix",

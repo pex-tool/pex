@@ -24,7 +24,7 @@ PEX
 Overview
 ========
 pex is a library for generating .pex (Python EXecutable) files which are
-executable Python environments in the spirit of `virtualenvs <http://virtualenv.org>`_.
+executable Python environments in the spirit of `virtualenvs <https://virtualenv.pypa.io>`_.
 pex is an expansion upon the ideas outlined in
 `PEP 441 <https://peps.python.org/pep-0441/>`_
 and makes the deployment of Python applications as simple as ``cp``.  pex files may even
@@ -36,7 +36,7 @@ pex files can be built using the ``pex`` tool.  Build systems such as `Pants
 support building .pex files directly.
 
 Still unsure about what pex does or how it works?  Watch this quick lightning
-talk: `WTF is PEX? <http://www.youtube.com/watch?v=NmpnGhRwsu0>`_.
+talk: `WTF is PEX? <https://www.youtube.com/watch?v=NmpnGhRwsu0>`_.
 
 pex is licensed under the Apache2 license.
 

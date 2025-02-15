@@ -37,7 +37,7 @@ def _tracer():
 class _Loader(namedtuple("_Loader", ["module_name", "vendor_module_name"])):
 
     # The PEP-302 loader API.
-    # See: https://www.python.org/dev/peps/pep-0302/#specification-part-1-the-importer-protocol
+    # See: https://peps.python.org/pep-0302/#specification-part-1-the-importer-protocol
     def load_module(self, fullname):
         assert fullname in (
             self.module_name,
@@ -157,7 +157,7 @@ class _ZipIterator(namedtuple("_ZipIterator", ["zipfile_path", "prefix"])):
 
 
 class VendorImporter(object):
-    """A `PEP-302 <https://www.python.org/dev/peps/pep-0302/>`_ meta_path importer for vendored
+    """A `PEP-302 <https://peps.python.org/pep-0302/>`_ meta_path importer for vendored
     code.
 
     This importer redirects imports from its package to vendored code, optionally exposing the
@@ -380,7 +380,7 @@ class VendorImporter(object):
         return None
 
     # The Legacy PEP-302 finder API.
-    # See: https://www.python.org/dev/peps/pep-0302/#specification-part-1-the-importer-protocol
+    # See: https://peps.python.org/pep-0302/#specification-part-1-the-importer-protocol
     def find_module(self, fullname, path=None):
         for importable in self._importables:
             loader = importable.loader_for(fullname)

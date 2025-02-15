@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import atexit
+import itertools
 import os.path
 import platform
 import shutil
@@ -21,7 +22,7 @@ import httpx
 PEX_DEV_DIR = Path("~/.pex_dev").expanduser()
 
 PAGEFIND_NAME = "pagefind"
-PAGEFIND_VERSION = "1.0.4"
+PAGEFIND_VERSION = "1.3.0"
 
 
 class Platform(Enum):
@@ -111,11 +112,25 @@ def execute_pagefind(args: Iterable[str]) -> None:
     subprocess.run(args=[str(ensure_pagefind()), *args], check=True)
 
 
-def execute_sphinx_build(out_base_dir: Path, builder: str, out_dir: Optional[str] = None) -> Path:
+def execute_sphinx_build(
+    out_base_dir: Path, builder: str, out_dir: Optional[str] = None, **html_defines: str
+) -> Path:
     gen_dir = (out_base_dir / (out_dir or builder)).absolute()
     shutil.rmtree(gen_dir, ignore_errors=True)
     subprocess.run(
-        args=[sys.executable, "-m", "sphinx", "-b", builder, "-aEW", "docs", str(gen_dir)],
+        args=[
+            sys.executable,
+            "-m",
+            "sphinx",
+            "-b",
+            builder,
+            "-aEW",
+            *itertools.chain.from_iterable(
+                ("--html-define", f"{name}={value}") for name, value in html_defines.items()
+            ),
+            "docs",
+            str(gen_dir),
+        ],
         check=True,
     )
     return gen_dir
@@ -123,6 +138,7 @@ def execute_sphinx_build(out_base_dir: Path, builder: str, out_dir: Optional[str
 
 def main(
     out_dir: Path,
+    subdir: str | None = None,
     linkcheck: bool = False,
     pdf: bool = False,
     html: bool = True,
@@ -146,7 +162,10 @@ def main(
         (static_dynamic_dir / "pex.pdf").symlink_to(pdf_dir / "pex.pdf")
 
     if html:
-        html_dir = execute_sphinx_build(out_dir, "html")
+        html_defines: dict[str, str] = {}
+        if subdir:
+            html_defines["pex_site_subdir"] = f"/{subdir.lstrip('/')}"
+        html_dir = execute_sphinx_build(out_dir, "html", **html_defines)
         if clean_html:
             shutil.rmtree(html_dir / ".doctrees", ignore_errors=True)
             (html_dir / ".buildinfo").unlink(missing_ok=True)
@@ -165,11 +184,13 @@ if __name__ == "__main__":
     parser.add_argument("--no-html", action="store_true")
     parser.add_argument("--clean-html", action="store_true")
     parser.add_argument("--serve", action="store_true")
+    parser.add_argument("--subdir")
     parser.add_argument("out_dir", type=Path, default=Path("dist") / "docs", nargs="?")
     options = parser.parse_args()
     try:
         main(
             out_dir=options.out_dir,
+            subdir=options.subdir,
             linkcheck=options.linkcheck,
             pdf=options.pdf,
             html=not options.no_html,
