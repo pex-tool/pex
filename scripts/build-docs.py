@@ -152,7 +152,7 @@ def main(
             (html_dir / ".buildinfo").unlink(missing_ok=True)
             (html_dir / "objects.inv").unlink(missing_ok=True)
 
-        page_find_args = ["--site", str(html_dir), "--output-subdir", "_pagefind"]
+        page_find_args = ["--site", str(html_dir)]
         if serve:
             page_find_args.append("--serve")
         execute_pagefind(page_find_args)
