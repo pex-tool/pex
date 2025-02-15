@@ -121,7 +121,12 @@ class Lockfile(object):
             overridden=SortedTuple(overridden),
             locked_resolves=SortedTuple(
                 (
-                    requires_dist.remove_unused_requires_dist(resolve_requirements, locked_resolve)
+                    requires_dist.remove_unused_requires_dist(
+                        resolve_requirements,
+                        locked_resolve,
+                        requires_python=requires_python,
+                        target_systems=target_systems,
+                    )
                     if elide_unused_requires_dist
                     else locked_resolve
                 )

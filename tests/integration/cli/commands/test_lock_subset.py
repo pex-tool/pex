@@ -17,6 +17,7 @@ from pex.resolve.locked_resolve import LockedRequirement
 from pex.resolve.lockfile import json_codec
 from pex.resolve.lockfile.model import Lockfile
 from pex.sorted_tuple import SortedTuple
+from testing import PY_VER, data
 from testing.cli import run_pex3
 from testing.pytest.tmp import Tempdir
 
@@ -176,3 +177,20 @@ def test_lock_subset_extra_miss(
             "requirement.".format(lock=lock)
         )
     )
+
+
+@pytest.mark.skipif(
+    PY_VER < (3, 7), reason="The test locks click 8.1.7 which requires Python >=3.7"
+)
+def test_lock_subset_target_systems_and_ics_issue_2683(tmpdir):
+    # type: (Tempdir) -> None
+
+    lock = data.path("locks", "issue-2683.lock.json")
+    subset_lock = tmpdir.join("subset-lock.json")
+    run_pex3(
+        "lock", "subset", "--lock", lock, "click", "-o", subset_lock, "--indent", "2"
+    ).assert_success()
+
+    subset_lockfile, subset_locked_reqs = index(subset_lock)
+    assert SortedTuple([Requirement.parse("click")]) == subset_lockfile.requirements
+    assert {ProjectName("click")} == set(subset_locked_reqs)

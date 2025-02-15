@@ -1447,7 +1447,14 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                                 constraint=constraint_by_project_name[req.project_name],
                             )
                         )
-                    to_resolve.extend(requires_dist.filter_dependencies(req, locked_req))
+                    to_resolve.extend(
+                        requires_dist.filter_dependencies(
+                            req,
+                            locked_req,
+                            requires_python=lock_file.requires_python,
+                            target_systems=lock_file.target_systems,
+                        )
+                    )
 
             resolve_subsets.append(
                 attr.evolve(
