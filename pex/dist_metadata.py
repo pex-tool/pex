@@ -734,7 +734,8 @@ class RequirementParseError(Exception):
         )
 
 
-@attr.s(frozen=True)
+@functools.total_ordering
+@attr.s(frozen=True, order=False)
 class Constraint(object):
     @classmethod
     def parse(
@@ -853,8 +854,14 @@ class Constraint(object):
         # type: () -> Requirement
         return Requirement(name=self.name, specifier=self.specifier, marker=self.marker)
 
+    def __lt__(self, other):
+        # type: (Any) -> bool
+        if not isinstance(other, Constraint):
+            return NotImplemented
+        return self._str < other._str
 
-@attr.s(frozen=True)
+
+@attr.s(frozen=True, order=False)
 class Requirement(Constraint):
     @classmethod
     def parse(
@@ -902,6 +909,12 @@ class Requirement(Constraint):
     def as_constraint(self):
         # type: () -> Constraint
         return Constraint(name=self.name, specifier=self.specifier, marker=self.marker)
+
+    def __lt__(self, other):
+        # type: (Any) -> bool
+        if not isinstance(other, Requirement):
+            return NotImplemented
+        return self._str < other._str
 
 
 # N.B.: DistributionMetadata can have an expensive hash when a distribution has many requirements;
