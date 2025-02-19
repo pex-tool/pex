@@ -613,15 +613,23 @@ def ensure_python_distribution(version):
     clone_dir = os.path.abspath(
         os.path.join(PEX_TEST_DEV_ROOT, "pyenv-win" if WINDOWS else "pyenv")
     )
-    pyenv_root = os.path.join(clone_dir, "pyenv-win") if WINDOWS else clone_dir
-    interpreter_location = os.path.join(pyenv_root, "versions", version)
-
-    pyenv = os.path.join(pyenv_root, "bin", "pyenv.bat" if WINDOWS else "pyenv")
-    pip = os.path.join(interpreter_location, SCRIPT_DIR, script_name("pip"))
-
-    with atomic_directory(target_dir=pyenv_root) as pyenv_root_atomic_dir:
+    with atomic_directory(target_dir=clone_dir) as pyenv_root_atomic_dir:
         if not pyenv_root_atomic_dir.is_finalized():
             bootstrap_python_installer(pyenv_root_atomic_dir.work_dir)
+
+    pyenv_root = os.path.join(clone_dir, "pyenv-win") if WINDOWS else clone_dir
+    pyenv = os.path.join(pyenv_root, "bin", "pyenv.bat" if WINDOWS else "pyenv")
+
+    interpreter_location = os.path.join(pyenv_root, "versions", version)
+    pip = os.path.join(interpreter_location, SCRIPT_DIR, script_name("pip"))
+
+    if WINDOWS:
+        python = os.path.join(interpreter_location, "python.exe")
+    else:
+        major, minor = version.split(".")[:2]
+        python = os.path.join(
+            interpreter_location, "bin", "python{major}.{minor}".format(major=major, minor=minor)
+        )
 
     with atomic_directory(target_dir=interpreter_location) as interpreter_target_dir:
         if not interpreter_target_dir.is_finalized():
@@ -641,15 +649,7 @@ def ensure_python_distribution(version):
                 # with `--disable-new-dtags`.
                 env["LDFLAGS"] = "-Wl,--disable-new-dtags"
             subprocess.check_call([pyenv, "install", version], env=env)
-            subprocess.check_call([pip, "install", "-U", "pip<22.1"])
-
-    if WINDOWS:
-        python = os.path.join(interpreter_location, "python.exe")
-    else:
-        major, minor = version.split(".")[:2]
-        python = os.path.join(
-            interpreter_location, "bin", "python{major}.{minor}".format(major=major, minor=minor)
-        )
+            subprocess.check_call([python, "-m", "pip", "install", "-U", "pip<22.1"])
 
     return PyenvPythonDistribution(
         home=interpreter_location,
