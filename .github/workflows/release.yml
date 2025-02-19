@@ -20,7 +20,9 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Noop
-        run: "true"
+        if: false
+        run: |
+          echo "This is a dummy step that will never run."
   determine-tag:
     name: Determine the release tag to operate against.
     needs: org-check
