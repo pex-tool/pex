@@ -32,6 +32,16 @@ jobs:
       - name: Setup matrix combinations
         id: setup-tox-envs
         run: |
+          python -mvenv .venv
+          source .venv/bin/activate
+          python -V
+
+          pip install -U pip
+          pip -V
+
+          pip install tox
+          tox --version
+
           echo tox-envs="$(
             tox -qqe build-cache-image -- --list-tox-envs | \
               jq -R . | jq -src .
