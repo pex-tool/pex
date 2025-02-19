@@ -32,11 +32,10 @@ jobs:
       - name: Setup matrix combinations
         id: setup-matrix-combinations
         run: |
-          echo ::set-output name=matrix-combinations::$(
+          echo tox-envs="$(
             tox -qqe build-cache-image -- --list-tox-envs | \
-              grep -vE "^$" | \
-              jq -R '{"tox-env":.}' | jq -src '{"include":.}'
-          )
+              jq -R . | jq -src .
+          )" >> "$GITHUB_OUTPUT"
     outputs:
       matrix-combinations: ${{ steps.setup-matrix-combinations.outputs.matrix-combinations }}
   build-cache-images:
@@ -44,7 +43,8 @@ jobs:
     needs: setup-matrix
     runs-on: ubuntu-24.04
     strategy:
-      matrix: ${{ fromJson(needs.setup-matrix.outputs.matrix-combinations) }}
+      matrix:
+        tox-env: ${{ fromJson(needs.setup-matrix.outputs.matrix-combinations) }}
     steps:
       - name: Checkout Pex
         uses: actions/checkout@v4
