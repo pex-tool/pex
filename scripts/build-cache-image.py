@@ -111,6 +111,17 @@ def build_cache_image(
     )
 
 
+def list_tox_envs() -> list[str]:
+    with (Path(".github") / "workflows" / "ci.yml").open() as fp:
+        data = yaml.full_load(fp)
+    return sorted(
+        dict.fromkeys(
+            entry["tox-env"]
+            for entry in data["jobs"]["linux-tests"]["strategy"]["matrix"]["include"]
+        )
+    )
+
+
 def main() -> Any:
     parser = ArgumentParser(
         formatter_class=ArgumentDefaultsHelpFormatter,
@@ -128,6 +139,12 @@ def main() -> Any:
         help="Set the logging level (case insensitive).",
     )
     parser.add_argument("--color", default=None, action="store_true", help="Force colored logging.")
+    parser.add_argument(
+        "--list-tox-envs",
+        default=False,
+        action="store_true",
+        help="Emit the list of tox environment names that should be cached.",
+    )
     parser.add_argument(
         "--tag",
         type=str,
@@ -180,6 +197,11 @@ def main() -> Any:
     )
     options = parser.parse_args()
 
+    if options.list_tox_envs:
+        for tox_env in list_tox_envs():
+            print(tox_env)
+        return 0
+
     coloredlogs.install(
         level=options.log_level, fmt="%(levelname)s %(message)s", isatty=options.color
     )
@@ -220,12 +242,7 @@ def main() -> Any:
         logger.info(f"Importing merged tarball to {image_tag}...")
         subprocess.run(args=["docker", "import", merged_tarball, image_tag], check=True)
     else:
-        with (Path(".github") / "workflows" / "ci.yml").open() as fp:
-            data = yaml.full_load(fp)
-        all_tox_envs = frozenset(
-            entry["tox-env"]
-            for entry in data["jobs"]["linux-tests"]["strategy"]["matrix"]["include"]
-        )
+        all_tox_envs = frozenset(list_tox_envs())
         selected_tox_envs = (
             frozenset(
                 itertools.chain.from_iterable(tox_envs.split(",") for tox_envs in options.tox_envs)
