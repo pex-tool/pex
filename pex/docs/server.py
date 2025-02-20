@@ -14,7 +14,7 @@ import time
 from pex.cache.dirs import CacheDir
 from pex.common import safe_open
 from pex.os import kill
-from pex.subprocess import subprocess_daemon_kwargs
+from pex.subprocess import launch_python_daemon
 from pex.typing import TYPE_CHECKING
 from pex.version import __version__
 
@@ -163,14 +163,13 @@ def launch(
     # ephemeral port chosen.
     env.update(PYTHONUNBUFFERED="1")
     with safe_open(log, "w") as fp:
-        process = subprocess.Popen(
+        process = launch_python_daemon(
             args=[sys.executable, "-m", http_server_module, str(port)],
             env=env,
             cwd=document_root,
             bufsize=1,
             stdout=fp.fileno(),
             stderr=subprocess.STDOUT,
-            **subprocess_daemon_kwargs()
         )
 
     pidfile = Pidfile.record(server_log=log, pid=process.pid, timeout=timeout)
