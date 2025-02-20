@@ -53,7 +53,7 @@ def find_max_length(
 # Pytest fails to cleanup tmp dirs used probing file_path_length_limit and this squashes a very
 # large ream of warnings.
 if WINDOWS:
-    pytestmark = pytest.mark.skip("The current process of probing limits can break Windows.")
+    pytest.skip("The current process of probing limits can break Windows.", allow_module_level=True)
 else:
     pytestmark = pytest.mark.filterwarnings(
         "ignore:\\(rm_rf\\) error removing.*:pytest.PytestWarning"

@@ -17,7 +17,7 @@ from pex.atomic_directory import atomic_directory
 from pex.common import safe_open, safe_rmtree
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import InterpreterConstraint
-from pex.subprocess import subprocess_daemon_kwargs
+from pex.subprocess import launch_python_daemon
 from pex.typing import TYPE_CHECKING, cast
 from pex.venv.virtualenv import InvalidVirtualenvError, Virtualenv
 from testing import PEX_TEST_DEV_ROOT
@@ -197,7 +197,7 @@ def launch(
 
     log = os.path.join(DEVPI_DIR, "log.txt")
     with safe_open(log, "w") as fp:
-        process = subprocess.Popen(
+        process = launch_python_daemon(
             args=devpi_server.launch_args(
                 "--host",
                 host,
@@ -211,7 +211,6 @@ def launch(
             cwd=DEVPI_DIR,
             stdout=fp.fileno(),
             stderr=subprocess.STDOUT,
-            **subprocess_daemon_kwargs()
         )
 
     pidfile = Pidfile.record(log=log, pid=process.pid, timeout=timeout)

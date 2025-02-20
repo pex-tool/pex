@@ -12,12 +12,20 @@ import pytest
 
 from pex.common import safe_open
 from pex.layout import Layout
+from pex.os import WINDOWS
 from pex.typing import TYPE_CHECKING
 from testing import all_pythons, make_env, run_pex_command
 from testing.pytest.tmp import Tempdir
 
 if TYPE_CHECKING:
     from typing import Any, Iterable, Iterator, List, Text, Tuple
+
+
+if WINDOWS:
+    pytest.skip(
+        "The --sh-boot shebang launch trick only works on systems with shebang support.",
+        allow_module_level=True,
+    )
 
 
 @pytest.mark.parametrize(
