@@ -325,20 +325,24 @@ def test_pex_run_extra_sys_path():
     with named_temporary_file() as fake_stdout:
         with temporary_dir() as temp_dir:
             pex = write_simple_pex(
-                temp_dir, 'import sys; sys.stdout.write(":".join(sys.path)); sys.exit(0)'
+                temp_dir, "import os, sys; sys.stdout.write(os.pathsep.join(sys.path)); sys.exit(0)"
             )
             rc = PEX(pex.path()).run(
                 stdin=None,
                 stdout=fake_stdout,
                 stderr=None,
-                env={"PEX_EXTRA_SYS_PATH": "extra/syspath/entry1:extra/syspath/entry2"},
+                env={
+                    "PEX_EXTRA_SYS_PATH": os.pathsep.join(
+                        ("extra/syspath/entry1", "extra/syspath/entry2")
+                    )
+                },
             )
             assert rc == 0
 
             fake_stdout.seek(0)
-            syspath = fake_stdout.read().split(b":")
-            assert b"extra/syspath/entry1" in syspath
-            assert b"extra/syspath/entry2" in syspath
+            syspath = fake_stdout.read().decode("utf-8").split(os.pathsep)
+            assert "extra/syspath/entry1" in syspath
+            assert "extra/syspath/entry2" in syspath
 
 
 @attr.s(frozen=True)
