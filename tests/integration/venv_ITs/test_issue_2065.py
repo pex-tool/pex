@@ -36,6 +36,7 @@ def test_venv_pex_script_non_hermetic(
             dedent(
                 """\
                 import os
+                import subprocess
                 import sys
 
                 def run():
@@ -45,7 +46,7 @@ def test_venv_pex_script_non_hermetic(
                         pythonpath.extend(existing_pythonpath.split(os.pathsep))
                     os.environ["PYTHONPATH"] = os.pathsep.join(pythonpath)
 
-                    os.execv(sys.argv[1], sys.argv[1:])
+                    sys.exit(subprocess.call(sys.argv[1:]))
                 """
             )
         )
