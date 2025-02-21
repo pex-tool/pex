@@ -78,7 +78,7 @@ class Pidfile(object):
         while time.time() - start < timeout:
             with open(server_log) as fp:
                 for line in fp:
-                    if line.endswith(os.linesep):
+                    if line.endswith(("\r", "\n")):
                         match = re.search(r"Serving HTTP on 0\.0\.0\.0 port (?P<port>\d+)", line)
                         if match:
                             port = match.group("port")
@@ -140,7 +140,7 @@ class LaunchError(Exception):
         if self.additional_msg:
             lines.append(self.additional_msg)
         lines.append("See the log at {log} for more details.".format(log=self.log))
-        return os.linesep.join(lines)
+        return "\n".join(lines)
 
 
 def launch(

@@ -175,7 +175,7 @@ class ArtifactDownloader(object):
             except Job.Error as e:
                 error_lines = list(e.contextualized_stderr()) or str(e).splitlines()
                 return Error(
-                    os.linesep.join(error_lines)
+                    "\n".join(error_lines)
                     if "See above for details" in error_lines[-1]
                     else error_lines[-1]
                 )

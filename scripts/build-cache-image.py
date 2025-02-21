@@ -253,7 +253,7 @@ def main() -> Any:
         bad_tox_envs = selected_tox_envs - all_tox_envs
         if bad_tox_envs:
             return colors.red(
-                os.linesep.join(
+                "\n".join(
                     (
                         "The following selected tox envs are not used in Linux CI test shards:",
                         *(f"  {bad_tox_env}" for bad_tox_env in sorted(bad_tox_envs)),

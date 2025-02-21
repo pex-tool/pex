@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-import os
 import re
 import sys
 from pathlib import Path
@@ -28,7 +27,8 @@ def analyze(log: Path) -> Any:
 
     hung_tests = sorted(test for test, complete in tests.items() if not complete)
     if hung_tests:
-        return f"The following tests never finished:\n{os.linesep.join(hung_tests)}"
+        hung_tests_lines = "\n".join(hung_tests)
+        return f"The following tests never finished:\n{hung_tests_lines}"
 
 
 def main() -> Any:

@@ -1,6 +1,8 @@
 # Copyright 2022 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+from __future__ import absolute_import, print_function
+
 import os
 import re
 from collections import defaultdict
@@ -62,7 +64,7 @@ def create_constraints_file(*requirements):
     constraints_file = os.path.join(safe_mkdtemp(), "constraints.txt")
     with open(constraints_file, "w") as fp:
         for requirement in requirements:
-            fp.write(requirement + os.linesep)
+            print(requirement, file=fp)
     return constraints_file
 
 
