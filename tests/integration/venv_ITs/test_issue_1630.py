@@ -3,7 +3,6 @@
 
 import json
 import os
-import subprocess
 
 from pex.cache.dirs import CacheDir
 from pex.dist_metadata import Distribution
@@ -12,7 +11,7 @@ from pex.pep_376 import InstalledWheel
 from pex.pex_info import PexInfo
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import Virtualenv
-from testing import PY38, ensure_python_venv, run_pex_command
+from testing import PY38, ensure_python_venv, run_pex_command, subprocess
 
 if TYPE_CHECKING:
     from typing import Any, Container, List

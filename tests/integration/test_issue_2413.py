@@ -5,7 +5,6 @@ from __future__ import absolute_import
 
 import glob
 import os.path
-import subprocess
 from textwrap import dedent
 
 import pytest
@@ -15,6 +14,7 @@ from pex.os import is_exe
 from pex.pep_503 import ProjectName
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import InstallationChoice, Virtualenv
+from testing import subprocess
 
 if TYPE_CHECKING:
     from typing import Any, List

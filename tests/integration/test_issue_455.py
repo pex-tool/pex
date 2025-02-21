@@ -2,7 +2,6 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
-import subprocess
 import sys
 
 import pytest
@@ -10,7 +9,7 @@ import pytest
 from pex.compatibility import commonpath
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import Virtualenv
-from testing import IS_MAC, PY310, ensure_python_venv, run_pex_command
+from testing import IS_MAC, PY310, ensure_python_venv, run_pex_command, subprocess
 
 if TYPE_CHECKING:
     from typing import Any

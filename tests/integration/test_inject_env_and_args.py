@@ -7,7 +7,6 @@ import os.path
 import re
 import signal
 import socket
-import subprocess
 from contextlib import closing
 from textwrap import dedent
 
@@ -16,7 +15,7 @@ import pytest
 from pex.common import safe_open
 from pex.fetcher import URLFetcher
 from pex.typing import TYPE_CHECKING
-from testing import IS_PYPY, PY_VER, make_env, run_pex_command
+from testing import IS_PYPY, PY_VER, make_env, run_pex_command, subprocess
 
 if TYPE_CHECKING:
     from typing import Any, Iterable, List, Optional

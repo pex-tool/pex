@@ -2,7 +2,6 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
-import subprocess
 import sys
 from contextlib import contextmanager
 from textwrap import dedent
@@ -15,7 +14,7 @@ from pex.pip.version import PipVersion
 from pex.resolver import resolve
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import InstallationChoice, Virtualenv
-from testing import WheelBuilder, make_project, pex_project_dir, temporary_content
+from testing import WheelBuilder, make_project, pex_project_dir, subprocess, temporary_content
 
 if TYPE_CHECKING:
     from typing import Dict, Iterable, Iterator, List, Optional, Union

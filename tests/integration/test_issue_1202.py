@@ -2,7 +2,6 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os.path
-import subprocess
 
 import pytest
 
@@ -10,7 +9,7 @@ from pex.interpreter import PythonInterpreter
 from pex.pex import PEX
 from pex.third_party.packaging import tags
 from pex.typing import TYPE_CHECKING
-from testing import PY27, ensure_python_interpreter, run_pex_command
+from testing import PY27, ensure_python_interpreter, run_pex_command, subprocess
 
 if TYPE_CHECKING:
     from typing import Any

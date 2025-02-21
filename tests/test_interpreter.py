@@ -7,7 +7,6 @@ import glob
 import json
 import os
 import re
-import subprocess
 import sys
 from collections import defaultdict
 from contextlib import contextmanager
@@ -35,6 +34,7 @@ from testing import (
     ensure_python_interpreter,
     ensure_python_venv,
     pushd,
+    subprocess,
 )
 from testing.pytest.tmp import TempdirFactory
 

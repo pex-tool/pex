@@ -3,7 +3,6 @@
 
 import os
 import shutil
-import subprocess
 import sys
 import zipfile
 from collections import defaultdict
@@ -38,6 +37,7 @@ from testing import (
     ensure_python_interpreter,
     make_project,
     make_source_dir,
+    subprocess,
 )
 
 if TYPE_CHECKING:

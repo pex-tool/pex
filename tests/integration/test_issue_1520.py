@@ -3,14 +3,13 @@
 
 import os
 import shutil
-import subprocess
 from textwrap import dedent
 
 import pytest
 
 from pex.cache.dirs import CacheDir
 from pex.typing import TYPE_CHECKING
-from testing import IS_LINUX, IS_MAC, PY_VER, run_pex_command
+from testing import IS_LINUX, IS_MAC, PY_VER, run_pex_command, subprocess
 
 if TYPE_CHECKING:
     from typing import Any

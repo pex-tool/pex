@@ -4,7 +4,6 @@
 from __future__ import absolute_import
 
 import os.path
-import subprocess
 from textwrap import dedent
 
 import pytest
@@ -15,7 +14,7 @@ from pex.common import safe_open
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.result import try_
 from pex.typing import TYPE_CHECKING
-from testing import PY_VER, data, run_pex_command
+from testing import PY_VER, data, run_pex_command, subprocess
 from testing.cli import run_pex3
 
 if TYPE_CHECKING:

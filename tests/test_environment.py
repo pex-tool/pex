@@ -3,7 +3,6 @@
 
 import os
 import platform
-import subprocess
 import sys
 from contextlib import contextmanager
 from textwrap import dedent
@@ -32,6 +31,7 @@ from testing import (
     ensure_python_interpreter,
     install_wheel,
     make_bdist,
+    subprocess,
     temporary_content,
     temporary_filename,
 )

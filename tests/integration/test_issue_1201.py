@@ -2,10 +2,9 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
-import subprocess
 
 from pex.typing import TYPE_CHECKING
-from testing import run_pex_command
+from testing import run_pex_command, subprocess
 
 if TYPE_CHECKING:
     from typing import Any

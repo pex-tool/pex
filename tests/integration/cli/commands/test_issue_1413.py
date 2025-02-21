@@ -3,7 +3,6 @@
 
 import os
 import shutil
-import subprocess
 
 import pytest
 
@@ -15,7 +14,7 @@ from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.path_mappings import PathMapping, PathMappings
 from pex.resolve.resolved_requirement import ArtifactURL, Pin
 from pex.typing import TYPE_CHECKING
-from testing import make_env, run_pex_command
+from testing import make_env, run_pex_command, subprocess
 from testing.cli import run_pex3
 from testing.pytest.tmp import Tempdir, TempdirFactory
 

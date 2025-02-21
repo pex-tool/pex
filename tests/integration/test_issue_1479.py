@@ -4,12 +4,11 @@
 
 import os.path
 import platform
-import subprocess
 import sys
 
 from pex.common import safe_rmtree
 from pex.typing import TYPE_CHECKING
-from testing import make_env, run_pex_command
+from testing import make_env, run_pex_command, subprocess
 
 if TYPE_CHECKING:
     from typing import Any

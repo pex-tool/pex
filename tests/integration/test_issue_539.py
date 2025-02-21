@@ -3,14 +3,13 @@
 
 import glob
 import os
-import subprocess
 
 import pytest
 
 from pex.common import temporary_dir
 from pex.pip.installation import get_pip
 from pex.resolve.configured_resolver import ConfiguredResolver
-from testing import IS_LINUX_ARM64, IS_PYPY, PY_VER, run_pex_command
+from testing import IS_LINUX_ARM64, IS_PYPY, PY_VER, run_pex_command, subprocess
 
 
 @pytest.mark.skipif(

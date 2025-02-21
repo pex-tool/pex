@@ -4,7 +4,6 @@
 from __future__ import absolute_import
 
 import os.path
-import subprocess
 import sys
 from subprocess import CalledProcessError
 
@@ -14,7 +13,7 @@ from pex.cache.dirs import CacheDir
 from pex.layout import Layout
 from pex.pep_427 import InstallableType
 from pex.typing import TYPE_CHECKING
-from testing import run_pex_command
+from testing import run_pex_command, subprocess
 from testing.pep_427 import get_installable_type_flag
 
 if TYPE_CHECKING:

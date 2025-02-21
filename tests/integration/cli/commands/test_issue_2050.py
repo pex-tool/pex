@@ -3,7 +3,6 @@
 import json
 import os
 import re
-import subprocess
 import sys
 import tempfile
 from textwrap import dedent
@@ -23,7 +22,15 @@ from pex.sorted_tuple import SortedTuple
 from pex.targets import LocalInterpreter
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.typing import TYPE_CHECKING
-from testing import IS_LINUX, PY310, PY_VER, ensure_python_interpreter, make_env, run_pex_command
+from testing import (
+    IS_LINUX,
+    PY310,
+    PY_VER,
+    ensure_python_interpreter,
+    make_env,
+    run_pex_command,
+    subprocess,
+)
 from testing.cli import run_pex3
 
 if TYPE_CHECKING:

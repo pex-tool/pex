@@ -6,7 +6,6 @@ import hashlib
 import os
 import re
 import shutil
-import subprocess
 import sys
 from textwrap import dedent
 
@@ -23,7 +22,7 @@ from pex.pep_503 import ProjectName
 from pex.pex_info import PexInfo
 from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper
-from testing import IS_PYPY, PY_VER, built_wheel, make_env, run_pex_command
+from testing import IS_PYPY, PY_VER, built_wheel, make_env, run_pex_command, subprocess
 from testing.cli import run_pex3
 from testing.lock import index_lock_artifacts
 from testing.pytest.tmp import Tempdir, TempdirFactory

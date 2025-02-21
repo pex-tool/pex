@@ -3,14 +3,13 @@
 
 import json
 import os
-import subprocess
 from textwrap import dedent
 
 import pytest
 
 from pex.common import safe_open
 from pex.typing import TYPE_CHECKING
-from testing import make_env, run_pex_command
+from testing import make_env, run_pex_command, subprocess
 
 if TYPE_CHECKING:
     from typing import Any, List

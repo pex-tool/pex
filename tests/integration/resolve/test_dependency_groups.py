@@ -4,7 +4,6 @@
 from __future__ import absolute_import
 
 import os.path
-import subprocess
 from textwrap import dedent
 
 import colors  # vendor:skip
@@ -13,7 +12,7 @@ from pex.common import safe_open
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pex import PEX
-from testing import run_pex_command
+from testing import run_pex_command, subprocess
 from testing.pytest.tmp import Tempdir
 
 

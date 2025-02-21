@@ -7,7 +7,6 @@ import errno
 import json
 import os
 import shutil
-import subprocess
 from textwrap import dedent
 
 import colors  # vendor:skip
@@ -20,7 +19,7 @@ from pex.executables import chmod_plus_x
 from pex.fs import safe_symlink
 from pex.os import WINDOWS
 from pex.typing import TYPE_CHECKING
-from testing import IS_PYPY, make_project, run_pex_command
+from testing import IS_PYPY, make_project, run_pex_command, subprocess
 from testing.cli import run_pex3
 
 if TYPE_CHECKING:

@@ -6,7 +6,6 @@ from __future__ import absolute_import
 import glob
 import os.path
 import re
-import subprocess
 import sys
 from textwrap import dedent
 
@@ -19,7 +18,7 @@ from pex.pep_503 import ProjectName
 from pex.pex import PEX
 from pex.pip.version import PipVersion
 from pex.typing import TYPE_CHECKING
-from testing import IS_PYPY, PY_VER, data, run_pex_command
+from testing import IS_PYPY, PY_VER, data, run_pex_command, subprocess
 from testing.cli import run_pex3
 
 if TYPE_CHECKING:

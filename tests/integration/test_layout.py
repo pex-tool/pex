@@ -2,7 +2,6 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
-import subprocess
 import sys
 
 import pytest
@@ -11,7 +10,7 @@ from pex.common import safe_open, safe_rmtree
 from pex.layout import Layout
 from pex.pep_427 import InstallableType
 from pex.typing import TYPE_CHECKING
-from testing import run_pex_command
+from testing import run_pex_command, subprocess
 from testing.pep_427 import get_installable_type_flag
 
 if TYPE_CHECKING:

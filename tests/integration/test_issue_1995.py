@@ -2,13 +2,19 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os.path
-import subprocess
 import sys
 
 import pytest
 
 from pex.typing import TYPE_CHECKING
-from testing import IS_LINUX, PY310, ensure_python_interpreter, make_env, run_pex_command
+from testing import (
+    IS_LINUX,
+    PY310,
+    ensure_python_interpreter,
+    make_env,
+    run_pex_command,
+    subprocess,
+)
 
 if TYPE_CHECKING:
     from typing import Any

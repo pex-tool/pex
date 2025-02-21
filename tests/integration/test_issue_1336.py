@@ -2,11 +2,10 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
-import subprocess
 
 from pex.compatibility import commonpath
 from pex.typing import TYPE_CHECKING
-from testing import PY310, ensure_python_interpreter, run_pex_command
+from testing import PY310, ensure_python_interpreter, run_pex_command, subprocess
 
 if TYPE_CHECKING:
     from typing import Any

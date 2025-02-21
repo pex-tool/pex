@@ -2,7 +2,6 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
-import subprocess
 from hashlib import sha1
 from textwrap import dedent
 
@@ -14,6 +13,7 @@ from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.typing import TYPE_CHECKING, cast
 from pex.util import CacheHelper, DistributionHelper, named_temporary_file
+from testing import subprocess
 
 if TYPE_CHECKING:
     from typing import Callable

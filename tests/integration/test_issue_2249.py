@@ -4,7 +4,6 @@
 from __future__ import absolute_import
 
 import os.path
-import subprocess
 from contextlib import closing
 from textwrap import dedent
 from typing import Iterator
@@ -15,7 +14,7 @@ import pytest
 
 from pex.common import safe_rmtree
 from pex.typing import TYPE_CHECKING
-from testing import IS_PYPY, make_env, run_pex_command, scie
+from testing import IS_PYPY, make_env, run_pex_command, scie, subprocess
 
 if TYPE_CHECKING:
     from typing import Any, List

@@ -2,7 +2,6 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
-import subprocess
 import sys
 
 from pex.pep_440 import Version
@@ -12,7 +11,7 @@ from pex.resolve.lockfile import json_codec
 from pex.resolve.resolved_requirement import Pin
 from pex.typing import TYPE_CHECKING
 from pex.version import __version__
-from testing import PY310, ensure_python_interpreter, make_env, run_pex_command
+from testing import PY310, ensure_python_interpreter, make_env, run_pex_command, subprocess
 
 if TYPE_CHECKING:
     from typing import Any

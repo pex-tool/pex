@@ -3,7 +3,6 @@
 
 import os.path
 import shutil
-import subprocess
 import sys
 from textwrap import dedent
 
@@ -13,7 +12,7 @@ from colors import colors  # vendor:skip
 from pex.layout import Layout
 from pex.pep_427 import InstallableType
 from pex.typing import TYPE_CHECKING
-from testing import run_pex_command
+from testing import run_pex_command, subprocess
 from testing.pep_427 import get_installable_type_flag
 
 if TYPE_CHECKING:

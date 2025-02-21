@@ -3,7 +3,6 @@
 
 import json
 import os.path
-import subprocess
 import sys
 
 import pytest
@@ -21,6 +20,7 @@ from testing import (
     ensure_python_venv,
     make_env,
     run_pex_command,
+    subprocess,
 )
 from testing.cli import run_pex3
 

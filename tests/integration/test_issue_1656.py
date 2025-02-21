@@ -2,7 +2,6 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
-import subprocess
 import sys
 
 import pytest
@@ -10,7 +9,7 @@ import pytest
 from pex.interpreter import PythonInterpreter
 from pex.pex_info import PexInfo
 from pex.typing import TYPE_CHECKING
-from testing import IS_PYPY, PY_VER, make_env, run_pex_command
+from testing import IS_PYPY, PY_VER, make_env, run_pex_command, subprocess
 from testing.pytest.tmp import TempdirFactory
 
 if TYPE_CHECKING:

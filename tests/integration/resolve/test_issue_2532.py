@@ -4,11 +4,10 @@
 from __future__ import absolute_import
 
 import os
-import subprocess
 from textwrap import dedent
 
 from pex.typing import TYPE_CHECKING
-from testing import WheelBuilder
+from testing import WheelBuilder, subprocess
 from testing.docker import skip_unless_docker
 
 if TYPE_CHECKING:

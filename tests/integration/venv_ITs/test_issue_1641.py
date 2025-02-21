@@ -1,13 +1,12 @@
 # Copyright 2022 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 import os.path
-import subprocess
 from textwrap import dedent
 
 import pytest
 
 from pex.typing import TYPE_CHECKING
-from testing import PY_VER, run_pex_command
+from testing import PY_VER, run_pex_command, subprocess
 
 if TYPE_CHECKING:
     from typing import Any, List

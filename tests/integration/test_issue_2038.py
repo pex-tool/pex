@@ -5,7 +5,6 @@ from __future__ import print_function
 
 import glob
 import os.path
-import subprocess
 import sys
 from textwrap import dedent
 
@@ -13,7 +12,7 @@ import pytest
 
 from pex.common import touch
 from pex.typing import TYPE_CHECKING
-from testing import run_pex_command
+from testing import run_pex_command, subprocess
 
 if TYPE_CHECKING:
     from typing import Any

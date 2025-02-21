@@ -7,7 +7,6 @@ import filecmp
 import os.path
 import re
 import shutil
-import subprocess
 import sys
 from textwrap import dedent
 
@@ -46,6 +45,7 @@ from testing import (
     ensure_python_interpreter,
     make_env,
     re_exact,
+    subprocess,
 )
 from testing.cli import run_pex3
 from testing.find_links import FindLinksRepo

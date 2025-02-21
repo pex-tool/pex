@@ -5,7 +5,6 @@ import json
 import os
 import re
 import shutil
-import subprocess
 import sys
 from textwrap import dedent
 
@@ -43,6 +42,7 @@ from testing import (
     ensure_python_interpreter,
     make_env,
     run_pex_command,
+    subprocess,
 )
 from testing.build_system import hatchling_only_supports_37_and_greater
 from testing.cli import run_pex3

@@ -2,7 +2,6 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os.path
-import subprocess
 from textwrap import dedent
 
 import colors  # vendor:skip
@@ -17,7 +16,7 @@ from pex.targets import Targets
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
 from pex.venv.virtualenv import Virtualenv
-from testing import make_env, run_pex_command
+from testing import make_env, run_pex_command, subprocess
 
 if TYPE_CHECKING:
     from typing import Any, List, Text

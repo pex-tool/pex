@@ -5,7 +5,6 @@ from __future__ import absolute_import
 
 import glob
 import os
-import subprocess
 
 import pytest
 
@@ -14,7 +13,7 @@ from pex.common import temporary_dir
 from pex.interpreter import PythonInterpreter
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import Virtualenv
-from testing import PY310, data, ensure_python_interpreter, make_env, run_pex_command
+from testing import PY310, data, ensure_python_interpreter, make_env, run_pex_command, subprocess
 from testing.mitmproxy import Proxy
 
 if TYPE_CHECKING:

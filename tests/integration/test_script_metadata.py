@@ -5,7 +5,6 @@ from __future__ import absolute_import
 
 import os.path
 import re
-import subprocess
 import sys
 from textwrap import dedent
 
@@ -14,7 +13,7 @@ import colors  # vendor:skip
 from pex.targets import LocalInterpreter
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.typing import TYPE_CHECKING
-from testing import PY310, ensure_python_interpreter, run_pex_command
+from testing import PY310, ensure_python_interpreter, run_pex_command, subprocess
 
 if TYPE_CHECKING:
     from typing import Any

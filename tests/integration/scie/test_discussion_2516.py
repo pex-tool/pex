@@ -5,13 +5,12 @@ from __future__ import absolute_import
 
 import glob
 import os.path
-import subprocess
 from textwrap import dedent
 
 from pex.common import safe_open
 from pex.sysconfig import SysPlatform
 from pex.typing import TYPE_CHECKING
-from testing import make_env, run_pex_command
+from testing import make_env, run_pex_command, subprocess
 
 if TYPE_CHECKING:
     from typing import Any

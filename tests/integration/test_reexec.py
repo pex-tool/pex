@@ -3,7 +3,6 @@
 
 import json
 import os
-import subprocess
 import sys
 from textwrap import dedent
 
@@ -20,6 +19,7 @@ from testing import (
     make_env,
     run_pex_command,
     run_simple_pex,
+    subprocess,
 )
 
 if TYPE_CHECKING:

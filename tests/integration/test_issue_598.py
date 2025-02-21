@@ -2,10 +2,9 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
-import subprocess
 
 from pex.common import temporary_dir
-from testing import make_env, run_pex_command
+from testing import make_env, run_pex_command, subprocess
 
 
 def test_force_local_implicit_ns_packages():

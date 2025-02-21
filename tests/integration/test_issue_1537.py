@@ -5,10 +5,9 @@ from __future__ import absolute_import
 
 import os.path
 import shutil
-import subprocess
 
 from pex.typing import TYPE_CHECKING
-from testing import run_pex_command
+from testing import run_pex_command, subprocess
 from testing.mitmproxy import Proxy
 
 if TYPE_CHECKING:

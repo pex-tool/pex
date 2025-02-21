@@ -4,7 +4,6 @@
 import json
 import os
 import site
-import subprocess
 import sys
 import sysconfig
 import tempfile
@@ -39,6 +38,7 @@ from testing import (
     make_bdist,
     run_simple_pex,
     run_simple_pex_test,
+    subprocess,
     temporary_content,
     write_simple_pex,
 )

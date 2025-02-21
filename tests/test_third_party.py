@@ -2,7 +2,6 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
-import subprocess
 import sys
 from contextlib import contextmanager
 
@@ -11,6 +10,7 @@ from pex.common import temporary_dir
 from pex.compatibility import commonpath
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
+from testing import subprocess
 
 if TYPE_CHECKING:
     from typing import Dict, Iterator, Tuple

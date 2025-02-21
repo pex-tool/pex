@@ -4,14 +4,13 @@
 import json
 import os.path
 import shutil
-import subprocess
 import sys
 from textwrap import dedent
 
 import pytest
 
 from pex.typing import TYPE_CHECKING
-from testing import IS_PYPY, run_pex_command
+from testing import IS_PYPY, run_pex_command, subprocess
 
 if TYPE_CHECKING:
     from typing import Any, Iterable, List

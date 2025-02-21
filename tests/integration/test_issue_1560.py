@@ -3,14 +3,20 @@
 
 import os.path
 import re
-import subprocess
 from textwrap import dedent
 
 import pytest
 
 from pex.common import safe_open, touch
 from pex.typing import TYPE_CHECKING
-from testing import IntegResults, VenvFactory, all_python_venvs, make_source_dir, run_pex_command
+from testing import (
+    IntegResults,
+    VenvFactory,
+    all_python_venvs,
+    make_source_dir,
+    run_pex_command,
+    subprocess,
+)
 from testing.pytest.tmp import Tempdir
 from testing.pythonPI import skip_flit_core_39
 

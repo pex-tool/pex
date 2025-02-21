@@ -1,7 +1,6 @@
 # Copyright 2023 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 import os.path
-import subprocess
 import sys
 
 import pytest
@@ -12,7 +11,7 @@ from pex.compatibility import commonpath
 from pex.layout import Layout
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import Virtualenv
-from testing import run_pex_command
+from testing import run_pex_command, subprocess
 
 if TYPE_CHECKING:
     from typing import Any
