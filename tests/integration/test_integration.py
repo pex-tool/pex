@@ -1477,6 +1477,7 @@ def test_unzip_mode(tmpdir):
             dedent(
                 """\
                 import os
+                import subprocess
                 import sys
 
                 if 'quit' == sys.argv[-1]:
@@ -1486,7 +1487,7 @@ def test_unzip_mode(tmpdir):
                 print(' '.join(sys.argv[1:]))
                 sys.stdout.flush()
                 sys.stderr.flush()
-                os.execv(sys.executable, [sys.executable] + sys.argv[:-1])
+                sys.exit(subprocess.call([sys.executable] + sys.argv[:-1]))
                 """
             )
         )
