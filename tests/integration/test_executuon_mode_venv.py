@@ -6,10 +6,9 @@ from __future__ import absolute_import
 import json
 import os
 import re
-import subprocess
 
 from pex.typing import TYPE_CHECKING
-from testing import IS_PYPY, PY_VER, make_env, run_pex_command
+from testing import IS_PYPY, PY_VER, make_env, run_pex_command, subprocess
 
 if TYPE_CHECKING:
     from typing import Any

@@ -1,14 +1,13 @@
 # Copyright 2021 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 import os.path
-import subprocess
 
 from pex import dist_metadata
 from pex.dist_metadata import ProjectNameAndVersion
 from pex.orderedset import OrderedSet
 from pex.pex_info import PexInfo
 from pex.typing import TYPE_CHECKING
-from testing import run_pex_command
+from testing import run_pex_command, subprocess
 
 if TYPE_CHECKING:
     from typing import Any

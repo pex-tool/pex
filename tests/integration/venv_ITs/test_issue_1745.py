@@ -2,7 +2,6 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
-import subprocess
 from textwrap import dedent
 
 import pytest
@@ -11,7 +10,7 @@ from colors import colors  # vendor:skip
 from pex.common import safe_open
 from pex.enum import Enum
 from pex.typing import TYPE_CHECKING
-from testing import IntegResults, run_pex_command
+from testing import IntegResults, run_pex_command, subprocess
 
 if TYPE_CHECKING:
     from typing import Any, List, Optional

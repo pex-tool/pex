@@ -2,7 +2,6 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
-import subprocess
 from textwrap import dedent
 
 import pytest
@@ -10,8 +9,8 @@ from colors import yellow  # vendor:skip
 
 from pex.cache.dirs import CacheDir
 from pex.common import safe_open, touch
-from pex.typing import TYPE_CHECKING
-from testing import make_env, run_pex_command
+from pex.typing import TYPE_CHECKING, cast
+from testing import make_env, run_pex_command, subprocess
 
 if TYPE_CHECKING:
     from typing import Any, Iterable, List, Text
@@ -83,7 +82,7 @@ def execute_app(
     stripped_stderr = stderr.decode("utf-8").strip()
     assert 0 == process.returncode, stripped_stderr
     assert yellow("*** Flashy UI ***") in stripped_stderr
-    return stdout.decode("utf-8").splitlines()
+    return cast("List[Text]", stdout.decode("utf-8").splitlines())
 
 
 def test_pex_path_dedup(tmpdir):

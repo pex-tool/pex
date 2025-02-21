@@ -4,7 +4,6 @@
 from __future__ import absolute_import
 
 import os.path
-import subprocess
 from textwrap import dedent
 
 import pytest
@@ -13,6 +12,7 @@ from pex.executables import chmod_plus_x
 from pex.jobs import Job
 from pex.pip.log_analyzer import ErrorAnalyzer, ErrorMessage, LogAnalyzer, LogScrapeJob
 from pex.typing import TYPE_CHECKING
+from testing import subprocess
 
 if TYPE_CHECKING:
     from typing import Any, Optional

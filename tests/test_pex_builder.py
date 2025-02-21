@@ -5,7 +5,6 @@ import filecmp
 import os
 import re
 import stat
-import subprocess
 import sys
 import zipfile
 from contextlib import contextmanager
@@ -25,7 +24,15 @@ from pex.pex_builder import Check, InvalidZipAppError, PEXBuilder
 from pex.pex_warnings import PEXWarning
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
-from testing import IS_PYPY, NonDeterministicWalk, WheelBuilder, install_wheel, make_bdist, make_env
+from testing import (
+    IS_PYPY,
+    NonDeterministicWalk,
+    WheelBuilder,
+    install_wheel,
+    make_bdist,
+    make_env,
+    subprocess,
+)
 from testing import write_simple_pex as write_pex
 
 try:

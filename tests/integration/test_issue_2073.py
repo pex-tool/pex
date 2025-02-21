@@ -3,12 +3,11 @@
 
 import os.path
 import re
-import subprocess
 
 from pex.resolve import abbreviated_platforms
 from pex.targets import AbbreviatedPlatform
 from pex.typing import TYPE_CHECKING
-from testing import IS_LINUX, IntegResults, run_pex_command
+from testing import IS_LINUX, IntegResults, run_pex_command, subprocess
 from testing.cli import run_pex3
 
 if TYPE_CHECKING:

@@ -10,7 +10,6 @@ import os
 import platform
 import random
 import re
-import subprocess
 import sys
 from collections import Counter
 from contextlib import contextmanager
@@ -33,6 +32,10 @@ from pex.sysconfig import SCRIPT_DIR, script_name
 from pex.typing import TYPE_CHECKING, cast
 from pex.util import named_temporary_file
 from pex.venv.virtualenv import InstallationChoice, Virtualenv
+
+# Explicitly re-export subprocess to enable a transparent substitution in tests that supports
+# executing PEX files directly on Windows.
+from testing import subprocess as subprocess
 
 try:
     from unittest import mock

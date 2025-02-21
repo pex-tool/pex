@@ -5,7 +5,6 @@ from __future__ import absolute_import
 
 import json
 import os
-import subprocess
 from textwrap import dedent
 
 import pytest
@@ -13,6 +12,7 @@ import pytest
 from pex.interpreter import PythonInterpreter
 from pex.jobs import _ABSOLUTE_MAX_JOBS, DEFAULT_MAX_JOBS, Job, SpawnedJob, _sanitize_max_jobs
 from pex.typing import TYPE_CHECKING, cast
+from testing import subprocess
 
 if TYPE_CHECKING:
     from typing import Any, Dict, Iterable

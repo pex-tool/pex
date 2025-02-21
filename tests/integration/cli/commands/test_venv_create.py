@@ -6,7 +6,6 @@ from __future__ import absolute_import
 import glob
 import os.path
 import shutil
-import subprocess
 import sys
 from textwrap import dedent
 
@@ -25,7 +24,15 @@ from pex.pex import PEX
 from pex.resolve import abbreviated_platforms
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import Virtualenv
-from testing import IS_MAC, PY39, PY310, ensure_python_interpreter, make_env, run_pex_command
+from testing import (
+    IS_MAC,
+    PY39,
+    PY310,
+    ensure_python_interpreter,
+    make_env,
+    run_pex_command,
+    subprocess,
+)
 from testing.cli import run_pex3
 from testing.pytest.tmp import Tempdir, TempdirFactory
 

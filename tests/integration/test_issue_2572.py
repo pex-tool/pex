@@ -5,10 +5,9 @@ from __future__ import absolute_import
 
 import os
 import shutil
-import subprocess
 
 from pex.fs import safe_symlink
-from testing import make_env, run_pex_command
+from testing import make_env, run_pex_command, subprocess
 from testing.pytest.tmp import Tempdir
 
 

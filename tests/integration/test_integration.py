@@ -9,7 +9,6 @@ import os
 import re
 import shlex
 import shutil
-import subprocess
 import sys
 from contextlib import closing, contextmanager
 from textwrap import dedent
@@ -53,6 +52,7 @@ from testing import (
     run_pex_command,
     run_simple_pex,
     run_simple_pex_test,
+    subprocess,
     temporary_content,
 )
 from testing.mitmproxy import Proxy
@@ -1310,7 +1310,7 @@ def build_and_execute_pex_with_warnings(*extra_build_args, **extra_runtime_env):
         env.update(**extra_runtime_env)
         process = subprocess.Popen(cmd, env=env, stderr=subprocess.PIPE)
         _, stderr = process.communicate()
-        return stderr
+        return cast(bytes, stderr)
 
 
 def test_emit_warnings_default():

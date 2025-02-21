@@ -5,7 +5,6 @@ from __future__ import absolute_import
 
 import os.path
 import shutil
-import subprocess
 import time
 from datetime import datetime, timedelta
 from textwrap import dedent
@@ -33,7 +32,7 @@ from pex.pex_info import PexInfo
 from pex.pip.version import PipVersion, PipVersionValue
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
-from testing import run_pex_command
+from testing import run_pex_command, subprocess
 from testing.cli import run_pex3
 from testing.pytest.tmp import Tempdir
 

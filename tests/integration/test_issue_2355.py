@@ -2,7 +2,6 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 import json
 import os
-import subprocess
 from textwrap import dedent
 
 from pex.interpreter import PythonInterpreter
@@ -13,7 +12,7 @@ from pex.pip.version import PipVersion
 from pex.result import try_
 from pex.targets import CompletePlatform, Targets
 from pex.typing import TYPE_CHECKING
-from testing import IS_X86_64, run_pex_command
+from testing import IS_X86_64, run_pex_command, subprocess
 from testing.docker import skip_unless_docker
 
 if TYPE_CHECKING:

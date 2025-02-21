@@ -8,7 +8,6 @@ import itertools
 import json
 import os
 import signal
-import subprocess
 from textwrap import dedent
 
 import pytest
@@ -22,7 +21,14 @@ from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.resolver_configuration import BuildConfiguration
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.typing import TYPE_CHECKING
-from testing import PY310, PY_VER, ensure_python_venv, run_command_with_jitter, run_pex_command
+from testing import (
+    PY310,
+    PY_VER,
+    ensure_python_venv,
+    run_command_with_jitter,
+    run_pex_command,
+    subprocess,
+)
 
 if TYPE_CHECKING:
     from typing import Any, Dict, Iterator

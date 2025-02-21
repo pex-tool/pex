@@ -3,7 +3,6 @@
 
 import os
 import shutil
-import subprocess
 import sys
 from textwrap import dedent
 
@@ -25,7 +24,7 @@ from pex.pex_bootstrapper import (
 from pex.pex_builder import PEXBuilder
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
-from testing import PY38, PY39, PY310, ensure_python_interpreter
+from testing import PY38, PY39, PY310, ensure_python_interpreter, subprocess
 
 if TYPE_CHECKING:
     from typing import Any, Iterable, List, Optional

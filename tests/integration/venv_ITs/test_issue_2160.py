@@ -1,7 +1,6 @@
 # Copyright 2023 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 import os.path
-import subprocess
 import sys
 from textwrap import dedent
 
@@ -13,7 +12,7 @@ from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pex import PEX
 from pex.typing import TYPE_CHECKING
-from testing import WheelBuilder, run_pex_command
+from testing import WheelBuilder, run_pex_command, subprocess
 
 if TYPE_CHECKING:
     from typing import Any, List

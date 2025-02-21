@@ -6,13 +6,13 @@ from __future__ import absolute_import
 
 import os.path
 import shutil
-import subprocess
 from textwrap import dedent
 
 from pex.common import safe_open
 from pex.fetcher import URLFetcher
 from pex.os import WINDOWS
 from pex.typing import TYPE_CHECKING
+from testing import subprocess
 from testing.docker import skip_unless_docker
 
 if TYPE_CHECKING:

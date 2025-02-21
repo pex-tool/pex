@@ -2,7 +2,6 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os.path
-import subprocess
 
 from pex.build_system.pep_518 import BuildSystem, load_build_system
 from pex.pip.version import PipVersion
@@ -10,7 +9,7 @@ from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.resolver_configuration import PipConfiguration, ReposConfiguration
 from pex.targets import LocalInterpreter
 from pex.typing import TYPE_CHECKING
-from testing import make_env, run_pex_command
+from testing import make_env, run_pex_command, subprocess
 
 if TYPE_CHECKING:
     from typing import Any

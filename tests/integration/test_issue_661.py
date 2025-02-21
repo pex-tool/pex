@@ -2,12 +2,11 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
-import subprocess
 
 import pytest
 
 from pex.common import temporary_dir
-from testing import IS_ARM_64, IS_PYPY, run_pex_command
+from testing import IS_ARM_64, IS_PYPY, run_pex_command, subprocess
 
 
 @pytest.mark.skipif(

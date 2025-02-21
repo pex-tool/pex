@@ -4,7 +4,6 @@
 import filecmp
 import os.path
 import shutil
-import subprocess
 import sys
 import tempfile
 from textwrap import dedent
@@ -17,7 +16,7 @@ from pex.common import safe_open
 from pex.resolve.locked_resolve import VCSArtifact
 from pex.resolve.lockfile import json_codec
 from pex.typing import TYPE_CHECKING
-from testing import run_pex_command
+from testing import run_pex_command, subprocess
 from testing.cli import run_pex3
 
 if TYPE_CHECKING:

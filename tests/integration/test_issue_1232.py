@@ -3,11 +3,10 @@
 
 import os
 import shutil
-import subprocess
 
 from pex.cache.dirs import CacheDir
 from pex.typing import TYPE_CHECKING
-from testing import PY38, PY310, ensure_python_interpreter, make_env, run_pex_command
+from testing import PY38, PY310, ensure_python_interpreter, make_env, run_pex_command, subprocess
 
 if TYPE_CHECKING:
     from typing import Any, Dict, FrozenSet, Iterator, List

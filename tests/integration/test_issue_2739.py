@@ -2,7 +2,6 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os.path
-import subprocess
 
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
@@ -10,7 +9,7 @@ from pex.resolve.locked_resolve import FileArtifact
 from pex.resolve.lockfile import json_codec
 from pex.resolve.resolved_requirement import Pin
 from pex.typing import TYPE_CHECKING
-from testing import run_pex_command
+from testing import run_pex_command, subprocess
 from testing.cli import run_pex3
 
 if TYPE_CHECKING:

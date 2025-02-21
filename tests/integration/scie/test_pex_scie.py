@@ -8,7 +8,6 @@ import json
 import os.path
 import re
 import shutil
-import subprocess
 import sys
 from textwrap import dedent
 from typing import Optional
@@ -27,7 +26,7 @@ from pex.sysconfig import SysPlatform
 from pex.targets import LocalInterpreter
 from pex.typing import TYPE_CHECKING
 from pex.version import __version__
-from testing import IS_PYPY, PY_VER, make_env, run_pex_command
+from testing import IS_PYPY, PY_VER, make_env, run_pex_command, subprocess
 from testing.scie import skip_if_no_provider
 
 if TYPE_CHECKING:

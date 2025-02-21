@@ -2,12 +2,12 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
-import subprocess
 import sys
 
 from pex.common import touch
 from pex.typing import TYPE_CHECKING
 from pex.vendor import VendorSpec
+from testing import subprocess
 
 if TYPE_CHECKING:
     from typing import Any

@@ -2,12 +2,11 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
-import subprocess
 
 import pytest
 
 from pex.typing import TYPE_CHECKING
-from testing import IS_X86_64, run_pex_command
+from testing import IS_X86_64, run_pex_command, subprocess
 from testing.docker import skip_unless_docker
 
 if TYPE_CHECKING:

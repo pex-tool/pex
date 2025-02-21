@@ -5,7 +5,6 @@ import filecmp
 import os.path
 import re
 import shutil
-import subprocess
 import sys
 from io import BytesIO
 
@@ -14,7 +13,7 @@ import pytest
 from pex.common import open_zip
 from pex.typing import TYPE_CHECKING
 from pex.ziputils import Zip, ZipError
-from testing import PY_VER
+from testing import PY_VER, subprocess
 
 if TYPE_CHECKING:
     from typing import Any

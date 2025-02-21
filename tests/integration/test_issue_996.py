@@ -4,13 +4,20 @@
 import multiprocessing
 import os
 import re
-import subprocess
 from textwrap import dedent
 
 from pex.interpreter import PythonInterpreter
 from pex.targets import AbbreviatedPlatform
 from pex.typing import TYPE_CHECKING
-from testing import PY39, PY310, IntegResults, ensure_python_interpreter, make_env, run_pex_command
+from testing import (
+    PY39,
+    PY310,
+    IntegResults,
+    ensure_python_interpreter,
+    make_env,
+    run_pex_command,
+    subprocess,
+)
 from testing.pytest.tmp import Tempdir
 
 if TYPE_CHECKING:

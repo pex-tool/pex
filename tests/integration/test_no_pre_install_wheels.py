@@ -2,7 +2,6 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 import hashlib
 import os
-import subprocess
 import zipfile
 from textwrap import dedent
 
@@ -13,7 +12,7 @@ from pex.dist_metadata import ProjectNameAndVersion
 from pex.pex_info import PexInfo
 from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper
-from testing import run_pex_command
+from testing import run_pex_command, subprocess
 
 if TYPE_CHECKING:
     from typing import Any

@@ -1,14 +1,13 @@
 # Copyright 2024 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 import os.path
-import subprocess
 import sys
 
 from pex.compatibility import commonpath
 from pex.interpreter import PythonInterpreter
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
-from testing import PY310, ensure_python_interpreter, run_pex_command
+from testing import PY310, ensure_python_interpreter, run_pex_command, subprocess
 
 if TYPE_CHECKING:
     from typing import Any

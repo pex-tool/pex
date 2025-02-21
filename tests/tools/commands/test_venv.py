@@ -7,7 +7,6 @@ import errno
 import multiprocessing
 import os
 import shutil
-import subprocess
 import sys
 import tempfile
 from subprocess import CalledProcessError
@@ -24,7 +23,7 @@ from pex.pex_builder import PEXBuilder
 from pex.typing import TYPE_CHECKING, cast
 from pex.util import named_temporary_file
 from pex.venv.virtualenv import Virtualenv
-from testing import IS_PYPY, PY310, PY_VER, ensure_python_interpreter, run_pex_command
+from testing import IS_PYPY, PY310, PY_VER, ensure_python_interpreter, run_pex_command, subprocess
 
 if TYPE_CHECKING:
     from typing import Any, Dict, Iterable, Iterator, List, Optional, Protocol, Set, Text, Tuple

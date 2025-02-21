@@ -4,7 +4,6 @@
 import json
 import os.path
 import shutil
-import subprocess
 from textwrap import dedent
 
 import pytest
@@ -13,7 +12,7 @@ from pex.dist_metadata import Distribution
 from pex.pep_503 import ProjectName
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import InstallationChoice, InvalidVirtualenvError, Virtualenv
-from testing import VenvFactory, all_python_venvs
+from testing import VenvFactory, all_python_venvs, subprocess
 from testing.docker import DockerVirtualenvRunner
 
 if TYPE_CHECKING:

@@ -2,7 +2,6 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
-import subprocess
 import sys
 from textwrap import dedent
 
@@ -12,7 +11,7 @@ from pex.common import CopyMode, is_pyc_file, safe_open
 from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper
 from pex.venv.virtualenv import Virtualenv
-from testing import IntegResults, make_env, run_pex_command
+from testing import IntegResults, make_env, run_pex_command, subprocess
 from testing.venv import assert_venv_site_packages_copy_mode
 
 if TYPE_CHECKING:

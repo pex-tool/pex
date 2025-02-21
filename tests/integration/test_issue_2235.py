@@ -1,11 +1,10 @@
 import os
-import subprocess
 import sys
 
 import pytest
 
 from pex.typing import TYPE_CHECKING
-from testing import run_pex_command
+from testing import run_pex_command, subprocess
 
 if TYPE_CHECKING:
     from typing import Any

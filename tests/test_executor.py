@@ -2,13 +2,13 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
-import subprocess
 
 import pytest
 
 from pex.common import safe_mkdir, temporary_dir
 from pex.executor import Executor
 from pex.typing import TYPE_CHECKING
+from testing import subprocess
 
 if TYPE_CHECKING:
     from typing import Callable, List

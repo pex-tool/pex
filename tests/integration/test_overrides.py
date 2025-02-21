@@ -6,7 +6,6 @@ from __future__ import absolute_import
 import os.path
 import re
 import shutil
-import subprocess
 import sys
 from collections import defaultdict
 
@@ -18,7 +17,16 @@ from pex.pep_503 import ProjectName
 from pex.pex import PEX
 from pex.pex_info import PexInfo
 from pex.typing import TYPE_CHECKING
-from testing import PY39, PY310, PY_VER, data, ensure_python_interpreter, make_env, run_pex_command
+from testing import (
+    PY39,
+    PY310,
+    PY_VER,
+    data,
+    ensure_python_interpreter,
+    make_env,
+    run_pex_command,
+    subprocess,
+)
 from testing.cli import run_pex3
 from testing.lock import extract_lock_option_args, index_lock_artifacts
 

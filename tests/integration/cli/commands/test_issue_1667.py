@@ -2,14 +2,13 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os.path
-import subprocess
 import sys
 
 import pytest
 
 from pex.interpreter import PythonInterpreter
 from pex.typing import TYPE_CHECKING
-from testing import run_pex_command
+from testing import run_pex_command, subprocess
 from testing.cli import run_pex3
 
 if TYPE_CHECKING:

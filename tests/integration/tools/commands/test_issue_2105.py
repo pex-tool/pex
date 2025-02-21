@@ -2,7 +2,6 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os.path
-import subprocess
 from textwrap import dedent
 
 import pytest
@@ -13,7 +12,7 @@ from pex.pep_503 import ProjectName
 from pex.pex import PEX
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import InstallationChoice, Virtualenv
-from testing import make_env, run_pex_command
+from testing import make_env, run_pex_command, subprocess
 from testing.pytest.tmp import Tempdir, TempdirFactory
 
 if TYPE_CHECKING:

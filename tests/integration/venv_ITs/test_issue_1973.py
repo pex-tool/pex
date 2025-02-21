@@ -5,14 +5,13 @@ from __future__ import absolute_import
 
 import os.path
 import shutil
-import subprocess
 
 import colors  # vendor:skip
 import pytest
 
 from pex.interpreter import PythonInterpreter
 from pex.typing import TYPE_CHECKING
-from testing import PY310, ensure_python_distribution, make_env, run_pex_command
+from testing import PY310, ensure_python_distribution, make_env, run_pex_command, subprocess
 from testing.cli import run_pex3
 
 if TYPE_CHECKING:

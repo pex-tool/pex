@@ -4,7 +4,6 @@
 from __future__ import absolute_import, print_function
 
 import os.path
-import subprocess
 from textwrap import dedent
 
 import pytest
@@ -17,6 +16,7 @@ from pex.requirements import PyPIRequirement, parse_requirement_file
 from pex.resolve.lockfile import json_codec
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import InstallationChoice, Virtualenv
+from testing import subprocess
 from testing.cli import run_pex3
 from testing.lock import index_lock_artifacts
 

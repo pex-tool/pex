@@ -2,7 +2,6 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os.path
-import subprocess
 from textwrap import dedent
 
 from pex.build_system import pep_518
@@ -15,6 +14,7 @@ from pex.targets import LocalInterpreter
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
 from pex.venv.virtualenv import Virtualenv
+from testing import subprocess
 from testing.build_system import hatchling_only_supports_37_and_greater
 
 if TYPE_CHECKING:

@@ -2,7 +2,6 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os.path
-import subprocess
 import sys
 
 import pytest
@@ -10,7 +9,7 @@ import pytest
 from pex import layout
 from pex.common import open_zip, touch
 from pex.typing import TYPE_CHECKING
-from testing import run_pex_command
+from testing import run_pex_command, subprocess
 
 if TYPE_CHECKING:
     from typing import Any, Iterable, Optional

@@ -2,13 +2,12 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
-import subprocess
 from textwrap import dedent
 
 import pytest
 
 from pex.common import safe_open, temporary_dir
-from testing import PY27, ensure_python_venv, make_env, run_pex_command
+from testing import PY27, ensure_python_venv, make_env, run_pex_command, subprocess
 
 
 def test_extras_isolation():

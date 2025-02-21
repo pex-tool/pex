@@ -7,7 +7,6 @@ import filecmp
 import os.path
 import re
 import shutil
-import subprocess
 from textwrap import dedent
 
 from colors import color  # vendor:skip
@@ -15,7 +14,7 @@ from colors import color  # vendor:skip
 from pex.common import safe_open, touch
 from pex.targets import LocalInterpreter
 from pex.typing import TYPE_CHECKING
-from testing import run_pex_command
+from testing import run_pex_command, subprocess
 from testing.cli import run_pex3
 
 if TYPE_CHECKING:

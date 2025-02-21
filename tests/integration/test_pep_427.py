@@ -3,7 +3,6 @@
 
 import os.path
 import re
-import subprocess
 from glob import glob
 from textwrap import dedent
 
@@ -14,7 +13,7 @@ from pex.pip.installation import get_pip
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import InstallationChoice, Virtualenv
-from testing import WheelBuilder, make_env
+from testing import WheelBuilder, make_env, subprocess
 
 if TYPE_CHECKING:
     from typing import Any

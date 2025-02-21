@@ -1,7 +1,6 @@
 # Copyright 2022 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 import os.path
-import subprocess
 import sys
 import sysconfig
 from textwrap import dedent
@@ -16,7 +15,7 @@ from pex.layout import Layout
 from pex.pep_427 import InstallableType
 from pex.pex_info import PexInfo
 from pex.typing import TYPE_CHECKING
-from testing import IS_MAC, run_pex_command
+from testing import IS_MAC, run_pex_command, subprocess
 from testing.pep_427 import get_installable_type_flag
 
 if TYPE_CHECKING:

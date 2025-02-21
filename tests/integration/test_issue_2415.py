@@ -3,7 +3,6 @@
 
 import atexit
 import os.path
-import subprocess
 import time
 from textwrap import dedent
 
@@ -12,7 +11,7 @@ import pytest
 from pex.common import safe_mkdir, safe_open
 from pex.fetcher import URLFetcher
 from pex.typing import TYPE_CHECKING
-from testing import IS_MAC, IS_PYPY, PY_VER, data, run_pex_command
+from testing import IS_MAC, IS_PYPY, PY_VER, data, run_pex_command, subprocess
 
 if TYPE_CHECKING:
     from typing import Any

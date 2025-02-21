@@ -4,7 +4,6 @@
 import json
 import os
 import re
-import subprocess
 from textwrap import dedent
 
 import pytest
@@ -24,6 +23,7 @@ from pex.resolve.resolver_configuration import BuildConfiguration, ResolverVersi
 from pex.sorted_tuple import SortedTuple
 from pex.third_party.packaging import tags
 from pex.typing import TYPE_CHECKING
+from testing import subprocess
 
 if TYPE_CHECKING:
     from typing import Any, Container
