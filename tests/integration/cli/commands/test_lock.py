@@ -923,7 +923,7 @@ def test_update_targeted_impossible(
                 pip_to="pip" if pip_version.version < PipVersion.v24_1.version else "pip to"
             ),
         ]
-    assert expected_lines == error_lines[12:], os.linesep.join(
+    assert expected_lines == error_lines[12:], "\n".join(
         difflib.unified_diff(expected_lines, error_lines[12:])
     )
 
@@ -1023,7 +1023,7 @@ def test_update_add_impossible(
                 pip_to="pip" if pip_version.version < PipVersion.v24_1.version else "pip to"
             ),
         ]
-    assert expected_lines == error_lines[13:], os.linesep.join(
+    assert expected_lines == error_lines[13:], "\n".join(
         difflib.unified_diff(expected_lines, error_lines[12:])
     )
 

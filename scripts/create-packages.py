@@ -141,9 +141,9 @@ def build_pex_scies(
         artifacts = glob.glob(f"{output_file}*")
         scie_artifacts = [artifact for artifact in artifacts if not artifact.endswith(".sha256")]
         if len(scie_artifacts) != 1:
+            artifact_lines = "\n".join(sorted(artifacts))
             raise SystemExit(
-                f"Found unexpected artifacts after generating Pex scie:{os.linesep}"
-                f"{os.linesep.join(sorted(artifacts))}"
+                f"Found unexpected artifacts after generating Pex scie:\n{artifact_lines}"
             )
         scie_name = os.path.basename(scie_artifacts[0])
         for artifact in artifacts:

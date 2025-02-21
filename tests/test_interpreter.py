@@ -516,7 +516,7 @@ def test_sys_path(python):
     # type: (str) -> None
 
     interp = PythonInterpreter.from_binary(python)
-    _, stdout, _ = interp.execute(args=["-c", "import os, sys; print(os.linesep.join(sys.path))"])
+    _, stdout, _ = interp.execute(args=["-c", r"import sys; print('\n'.join(sys.path))"])
     assert tuple(entry for entry in stdout.splitlines() if entry) == interp.sys_path, (
         'Its expected the sys_path matches the runtime sys.path with the exception of the PWD ("") '
         "head entry."

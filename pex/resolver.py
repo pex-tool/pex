@@ -416,15 +416,14 @@ class BuildResult(object):
                             incompatible = not wheel_tag_match
             if incompatible:
                 raise ValueError(
-                    "No pre-built wheel was available for {project_name} {version}.{eol}"
+                    "No pre-built wheel was available for {project_name} {version}.\n"
                     "Successfully built the wheel {wheel} from the sdist {sdist} but it is not "
-                    "compatible with the requested foreign target {target}.{eol}"
+                    "compatible with the requested foreign target {target}.\n"
                     "You'll need to build a wheel from {sdist} on the foreign target platform and "
                     "make it available to Pex via a `--find-links` repo or a custom "
                     "`--index`.".format(
                         project_name=wheel.project_name,
                         version=wheel.version,
-                        eol=os.linesep,
                         wheel=os.path.basename(wheel_path),
                         sdist=os.path.basename(self.request.source_path),
                         target=self.request.target.render_description(),

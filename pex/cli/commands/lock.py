@@ -2077,7 +2077,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             )
             if sync_target.command:
                 return Ok(
-                    os.linesep.join(
+                    "\n".join(
                         (
                             would_update_venv_msg + " and run the following command in it:",
                             "  " + " ".join(shlex_quote(arg) for arg in sync_target.command),

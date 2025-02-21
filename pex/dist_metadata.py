@@ -705,7 +705,7 @@ def requires_dists(location):
                 project_name=metadata_files.metadata.project_name,
                 count=len(legacy_requires),
                 field=pluralize(legacy_requires, "field"),
-                requires=os.linesep.join(
+                requires="\n".join(
                     "{index}.) Requires: {req}".format(index=index, req=req)
                     for index, req in enumerate(legacy_requires, start=1)
                 ),

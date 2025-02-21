@@ -198,9 +198,7 @@ def boot(
     if ignored_pex_env_vars:
         maybe_log(
             "Ignoring the following environment variables in Pex venv mode:\n"
-            "{ignored_env_vars}".format(
-                ignored_env_vars=os.linesep.join(sorted(ignored_pex_env_vars))
-            )
+            "{ignored_env_vars}".format(ignored_env_vars="\n".join(sorted(ignored_pex_env_vars)))
         )
 
     os.environ["VIRTUAL_ENV"] = venv_dir

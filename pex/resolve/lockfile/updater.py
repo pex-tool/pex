@@ -5,7 +5,6 @@ from __future__ import absolute_import
 
 import itertools
 import logging
-import os
 from collections import OrderedDict
 from contextlib import contextmanager
 
@@ -423,7 +422,7 @@ class ResolveUpdater(object):
             return
 
         with named_temporary_file(prefix="lock_update.", suffix=".constraints.txt", mode="w") as fp:
-            fp.write(os.linesep.join(constraints))
+            fp.write("\n".join(constraints))
             fp.flush()
             constraint_files = [fp.name]
             if self.requirement_configuration.constraint_files:

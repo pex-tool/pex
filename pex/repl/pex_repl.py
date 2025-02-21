@@ -231,7 +231,7 @@ def _create_repl_data(
             """
         )
         .format(
-            pex_header=os.linesep.join(pex_header),
+            pex_header="\n".join(pex_header),
             python_version=sys.version,
             platform=sys.platform,
             more_info_footer=more_info_footer,
@@ -241,7 +241,7 @@ def _create_repl_data(
 
     return _REPLData(
         banner=banner,
-        pex_info_summary=os.linesep.join(pex_info_summary),
+        pex_info_summary="\n".join(pex_info_summary),
         ps1=">>>",
         ps2="...",
     )

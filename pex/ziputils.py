@@ -46,7 +46,7 @@ class _Zip64Error(ZipError):
             "Please file an issue at https://github.com/pex-tool/pex/issues/new that includes "
             "this full backtrace if you need this support."
         )
-        return os.linesep.join(message_lines)
+        return "\n".join(message_lines)
 
 
 _MAX_2_BYTES = 0xFFFF

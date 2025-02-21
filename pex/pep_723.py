@@ -3,7 +3,6 @@
 
 from __future__ import absolute_import
 
-import os
 import re
 from collections import OrderedDict
 
@@ -53,7 +52,7 @@ class MetadataBlock(object):
 
     def parse_metadata(self):
         # type: () -> Mapping[str, Any]
-        stripped_content = os.linesep.join(
+        stripped_content = "\n".join(
             line[2:] if line.startswith("# ") else line[1:] for line in self.content
         )
         try:
