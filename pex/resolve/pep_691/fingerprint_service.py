@@ -14,6 +14,7 @@ from pex.atomic_directory import atomic_directory
 from pex.cache.dirs import CacheDir
 from pex.compatibility import cpu_count
 from pex.fetcher import URLFetcher
+from pex.os import WINDOWS
 from pex.resolve.pep_691.api import Client
 from pex.resolve.pep_691.model import Endpoint, Project
 from pex.resolve.resolved_requirement import Fingerprint, PartialArtifact
@@ -58,7 +59,7 @@ class FingerprintService(object):
     _SCHEMA = """
     PRAGMA journal_mode=WAL;
 
-    CREATE TABLE hashes (
+    CREATE TABLE IF NOT EXISTS hashes (
         url TEXT PRIMARY KEY ASC,
         algorithm TEXT NOT NULL,
         hash TEXT NOT NULL
@@ -68,11 +69,19 @@ class FingerprintService(object):
     @contextmanager
     def _db_connection(self):
         # type: () -> Iterator[sqlite3.Connection]
-        with atomic_directory(self._db_dir) as atomic_dir:
-            if not atomic_dir.is_finalized():
-                with sqlite3.connect(os.path.join(atomic_dir.work_dir, "fingerprints.db")) as conn:
-                    conn.executescript(self._SCHEMA).close()
+        if not WINDOWS:
+            # Under Windows, sqlite threads prevent re-naming of the atomic work dir when the atomic
+            # directory context closes; so we just always execute the script for Windows below.
+            with atomic_directory(self._db_dir) as atomic_dir:
+                if not atomic_dir.is_finalized():
+                    with sqlite3.connect(
+                        os.path.join(atomic_dir.work_dir, "fingerprints.db")
+                    ) as conn:
+                        conn.executescript(self._SCHEMA).close()
+
         with sqlite3.connect(os.path.join(self._db_dir, "fingerprints.db")) as conn:
+            if WINDOWS:
+                conn.executescript(self._SCHEMA).close()
             conn.execute("PRAGMA synchronous=NORMAL").close()
             yield conn
 
