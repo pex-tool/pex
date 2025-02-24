@@ -11,6 +11,7 @@ import pytest
 from pex.atomic_directory import atomic_directory
 from pex.common import temporary_dir
 from pex.interpreter import PythonInterpreter
+from pex.os import WINDOWS
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import Virtualenv
 from testing import PY310, data, ensure_python_interpreter, make_env, run_pex_command, subprocess
@@ -23,6 +24,11 @@ if TYPE_CHECKING:
 @pytest.fixture(scope="session")
 def pexpect_timeout():
     # type: () -> int
+
+    if WINDOWS:
+        pytest.skip(
+            "The `pexpect.spawn` function is not available for driving console tests on Windows."
+        )
 
     # The default here of 5 provides enough margin for PyPy which has slow startup.
     return int(os.environ.get("_PEX_PEXPECT_TIMEOUT", "5"))
