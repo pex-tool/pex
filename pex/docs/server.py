@@ -1,7 +1,6 @@
 # Copyright 2024 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-import errno
 import json
 import logging
 import os
@@ -13,7 +12,7 @@ import time
 
 from pex.cache.dirs import CacheDir
 from pex.common import safe_open
-from pex.os import kill
+from pex.os import is_alive, kill
 from pex.subprocess import launch_python_daemon
 from pex.typing import TYPE_CHECKING
 from pex.version import __version__
@@ -79,7 +78,7 @@ class Pidfile(object):
             with open(server_log) as fp:
                 for line in fp:
                     if line.endswith(("\r", "\n")):
-                        match = re.search(r"Serving HTTP on 0\.0\.0\.0 port (?P<port>\d+)", line)
+                        match = re.search(r"Serving HTTP on \S+ port (?P<port>\d+)", line)
                         if match:
                             port = match.group("port")
                             return "http://localhost:{port}".format(port=port)
@@ -106,13 +105,7 @@ class Pidfile(object):
     def alive(self):
         # type: () -> bool
         # TODO(John Sirois): Handle pid rollover
-        try:
-            os.kill(self.server_info.pid, 0)
-            return True
-        except OSError as e:
-            if e.errno == errno.ESRCH:  # No such process.
-                return False
-            raise
+        return is_alive(self.server_info.pid)
 
     def kill(self):
         # type: () -> None

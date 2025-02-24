@@ -19,7 +19,7 @@ from pex.argparse import HandleBoolAction
 from pex.cache import access as cache_access
 from pex.common import environment_as, safe_mkdtemp, safe_open
 from pex.compatibility import shlex_quote
-from pex.os import LINUX
+from pex.os import MAC, WINDOWS
 from pex.result import Error, Ok, Result
 from pex.subprocess import subprocess_daemon_kwargs
 from pex.typing import TYPE_CHECKING, Generic, cast
@@ -33,6 +33,7 @@ if TYPE_CHECKING:
         Dict,
         Iterable,
         Iterator,
+        List,
         NoReturn,
         Optional,
         Sequence,
@@ -91,25 +92,42 @@ def try_open_file(
 ):
     # type: (...) -> Result
 
+    args = []  # type: List[str]
     url = None  # type: Optional[str]
     if open_program:
         opener = open_program
-    elif LINUX:
+    elif WINDOWS:
+        opener = os.environ.get("COMSPEC", "cmd.exe")
+        args.append("/C")
+    elif MAC:
+        opener = "open"
+    else:
         opener = "xdg-open"
         url = "https://www.freedesktop.org/wiki/Software/xdg-utils/"
-    else:
-        opener = "open"
+    args.append(path)
 
     with open(os.devnull, "wb") as devnull:
         return try_run_program(
             opener,
-            [path],
+            args,
             url=url,
             error=error,
             disown=True,
             stdout=devnull,
             stderr=devnull if suppress_stderr else None,
         )
+
+
+def try_open_url(
+    url,  # type: str
+    open_program=None,  # type: Optional[str]
+    error=None,  # type: Optional[str]
+    suppress_stderr=False,  # type: bool
+):
+    # type: (...) -> Result
+    return try_open_file(
+        url, open_program=open_program or "explorer", error=error, suppress_stderr=suppress_stderr
+    )
 
 
 @attr.s(frozen=True)
