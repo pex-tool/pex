@@ -10,7 +10,7 @@ import threading
 from argparse import ArgumentParser
 from contextlib import contextmanager
 
-from pex.commands.command import OutputMixin, try_open_file, try_run_program
+from pex.commands.command import OutputMixin, try_open, try_run_program
 from pex.common import safe_mkdir
 from pex.dist_metadata import requires_dists
 from pex.interpreter_constraints import InterpreterConstraint
@@ -124,7 +124,7 @@ class Graph(OutputMixin, PEXCommand):
         try:
             return try_run_program(
                 "dot",
-                url="https://graphviz.org/",
+                program_info_url="https://graphviz.org/",
                 error="Failed to render dependency graph for {}.".format(graph.name),
                 args=["-T", self.options.format],
                 stdin=read_fd,
@@ -168,7 +168,7 @@ class Graph(OutputMixin, PEXCommand):
             if result.is_error:
                 return result
 
-        return try_open_file(
+        return try_open(
             open_path,
             error="Failed to open dependency graph of {} rendered in {} for viewing.".format(
                 pex.path(), open_path

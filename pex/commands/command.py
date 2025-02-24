@@ -33,7 +33,6 @@ if TYPE_CHECKING:
         Dict,
         Iterable,
         Iterator,
-        List,
         NoReturn,
         Optional,
         Sequence,
@@ -53,7 +52,7 @@ if TYPE_CHECKING:
 def try_run_program(
     program,  # type: str
     args,  # type: Iterable[str]
-    url=None,  # type: Optional[str]
+    program_info_url=None,  # type: Optional[str]
     error=None,  # type: Optional[str]
     disown=False,  # type: bool
     **kwargs  # type: Any
@@ -77,57 +76,44 @@ def try_run_program(
     except OSError as e:
         msg = [error] if error else []
         msg.append("Do you have `{}` installed on the $PATH?: {}".format(program, e))
-        if url:
+        if program_info_url:
             msg.append(
-                "Find more information on `{program}` at {url}.".format(program=program, url=url)
+                "Find more information on `{program}` at {url}.".format(
+                    program=program, url=program_info_url
+                )
             )
         return Error("\n".join(msg))
 
 
-def try_open_file(
-    path,  # type: str
+def try_open(
+    path_or_url,  # type: str
     open_program=None,  # type: Optional[str]
     error=None,  # type: Optional[str]
     suppress_stderr=False,  # type: bool
 ):
     # type: (...) -> Result
 
-    args = []  # type: List[str]
-    url = None  # type: Optional[str]
+    program_info_url = None  # type: Optional[str]
     if open_program:
         opener = open_program
     elif WINDOWS:
-        opener = os.environ.get("COMSPEC", "cmd.exe")
-        args.append("/C")
+        opener = "explorer"
     elif MAC:
         opener = "open"
     else:
         opener = "xdg-open"
-        url = "https://www.freedesktop.org/wiki/Software/xdg-utils/"
-    args.append(path)
+        program_info_url = "https://www.freedesktop.org/wiki/Software/xdg-utils/"
 
     with open(os.devnull, "wb") as devnull:
         return try_run_program(
             opener,
-            args,
-            url=url,
+            [path_or_url],
+            program_info_url=program_info_url,
             error=error,
             disown=True,
             stdout=devnull,
             stderr=devnull if suppress_stderr else None,
         )
-
-
-def try_open_url(
-    url,  # type: str
-    open_program=None,  # type: Optional[str]
-    error=None,  # type: Optional[str]
-    suppress_stderr=False,  # type: bool
-):
-    # type: (...) -> Result
-    return try_open_file(
-        url, open_program=open_program or "explorer", error=error, suppress_stderr=suppress_stderr
-    )
 
 
 @attr.s(frozen=True)
