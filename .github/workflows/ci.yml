@@ -240,12 +240,22 @@ jobs:
             tox-env: py313-pip25_0-integration
             artifact-name: integration-1
             cache: true
-            pex-test-pos-args: --shard 1/2 ${{ needs.setup.outputs.pex_test_posargs }} --junit-xml ../dist/test-results/integration-1.xml
+            pex-test-pos-args: --shard 1/4 ${{ needs.setup.outputs.pex_test_posargs }} --junit-xml ../dist/test-results/integration-1.xml
           - python-version: [ 3, 13 ]
             tox-env: py313-pip25_0-integration
             artifact-name: integration-2
             cache: true
-            pex-test-pos-args: --shard 2/2 ${{ needs.setup.outputs.pex_test_posargs }} --junit-xml ../dist/test-results/integration-2.xml
+            pex-test-pos-args: --shard 2/4 ${{ needs.setup.outputs.pex_test_posargs }} --junit-xml ../dist/test-results/integration-2.xml
+          - python-version: [ 3, 13 ]
+            tox-env: py313-pip25_0-integration
+            artifact-name: integration-3
+            cache: true
+            pex-test-pos-args: --shard 3/4 ${{ needs.setup.outputs.pex_test_posargs }} --junit-xml ../dist/test-results/integration-3.xml
+          - python-version: [ 3, 13 ]
+            tox-env: py313-pip25_0-integration
+            artifact-name: integration-4
+            cache: true
+            pex-test-pos-args: --shard 4/4 ${{ needs.setup.outputs.pex_test_posargs }} --junit-xml ../dist/test-results/integration-4.xml
     steps:
       - name: Checkout Pex
         uses: actions/checkout@v4
