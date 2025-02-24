@@ -62,7 +62,7 @@ def main():
     parser.add_argument(
         "--devpi-host",
         type=str,
-        default="0.0.0.0",
+        default="127.0.0.1",
         help="The domain/ip address to have the local devpi server listen on.",
     )
     parser.add_argument(
