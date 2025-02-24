@@ -8,7 +8,7 @@ from argparse import Namespace, _ActionsContainer
 from textwrap import dedent
 
 from pex import docs
-from pex.commands.command import try_open_file
+from pex.commands.command import try_open
 from pex.docs.server import SERVER_NAME, LaunchError, LaunchResult
 from pex.docs.server import launch as launch_docs_server
 from pex.result import Error, try_
@@ -91,8 +91,6 @@ def serve_html_docs(
             return Error("Failed to launch {server}.".format(server=SERVER_NAME))
 
     if open_browser:
-        try_(
-            try_open_file(result.server_info.url, open_program=config.browser, suppress_stderr=True)
-        )
+        try_(try_open(result.server_info.url, open_program=config.browser, suppress_stderr=True))
 
     return result

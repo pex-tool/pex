@@ -120,6 +120,49 @@ else:
 
 if WINDOWS:
 
+    def is_alive(pid):
+        # type: (int) -> bool
+
+        # TODO(John Sirois): This is extremely hacky, consider adding a psutil dependency for
+        #  Windows. See: https://github.com/pex-tool/pex/issues/2699
+
+        import csv
+        import subprocess
+
+        args = ["tasklist", "/FI", "PID eq {pid}".format(pid=pid), "/FO", "CSV"]
+        process = subprocess.Popen(args=args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, stderr = process.communicate()
+        if process.returncode != 0:
+            raise RuntimeError(
+                "Failed to query status of process with pid {pid}.\n"
+                "Execution of `{args}` returned exit code {returncode}.\n"
+                "{stderr}".format(
+                    pid=pid,
+                    args=" ".join(args),
+                    returncode=process.returncode,
+                    stderr=stderr.decode("utf-8"),
+                )
+            )
+
+        output = stdout.decode("utf-8")
+        if "No tasks are running" in output:
+            return False
+
+        lines = output.splitlines()
+        if len(lines) != 2:
+            return False
+
+        csv_reader = csv.DictReader(lines)
+        for row in csv_reader:
+            pid_value = row.get("PID", -1)
+            if pid_value == -1:
+                return False
+            try:
+                return pid == int(pid_value)
+            except (ValueError, TypeError):
+                return False
+        return False
+
     # https://learn.microsoft.com/en-us/windows/win32/procthread/process-security-and-access-rights
     _PROCESS_TERMINATE = 0x1  # Required to terminate a process using TerminateProcess.
 
@@ -169,6 +212,19 @@ if WINDOWS:
             raise ctypes.WinError()  # type: ignore[attr-defined]
 
 else:
+
+    def is_alive(pid):
+        # type: (int) -> bool
+
+        import errno
+
+        try:
+            os.kill(pid, 0)
+            return True
+        except OSError as e:
+            if e.errno == errno.ESRCH:  # No such process.
+                return False
+            raise
 
     def kill(pid):
         # type: (int) -> None
