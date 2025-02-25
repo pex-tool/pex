@@ -13,6 +13,7 @@ import pytest
 
 from pex.common import safe_rmtree
 from pex.compatibility import PY2
+from pex.pip.version import PipVersion
 from pex.typing import TYPE_CHECKING
 from testing import IntegResults, make_env, run_pex_command
 from testing.cli import run_pex3
@@ -57,7 +58,7 @@ def serve_authenticated(username, password, find_links):
                 self.send_header("WWW-Authenticate", 'Basic realm="Foo"')
                 self.end_headers()
 
-    server = HTTPServer(("", 0), BasicHTTPAuthHandler)
+    server = HTTPServer(("127.0.0.1", 0), BasicHTTPAuthHandler)
     server_dispatch_thread = Thread(target=server.serve_forever)
     server_dispatch_thread.daemon = True
     cwd = os.getcwd()
@@ -73,22 +74,29 @@ def serve_authenticated(username, password, find_links):
 
 
 @pytest.fixture(scope="module")
-def ansicolors_find_links_directory(
+def ansicolors_and_pip_find_links_directory(
     tmpdir_factory,  # type: TempdirFactory
     request,  # type: Any
 ):
     # type: (...) -> str
     find_links = str(tmpdir_factory.mktemp("find_links", request=request))
+
+    requirements = ["ansicolors==1.1.8"]
+    if PipVersion.DEFAULT is not PipVersion.VENDORED:
+        requirements.extend(map(str, PipVersion.DEFAULT.requirements))
+
     run_pex_command(
-        args=[
-            "ansicolors==1.1.8",
-            "--include-tools",
-            "--",
-            "repository",
-            "extract",
-            "--find-links",
-            find_links,
-        ],
+        args=(
+            requirements
+            + [
+                "--include-tools",
+                "--",
+                "repository",
+                "extract",
+                "--find-links",
+                find_links,
+            ]
+        ),
         env=make_env(PEX_TOOLS=1),
     ).assert_success()
     return find_links
@@ -122,7 +130,7 @@ class SecuredLock(object):
 
 @pytest.fixture
 def secured_ansicolors_lock(
-    ansicolors_find_links_directory,  # type: str
+    ansicolors_and_pip_find_links_directory,  # type: str
     tmpdir,  # type: Any
 ):
     # type: (...) -> Iterator[SecuredLock]
@@ -132,7 +140,7 @@ def secured_ansicolors_lock(
     with serve_authenticated(
         username=username,
         password=password,
-        find_links=ansicolors_find_links_directory,
+        find_links=ansicolors_and_pip_find_links_directory,
     ) as address:
         lock = os.path.join(str(tmpdir), "lock")
         pex_root = os.path.join(str(tmpdir), "pex_root")
@@ -152,8 +160,6 @@ def secured_ansicolors_lock(
             "--no-pypi",
             "--find-links",
             secured_lock.repo_url_with_credentials,
-            # Since we have no PyPI access, ensure we're using vendored Pip for this test.
-            "--pip-version=vendored",
             "ansicolors",
             "--indent",
             "2",
