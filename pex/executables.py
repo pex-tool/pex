@@ -6,9 +6,10 @@ from __future__ import absolute_import
 import os
 import re
 import stat
+import zipfile
 from textwrap import dedent
 
-from pex.os import is_exe
+from pex.os import WINDOWS, is_exe
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -27,6 +28,9 @@ def chmod_plus_x(path):
     if path_mode & stat.S_IROTH:
         path_mode |= stat.S_IXOTH
     os.chmod(path, path_mode)
+
+
+_SHEBANG_MAGIC = b"#!"
 
 
 def is_script(
@@ -49,10 +53,14 @@ def is_script(
                         line.
     :return: True if the given path is a script.
     """
+    path = os.path.realpath(path)
     if check_executable and not is_exe(path):
         return False
+    elif not os.path.isfile(path):
+        return False
+
     with open(path, "rb") as fp:
-        if b"#!" != fp.read(2):
+        if _SHEBANG_MAGIC != fp.read(len(_SHEBANG_MAGIC)):
             return False
         if not pattern:
             return True
@@ -104,35 +112,66 @@ def create_sh_python_redirector_shebang(sh_script_content):
     )
 
 
+_PYTHON_SHEBANG_RE = br"""(?ix)
+# The aim is to admit the common shebang forms:
+# + python
+# + /usr/bin/env (<args>)? <python bin name> (<args>)?
+# + /absolute/path/to/<python bin name> (<args>)?
+# The 1st corresponds to the special placeholder shebang #!python specified here:
+# + https://peps.python.org/pep-0427
+# + https://packaging.python.org/specifications/binary-distribution-format
+(?:^|.*\W)
+
+# Python executable names Pex supports (see PythonIdentity).
+(?:
+      python
+    | pypy
+)
+
+# Optional Python version
+(?:\d+(?:\.\d+)*)?
+
+# Windows extension
+(?:\.exe)?
+
+# Support a shebang with an argument to the interpreter at the end.
+(?:\s[^\s]|$)
+"""
+
+
 def is_python_script(
     path,  # type: Text
     check_executable=True,  # type: bool
 ):
     # type: (...) -> bool
-    return is_script(
+
+    path = os.path.realpath(path)
+    if is_script(
         path,
-        pattern=br"""(?ix)
-        # The aim is to admit the common shebang forms:
-        # + python
-        # + /usr/bin/env (<args>)? <python bin name> (<args>)?
-        # + /absolute/path/to/<python bin name> (<args>)?
-        # The 1st corresponds to the special placeholder shebang #!python specified here:
-        # + https://peps.python.org/pep-0427
-        # + https://packaging.python.org/specifications/binary-distribution-format
-        (?:^|.*\W)
-
-        # Python executable names Pex supports (see PythonIdentity).
-        (?:
-              python
-            | pypy
-        )
-
-        # Optional Python version
-        (?:\d+(?:\.\d+)*)?
-
-        # Support a shebang with an argument to the interpreter at the end.
-        (?:\s[^\s]|$)
-        """,
+        pattern=_PYTHON_SHEBANG_RE,
         check_executable=check_executable,
         extra_check=lambda shebang, fp: shebang == b"/bin/sh" and fp.read(13) == b"'''': pshprs\n",
-    )
+    ):
+        return True
+
+    if WINDOWS:
+        # Check for the style of console scripts we create.
+        from pex import windows
+
+        if windows.is_script(path):
+            return True
+
+        # Check for the style of console scripts Pip creates.
+        if not zipfile.is_zipfile(path):
+            return False
+
+        from pex.ziputils import Zip
+
+        zip_script = Zip.load(path)
+        with open(os.devnull, "wb") as fp:
+            shebang = zip_script.isolate_header(fp, stop_at=_SHEBANG_MAGIC)
+            if shebang:
+                if bool(re.match(_PYTHON_SHEBANG_RE, shebang[len(_SHEBANG_MAGIC) :].strip())):
+                    return True
+
+    return False

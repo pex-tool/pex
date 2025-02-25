@@ -9,7 +9,7 @@ import struct
 import uuid
 import zipfile
 
-from pex.common import safe_open
+from pex.common import open_zip, safe_open
 from pex.fetcher import URLFetcher
 from pex.fs import safe_rename
 from pex.os import Os
@@ -137,3 +137,16 @@ def create_script(
     script = platform.binary_name(path)
     safe_rename(fp.name, script)
     return script
+
+
+def is_script(path):
+    # type: (Text) -> bool
+
+    if not zipfile.is_zipfile(path):
+        return False
+    with open(path, "rb") as fp:
+        fp.seek(-4, os.SEEK_END)
+        if b"UVSC" != fp.read():
+            return False
+    with open_zip(path) as zip_fp:
+        return "__main__.py" in zip_fp.namelist()
