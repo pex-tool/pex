@@ -3,12 +3,15 @@
 
 import json
 import os.path
+import shlex
 import shutil
 import sys
 from textwrap import dedent
+from typing import Optional
 
 import pytest
 
+from pex.os import WINDOWS
 from pex.typing import TYPE_CHECKING
 from testing import IS_PYPY, run_pex_command, subprocess
 
@@ -58,12 +61,17 @@ def assert_exe_output(
     pex,  # type: str
     warning_expected,  # type: bool
     prefix_args=(),  # type: Iterable[str]
+    custom_shebang=None,  # type: Optional[str]
 ):
-    process = subprocess.Popen(
-        args=list(prefix_args) + [pex, "--foo", "bar"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
+    args = []  # type: List[str]
+    if prefix_args:
+        args.extend(prefix_args)
+    elif WINDOWS and custom_shebang:
+        # Windows doesn't do shebangs; so instead test a direct invocation with the shebang.
+        args.extend(shlex.split(custom_shebang, posix=False))
+    args.extend((pex, "--foo", "bar"))
+
+    process = subprocess.Popen(args=args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = process.communicate()
     error = stderr.decode("utf-8")
     assert 0 == process.returncode, error
@@ -107,14 +115,9 @@ def test_python_args_passthrough(
         ]
     )
     run_pex_command(args=args + ["-o", default_shebang_pex]).assert_success()
+    custom_shebang = "{python} -Wignore".format(python=sys.executable)
     run_pex_command(
-        args=args
-        + [
-            "-o",
-            custom_shebang_pex,
-            "--python-shebang",
-            "{python} -Wignore".format(python=sys.executable),
-        ]
+        args=args + ["-o", custom_shebang_pex, "--python-shebang", custom_shebang]
     ).assert_success()
 
     # N.B.: We execute tests in doubles after a cache nuke to exercise both cold and warm runs
@@ -124,8 +127,8 @@ def test_python_args_passthrough(
     shutil.rmtree(pex_root)
     assert_exe_output(default_shebang_pex, warning_expected=True)
     assert_exe_output(default_shebang_pex, warning_expected=True)
-    assert_exe_output(custom_shebang_pex, warning_expected=False)
-    assert_exe_output(custom_shebang_pex, warning_expected=False)
+    assert_exe_output(custom_shebang_pex, warning_expected=False, custom_shebang=custom_shebang)
+    assert_exe_output(custom_shebang_pex, warning_expected=False, custom_shebang=custom_shebang)
 
     # But they also should be able to be over-ridden.
     shutil.rmtree(pex_root)
@@ -135,8 +138,18 @@ def test_python_args_passthrough(
     assert_exe_output(
         default_shebang_pex, prefix_args=[sys.executable, "-Wignore"], warning_expected=False
     )
-    assert_exe_output(custom_shebang_pex, prefix_args=[sys.executable], warning_expected=True)
-    assert_exe_output(custom_shebang_pex, prefix_args=[sys.executable], warning_expected=True)
+    assert_exe_output(
+        custom_shebang_pex,
+        prefix_args=[sys.executable],
+        warning_expected=True,
+        custom_shebang=custom_shebang,
+    )
+    assert_exe_output(
+        custom_shebang_pex,
+        prefix_args=[sys.executable],
+        warning_expected=True,
+        custom_shebang=custom_shebang,
+    )
 
 
 @parametrize_execution_mode_args
@@ -227,26 +240,26 @@ def test_issue_2422(
 
     run_pex_command(args=args).assert_success()
     shutil.rmtree(pex_root)
-    assert b"BufferedWriter\n" == subprocess.check_output(args=[sys.executable, exe])
-    assert b"BufferedWriter\n" == subprocess.check_output(
-        args=[pex]
+    assert b"BufferedWriter" == subprocess.check_output(args=[sys.executable, exe]).rstrip()
+    assert (
+        b"BufferedWriter" == subprocess.check_output(args=[pex]).rstrip()
     ), "Expected cold run to use buffered io."
-    assert b"BufferedWriter\n" == subprocess.check_output(
-        args=[pex]
+    assert (
+        b"BufferedWriter" == subprocess.check_output(args=[pex]).rstrip()
     ), "Expected warm run to use buffered io."
 
-    assert b"FileIO\n" == subprocess.check_output(
-        args=[sys.executable, "-u", pex]
+    assert (
+        b"FileIO" == subprocess.check_output(args=[sys.executable, "-u", pex]).rstrip()
     ), "Expected explicit Python arguments to be honored."
 
     run_pex_command(args=args + ["--inject-python-args=-u"]).assert_success()
     shutil.rmtree(pex_root)
-    assert b"FileIO\n" == subprocess.check_output(args=[sys.executable, "-u", exe])
-    assert b"FileIO\n" == subprocess.check_output(
-        args=[pex]
+    assert b"FileIO" == subprocess.check_output(args=[sys.executable, "-u", exe]).rstrip()
+    assert (
+        b"FileIO" == subprocess.check_output(args=[pex]).rstrip()
     ), "Expected cold run to use un-buffered io."
-    assert b"FileIO\n" == subprocess.check_output(
-        args=[pex]
+    assert (
+        b"FileIO" == subprocess.check_output(args=[pex]).rstrip()
     ), "Expected warm run to use un-buffered io."
 
     process = subprocess.Popen(
@@ -256,5 +269,5 @@ def test_issue_2422(
     )
     stdout, stderr = process.communicate()
     assert 0 == process.returncode
-    assert b"FileIO\n" == stdout, "Expected injected Python arguments to be honored."
+    assert b"FileIO" == stdout.rstrip(), "Expected injected Python arguments to be honored."
     assert b"import " in stderr, "Expected explicit Python arguments to be honored as well."

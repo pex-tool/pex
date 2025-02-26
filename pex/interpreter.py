@@ -795,35 +795,33 @@ class PyVenvCfg(object):
 
 
 class PythonInterpreter(object):
-    _REGEXEN = (
-        # NB: OSX ships python binaries named Python with a capital-P; so we allow for this.
-        re.compile(r"^Python{extension}$".format(extension=re.escape(EXE_EXTENSION))),
-        re.compile(
-            r"""
-            ^
-            (?:
-                python |
-                pypy
-            )
-            (?:
-                # Major version
-                [2-9]
-                (?:.
-                    # Minor version
-                    [0-9]+
-                    # Some distributions include a suffix on the interpreter name, similar to
-                    # PEP-3149. For example, Gentoo has /usr/bin/python3.6m to indicate it was
-                    # built with pymalloc
-                    [a-z]?
-                )?
+    _REGEX = re.compile(
+        r"""
+        ^
+        (?:
+            python |
+            pypy
+        )
+        (?:
+            # Major version
+            [2-9]
+            (?:.
+                # Minor version
+                [0-9]+
+                # Some distributions include a suffix on the interpreter name, similar to
+                # PEP-3149. For example, Gentoo has /usr/bin/python3.6m to indicate it was
+                # built with pymalloc
+                [a-z]?
             )?
-            {extension}
-            $
-            """.format(
-                extension=re.escape(EXE_EXTENSION)
-            ),
-            flags=re.VERBOSE,
+        )?
+        {extension}
+        $
+        """.format(
+            extension=re.escape(EXE_EXTENSION)
         ),
+        # NB: OSX ships python binaries named Python with a capital-P; so we allow for this as well
+        # as accommodating Windows which has DOS case insensitivity.
+        flags=re.IGNORECASE | re.VERBOSE,
     )
 
     _PYTHON_INTERPRETER_BY_NORMALIZED_PATH = {}  # type: Dict
@@ -1214,8 +1212,7 @@ class PythonInterpreter(object):
     @classmethod
     def matches_binary_name(cls, path):
         # type: (str) -> bool
-        basefile = os.path.basename(path)
-        return any(matcher.match(basefile) is not None for matcher in cls._REGEXEN)
+        return cls._REGEX.match(os.path.basename(path)) is not None
 
     @overload
     @classmethod

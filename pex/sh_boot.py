@@ -15,6 +15,7 @@ from pex.interpreter import PythonInterpreter, calculate_binary_name
 from pex.interpreter_constraints import InterpreterConstraints, iter_compatible_versions
 from pex.layout import Layout
 from pex.orderedset import OrderedSet
+from pex.os import WINDOWS
 from pex.pep_440 import Version
 from pex.pex_info import PexInfo
 from pex.targets import Targets
@@ -152,7 +153,8 @@ def create_sh_boot_script(
         # Drop leading `/usr/bin/env [args]?`.
         args = list(
             itertools.dropwhile(
-                lambda word: not PythonInterpreter.matches_binary_name(word), shlex.split(shebang)
+                lambda word: not PythonInterpreter.matches_binary_name(word),
+                shlex.split(shebang, posix=not WINDOWS),
             )
         )
         python = args[0]
