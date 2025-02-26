@@ -1640,7 +1640,7 @@ def create_shebang(
     shebang = "#!{python}".format(python=python)
 
     # N.B.: We add 1 to be conservative and account for the EOL character.
-    if len(shebang) + 1 <= max_shebang_length:
+    if WINDOWS or len(shebang) + 1 <= max_shebang_length:
         return shebang
 
     # This trick relies on /bin/sh being ubiquitous and the concordance of:

@@ -14,7 +14,7 @@ from pex.commands.command import JsonMixin, OutputMixin
 from pex.common import DETERMINISTIC_DATETIME, CopyMode, open_zip, pluralize
 from pex.dist_metadata import Distribution
 from pex.enum import Enum
-from pex.executables import is_script
+from pex.executables import is_python_script, is_script
 from pex.executor import Executor
 from pex.pex import PEX
 from pex.pex_info import PexInfo
@@ -188,7 +188,7 @@ class Venv(OutputMixin, JsonMixin, BuildTimeCommand):
             scripts=sorted(
                 os.path.relpath(exe, virtualenv.bin_dir)
                 for exe in virtualenv.iter_executables()
-                if is_script(exe)
+                if is_script(exe) or is_python_script(exe)
             ),
             site_packages=virtualenv.site_packages_dir,
             distributions=sorted(

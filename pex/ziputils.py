@@ -11,7 +11,7 @@ import struct
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import BinaryIO, Optional
+    from typing import BinaryIO, Optional, Text
 
     import attr  # vendor:skip
 else:
@@ -65,7 +65,7 @@ class _EndOfCentralDirectoryRecord(object):
 
     @classmethod
     def load(cls, zip_path):
-        # type: (str) -> _EndOfCentralDirectoryRecord
+        # type: (Text) -> _EndOfCentralDirectoryRecord
         file_size = os.path.getsize(zip_path)
         if file_size < cls._STRUCT.size:
             raise ValueError(
@@ -162,7 +162,7 @@ class Zip(object):
 
     @classmethod
     def load(cls, path):
-        # type: (str) -> Zip
+        # type: (Text) -> Zip
         """Loads a zip file with detection of header presence.
 
         :raises: :class:`ZipError` if the zip could not be analyzed for the presence of a header.
@@ -176,7 +176,7 @@ class Zip(object):
         header_size = os.path.getsize(path) - eocd.start_of_zip_offset_from_eof
         return cls(path=path, header_size=header_size)
 
-    path = attr.ib()  # type: str
+    path = attr.ib()  # type: Text
     header_size = attr.ib()  # type: int
 
     @property
