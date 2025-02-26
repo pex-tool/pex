@@ -15,6 +15,7 @@ from pex.bin.pex import configure_clp
 from pex.common import die
 from pex.compatibility import ConfigParser, string, to_unicode
 from pex.interpreter import PythonInterpreter
+from pex.os import WINDOWS
 
 
 # Suppress checkstyle violations due to distutils command requirements.
@@ -45,7 +46,7 @@ class bdist_pex(Command):  # noqa
         self.pex_args = ""
 
     def finalize_options(self):
-        self.pex_args = shlex.split(self.pex_args)
+        self.pex_args = shlex.split(self.pex_args, posix=not WINDOWS)
 
     def parse_entry_points(self):
         def parse_entry_point_name(entry_point):

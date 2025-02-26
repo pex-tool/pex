@@ -34,6 +34,7 @@ from pex.inherit_path import InheritPath
 from pex.interpreter_constraints import InterpreterConstraints
 from pex.layout import Layout, ensure_installed
 from pex.orderedset import OrderedSet
+from pex.os import WINDOWS
 from pex.pep_427 import InstallableType
 from pex.pep_723 import ScriptMetadata
 from pex.pex import PEX
@@ -558,7 +559,7 @@ def configure_clp_pex_entry_points(parser):
 
     class InjectArgAction(Action):
         def __call__(self, parser, namespace, value, option_str=None):
-            self.default.extend(shlex.split(value))
+            self.default.extend(shlex.split(value, posix=not WINDOWS))
 
     group.add_argument(
         "--inject-python-args",
