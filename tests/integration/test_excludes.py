@@ -30,7 +30,7 @@ from pex.venv.virtualenv import InstallationChoice, Virtualenv
 from testing import PY_VER, IntegResults, data, make_env, run_pex_command, subprocess
 from testing.cli import run_pex3
 from testing.lock import extract_lock_option_args, index_lock_artifacts
-from testing.pytest.tmp import Tempdir, TempdirFactory
+from testing.pytest_utils.tmp import Tempdir, TempdirFactory
 
 if TYPE_CHECKING:
     from typing import Any

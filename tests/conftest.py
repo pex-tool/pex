@@ -15,7 +15,7 @@ from pex.interpreter import PythonInterpreter
 from pex.platforms import Platform
 from pex.typing import TYPE_CHECKING
 from testing import PY27, PY38, PY39, PY310, ensure_python_interpreter
-from testing.pytest import tmp, track_status_hook
+from testing.pytest_utils import tmp, track_status_hook
 
 if TYPE_CHECKING:
     from typing import Iterator

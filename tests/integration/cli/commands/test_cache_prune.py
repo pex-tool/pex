@@ -34,7 +34,7 @@ from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
 from testing import run_pex_command, subprocess
 from testing.cli import run_pex3
-from testing.pytest.tmp import Tempdir
+from testing.pytest_utils.tmp import Tempdir
 
 if TYPE_CHECKING:
     from typing import Iterable, Iterator, Optional

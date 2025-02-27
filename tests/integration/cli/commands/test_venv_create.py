@@ -34,7 +34,7 @@ from testing import (
     subprocess,
 )
 from testing.cli import run_pex3
-from testing.pytest.tmp import Tempdir, TempdirFactory
+from testing.pytest_utils.tmp import Tempdir, TempdirFactory
 
 if TYPE_CHECKING:
     from typing import Any

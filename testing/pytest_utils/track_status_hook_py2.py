@@ -21,7 +21,7 @@ def track_status_hook(
 ):
     # type: (...) -> Generator[None, _Result, None]
 
-    from testing.pytest.track_status_hook import mark_passed
+    from testing.pytest_utils.track_status_hook import mark_passed
 
     report = yield
     result = report.get_result()

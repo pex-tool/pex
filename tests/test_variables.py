@@ -13,7 +13,7 @@ from pex.pex_warnings import PEXWarning
 from pex.typing import TYPE_CHECKING
 from pex.util import named_temporary_file
 from pex.variables import NoValueError, Variables
-from testing.pytest.tmp import Tempdir
+from testing.pytest_utils.tmp import Tempdir
 
 if TYPE_CHECKING:
     from typing import Any

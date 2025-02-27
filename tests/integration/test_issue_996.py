@@ -18,7 +18,7 @@ from testing import (
     run_pex_command,
     subprocess,
 )
-from testing.pytest.tmp import Tempdir
+from testing.pytest_utils.tmp import Tempdir
 
 if TYPE_CHECKING:
     from typing import List

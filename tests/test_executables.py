@@ -14,7 +14,7 @@ from pex.executables import chmod_plus_x, is_python_script, is_script
 from pex.os import WINDOWS, is_exe
 from pex.pep_427 import install_wheel_interpreter
 from pex.venv.virtualenv import InstallationChoice, Virtualenv
-from testing.pytest.tmp import Tempdir
+from testing.pytest_utils.tmp import Tempdir
 
 
 @pytest.mark.skipif(WINDOWS, reason="This test checks posix expectations of a script.")

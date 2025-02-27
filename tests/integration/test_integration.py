@@ -57,7 +57,7 @@ from testing import (
 )
 from testing.mitmproxy import Proxy
 from testing.pep_427 import get_installable_type_flag
-from testing.pytest import IS_CI
+from testing.pytest_utils import IS_CI
 
 if TYPE_CHECKING:
     from typing import Any, Callable, Iterator, List, Optional, Tuple

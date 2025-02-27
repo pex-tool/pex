@@ -8,7 +8,7 @@ import shutil
 
 from pex.fs import safe_symlink
 from testing import make_env, run_pex_command, subprocess
-from testing.pytest.tmp import Tempdir
+from testing.pytest_utils.tmp import Tempdir
 
 
 def test_symlinked_home(tmpdir):

@@ -23,7 +23,7 @@ def track_status_hook(
 ):
     # type: (...) -> Generator[None, TestReport, TestReport]
 
-    from testing.pytest.track_status_hook import mark_passed
+    from testing.pytest_utils.track_status_hook import mark_passed
 
     report = yield
     if sys.version_info[:2] < (3, 7):

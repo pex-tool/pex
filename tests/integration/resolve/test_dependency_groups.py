@@ -13,7 +13,7 @@ from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pex import PEX
 from testing import run_pex_command, subprocess
-from testing.pytest.tmp import Tempdir
+from testing.pytest_utils.tmp import Tempdir
 
 
 def test_pex_from_dependency_groups(tmpdir):

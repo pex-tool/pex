@@ -10,7 +10,7 @@ from pex.resolve.locked_resolve import LockedRequirement
 from pex.resolve.lockfile import json_codec
 from pex.resolve.lockfile.model import Lockfile
 from testing.cli import run_pex3
-from testing.pytest.tmp import Tempdir
+from testing.pytest_utils.tmp import Tempdir
 
 
 def index_locked_reqs(lockfile):

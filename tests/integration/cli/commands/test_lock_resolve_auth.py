@@ -17,7 +17,7 @@ from pex.pip.version import PipVersion
 from pex.typing import TYPE_CHECKING
 from testing import IntegResults, make_env, run_pex_command
 from testing.cli import run_pex3
-from testing.pytest.tmp import TempdirFactory
+from testing.pytest_utils.tmp import TempdirFactory
 
 if TYPE_CHECKING:
     from typing import Any, Iterator

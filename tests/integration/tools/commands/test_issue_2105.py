@@ -13,7 +13,7 @@ from pex.pex import PEX
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import InstallationChoice, Virtualenv
 from testing import make_env, run_pex_command, subprocess
-from testing.pytest.tmp import Tempdir, TempdirFactory
+from testing.pytest_utils.tmp import Tempdir, TempdirFactory
 
 if TYPE_CHECKING:
     from typing import Any, Iterable, Mapping, Optional

@@ -17,7 +17,7 @@ from testing import (
     run_pex_command,
     subprocess,
 )
-from testing.pytest.tmp import Tempdir
+from testing.pytest_utils.tmp import Tempdir
 from testing.pythonPI import skip_flit_core_39
 
 if TYPE_CHECKING:

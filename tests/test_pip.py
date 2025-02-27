@@ -32,7 +32,7 @@ from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
 from pex.venv.virtualenv import Virtualenv
 from testing import IS_LINUX, PY310, ensure_python_interpreter
-from testing.pytest.tmp import Tempdir
+from testing.pytest_utils.tmp import Tempdir
 
 if TYPE_CHECKING:
     from typing import Any, Iterable, Iterator, Optional, Protocol

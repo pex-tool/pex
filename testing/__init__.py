@@ -15,6 +15,8 @@ from collections import Counter
 from contextlib import contextmanager
 from textwrap import dedent
 
+import pytest
+
 from pex.atomic_directory import atomic_directory
 from pex.common import open_zip, safe_mkdir, safe_mkdtemp, safe_rmtree, safe_sleep, temporary_dir
 from pex.dist_metadata import Distribution
@@ -608,10 +610,12 @@ def ensure_python_distribution(version):
     if version not in ALL_PY_VERSIONS:
         raise ValueError("Please constrain version to one of {}".format(ALL_PY_VERSIONS))
 
-    assert not WINDOWS or _ALL_PY_VERSIONS_TO_VERSION_INFO[version][:2] >= (
-        3,
-        8,
-    ), "Test uses pyenv {} interpreter which is not supported on Windows.".format(version)
+    if WINDOWS and _ALL_PY_VERSIONS_TO_VERSION_INFO[version][:2] < (3, 8):
+        pytest.skip(
+            "Test uses pyenv {version} interpreter which is not supported on Windows.".format(
+                version=version
+            )
+        )
 
     clone_dir = os.path.abspath(
         os.path.join(PEX_TEST_DEV_ROOT, "pyenv-win" if WINDOWS else "pyenv")

@@ -10,7 +10,7 @@ from pex.compatibility import commonpath
 from pex.interpreter import PythonInterpreter
 from testing import run_pex_command
 from testing.cli import run_pex3
-from testing.pytest.tmp import Tempdir
+from testing.pytest_utils.tmp import Tempdir
 
 
 def test_missing_download_lock_analysis_handling(

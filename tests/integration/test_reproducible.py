@@ -33,7 +33,7 @@ from testing import (
     run_commands_with_jitter,
 )
 from testing.cli import run_pex3
-from testing.pytest.tmp import Tempdir
+from testing.pytest_utils.tmp import Tempdir
 
 if TYPE_CHECKING:
     from typing import Iterable, List, Optional, Tuple

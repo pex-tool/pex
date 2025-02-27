@@ -36,7 +36,7 @@ from testing import (
     pushd,
     subprocess,
 )
-from testing.pytest.tmp import TempdirFactory
+from testing.pytest_utils.tmp import TempdirFactory
 
 try:
     from unittest.mock import Mock, patch  # type: ignore[import]
