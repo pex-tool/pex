@@ -14,7 +14,7 @@ from pex.layout import Layout
 from pex.os import WINDOWS
 from pex.typing import TYPE_CHECKING
 from testing import all_pythons, make_env, run_pex_command, subprocess
-from testing.pytest.tmp import Tempdir
+from testing.pytest_utils.tmp import Tempdir
 
 if TYPE_CHECKING:
     from typing import Any, Iterable, Iterator, List, Text, Tuple

@@ -15,7 +15,7 @@ from pex.resolve import script_metadata
 from pex.resolve.resolvers import Unsatisfiable
 from pex.resolve.target_configuration import InterpreterConfiguration, TargetConfiguration
 from pex.third_party.packaging.specifiers import SpecifierSet
-from testing.pytest.tmp import Tempdir
+from testing.pytest_utils.tmp import Tempdir
 
 
 @pytest.fixture

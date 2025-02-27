@@ -13,7 +13,7 @@ from pex.pep_503 import ProjectName
 from pex.resolve.lockfile import json_codec
 from pex.sorted_tuple import SortedTuple
 from testing.cli import run_pex3
-from testing.pytest.tmp import Tempdir
+from testing.pytest_utils.tmp import Tempdir
 
 req = Requirement.parse
 

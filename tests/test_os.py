@@ -8,7 +8,7 @@ import os
 from pex.common import touch
 from pex.executables import chmod_plus_x
 from pex.os import is_exe
-from testing.pytest.tmp import Tempdir
+from testing.pytest_utils.tmp import Tempdir
 
 
 def test_is_exe(tmpdir):

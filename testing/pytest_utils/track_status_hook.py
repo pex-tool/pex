@@ -7,7 +7,7 @@ import sys
 
 from pex.compatibility import PY2
 from pex.typing import TYPE_CHECKING
-from testing.pytest.tmp import RetentionPolicy
+from testing.pytest_utils.tmp import RetentionPolicy
 
 if TYPE_CHECKING:
     from typing import Dict
@@ -32,9 +32,9 @@ def passed(node):
 
 
 if PY2:
-    from testing.pytest.track_status_hook_py2 import track_status_hook as _track_status_hook
+    from testing.pytest_utils.track_status_hook_py2 import track_status_hook as _track_status_hook
 else:
-    from testing.pytest.track_status_hook_py3 import track_status_hook as _track_status_hook
+    from testing.pytest_utils.track_status_hook_py3 import track_status_hook as _track_status_hook
 
 hook = _track_status_hook
 

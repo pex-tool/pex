@@ -8,7 +8,7 @@ from textwrap import dedent
 
 from pex import targets
 from testing.cli import run_pex3
-from testing.pytest.tmp import Tempdir
+from testing.pytest_utils.tmp import Tempdir
 
 
 def test_independent_logs_for_independent_runs(tmpdir):

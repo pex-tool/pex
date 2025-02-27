@@ -10,7 +10,7 @@ from pex.interpreter import PythonInterpreter
 from pex.pex_info import PexInfo
 from pex.typing import TYPE_CHECKING
 from testing import IS_PYPY, PY_VER, make_env, run_pex_command, subprocess
-from testing.pytest.tmp import TempdirFactory
+from testing.pytest_utils.tmp import TempdirFactory
 
 if TYPE_CHECKING:
     from typing import Any, List, Text

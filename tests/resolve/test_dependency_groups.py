@@ -17,7 +17,7 @@ from pex.dist_metadata import Requirement
 from pex.resolve import project
 from pex.typing import cast
 from testing import pushd
-from testing.pytest.tmp import Tempdir
+from testing.pytest_utils.tmp import Tempdir
 
 
 def create_dependency_groups_project(

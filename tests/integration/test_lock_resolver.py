@@ -25,7 +25,7 @@ from pex.util import CacheHelper
 from testing import IS_PYPY, PY_VER, built_wheel, make_env, run_pex_command, subprocess
 from testing.cli import run_pex3
 from testing.lock import index_lock_artifacts
-from testing.pytest.tmp import Tempdir, TempdirFactory
+from testing.pytest_utils.tmp import Tempdir, TempdirFactory
 
 if TYPE_CHECKING:
     from typing import Any, Mapping, Tuple

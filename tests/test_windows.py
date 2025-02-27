@@ -5,7 +5,7 @@ from __future__ import absolute_import
 
 from pex import windows
 from pex.sysconfig import SysPlatform
-from testing.pytest.tmp import Tempdir
+from testing.pytest_utils.tmp import Tempdir
 
 
 def test_is_script(tmpdir):
