@@ -298,7 +298,7 @@ jobs:
           # N.B.: Output looks like:
           # :; openssl version -d
           # OPENSSLDIR: "/usr/lib/ssl"
-          openssl_dir = output.split(":")[-1].strip(" '\"")
+          openssl_dir = output.split(":", maxsplit=1)[-1].strip()
           env = f"OPENSSL_DIR={openssl_dir}"
           env_file = os.environ["GITHUB_ENV"]
           print(f"Setting env {env} in {env_file}.")
