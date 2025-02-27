@@ -177,6 +177,10 @@ class _QualifiedRequirement(object):
     requirement = attr.ib()  # type: Requirement
     required = attr.ib(default=True)  # type: bool
 
+    def with_extras(self, extras):
+        # type: (FrozenSet[str]) -> _QualifiedRequirement
+        return attr.evolve(self, requirement=attr.evolve(self.requirement, extras=extras))
+
 
 @attr.s(frozen=True)
 class _DistributionNotFound(object):
@@ -568,7 +572,20 @@ class PEXEnvironment(object):
                     ),
                     V=9,
                 )
-            yield qualified_requirement
+
+            # We may have had multiple requirements that select the winning candidate distribution.
+            # For example, say we're a Python 3.10 interpreter and the root requirements are
+            # `"foo[bar]; python_version < '3.11'" "foo[baz]==1.2.3"`. In that case, we want to
+            # ensure that for whichever ~random requirement we selected as a representative we
+            # gather all extras across the candidate requirements to make sure all requested extras
+            # are grafted in to the resolve.
+            yield qualified_requirement.with_extras(
+                frozenset(
+                    itertools.chain.from_iterable(
+                        candidate[1].requirement.extras for candidate in candidates
+                    )
+                )
+            )
 
     def resolve(self):
         # type: () -> Iterable[Distribution]
