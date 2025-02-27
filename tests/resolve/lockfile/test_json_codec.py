@@ -41,6 +41,7 @@ def test_roundtrip(tmpdir):
         style=LockStyle.STRICT,
         requires_python=(),
         target_systems=(),
+        lock_build_systems=False,
         pip_version=PipVersion.VENDORED,
         resolver_version=ResolverVersion.PIP_2020,
         requirements=(

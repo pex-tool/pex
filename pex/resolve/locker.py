@@ -10,6 +10,8 @@ import re
 from collections import OrderedDict, defaultdict
 
 from pex import hashing
+from pex.build_system import BuildSystemTable
+from pex.build_system.pep_518 import load_build_system_table
 from pex.common import safe_mkdtemp
 from pex.compatibility import urlparse
 from pex.dist_metadata import ProjectNameAndVersion, Requirement
@@ -23,6 +25,7 @@ from pex.pip.log_analyzer import LogAnalyzer
 from pex.pip.vcs import fingerprint_downloaded_vcs_archive
 from pex.pip.version import PipVersionValue
 from pex.requirements import ArchiveScheme, VCSRequirement, VCSScheme
+from pex.resolve import build_systems
 from pex.resolve.locked_resolve import LockConfiguration, LockStyle, TargetSystem
 from pex.resolve.pep_691.fingerprint_service import FingerprintService
 from pex.resolve.pep_691.model import Endpoint
@@ -34,6 +37,7 @@ from pex.resolve.resolved_requirement import (
     ResolvedRequirement,
 )
 from pex.resolve.resolvers import Resolver
+from pex.result import try_
 from pex.targets import Target
 from pex.typing import TYPE_CHECKING
 
@@ -369,8 +373,13 @@ class Locker(LogAnalyzer):
                 artifact_url = build_result.url
                 source_fingerprint = None  # type: Optional[Fingerprint]
                 verified = False
+                build_system_table = None  # type: Optional[BuildSystemTable]
                 if isinstance(artifact_url.scheme, VCSScheme):
-                    source_fingerprint, archive_path = fingerprint_downloaded_vcs_archive(
+                    (
+                        source_fingerprint,
+                        build_system_table,
+                        archive_path,
+                    ) = fingerprint_downloaded_vcs_archive(
                         download_dir=self._download_dir,
                         project_name=str(build_result.pin.project_name),
                         version=str(build_result.pin.version),
@@ -390,6 +399,9 @@ class Locker(LogAnalyzer):
                     # machinery that finalizes a locks missing fingerprints will download the
                     # artifact and hash it.
                     if os.path.isfile(source_archive_path):
+                        build_system_table = build_systems.extract_build_system_table(
+                            source_archive_path
+                        )
                         digest = Sha256()
                         hashing.file_hash(source_archive_path, digest)
                         source_fingerprint = Fingerprint.from_digest(digest)
@@ -398,11 +410,15 @@ class Locker(LogAnalyzer):
                 elif "file" == artifact_url.scheme:
                     digest = Sha256()
                     if os.path.isfile(artifact_url.path):
+                        build_system_table = build_systems.extract_build_system_table(
+                            artifact_url.path
+                        )
                         hashing.file_hash(artifact_url.path, digest)
                         self._selected_path_to_pin[
                             os.path.basename(artifact_url.path)
                         ] = build_result.pin
                     else:
+                        build_system_table = try_(load_build_system_table(artifact_url.path))
                         digest_local_project(
                             directory=artifact_url.path,
                             digest=digest,
@@ -427,7 +443,10 @@ class Locker(LogAnalyzer):
                 self._resolved_requirements[build_result.pin] = ResolvedRequirement(
                     pin=build_result.pin,
                     artifact=PartialArtifact(
-                        url=artifact_url, fingerprint=source_fingerprint, verified=verified
+                        url=artifact_url,
+                        fingerprint=source_fingerprint,
+                        verified=verified,
+                        build_system_table=build_system_table,
                     ),
                     additional_artifacts=tuple(additional_artifacts.values()),
                 )
