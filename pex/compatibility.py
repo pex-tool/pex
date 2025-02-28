@@ -13,6 +13,7 @@ import threading
 from abc import ABCMeta
 from sys import version_info as sys_version_info
 
+from pex.os import WINDOWS
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
@@ -243,6 +244,12 @@ else:
                     paths="\n".join(paths)
                 )
             )
+        if WINDOWS and len({os.path.splitdrive(path)[0] for path in paths}) > 1:
+            raise ValueError(
+                "Can't mix paths from different drives, given:\n{paths}".format(
+                    paths="\n".join(paths)
+                )
+            )
 
         def components(path):
             # type: (Text) -> Iterable[Text]
@@ -272,6 +279,18 @@ else:
         if not prefix:
             return ""
         return os.path.join(*prefix)
+
+
+def safe_commonpath(paths):
+    # type: (Sequence[Text]) -> Optional[Text]
+
+    # Handle the ValueError cases outlined in os.path.safe_commonpath and return None instead:
+    # > Raise ValueError if paths contain both absolute and relative pathnames, if paths are on
+    # > different drives, or if paths is empty.
+    try:
+        return commonpath(paths)
+    except ValueError:
+        return None
 
 
 if PY3:

@@ -5,7 +5,7 @@ from __future__ import absolute_import
 
 import os.path
 
-from pex.compatibility import commonpath
+from pex.compatibility import safe_commonpath
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -23,6 +23,6 @@ _CACHE_DIR = os.path.realpath(
 def path(expand_user=True):
     # type: (bool) -> str
 
-    if expand_user or _USER_DIR != commonpath((_USER_DIR, _CACHE_DIR)):
+    if expand_user or _USER_DIR != safe_commonpath((_USER_DIR, _CACHE_DIR)):
         return _CACHE_DIR
     return os.path.join("~", os.path.relpath(_CACHE_DIR, _USER_DIR))

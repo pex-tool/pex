@@ -3,7 +3,7 @@
 import os.path
 import sys
 
-from pex.compatibility import commonpath
+from pex.compatibility import safe_commonpath
 from pex.typing import TYPE_CHECKING
 from testing import PY310, ensure_python_interpreter, run_pex_command
 from testing.cli import run_pex3
@@ -51,4 +51,4 @@ def test_pypy_impl_tag_handling(tmpdir):
         python=python,
     )
     result.assert_success()
-    assert pex_root == commonpath([pex_root, os.path.realpath(result.output.strip())])
+    assert pex_root == safe_commonpath([pex_root, os.path.realpath(result.output.strip())])

@@ -3,7 +3,7 @@
 
 import os
 
-from pex.compatibility import commonpath
+from pex.compatibility import safe_commonpath
 from pex.typing import TYPE_CHECKING
 from testing import PY310, ensure_python_interpreter, run_pex_command, subprocess
 
@@ -34,6 +34,6 @@ def test_pip_leak(tmpdir):
         python=python,
     )
     result.assert_success()
-    assert os.path.realpath(pex_root) == commonpath(
+    assert os.path.realpath(pex_root) == safe_commonpath(
         [os.path.realpath(pex_root), result.output.strip()]
     )

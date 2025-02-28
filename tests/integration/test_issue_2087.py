@@ -5,7 +5,7 @@ import json
 import os.path
 from textwrap import dedent
 
-from pex.compatibility import commonpath
+from pex.compatibility import safe_commonpath
 from pex.typing import TYPE_CHECKING
 from testing import run_pex_command
 
@@ -47,4 +47,4 @@ def test_long_wheel_names(tmpdir):
 
     data = json.loads(result.output)
     assert "3.16.0" == data["version"]
-    assert pex_root == commonpath((pex_root, data["path"]))
+    assert pex_root == safe_commonpath((pex_root, data["path"]))

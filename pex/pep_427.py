@@ -15,7 +15,7 @@ from textwrap import dedent
 
 from pex import pex_warnings, windows
 from pex.common import is_pyc_file, iter_copytree, open_zip, safe_open, touch
-from pex.compatibility import commonpath, get_stdout_bytes_buffer
+from pex.compatibility import commonpath, get_stdout_bytes_buffer, safe_commonpath
 from pex.dist_metadata import CallableEntryPoint, Distribution, ProjectNameAndVersion
 from pex.enum import Enum
 from pex.executables import chmod_plus_x
@@ -215,7 +215,8 @@ def install_wheel(
             names=[
                 name
                 for name in zf.namelist()
-                if not name.endswith("/") and data_rel_path != commonpath((data_rel_path, name))
+                if not name.endswith("/")
+                and data_rel_path != safe_commonpath((data_rel_path, name))
             ],
         )
         if os.path.isdir(data_path):

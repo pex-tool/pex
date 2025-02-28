@@ -12,7 +12,7 @@ from zipfile import is_zipfile
 
 from pex.cli_util import prog_path
 from pex.common import pluralize
-from pex.compatibility import commonpath
+from pex.compatibility import safe_commonpath
 from pex.dist_metadata import Distribution
 from pex.layout import Layout
 from pex.os import is_exe
@@ -155,7 +155,7 @@ def _create_repl_data(
     layout = Layout.identify_original(env.PEX or pex)
     pex_root = os.path.abspath(env.PEX_ROOT)
     venv = venv or pex_info.venv
-    venv_pex = venv and pex_root == commonpath((os.path.abspath(pex), pex_root))
+    venv_pex = venv and pex_root == safe_commonpath((os.path.abspath(pex), pex_root))
     pex_prog_path = prog_path(env.PEX if venv_pex else pex)
     pex_cli_run_in_use = _pex_cli_run_in_use()
     ephemeral = "ephemeral " if pex_cli_run_in_use else ""

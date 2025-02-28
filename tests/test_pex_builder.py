@@ -14,7 +14,7 @@ import pytest
 
 from pex.cache.dirs import CacheDir
 from pex.common import CopyMode, open_zip, safe_open, temporary_dir, touch
-from pex.compatibility import commonpath
+from pex.compatibility import safe_commonpath
 from pex.executor import Executor
 from pex.fs import safe_rename
 from pex.layout import Layout
@@ -285,7 +285,7 @@ def test_pex_builder_packed(tmpdir):
     for root, dirs, files in os.walk(pex_app, followlinks=False):
         for f in files:
             path = os.path.join(root, f)
-            assert not os.path.islink(path) or pex_app == commonpath(
+            assert not os.path.islink(path) or pex_app == safe_commonpath(
                 [pex_app, os.path.realpath(path)]
             ), (
                 "All packed layout files should be real files inside the packed layout root that "

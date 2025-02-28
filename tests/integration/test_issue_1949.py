@@ -4,7 +4,7 @@ import os.path
 
 import pytest
 
-from pex.compatibility import commonpath
+from pex.compatibility import safe_commonpath
 from pex.typing import TYPE_CHECKING
 from testing import IntegResults, built_wheel, run_pex_command
 from testing.cli import run_pex3
@@ -59,11 +59,11 @@ def test_resolve_arbitrary_equality(
 
     result = create_pex_from_lock()
     result.assert_success()
-    assert pex_root == commonpath((pex_root, result.output.strip()))
+    assert pex_root == safe_commonpath((pex_root, result.output.strip()))
 
     result = create_pex_from_lock("not_boto===2.49.0a1")
     result.assert_success()
-    assert pex_root == commonpath((pex_root, result.output.strip()))
+    assert pex_root == safe_commonpath((pex_root, result.output.strip()))
 
     result = create_pex_from_lock("not_boto===2.49a1")
     result.assert_failure()
@@ -101,7 +101,7 @@ def test_resolve_arbitrary_equality(
 
     result = create_pex_from_pex_repository("not_boto===2.49.0a1")
     result.assert_success()
-    assert pex_root == commonpath((pex_root, result.output.strip()))
+    assert pex_root == safe_commonpath((pex_root, result.output.strip()))
 
     result = create_pex_from_pex_repository("not_boto===2.49a1")
     result.assert_failure()

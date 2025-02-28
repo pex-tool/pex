@@ -15,7 +15,7 @@ import pytest
 from pex import dist_metadata
 from pex.cli.commands.venv import InstallLayout
 from pex.common import open_zip, safe_open
-from pex.compatibility import commonpath
+from pex.compatibility import safe_commonpath
 from pex.dist_metadata import Distribution
 from pex.interpreter import PythonInterpreter
 from pex.pep_440 import Version
@@ -124,7 +124,7 @@ def assert_venv(
     _, stdout, _ = venv.interpreter.execute(
         args=["-c", "import cowsay, os; print(os.path.realpath(cowsay.__file__))"]
     )
-    assert venv.site_packages_dir == commonpath([venv.site_packages_dir, stdout.strip()])
+    assert venv.site_packages_dir == safe_commonpath([venv.site_packages_dir, stdout.strip()])
 
     _, stdout, _ = venv.interpreter.execute(args=["-m", "cowsay", "--version"])
     assert "5.0" == stdout.strip()
@@ -188,7 +188,7 @@ def assert_flat(
     sys_path_entry = dest if layout is InstallLayout.FLAT else "{dest}.zip".format(dest=dest)
     env = make_env(PYTHONPATH=sys_path_entry)
 
-    assert sys_path_entry == commonpath(
+    assert sys_path_entry == safe_commonpath(
         [
             sys_path_entry,
             subprocess.check_output(
@@ -330,7 +330,7 @@ def assert_deps_only(
 ):
     # type: (...) -> None
 
-    assert expected_prefix == commonpath(
+    assert expected_prefix == safe_commonpath(
         [
             expected_prefix,
             subprocess.check_output(

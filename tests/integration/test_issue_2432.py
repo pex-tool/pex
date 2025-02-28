@@ -4,7 +4,7 @@
 import os.path
 from textwrap import dedent
 
-from pex.compatibility import commonpath
+from pex.compatibility import safe_commonpath
 from pex.targets import LocalInterpreter
 from pex.typing import TYPE_CHECKING
 from testing import run_pex_command
@@ -56,7 +56,7 @@ def test_lock_use_no_build_wheel(tmpdir):
             assert expected_error in result.error
         else:
             result.assert_success()
-            assert pex_root == commonpath((pex_root, result.output.strip()))
+            assert pex_root == safe_commonpath((pex_root, result.output.strip()))
 
     assert_pex_from_lock()
 

@@ -6,7 +6,7 @@ import os.path
 from textwrap import dedent
 
 from pex.common import safe_open, touch
-from pex.compatibility import commonpath
+from pex.compatibility import safe_commonpath
 from pex.interpreter import PythonInterpreter
 from testing import run_pex_command
 from testing.cli import run_pex3
@@ -101,4 +101,4 @@ def test_missing_download_lock_analysis_handling(
 
     data = json.loads(result.output)
     assert "1.3.24" == data["version"]
-    assert pex_root == commonpath([pex_root, data["file"]])
+    assert pex_root == safe_commonpath([pex_root, data["file"]])

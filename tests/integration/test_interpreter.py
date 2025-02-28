@@ -3,7 +3,7 @@
 import os.path
 import sys
 
-from pex.compatibility import commonpath
+from pex.compatibility import safe_commonpath
 from pex.interpreter import PythonInterpreter
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
@@ -23,7 +23,7 @@ def test_boot_identification_leak(tmpdir):
         with ENV.patch(PEX_ROOT=pex_root), PythonInterpreter._cleared_memory_cache():
             interpreter = PythonInterpreter.from_binary(python)
             assert not any(
-                pex_root == commonpath((pex_root, entry)) for entry in interpreter.sys_path
+                pex_root == safe_commonpath((pex_root, entry)) for entry in interpreter.sys_path
             ), (
                 "The cached interpreter info for {python} contains leaked entries:\n"
                 "{entries}".format(python=python, entries="\n".join(interpreter.sys_path))

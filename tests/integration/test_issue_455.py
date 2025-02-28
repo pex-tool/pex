@@ -6,7 +6,7 @@ import sys
 
 import pytest
 
-from pex.compatibility import commonpath
+from pex.compatibility import safe_commonpath
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import Virtualenv
 from testing import IS_MAC, PY310, ensure_python_venv, run_pex_command, subprocess
@@ -73,4 +73,6 @@ def test_exclude(tmpdir):
         .decode("utf=8")
         .strip()
     )
-    assert venv.site_packages_dir == commonpath((venv.site_packages_dir, module_path)), module_path
+    assert venv.site_packages_dir == safe_commonpath(
+        (venv.site_packages_dir, module_path)
+    ), module_path

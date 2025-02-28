@@ -18,7 +18,7 @@ from pex.build_system import pep_517
 from pex.cli.command import BuildTimeCommand
 from pex.commands.command import JsonMixin, OutputMixin
 from pex.common import pluralize, safe_delete, safe_mkdtemp, safe_open
-from pex.compatibility import commonpath, shlex_quote
+from pex.compatibility import safe_commonpath, shlex_quote
 from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import (
     Constraint,
@@ -307,7 +307,11 @@ class SyncTarget(object):
             if to_unlink:
                 to_unlink_by_pin[
                     (distribution.metadata.project_name, distribution.metadata.version)
-                ] = [file for file in to_unlink if abs_venv_dir == commonpath((abs_venv_dir, file))]
+                ] = [
+                    file
+                    for file in to_unlink
+                    if abs_venv_dir == safe_commonpath((abs_venv_dir, file))
+                ]
         if confirm and to_unlink_by_pin:
             for (project_name, version), files in to_unlink_by_pin.items():
                 print(project_name, version, ":", file=sys.stderr)
@@ -325,7 +329,7 @@ class SyncTarget(object):
                 safe_delete(file)
                 parent_dirs.add(os.path.dirname(file))
             for parent_dir in sorted(parent_dirs, reverse=True):
-                if not os.listdir(parent_dir) and abs_venv_dir == commonpath(
+                if not os.listdir(parent_dir) and abs_venv_dir == safe_commonpath(
                     (abs_venv_dir, parent_dir)
                 ):
                     os.rmdir(parent_dir)

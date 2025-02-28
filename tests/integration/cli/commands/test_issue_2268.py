@@ -5,7 +5,7 @@ import sys
 
 import pytest
 
-from pex.compatibility import commonpath
+from pex.compatibility import safe_commonpath
 from pex.resolve.resolver_configuration import ResolverVersion
 from pex.typing import TYPE_CHECKING
 from testing import run_pex_command
@@ -71,4 +71,4 @@ def test_abi_none_locking(
         ]
     )
     result.assert_success()
-    assert pex_root == commonpath([pex_root, result.output.strip()])
+    assert pex_root == safe_commonpath([pex_root, result.output.strip()])

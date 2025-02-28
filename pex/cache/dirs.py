@@ -7,7 +7,7 @@ import glob
 import os
 
 from pex.common import safe_rmtree
-from pex.compatibility import commonpath
+from pex.compatibility import safe_commonpath
 from pex.enum import Enum
 from pex.exceptions import production_assert
 from pex.orderedset import OrderedSet
@@ -897,7 +897,7 @@ class InterpreterDir(AtomicCacheDir):
         if not self.interpreter.is_venv:
             return None
         cached_venv_root = CacheDir.VENVS.path()
-        if cached_venv_root != commonpath((cached_venv_root, self.interpreter.prefix)):
+        if cached_venv_root != safe_commonpath((cached_venv_root, self.interpreter.prefix)):
             return None
         head, contents_hash = os.path.split(self.interpreter.prefix)
         pex_hash = os.path.basename(head)
