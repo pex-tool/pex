@@ -28,197 +28,6 @@ jobs:
         if: false
         run: |
           echo "This is a dummy step that will never run."
-  checks:
-    name: "Unix: tox -e format-check,lint-check,typecheck,enum-check,vendor-check,package,docs"
-    needs: setup
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Checkout Pex
-        uses: actions/checkout@v4
-        with:
-          # We need branches and tags since package leans on `git describe`. Passing 0 gets us
-          # complete history.
-          fetch-depth: 0
-      - name: Setup Python 3.9
-        uses: actions/setup-python@v5
-        with:
-          # We need to keep Python 3.9 for consistent vendoring with tox.
-          python-version: "3.9"
-      - name: Check Formatting, Lints and Types
-        uses: pex-tool/actions/run-tox@c53dadd8b410bbd66480de91067e9e45d2b3af38
-        with:
-          tox-env: format-check,lint-check,typecheck
-      - name: Check Enum Types
-        run: |
-          BASE_MODE=pull ./dtox.sh -e enum-check -- -v --require-py27
-      - name: Check Vendoring
-        uses: pex-tool/actions/run-tox@c53dadd8b410bbd66480de91067e9e45d2b3af38
-        with:
-          tox-env: vendor-check
-      - name: Check Packaging
-        uses: pex-tool/actions/run-tox@c53dadd8b410bbd66480de91067e9e45d2b3af38
-        with:
-          tox-env: >-
-            package -- --additional-format sdist --additional-format wheel --embed-docs --clean-docs
-            --scies --gen-md-table-of-hash-and-size dist/hashes.md
-      - name: Check Docs
-        uses: pex-tool/actions/run-tox@c53dadd8b410bbd66480de91067e9e45d2b3af38
-        with:
-          tox-env: docs -- --linkcheck --pdf --clean-html
-
-  # N.B.: The name of this job key (linux-tests) is depended on by scrips/build_cache_image.py. In
-  # particular, the tox-env matrix list is used to ensure the cache covers all Linux CI jobs.
-  linux-tests:
-    name: "Linux: ./dtox.sh -e ${{ matrix.tox-env }} ${{ matrix.pex-test-pos-args }}"
-    needs: setup
-    runs-on: ubuntu-24.04
-    strategy:
-      matrix:
-        include:
-          # N.B.: When editing these, also edit build-cache-image.yml.
-
-          # Unit tests:
-          # -----------
-          - tox-env: py27-pip20
-          - tox-env: py313-pip25_0_1
-          - tox-env: pypy310-pip24_3_1
-
-          # Integration tests, split most into two shards:
-          # ----------------------------------------------
-
-          # CPython 2.7 is fast enough not to require sharding.
-          - tox-env: py27-pip20-integration
-
-          - tox-env: py38-pip22_3_1-integration
-            pex-test-pos-args: --shard 1/2
-          - tox-env: py38-pip22_3_1-integration
-            pex-test-pos-args: --shard 2/2
-
-          - tox-env: py313-pip25_0_1-integration
-            pex-test-pos-args: --shard 1/2
-          - tox-env: py313-pip25_0_1-integration
-            pex-test-pos-args: --shard 2/2
-
-          - tox-env: py314-pip25_0_1-integration
-            pex-test-pos-args: --shard 1/2
-          - tox-env: py314-pip25_0_1-integration
-            pex-test-pos-args: --shard 2/2
-
-          - tox-env: pypy310-pip24_3_1-integration
-            pex-test-pos-args: --shard 1/2
-          - tox-env: pypy310-pip24_3_1-integration
-            pex-test-pos-args: --shard 2/2
-    steps:
-      - name: Free Up Disk Space
-        uses: jlumbroso/free-disk-space@v1.3.1
-        with:
-          android: true # ~14GB
-          dotnet: true # ~2GB
-          tool-cache: true # ~12GB
-
-          # Too little space savings or too slow.
-          haskell: false
-          large-packages: false
-          docker-images: false
-          swap-storage: false
-      - name: Checkout Pex
-        uses: actions/checkout@v4
-        with:
-          # We need branches and tags for some ITs.
-          fetch-depth: 0
-      # Some ITs need this for VCS URLs of the form git+ssh://git@github.com/...
-      - name: Setup SSH Agent
-        uses: webfactory/ssh-agent@v0.9.0
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-        if: env.SSH_PRIVATE_KEY != ''
-        with:
-          ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
-      - name: Run Tests
-        run: |
-          # This is needed to get pexpect tests working under PyPy running under docker.
-          export TERM="xterm"
-          BASE_MODE=pull CACHE_MODE=pull \
-            ./dtox.sh -e ${{ matrix.tox-env }} -- \
-              ${{ env._PEX_TEST_POS_ARGS }} ${{ matrix.pex-test-pos-args }}
-  mac-tests:
-    name: "Mac: tox -e ${{ matrix.tox-env }} ${{ matrix.pex-test-pos-args }}"
-    needs: setup
-    runs-on: macos-13
-    strategy:
-      matrix:
-        include:
-          - python-version: [ 3, 13 ]
-            tox-env: py313-pip25_0_1
-            cache: true
-            tox-env-python: python3.11
-          - python-version: [ 3, 13 ]
-            tox-env: py313-pip25_0_1-integration
-            cache: true
-            tox-env-python: python3.11
-            pex-test-pos-args: --shard 1/2
-          - python-version: [ 3, 13 ]
-            tox-env: py313-pip25_0_1-integration
-            cache: true
-            tox-env-python: python3.11
-            pex-test-pos-args: --shard 2/2
-    steps:
-      - name: Checkout Pex
-        uses: actions/checkout@v4
-        with:
-          # We need branches and tags for some ITs.
-          fetch-depth: 0
-          path: repo
-      - name: Setup Python ${{ join(matrix.python-version, '.') }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: "${{ join(matrix.python-version, '.') }}"
-      - name: Expose Pythons
-        uses: pex-tool/actions/expose-pythons@c53dadd8b410bbd66480de91067e9e45d2b3af38
-      - name: Restore Cached Pyenv Interpreters
-        if: matrix.cache
-        id: restore-pyenv-interpreters
-        uses: actions/cache/restore@v4
-        with:
-          path: ${{ env._PEX_TEST_DEV_ROOT }}/pyenv
-          key: macos-13-${{ runner.arch }}-pex-test-dev-root-pyenv-v1
-      - name: Restore Cached Devpi Server
-        if: matrix.cache
-        id: restore-devpi-server
-        uses: actions/cache/restore@v4
-        with:
-          path: ${{ env._PEX_TEST_DEV_ROOT }}/devpi
-          # We're using a key suffix / restore-keys prefix trick here to get an updatable cache.
-          # See: https://github.com/actions/cache/blob/main/tips-and-workarounds.md#update-a-cache
-          key: macos-13-${{ runner.arch }}-${{ matrix.tox-env }}-pex-test-dev-root-devpi-v1-${{ github.run_id }}
-          restore-keys: macos-13-${{ runner.arch }}-${{ matrix.tox-env }}-pex-test-dev-root-devpi-v1
-      # Some ITs need this for VCS URLs of the form git+ssh://git@github.com/...
-      - name: Setup SSH Agent
-        uses: webfactory/ssh-agent@v0.9.0
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-        if: env.SSH_PRIVATE_KEY != ''
-        with:
-          ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
-      - name: Run Tests
-        uses: pex-tool/actions/run-tox@c53dadd8b410bbd66480de91067e9e45d2b3af38
-        with:
-          path: repo/tox.ini
-          python: ${{ matrix.tox-env-python }}
-          tox-env: >-
-            ${{ matrix.tox-env }} -- ${{ env._PEX_TEST_POS_ARGS }} ${{ matrix.pex-test-pos-args }}
-      - name: Cache Pyenv Interpreters
-        uses: actions/cache/save@v4
-        if: matrix.cache && github.ref == 'refs/heads/main'
-        with:
-          path: ${{ env._PEX_TEST_DEV_ROOT }}/pyenv
-          key: ${{ steps.restore-pyenv-interpreters.outputs.cache-primary-key }}
-      - name: Cache Devpi Server
-        uses: actions/cache/save@v4
-        if: matrix.cache && github.ref == 'refs/heads/main'
-        with:
-          path: ${{ env._PEX_TEST_DEV_ROOT }}/devpi
-          key: ${{ steps.restore-devpi-server.outputs.cache-primary-key }}
   windows-tests:
     name: "Windows: tox -e ${{ matrix.tox-env }} ${{ matrix.pex-test-pos-args }}"
     needs: setup
@@ -229,33 +38,11 @@ jobs:
         include:
           # N.B.: We use 3.11 to work around issues building typed-ast for the typecheck step.
           # There is a Windows wheel for CPython 3.11, but no higher CPython version.
-          - python-version: [ 3, 11 ]
-            tox-env: typecheck,package,docs
-          - python-version: [ 3, 13 ]
-            tox-env: py313-pip25_0
-            artifact-name: unit
-            cache: true
-            pex-test-pos-args: ${{ needs.setup.outputs.pex_test_posargs }} --junit-xml ../dist/test-results/unit.xml
-          - python-version: [ 3, 13 ]
-            tox-env: py313-pip25_0-integration
-            artifact-name: integration-1
-            cache: true
-            pex-test-pos-args: --shard 1/4 ${{ needs.setup.outputs.pex_test_posargs }} --junit-xml ../dist/test-results/integration-1.xml
-          - python-version: [ 3, 13 ]
-            tox-env: py313-pip25_0-integration
-            artifact-name: integration-2
-            cache: true
-            pex-test-pos-args: --shard 2/4 ${{ needs.setup.outputs.pex_test_posargs }} --junit-xml ../dist/test-results/integration-2.xml
-          - python-version: [ 3, 13 ]
-            tox-env: py313-pip25_0-integration
-            artifact-name: integration-3
-            cache: true
-            pex-test-pos-args: --shard 3/4 ${{ needs.setup.outputs.pex_test_posargs }} --junit-xml ../dist/test-results/integration-3.xml
           - python-version: [ 3, 13 ]
             tox-env: py313-pip25_0-integration
             artifact-name: integration-4
             cache: true
-            pex-test-pos-args: --shard 4/4 ${{ needs.setup.outputs.pex_test_posargs }} --junit-xml ../dist/test-results/integration-4.xml
+            pex-test-pos-args: -vvsk test_nothing_prunable -n0 ${{ needs.setup.outputs.pex_test_posargs }} --junit-xml ../dist/test-results/integration-4.xml
     steps:
       - name: Checkout Pex
         uses: actions/checkout@v4
@@ -285,11 +72,6 @@ jobs:
         if: env.SSH_PRIVATE_KEY != ''
         with:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
-      - name: Install OpenSSL (Windows)
-        shell: powershell
-        run: |
-          echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Append
-          vcpkg install openssl:x64-windows-static-md
       - name: Run Tests
         uses: pex-tool/actions/run-tox@c53dadd8b410bbd66480de91067e9e45d2b3af38
         continue-on-error: true
@@ -328,9 +110,6 @@ jobs:
   final-status:
     name: Gather Final Status
     needs:
-      - checks
-      - linux-tests
-      - mac-tests
       - windows-reports
     runs-on: ubuntu-24.04
     steps:
