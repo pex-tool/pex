@@ -1,10 +1,11 @@
 # Copyright 2024 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-from __future__ import absolute_import
+from __future__ import absolute_import, print_function
 
 import os.path
 import shutil
+import sys
 import time
 from datetime import datetime, timedelta
 from textwrap import dedent
@@ -73,18 +74,25 @@ def test_nothing_prunable(
 ):
     # type: (...) -> None
 
+    print(">>> building", pex, "...", file=sys.stderr)
     run_pex_command(args=["-o", pex]).assert_success()
+    print(">>> built:", pex, file=sys.stderr)
     pex_size = os.path.getsize(pex)
+    print(">>> size:", pex_size, file=sys.stderr)
 
     subprocess.check_call(args=[pex, "-c", ""])
+    print(">>> no-op ran", pex, file=sys.stderr)
     pre_prune_du = du(pex_root)
+    print(">>> pre_prune_du", pre_prune_du, file=sys.stderr)
     assert (
         pre_prune_du.size > pex_size
     ), "Expected the unzipped PEX to be larger than the zipped pex."
 
+    print(">>> running cache prune ...", file=sys.stderr)
     # The default prune threshold should be high enough to never trigger in a test run (it's 2
     # weeks old at the time of writing).
     run_pex3("cache", "prune").assert_success()
+    print(">>> running du", pex_root, file=sys.stderr)
     assert pre_prune_du == du(pex_root)
 
 
