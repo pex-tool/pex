@@ -285,6 +285,11 @@ jobs:
         if: env.SSH_PRIVATE_KEY != ''
         with:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
+      - name: Install OpenSSL (Windows)
+        shell: powershell
+        run: |
+          echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Append
+          vcpkg install openssl:x64-windows-static-md
       - name: Run Tests
         uses: pex-tool/actions/run-tox@c53dadd8b410bbd66480de91067e9e45d2b3af38
         continue-on-error: true
