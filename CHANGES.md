@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.33.2
+
+This release fixes PEXes build with root requirements like `foo[bar] foo[baz]` (vs. `foo[bar,baz]`,
+which worked already).
+
+* Fix dup requirement extra merging during PEX boot. (#2707)
+
 ## 2.33.1
 
 This release fixes a bug in both `pex3 lock subset` and
