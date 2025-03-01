@@ -9,7 +9,7 @@ import pytest
 
 from pex import variables
 from pex.common import safe_open
-from pex.compatibility import commonpath
+from pex.compatibility import safe_commonpath
 from pex.interpreter import PythonInterpreter
 from pex.layout import Layout
 from pex.pep_427 import InstallableType
@@ -128,7 +128,7 @@ def test_setproctitle(
             # In some versions of Python, the bin Python, when executed, gets a sys.executable of
             # the corresponding Python resource. On others, they each retain a sys.executable
             # faithful to their launcher file path. It's the latter type we're working around here.
-            assert python_framework == commonpath(
+            assert python_framework == safe_commonpath(
                 (python_framework, expected.binary, actual.binary)
             )
             assert expected.prefix == actual.prefix

@@ -6,7 +6,7 @@ import os.path
 
 import pytest
 
-from pex.compatibility import commonpath
+from pex.compatibility import safe_commonpath
 from pex.dist_metadata import Requirement
 from pex.pip.version import PipVersion, PipVersionValue
 from pex.requirements import VCS
@@ -149,4 +149,4 @@ def test_redacted_requirement_handling(
         ]
     )
     result.assert_success()
-    assert pex_root == commonpath([pex_root, result.output.strip()])
+    assert pex_root == safe_commonpath([pex_root, result.output.strip()])

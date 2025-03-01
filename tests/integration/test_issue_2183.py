@@ -7,7 +7,7 @@ from textwrap import dedent
 import pytest
 
 from pex.common import safe_open
-from pex.compatibility import commonpath
+from pex.compatibility import safe_commonpath
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pex import PEX
@@ -84,4 +84,4 @@ def test_lambdex_with_incompatible_attrs(tmpdir):
         .decode("utf-8")
         .strip()
     )
-    assert user_attrs.location == commonpath((user_attrs.location, output)), output
+    assert user_attrs.location == safe_commonpath((user_attrs.location, output)), output

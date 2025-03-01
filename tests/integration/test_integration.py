@@ -19,7 +19,7 @@ import pytest
 from pex import targets
 from pex.cache.dirs import CacheDir, InterpreterDir
 from pex.common import environment_as, safe_mkdir, safe_open, safe_rmtree, temporary_dir, touch
-from pex.compatibility import commonpath
+from pex.compatibility import safe_commonpath
 from pex.dist_metadata import Distribution, Requirement, is_wheel
 from pex.fetcher import URLFetcher
 from pex.fs import safe_symlink
@@ -1675,7 +1675,7 @@ def test_venv_mode(
                 pex_hash=pex_hash,
                 has_interpreter_constraints=False,
             )
-        assert expected_venv_home == commonpath([pex_interpreter, expected_venv_home])
+        assert expected_venv_home == safe_commonpath([pex_interpreter, expected_venv_home])
         return pex_interpreter
 
     isort_pex_interpreter1 = run_isort_pex()

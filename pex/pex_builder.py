@@ -26,7 +26,7 @@ from pex.common import (
     safe_mkdtemp,
     safe_open,
 )
-from pex.compatibility import commonpath, to_bytes
+from pex.compatibility import safe_commonpath, to_bytes
 from pex.compiler import Compiler
 from pex.dist_metadata import Distribution, DistributionType, MetadataError
 from pex.enum import Enum
@@ -456,7 +456,7 @@ class PEXBuilder(object):
             if path.endswith(".py")
             # N.B.: Some of our vendored code does not work with all versions of Python we support;
             # so we just skip compiling it.
-            and vendored_dir != commonpath((vendored_dir, path))
+            and vendored_dir != safe_commonpath((vendored_dir, path))
         ]
 
         compiler = Compiler(self.interpreter)

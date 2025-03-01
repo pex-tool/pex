@@ -16,7 +16,7 @@ import pytest
 
 from pex import resolver
 from pex.common import environment_as, safe_mkdir, safe_open, temporary_dir
-from pex.compatibility import PY2, commonpath, to_bytes
+from pex.compatibility import PY2, safe_commonpath, to_bytes
 from pex.dist_metadata import Distribution
 from pex.fs import safe_symlink
 from pex.interpreter import PythonIdentity, PythonInterpreter
@@ -241,7 +241,7 @@ def test_site_libs_symlink(tmpdir):
     sys_path_entries = tuple(
         entry
         for entry in PythonIdentity.get().sys_path
-        if entry == commonpath((entry, sysconfig.__file__))
+        if entry == safe_commonpath((entry, sysconfig.__file__))
     )
     assert len(sys_path_entries) == 1
     sys_path_entry = sys_path_entries[0]

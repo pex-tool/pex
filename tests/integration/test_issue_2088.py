@@ -7,7 +7,7 @@ import pytest
 
 from pex.cache.dirs import CacheDir
 from pex.common import safe_rmtree
-from pex.compatibility import commonpath
+from pex.compatibility import safe_commonpath
 from pex.layout import Layout
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import Virtualenv
@@ -81,7 +81,7 @@ def test_venv_symlink_site_packages(
         installed_wheels_dir_realpath = os.path.realpath(
             CacheDir.INSTALLED_WHEELS.path(pex_root=pex_root)
         )
-        assert installed_wheels_dir_realpath == commonpath(
+        assert installed_wheels_dir_realpath == safe_commonpath(
             (installed_wheels_dir_realpath, colors_module_realpath)
         )
     else:

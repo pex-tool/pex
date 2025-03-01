@@ -16,7 +16,7 @@ from textwrap import dedent
 
 from pex.atomic_directory import AtomicDirectory, atomic_directory
 from pex.common import safe_mkdir, safe_open
-from pex.compatibility import commonpath, get_stdout_bytes_buffer
+from pex.compatibility import commonpath, get_stdout_bytes_buffer, safe_commonpath
 from pex.dist_metadata import Distribution, find_distributions
 from pex.enum import Enum
 from pex.executor import Executor
@@ -373,7 +373,7 @@ class Virtualenv(object):
             link_target = os.readlink(abs_path)
             if not os.path.isabs(link_target):
                 continue
-            if virtualenv.bin_dir == commonpath((virtualenv.bin_dir, link_target)):
+            if virtualenv.bin_dir == safe_commonpath((virtualenv.bin_dir, link_target)):
                 rel_dst = os.path.relpath(link_target, virtualenv.bin_dir)
                 TRACER.log(
                     "Replacing absolute symlink {src} -> {dst} with relative symlink".format(

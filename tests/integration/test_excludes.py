@@ -15,7 +15,7 @@ from typing import Iterator
 import pytest
 
 from pex.common import safe_open
-from pex.compatibility import PY2, commonpath
+from pex.compatibility import PY2, safe_commonpath
 from pex.dist_metadata import Requirement
 from pex.executor import Executor
 from pex.pep_503 import ProjectName
@@ -489,7 +489,7 @@ def test_exclude_deep(
     )
     assert 42 == data.pop("foo")
     bar_module_path = data.pop("bar")
-    assert venv.site_packages_dir == commonpath(
+    assert venv.site_packages_dir == safe_commonpath(
         (venv.site_packages_dir, bar_module_path)
     ), bar_module_path
     assert not data
