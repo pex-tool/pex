@@ -27,6 +27,7 @@ from pex.cache.dirs import (
 )
 from pex.cli.commands.cache.du import DiskUsage
 from pex.common import environment_as, safe_open
+from pex.os import WINDOWS
 from pex.pep_503 import ProjectName
 from pex.pex_info import PexInfo
 from pex.pip.version import PipVersion, PipVersionValue
@@ -38,6 +39,15 @@ from testing.pytest_utils.tmp import Tempdir
 
 if TYPE_CHECKING:
     from typing import Iterable, Iterator, Optional
+
+
+pytestmark = pytest.mark.skipif(
+    WINDOWS,
+    reason=(
+        "These tests (in particular `test_nothing_prunable`) currently hang on Windows in CI "
+        "regularly."
+    ),
+)
 
 
 @pytest.fixture(autouse=True)
