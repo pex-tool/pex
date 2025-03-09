@@ -208,6 +208,15 @@ def create_manifests(
                 "args": ["{scie.bindings.configure:PEX}"],
             }
 
+    # Try to give the PEX the extracted filename expected by the user. This should work in almost
+    # all cases save for the Pex PEX.
+    pex_name = os.path.basename(pex.path())
+    if pex_name not in (name, filenames.pex.name, filenames.configure_binding.name, "ptex"):
+        pex_key = filenames.pex.name  # type: Optional[str]
+    else:
+        pex_name = filenames.pex.name
+        pex_key = None
+
     lift = {
         "name": name,
         "ptex": {
@@ -216,7 +225,10 @@ def create_manifests(
             "argv1": "{scie.env.PEX_BOOTSTRAP_URLS={scie.lift}}",
         },
         "scie_jump": {"version": SCIE_JUMP_VERSION},
-        "files": [{"name": filenames.configure_binding.name}, {"name": filenames.pex.name}],
+        "files": [
+            {"name": filenames.configure_binding.name},
+            dict(name=pex_name, is_executable=True, **({"key": pex_key} if pex_key else {})),
+        ],
     }  # type: Dict[str, Any]
 
     configure_binding = {

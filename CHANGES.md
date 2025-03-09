@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.33.3
+
+This release fixes PEX scies such that, when split, the embedded PEX is both executable and retains
+the expected name as provided by `-o` / `--output-file`.
+
+* Fix PEX scie contents when split. (#2713)
+
 ## 2.33.2
 
 This release fixes PEXes build with root requirements like `foo[bar] foo[baz]` (vs. `foo[bar,baz]`,
