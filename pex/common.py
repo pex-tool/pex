@@ -183,6 +183,16 @@ class MktempTeardownRegistry(object):
 _MKDTEMP_SINGLETON = MktempTeardownRegistry()
 
 
+# When Zip64 support was added to Python long ago, the limit was set to
+# half of what it should be. Pex is always dealing with zips it creates
+# via Python and so it does not need to worry about zip implemntations
+# that don't support 4GB; so we monkeypatch our way out of this
+# historical baggage to get working <= 4GB PEXes even on Python 2.7.
+#
+# See: https://github.com/python/cpython/issues/43003
+setattr(zipfile, "ZIP64_LIMIT", (1 << 32) - 1)
+
+
 class ZipFileEx(ZipFile):
     """A ZipFile that works around several issues in the stdlib.
 
