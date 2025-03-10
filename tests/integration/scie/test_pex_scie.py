@@ -1172,3 +1172,35 @@ def test_scie_only_name_collision(tmpdir):
 
     assert_scie_only(cowsay_pex)
     assert_scie_only(cowsay_scie)
+
+
+@skip_if_no_provider
+def test_scie_split_contents(tmpdir):
+    # type: (Tempdir) -> None
+
+    pex = tmpdir.join("cowsay.pex")
+    run_pex_command(
+        args=["cowsay<6", "-c", "cowsay", "-o", pex, "--scie", "lazy", "--scie-only"]
+    ).assert_success()
+
+    assert not os.path.exists(pex)
+
+    scie, _ = os.path.splitext(pex)
+    assert is_exe(scie)
+    assert b"| Moo! |" in subprocess.check_output(args=[scie, "Moo!"])
+
+    split_dir = tmpdir.join("split")
+    subprocess.check_call(args=[scie, split_dir], env=make_env(SCIE="split"))
+
+    # TODO(John Sirois): When the 1.6.0 scie-jump is released, replace this check with:
+    #  + Add is_exe(...) check.
+    #  + Change is_script(...) check below to check_executable=True.
+    #  + Execute the split PEX directly instead of via sys.executable below.
+    with open(os.path.join(split_dir, "lift.json")) as fp:
+        assert {file["name"]: file for file in json.load(fp)["scie"]["lift"]["files"]}[
+            "cowsay.pex"
+        ]["executable"]
+
+    split_pex = os.path.join(split_dir, "cowsay.pex")
+    assert is_script(split_pex, check_executable=False)
+    assert b"| Moo! |" in subprocess.check_output(args=[sys.executable, split_pex, "Moo!"])
