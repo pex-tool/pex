@@ -16,7 +16,7 @@ import pytest
 
 from pex.cache.dirs import CacheDir
 from pex.common import safe_open
-from pex.executables import chmod_plus_x
+from pex.executables import chmod_plus_x, is_script
 from pex.fetcher import URLFetcher
 from pex.layout import Layout
 from pex.orderedset import OrderedSet
@@ -27,6 +27,7 @@ from pex.targets import LocalInterpreter
 from pex.typing import TYPE_CHECKING
 from pex.version import __version__
 from testing import IS_PYPY, PY_VER, make_env, run_pex_command, subprocess
+from testing.pytest_utils.tmp import Tempdir
 from testing.scie import skip_if_no_provider
 
 if TYPE_CHECKING:
@@ -1059,6 +1060,7 @@ def test_script_not_found(
 
 
 @pytest.mark.skipif(IS_PYPY, reason="The --scie-pbs-stripped option only applies to CPython scies.")
+@skip_if_no_provider
 def test_pbs_stripped(tmpdir):
     # type: (Any) -> None
 
@@ -1148,3 +1150,25 @@ def test_scie_name_style_platform_parent_dir(tmpdir):
     assert [foreign_platform.binary_name("app")] == os.listdir(
         os.path.join(dist_dir, foreign_platform.value)
     )
+
+
+@skip_if_no_provider
+def test_scie_only_name_collision(tmpdir):
+    # type: (Tempdir) -> None
+
+    cowsay_pex = tmpdir.join("cowsay.pex")
+    cowsay_scie = tmpdir.join("cowsay")
+
+    def assert_scie_only(output_file):
+        # type (str) -> None
+        run_pex_command(
+            args=["cowsay<6", "-c", "cowsay", "--scie", "lazy", "--scie-only", "-o", output_file]
+        ).assert_success()
+
+        assert not os.path.exists(cowsay_pex)
+        assert is_exe(cowsay_scie)
+        assert not is_script(cowsay_scie)
+        assert b"| Moo! |" in subprocess.check_output(args=[cowsay_scie, "Moo!"])
+
+    assert_scie_only(cowsay_pex)
+    assert_scie_only(cowsay_scie)

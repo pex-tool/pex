@@ -1385,7 +1385,9 @@ def do_main(
                         ),
                         V=options.verbosity,
                     )
-                if scie_configuration.options.scie_only:
+                if scie_configuration.options.scie_only and os.path.realpath(
+                    pex_file
+                ) != os.path.realpath(scie_info.file):
                     os.unlink(pex_file)
     else:
         if not _compatible_with_current_platform(interpreter, targets.platforms):
