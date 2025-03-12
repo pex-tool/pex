@@ -1,5 +1,22 @@
 # Release Notes
 
+## 2.33.3
+
+This release fixes Pex Zip64 support such that PEX zips do not use Zip64 extensions unless needed.
+Previously, any zip between ~2GB and ~4GB that actually fell under Zip64 limits would still use
+Zip64 extensions. This prevented the file from being bootable under Python before the 3.13 release
+since the `zipimporter` was not fixed to support ZIp64 extensions until then.
+
+The `--scie-only` option is fixed for the case when the `-o` / `--output-file` name does not end in
+`.pex`. Previously there would be no scie (or PEX) output at all!
+
+Finally, this release fixes PEX scies such that, when split, the embedded PEX is both executable and
+retains the expected name as provided by `-o` / `--output-file`.
+
+* Enable true Zip64 support. (#2714)
+* Fix `--scie-only` for `-o` not ending in `.pex`. (#2715)
+* Fix PEX scie contents when split. (#2713)
+
 ## 2.33.2
 
 This release fixes PEXes build with root requirements like `foo[bar] foo[baz]` (vs. `foo[bar,baz]`,

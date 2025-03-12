@@ -16,6 +16,7 @@ from pex.cache.dirs import CacheDir, UnzipDir
 from pex.common import pluralize, safe_mkdtemp, safe_open
 from pex.compatibility import shlex_quote
 from pex.dist_metadata import NamedEntryPoint, parse_entry_point
+from pex.enum import Enum
 from pex.exceptions import production_assert
 from pex.executables import chmod_plus_x
 from pex.fetcher import URLFetcher
@@ -66,7 +67,7 @@ class Manifest(object):
 
 
 SCIENCE_RELEASES_URL = "https://github.com/a-scie/lift/releases"
-MIN_SCIENCE_VERSION = Version("0.10.1")
+MIN_SCIENCE_VERSION = Version("0.12.1")
 SCIENCE_REQUIREMENT = SpecifierSet("~={min_version}".format(min_version=MIN_SCIENCE_VERSION))
 
 
@@ -80,43 +81,35 @@ def _science_binary_url(suffix=""):
     )
 
 
-PTEX_VERSION = "1.5.0"
-SCIE_JUMP_VERSION = "1.5.0"
+PTEX_VERSION = "1.5.1"
+SCIE_JUMP_VERSION = "1.6.1"
 
 
-@attr.s(frozen=True)
-class Filename(object):
-    name = attr.ib()  # type: str
+class Filenames(Enum["Filenames.Value"]):
+    class Filename(Enum.Value):
+        def __init__(self, value):
+            # type: (str) -> None
+            Enum.Value.__init__(self, value)
+            self.name = value
 
-    @property
-    def placeholder(self):
-        # type: () -> str
-        return "{{{name}}}".format(name=self.name)
+        @property
+        def placeholder(self):
+            # type: () -> str
+            return "{{{name}}}".format(name=self.name)
+
+    PTEX = Filename("ptex")
+    PEX = Filename("pex")
+    CONFIGURE_BINDING = Filename("configure-binding.py")
 
 
-@attr.s(frozen=True)
-class Filenames(object):
-    @classmethod
-    def avoid_collisions_with(cls, scie_name):
-        # type: (str) -> Filenames
-        return cls(
-            pex=Filename("_pex" if scie_name == "pex" else "pex"),
-            configure_binding=Filename(
-                "_configure-binding.py"
-                if scie_name == "configure-binding.py"
-                else "configure-binding.py"
-            ),
-        )
-
-    pex = attr.ib()  # type: Filename
-    configure_binding = attr.ib()  # type: Filename
+Filenames.seal()
 
 
 def create_manifests(
     configuration,  # type: ScieConfiguration
     name,  # type: str
     pex,  # type: PEX
-    filenames,  # type: Filenames
+    use_platform_suffix=None,  # type: Optional[bool]
 ):
     # type: (...) -> Iterator[Manifest]
 
@@ -208,15 +201,27 @@ def create_manifests(
                 "args": ["{scie.bindings.configure:PEX}"],
             }
 
+    # Try to give the PEX the extracted filename expected by the user. This should work in almost
+    # all cases save for the Pex PEX.
+    pex_name = os.path.basename(pex.path())
+    if pex_name not in frozenset(filename.value for filename in Filenames.values()):
+        pex_key = Filenames.PEX.name  # type: Optional[str]
+    else:
+        pex_name = Filenames.PEX.name
+        pex_key = None
+
     lift = {
         "name": name,
         "ptex": {
-            "id": "ptex",
+            "id": Filenames.PTEX.name,
             "version": PTEX_VERSION,
             "argv1": "{scie.env.PEX_BOOTSTRAP_URLS={scie.lift}}",
         },
         "scie_jump": {"version": SCIE_JUMP_VERSION},
-        "files": [{"name": filenames.configure_binding.name}, {"name": filenames.pex.name}],
+        "files": [
+            {"name": Filenames.CONFIGURE_BINDING.name},
+            dict(name=pex_name, is_executable=True, **({"key": pex_key} if pex_key else {})),
+        ],
     }  # type: Dict[str, Any]
 
     configure_binding = {
@@ -235,7 +240,7 @@ def create_manifests(
         "exe": "#{python-distribution:python}",
     }
 
-    configure_binding_args = [filenames.pex.placeholder, filenames.configure_binding.placeholder]
+    configure_binding_args = [Filenames.PEX.placeholder, Filenames.CONFIGURE_BINDING.placeholder]
     for interpreter in configuration.interpreters:
         manifest_path = os.path.join(
             safe_mkdtemp(),
@@ -266,7 +271,7 @@ def create_manifests(
         else:
             extra_configure_binding_args = ["--installed-pex-dir"]
             if pex.layout is Layout.LOOSE:
-                extra_configure_binding_args.append(filenames.pex.placeholder)
+                extra_configure_binding_args.append(Filenames.PEX.placeholder)
             else:
                 production_assert(pex_info.pex_hash is not None)
                 pex_hash = cast(str, pex_info.pex_hash)
@@ -274,12 +279,16 @@ def create_manifests(
                     UnzipDir.create(pex_hash, pex_root=pex_root).path
                 )
 
+        if use_platform_suffix is True or (
+            use_platform_suffix is None and interpreter.platform is not SysPlatform.CURRENT
+        ):
+            lift["platforms"] = [interpreter.platform.value]
+
         with safe_open(manifest_path, "wb") as fp:
             toml.dump(
                 {
                     "lift": dict(
                         lift,
-                        platforms=[interpreter.platform.value],
                         interpreters=[interpreter_config],
                         commands=list(create_commands(interpreter.platform)),
                         bindings=[
@@ -453,10 +462,8 @@ def build(
     elif len(configuration.interpreters) > 1:
         use_platform_suffix = True
 
-    filenames = Filenames.avoid_collisions_with(name)
-
     errors = OrderedDict()  # type: OrderedDict[Manifest, str]
-    for manifest in create_manifests(configuration, name, pex, filenames):
+    for manifest in create_manifests(configuration, name, pex, use_platform_suffix):
         args = [science, "--cache-dir", _science_dir(env, "cache")]
         if env.PEX_VERBOSE:
             args.append("-{verbosity}".format(verbosity="v" * env.PEX_VERBOSE))
@@ -467,10 +474,10 @@ def build(
             [
                 "lift",
                 "--file",
-                "{name}={pex_file}".format(name=filenames.pex.name, pex_file=pex_file),
+                "{name}={pex_file}".format(name=Filenames.PEX.name, pex_file=pex_file),
                 "--file",
                 "{name}={configure_binding}".format(
-                    name=filenames.configure_binding.name,
+                    name=Filenames.CONFIGURE_BINDING.name,
                     configure_binding=os.path.join(
                         os.path.dirname(__file__), "configure-binding.py"
                     ),

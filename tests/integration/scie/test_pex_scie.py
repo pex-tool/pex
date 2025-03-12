@@ -313,7 +313,7 @@ def test_specified_science_binary(tmpdir):
 
     local_science_binary = os.path.join(str(tmpdir), "science")
     with open(local_science_binary, "wb") as write_fp, URLFetcher().get_body_stream(
-        "https://github.com/a-scie/lift/releases/download/v0.10.1/{binary}".format(
+        "https://github.com/a-scie/lift/releases/download/v0.12.1/{binary}".format(
             binary=SysPlatform.CURRENT.qualified_binary_name("science")
         )
     ) as read_fp:
@@ -357,7 +357,7 @@ def test_specified_science_binary(tmpdir):
         cached_science_binaries
     ), "Expected the local science binary to be used but not cached."
     assert (
-        "0.10.1"
+        "0.12.1"
         == subprocess.check_output(args=[local_science_binary, "--version"]).decode("utf-8").strip()
     )
 
@@ -1172,3 +1172,35 @@ def test_scie_only_name_collision(tmpdir):
 
     assert_scie_only(cowsay_pex)
     assert_scie_only(cowsay_scie)
+
+
+@skip_if_no_provider
+def test_scie_split_contents(tmpdir):
+    # type: (Tempdir) -> None
+
+    pex = tmpdir.join("cowsay.pex")
+    run_pex_command(
+        args=["cowsay<6", "-c", "cowsay", "-o", pex, "--scie", "lazy", "--scie-only"]
+    ).assert_success()
+
+    assert not os.path.exists(pex)
+
+    scie, _ = os.path.splitext(pex)
+    assert is_exe(scie)
+    assert b"| Moo! |" in subprocess.check_output(args=[scie, "Moo!"])
+
+    split_dir = tmpdir.join("split")
+    subprocess.check_call(args=[scie, split_dir], env=make_env(SCIE="split"))
+
+    # TODO(John Sirois): When the 1.6.0 scie-jump is released, replace this check with:
+    #  + Add is_exe(...) check.
+    #  + Change is_script(...) check below to check_executable=True.
+    #  + Execute the split PEX directly instead of via sys.executable below.
+    with open(os.path.join(split_dir, "lift.json")) as fp:
+        assert {file["name"]: file for file in json.load(fp)["scie"]["lift"]["files"]}[
+            "cowsay.pex"
+        ]["executable"]
+
+    split_pex = os.path.join(split_dir, "cowsay.pex")
+    assert is_script(split_pex, check_executable=False)
+    assert b"| Moo! |" in subprocess.check_output(args=[sys.executable, split_pex, "Moo!"])
