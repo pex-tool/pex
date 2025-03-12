@@ -212,17 +212,19 @@ def create_manifests(
 
     lift = {
         "name": name,
-        "ptex": {
-            "id": Filenames.PTEX.name,
-            "version": PTEX_VERSION,
-            "argv1": "{scie.env.PEX_BOOTSTRAP_URLS={scie.lift}}",
-        },
         "scie_jump": {"version": SCIE_JUMP_VERSION},
         "files": [
             {"name": Filenames.CONFIGURE_BINDING.name},
             dict(name=pex_name, is_executable=True, **({"key": pex_key} if pex_key else {})),
         ],
     }  # type: Dict[str, Any]
+
+    if configuration.options.style is ScieStyle.LAZY:
+        lift["ptex"] = {
+            "id": Filenames.PTEX.name,
+            "version": PTEX_VERSION,
+            "argv1": "{scie.env.PEX_BOOTSTRAP_URLS={scie.lift}}",
+        }
 
     configure_binding = {
         "env": {
