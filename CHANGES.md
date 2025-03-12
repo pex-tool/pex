@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.33.4
+
+This release fixes PEX scies to exclude a ptex binary for `--scie eager` scies saving ~5MB on scies
+targeting 64 bit systems.
+
+* Do not include `ptex` in `--scie eager` scies. (#2717)
+
 ## 2.33.3
 
 This release fixes Pex Zip64 support such that PEX zips do not use Zip64 extensions unless needed.

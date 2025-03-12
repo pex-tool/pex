@@ -1192,15 +1192,46 @@ def test_scie_split_contents(tmpdir):
     split_dir = tmpdir.join("split")
     subprocess.check_call(args=[scie, split_dir], env=make_env(SCIE="split"))
 
-    # TODO(John Sirois): When the 1.6.0 scie-jump is released, replace this check with:
-    #  + Add is_exe(...) check.
-    #  + Change is_script(...) check below to check_executable=True.
-    #  + Execute the split PEX directly instead of via sys.executable below.
-    with open(os.path.join(split_dir, "lift.json")) as fp:
-        assert {file["name"]: file for file in json.load(fp)["scie"]["lift"]["files"]}[
-            "cowsay.pex"
-        ]["executable"]
-
     split_pex = os.path.join(split_dir, "cowsay.pex")
-    assert is_script(split_pex, check_executable=False)
-    assert b"| Moo! |" in subprocess.check_output(args=[sys.executable, split_pex, "Moo!"])
+    assert is_exe(split_pex)
+    assert is_script(split_pex)
+    assert b"| Moo! |" in subprocess.check_output(args=[split_pex, "Moo!"])
+
+
+@skip_if_no_provider
+def test_scie_eager_no_ptex(tmpdir):
+    # type: (Tempdir) -> None
+
+    def assert_ptex(
+        expect_included,  # type: bool
+        lazy,  # type: bool
+    ):
+        # type: (...) -> None
+
+        run_pex_command(
+            args=[
+                "cowsay<6",
+                "-c",
+                "cowsay",
+                "-o",
+                tmpdir.join("cowsay.pex"),
+                "--scie",
+                "lazy" if lazy else "eager",
+            ]
+        ).assert_success()
+
+        scie = tmpdir.join("cowsay")
+        assert b"| Moo! |" in subprocess.check_output(args=[scie, "Moo!"])
+
+        output = subprocess.check_output(args=[scie, "-n"], env=make_env(SCIE="split")).decode(
+            "utf-8"
+        )
+        assert "scie-jump" in output, output
+        assert "pex" in output, output
+        assert "lift.json" in output, output
+
+        assert (("pypy" if IS_PYPY else "cpython") in output) != lazy, output
+        assert ("ptex" in output) == expect_included, output
+
+    assert_ptex(expect_included=False, lazy=False)
+    assert_ptex(expect_included=True, lazy=True)
