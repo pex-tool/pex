@@ -11,7 +11,7 @@ The `--scie-only` option is fixed for the case when the `-o` / `--output-file` n
 `.pex`. Previously there would be no scie (or PEX) output at all!
 
 Finally, this release fixes PEX scies such that, when split, the embedded PEX is both executable and
-retains  the expected name as provided by `-o` / `--output-file`.
+retains the expected name as provided by `-o` / `--output-file`.
 
 * Enable true Zip64 support. (#2714)
 * Fix `--scie-only` for `-o` not ending in `.pex`. (#2715)
