@@ -1230,7 +1230,7 @@ def test_scie_eager_no_ptex(tmpdir):
         assert "pex" in output, output
         assert "lift.json" in output, output
 
-        assert ("pypy" if IS_PYPY else "cpython" in output) != lazy, output
+        assert (("pypy" if IS_PYPY else "cpython") in output) != lazy, output
         assert ("ptex" in output) == expect_included, output
 
     assert_ptex(expect_included=False, lazy=False)
