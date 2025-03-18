@@ -1,5 +1,13 @@
 # Release Notes
 
+## 2.33.5
+
+This release fixes rate limit issues building CPython Pex scies by bumping to science 0.12.2 which
+is fixed to properly support bearer authentication via the `SCIENCE_AUTH_<normalized_host>_BEARER`
+environment variable.
+
+* Upgrade to `science` 0.12.2 to fix PBS rate limits. (#2720)
+
 ## 2.33.4
 
 This release fixes PEX scies to exclude a ptex binary for `--scie eager` scies saving ~5MB on scies
