@@ -5,13 +5,15 @@ from __future__ import absolute_import
 
 import ast
 import re
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
+from typing import DefaultDict
 
 from pex import toml
 from pex.common import pluralize
 from pex.compatibility import string
 from pex.dist_metadata import Requirement, RequirementParseError
 from pex.third_party.packaging.specifiers import InvalidSpecifier, SpecifierSet
+from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
@@ -99,35 +101,42 @@ class Code(object):
     ):
         # type: (...) -> Code
 
-        lines = [False] * (line_count or len(code.splitlines()))  # type: List[bool]
-        for node in ast.walk(ast.parse(code)):
-            start_line = getattr(node, "lineno", 0)
-            if start_line:
-                end_line = getattr(node, "end_lineno", 0)
-                # For Python<3.8 multiline string literals were represented in Str nodes with the
-                # lineno being the _last_ line of the string literal. We calculate the first line
-                # number by subtracting the height of the multiline text block.
-                if not end_line and node.__class__.__name__ == "Str":
-                    line_count = len(getattr(node, "s", "").splitlines())
-                    if line_count > 1:
-                        end_line = start_line
-                        start_line = end_line - len(getattr(node, "s", "").splitlines())
-                if end_line > start_line:
-                    for offset in range(end_line - start_line):
-                        lines[start_line + offset - 1] = True
-                else:
-                    lines[start_line - 1] = True
+        lines = defaultdict(lambda: True)  # type: DefaultDict[int, bool]
+        root = None  # type: Optional[ast.AST]
+        try:
+            root = ast.parse(code)
+        except SyntaxError as e:
+            TRACER.log(
+                "Cannot parse script code for robust PEP-723 analysis, continuing with naive "
+                "analysis: {err}".format(err=e),
+            )
+        if root:
+            for node in ast.walk(root):
+                start_line = getattr(node, "lineno", 0)
+                if start_line:
+                    end_line = getattr(node, "end_lineno", 0)
+                    # For Python<3.8 multiline string literals were represented in Str nodes with
+                    # the lineno being the _last_ line of the string literal. We calculate the first
+                    # line number by subtracting the height of the multiline text block.
+                    if not end_line and node.__class__.__name__ == "Str":
+                        line_count = len(getattr(node, "s", "").splitlines())
+                        if line_count > 1:
+                            end_line = start_line
+                            start_line = end_line - len(getattr(node, "s", "").splitlines())
+                    if end_line > start_line:
+                        for offset in range(end_line - start_line):
+                            lines[start_line + offset - 1] = False
+                    else:
+                        lines[start_line - 1] = False
 
-        return cls(tuple(lines))
+        return cls(lines)
 
-    # True marks a code line. Everything else is whitespace or comments.
-    lines = attr.ib()  # type: Tuple[bool, ...]
+    # True marks a whitespace or comment line. Everything else is code.
+    lines = attr.ib()  # type: DefaultDict[int, bool]
 
     def is_comment(self, line_no):
         # type: (int) -> bool
-        if line_no == 0 or line_no > len(self.lines):
-            return False
-        return not self.lines[line_no - 1]
+        return self.lines[line_no - 1]
 
 
 def parse_metadata_blocks(
