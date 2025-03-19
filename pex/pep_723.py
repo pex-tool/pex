@@ -6,7 +6,6 @@ from __future__ import absolute_import
 import ast
 import re
 from collections import OrderedDict, defaultdict
-from typing import DefaultDict
 
 from pex import toml
 from pex.common import pluralize
@@ -17,7 +16,7 @@ from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from typing import Any, List, Mapping, Optional, Tuple
+    from typing import Any, DefaultDict, List, Mapping, Optional, Tuple
 
     import attr  # vendor:skip
 else:
