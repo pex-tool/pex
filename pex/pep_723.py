@@ -3,18 +3,20 @@
 
 from __future__ import absolute_import
 
+import ast
 import re
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 
 from pex import toml
 from pex.common import pluralize
 from pex.compatibility import string
 from pex.dist_metadata import Requirement, RequirementParseError
 from pex.third_party.packaging.specifiers import InvalidSpecifier, SpecifierSet
+from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from typing import Any, List, Mapping, Tuple
+    from typing import Any, DefaultDict, List, Mapping, Optional, Tuple
 
     import attr  # vendor:skip
 else:
@@ -88,6 +90,54 @@ class ParseState(object):
         return self.started and self.end_line >= self.start_line
 
 
+@attr.s(frozen=True)
+class Code(object):
+    @classmethod
+    def parse(
+        cls,
+        code,  # type: str
+        line_count=None,  # type: Optional[int]
+    ):
+        # type: (...) -> Code
+
+        lines = defaultdict(lambda: True)  # type: DefaultDict[int, bool]
+        root = None  # type: Optional[ast.AST]
+        try:
+            root = ast.parse(code)
+        except SyntaxError as e:
+            TRACER.log(
+                "Cannot parse script code for robust PEP-723 analysis, continuing with naive "
+                "analysis: {err}".format(err=e),
+            )
+        if root:
+            for node in ast.walk(root):
+                start_line = getattr(node, "lineno", 0)
+                if start_line:
+                    end_line = getattr(node, "end_lineno", 0)
+                    # For Python<3.8 multiline string literals were represented in Str nodes with
+                    # the lineno being the _last_ line of the string literal. We calculate the first
+                    # line number by subtracting the height of the multiline text block.
+                    if not end_line and node.__class__.__name__ == "Str":
+                        line_count = len(getattr(node, "s", "").splitlines())
+                        if line_count > 1:
+                            end_line = start_line
+                            start_line = end_line - len(getattr(node, "s", "").splitlines())
+                    if end_line > start_line:
+                        for offset in range(end_line - start_line):
+                            lines[start_line + offset - 1] = False
+                    else:
+                        lines[start_line - 1] = False
+
+        return cls(lines)
+
+    # True marks a whitespace or comment line. Everything else is code.
+    lines = attr.ib()  # type: DefaultDict[int, bool]
+
+    def is_comment(self, line_no):
+        # type: (int) -> bool
+        return self.lines[line_no - 1]
+
+
 def parse_metadata_blocks(
     script,  # type: str
     source=_UNSPECIFIED_SOURCE,  # type: str
@@ -95,6 +145,8 @@ def parse_metadata_blocks(
     # type: (...) -> Mapping[str, MetadataBlock]
 
     lines = script.splitlines()
+    code = Code.parse(script, line_count=len(lines))
+
     metadata_blocks = OrderedDict()  # type: OrderedDict[str, List[MetadataBlock]]
     parse_state = ParseState()
 
@@ -112,7 +164,8 @@ def parse_metadata_blocks(
 
     for line_no, line in enumerate(lines, start=1):
         start = re.match(r"^# /// (?P<type>[a-zA-Z0-9-]+)$", line)
-        if start and parse_state.started and not parse_state.finished:
+        is_comment = code.is_comment(line_no)
+        if start and is_comment and parse_state.started and not parse_state.finished:
             raise InvalidMetadataError(
                 "The script metadata found in {source} contains a `# /// {outer_type}` block "
                 "beginning on line {outer_start_line} that is followed by a `# /// {inner_type}` "
@@ -128,13 +181,13 @@ def parse_metadata_blocks(
                     spec_url=_SPEC_URL,
                 )
             )
-        elif start:
+        elif start and is_comment:
             if parse_state.finished:
                 add_metadata_block()
             parse_state.reset(start_type=start.group("type"), start_line=line_no)
-        elif parse_state.started and "# ///" == line:
+        elif parse_state.started and is_comment and "# ///" == line:
             parse_state.end_line = line_no
-        elif line != "#" and not line.startswith("# "):
+        elif not is_comment or (line != "#" and not line.startswith("# ")):
             if parse_state.finished and parse_state.end_line == line_no - 1:
                 add_metadata_block()
             else:
