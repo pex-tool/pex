@@ -382,3 +382,39 @@ def test_parse_invalid_requires_python_value():
                 """
             )
         )
+
+
+def test_parse_confounding_string_literals():
+    # type: () -> None
+
+    assert not ScriptMetadata.parse(
+        dedent(
+            '''\
+            print("""
+            # /// script
+            # dependencies = ["ansicolors"]
+            # ///
+            """)
+            '''
+        )
+    )
+
+    assert ScriptMetadata(dependencies=(Requirement.parse("cowsay"),)) == ScriptMetadata.parse(
+        dedent(
+            '''\
+            print("""
+            # /// script
+            # dependencies = ["ansicolors"]
+            # ///
+            """)
+            # /// script
+            # dependencies = ["cowsay"]
+            # ///
+            print("""
+            # /// script
+            # dependencies = ["dev-cmd"]
+            # ///
+            """)
+            '''
+        )
+    )

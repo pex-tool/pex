@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.33.6
+
+Fix PEP-723 script metadata parsing to skip metadata blocks found in multiline strings.
+
+* Fix PEP-723 script metadata parsing. (#2722)
+
 ## 2.33.5
 
 This release fixes rate limit issues building CPython Pex scies by bumping to science 0.12.2 which
