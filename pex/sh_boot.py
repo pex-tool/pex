@@ -199,10 +199,11 @@ def create_sh_boot_script(
         PEX_ROOT="${{PEX_ROOT:-${{DEFAULT_PEX_ROOT}}}}"
         INSTALLED_PEX="${{PEX_ROOT}}/{pex_installed_relpath}"
 
-        if [ -n "${{VENV}}" -a -x "${{INSTALLED_PEX}}" ]; then
+        if [ -n "${{VENV}}" -a -x "${{INSTALLED_PEX}}" -a -z "${{PEX_TOOLS:-}}" ]; then
             # We're a --venv execution mode PEX installed under the PEX_ROOT and the venv
             # interpreter to use is embedded in the shebang of our venv pex script; so just
-            # execute that script directly.
+            # execute that script directly... except if we're needing to execute PEX code, in
+            # the form of the tools.
             export PEX="{pex}"
             exec "${{INSTALLED_PEX}}/bin/python" ${{VENV_PYTHON_ARGS}} "${{INSTALLED_PEX}}" \\
                 "$@"

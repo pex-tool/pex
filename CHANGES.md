@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.33.7
+
+This release fixes `PEX_TOOLS=1 ./path/to/pex` for PEXes using venv-execution and sh-bootstrapping (that is, built with `--sh-boot --venv=... --include-tools` ). Previously, the `PEX_TOOLS=1` was ignored if the venv already existed in the `PEX_ROOT` (for instance, if the PEX had already been run).
+
+* Avoid fast-path in `--sh-boot` script when `PEX_TOOLS=1`. (#2726)
+
 ## 2.33.6
 
 Fix PEP-723 script metadata parsing to skip metadata blocks found in multiline strings.

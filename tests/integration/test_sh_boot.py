@@ -310,3 +310,38 @@ def test_argv0(
         "pickling and other use cases as outlined in https://github.com/pex-tool/pex/issues/1018."
     )
     assert {} == data
+
+
+@execution_mode
+def test_issue_2726_pex_tools(
+    tmpdir,  # type: Any
+    execution_mode_args,  # type: List[str]
+):
+    # type: (...) -> None
+
+    pex = os.path.realpath(os.path.join(str(tmpdir), "pex.sh"))
+
+    run_pex_command(args=["-o", pex, "--include-tools"] + execution_mode_args).assert_success()
+
+    pex_root = os.path.join(str(tmpdir), "pex_root")
+
+    def _check_pex_tools():
+        output = subprocess.check_output(
+            args=[pex, "info"],
+            env=make_env(PEX_TOOLS=1, PEX_ROOT=pex_root),
+            stderr=subprocess.STDOUT,
+        )
+        # Check for output that implies we got sensible `PEX_TOOLS=1 ./some.pex info` output (a JSON
+        # object with specific keys):
+        info = json.loads(output)
+        assert "bootstrap_hash" in info
+        assert "pex_hash" in info
+
+    # run the tools with an empty/unseeded PEX_ROOT
+    _check_pex_tools()
+
+    # ensure the PEX_ROOT is fully seeded e.g. with a venv for venv execution mode
+    subprocess.check_output(args=[pex, "-c", ""], env=make_env(PEX_ROOT=pex_root))
+
+    # run the tools with seeded PEX_ROOT
+    _check_pex_tools()
