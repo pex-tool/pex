@@ -181,6 +181,28 @@ def create_sh_boot_script(
             pex_info.raw_pex_root, pex_hash, expand_pex_root=False
         )
 
+    vars_for_no_fast_path = [
+        # If any of these environment variables are set, we're executing in a non-default manner
+        # that may result in different venv contents. In this case, having a warm cache can _behave_
+        # different to a cold cache (not just _perform_ differently): if the already venv exists, it
+        # may not reflect the configuration that these env vars are implying.
+        #
+        # This means any use of these variables _always_ uses the Python-ful slow-path, even if a
+        # correctly-configured venv already exists (and even if they're equivalent to the default
+        # settings). Determining the correct path when these are set requires reproducing (in highly
+        # portable shell) the hashing logic from `venv_dir` in `pex.variables`.
+        #
+        # These variables should be kept in sync with `venv_dir` in `pex.variables`.
+        "PEX_PYTHON",
+        "PEX_PYTHON_PATH",
+        "PEX_PATH",
+        # PEX_TOOLS requires executing PEX code, but the in-venv code is PEX free and doesn't inspect
+        # `PEX_TOOLS=1`.
+        #
+        # (NB. unlike the ones above, this doesn't influence the venv contents.)
+        "PEX_TOOLS",
+    ]
+
     return dedent(
         """\
         # N.B.: This script should stick to syntax defined for POSIX `sh` and avoid non-builtins.
@@ -199,11 +221,11 @@ def create_sh_boot_script(
         PEX_ROOT="${{PEX_ROOT:-${{DEFAULT_PEX_ROOT}}}}"
         INSTALLED_PEX="${{PEX_ROOT}}/{pex_installed_relpath}"
 
-        if [ -n "${{VENV}}" -a -x "${{INSTALLED_PEX}}" -a -z "${{PEX_TOOLS:-}}" ]; then
+        if [ -n "${{VENV}}" -a -x "${{INSTALLED_PEX}}" -a {check_no_fast_path} ]; then
             # We're a --venv execution mode PEX installed under the PEX_ROOT and the venv
             # interpreter to use is embedded in the shebang of our venv pex script; so just
-            # execute that script directly... except if we're needing to execute PEX code, in
-            # the form of the tools.
+            # execute that script directly... except if we're executing in a non-default manner,
+            # where we'll likely need to execute PEX code.
             export PEX="{pex}"
             exec "${{INSTALLED_PEX}}/bin/python" ${{VENV_PYTHON_ARGS}} "${{INSTALLED_PEX}}" \\
                 "$@"
@@ -267,4 +289,5 @@ def create_sh_boot_script(
             shlex_quote(venv_python_arg) for venv_python_arg in venv_python_args
         ),
         pex="$0" if layout is Layout.ZIPAPP else '$(dirname "$0")',
+        check_no_fast_path=" -a ".join(" -z {}".format(name) for name in vars_for_no_fast_path),
     )
