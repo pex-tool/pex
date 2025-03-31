@@ -345,3 +345,61 @@ def test_issue_2726_pex_tools(
 
     # run the tools with seeded PEX_ROOT
     _check_pex_tools()
+
+
+@execution_mode
+def test_issue_2728_pex_python_and_pex_python_path(
+    tmpdir,  # type: Any
+    execution_mode_args,  # type: List[str]
+):
+    # type: (...) -> None
+    pex = os.path.realpath(os.path.join(str(tmpdir), "pex.sh"))
+
+    run_pex_command(args=["-o", pex] + execution_mode_args).assert_success()
+    pex_root = os.path.join(str(tmpdir), "pex_root")
+
+    def _check_pex_with_python():
+        for env in [dict(PEX_PYTHON="FIXME"), dict(PEX_PYTHON_PATH="FIXME")]:
+            output = subprocess.check_output(
+                args=[pex, "-c", "import sys; print(sys.version)"],
+                env=make_env(PEX_ROOT=pex_root, **env),
+                stderr=subprocess.STDOUT,
+            )
+            assert False, "FIXME"
+
+    _check_pex_with_python()
+
+    # ensure the PEX_ROOT is fully seeded e.g. with a venv for venv execution mode
+    subprocess.check_output(args=[pex, "-c", ""], env=make_env(PEX_ROOT=pex_root))
+
+    _check_pex_with_python()
+
+
+@execution_mode
+def test_issue_2728_pex_path(
+    tmpdir,  # type: Any
+    execution_mode_args,  # type: List[str]
+):
+    # type: (...) -> None
+    pex = os.path.realpath(os.path.join(str(tmpdir), "pex.sh"))
+
+    run_pex_command(args=["-o", pex] + execution_mode_args).assert_success()
+    pex_root = os.path.join(str(tmpdir), "pex_root")
+
+    cowsay = os.path.join(str(tmpdir), "cowsay.pex")
+    run_pex_command(args=["cowsay==4.0", "-o", cowsay]).assert_success()
+
+    def _check_pex_with_path():
+        output = subprocess.check_output(
+            args=[pex, "-c", "import cowsay; print(cowsay.__version__)"],
+            env=make_env(PEX_ROOT=pex_root, PEX_PATH=cowsay),
+            stderr=subprocess.STDOUT,
+        )
+        assert b"4.0\n" == output
+
+    _check_pex_with_path()
+
+    # ensure the PEX_ROOT is fully seeded e.g. with a venv for venv execution mode
+    subprocess.check_output(args=[pex, "-c", ""], env=make_env(PEX_ROOT=pex_root))
+
+    _check_pex_with_path()
