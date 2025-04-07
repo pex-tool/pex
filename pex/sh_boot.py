@@ -181,26 +181,41 @@ def create_sh_boot_script(
             pex_info.raw_pex_root, pex_hash, expand_pex_root=False
         )
 
+    # There's a fast-path that execs the entrypoint directly within a venv if one exists (i.e. the
+    # PEX_ROOT cache is warm), but it is only possible in cases where we can be reasonably sure:
+    #
+    # - the venv is configured correctly for the current execution (if not, executing with a cold
+    #   cache may behave differently)
+    # - we do not need to execute any pex code (the venv has no such code)
+    #
+    # NB. we do not consider the contents of rc files, which can set any of these options.
+    #
+    # This should be kept in sync with env vars read (or not) by the venv_pex.py code, for which
+    # warnings are silenced.
     vars_for_no_fast_path = [
-        # If any of these environment variables are set, we're executing in a non-default manner
-        # that may result in different venv contents. In this case, having a warm cache can _behave_
-        # different to a cold cache (not just _perform_ differently): if the already venv exists, it
-        # may not reflect the configuration that these env vars are implying.
-        #
-        # This means any use of these variables _always_ uses the Python-ful slow-path, even if a
-        # correctly-configured venv already exists (and even if they're equivalent to the default
-        # settings). Determining the correct path when these are set requires reproducing (in highly
-        # portable shell) the hashing logic from `venv_dir` in `pex.variables`.
-        #
-        # These variables should be kept in sync with `venv_dir` in `pex.variables`.
+        # This is used when loading ENV (Variables()):
+        "PEX_IGNORE_RCFILES",
+        # And ENV is used to control the venv (e.g. whether to use a venv at all, which Python
+        # interpreter, any extra PEXes to include):
+        "PEX_VENV",
+        # (Determining the correct path when these are set would require reproducing (in highly
+        # portable shell) the hashing logic from `venv_dir` in `pex.variables`.)
         "PEX_PYTHON",
         "PEX_PYTHON_PATH",
         "PEX_PATH",
-        # PEX_TOOLS requires executing PEX code, but the in-venv code is PEX free and doesn't inspect
+        # PEX_TOOLS requires executing PEX code, but the in-venv code is PEX-free and doesn't inspect
         # `PEX_TOOLS=1`.
         #
         # (NB. unlike the ones above, this doesn't influence the venv contents.)
         "PEX_TOOLS",
+        # Other variables that are used during bootstrap / not read by venv_pex.py, but don't result
+        # in behaviour differences between a cold or warm cache:
+        #
+        # "PEX_ROOT",
+        # "PEX_VERBOSE",
+        # "PEX_EMIT_WARNINGS",
+        # "PEX_MAX_INSTALL_JOBS",
+        # "PEX_DISABLE_VARIABLES",
     ]
 
     return dedent(

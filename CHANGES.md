@@ -2,9 +2,9 @@
 
 ## 2.33.8
 
-This release fixes running a PEX with any of `PEX_PYTHON=...`,  `PEX_PYTHON_PATH=...` or `PEX_PATH=...` set for PEXes using venv-execution and sh-bootstrapping (that is, built with `--sh-boot --venv=...` ). Previously, those environment variables were ignored if the venv already existed in the `PEX_ROOT` (for instance, if the PEX had already been run).
+This release makes running a PEX using venv-execution and sh-bootstrapping (that is, build with `--sh-boot --venv`) more likely to behave identically with a cold or warm `PEX_ROOT` cache. This includes running with `PEX_PYTHON=...`,  `PEX_PYTHON_PATH=...`, `PEX_PATH=...`, `PEX_VENV=...` and `PEX_IGNORE_RCFILES=...`.
 
-* Avoid fast-path in `--sh-boot` script for `PEX_PYTHON`, `PEX_PYTHON_PATH` and `PEX_PATH`. (#2729)
+* Avoid fast-path in `--sh-boot` script for more variables. (#2729)
 
 ## 2.33.7
 
@@ -228,7 +228,7 @@ In addition, the 2.24.2 release included a wheel with no compression
 This release fixes a long-standing bug in "YOLO-mode" foreign platform
 speculative wheel builds. Previously if the speculatively built wheel
 had tags that did not match the foreign platform, the process errored
-pre-emptively. This was correct for complete foreign platforms, where 
+pre-emptively. This was correct for complete foreign platforms, where
 all tag information is known, but not for all cases of abbreviated
 platforms, where the failure was overly aggressive in some cases. Now
 foreign abbreviated platform speculative builds are only rejected when
