@@ -37,7 +37,7 @@ if target_systems_file:
 
 
 def patch_marker_evaluate():
-    from pip._vendor.packaging import markers  # type: ignore[import]
+    from pip._vendor.packaging import markers
 
     from pex.exceptions import production_assert
     from pex.typing import TYPE_CHECKING
@@ -150,7 +150,7 @@ def patch_marker_evaluate():
 
 
 def patch_wheel_model():
-    from pip._internal.models.wheel import Wheel  # type: ignore[import]
+    from pip._internal.models.wheel import Wheel
 
     Wheel.support_index_min = lambda *args, **kwargs: 0
 

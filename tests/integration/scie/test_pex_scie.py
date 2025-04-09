@@ -21,12 +21,14 @@ from pex.fetcher import URLFetcher
 from pex.layout import Layout
 from pex.orderedset import OrderedSet
 from pex.os import is_exe
+from pex.pip.version import PipVersion
 from pex.scie import ScieStyle
 from pex.sysconfig import SysPlatform
 from pex.targets import LocalInterpreter
 from pex.typing import TYPE_CHECKING
 from pex.version import __version__
 from testing import IS_PYPY, PY_VER, make_env, run_pex_command, subprocess
+from testing.pip import skip_if_only_vendored_pip_supported
 from testing.pytest_utils.tmp import Tempdir
 from testing.scie import skip_if_no_provider
 
@@ -454,6 +456,7 @@ def test_custom_lazy_urls(tmpdir):
     ), stderr.decode("utf-8")
 
 
+@skip_if_only_vendored_pip_supported
 def test_pex_pex_scie(
     tmpdir,  # type: Any
     pex_project_dir,  # type: Any
@@ -463,6 +466,8 @@ def test_pex_pex_scie(
     pex = os.path.join(str(tmpdir), "pex")
     run_pex_command(
         args=[
+            "--pip-version",
+            PipVersion.LATEST_COMPATIBLE.value,
             pex_project_dir,
             "-c",
             "pex",

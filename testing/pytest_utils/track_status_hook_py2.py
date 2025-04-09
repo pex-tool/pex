@@ -10,7 +10,7 @@ from pex.typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from typing import Any, Generator
 
-    from _pytest.nodes import Item  # type: ignore[import]
+    from _pytest.nodes import Item
     from pluggy.callers import _Result  # type: ignore[import]
 
 

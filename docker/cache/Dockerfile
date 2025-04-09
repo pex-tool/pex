@@ -7,8 +7,8 @@ ARG FINGERPRINT=unset
 ARG PEX_REPO=https://github.com/pex-tool/pex
 ARG GIT_REF=HEAD
 
-# These must be set as a comma-separated list of all tox envs to cache.
-ARG TOX_ENVS
+# These must be set as a comma-separated list of all dev-cmd commands to cache.
+ARG TEST_CMDS
 
 RUN git clone "${PEX_REPO}" /development/pex && \
     cd /development/pex && \
@@ -16,7 +16,7 @@ RUN git clone "${PEX_REPO}" /development/pex && \
 
 WORKDIR /development/pex
 COPY populate_cache.sh /root/
-RUN /root/populate_cache.sh /development/pex_dev "${TOX_ENVS}" && \
+RUN /root/populate_cache.sh /development/pex_dev "${TEST_CMDS}" && \
     touch "/development/pex_dev/.fingerprint-${FINGERPRINT}"
 
 # Grab just the ~/.pex_dev cache files for the final data-only image.

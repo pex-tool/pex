@@ -76,7 +76,11 @@ def pex():
 def make_env(**kwargs):
     # type: (**Any) -> Dict[str, str]
     env = os.environ.copy()
-    env.update((k, str(v)) for k, v in kwargs.items())
+    for k, v in kwargs.items():
+        if v is None:
+            env.pop(k, None)
+        else:
+            env[k] = str(v)
     return env
 
 
@@ -805,7 +809,7 @@ def test_remove(
 
     pex = create_pex()
     subprocess.check_call(
-        args=[sys.executable, pex, "venv", venv_dir], env=make_env(PEX_TOOLS=True)
+        args=[sys.executable, pex, "venv", venv_dir], env=make_env(PEX_TOOLS=True, PEX_ROOT=None)
     )
     assert os.path.exists(venv_dir)
     assert os.path.exists(pex)
@@ -815,7 +819,8 @@ def test_remove(
     assert not os.path.exists(venv_dir)
 
     subprocess.check_call(
-        args=[sys.executable, pex, "venv", "--rm", "pex", venv_dir], env=make_env(PEX_TOOLS=True)
+        args=[sys.executable, pex, "venv", "--rm", "pex", venv_dir],
+        env=make_env(PEX_TOOLS=True, PEX_ROOT=None),
     )
     assert os.path.exists(venv_dir)
     assert not os.path.exists(pex)
@@ -826,7 +831,8 @@ def test_remove(
     pex = create_pex()
 
     subprocess.check_call(
-        args=[sys.executable, pex, "venv", "--rm", "all", venv_dir], env=make_env(PEX_TOOLS=True)
+        args=[sys.executable, pex, "venv", "--rm", "all", venv_dir],
+        env=make_env(PEX_TOOLS=True, PEX_ROOT=None),
     )
     assert os.path.exists(venv_dir)
     assert not os.path.exists(pex)

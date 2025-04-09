@@ -121,6 +121,14 @@ class LatestPipVersion(object):
         return self._latest
 
 
+class LatestCompatiblePipVersion(object):
+    def __get__(self, obj, objtype=None):
+        # type: (...) -> PipVersionValue
+        if not hasattr(self, "_latest"):
+            self._latest = PipVersion.latest_compatible()
+        return self._latest
+
+
 class DefaultPipVersion(object):
     def __init__(self, preferred):
         # type: (Iterable[PipVersionValue]) -> None
@@ -174,6 +182,11 @@ class PipVersion(Enum["PipVersionValue"]):
                 if version is PipVersionValue.overridden() or not version.hidden
             )
         return cls._values
+
+    @classmethod
+    def latest_compatible(cls, target=None):
+        # type: (Optional[Union[Version, Target]]) -> PipVersionValue
+        return max(value for value in cls.values() if value.requires_python_applies(target=target))
 
     v20_3_4_patched = PipVersionValue(
         name="20.3.4-patched",
@@ -337,6 +350,7 @@ class PipVersion(Enum["PipVersionValue"]):
 
     VENDORED = v20_3_4_patched
     LATEST = LatestPipVersion()
+    LATEST_COMPATIBLE = LatestCompatiblePipVersion()
     DEFAULT = DefaultPipVersion(preferred=(VENDORED, v23_2, v24_1))
 
 

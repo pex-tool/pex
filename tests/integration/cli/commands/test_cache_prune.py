@@ -5,6 +5,7 @@ from __future__ import absolute_import
 
 import os.path
 import shutil
+import sys
 import time
 from datetime import datetime, timedelta
 from textwrap import dedent
@@ -195,7 +196,7 @@ def execute_ansicolors_pex(pex):
 
     assert (
         colors.green("Hello Cache!")
-        == subprocess.check_output(args=[pex.path]).decode("utf-8").strip()
+        == subprocess.check_output(args=[sys.executable, pex.path]).decode("utf-8").strip()
     )
     return pex
 

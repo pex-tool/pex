@@ -20,6 +20,7 @@ from typing import Dict, Iterator, Optional, Tuple, cast
 
 from package.scie_config import PlatformConfig, ScieConfig
 from pex.common import safe_mkdtemp
+from pex.pip.version import PipVersion
 
 DIST_DIR = Path("dist")
 PACKAGE_DIR = Path("package")
@@ -50,6 +51,8 @@ def build_pex_pex(
         "/usr/bin/env python",
         "--no-strip-pex-env",
         "--include-tools",
+        "--pip-version",
+        PipVersion.LATEST_COMPATIBLE.value,
         "-o",
         str(output_file),
         "-c",
@@ -71,7 +74,7 @@ def build_pex_scies(
     if not lock.exists():
         raise SystemExit(
             f"The Pex scie lock at {lock} does not exist.\n"
-            f"Run `tox -e gen-scie-platform -- --all ...` to generate it."
+            f"Run `uv run dev-cmd gen-scie-platform -- --all ...` to generate it."
         )
 
     missing_platforms: list[str] = []

@@ -246,7 +246,7 @@ class TestPythonInterpreter(object):
         pex_root = os.path.join(str(tmpdir), "pex_root")
         cwd = safe_mkdir(os.path.join(str(tmpdir), "home", "jake", "project"))
         with ENV.patch(PEX_ROOT=pex_root) as pex_env, environment_as(
-            PYENV_ROOT=pyenv_root, PEX_PYTHON_PATH=pyenv_shims, **pex_env
+            **dict(pex_env, PYENV_ROOT=pyenv_root, PEX_PYTHON_PATH=pyenv_shims)
         ), pyenv_shell(), pushd(cwd):
             pyenv = Pyenv.find()
             assert pyenv is not None

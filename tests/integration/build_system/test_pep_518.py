@@ -1,13 +1,18 @@
 # Copyright 2022 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+from __future__ import absolute_import
+
 import os.path
+
+import pytest
 
 from pex.build_system.pep_518 import BuildSystem, load_build_system
 from pex.pip.version import PipVersion
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.resolver_configuration import PipConfiguration, ReposConfiguration
 from pex.targets import LocalInterpreter
+from pex.toml import TOMLI_SUPPORTED
 from pex.typing import TYPE_CHECKING
 from testing import make_env, run_pex_command, subprocess
 
@@ -15,6 +20,9 @@ if TYPE_CHECKING:
     from typing import Any
 
 
+@pytest.mark.skipif(
+    not TOMLI_SUPPORTED, reason="Pex pyproject.toml uses modern TOML features only TOMLI can parse."
+)
 def test_load_build_system_pyproject_custom_repos(
     tmpdir,  # type: Any
     pex_project_dir,  # type: str

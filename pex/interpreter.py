@@ -1169,6 +1169,25 @@ class PythonInterpreter(object):
             filter=hashbang_matches, error_handler=None, paths=paths
         ):
             return interpreter
+
+        if WINDOWS and hashbang.startswith("python"):
+            # See: https://docs.python.org/3/using/windows.html#launcher
+            env = os.environ.copy()
+            env["PYLAUNCHER_DRYRUN"] = "1"
+
+            args = ["py"]
+            version_part = hashbang[len("python") :]
+            if version_part:
+                args.append("-{version}".format(version=version_part))
+
+            with open(os.devnull, "wb") as fp:
+                process = subprocess.Popen(args=args, env=env, stdout=subprocess.PIPE, stderr=fp)
+                stdout, _ = process.communicate()
+                if process.returncode == 0:
+                    # Windows is only supported for Python 3; so this cast is safe:
+                    result = cast(str, stdout.decode("utf-8").strip())
+                    return cls.from_binary(result)
+
         return None
 
     @classmethod

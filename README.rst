@@ -50,11 +50,11 @@ To install pex, simply
 
     $ pip install pex
 
-You can also build pex in a git clone using tox:
+You can also build pex in a git clone using uv:
 
 .. code-block:: bash
 
-    $ tox -e package
+    $ uv run dev-cmd package
     $ cp dist/pex ~/bin
 
 This builds a pex binary in ``dist/pex`` that can be copied onto your ``$PATH``.
@@ -125,22 +125,6 @@ mixed and matched, and equivalent short options are available.
 For a full list of options, just type ``pex --help``.
 
 
-Integrating pex into your workflow
-==================================
-
-If you use tox (and you should!), a simple way to integrate pex into your
-workflow is to add a packaging test environment to your ``tox.ini``:
-
-.. code-block:: ini
-
-    [testenv:package]
-    deps = pex
-    commands = pex . -o dist/app.pex
-
-Then ``tox -e package`` will produce a relocatable copy of your application
-that you can copy to staging or production environments.
-
-
 Documentation
 =============
 
@@ -151,43 +135,41 @@ is available at https://docs.pex-tool.org.
 Development
 ===========
 
-Pex uses `tox <https://tox.wiki/en/latest/>`_ for test and development automation. To run
-the test suite, just invoke tox:
+Pex uses `uv <https://docs.astral.sh/uv/>`_ with `dev-cmd <https://pypi.org/project/dev-cmd/>`_ for
+test and development automation. After you have installed `uv`, to run the Pex test suite, just
+run `dev-cmd` via `uv`:
 
 .. code-block:: bash
 
-    $ tox
+    $ uv run dev-cmd
 
-If you don't have tox, you can generate a pex of tox:
+The `dev-cmd` command runner provides many useful options, explained at
+https://pypi.org/project/dev-cmd/ . Below, we provide some of the most commonly used commands when
+working on Pex, but the docs are worth acquainting yourself with to better understand how `dev-cmd`
+works and how to execute more advanced work flows.
 
-.. code-block::
-
-    $ pex tox -c tox -o ~/bin/tox
-
-Tox provides many useful commands and options, explained at https://tox.wiki/en/latest/ .
-Below, we provide some of the most commonly used commands used when working on Pex, but the
-docs are worth acquainting yourself with to better understand how Tox works and how to do more
-advanced commands.
-
-To run a specific environment, identify the name of the environment you'd like to invoke by
-running ``tox --listenvs-all``, then invoke like this:
+To run a specific command, identify the name of the command you'd like to invoke by running
+``uv run dev-cmd --list``, then invoke the command by name like this:
 
 .. code-block::
 
-    $ tox -e fmt
+    $ uv run dev-cmd format
+
+That's a fair bit of typing. An shell alias is recommended, and the standard is `uvrc` which I'll
+use from here on out.
 
 To run MyPy:
 
 .. code-block::
 
-    $ tox -e check
+    $ uvrc typecheck
 
-All of our tox test environments allow passthrough arguments, which can be helpful to run
-specific tests:
+All of our tests allow passthrough arguments to `pytest`, which can be helpful to run specific
+tests:
 
 .. code-block::
 
-    $ tox -e py37-integration -- -k test_reproducible_build
+    $ uvrc test-py37-integration -- -k test_reproducible_build
 
 To run Pex from source, rather than through what is on your PATH, invoke via Python:
 

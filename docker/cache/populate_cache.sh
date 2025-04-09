@@ -3,28 +3,28 @@
 set -xuo pipefail
 
 if (( $# != 2 )); then
-  echo >&2 "usage: $0 [pex dev cache dir] [tox env][,tox env]*"
+  echo >&2 "usage: $0 [pex dev cache dir] [cmd][,cmd]*"
   echo >&2 "Expected 2 arguments, got $#: $*"
   exit 1
 fi
 
-function run_tox() {
-  local env="$1"
-  tox -e "${env}" -- --color --devpi --require-devpi -vvs
+function run_dev_cmd() {
+  local cmd="$1"
+  uv run dev-cmd "${cmd}" -- --color --devpi --require-devpi -vvs
   if (( $? == 42 )); then
-    echo >&2 "tox -e ${env} failed to start or connect to the devpi-server, exiting..."
+    echo >&2 "uv run dev-cmd ${cmd} failed to start or connect to the devpi-server, exiting..."
     exit 1
   elif (( $? != 0 )); then
-    echo >&2 "tox -e ${env} failed, continuing..."
+    echo >&2 "uv run dev-cmd ${cmd} failed, continuing..."
   fi
 }
 
 export _PEX_TEST_DEV_ROOT="$1"
-for tox_env in $(echo "$2" | tr , ' '); do
-  run_tox "${tox_env}"
+for cmd in $(echo "$2" | tr , ' '); do
+  run_dev_cmd "${cmd}"
 
-  # Tox test environments can leave quite large /tmp/pytest-of-<user> trees; relieve disk pressure
-  # by cleaning these up as we go.
+  # The pytest runs can leave quite large /tmp/pytest-of-<user> trees; relieve disk pressure by
+  # cleaning these up as we go.
   rm -rf /tmp/pytest*
 done
 

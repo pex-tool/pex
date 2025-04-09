@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 def patch():
     # type: () -> None
 
-    from pip._vendor.packaging import markers  # type: ignore[import]
+    from pip._vendor.packaging import markers
 
     from pex.exceptions import production_assert
     from pex.pip.foreign_platform import EvaluationEnvironment, PatchContext

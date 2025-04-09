@@ -9,10 +9,9 @@ from zipfile import ZipFile
 
 import pytest
 
-from pex.common import safe_open, temporary_dir
+from pex.common import safe_open
 from pex.compatibility import PY2
 from pex.interpreter import PythonInterpreter
-from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pip.version import PipVersion, PipVersionValue
 from pex.resolve.lockfile import json_codec
@@ -57,53 +56,55 @@ def compatible_pip_version(pythons):
 
 
 def assert_reproducible_build(
+    tmpdir,  # type: Tempdir
     args,  # type: List[str]
     pythons=None,  # type: Optional[Iterable[str]]
 ):
     # type: (...) -> None
-    with temporary_dir() as td:
 
-        def explode_pex(path):
-            with ZipFile(path) as zf:
-                pex_name, _ = os.path.splitext(path)
-                destination_dir = os.path.join(td, "pex{}".format(pex_name))
-                zf.extractall(path=destination_dir)
-                return [os.path.join(destination_dir, member) for member in sorted(zf.namelist())]
+    def explode_pex(path):
+        with ZipFile(path) as zf:
+            pex_name, _ = os.path.splitext(path)
+            destination_dir = tmpdir.join("pex{}".format(pex_name))
+            zf.extractall(path=destination_dir)
+            return [os.path.join(destination_dir, member) for member in sorted(zf.namelist())]
 
-        if pythons:
-            pexes = run_commands_with_jitter(
-                path_argument="--output-file",
-                commands=[
-                    create_pex_command(
-                        args=args + ["--python-shebang", "/usr/bin/env python"],
-                        python=python,
-                        quiet=True,
-                    )
-                    for python in pythons
-                ],
-            )
-        else:
-            pexes = run_command_with_jitter(
-                create_pex_command(args=args, quiet=True), path_argument="--output-file", count=3
-            )
+    if pythons:
+        pexes = run_commands_with_jitter(
+            path_argument="--output-file",
+            commands=[
+                create_pex_command(
+                    args=args + ["--python-shebang", "/usr/bin/env python"],
+                    python=python,
+                    quiet=True,
+                )
+                for python in pythons
+            ],
+        )
+    else:
+        pexes = run_command_with_jitter(
+            create_pex_command(args=args, quiet=True),
+            path_argument="--output-file",
+            count=3,
+        )
 
-        pex_members = {pex: explode_pex(path=pex) for pex in pexes}
-        pex1 = pexes.pop()
-        for pex2 in pexes:
-            # First compare file-by-file for easier debugging.
-            for member1, member2 in zip(pex_members[pex1], pex_members[pex2]):
-                assert not os.path.isdir(member1) ^ os.path.isdir(member2)
-                if os.path.isdir(member1):
-                    continue
-                # Check that each file has the same content.
-                with open(member1, "rb") as f1, open(member2, "rb") as f2:
-                    assert list(f1.readlines()) == list(
-                        f2.readlines()
-                    ), "{} and {} have different content.".format(member1, member2)
-                # Check that the entire file is equal, including metadata.
-                assert filecmp.cmp(member1, member2, shallow=False)
-            # Finally, check that the .pex files are byte-for-byte identical.
-            assert filecmp.cmp(pex1, pex2, shallow=False)
+    pex_members = {pex: explode_pex(path=pex) for pex in pexes}
+    pex1 = pexes.pop()
+    for pex2 in pexes:
+        # First compare file-by-file for easier debugging.
+        for member1, member2 in zip(pex_members[pex1], pex_members[pex2]):
+            assert not os.path.isdir(member1) ^ os.path.isdir(member2)
+            if os.path.isdir(member1):
+                continue
+            # Check that each file has the same content.
+            with open(member1, "rb") as f1, open(member2, "rb") as f2:
+                assert list(f1.readlines()) == list(
+                    f2.readlines()
+                ), "{} and {} have different content.".format(member1, member2)
+            # Check that the entire file is equal, including metadata.
+            assert filecmp.cmp(member1, member2, shallow=False)
+        # Finally, check that the .pex files are byte-for-byte identical.
+        assert filecmp.cmp(pex1, pex2, shallow=False)
 
 
 @pytest.fixture(scope="module")
@@ -127,9 +128,12 @@ def mixed_major_pythons():
     )
 
 
-def test_reproducible_build_no_args(mixed_major_pythons):
-    # type: (Tuple[str, ...]) -> None
-    assert_reproducible_build([], pythons=mixed_major_pythons)
+def test_reproducible_build_no_args(
+    tmpdir,  # type: Tempdir
+    mixed_major_pythons,  # type: Tuple[str, ...]
+):
+    # type: (...) -> None
+    assert_reproducible_build(tmpdir, [], pythons=mixed_major_pythons)
 
 
 @pytest.mark.skipif(
@@ -144,22 +148,29 @@ def test_reproducible_build_no_args(mixed_major_pythons):
         "build that we have insufficient control over to make reproducible."
     ),
 )
-def test_reproducible_build_bdist_requirements():
-    # type: () -> None
+def test_reproducible_build_bdist_requirements(tmpdir):
+    # type: (Tempdir) -> None
+
     # We test both a pure Python wheel (six) and a platform-specific wheel (cryptography).
     assert_reproducible_build(
+        tmpdir,
         [
             "six==1.12.0",
             "cryptography=={version}".format(version="2.6.1" if PY2 else "3.4.8"),
-        ]
+        ],
     )
 
 
-def test_reproducible_build_sdist_requirements(major_compatible_pythons):
-    # type: (Tuple[str, ...]) -> None
+def test_reproducible_build_sdist_requirements(
+    tmpdir,  # type: Tempdir
+    major_compatible_pythons,  # type: Tuple[str, ...]
+):
+    # type: (...) -> None
+
     # The python-crontab sdist will be built as py2-none-any or py3-none-any depending on the
     # Python major version since it is not marked as universal in the sdist.
     assert_reproducible_build(
+        tmpdir,
         [
             "python-crontab==2.3.6",
             "--pip-version",
@@ -169,13 +180,17 @@ def test_reproducible_build_sdist_requirements(major_compatible_pythons):
     )
 
 
-def test_reproducible_build_m_flag(mixed_major_pythons):
-    # type: (Tuple[str, ...]) -> None
-    assert_reproducible_build(["-m", "pydoc"], pythons=mixed_major_pythons)
+def test_reproducible_build_m_flag(
+    tmpdir,  # type: Tempdir
+    mixed_major_pythons,  # type: Tuple[str, ...]
+):
+    # type: (...) -> None
+    assert_reproducible_build(tmpdir, ["-m", "pydoc"], pythons=mixed_major_pythons)
 
 
-def find_compatible_setuptools(pythons):
-    # type: (Iterable[str]) -> Version
+def find_compatible_setuptools_build_system_requires(pythons):
+    # type: (Iterable[str]) -> List[str]
+
     py_versions = sorted(PythonInterpreter.from_binary(py).version for py in pythons)
     assert len(py_versions) > 0
     min_py_version = py_versions[0]
@@ -191,15 +206,18 @@ def find_compatible_setuptools(pythons):
         "--style",
         "universal",
         "setuptools",
+        "wheel",
     )
     result.assert_success()
     lockfile = json_codec.loads(result.output)
     assert len(lockfile.locked_resolves) == 1
-    locked_requirements = {
-        locked_req.pin.project_name: locked_req.pin.version
+    return [
+        "{project_name}=={version}".format(
+            project_name=locked_req.pin.project_name, version=locked_req.pin.version
+        )
         for locked_req in lockfile.locked_resolves[0].locked_requirements
-    }
-    return locked_requirements.pop(ProjectName("setuptools"))
+        if locked_req.pin.project_name in (ProjectName("setuptools"), ProjectName("wheel"))
+    ]
 
 
 def test_reproducible_build_c_flag_from_source(
@@ -211,7 +229,7 @@ def test_reproducible_build_c_flag_from_source(
     # We go through some hoops here to find a setuptools version that works for all
     # major_compatible_pythons to ensure we don't introduce variability though a changing setuptools
     # version.
-    setuptools_version = find_compatible_setuptools(major_compatible_pythons)
+    requires = find_compatible_setuptools_build_system_requires(major_compatible_pythons)
 
     project_dir = tmpdir.join("project")
     with safe_open(os.path.join(project_dir, "pyproject.toml"), "w") as fp:
@@ -219,10 +237,10 @@ def test_reproducible_build_c_flag_from_source(
             dedent(
                 """\
                 [build-system]
-                requires = ["setuptools=={version}"]
+                requires = {requires!r}
                 build-backend =  "setuptools.build_meta"
                 """.format(
-                    version=setuptools_version
+                    requires=requires
                 )
             )
         )
@@ -259,6 +277,7 @@ def test_reproducible_build_c_flag_from_source(
         )
 
     assert_reproducible_build(
+        tmpdir,
         [
             project_dir,
             "-c",
@@ -272,11 +291,16 @@ def test_reproducible_build_c_flag_from_source(
     )
 
 
-def test_reproducible_build_c_flag_from_dependency(major_compatible_pythons):
-    # type: (Tuple[str, ...]) -> None
+def test_reproducible_build_c_flag_from_dependency(
+    tmpdir,  # type: Tempdir
+    major_compatible_pythons,  # type: Tuple[str, ...]
+):
+    # type: (...) -> None
+
     # The futurize script installed depends on the version of python being used; so we don't try
     # to mix Python 2 with Python 3 as in many other reproducibility tests.
     assert_reproducible_build(
+        tmpdir,
         [
             "future==0.17.1",
             "-c",
@@ -288,15 +312,26 @@ def test_reproducible_build_c_flag_from_dependency(major_compatible_pythons):
     )
 
 
-def test_reproducible_build_python_flag(mixed_major_pythons):
-    # type: (Tuple[str, ...]) -> None
+def test_reproducible_build_python_flag(
+    tmpdir,  # type: Tempdir
+    mixed_major_pythons,  # type: Tuple[str, ...]
+):
+    # type: (...) -> None
+
     assert_reproducible_build(
-        ["--python", "python2.7", "--python-path", os.pathsep.join(mixed_major_pythons)],
+        tmpdir,
+        [
+            "--python",
+            "python2.7",
+            "--python-path",
+            os.pathsep.join(mixed_major_pythons),
+        ],
         pythons=mixed_major_pythons,
     )
 
 
-def test_reproducible_build_python_shebang_flag():
-    # type: () -> None
+def test_reproducible_build_python_shebang_flag(tmpdir):
+    # type: (Tempdir) -> None
+
     # Passing `python_versions` override `--python-shebang`; so we don't do that here.
-    assert_reproducible_build(["--python-shebang=/usr/bin/python"])
+    assert_reproducible_build(tmpdir, ["--python-shebang=/usr/bin/python"])

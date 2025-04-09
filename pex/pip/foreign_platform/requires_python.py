@@ -15,7 +15,7 @@ PYTHON_VERSIONS = sorted(set(version[:2] for version in PYTHON_FULL_VERSIONS))
 
 def patch():
     # The pip-legacy-resolver patch.
-    from pip._internal.utils import packaging  # type: ignore[import]
+    from pip._internal.utils import packaging
 
     if PYTHON_FULL_VERSIONS:
         orig_check_requires_python = packaging.check_requires_python
@@ -35,12 +35,8 @@ def patch():
         packaging.check_requires_python = lambda *_args, **_kw: True
 
     # The pip-2020-resolver patch.
-    from pip._internal.resolution.resolvelib.candidates import (  # type: ignore[import]
-        RequiresPythonCandidate,
-    )
-    from pip._internal.resolution.resolvelib.requirements import (  # type: ignore[import]
-        RequiresPythonRequirement,
-    )
+    from pip._internal.resolution.resolvelib.candidates import RequiresPythonCandidate
+    from pip._internal.resolution.resolvelib.requirements import RequiresPythonRequirement
 
     if PYTHON_FULL_VERSIONS:
         orig_get_candidate_lookup = RequiresPythonRequirement.get_candidate_lookup

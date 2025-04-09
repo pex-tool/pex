@@ -12,16 +12,16 @@ from _pytest.config import create_terminal_writer, hookimpl  # type: ignore[impo
 from _pytest.reports import TestReport  # type: ignore[import]
 
 from pex.common import pluralize
-from pex.typing import TYPE_CHECKING
+from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     from typing import Dict, List
 
     import attr  # vendor:skip
-    from _pytest import nodes  # type: ignore[import]
-    from _pytest.config import Config  # type: ignore[import]
-    from _pytest.config.argparsing import Parser  # type: ignore[import]
-    from _pytest.terminal import TerminalReporter  # type: ignore[import]
+    from _pytest import nodes
+    from _pytest.config import Config
+    from _pytest.config.argparsing import Parser
+    from _pytest.terminal import TerminalReporter
 else:
     from pex.third_party import attr
 
@@ -36,7 +36,7 @@ class Plugin(object):
     @property
     def terminal_reporter(self):
         # type: () -> TerminalReporter
-        return self.config.pluginmanager.get_plugin("terminalreporter")
+        return cast("TerminalReporter", self.config.pluginmanager.get_plugin("terminalreporter"))
 
 
 @attr.s(frozen=True)

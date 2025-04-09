@@ -35,7 +35,7 @@ To update versions of vendored code or add new vendored code:
      yield VendorSpec.pinned('wheel', '0.33.6', rewrite=False)
    ```
    Simply edit an existing `VendorSpec` or `yield` a new one.
-2. Run `tox -e vendor`.
+2. Run `uv run dev-cmd vendor`.
    This will replace all vendored code even if versions have not changed and then rewrite any
    imports in the vendored code that refer back to any other vendored code to use the
    `pex.third_party` importer prefix. In addition, any direct, un-prefixed imports of vendored code

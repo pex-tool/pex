@@ -52,36 +52,38 @@ if [[ -z "$(user_image_id)" ]]; then
 
   docker run \
     --rm \
-    --volume pex-caches:/development/pex_dev \
-    --volume pex-root:/var/cache/pex \
+    --volume pex-dev-caches:/development/pex_dev \
+    --volume pex-xdg-caches:/var/cache \
     --volume pex-tmp:/tmp \
-    --volume pex-tox:/development/pex/.tox \
+    --volume pex-venv:/development/pex/.venv \
+    --volume pex-dev-cmd:/development/pex/.dev-cmd \
     --entrypoint bash \
     --user root \
     "pex-tool/pex/user:${user_hash}" \
     -c "
       chown -R $(id -un):$(id -gn) \
       /development/pex_dev \
-      /var/cache/pex \
+      /var/cache \
       /tmp \
-      /development/pex/.tox
+      /development/pex/.venv \
+      /development/pex/.dev-cmd
     "
 fi
 
 if [[ "${CACHE_MODE}" == "pull" ]]; then
   # N.B.: This is a fairly particular dance / trick that serves to populate a local named volume
   # with the contents of a data-only image. In particular, starting with an empty named volume is
-  # required to get the subsequent no-op `docker run --volume pex-caches:...` to populate that
+  # required to get the subsequent no-op `docker run --volume pex-dev-caches:...` to populate that
   # volume. This population only happens under that condition.
-  docker volume rm --force pex-caches
-  docker volume create pex-caches
+  docker volume rm --force pex-dev-caches
+  docker volume create pex-dev-caches
   docker run \
     --rm \
-    --volume pex-caches:/development/pex_dev \
+    --volume pex-dev-caches:/development/pex_dev \
     "ghcr.io/pex-tool/pex/cache:${CACHE_TAG}" true || true
   docker run \
     --rm \
-    --volume pex-caches:/development/pex_dev \
+    --volume pex-dev-caches:/development/pex_dev \
     --entrypoint bash \
     --user root \
     "pex-tool/pex/user:${user_hash}" \
@@ -132,10 +134,11 @@ fi
 exec docker run \
   --rm \
   --volume pex-tmp:/tmp \
-  --volume pex-root:/var/cache/pex \
-  --volume pex-caches:/development/pex_dev \
+  --volume pex-xdg-caches:/var/cache \
+  --volume pex-dev-caches:/development/pex_dev \
   --volume "${ROOT}:/development/pex" \
-  --volume pex-tox:/development/pex/.tox \
+  --volume pex-venv:/development/pex/.venv \
+  --volume pex-dev-cmd:/development/pex/.dev-cmd \
   "${DOCKER_ARGS[@]}" \
   "pex-tool/pex/user:${user_hash}" \
   "$@"

@@ -1,10 +1,14 @@
 # Copyright 2021 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+from __future__ import absolute_import
+
 import os
 import shutil
 
 from pex.cache.dirs import CacheDir
+from pex.pep_440 import Version
+from pex.pip.version import PipVersion
 from pex.typing import TYPE_CHECKING
 from testing import PY38, PY310, ensure_python_interpreter, make_env, run_pex_command, subprocess
 
@@ -12,8 +16,11 @@ if TYPE_CHECKING:
     from typing import Any, Dict, FrozenSet, Iterator, List
 
 
-def test_isolated_pex_zip(tmpdir):
-    # type: (Any) -> None
+def test_isolated_pex_zip(
+    tmpdir,  # type: Any
+    pex_project_dir,  # type: str
+):
+    # type: (...) -> None
 
     pex_root = os.path.join(str(tmpdir), "pex_root")
 
@@ -31,6 +38,8 @@ def test_isolated_pex_zip(tmpdir):
             pex_root,
             "--interpreter-constraint",
             "CPython=={version}".format(version=PY38),
+            "--pip-version",
+            PipVersion.latest_compatible(Version(PY38)).value,
         ]
 
     def tally_isolated_vendoreds():
@@ -60,7 +69,9 @@ def test_isolated_pex_zip(tmpdir):
     # ===
     current_pex_pex = os.path.join(str(tmpdir), "pex-current.pex")
     results = run_pex_command(
-        args=add_pex_args(".", "-c", "pex", "-o", current_pex_pex), env=pex_env, python=python38
+        args=add_pex_args(pex_project_dir, "-c", "pex", "-o", current_pex_pex),
+        env=pex_env,
+        python=python38,
     )
     results.assert_success()
 

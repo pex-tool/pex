@@ -6,6 +6,149 @@ requires = ["setuptools"]
 backend-path = ["build-backend", ""]
 build-backend = "pex_build.setuptools.build"
 
+[project]
+name = "pex"
+
+# N.B.: This must be kept in sync with the same setting in setup.cfg to support Python 2.7.
+requires-python = ">=2.7,<3.14,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*"
+
+dynamic = [
+  "authors",
+  "classifiers",
+  "description",
+  "entry-points",
+  "keywords",
+  "optional-dependencies",
+  "readme",
+  "scripts",
+  "urls",
+  "version",
+]
+
+[dependency-groups]
+dev = [
+  "dev-cmd[old-pythons]; python_version >= '3.8'",
+
+  {include-group = "build-cache-image"},
+  {include-group = "devpi-server"},
+  {include-group = "docs"},
+  {include-group = "fmt"},
+  {include-group = "gen-scie-platform"},
+  {include-group = "lint"},
+  {include-group = "mypy"},
+  {include-group = "package"},
+  {include-group = "test"},
+  {include-group = "vendor"},
+]
+build-cache-image = [
+  "ansicolors",
+  "coloredlogs; python_version >= '3.8'",
+  "PyYAML; python_version >= '3.8'",
+]
+devpi-server = ["devpi-server; python_version >= '3.8'"]
+docs = [
+  "furo; python_version >= '3.8'",
+  "httpx; python_version >= '3.8'",
+  "myst-parser[linkify]; python_version >= '3.8'",
+
+  # The 0.11.0 release removes deprecated API parameters which breaks weasyprint (62.3 depends on
+  # `pydyf>=0.10.0`) which is a dependency of sphinx-simplepdf.
+  "pydyf<0.11.0; python_version >= '3.8'",
+
+  "sphinx; python_version >= '3.8'",
+  "sphinx-simplepdf; python_version >= '3.8'",
+]
+fmt = [
+  "black==21.12b0; python_full_version >= '3.6.2'",
+  "click==8.0.1; python_version >= '3.6'",  # The 8.1.0 release of click breaks black; so we pin.
+  "isort==5.10.1; python_full_version >= '3.6.1'",
+]
+gen-scie-platform = [
+  "PyGithub; python_version >= '3.8'",
+  "cryptography==43.0.3; python_version >= '3.8'",  # Pinned, so we get a pre-built wheel from piwheels.
+  "httpx; python_version >= '3.8'",
+]
+lint = [
+  # The last version to support pyflakes 2.4.0 (see below).
+  "autoflake==1.7.8; python_version >= '3.8'",
+  # The last version to support Python 2.7 comment type hints.
+  "pyflakes==2.4.0; python_version >= '3.8'"
+]
+mypy = [
+  # These versions should track the version in pex/vendor/__init__.py.
+  "ansicolors==1.1.8",
+  "appdirs==1.4.4",
+  "attrs @ git+https://github.com/python-attrs/attrs@947bfb542104209a587280701d8cb389c813459d",
+
+  # This is just used as a constraint - the dep is via:
+  #   spinx 5.1.1 -> jinja2>=2.3 -> MarkupSafe>=2.0
+  # This works around a mypy bug handling positional-only arguments for `--python-version` >=3.8
+  # that was not fixed until 0.981 (we're stuck on 0.971). MarkupSafe>=3 uses positional argument
+  # only notation.
+  "MarkupSafe<3",
+
+  # We pin at 0.971 since this is the last version of mypy that supports `--python-version 2.7`.
+  "mypy[python2]==0.971; python_version >= '3.8' and python_version < '3.12'",
+
+  # These versions should track the version in pex/vendor/__init__.py.
+  "packaging==20.9; python_version < '3.12'", # This version should track the lowest version in pex/vendor/__init__.py.
+  "toml==0.10.2",  # This versions should track the version in pex/vendor/__init__.py.
+
+  # The following stubs are pinned at the last version that does not use positional-only parameter
+  # syntax (/) not available to `--python-version 2.7` type checks.
+  "types-PyYAML==6.0.12.12; python_version >= '3.8'",
+  "types-appdirs==1.4.3.5; python_version >= '3.8'",
+  "types-docutils==0.20.0.20240310; python_version >= '3.8'",
+  "types-mock==5.1.0.20240106; python_version >= '3.8'",
+  "types-pexpect==4.9.0.20240207; python_version >= '3.8'",
+  "types-setuptools==69.1.0.20240302; python_version >= '3.8'",
+
+  # 0.10.6 stubs are not compatible with Python 2.7
+  "types-toml==0.10.5; python_version >= '3.8'",
+
+  {include-group = "build-cache-image"},
+  {include-group = "devpi-server"},
+  {include-group = "docs"},
+  {include-group = "fmt"},
+  {include-group = "gen-scie-platform"},
+  {include-group = "package"},
+  {include-group = "test"},
+  {include-group = "vendor"},
+]
+package = ["build"]
+test = [
+  "ansicolors",
+  "coloredlogs",
+  "mock; python_version == '2.7'",
+
+  # The more-itertools project is an indirect requirement of pytest, and it's broken for
+  # Python < 3.6 in newer releases so we force low here.
+  "more-itertools<=8.10.0; python_version < '3.6'",
+
+  "pexpect",
+  "psutil",
+  "pytest",
+  "pytest-md-report; python_version >= '3.9'",
+  "pytest-retry; python_version >= '3.9'",
+  "pytest-xdist",
+  "subprocess32",
+
+  {include-group = "devpi-server"},
+]
+vendor = [
+  "ansicolors",
+  "httpx; python_version >= '3.8'",
+  "libcst; python_version >= '3.8'",
+  "pip==24.0; python_version >= '3.8'",
+  "setuptools==50.3.2; python_version >= '3.8'",
+  "wheel==0.35.1; python_version >= '3.8'",
+]
+
+[tool.uv]
+# This is used to force past a <2 upper bound in blacks deps, and it turns out black works just fine
+# with this version of tomli.
+override-dependencies = ["tomli==2.2.1; python_version >= '3.8'"]
+
 [tool.black]
 line-length = 100
 target-version = ["py27"]
@@ -25,4 +168,245 @@ skip = []
 skip_glob = [
   "pex/vendor/_vendored/**",
   "pex/venv/virtualenv_16.7.12_py"
+]
+
+[tool.dev-cmd.commands.build-cache-image]
+description = "Build the CI cache data image."
+when = "python_version >= '3.9'"
+args = ["scripts/build-cache-image.py"]
+accepts-extra-args = true
+dependency-group = "build-cache-image"
+hidden = true
+
+[tool.dev-cmd.commands.check-git-clean]
+args = ["git", "diff", "--exit-code"]
+hidden = true
+
+[tool.dev-cmd.commands.docs]
+description = "Generate the Pex documentation static site and optionally serve it up."
+when = "python_version >= '3.9'"
+args = ["scripts/build-docs.py"]
+dependency-group = "docs"
+accepts-extra-args = true
+
+[tool.dev-cmd.commands.embed-virtualenv]
+when = "python_version >= '3.9'"
+env = {PYTHONPATH = "."}
+args = ["scripts/embed-virtualenv.py"]
+hidden = true
+
+[tool.dev-cmd.commands.enum-check]
+python = "python2.7"
+args = ["scripts/py27/lint_enum.py"]
+accepts-extra-args = true
+hidden = true
+
+[tool.dev-cmd.commands.format]
+description = "Auto-format the source code."
+when = "python_version >= '3.9'"
+args = ["scripts/format.py"]
+
+[tool.dev-cmd.commands.format-check]
+when = "python_version >= '3.9'"
+args = ["scripts/format.py", "--check"]
+hidden = true
+
+[tool.dev-cmd.commands.gen-scie-platform]
+when = "python_version >= '3.9'"
+args = ["scripts/gen-scie-platform.py"]
+accepts-extra-args = true
+dependency-group = "gen-scie-platform"
+hidden = true
+[tool.dev-cmd.commands.gen-scie-platform.env]
+PYTHONPATH = "."
+# Used to get wheels for armv7l.
+PIP_EXTRA_INDEX_URL = "https://www.piwheels.org/simple"
+
+[tool.dev-cmd.commands.lint]
+description = "Currently removes unused imports and code."
+when = "python_version >= '3.9'"
+args = ["scripts/lint.py"]
+
+[tool.dev-cmd.commands.lint-check]
+when = "python_version >= '3.9'"
+args = ["scripts/lint.py", "--check"]
+hidden = true
+
+[tool.dev-cmd.commands.package]
+description = "Package the Pex PEX, sdist, wheel and PEX scies."
+when = "python_version >= '3.9'"
+env = {PYTHONPATH = "."}
+args = ["scripts/create-packages.py"]
+accepts-extra-args = true
+
+[tool.dev-cmd.commands.requires-python-check]
+args = ["scripts/requires-python-check.py"]
+hidden = true
+
+# TODO(John Sirois): Get dev-cmd to support attaching factors to the `command.name` to avoid all
+#  the copy-pasta here for our 3 branches.
+
+[tool.dev-cmd.commands.test-lt39.factors]
+py = "The Python version to run the tests under."
+pip = "The Pip version to default to in test runs."
+integration = "Run the integration tests (also available via `--it` pass through arg)."
+
+[tool.dev-cmd.commands.test-lt39]
+description = """
+Run tests using pytest.
+
+For example:
++ test: Run unit tests under the ambient Python interpreter.
++ test-py37: Run unit tests under Python 3.7 (A Python 3.7 must be somewhere on the `PATH`).
++ test-integration: Run integration tests under the ambient Python interpreter
++ test-py37-integration-pip22.3.1: Run integration tests under Python 3.7 using Pip 22.3.1.
+
+The factors mix and match and are useful for parallel run of many setups; e.g.:
+$ dev-cmd --parallel test-py3{9..13} -- -k test_compiler
+"""
+when = "python_version < '3.9'"
+python = "{-py:}"
+name = "test"
+env = {PYTHONHASHSEED = "{--hashseed}", PYTHONUNBUFFERED = "1", _PEX_PIP_VERSION = "{-pip:}"}
+args = ["testing/bin/run_tests.py", {discard_empty = "{-integration?--it:}"}]
+accepts-extra-args = true
+dependency-group = "test"
+
+[tool.dev-cmd.commands.test-gte39-lt314.factors]
+py = "The Python version to run the tests under."
+pip = "The Pip version to default to in test runs."
+integration = "Run the integration tests (also available via `--it` pass through arg)."
+
+[tool.dev-cmd.commands.test-gte39-lt314]
+description = """
+Run tests using pytest.
+
+For example:
++ test: Run unit tests under the ambient Python interpreter.
++ test-py37: Run unit tests under Python 3.7 (A Python 3.7 must be somewhere on the `PATH`).
++ test-integration: Run integration tests under the ambient Python interpreter
++ test-py37-integration-pip22.3.1: Run integration tests under Python 3.7 using Pip 22.3.1.
+
+The factors mix and match and are useful for parallel run of many setups; e.g.:
+$ dev-cmd --parallel test-py3{9..13} -- -k test_compiler
+"""
+when = "python_version >= '3.9' and python_version < '3.14'"
+python = "{-py:}"
+name = "test"
+env = {PYTHONHASHSEED = "{--hashseed}", _PEX_PIP_VERSION = "{-pip:}"}
+args = ["testing/bin/run_tests.py", {discard_empty = "{-integration?--it:}"}]
+accepts-extra-args = true
+dependency-group = "test"
+
+[tool.dev-cmd.commands.test-eq314.factors]
+py = "The Python version to run the tests under."
+pip = "The Pip version to default to in test runs."
+integration = "Run the integration tests (also available via `--it` pass through arg)."
+
+[tool.dev-cmd.commands.test-eq314]
+description = """
+Run tests using pytest.
+
+For example:
++ test: Run unit tests under the ambient Python interpreter.
++ test-py37: Run unit tests under Python 3.7 (A Python 3.7 must be somewhere on the `PATH`).
++ test-integration: Run integration tests under the ambient Python interpreter
++ test-py37-integration-pip22.3.1: Run integration tests under Python 3.7 using Pip 22.3.1.
+
+The factors mix and match and are useful for parallel run of many setups; e.g.:
+$ dev-cmd --parallel test-py3{9..13} -- -k test_compiler
+"""
+when = "python_version == '3.14'"
+python = "{-py:}"
+name = "test"
+args = ["testing/bin/run_tests.py", {discard_empty = "{-integration?--it:}"}]
+accepts-extra-args = true
+dependency-group = "test"
+[tool.dev-cmd.commands.test-eq314.env]
+PYTHONHASHSEED = "{--hashseed}"
+_PEX_PIP_VERSION = "{-pip:}"
+_PEX_REQUIRES_PYTHON = ">=2.7,<3.15,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*"
+
+[tool.dev-cmd.commands.typecheck]
+description = "Type check the source code with MyPy."
+python = "python3.11"
+args = ["scripts/typecheck.py"]
+
+[tool.dev-cmd.commands.vendorize]
+python = "python3.9"
+args = ["python", "-m", "pex.vendor"]
+accepts-extra-args = true
+dependency-group = "vendor"
+hidden = true
+
+[tool.dev-cmd.commands.vendorize-check]
+python = "python3.9"
+args = ["python", "-m", "pex.vendor", "--no-update"]
+dependency-group = "vendor"
+hidden = true
+
+[tool.dev-cmd.tasks.checks]
+description = """
+Run the standard suite of Pex checks, including unit tests.
+
+To just run the non-test checks, use `-stest` to skip tests.
+"""
+steps = ["format", "lint", "enum-check", "requires-python-check", "typecheck", "test"]
+
+[tool.dev-cmd.tasks.vendor]
+description = "Re-vendor Pex vendored dependencies."
+steps = ["vendorize", "format"]
+
+[tool.dev-cmd.tasks.vendor-check]
+steps = ["embed-virtualenv", "vendorize-check", "check-git-clean"]
+hidden = true
+
+[tool.dev-cmd]
+default = "checks"
+exit-style = "immediate"
+
+[[tool.dev-cmd.python]]
+when = "python_version >= '3.7' and python_version < '3.14'"
+
+# Suppress pyproject cache keys since uv.lock is enough to uniquely determine venv content.
+pyproject-cache-keys = []
+extra-cache-keys = ["uv.lock"]
+
+3rdparty-export-command = [
+  "uv", "export", "-q",
+  "--no-emit-project",
+  # Both uv and Pip can't handle VCS URLs in hashed requirements; so we handle this ourselves.
+  "--no-emit-package", "attrs",
+  "--only-group", "{dependency-group:dev}",
+  "-o", "{requirements.txt}"
+]
+3rdparty-pip-install-opts = ["--no-deps"]
+extra-requirements = [
+  "-e", ".",
+  "attrs @ git+https://github.com/python-attrs/attrs@947bfb542104209a587280701d8cb389c813459d",
+]
+
+[[tool.dev-cmd.python]]
+when = "python_version < '3.7'"
+
+extra-requirements = [
+  "attrs @ git+https://github.com/python-attrs/attrs@947bfb542104209a587280701d8cb389c813459d",
+]
+
+# Editable installations need some help for Python 2.7, 3.5 & 3.6 in a modern world.
+finalize-command = ["{venv-python}", "scripts/dev-cmd-fix-egg-link.py", "{venv-site-packages}"]
+
+[[tool.dev-cmd.python]]
+when = "python_version == '3.14'"
+
+# We need to inject the altered Requires-Python here as an env var since dev-cmd doesn't support
+# that yet; so we use the finalize command to do the editable installation instead of relying on the
+# built-in mechanism.
+extra-requirements = [
+  "attrs @ git+https://github.com/python-attrs/attrs@947bfb542104209a587280701d8cb389c813459d",
+]
+finalize-command = [
+  "{venv-python}",
+  "scripts/dev-cmd-pip-install-pex-next.py",
+  ">=2.7,<3.15,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*",
 ]

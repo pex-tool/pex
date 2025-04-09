@@ -3,6 +3,7 @@
 
 import os.path
 
+from pex.pip.version import PipVersion
 from pex.typing import TYPE_CHECKING
 from testing import (
     PY38,
@@ -12,6 +13,7 @@ from testing import (
     run_pex_command,
     subprocess,
 )
+from testing.pip import skip_if_only_vendored_pip_supported
 
 if TYPE_CHECKING:
     from typing import Any
@@ -24,7 +26,17 @@ def assert_venv_runtime_env_vars_ignored_during_create(
     # type: (...) -> None
 
     pex_pex = os.path.join(str(tmpdir), "pex.pex")
-    args = [pex_project_dir(), "-c", "pex", "-o", pex_pex, "--no-strip-pex-env", "--disable-cache"]
+    args = [
+        "--pip-version",
+        PipVersion.LATEST_COMPATIBLE.value,
+        pex_project_dir(),
+        "-c",
+        "pex",
+        "-o",
+        pex_pex,
+        "--no-strip-pex-env",
+        "--disable-cache",
+    ]
     if pex_venv:
         args.append("--venv")
     run_pex_command(args=args).assert_success()
@@ -68,6 +80,7 @@ def assert_venv_runtime_env_vars_ignored_during_create(
     assert ansicolors_path.startswith(pex_root)
 
 
+@skip_if_only_vendored_pip_supported
 def test_venv_runtime_env_vars_ignored_during_create_nested(tmpdir):
     # type: (Any) -> None
 
@@ -76,5 +89,6 @@ def test_venv_runtime_env_vars_ignored_during_create_nested(tmpdir):
     assert_venv_runtime_env_vars_ignored_during_create(tmpdir, pex_venv=False)
 
 
+@skip_if_only_vendored_pip_supported
 def test_venv_runtime_env_vars_ignored_during_create_top_level(tmpdir):
     assert_venv_runtime_env_vars_ignored_during_create(tmpdir, pex_venv=True)

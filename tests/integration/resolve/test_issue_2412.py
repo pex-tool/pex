@@ -7,13 +7,15 @@ import filecmp
 import os.path
 import re
 import shutil
+import sys
 from textwrap import dedent
 
 from colors import color  # vendor:skip
 
-from pex.common import safe_open, touch
+from pex.common import open_zip, safe_open, touch
 from pex.targets import LocalInterpreter
 from pex.typing import TYPE_CHECKING
+from pex.util import CacheHelper
 from testing import run_pex_command, subprocess
 from testing.cli import run_pex3
 
@@ -200,7 +202,19 @@ def test_locked_project(tmpdir):
 
     # Using `pex --project local/project` should produce identical results to `pex local/project`;
     # the utility of `pex --project` comes only when combined with a lock or PEX repository.
-    assert filecmp.cmp(pex1, pex2, shallow=False)
+    if sys.version_info[:2] >= (3, 14):
+        # Under Python 3.14, different zip file permissions for entry_points.txt and top_level.txt
+        # are observed (666 vs 644), but are beside the point of this test; so we just verify the
+        # contents of the zip are identical.
+        pex1_unzip_dir = os.path.join(str(tmpdir), "pex1-unzip")
+        pex2_unzip_dir = os.path.join(str(tmpdir), "pex2-unzip")
+        with open_zip(pex1) as zf1:
+            zf1.extractall(pex1_unzip_dir)
+        with open_zip(pex2) as zf2:
+            zf2.extractall(pex2_unzip_dir)
+        assert CacheHelper.dir_hash(pex1_unzip_dir) == CacheHelper.dir_hash(pex2_unzip_dir)
+    else:
+        assert filecmp.cmp(pex1, pex2, shallow=False)
 
     # Modifying the project should invalidate the full project lock, but work with a `--project`
     # lock.

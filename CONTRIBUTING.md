@@ -22,7 +22,7 @@ and Pip versions is broad in CI and most changes can proceed with confidence if 
 ## Development Environment
 
 You'll need just a few tools to hack on Pex:
-+ The [`tox`](https://tox.wiki) tool.
++ The [`uv`](https://docs.astral.sh/uv/) tool.
 + (Optionally) Docker, or a Docker CLI clone like podman.
 
 ## Development Cycle
@@ -31,32 +31,34 @@ You might want to open a [discussion](https://github.com/pex-tool/pex/discussion
 https://github.com/pex-tool/pex/issues) to vet your idea first. It can often save overall effort and
 lead to a better end result.
 
-Before sending off changes you should run `tox -e fmt,lint,check`. This formats, lints and type
-checks the code.
+Before sending off changes you should run `uv run dev-cmd format lint typecheck`. This formats,
+lints and type checks the code.
 
-If you've made `docs/` changes, you should run `tox -e docs -- --linkcheck --pdf --serve` which
-will build the full doc site including its downloadable PDF version as well as the search index.
-You can browse to the URL printed out at the end of the output to view the site on your local
+If you've made `docs/` changes, you should run `uv run dev-cmd docs -- --linkcheck --pdf --serve` 
+which will build the full doc site including its downloadable PDF version as well as the search
+index. You can browse to the URL printed out at the end of the output to view the site on your local
 machine.
 
 In addition, you should run tests, which are divided into integration tests (those under
 `tests/integration/`) and unit tests (those under `tests/` but not under `tests/integration/`).
-Unit tests have a tox environment name that matches the desired interpreter to test against. So, to
-run unit tests against CPython 3.11 (which you must have installed), use `tox -e py311`. For
-CPython 2.7 use `tox -e py27` and for PyPy 3.10 `tox -e pypy310`, etc. Integration tests follow the
-same scheme with `-integration` appended to the environment name; so `tox -e py311-integration`,
-`tox -epy27-integration`, `tox -e pypy310-integration`, etc. Both sets of test environments support
-passing additional args to the test runner, which is a small shim around pytest. The shim supports
-a `--devpi` option to have tests use a local [devpi server](https://pypi.org/project/devpi-server/)
-caching proxy server. This generally helps with network flakes and is a friendly thing to do for
-the PyPI maintainers. For example, `tox -e py312 -- --devpi -k just_this_test` would run unit tests
-against CPython 3.12 using a devpi server and additionally just run the `just_this_test` test by
-using pytest's `-k` test selector option.
+Unit tests have a `dev-cmd` factor that matches the desired interpreter to test against. So, to
+run unit tests against CPython 3.11 (which you must have installed), use
+`uv run dev-cmd test-py311`. For CPython 2.7 use `uv run dev-cmd test-py27` and for PyPy 3.10
+`uv run dev-cmd test-pypy310`, etc. Integration tests follow the same scheme with `-integration`
+appended to the command name; so `uv run dev-cmd test-py311-integration`,
+`uv run dev-cmd test-py27-integration`, `uv run dev-cmd test-pypy310-integration`, etc. Both sets of
+test environments support passing additional args to the test runner, which is a small shim around
+pytest. The shim supports a `--devpi` option to have tests use a local
+[devpi server](https://pypi.org/project/devpi-server/) caching proxy server. This generally helps
+with network flakes and is a friendly thing to do for the PyPI maintainers. For example,
+`uv run dev-cmd test-py312 -- --devpi -k just_this_test` would run unit tests against CPython 3.12
+using a devpi server and additionally just run the `just_this_test` test by using pytest's `-k` test
+selector option.
 
-If you have `docker` installed, you can use `./dtox.sh` in place of `tox` for any of the commands
-described above. This will transparently pull or build a docker image on first execution that
-contains all the Pythons Pex supports; so you can run the now exotic `./dtox.sh -e pypy27...`
-without having to actually install PyPy 2.7 on your machine.
+If you have `docker` installed, you can use `./duvrc.sh` in place of `uv run dev-cmd` for any of the
+commands described above. This will transparently pull or build a docker image on first execution
+that contains all the Pythons Pex supports; so you can run the now exotic
+`./duvrc.sh test-py27 ...` without having to actually install Python 2.7 on your machine.
 
 When you're ready to get additional eyes on your changes, submit a [pull request](
 https://github.com/pex-tool/pex/pulls).

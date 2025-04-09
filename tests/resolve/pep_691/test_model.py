@@ -72,7 +72,7 @@ def test_select_fingerpint_none_guaranteed():
             ),
         )
         for one, two in sorted(
-            itertools.combinations(set(hashlib.algorithms_guaranteed) - {"sha256"}, 2)
+            itertools.combinations(sorted(set(hashlib.algorithms_guaranteed) - {"sha256"}), 2)
         )
     ],
 )

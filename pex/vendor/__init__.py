@@ -219,8 +219,8 @@ def iter_vendor_specs(filter_requires_python=None):
     yield VendorSpec.pinned("appdirs", "1.4.4")
 
     # We use this for a better @dataclass that is also Python2.7 and PyPy compatible.
-    # N.B.: The `[testenv:typecheck]` section in `tox.ini` should have its deps list updated to
-    # reflect this attrs version.
+    # N.B.: The `[dependency-groups] mypy` section in `pyproject.toml` should have its deps list
+    # updated to reflect this attrs version.
     # This vcs version gets us the fix in https://github.com/python-attrs/attrs/pull/909
     # which is not yet released.
     yield VendorSpec.git(

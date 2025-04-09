@@ -172,6 +172,7 @@ def boot(
             "_PEX_PIP_VERSION",
             "_PEX_REQUIRES_PYTHON",
             "_PEX_TEST_DEV_ROOT",
+            "_PEX_TEST_POS_ARGS",
             "_PEX_TEST_PROJECT_DIR",
             "_PEX_USE_PIP_CONFIG",
             # This is used by Pex's Pip to inject runtime patches dynamically.

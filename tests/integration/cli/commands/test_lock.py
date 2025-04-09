@@ -44,8 +44,8 @@ from testing import (
     run_pex_command,
     subprocess,
 )
-from testing.build_system import hatchling_only_supports_37_and_greater
 from testing.cli import run_pex3
+from testing.pip import skip_if_only_vendored_pip_supported
 from testing.pythonPI import skip_flit_core_39
 from testing.resolve import normalize_locked_resolve
 
@@ -176,7 +176,7 @@ def test_create_style(
     )
 
 
-@hatchling_only_supports_37_and_greater
+@skip_if_only_vendored_pip_supported
 def test_create_local(
     tmpdir,  # type: Any
     pex_project_dir,  # type: str
@@ -184,7 +184,15 @@ def test_create_local(
     # type: (...) -> None
 
     lock = os.path.join(str(tmpdir), "lock")
-    run_pex3("lock", "create", pex_project_dir, "-o", lock).assert_success()
+    run_pex3(
+        "lock",
+        "create",
+        "--pip-version",
+        PipVersion.LATEST_COMPATIBLE.value,
+        pex_project_dir,
+        "-o",
+        lock,
+    ).assert_success()
     result = run_pex_command(args=["--lock", lock, "-c", "pex", "--", "-V"], quiet=True)
     result.assert_success()
 

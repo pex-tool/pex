@@ -19,7 +19,7 @@ import pytest
 from pex import targets
 from pex.cache.dirs import CacheDir, InterpreterDir
 from pex.common import environment_as, safe_mkdir, safe_open, safe_rmtree, temporary_dir, touch
-from pex.compatibility import safe_commonpath
+from pex.compatibility import PY2, safe_commonpath
 from pex.dist_metadata import Distribution, Requirement, is_wheel
 from pex.fetcher import URLFetcher
 from pex.fs import safe_symlink
@@ -57,6 +57,7 @@ from testing import (
 )
 from testing.mitmproxy import Proxy
 from testing.pep_427 import get_installable_type_flag
+from testing.pip import skip_if_only_vendored_pip_supported
 from testing.pytest_utils import IS_CI
 
 if TYPE_CHECKING:
@@ -127,6 +128,7 @@ def test_pex_root_build():
         assert_installed_wheels(label="buildtime", pex_root=buildtime_pex_root)
 
 
+@skip_if_only_vendored_pip_supported
 def test_pex_root_run(
     pex_project_dir,  # type: str
     tmpdir,  # type: Any
@@ -145,6 +147,8 @@ def test_pex_root_run(
 
     pex_pex = os.path.join(output_dir, "pex.pex")
     args = [
+        "--pip-version",
+        PipVersion.LATEST_COMPATIBLE.value,
         pex_project_dir,
         "-o",
         pex_pex,
@@ -578,12 +582,21 @@ def inherit_path(inherit_path):
         results.assert_success()
 
         env = make_env(PYTHONPATH="/doesnotexist")
+
+        interpreter = PythonInterpreter.get()
+        if PY2:
+            # Under Python 2 venvs (created by Pex via Virtualenv 16.7.12), the venv interpreter
+            # can fail to resolve stdlib weakref internals. We side-step by just resolving out
+            # of the venv since this test is aimed squarely at PYTHONPATH isolation.
+            interpreter = interpreter.resolve_base_interpreter()
+
         stdout, rc = run_simple_pex(
             pex_path,
             args=(exe,),
             env=env,
+            interpreter=interpreter,
         )
-        assert rc == 0
+        assert rc == 0, stdout
 
         stdout_lines = stdout.decode().split("\n")
         requests_paths = tuple(i for i, l in enumerate(stdout_lines) if "msgpack_python" in l)

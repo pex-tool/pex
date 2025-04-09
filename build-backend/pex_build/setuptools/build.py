@@ -3,6 +3,7 @@
 
 from __future__ import absolute_import, print_function
 
+import email
 import hashlib
 import os.path
 import subprocess
@@ -16,7 +17,7 @@ import setuptools.build_meta
 # We re-export all setuptools' PEP-517 build backend hooks here for the build frontend to call.
 from setuptools.build_meta import *  # NOQA
 
-from pex import hashing, requirements, windows
+from pex import hashing, toml, windows
 from pex.common import open_zip, safe_copy, safe_mkdir, temporary_dir
 from pex.orderedset import OrderedSet
 from pex.pep_376 import Hash, InstalledFile, Record
@@ -41,6 +42,38 @@ def build_sdist(
     )
 
 
+def maybe_rewrite_metadata(
+    metadata_directory,  # type: str
+    dist_info_dir,  # type: str
+):
+    # type: (...) -> str
+
+    requires_python = os.environ.get("_PEX_REQUIRES_PYTHON")
+    if requires_python:
+        metadata_file = os.path.join(metadata_directory, dist_info_dir, "METADATA")
+        with open(metadata_file) as fp:
+            metadata = email.message_from_file(fp)
+        del metadata["Requires-Python"]
+        metadata["Requires-Python"] = requires_python
+        with open(metadata_file, "w") as fp:
+            fp.write(metadata.as_string())
+    return dist_info_dir
+
+
+def prepare_metadata_for_build_editable(
+    metadata_directory,  # type: str
+    config_settings=None,  # type: Optional[Dict[str, Any]]
+):
+    # type: (...) -> str
+
+    return maybe_rewrite_metadata(
+        metadata_directory,
+        setuptools.build_meta.prepare_metadata_for_build_editable(
+            metadata_directory, config_settings=config_settings
+        ),
+    )
+
+
 def get_requires_for_build_wheel(config_settings=None):
     # type: (Optional[Dict[str, Any]]) -> List[str]
 
@@ -48,10 +81,23 @@ def get_requires_for_build_wheel(config_settings=None):
         setuptools.build_meta.get_requires_for_build_wheel(config_settings=config_settings)
     )  # type: OrderedSet[str]
     if pex_build.INCLUDE_DOCS:
-        reqs.update(
-            str(req) for req in requirements.parse_requirement_file("docs-requirements.txt")
-        )
+        pyproject_data = toml.load("pyproject.toml")
+        return cast("List[str]", pyproject_data["dependency-groups"]["docs"])
     return list(reqs)
+
+
+def prepare_metadata_for_build_wheel(
+    metadata_directory,  # type: str
+    config_settings=None,  # type: Optional[Dict[str, Any]]
+):
+    # type: (...) -> str
+
+    return maybe_rewrite_metadata(
+        metadata_directory,
+        setuptools.build_meta.prepare_metadata_for_build_wheel(
+            metadata_directory, config_settings=config_settings
+        ),
+    )
 
 
 def build_wheel(

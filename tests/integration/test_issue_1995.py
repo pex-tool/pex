@@ -6,6 +6,7 @@ import sys
 
 import pytest
 
+from pex.pip.version import PipVersion
 from pex.typing import TYPE_CHECKING
 from testing import (
     IS_LINUX,
@@ -15,12 +16,14 @@ from testing import (
     run_pex_command,
     subprocess,
 )
+from testing.pip import skip_if_only_vendored_pip_supported
 
 if TYPE_CHECKING:
     from typing import Any
 
 
 @pytest.mark.skipif(not IS_LINUX, reason="We only release from Linux in CI.")
+@skip_if_only_vendored_pip_supported
 def test_packaging(
     tmpdir,  # type: Any
     pex_project_dir,  # type: str
@@ -30,6 +33,8 @@ def test_packaging(
     package_script = os.path.join(pex_project_dir, "scripts", "create-packages.py")
     run_pex_command(
         args=[
+            "--pip-version",
+            PipVersion.LATEST_COMPATIBLE.value,
             "toml",
             pex_project_dir,
             "--",

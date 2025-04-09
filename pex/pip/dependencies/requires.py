@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 def patch():
-    from pip._vendor.pkg_resources import Requirement  # type: ignore[import]
+    from pip._vendor.pkg_resources import Requirement
 
     from pex.common import pluralize
     from pex.dist_metadata import Requirement as PexRequirement
@@ -69,7 +69,7 @@ def patch():
         setattr(dist_type, requires_dists_function_name, patched)
 
     try:
-        from pip._vendor.pkg_resources import Distribution  # type: ignore[import]
+        from pip._vendor.pkg_resources import Distribution
 
         patch_requires_dists(Distribution, "requires")
     except ImportError:
@@ -85,7 +85,7 @@ def patch():
     # this patch. See discussion here: https://github.com/pypa/pip/pull/11685/files#r1929802395
     if sys.version_info[:2] >= (3, 11):
         try:
-            from pip._internal.metadata.importlib import Distribution  # type: ignore[import]
+            from pip._internal.metadata.importlib import Distribution
 
             patch_requires_dists(Distribution, "iter_dependencies")
         except ImportError:

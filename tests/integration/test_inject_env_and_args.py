@@ -1,12 +1,15 @@
 # Copyright 2022 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+from __future__ import absolute_import, print_function
+
 import hashlib
 import json
 import os.path
 import re
 import signal
 import socket
+import sys
 from contextlib import closing
 from textwrap import dedent
 
@@ -288,18 +291,41 @@ def test_pyuwsgi(
         + execution_mode_args
     ).assert_success()
 
+    pidfile = os.path.join(str(tmpdir), "pid")
     stderr_read_fd, stderr_write_fd = os.pipe()
-    process = subprocess.Popen(args=[pex, "--http-socket", "127.0.0.1:0"], stderr=stderr_write_fd)
+    try:
+        process = subprocess.Popen(
+            args=[pex, "--http-socket", "127.0.0.1:0", "--pidfile", pidfile], stderr=stderr_write_fd
+        )
+    finally:
+        os.close(stderr_write_fd)
+
+    def cleanup(port):
+        # type: (Optional[str]) -> None
+        if port:
+            try:
+                with open(pidfile) as fp:
+                    os.kill(int(fp.read()), signal.SIGTERM)
+            except (IOError, OSError, ValueError) as e:
+                print(
+                    "Failed to kill pyuwsgi server listening on port {port}: {err}".format(
+                        port=port, err=e
+                    ),
+                    file=sys.stderr,
+                )
+        process.kill()
+
     port = None  # type: Optional[str]
-    with os.fdopen(stderr_read_fd, "r") as stderr_fp:
-        for line in stderr_fp:
-            match = re.search(r"bound to TCP address 127.0.0.1:(?P<port>\d+)", line)
-            if match:
-                port = match.group("port")
-                break
-    assert port is not None, "Could not determine uwsgi server port."
-    with URLFetcher().get_body_stream("http://127.0.0.1:{port}".format(port=port)) as fp:
-        assert b"I am app 1" == fp.read()
-    process.send_signal(signal.SIGINT)
-    process.kill()
-    os.close(stderr_write_fd)
+    try:
+        with os.fdopen(stderr_read_fd, "r") as stderr_fp:
+            for line in stderr_fp:
+                match = re.search(r"bound to TCP address 127.0.0.1:(?P<port>\d+)", line)
+                if match:
+                    port = match.group("port")
+                    break
+        assert port is not None, "Could not determine uwsgi server port."
+        with URLFetcher().get_body_stream("http://127.0.0.1:{port}".format(port=port)) as fp:
+            assert b"I am app 1" == fp.read()
+        process.send_signal(signal.SIGINT)
+    finally:
+        cleanup(port)

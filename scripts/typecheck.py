@@ -49,12 +49,14 @@ def run_mypy(python_version: str, files: Sequence[str], subject: str = "files") 
 
 def main() -> None:
     run_mypy(
-        "2.7", files=sorted(find_files_to_check(include=["build-backend"])), subject="build-backend"
+        "2.7",
+        files=sorted(find_files_to_check(include=["build-backend"])),
+        subject="build-backend files",
     )
     run_mypy(
         "3.9",
         files=sorted(find_files_to_check(include=["docs"])),
-        subject="sphinx_pex",
+        subject="sphinx_pex files",
     )
     py27_scripts = os.path.join("scripts", "py27")
     run_mypy(

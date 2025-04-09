@@ -8,27 +8,30 @@ import os.path
 import tempfile
 
 import pytest
-from _pytest.config import hookimpl  # type: ignore[import]
 
 import testing
 from pex.interpreter import PythonInterpreter
 from pex.platforms import Platform
 from pex.typing import TYPE_CHECKING
-from testing import PY27, PY38, PY39, PY310, ensure_python_interpreter
+from testing import PY27, PY38, PY39, PY310, ensure_python_interpreter, pex_dist
 from testing.pytest_utils import tmp, track_status_hook
 
 if TYPE_CHECKING:
     from typing import Iterator
 
-    from _pytest.fixtures import FixtureRequest  # type: ignore[import]
-    from _pytest.nodes import Item  # type: ignore[import]
-    from _pytest.reports import TestReport  # type: ignore[import]
+    from _pytest.fixtures import FixtureRequest
 
 
 @pytest.fixture(scope="session")
 def pex_project_dir():
     # type: () -> str
     return testing.pex_project_dir()
+
+
+@pytest.fixture(scope="session")
+def pex_wheel():
+    # type: () -> str
+    return pex_dist.wheel()
 
 
 @pytest.fixture(scope="session")

@@ -1,6 +1,8 @@
 # Copyright 2022 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+from __future__ import absolute_import
+
 import os.path
 
 from pex.build_system.pep_517 import build_sdist
@@ -11,7 +13,8 @@ from pex.targets import LocalInterpreter
 from pex.typing import TYPE_CHECKING
 from pex.version import __version__
 from testing import make_project
-from testing.build_system import assert_build_sdist, hatchling_only_supports_37_and_greater
+from testing.build_system import assert_build_sdist
+from testing.pip import skip_if_only_vendored_pip_supported
 
 if TYPE_CHECKING:
     from typing import Any
@@ -59,7 +62,7 @@ def test_build_sdist_setup_py(tmpdir):
         assert_build_sdist(project_dir, "foo", "42", tmpdir)
 
 
-@hatchling_only_supports_37_and_greater
+@skip_if_only_vendored_pip_supported
 def test_build_sdist_pyproject_toml(
     tmpdir,  # type: Any
     pex_project_dir,  # type: str

@@ -12,6 +12,7 @@ from pex.atomic_directory import atomic_directory
 from pex.common import temporary_dir
 from pex.interpreter import PythonInterpreter
 from pex.os import WINDOWS
+from pex.pip.version import PipVersion
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import Virtualenv
 from testing import PY310, data, ensure_python_interpreter, make_env, run_pex_command, subprocess
@@ -62,13 +63,24 @@ def pex_bdist(
     shared_integration_test_tmpdir,  # type: str
 ):
     # type: (...) -> str
+
+    if PipVersion.LATEST_COMPATIBLE is PipVersion.VENDORED:
+        pytest.skip("This test requires `pip>=22.2.2`.")
+
     pex_bdist_chroot = os.path.join(shared_integration_test_tmpdir, "pex_bdist_chroot")
     wheels_dir = os.path.join(pex_bdist_chroot, "wheels_dir")
     with atomic_directory(pex_bdist_chroot) as chroot:
         if not chroot.is_finalized():
             pex_pex = os.path.join(chroot.work_dir, "pex.pex")
             run_pex_command(
-                args=[pex_project_dir, "-o", pex_pex, "--include-tools"]
+                args=[
+                    "--pip-version",
+                    PipVersion.LATEST_COMPATIBLE.value,
+                    pex_project_dir,
+                    "-o",
+                    pex_pex,
+                    "--include-tools",
+                ]
             ).assert_success()
             extract_dir = os.path.join(chroot.work_dir, "wheels_dir")
             subprocess.check_call(
