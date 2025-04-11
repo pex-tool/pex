@@ -6,13 +6,13 @@ set -xeuo pipefail
 # not matter.
 # See: https://launchpad.net/~deadsnakes/+archive/ubuntu/ppa
 DEADSNAKES_VERSIONS=(
-  "3.11 {dev,venv,distutils}=3.11.11"
+  "3.11 {dev,venv,distutils}=3.11.12"
   "3.7 {dev,venv,distutils}=3.7.17"
   "3.8 {dev,venv,distutils}=3.8.20"
-  "3.9 {dev,venv,distutils}=3.9.21"
-  "3.10 {dev,venv,distutils}=3.10.16"
-  "3.13 {dev,venv}=3.13.2"
-  "3.14 {dev,venv}=3.14.0~a6"
+  "3.9 {dev,venv,distutils}=3.9.22"
+  "3.10 {dev,venv,distutils}=3.10.17"
+  "3.13 {dev,venv}=3.13.3"
+  "3.14 {dev,venv}=3.14.0~a7"
 )
 
 DEBIAN_FRONTEND=noninteractive apt install --yes software-properties-common
@@ -37,7 +37,7 @@ PYENV_VERSIONS=(
   2.7.18
   3.5.10
   3.6.15
-  3.12.9
+  3.12.10
   pypy2.7-7.3.19
   pypy3.5-7.0.0
   pypy3.6-7.3.3
