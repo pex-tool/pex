@@ -46,6 +46,7 @@ UNIVERSAL_ANSICOLORS = Lockfile(
     requires_python=SortedTuple(),
     target_systems=SortedTuple(),
     elide_unused_requires_dist=False,
+    lock_build_systems=False,
     pip_version=PipVersion.DEFAULT,
     resolver_version=ResolverVersion.PIP_2020,
     requirements=SortedTuple([Requirement.parse("ansicolors")]),
@@ -87,6 +88,7 @@ UNIVERSAL_ANSICOLORS = Lockfile(
             )
         ]
     ),
+    build_systems={},
     local_project_requirement_mapping={},
 )
 

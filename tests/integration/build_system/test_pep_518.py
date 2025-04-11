@@ -3,7 +3,8 @@
 
 import os.path
 
-from pex.build_system.pep_518 import BuildSystem, load_build_system
+from pex.build_system import BuildSystem
+from pex.build_system.pep_518 import load_build_system
 from pex.pip.version import PipVersion
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.resolver_configuration import PipConfiguration, ReposConfiguration

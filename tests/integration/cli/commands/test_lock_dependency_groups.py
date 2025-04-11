@@ -46,10 +46,7 @@ def test_lock_dependency_groups(tmpdir):
     ).assert_success()
 
     lockfile = json_codec.load(lock)
-    assert (
-        SortedTuple((req("cowsay==5.0"), req("ansicolors==1.1.8")), key=str)
-        == lockfile.requirements
-    )
+    assert SortedTuple((req("cowsay==5.0"), req("ansicolors==1.1.8"))) == lockfile.requirements
     assert 1 == len(lockfile.locked_resolves)
     locked_requirements = lockfile.locked_resolves[0].locked_requirements
     assert sorted(
