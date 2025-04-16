@@ -53,10 +53,10 @@ jobs:
           if [[ "arm/v7" == "${{ matrix.docker-arch }}" ]]; then
             export PIP_EXTRA_INDEX_URL=https://www.piwheels.org/simple
           fi
-          pip install -U dev-cmd
+          pip install -U dev-cmd[old-pythons]
           python -V
 
-          dev-cmd gen-scie-platform -- \
+          dev-cmd --py 311 gen-scie-platform -- \
             -d "${dest_dir}" \
             --no-sync-lock \
             --encoded-scie-config ${{ github.event.inputs.encoded-scie-config }}
