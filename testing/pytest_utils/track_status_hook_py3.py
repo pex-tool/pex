@@ -5,15 +5,15 @@ from __future__ import absolute_import
 
 import sys
 
-from _pytest.config import hookimpl  # type: ignore[import]
+from _pytest.config import hookimpl
 
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from typing import Any, Generator
 
-    from _pytest.nodes import Item  # type: ignore[import]
-    from _pytest.reports import TestReport  # type: ignore[import]
+    from _pytest.nodes import Item
+    from _pytest.reports import TestReport
 
 
 @hookimpl(tryfirst=True, **{"wrapper" if sys.version_info[:2] >= (3, 7) else "hookwrapper": True})

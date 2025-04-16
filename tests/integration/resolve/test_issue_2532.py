@@ -4,10 +4,11 @@
 from __future__ import absolute_import
 
 import os
+import shutil
 from textwrap import dedent
 
 from pex.typing import TYPE_CHECKING
-from testing import WheelBuilder, subprocess
+from testing import subprocess
 from testing.docker import skip_unless_docker
 
 if TYPE_CHECKING:
@@ -17,12 +18,13 @@ if TYPE_CHECKING:
 @skip_unless_docker
 def test_resolved_wheel_tag_platform_mismatch_warns(
     tmpdir,  # type: Any
-    pex_project_dir,  # type: str
+    pex_wheel,  # type: str
 ):
     # type: (...) -> None
 
     context = os.path.join(str(tmpdir), "context")
-    pex_wheel = WheelBuilder(pex_project_dir, wheel_dir=context).bdist()
+    os.mkdir(context)
+    shutil.copy(pex_wheel, context)
     with open(os.path.join(context, "Dockerfile"), "w") as fp:
         fp.write(
             dedent(

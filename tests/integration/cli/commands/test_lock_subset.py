@@ -13,12 +13,14 @@ import pytest
 from pex.atomic_directory import atomic_directory
 from pex.dist_metadata import Requirement
 from pex.pep_503 import ProjectName
+from pex.pip.version import PipVersion
 from pex.resolve.locked_resolve import LockedRequirement
 from pex.resolve.lockfile import json_codec
 from pex.resolve.lockfile.model import Lockfile
 from pex.sorted_tuple import SortedTuple
 from testing import PY_VER, data
 from testing.cli import run_pex3
+from testing.pip import skip_if_only_vendored_pip_supported
 from testing.pytest_utils.tmp import Tempdir
 
 
@@ -42,6 +44,8 @@ def lock(
             run_pex3(
                 "lock",
                 "create",
+                "--pip-version",
+                PipVersion.LATEST_COMPATIBLE.value,
                 # N.B.: This just makes the analysis in test_lock_subset_subset simpler.
                 "--elide-unused-requires-dist",
                 "--indent",
@@ -53,6 +57,7 @@ def lock(
     return os.path.join(lock_dir, "lock.json")
 
 
+@skip_if_only_vendored_pip_supported
 def test_lock_subset_full(
     tmpdir,  # type: Tempdir
     lock,  # type: str
@@ -78,6 +83,7 @@ def index(lock):
     }
 
 
+@skip_if_only_vendored_pip_supported
 def test_lock_subset_subset(
     tmpdir,  # type: Tempdir
     lock,  # type: str
@@ -128,6 +134,7 @@ def test_lock_subset_subset(
         assert locked_req == original_locked_reqs[project_name]
 
 
+@skip_if_only_vendored_pip_supported
 def test_lock_subset_miss(lock):
     # type: (str) -> None
 
@@ -143,6 +150,7 @@ def test_lock_subset_miss(lock):
     )
 
 
+@skip_if_only_vendored_pip_supported
 def test_lock_subset_extra(
     tmpdir,  # type: Tempdir
     lock,  # type: str
@@ -165,6 +173,7 @@ def test_lock_subset_extra(
     assert {ProjectName("psutil")} == set(subset_locked_reqs)
 
 
+@skip_if_only_vendored_pip_supported
 def test_lock_subset_extra_miss(
     tmpdir,  # type: Tempdir
     lock,  # type: str
@@ -182,6 +191,7 @@ def test_lock_subset_extra_miss(
 @pytest.mark.skipif(
     PY_VER < (3, 7), reason="The test locks click 8.1.7 which requires Python >=3.7"
 )
+@skip_if_only_vendored_pip_supported
 def test_lock_subset_target_systems_and_ics_issue_2683(tmpdir):
     # type: (Tempdir) -> None
 

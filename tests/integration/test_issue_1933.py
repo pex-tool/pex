@@ -5,9 +5,11 @@ import os
 
 import pytest
 
+from pex.pip.version import PipVersion
 from pex.typing import TYPE_CHECKING
 from testing import IS_X86_64, run_pex_command, subprocess
 from testing.docker import skip_unless_docker
+from testing.pip import skip_if_only_vendored_pip_supported
 
 if TYPE_CHECKING:
     from typing import Any
@@ -15,6 +17,7 @@ if TYPE_CHECKING:
 
 @pytest.mark.skipif(not IS_X86_64, reason="This test must run on an X86_64 platform.")
 @skip_unless_docker
+@skip_if_only_vendored_pip_supported
 def test_musllinux_wheels_resolved(
     tmpdir,  # type: Any
     pex_project_dir,  # type: str
@@ -22,7 +25,17 @@ def test_musllinux_wheels_resolved(
     # type: (...) -> None
 
     pex_pex = os.path.join(str(tmpdir), "pex.pex")
-    run_pex_command(args=[pex_project_dir, "-c", "pex", "-o", pex_pex]).assert_success()
+    run_pex_command(
+        args=[
+            "--pip-version",
+            PipVersion.LATEST_COMPATIBLE.value,
+            pex_project_dir,
+            "-c",
+            "pex",
+            "-o",
+            pex_pex,
+        ]
+    ).assert_success()
     process = subprocess.Popen(
         args=[
             "docker",

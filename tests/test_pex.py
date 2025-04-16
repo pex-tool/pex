@@ -220,7 +220,7 @@ def test_minimum_sys_modules():
 
 def test_site_libs(tmpdir):
     # type: (Any) -> None
-    with mock.patch.object(site, "getsitepackages") as mock_site_packages:
+    with mock.patch.object(site, "getsitepackages", create=True) as mock_site_packages:
         site_packages = os.path.join(str(tmpdir), "site-packages")
         os.mkdir(site_packages)
         mock_site_packages.return_value = {site_packages}
@@ -249,7 +249,7 @@ def test_site_libs_symlink(tmpdir):
     sys_path_entry_link = os.path.join(str(tmpdir), "lib-link")
     safe_symlink(sys_path_entry, sys_path_entry_link)
 
-    with mock.patch.object(site, "getsitepackages") as mock_site_packages, mock.patch(
+    with mock.patch.object(site, "getsitepackages", create=True) as mock_site_packages, mock.patch(
         "sys.path", new=[sys_path_entry_link]
     ):
         site_packages = os.path.join(str(tmpdir), "site-packages")
@@ -274,7 +274,7 @@ def test_site_libs_excludes_prefix():
     """
 
     with mock.patch.object(
-        site, "getsitepackages"
+        site, "getsitepackages", create=True
     ) as mock_site_packages, temporary_dir() as tempdir:
         site_packages = os.path.realpath(os.path.join(tempdir, "site-packages"))
         os.mkdir(site_packages)
@@ -367,8 +367,15 @@ class PythonpathIsolationTest(object):
                 exe_contents=self.exe,
             )
 
+            interpreter = PythonInterpreter.get()
+            if PY2:
+                # Under Python 2 venvs (created by Pex via Virtualenv 16.7.12), the venv interpreter
+                # can fail to resolve stdlib weakref internals. We side-step by just resolving out
+                # of the venv since this test is aimed squarely at PYTHONPATH isolation.
+                interpreter = interpreter.resolve_base_interpreter()
+
             # Test the PEX.run API.
-            process = PEX(pex_builder.path()).run(
+            process = PEX(pex_builder.path(), interpreter=interpreter).run(
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 env=env,
@@ -380,7 +387,7 @@ class PythonpathIsolationTest(object):
 
             # Test direct PEX execution.
             assert expected_output == subprocess.check_output(
-                [sys.executable, pex_builder.path()], env=env
+                [interpreter.binary, pex_builder.path()], env=env
             ).decode("utf-8")
 
 

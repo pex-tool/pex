@@ -14,14 +14,39 @@ from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 
 import coloredlogs
 
+
+def find_project_dir():
+    # type: () -> str
+    start = os.path.dirname(__file__)
+    candidate = os.path.realpath(start)
+    while True:
+        pyproject_toml = os.path.join(candidate, "pyproject.toml")
+        if os.path.isfile(pyproject_toml):
+            return candidate
+        next_candidate = os.path.dirname(candidate)
+        if next_candidate == candidate:
+            break
+        candidate = next_candidate
+
+    sys.exit(
+        os.linesep.join(
+            (
+                "Failed to find the project root searching from directory {start!r}.".format(
+                    start=os.path.realpath(start)
+                ),
+                "No `pyproject.toml` file found at its level or above.",
+            )
+        )
+    )
+
+
 # Ensure the repo root is on the `sys.path` (for access to the pex and testing packages).
-os.environ["_PEX_TEST_PROJECT_DIR"] = str(
-    subprocess.check_output(["git", "rev-parse", "--show-toplevel"]).decode("ascii").strip()
-)
+os.environ["_PEX_TEST_PROJECT_DIR"] = find_project_dir()
 sys.path.insert(0, os.environ["_PEX_TEST_PROJECT_DIR"])
 
 from pex import windows
 from pex.compatibility import urlparse
+from pex.os import WINDOWS
 from pex.typing import TYPE_CHECKING, cast
 from testing import devpi, pex_project_dir
 
@@ -32,7 +57,7 @@ if TYPE_CHECKING:
 def iter_test_control_env_vars():
     # type: () -> Iterator[Tuple[str, str]]
     for var, value in sorted(os.environ.items()):
-        if re.search(r"(PEX|PIP|PYTHON)", var) and var != "PYTHONHASHSEED":
+        if re.search(r"(PEX|PIP|PYTHON)", var):
             yield var, value
 
 
@@ -151,21 +176,43 @@ def main():
                 return 42
 
     test_control_env_vars = list(iter_test_control_env_vars())
-    if test_control_env_vars:
-        logger.info("Test control environment variables:")
-        for var, value in test_control_env_vars:
-            logger.info("{var}={value}".format(var=var, value=value))
-    else:
-        logger.info("No test control environment variables set.")
+    logger.info("Test control environment variables:")
+    for var, value in test_control_env_vars:
+        logger.info("{var}={value}".format(var=var, value=value))
 
     args = [sys.executable, "-m", "pytest", "-n", "auto"]
+
+    # When run under dev-cmd, FORCE_COLOR=1 is set to propagate auto-detection of a color terminal.
+    # This affects a handful of our tests; so we discard and let the --color option below control
+    # our own color output.
+    # TODO(John Sirois): Work with dev-cmd on this, it seems inappropriate to be using FORCE_COLOR
+    #  like this.
+    os.environ.pop("FORCE_COLOR", None)
+    if options.color:
+        args.extend(["--color", "yes"])
+
     if options.it:
         args.extend(["tests/integration", "-p", "testing.pytest_utils.shard"])
     else:
         args.extend(["tests", "--ignore", "tests/integration"])
     args.extend(passthrough_args or ["-vvs"])
 
-    return subprocess.call(args=args, cwd=pex_project_dir())
+    env = os.environ.copy()
+    custom_pex_root = env.pop("PEX_ROOT", None)
+    if custom_pex_root is not None:
+        # Tests rely on being able to control the PEX_ROOT via --pex-root and --runtime-pex-root,
+        # but PEX_ROOT trumps; so we unset if present.
+        logger.warning(
+            "Unsetting PEX_ROOT={custom_pex_root} for test run.".format(
+                custom_pex_root=custom_pex_root
+            )
+        )
+
+    if WINDOWS:
+        return subprocess.call(args=args, cwd=pex_project_dir(), env=env)
+    else:
+        os.chdir(pex_project_dir())
+        os.execve(args[0], args, env)
 
 
 if __name__ == "__main__":

@@ -132,14 +132,30 @@ def ensure_devpi_server():
     except InvalidVirtualenvError as e:
         logger.warning(str(e))
         safe_rmtree(venv_dir)
-        with atomic_directory(venv_dir) as atomic_venvdir:
+        with atomic_directory(venv_dir, source="venv") as atomic_venvdir:
             if not atomic_venvdir.is_finalized():
                 logger.info("Installing devpi-server...")
-                lock = os.path.join(os.path.dirname(__file__), "devpi-server.lock")
-                python = PythonInterpreter.latest_release_of_min_compatible_version(
-                    InterpreterConstraint.parse(">=3.8,<3.13").iter_matching()
+                locked_reqs = os.path.join(atomic_venvdir.work_dir, "devpi-server.requirements.txt")
+                subprocess.check_call(
+                    args=[
+                        "uv",
+                        "export",
+                        "-q",
+                        "--only-group",
+                        "devpi-server",
+                        # N.B.: The attrs package we lock is a VCS dependency which uv <-> pip can't
+                        # currently agree on a usable lock for; so we exclude it here and add back
+                        # below.
+                        "--no-emit-package",
+                        "attrs",
+                        "-o",
+                        locked_reqs,
+                    ]
                 )
-                Virtualenv.create_atomic(venv_dir=atomic_venvdir, interpreter=python, force=True)
+                python = PythonInterpreter.latest_release_of_min_compatible_version(
+                    InterpreterConstraint.parse(">=3.8,<3.15").iter_matching()
+                )
+                venv_workdir = os.path.join(atomic_venvdir.work_dir, "venv")
                 subprocess.check_call(
                     args=[
                         python.binary,
@@ -147,12 +163,18 @@ def ensure_devpi_server():
                         "pex.cli",
                         "venv",
                         "create",
-                        "--lock",
-                        lock,
+                        "--pip-version",
+                        "latest",
+                        "--intransitive",
+                        "-r",
+                        locked_reqs,
                         "-d",
-                        atomic_venvdir.work_dir,
+                        venv_workdir,
                     ]
                 )
+                venv = Virtualenv(venv_workdir)
+                venv.ensure_pip()
+                venv.interpreter.execute(args=["-m", "pip", "install", "attrs"])
         venv = Virtualenv(venv_dir=venv_dir)
 
     serverdir = os.path.join(DEVPI_DIR, "serverdir")

@@ -238,7 +238,7 @@ def create_complete_platform(complete_platform_file: Path, platform: PlatformCon
 
         complete_platform["__meta_data__"] = {
             "comment": (
-                "DO NOT EDIT - Generated via: `tox -e gen-scie-platform -- "
+                "DO NOT EDIT - Generated via: `uv run dev-cmd gen-scie-platform -- "
                 "--pbs-release {pbs_release} --python-version {python_version}`.".format(
                     pbs_release=platform.pbs_release,
                     python_version=platform.python_version,

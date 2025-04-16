@@ -54,7 +54,4 @@ if __name__ == "__main__":
             "build": {"build_base": unique_build_dir("build_base")},
             "bdist_wheel": {"bdist_dir": unique_build_dir("bdist_dir")},
         },
-        # This supports expanding the supported Python range via the _PEX_REQUIRES_PYTHON env var
-        # for testing unreleased Pythons.
-        python_requires=os.environ.get("_PEX_REQUIRES_PYTHON"),
     )

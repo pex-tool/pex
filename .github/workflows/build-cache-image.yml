@@ -1,4 +1,4 @@
-name: Build ./dtox.sh Cache Image
+name: Build ./duvrc.sh Cache Image
 on:
   schedule:
     # 2:00 AM US-Pacific on Wednesdays
@@ -29,32 +29,24 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
       - name: Setup matrix combinations
-        id: setup-tox-envs
+        id: setup-test-cmds
         run: |
-          python -mvenv .venv
-          source .venv/bin/activate
-          python -V
-
-          pip install -U pip
-          pip -V
-
-          pip install tox
-          tox --version
-
-          echo tox-envs="$(
-            tox -qqe build-cache-image -- --list-tox-envs | \
+          echo test-cmds="$(
+            uv -q run dev-cmd -q build-cache-image -- --list-test-cmds | \
               jq -R . | jq -src .
           )" >> "$GITHUB_OUTPUT"
     outputs:
-      tox-envs: ${{ steps.setup-tox-envs.outputs.tox-envs }}
+      test-cmds: ${{ steps.setup-test-cmds.outputs.test-cmds }}
   build-cache-images:
-    name: Build ./dtox.sh Cache for ${{ matrix.tox-env }}
+    name: Build ./duvrc.sh Cache for ${{ matrix.test-cmd }}
     needs: setup-matrix
     runs-on: ubuntu-24.04
     strategy:
       matrix:
-        tox-env: ${{ fromJson(needs.setup-matrix.outputs.tox-envs) }}
+        test-cmd: ${{ fromJson(needs.setup-matrix.outputs.test-cmds) }}
     steps:
       - name: Checkout Pex
         uses: actions/checkout@v4
@@ -62,32 +54,24 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Build & Export Cache Image for ${{ matrix.tox-env }}
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+      - name: Build & Export Cache Image for ${{ matrix.test-cmd }}
         run: |
-          python -mvenv .venv
-          source .venv/bin/activate
-          python -V
-
-          pip install -U pip
-          pip -V
-
-          pip install tox
-          tox --version
-
-          tox -e build-cache-image -- \
+          uv run dev-cmd build-cache-image -- \
             --color \
             --build-style build \
             --dist-dir export \
             --post-action export \
-            --tox-env ${{ matrix.tox-env }}
+            --test-cmd ${{ matrix.test-cmd }}
       - uses: actions/upload-artifact@v4
         with:
           path: |
             export/*.tar
             .gitignore
-          name: 'cache-${{ matrix.tox-env }}'
+          name: 'cache-${{ matrix.test-cmd }}'
   build-cache-image:
-    name: Merge and push unified ./dtox.sh Cache Image
+    name: Merge and push unified ./duvrc.sh Cache Image
     runs-on: ubuntu-24.04
     needs: build-cache-images
     steps:
@@ -97,25 +81,17 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
       - uses: actions/download-artifact@v4
         with:
           merge-multiple: true
       - name: Merge & Push Cache Image
         run: |
-          python -mvenv .venv
-          source .venv/bin/activate
-          python -V
-
-          pip install -U pip
-          pip -V
-
-          pip install tox
-          tox --version
-
           echo "${{ secrets.GITHUB_TOKEN }}" | \
             docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-          tox -e build-cache-image -- \
+          uv run dev-cmd build-cache-image -- \
             --color \
             --build-style merge \
             --dist-dir export \

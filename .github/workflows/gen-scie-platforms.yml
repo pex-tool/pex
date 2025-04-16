@@ -49,10 +49,10 @@ jobs:
           python -m venv .venv
           source .venv/bin/activate
           pip install -U pip
-          pip install -U tox
+          pip install -U uv
           python -V
 
-          tox -e gen-scie-platform -- \
+          uv run dev-cmd gen-scie-platform -- \
             -d "${dest_dir}" \
             --no-sync-lock \
             --encoded-scie-config ${{ github.event.inputs.encoded-scie-config }}

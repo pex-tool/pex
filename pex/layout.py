@@ -161,6 +161,10 @@ class _Layout(object):
         # type: (str) -> None
         self._layout.record(dest_dir)
 
+    def installed(self):
+        # type: () -> bool
+        return Layout.Value.try_load(self._path) is not None
+
 
 def _install_distribution(
     distribution_info,  # type: Tuple[str, str]
@@ -701,4 +705,6 @@ def ensure_installed(
     executed directly.
     """
     with identify_layout(pex) as layout:
+        if layout.installed():
+            return layout.path
         return _ensure_installed(layout, pex_root, pex_hash)

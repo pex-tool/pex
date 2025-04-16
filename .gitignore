@@ -5,8 +5,6 @@ __pycache__/
 *~
 
 /.mypy_cache/
-/.tox/
-/compatible-tox-hack/compatible_tox_hack.egg-info/
 /dist/
 /docs/_static_dynamic/
 /pex/windows/stubs/

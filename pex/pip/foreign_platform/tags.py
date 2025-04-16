@@ -9,8 +9,8 @@ import os
 
 
 def patch():
-    from pip._internal.utils import compatibility_tags  # type: ignore[import]
-    from pip._vendor.packaging import tags  # type: ignore[import]
+    from pip._internal.utils import compatibility_tags
+    from pip._vendor.packaging import tags
 
     # N.B.: The following environment variable is used by the Pex runtime to control Pip and must be
     # kept in-sync with `__init__.py`.

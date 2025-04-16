@@ -80,7 +80,7 @@ def test_venv_with_installs(
 
 def test_bdist_pex_under_tox(
     tmpdir,  # type: Any
-    pex_project_dir,  # type: str
+    pex_wheel,  # type: str
 ):
     # type: (...) -> None
 
@@ -138,7 +138,7 @@ def test_bdist_pex_under_tox(
                     {{envpython}} setup.py bdist_pex \
                         --bdist-dir=dist --pex-args=--disable-cache --bdist-all
                 """
-            ).format(pex=pex_project_dir)
+            ).format(pex=pex_wheel)
         )
 
     subprocess.check_call(args=[tox, "-e", "bundle"], cwd=project_dir)

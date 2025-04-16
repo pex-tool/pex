@@ -1,6 +1,8 @@
 # Copyright 2016 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+from __future__ import absolute_import
+
 import os
 import sys
 from contextlib import contextmanager
@@ -14,7 +16,7 @@ from pex.pip.version import PipVersion
 from pex.resolver import resolve
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import InstallationChoice, Virtualenv
-from testing import WheelBuilder, make_project, pex_project_dir, subprocess, temporary_content
+from testing import WheelBuilder, make_project, pex_dist, subprocess, temporary_content
 
 if TYPE_CHECKING:
     from typing import Dict, Iterable, Iterator, List, Optional, Union
@@ -47,9 +49,7 @@ def bdist_pex_venv():
     if BDIST_PEX_VENV is None:
         venv_dir = safe_mkdtemp()
         venv = Virtualenv.create(venv_dir, install_pip=InstallationChoice.UPGRADED)
-        subprocess.check_call(
-            args=[(venv.bin_path("pip")), "install", pex_project_dir(), "setuptools==43.0.0"]
-        )
+        venv.interpreter.execute(args=["-m", "pip", "install", pex_dist.wheel(), "setuptools"])
         BDIST_PEX_VENV = venv
     return BDIST_PEX_VENV
 
@@ -99,13 +99,13 @@ def assert_pex_args_shebang(shebang):
 @skip_if_no_disutils
 def test_entry_points_dict():
     # type: () -> None
-    (_,) = assert_entry_points({"console_scripts": ["my_app = my_app.my_module:do_something"]})
+    assert_entry_points({"console_scripts": ["my_app = my_app.my_module:do_something"]})
 
 
 @skip_if_no_disutils
 def test_entry_points_ini_string():
     # type: () -> None
-    (_,) = assert_entry_points(
+    assert_entry_points(
         dedent(
             """
             [console_scripts]

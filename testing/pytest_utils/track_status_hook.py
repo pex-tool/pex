@@ -12,10 +12,8 @@ from testing.pytest_utils.tmp import RetentionPolicy
 if TYPE_CHECKING:
     from typing import Dict
 
-    from _pytest.config.argparsing import Parser  # type: ignore[import]
-    from _pytest.fixtures import FixtureRequest  # type: ignore[import]
-    from _pytest.nodes import Item  # type: ignore[import]
-    from _pytest.reports import TestReport  # type: ignore[import]
+    from _pytest.config.argparsing import Parser
+    from _pytest.nodes import Item
 
 
 _PASSED_STATUS = {}  # type: Dict[str, bool]

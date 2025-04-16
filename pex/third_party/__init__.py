@@ -479,8 +479,8 @@ def isolated(interpreter=None):
 
         module = "pex"
 
-        # These files are only used for running `tox -evendor` and should not pollute either the
-        # PEX_ROOT or built PEXs.
+        # These files are only used for running `uv run dev-cmd vendor` and should not pollute
+        # either the PEX_ROOT or built PEXs.
         vendor_lockfiles = tuple(
             os.path.join(os.path.relpath(vendor_spec.relpath, module), "constraints.txt")
             for vendor_spec in vendor.iter_vendor_specs(filter_requires_python=interpreter)
@@ -572,7 +572,7 @@ def install(root=None, expose=None):
     >>> third_party.install(expose=['setuptools'])
     >>> import sys
     >>> sys.modules.pop('pkg_resources')
-    <module 'pkg_resources' from '/home/jsirois/dev/pex-tool/pex/.tox/py27-repl/lib/python2.7/site-packages/pkg_resources/__init__.pyc'>  # noqa
+    <module 'pkg_resources' from '/home/jsirois/.pyenv/versions/3.11.12/lib/python3.11/site-packages/pkg_resources/__init__.py'>
     >>> from pkg_resources import Requirement
     >>> new_req = Requirement.parse('wheel==0.31.1')
     >>> new_req == orig_req
@@ -587,9 +587,9 @@ def install(root=None, expose=None):
     >>> new_req == PrefixedRequirement.parse('wheel==0.31.1')
     True
     >>> sys.modules.pop('pkg_resources')
-    <module 'pex.vendor._vendored.setuptools.pkg_resources' from 'pex/vendor/_vendored/setuptools/pkg_resources/__init__.pyc'>  # noqa
+    <module 'pex.vendor._vendored.setuptools.pkg_resources' from '/home/jsirois/dev/pex-tool/pex/pex/vendor/_vendored/setuptools/pkg_resources/__init__.py'>
     >>> sys.modules.pop('pex.third_party.pkg_resources')
-    <module 'pex.vendor._vendored.setuptools.pkg_resources' from 'pex/vendor/_vendored/setuptools/pkg_resources/__init__.pyc'>  # noqa
+    <module 'pex.vendor._vendored.setuptools.pkg_resources' from '/home/jsirois/dev/pex-tool/pex/pex/vendor/_vendored/setuptools/pkg_resources/__init__.py'>
     >>>
 
     :param expose: A list of vendored distribution names to expose directly on the ``sys.path``.

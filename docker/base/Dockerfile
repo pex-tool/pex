@@ -27,9 +27,5 @@ RUN apt update && \
 COPY install_pythons.sh /root/
 RUN /root/install_pythons.sh
 
-# Setup a modern tox.
-RUN python -mvenv /tox && \
-  /tox/bin/pip install -U pip && \
-  /tox/bin/pip install tox
-
-ENV PATH=/tox/bin:${PATH}
+# Setup a modern uv.
+RUN curl -LsSf https://astral.sh/uv/install.sh | UV_INSTALL_DIR=/usr/bin sh

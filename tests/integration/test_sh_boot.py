@@ -12,8 +12,10 @@ import pytest
 from pex.common import safe_open
 from pex.layout import Layout
 from pex.os import WINDOWS
+from pex.pip.version import PipVersion
 from pex.typing import TYPE_CHECKING
 from testing import all_pythons, make_env, run_pex_command, subprocess
+from testing.pip import skip_if_only_vendored_pip_supported
 from testing.pytest_utils.tmp import Tempdir
 
 if TYPE_CHECKING:
@@ -198,6 +200,7 @@ layouts = pytest.mark.parametrize(
 
 @execution_mode
 @layouts
+@skip_if_only_vendored_pip_supported
 def test_issue_1782(
     tmpdir,  # type: Tempdir
     pex_project_dir,  # type: str
@@ -217,6 +220,8 @@ def test_issue_1782(
             pex_root,
             "--runtime-pex-root",
             pex_root,
+            "--pip-version",
+            PipVersion.LATEST_COMPATIBLE.value,
             pex_project_dir,
             "-c",
             "pex",

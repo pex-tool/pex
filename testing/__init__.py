@@ -828,10 +828,8 @@ def run_commands_with_jitter(
         path = os.path.join(td, str(index))
         cmd = list(command) + [path_argument, path]
 
-        # Note that we change the `PYTHONHASHSEED` to ensure that there are no issues resulting
-        # from the random seed, such as data structures, as Tox sets this value by default.
-        # See:
-        # https://tox.readthedocs.io/en/latest/example/basic.html#special-handling-of-pythonhashseed
+        # Note that we change the `PYTHONHASHSEED` to ensure we're impervious to data structure
+        # changes that may result.
         env = make_env(PEX_ROOT=pex_root, PYTHONHASHSEED=(index * 497) + 4)
         if extra_env:
             env.update(extra_env)
@@ -876,7 +874,7 @@ def pex_project_dir():
     try:
         return os.environ["_PEX_TEST_PROJECT_DIR"]
     except KeyError:
-        sys.exit("Pex tests must be run via tox.")
+        sys.exit("Pex tests must be run via testing/bin/runtests.py.")
 
 
 class NonDeterministicWalk:

@@ -16,7 +16,12 @@ from textwrap import dedent
 from pex import pex_warnings, windows
 from pex.common import is_pyc_file, iter_copytree, open_zip, safe_open, touch
 from pex.compatibility import commonpath, get_stdout_bytes_buffer, safe_commonpath
-from pex.dist_metadata import CallableEntryPoint, Distribution, ProjectNameAndVersion
+from pex.dist_metadata import (
+    CallableEntryPoint,
+    Distribution,
+    NamedEntryPoint,
+    ProjectNameAndVersion,
+)
 from pex.enum import Enum
 from pex.executables import chmod_plus_x
 from pex.interpreter import PythonInterpreter
@@ -34,6 +39,7 @@ if TYPE_CHECKING:
         Iterable,
         Iterator,
         List,
+        Mapping,
         Optional,
         Text,
         Tuple,
@@ -289,6 +295,38 @@ def install_wheel(
 
     dist = Distribution(location=dest, metadata=wheel.dist_metadata())
     entry_points = dist.get_entry_map()
+    installed_files.extend(
+        InstalledWheel.create_installed_file(path=script_abspath, dest_dir=dest)
+        for script_abspath in install_scripts(install_paths, entry_points, interpreter)
+    )
+
+    with safe_open(os.path.join(dest, wheel.metadata_path("INSTALLER")), "w") as fp:
+        print("pex", file=fp)
+    installed_files.append(InstalledWheel.create_installed_file(path=fp.name, dest_dir=dest))
+
+    if interpreter:
+        # Finalize a proper venv install with REQUESTED and a RECORD to support uninstalling.
+        if requested:
+            requested_path = os.path.join(dest, wheel.metadata_path("REQUESTED"))
+            touch(requested_path)
+            installed_files.append(
+                InstalledWheel.create_installed_file(path=requested_path, dest_dir=dest)
+            )
+
+        installed_files.append(InstalledFile(path=record_relpath, hash=None, size=None))
+        Record.write(dst=record_abspath, installed_files=installed_files)
+
+    return wheel
+
+
+def install_scripts(
+    install_paths,  # type: InstallPaths
+    entry_points,  # type: Mapping[str, Mapping[str, NamedEntryPoint]]
+    interpreter=None,  # type: Optional[PythonInterpreter]
+):
+    # type: (...) -> Iterator[str]
+
+    shebang = interpreter.shebang() if interpreter else "#!python"
     for named_entry_point, gui in itertools.chain.from_iterable(
         ((value, gui) for value in entry_points.get(key, {}).values())
         for key, gui in (("console_scripts", False), ("gui_scripts", True))
@@ -309,11 +347,7 @@ def install_wheel(
                 if __name__ == "__main__":
                     sys.exit(entry_point())
                 """
-            ).format(
-                shebang=interpreter.shebang() if interpreter else "#!python",
-                modname=entry_point.module,
-                attrs=entry_point.attrs,
-            )
+            ).format(shebang=shebang, modname=entry_point.module, attrs=entry_point.attrs)
         else:
             script = dedent(
                 """\
@@ -326,10 +360,7 @@ def install_wheel(
                     runpy.run_module({modname!r}, run_name="__main__", alter_sys=True)
                     sys.exit(0)
                 """
-            ).format(
-                shebang=interpreter.shebang() if interpreter else "#!python",
-                modname=entry_point.module,
-            )
+            ).format(shebang=shebang, modname=entry_point.module)
         script_abspath = os.path.join(install_paths.scripts, named_entry_point.name)
         if WINDOWS:
             script_abspath = windows.create_script(script_abspath, script, gui=gui)
@@ -337,24 +368,4 @@ def install_wheel(
             with safe_open(script_abspath, "w") as fp:
                 fp.write(script)
             chmod_plus_x(fp.name)
-        installed_files.append(
-            InstalledWheel.create_installed_file(path=script_abspath, dest_dir=dest)
-        )
-
-    with safe_open(os.path.join(dest, wheel.metadata_path("INSTALLER")), "w") as fp:
-        print("pex", file=fp)
-    installed_files.append(InstalledWheel.create_installed_file(path=fp.name, dest_dir=dest))
-
-    if interpreter:
-        # Finalize a proper venv install with REQUESTED and a RECORD to support un-installing.
-        if requested:
-            requested_path = os.path.join(dest, wheel.metadata_path("REQUESTED"))
-            touch(requested_path)
-            installed_files.append(
-                InstalledWheel.create_installed_file(path=requested_path, dest_dir=dest)
-            )
-
-        installed_files.append(InstalledFile(path=record_relpath, hash=None, size=None))
-        Record.write(dst=record_abspath, installed_files=installed_files)
-
-    return wheel
+        yield script_abspath

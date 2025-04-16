@@ -24,15 +24,7 @@ from pex.pex_builder import Check, InvalidZipAppError, PEXBuilder
 from pex.pex_warnings import PEXWarning
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
-from testing import (
-    IS_PYPY,
-    NonDeterministicWalk,
-    WheelBuilder,
-    install_wheel,
-    make_bdist,
-    make_env,
-    subprocess,
-)
+from testing import IS_PYPY, NonDeterministicWalk, install_wheel, make_bdist, make_env, subprocess
 from testing import write_simple_pex as write_pex
 
 try:
@@ -463,7 +455,7 @@ def test_pex_env_var_issues_1485(
 def test_build_compression(
     tmpdir,  # type: Any
     layout,  # type: Layout.Value
-    pex_project_dir,  # type: str
+    pex_wheel,  # type: str
 ):
     # type: (...) -> None
 
@@ -472,7 +464,7 @@ def test_build_compression(
     pb = PEXBuilder()
     pb.info.pex_root = pex_root
     with ENV.patch(PEX_ROOT=pex_root):
-        pb.add_dist_location(install_wheel(WheelBuilder(pex_project_dir).bdist()).location)
+        pb.add_dist_location(install_wheel(pex_wheel).location)
     exe = os.path.join(str(tmpdir), "exe.py")
     with open(exe, "w") as fp:
         fp.write("import pex; print(pex.__file__)")
@@ -480,9 +472,10 @@ def test_build_compression(
 
     def assert_pex(pex):
         # type: (str) -> None
-        assert (
-            subprocess.check_output(args=[sys.executable, pex]).decode("utf-8").startswith(pex_root)
-        )
+        output = subprocess.check_output(
+            args=[sys.executable, pex], env=make_env(PEX_ROOT=None)
+        ).decode("utf-8")
+        assert output.startswith(pex_root), pex_root + " vs:\n" + output
 
     compressed_pex = os.path.join(str(tmpdir), "compressed.pex")
     pb.build(compressed_pex, layout=layout)

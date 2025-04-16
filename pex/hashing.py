@@ -7,6 +7,7 @@ import hashlib
 import os
 
 from pex.common import open_zip
+from pex.compatibility import to_unicode
 from pex.typing import TYPE_CHECKING, Generic
 
 if TYPE_CHECKING:
@@ -197,6 +198,7 @@ def dir_hash(
 
     top = os.path.realpath(directory)
 
+    # TODO: XXX: Ignore .git + .gitignore'd?
     def iter_files():
         # type: () -> Iterator[Text]
         for root, dirs, files in os.walk(top, followlinks=True):
@@ -211,7 +213,7 @@ def dir_hash(
     # Regularize to / as the directory separator so that a dir hash on Unix matches a dir hash on
     # Windows matches a zip hash (see below) of that same dir.
     hashed_names = [os.path.relpath(n, top).replace(os.sep, "/") for n in file_paths]
-    digest.update("".join(hashed_names).encode("utf-8"))
+    digest.update(to_unicode("").join(map(to_unicode, hashed_names)).encode("utf-8"))
 
     for file_path in file_paths:
         file_hash(file_path, digest)
@@ -252,7 +254,7 @@ def zip_hash(
         hashed_names = (
             [os.path.relpath(name, relpath) for name in accept_files] if relpath else accept_files
         )
-        digest.update("".join(hashed_names).encode("utf-8"))
+        digest.update(to_unicode("").join(map(to_unicode, hashed_names)).encode("utf-8"))
 
         for filename in accept_files:
             update_hash(zf.open(filename, "r"), digest)

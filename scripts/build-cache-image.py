@@ -45,7 +45,7 @@ _CACHE_INPUTS = (
     Path("docker") / "cache",
     Path("testing") / "__init__.py",  # Sets up fixed set of pyenv interpreters for ITs.
     Path("testing") / "devpi.py",
-    Path("testing") / "devpi-server.lock",
+    Path("uv.lock"),
 )
 
 
@@ -84,7 +84,7 @@ def create_image_tag(tag: str, sub_image: str | None = None) -> str:
 
 
 def build_cache_image(
-    tox_envs: Iterable[str],
+    test_cmds: Iterable[str],
     image_id: str | None,
     image_tag: str,
     pex_repo: str,
@@ -102,7 +102,7 @@ def build_cache_image(
             "--build-arg",
             f"GIT_REF={git_ref}",
             "--build-arg",
-            f"TOX_ENVS={','.join(tox_envs)}",
+            f"TEST_CMDS={','.join(test_cmds)}",
             "--tag",
             image_tag,
             str(PurePath("docker") / "cache"),
@@ -111,12 +111,12 @@ def build_cache_image(
     )
 
 
-def list_tox_envs() -> list[str]:
+def list_test_cmds() -> list[str]:
     with (Path(".github") / "workflows" / "ci.yml").open() as fp:
         data = yaml.full_load(fp)
     return sorted(
         dict.fromkeys(
-            entry["tox-env"]
+            entry["test-cmd"]
             for entry in data["jobs"]["linux-tests"]["strategy"]["matrix"]["include"]
         )
     )
@@ -127,7 +127,7 @@ def main() -> Any:
         formatter_class=ArgumentDefaultsHelpFormatter,
         description=(
             "Builds (and optionally pushes) a data-only cache image for use with "
-            "`CACHE_MODE=pull ./dtox.sh ...`."
+            "`CACHE_MODE=pull ./duvrc.sh ...`."
         ),
     )
     parser.add_argument(
@@ -140,10 +140,10 @@ def main() -> Any:
     )
     parser.add_argument("--color", default=None, action="store_true", help="Force colored logging.")
     parser.add_argument(
-        "--list-tox-envs",
+        "--list-test-cmds",
         default=False,
         action="store_true",
-        help="Emit the list of tox environment names that should be cached.",
+        help="Emit the list of test command names that should be cached.",
     )
     parser.add_argument(
         "--tag",
@@ -185,21 +185,21 @@ def main() -> Any:
         help="The directory to import and export image tarballs.",
     )
     parser.add_argument(
-        "--tox-env",
-        dest="tox_envs",
+        "--test-cmd",
+        dest="test_cmds",
         action="append",
         default=[],
         help=(
-            "The tox environments to execute to build the cache image. By default, all Linux test "
-            "environments run in CI are selected. The option can either be repeated or environment "
+            "The test commands to execute to build the cache image. By default, all Linux test "
+            "commands run in CI are selected. The option can either be repeated or environment "
             "names can be joined by commas."
         ),
     )
     options = parser.parse_args()
 
-    if options.list_tox_envs:
-        for tox_env in list_tox_envs():
-            print(tox_env)
+    if options.list_test_cmds:
+        for test_cmd in list_test_cmds():
+            print(test_cmd)
         return 0
 
     coloredlogs.install(
@@ -242,42 +242,45 @@ def main() -> Any:
         logger.info(f"Importing merged tarball to {image_tag}...")
         subprocess.run(args=["docker", "import", merged_tarball, image_tag], check=True)
     else:
-        all_tox_envs = frozenset(list_tox_envs())
-        selected_tox_envs = (
+        all_test_cmds = frozenset(list_test_cmds())
+        selected_test_cmds = (
             frozenset(
-                itertools.chain.from_iterable(tox_envs.split(",") for tox_envs in options.tox_envs)
+                itertools.chain.from_iterable(
+                    test_cmds.split(",") for test_cmds in options.test_cmds
+                )
             )
-            if options.tox_envs
-            else all_tox_envs
+            if options.test_cmds
+            else all_test_cmds
         )
-        bad_tox_envs = selected_tox_envs - all_tox_envs
-        if bad_tox_envs:
+        bad_test_cmds = selected_test_cmds - all_test_cmds
+        if bad_test_cmds:
             return colors.red(
                 "\n".join(
                     (
-                        "The following selected tox envs are not used in Linux CI test shards:",
-                        *(f"  {bad_tox_env}" for bad_tox_env in sorted(bad_tox_envs)),
-                        "Valid tox envs are:",
-                        *(f"  {valid_tox_env}" for valid_tox_env in sorted(all_tox_envs)),
+                        "The following selected test commands are not used in Linux CI test "
+                        "shards:",
+                        *(f"  {bad_test_cmd}" for bad_test_cmd in sorted(bad_test_cmds)),
+                        "Valid test commands are:",
+                        *(f"  {valid_test_cmd}" for valid_test_cmd in sorted(all_test_cmds)),
                     )
                 )
             )
-        tox_envs = sorted(selected_tox_envs)
+        test_cmds = sorted(selected_test_cmds)
 
-        if options.tox_envs:
+        if options.test_cmds:
             sub_image = (
-                tox_envs[0]
-                if len(tox_envs) == 1
-                else hashlib.sha256("|".join(tox_envs).encode("utf-8")).hexdigest()
+                test_cmds[0]
+                if len(test_cmds) == 1
+                else hashlib.sha256("|".join(test_cmds).encode("utf-8")).hexdigest()
             )
 
         image_tag = create_image_tag(options.tag, sub_image=sub_image)
-        logger.info(f"Building caches for {len(tox_envs)} tox environments.")
-        for tox_env in tox_envs:
-            logger.debug(tox_env)
+        logger.info(f"Building caches for {len(test_cmds)} test commands.")
+        for test_cmd in test_cmds:
+            logger.debug(test_cmd)
 
         build_cache_image(
-            tox_envs,
+            test_cmds,
             image_id=sub_image,
             image_tag=image_tag,
             pex_repo=options.pex_repo,

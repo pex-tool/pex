@@ -29,7 +29,7 @@ jobs:
         run: |
           echo "This is a dummy step that will never run."
   checks:
-    name: "Unix: tox -e format-check,lint-check,typecheck,enum-check,vendor-check,package,docs"
+    name: "Unix: uv run dev-cmd ci-checks"
     needs: setup
     runs-on: ubuntu-24.04
     steps:
@@ -42,34 +42,38 @@ jobs:
       - name: Setup Python 3.9
         uses: actions/setup-python@v5
         with:
-          # We need to keep Python 3.9 for consistent vendoring with tox.
+          # We need to keep Python 3.9 for consistent vendoring.
           python-version: "3.9"
-      - name: Check Formatting, Lints and Types
-        uses: pex-tool/actions/run-tox@c53dadd8b410bbd66480de91067e9e45d2b3af38
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
         with:
-          tox-env: format-check,lint-check,typecheck
+          # We use 3.11 for typecheck.
+          python-version: "3.11"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+      - name: Check Formatting, Lints and Types
+        run: uv run dev-cmd -t format-check lint-check requires-python-check typecheck
       - name: Check Enum Types
         run: |
-          BASE_MODE=pull ./dtox.sh -e enum-check -- -v --require-py27
+          BASE_MODE=pull ./duvrc.sh enum-check -- -v --require-py27
       - name: Check Vendoring
-        uses: pex-tool/actions/run-tox@c53dadd8b410bbd66480de91067e9e45d2b3af38
-        with:
-          tox-env: vendor-check
+        run: uv run dev-cmd vendor-check
       - name: Check Packaging
-        uses: pex-tool/actions/run-tox@c53dadd8b410bbd66480de91067e9e45d2b3af38
-        with:
-          tox-env: >-
-            package -- --additional-format sdist --additional-format wheel --embed-docs --clean-docs
-            --scies --gen-md-table-of-hash-and-size dist/hashes.md
+        run: |
+          uv run dev-cmd package -- \
+            --additional-format sdist \
+            --additional-format wheel \
+            --embed-docs \
+            --clean-docs \
+            --scies \
+            --gen-md-table-of-hash-and-size dist/hashes.md
       - name: Check Docs
-        uses: pex-tool/actions/run-tox@c53dadd8b410bbd66480de91067e9e45d2b3af38
-        with:
-          tox-env: docs -- --linkcheck --pdf --clean-html
+        run: uv run dev-cmd docs -- --linkcheck --pdf --clean-html
 
-  # N.B.: The name of this job key (linux-tests) is depended on by scrips/build_cache_image.py. In
-  # particular, the tox-env matrix list is used to ensure the cache covers all Linux CI jobs.
+  # N.B.: The name of this job key (linux-tests) is depended on by scripts/build_cache_image.py. In
+  # particular, the test-cmd matrix list is used to ensure the cache covers all Linux CI jobs.
   linux-tests:
-    name: "Linux: ./dtox.sh -e ${{ matrix.tox-env }} ${{ matrix.pex-test-pos-args }}"
+    name: "Linux: ./duvrc.sh ${{ matrix.test-cmd }} ${{ matrix.pex-test-pos-args }}"
     needs: setup
     runs-on: ubuntu-24.04
     strategy:
@@ -79,34 +83,34 @@ jobs:
 
           # Unit tests:
           # -----------
-          - tox-env: py27-pip20
-          - tox-env: py313-pip25_0_1
-          - tox-env: pypy310-pip24_3_1
+          - test-cmd: test-py27-pip20.3.4--patched
+          - test-cmd: test-py313-pip25.0.1
+          - test-cmd: test-pypy310-pip24.3.1
 
           # Integration tests, split most into two shards:
           # ----------------------------------------------
 
           # CPython 2.7 is fast enough not to require sharding.
-          - tox-env: py27-pip20-integration
+          - test-cmd: test-py27-pip20.3.4--patched-integration
 
-          - tox-env: py38-pip22_3_1-integration
+          - test-cmd: test-py38-pip22_3_1-integration
             pex-test-pos-args: --shard 1/2
-          - tox-env: py38-pip22_3_1-integration
+          - test-cmd: test-py38-pip22_3_1-integration
             pex-test-pos-args: --shard 2/2
 
-          - tox-env: py313-pip25_0_1-integration
+          - test-cmd: test-py313-pip25.0.1-integration
             pex-test-pos-args: --shard 1/2
-          - tox-env: py313-pip25_0_1-integration
+          - test-cmd: test-py313-pip25.0.1-integration
             pex-test-pos-args: --shard 2/2
 
-          - tox-env: py314-pip25_0_1-integration
+          - test-cmd: test-py314-pip25.0.1-integration
             pex-test-pos-args: --shard 1/2
-          - tox-env: py314-pip25_0_1-integration
+          - test-cmd: test-py314-pip25.0.1-integration
             pex-test-pos-args: --shard 2/2
 
-          - tox-env: pypy310-pip24_3_1-integration
+          - test-cmd: test-pypy310-pip24.3.1-integration
             pex-test-pos-args: --shard 1/2
-          - tox-env: pypy310-pip24_3_1-integration
+          - test-cmd: test-pypy310-pip24.3.1-integration
             pex-test-pos-args: --shard 2/2
     steps:
       - name: Free Up Disk Space
@@ -139,28 +143,28 @@ jobs:
           # This is needed to get pexpect tests working under PyPy running under docker.
           export TERM="xterm"
           BASE_MODE=pull CACHE_MODE=pull \
-            ./dtox.sh -e ${{ matrix.tox-env }} -- \
+            ./duvrc.sh ${{ matrix.test-cmd }} -- \
               ${{ env._PEX_TEST_POS_ARGS }} ${{ matrix.pex-test-pos-args }}
   mac-tests:
-    name: "Mac: tox -e ${{ matrix.tox-env }} ${{ matrix.pex-test-pos-args }}"
+    name: "Mac: uv run dev-cmd ${{ matrix.test-cmd }} ${{ matrix.pex-test-pos-args }}"
     needs: setup
     runs-on: macos-13
     strategy:
       matrix:
         include:
           - python-version: [ 3, 13 ]
-            tox-env: py313-pip25_0_1
+            test-cmd: test-py313-pip25.0.1
             cache: true
-            tox-env-python: python3.11
+            test-cmd-python: python3.11
           - python-version: [ 3, 13 ]
-            tox-env: py313-pip25_0_1-integration
+            test-cmd: test-py313-pip25.0.1-integration
             cache: true
-            tox-env-python: python3.11
+            test-cmd-python: python3.11
             pex-test-pos-args: --shard 1/2
           - python-version: [ 3, 13 ]
-            tox-env: py313-pip25_0_1-integration
+            test-cmd: test-py313-pip25.0.1-integration
             cache: true
-            tox-env-python: python3.11
+            test-cmd-python: python3.11
             pex-test-pos-args: --shard 2/2
     steps:
       - name: Checkout Pex
@@ -190,8 +194,8 @@ jobs:
           path: ${{ env._PEX_TEST_DEV_ROOT }}/devpi
           # We're using a key suffix / restore-keys prefix trick here to get an updatable cache.
           # See: https://github.com/actions/cache/blob/main/tips-and-workarounds.md#update-a-cache
-          key: macos-13-${{ runner.arch }}-${{ matrix.tox-env }}-pex-test-dev-root-devpi-v1-${{ github.run_id }}
-          restore-keys: macos-13-${{ runner.arch }}-${{ matrix.tox-env }}-pex-test-dev-root-devpi-v1
+          key: macos-13-${{ runner.arch }}-${{ matrix.test-cmd }}-pex-test-dev-root-devpi-v2-${{ github.run_id }}
+          restore-keys: macos-13-${{ runner.arch }}-${{ matrix.test-cmd }}-pex-test-dev-root-devpi-v2
       # Some ITs need this for VCS URLs of the form git+ssh://git@github.com/...
       - name: Setup SSH Agent
         uses: webfactory/ssh-agent@v0.9.0
@@ -200,13 +204,12 @@ jobs:
         if: env.SSH_PRIVATE_KEY != ''
         with:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
       - name: Run Tests
-        uses: pex-tool/actions/run-tox@c53dadd8b410bbd66480de91067e9e45d2b3af38
-        with:
-          path: repo/tox.ini
-          python: ${{ matrix.tox-env-python }}
-          tox-env: >-
-            ${{ matrix.tox-env }} -- ${{ env._PEX_TEST_POS_ARGS }} ${{ matrix.pex-test-pos-args }}
+        run: |
+          cd repo
+          uv run dev-cmd ${{ matrix.test-cmd }} -- ${{ env._PEX_TEST_POS_ARGS }} ${{ matrix.pex-test-pos-args }}
       - name: Cache Pyenv Interpreters
         uses: actions/cache/save@v4
         if: matrix.cache && github.ref == 'refs/heads/main'
@@ -220,7 +223,7 @@ jobs:
           path: ${{ env._PEX_TEST_DEV_ROOT }}/devpi
           key: ${{ steps.restore-devpi-server.outputs.cache-primary-key }}
   windows-tests:
-    name: "Windows: tox -e ${{ matrix.tox-env }} ${{ matrix.pex-test-pos-args }}"
+    name: "Windows: uv run dev-cmd ${{ matrix.test-cmd }} ${{ matrix.pex-test-pos-args }}"
     needs: setup
     runs-on: windows-2022
     continue-on-error: true
@@ -230,29 +233,29 @@ jobs:
           # N.B.: We use 3.11 to work around issues building typed-ast for the typecheck step.
           # There is a Windows wheel for CPython 3.11, but no higher CPython version.
           - python-version: [ 3, 11 ]
-            tox-env: typecheck,package,docs
+            test-cmd: typecheck package docs
           - python-version: [ 3, 13 ]
-            tox-env: py313-pip25_0
+            test-cmd: test-py313-pip25_0
             artifact-name: unit
             cache: true
             pex-test-pos-args: ${{ needs.setup.outputs.pex_test_posargs }} --junit-xml ../dist/test-results/unit.xml
           - python-version: [ 3, 13 ]
-            tox-env: py313-pip25_0-integration
+            test-cmd: test-py313-pip25_0-integration
             artifact-name: integration-1
             cache: true
             pex-test-pos-args: --shard 1/4 ${{ needs.setup.outputs.pex_test_posargs }} --junit-xml ../dist/test-results/integration-1.xml
           - python-version: [ 3, 13 ]
-            tox-env: py313-pip25_0-integration
+            test-cmd: test-py313-pip25_0-integration
             artifact-name: integration-2
             cache: true
             pex-test-pos-args: --shard 2/4 ${{ needs.setup.outputs.pex_test_posargs }} --junit-xml ../dist/test-results/integration-2.xml
           - python-version: [ 3, 13 ]
-            tox-env: py313-pip25_0-integration
+            test-cmd: test-py313-pip25_0-integration
             artifact-name: integration-3
             cache: true
             pex-test-pos-args: --shard 3/4 ${{ needs.setup.outputs.pex_test_posargs }} --junit-xml ../dist/test-results/integration-3.xml
           - python-version: [ 3, 13 ]
-            tox-env: py313-pip25_0-integration
+            test-cmd: test-py313-pip25_0-integration
             artifact-name: integration-4
             cache: true
             pex-test-pos-args: --shard 4/4 ${{ needs.setup.outputs.pex_test_posargs }} --junit-xml ../dist/test-results/integration-4.xml
@@ -267,6 +270,8 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "${{ join(matrix.python-version, '.') }}"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
       - name: Restore Cached Devpi Server
         if: matrix.cache
         id: restore-devpi-server
@@ -275,8 +280,8 @@ jobs:
           path: ${{ env._PEX_TEST_DEV_ROOT }}/devpi
           # We're using a key suffix / restore-keys prefix trick here to get an updatable cache.
           # See: https://github.com/actions/cache/blob/main/tips-and-workarounds.md#update-a-cache
-          key: windows-2022-${{ runner.arch }}-${{ matrix.tox-env }}-pex-test-dev-root-devpi-v1-${{ github.run_id }}
-          restore-keys: windows-2022-${{ runner.arch }}-${{ matrix.tox-env }}-pex-test-dev-root-devpi-v1
+          key: windows-2022-${{ runner.arch }}-${{ matrix.test-cmd }}-pex-test-dev-root-devpi-v2-${{ github.run_id }}
+          restore-keys: windows-2022-${{ runner.arch }}-${{ matrix.test-cmd }}-pex-test-dev-root-devpi-v2
       # Some ITs need this for VCS URLs of the form git+ssh://git@github.com/...
       - name: Setup SSH Agent
         uses: webfactory/ssh-agent@v0.9.0
@@ -291,12 +296,10 @@ jobs:
           echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Append
           vcpkg install openssl:x64-windows-static-md
       - name: Run Tests
-        uses: pex-tool/actions/run-tox@c53dadd8b410bbd66480de91067e9e45d2b3af38
         continue-on-error: true
-        with:
-          path: repo/tox.ini
-          tox-env: >-
-            ${{ matrix.tox-env }} -- ${{ matrix.pex-test-pos-args }}
+        run: |
+          cd repo
+          uv run dev-cmd ${{ matrix.test-cmd }} -- ${{ matrix.pex-test-pos-args }}
       - uses: actions/upload-artifact@v4
         if: always() && matrix.artifact-name
         with:

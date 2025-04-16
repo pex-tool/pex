@@ -79,7 +79,14 @@ def resolve_from_pex(
     )
     distributions = OrderedSet()  # type: OrderedSet[ResolvedDistribution]
     for target in targets.unique_targets():
-        pex_env = PEXEnvironment.mount(pex, target=target)
+        # TODO(John Sirois): Handling of result type should be centralized. As it stands, it's
+        #  currently critical to _not_ PEXEnvironment.mount(...) if you want to resolve whell files
+        #  instead of installed wheel chroots.
+        pex_env = (
+            PEXEnvironment(pex, target=target)
+            if result_type is InstallableType.WHEEL_FILE
+            else PEXEnvironment.mount(pex, target=target)
+        )
         try:
             fingerprinted_distributions = pex_env.resolve_dists(
                 all_reqs, result_type=result_type, dependency_configuration=dependency_configuration

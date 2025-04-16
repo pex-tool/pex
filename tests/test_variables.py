@@ -113,10 +113,14 @@ def test_disable_patch():
         assert v.PEX_EMIT_WARNINGS is None
 
 
-def assert_pex_vars_hermetic():
-    # type: () -> None
+def assert_pex_vars_hermetic(pex_disabled_variables=False):
+    # type: (bool) -> None
     v = Variables()
-    assert os.environ.copy() == v.copy()
+    assert {
+        k: v
+        for k, v in os.environ.items()
+        if not pex_disabled_variables or (k == "PEX_DISABLE_VARIABLES" or not k.startswith("PEX_"))
+    } == v.copy()
 
     existing = os.environ.get("TEST")
     expected = (existing or "") + "different"
@@ -140,7 +144,7 @@ def test_pex_vars_hermetic():
 def test_pex_vars_disabled_hermetic():
     # type: () -> None
     with environment_as(PEX_DISABLE_VARIABLES="True"):
-        assert_pex_vars_hermetic()
+        assert_pex_vars_hermetic(pex_disabled_variables=True)
 
 
 def test_pex_get_kv():

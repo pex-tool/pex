@@ -10,6 +10,7 @@ from pex.resolve.locked_resolve import LockedRequirement
 from pex.resolve.lockfile import json_codec
 from pex.resolve.lockfile.model import Lockfile
 from testing.cli import run_pex3
+from testing.pip import skip_if_only_vendored_pip_supported
 from testing.pytest_utils.tmp import Tempdir
 
 
@@ -22,6 +23,7 @@ def index_locked_reqs(lockfile):
     }
 
 
+@skip_if_only_vendored_pip_supported
 def test_lock_elide_unused_requires_dist(tmpdir):
     # type: (Tempdir) -> None
 

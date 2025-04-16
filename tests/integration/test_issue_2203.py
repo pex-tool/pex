@@ -9,11 +9,13 @@ from pex.common import safe_rmtree
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import InstallationChoice, Virtualenv
 from testing import subprocess
+from testing.pip import skip_if_only_vendored_pip_supported
 
 if TYPE_CHECKING:
     from typing import Any
 
 
+@skip_if_only_vendored_pip_supported
 def test_read_only_venv(
     tmpdir,  # type: Any
     pex_project_dir,  # type: str

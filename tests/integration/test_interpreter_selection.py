@@ -11,6 +11,7 @@ from pex.common import safe_open, temporary_dir
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import InterpreterConstraints
 from pex.pex_info import PexInfo
+from pex.pip.version import PipVersion
 from pex.typing import TYPE_CHECKING
 from testing import (
     PY38,
@@ -21,6 +22,7 @@ from testing import (
     run_pex_command,
     run_simple_pex,
 )
+from testing.pip import skip_if_only_vendored_pip_supported
 
 if TYPE_CHECKING:
     from typing import Any
@@ -395,6 +397,7 @@ def test_pex_python():
         assert py310 in stdout.decode("utf-8")
 
 
+@skip_if_only_vendored_pip_supported
 def test_interpreter_selection_using_os_environ_for_bootstrap_reexec(
     tmpdir,  # type: Any
     pex_project_dir,  # type: str
@@ -485,6 +488,8 @@ def test_interpreter_selection_using_os_environ_for_bootstrap_reexec(
     res = run_pex_command(
         [
             "--disable-cache",
+            "--pip-version",
+            PipVersion.LATEST_COMPATIBLE.value,
             pex_project_dir,
             td,
             "-e",

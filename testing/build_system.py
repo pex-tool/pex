@@ -5,9 +5,6 @@ from __future__ import absolute_import
 
 import glob
 import os
-import sys
-
-import pytest
 
 from pex.build_system.pep_517 import build_sdist
 from pex.dist_metadata import Distribution
@@ -23,11 +20,6 @@ from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from typing import Any
-
-
-hatchling_only_supports_37_and_greater = pytest.mark.skipif(
-    sys.version_info[:2] < (3, 7), reason="Our current build system only works under Python>=3.7"
-)
 
 
 def assert_build_sdist(
@@ -47,7 +39,7 @@ def assert_build_sdist(
 
     # This test utility is used by all versions of Python Pex supports; so we need to use a Pip
     # setup which is guaranteed to work with the current Python version.
-    pip_version = PipVersion.DEFAULT
+    pip_version = PipVersion.LATEST_COMPATIBLE
     resolver_version = ResolverVersion.default(pip_version)
 
     target = LocalInterpreter.create()
@@ -69,7 +61,7 @@ def assert_build_sdist(
 
     # Verify the sdist is valid such that we can build a wheel from it.
     wheel_dir = os.path.join(str(tmpdir), "wheel_dir")
-    get_pip(resolver=resolver).spawn_build_wheels(
+    get_pip(version=pip_version, resolver=resolver).spawn_build_wheels(
         distributions=[sdist.location], wheel_dir=wheel_dir
     ).wait()
     wheels = glob.glob(os.path.join(wheel_dir, "*.whl"))

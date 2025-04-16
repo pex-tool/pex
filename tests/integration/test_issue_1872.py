@@ -6,17 +6,20 @@ import sys
 
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
+from pex.pip.version import PipVersion
 from pex.resolve.locked_resolve import LocalProjectArtifact
 from pex.resolve.lockfile import json_codec
 from pex.resolve.resolved_requirement import Pin
 from pex.typing import TYPE_CHECKING
 from pex.version import __version__
 from testing import PY310, ensure_python_interpreter, make_env, run_pex_command, subprocess
+from testing.pip import skip_if_only_vendored_pip_supported
 
 if TYPE_CHECKING:
     from typing import Any
 
 
+@skip_if_only_vendored_pip_supported
 def test_pep_518_venv_pex_env_scrubbing(
     tmpdir,  # type: Any
     pex_project_dir,  # type: str
@@ -27,6 +30,8 @@ def test_pep_518_venv_pex_env_scrubbing(
     package_script = os.path.join(pex_project_dir, "scripts", "create-packages.py")
     run_pex_command(
         args=[
+            "--pip-version",
+            PipVersion.LATEST_COMPATIBLE.value,
             "toml",
             pex_project_dir,
             "--",
@@ -50,6 +55,8 @@ def test_pep_518_venv_pex_env_scrubbing(
             pex_pex,
             "lock",
             "create",
+            "--pip-version",
+            PipVersion.LATEST_COMPATIBLE.value,
             pex_project_dir,
             "-o",
             lock,
