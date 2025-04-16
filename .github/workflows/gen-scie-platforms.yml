@@ -55,6 +55,7 @@ jobs:
           # N.B.: The extra https://www.piwheels.org/simple index is for the armv7 shard wheels.
           uv run \
             --index https://www.piwheels.org/simple \
+            --index-strategy unsafe-best-match \
             --only-group gen-scie-platform \
             dev-cmd gen-scie-platform -- \
               -d "${dest_dir}" \
