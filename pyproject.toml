@@ -76,7 +76,7 @@ gen-scie-platform = [
 
   "PyGithub; python_version >= '3.8'",
 
-  # Pinned, so we get a pre-built wheel from piwheels.
+  # Pinned, so we get pre-built wheels from piwheels.
   "cffi==1.17.1; python_version >= '3.8'",
   "cryptography==42.0.8; python_version >= '3.8'",
   "pynacl==1.5.0; python_version >= '3.8'",

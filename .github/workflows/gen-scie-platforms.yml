@@ -49,18 +49,17 @@ jobs:
           python -m venv .venv
           source .venv/bin/activate
           pip install -U pip
-          pip install -U uv
+
+          if [[ "arm/v7" == "${{ matrix.docker-arch }}" ]]; then
+            export PIP_EXTRA_INDEX_URL=https://www.piwheels.org/simple
+          fi
+          pip install -U dev-cmd
           python -V
 
-          # N.B.: The extra https://www.piwheels.org/simple index is for the armv7 shard wheels.
-          uv run \
-            --index https://www.piwheels.org/simple \
-            --index-strategy unsafe-best-match \
-            --only-group gen-scie-platform \
-            dev-cmd gen-scie-platform -- \
-              -d "${dest_dir}" \
-              --no-sync-lock \
-              --encoded-scie-config ${{ github.event.inputs.encoded-scie-config }}
+          dev-cmd gen-scie-platform -- \
+            -d "${dest_dir}" \
+            --no-sync-lock \
+            --encoded-scie-config ${{ github.event.inputs.encoded-scie-config }}
           EOF
           chmod +x ./gen-scie-platform.sh
       - name: Setup Docker QEMU Emulation
