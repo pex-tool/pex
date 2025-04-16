@@ -11,7 +11,7 @@ from collections import Counter
 from dataclasses import dataclass
 from typing import Any
 
-import tomli
+import toml
 
 
 @dataclass(frozen=True)
@@ -53,7 +53,7 @@ class ScieConfig:
         else:
             data = pkgutil.get_data(__name__, "package.toml")
             assert data is not None, f"Expected to find a sibling package.toml file to {__file__}."
-            scie_config = tomli.loads(data.decode())["scie"]
+            scie_config = toml.loads(data.decode())["scie"]
         default_pbs_release = pbs_release or scie_config["pbs-release"]
         default_python_version = python_version or scie_config["python-version"]
         return cls(
