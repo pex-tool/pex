@@ -85,7 +85,7 @@ def get_requires_for_build_wheel(config_settings=None):
         return cast(
             "List[str]",
             # Here we skip any included dependency groups and just grab the direct doc requirements.
-            [req for req in pyproject_data["dependency-groups"]["docs"] if isinstance(req, str)]
+            [req for req in pyproject_data["dependency-groups"]["docs"] if isinstance(req, str)],
         )
     return list(reqs)
 
