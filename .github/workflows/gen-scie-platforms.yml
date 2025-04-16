@@ -53,7 +53,7 @@ jobs:
           if [[ "arm/v7" == "${{ matrix.docker-arch }}" ]]; then
             export PIP_EXTRA_INDEX_URL=https://www.piwheels.org/simple
           fi
-          pip install -U dev-cmd[old-pythons]
+          pip install uv dev-cmd[old-pythons]
           python -V
 
           dev-cmd --py 311 gen-scie-platform -- \
