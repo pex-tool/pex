@@ -27,7 +27,8 @@ dynamic = [
 
 [dependency-groups]
 dev = [
-  "dev-cmd[old-pythons]; python_version >= '3.8'",
+  # This is the core dep needed to run all other commands.
+  {include-group = "dev-cmd"},
 
   {include-group = "build-cache-image"},
   {include-group = "devpi-server"},
@@ -41,12 +42,17 @@ dev = [
   {include-group = "vendor"},
 ]
 build-cache-image = [
+  {include-group = "dev-cmd"},
+
   "ansicolors",
   "coloredlogs; python_version >= '3.8'",
   "PyYAML; python_version >= '3.8'",
 ]
+dev-cmd = ["dev-cmd[old-pythons]; python_version >= '3.8'"]
 devpi-server = ["devpi-server; python_version >= '3.8'"]
 docs = [
+  {include-group = "dev-cmd"},
+
   "furo; python_version >= '3.8'",
   "httpx; python_version >= '3.8'",
   "myst-parser[linkify]; python_version >= '3.8'",
@@ -59,22 +65,34 @@ docs = [
   "sphinx-simplepdf; python_version >= '3.8'",
 ]
 fmt = [
+  {include-group = "dev-cmd"},
+
   "black==21.12b0; python_full_version >= '3.6.2'",
   "click==8.0.1; python_version >= '3.6'",  # The 8.1.0 release of click breaks black; so we pin.
   "isort==5.10.1; python_full_version >= '3.6.1'",
 ]
 gen-scie-platform = [
+  {include-group = "dev-cmd"},
+
   "PyGithub; python_version >= '3.8'",
-  "cryptography==43.0.3; python_version >= '3.8'",  # Pinned, so we get a pre-built wheel from piwheels.
+
+  # Pinned, so we get a pre-built wheel from piwheels.
+  "cryptography==43.0.3; python_version >= '3.8'",
+
   "httpx; python_version >= '3.8'",
+  "toml"
 ]
 lint = [
+  {include-group = "dev-cmd"},
+
   # The last version to support pyflakes 2.4.0 (see below).
   "autoflake==1.7.8; python_version >= '3.8'",
   # The last version to support Python 2.7 comment type hints.
-  "pyflakes==2.4.0; python_version >= '3.8'"
+  "pyflakes==2.4.0; python_version >= '3.8'",
 ]
 mypy = [
+  {include-group = "dev-cmd"},
+
   # These versions should track the version in pex/vendor/__init__.py.
   "ansicolors==1.1.8",
   "appdirs==1.4.4",
@@ -117,6 +135,8 @@ mypy = [
 ]
 package = ["build"]
 test = [
+  {include-group = "dev-cmd"},
+
   "ansicolors",
   "coloredlogs",
   "mock; python_version == '2.7'",
@@ -136,6 +156,8 @@ test = [
   {include-group = "devpi-server"},
 ]
 vendor = [
+  {include-group = "dev-cmd"},
+
   "ansicolors",
   "httpx; python_version >= '3.8'",
   "libcst; python_version >= '3.8'",

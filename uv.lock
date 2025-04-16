@@ -2321,6 +2321,7 @@ subprocess = [
 build-cache-image = [
     { name = "ansicolors" },
     { name = "coloredlogs", marker = "python_full_version >= '3.8'" },
+    { name = "dev-cmd", extra = ["old-pythons"], marker = "python_full_version >= '3.8'" },
     { name = "pyyaml", marker = "python_full_version >= '3.8'" },
 ]
 dev = [
@@ -2390,10 +2391,14 @@ dev = [
     { name = "types-toml", marker = "python_full_version >= '3.8'" },
     { name = "wheel", marker = "python_full_version >= '3.8'" },
 ]
+dev-cmd = [
+    { name = "dev-cmd", extra = ["old-pythons"], marker = "python_full_version >= '3.8'" },
+]
 devpi-server = [
     { name = "devpi-server", marker = "python_full_version >= '3.8'" },
 ]
 docs = [
+    { name = "dev-cmd", extra = ["old-pythons"], marker = "python_full_version >= '3.8'" },
     { name = "furo", version = "2023.3.27", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.8' and python_full_version < '3.12'" },
     { name = "furo", version = "2024.8.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "httpx", marker = "python_full_version >= '3.8'" },
@@ -2407,15 +2412,19 @@ docs = [
 fmt = [
     { name = "black", marker = "python_full_version >= '3.6.2'" },
     { name = "click", marker = "python_full_version >= '3.6'" },
+    { name = "dev-cmd", extra = ["old-pythons"], marker = "python_full_version >= '3.8'" },
     { name = "isort", marker = "python_full_version >= '3.6.1'" },
 ]
 gen-scie-platform = [
     { name = "cryptography", marker = "python_full_version >= '3.8'" },
+    { name = "dev-cmd", extra = ["old-pythons"], marker = "python_full_version >= '3.8'" },
     { name = "httpx", marker = "python_full_version >= '3.8'" },
     { name = "pygithub", marker = "python_full_version >= '3.8'" },
+    { name = "toml" },
 ]
 lint = [
     { name = "autoflake", marker = "python_full_version >= '3.8'" },
+    { name = "dev-cmd", extra = ["old-pythons"], marker = "python_full_version >= '3.8'" },
     { name = "pyflakes", marker = "python_full_version >= '3.8'" },
 ]
 mypy = [
@@ -2430,6 +2439,7 @@ mypy = [
     { name = "click", marker = "python_full_version >= '3.6'" },
     { name = "coloredlogs" },
     { name = "cryptography", marker = "python_full_version >= '3.8'" },
+    { name = "dev-cmd", extra = ["old-pythons"], marker = "python_full_version >= '3.8'" },
     { name = "devpi-server", marker = "python_full_version >= '3.8'" },
     { name = "furo", version = "2023.3.27", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.8' and python_full_version < '3.12'" },
     { name = "furo", version = "2024.8.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
@@ -2491,6 +2501,7 @@ package = [
 test = [
     { name = "ansicolors" },
     { name = "coloredlogs" },
+    { name = "dev-cmd", extra = ["old-pythons"], marker = "python_full_version >= '3.8'" },
     { name = "devpi-server", marker = "python_full_version >= '3.8'" },
     { name = "mock", marker = "python_full_version < '2.8'" },
     { name = "more-itertools", version = "5.0.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.4'" },
@@ -2515,6 +2526,7 @@ test = [
 ]
 vendor = [
     { name = "ansicolors" },
+    { name = "dev-cmd", extra = ["old-pythons"], marker = "python_full_version >= '3.8'" },
     { name = "httpx", marker = "python_full_version >= '3.8'" },
     { name = "libcst", version = "1.1.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.8.*'" },
     { name = "libcst", version = "1.7.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
@@ -2534,6 +2546,7 @@ provides-extras = ["subprocess", "management"]
 build-cache-image = [
     { name = "ansicolors" },
     { name = "coloredlogs", marker = "python_full_version >= '3.8'" },
+    { name = "dev-cmd", extras = ["old-pythons"], marker = "python_full_version >= '3.8'" },
     { name = "pyyaml", marker = "python_full_version >= '3.8'" },
 ]
 dev = [
@@ -2575,6 +2588,7 @@ dev = [
     { name = "sphinx", marker = "python_full_version >= '3.8'" },
     { name = "sphinx-simplepdf", marker = "python_full_version >= '3.8'" },
     { name = "subprocess32" },
+    { name = "toml" },
     { name = "toml", specifier = "==0.10.2" },
     { name = "types-appdirs", marker = "python_full_version >= '3.8'", specifier = "==1.4.3.5" },
     { name = "types-docutils", marker = "python_full_version >= '3.8'", specifier = "==0.20.0.20240310" },
@@ -2585,8 +2599,10 @@ dev = [
     { name = "types-toml", marker = "python_full_version >= '3.8'", specifier = "==0.10.5" },
     { name = "wheel", marker = "python_full_version >= '3.8'", specifier = "==0.35.1" },
 ]
+dev-cmd = [{ name = "dev-cmd", extras = ["old-pythons"], marker = "python_full_version >= '3.8'" }]
 devpi-server = [{ name = "devpi-server", marker = "python_full_version >= '3.8'" }]
 docs = [
+    { name = "dev-cmd", extras = ["old-pythons"], marker = "python_full_version >= '3.8'" },
     { name = "furo", marker = "python_full_version >= '3.8'" },
     { name = "httpx", marker = "python_full_version >= '3.8'" },
     { name = "myst-parser", extras = ["linkify"], marker = "python_full_version >= '3.8'" },
@@ -2597,15 +2613,19 @@ docs = [
 fmt = [
     { name = "black", marker = "python_full_version >= '3.6.2'", specifier = "==21.12b0" },
     { name = "click", marker = "python_full_version >= '3.6'", specifier = "==8.0.1" },
+    { name = "dev-cmd", extras = ["old-pythons"], marker = "python_full_version >= '3.8'" },
     { name = "isort", marker = "python_full_version >= '3.6.1'", specifier = "==5.10.1" },
 ]
 gen-scie-platform = [
     { name = "cryptography", marker = "python_full_version >= '3.8'", specifier = "==43.0.3" },
+    { name = "dev-cmd", extras = ["old-pythons"], marker = "python_full_version >= '3.8'" },
     { name = "httpx", marker = "python_full_version >= '3.8'" },
     { name = "pygithub", marker = "python_full_version >= '3.8'" },
+    { name = "toml" },
 ]
 lint = [
     { name = "autoflake", marker = "python_full_version >= '3.8'", specifier = "==1.7.8" },
+    { name = "dev-cmd", extras = ["old-pythons"], marker = "python_full_version >= '3.8'" },
     { name = "pyflakes", marker = "python_full_version >= '3.8'", specifier = "==2.4.0" },
 ]
 mypy = [
@@ -2619,6 +2639,7 @@ mypy = [
     { name = "coloredlogs" },
     { name = "coloredlogs", marker = "python_full_version >= '3.8'" },
     { name = "cryptography", marker = "python_full_version >= '3.8'", specifier = "==43.0.3" },
+    { name = "dev-cmd", extras = ["old-pythons"], marker = "python_full_version >= '3.8'" },
     { name = "devpi-server", marker = "python_full_version >= '3.8'" },
     { name = "furo", marker = "python_full_version >= '3.8'" },
     { name = "httpx", marker = "python_full_version >= '3.8'" },
@@ -2644,6 +2665,7 @@ mypy = [
     { name = "sphinx", marker = "python_full_version >= '3.8'" },
     { name = "sphinx-simplepdf", marker = "python_full_version >= '3.8'" },
     { name = "subprocess32" },
+    { name = "toml" },
     { name = "toml", specifier = "==0.10.2" },
     { name = "types-appdirs", marker = "python_full_version >= '3.8'", specifier = "==1.4.3.5" },
     { name = "types-docutils", marker = "python_full_version >= '3.8'", specifier = "==0.20.0.20240310" },
@@ -2658,6 +2680,7 @@ package = [{ name = "build" }]
 test = [
     { name = "ansicolors" },
     { name = "coloredlogs" },
+    { name = "dev-cmd", extras = ["old-pythons"], marker = "python_full_version >= '3.8'" },
     { name = "devpi-server", marker = "python_full_version >= '3.8'" },
     { name = "mock", marker = "python_full_version == '2.7.*'" },
     { name = "more-itertools", marker = "python_full_version < '3.6'", specifier = "<=8.10.0" },
@@ -2671,6 +2694,7 @@ test = [
 ]
 vendor = [
     { name = "ansicolors" },
+    { name = "dev-cmd", extras = ["old-pythons"], marker = "python_full_version >= '3.8'" },
     { name = "httpx", marker = "python_full_version >= '3.8'" },
     { name = "libcst", marker = "python_full_version >= '3.8'" },
     { name = "pip", marker = "python_full_version >= '3.8'", specifier = "==24.0" },
