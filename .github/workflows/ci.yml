@@ -232,33 +232,38 @@ jobs:
         include:
           # N.B.: We use 3.11 to work around issues building typed-ast for the typecheck step.
           # There is a Windows wheel for CPython 3.11, but no higher CPython version.
+          #
+          # N.B.: The `-o junit_logging=no` option used in the test shards ensures test stdout /
+          # stderr do not make it in junit xml artifacts. Env var secrets can leak this way when
+          # subprocess launches fail and env vars are logged. We only need the success / fail counts
+          # for the overall Windows bring-up project health report.
           - python-version: [ 3, 11 ]
             test-cmd: typecheck package docs
           - python-version: [ 3, 13 ]
             test-cmd: test-py313-pip25_0
             artifact-name: unit
             cache: true
-            pex-test-pos-args: ${{ needs.setup.outputs.pex_test_posargs }} --junit-xml ../dist/test-results/unit.xml
+            pex-test-pos-args: ${{ needs.setup.outputs.pex_test_posargs }} -o junit_logging=no --junit-xml ../dist/test-results/unit.xml
           - python-version: [ 3, 13 ]
             test-cmd: test-py313-pip25_0-integration
             artifact-name: integration-1
             cache: true
-            pex-test-pos-args: --shard 1/4 ${{ needs.setup.outputs.pex_test_posargs }} --junit-xml ../dist/test-results/integration-1.xml
+            pex-test-pos-args: --shard 1/4 ${{ needs.setup.outputs.pex_test_posargs }} -o junit_logging=no --junit-xml ../dist/test-results/integration-1.xml
           - python-version: [ 3, 13 ]
             test-cmd: test-py313-pip25_0-integration
             artifact-name: integration-2
             cache: true
-            pex-test-pos-args: --shard 2/4 ${{ needs.setup.outputs.pex_test_posargs }} --junit-xml ../dist/test-results/integration-2.xml
+            pex-test-pos-args: --shard 2/4 ${{ needs.setup.outputs.pex_test_posargs }} -o junit_logging=no --junit-xml ../dist/test-results/integration-2.xml
           - python-version: [ 3, 13 ]
             test-cmd: test-py313-pip25_0-integration
             artifact-name: integration-3
             cache: true
-            pex-test-pos-args: --shard 3/4 ${{ needs.setup.outputs.pex_test_posargs }} --junit-xml ../dist/test-results/integration-3.xml
+            pex-test-pos-args: --shard 3/4 ${{ needs.setup.outputs.pex_test_posargs }} -o junit_logging=no --junit-xml ../dist/test-results/integration-3.xml
           - python-version: [ 3, 13 ]
             test-cmd: test-py313-pip25_0-integration
             artifact-name: integration-4
             cache: true
-            pex-test-pos-args: --shard 4/4 ${{ needs.setup.outputs.pex_test_posargs }} --junit-xml ../dist/test-results/integration-4.xml
+            pex-test-pos-args: --shard 4/4 ${{ needs.setup.outputs.pex_test_posargs }} -o junit_logging=no --junit-xml ../dist/test-results/integration-4.xml
     steps:
       - name: Checkout Pex
         uses: actions/checkout@v4
