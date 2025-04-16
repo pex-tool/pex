@@ -14,6 +14,7 @@ import time
 import zipfile
 from argparse import ArgumentError, ArgumentTypeError
 from contextlib import contextmanager
+from datetime import timedelta
 from pathlib import Path
 from textwrap import dedent
 from typing import IO, Collection, Iterable, Iterator
@@ -85,9 +86,9 @@ def create_all_complete_platforms(
 
     print(f"Monitoring workflow run at {run.html_url}.", file=out)
 
-    # The long pole job currently takes ~4 minutes; so 10 minutes should cover things.
-    max_time = time.time() + (60 * 10)
-    print(f"Waiting up to 10 minutes for run to complete.", file=out)
+    # The long pole job currently takes ~9 minutes; so 15 minutes should cover things.
+    max_time = time.time() + timedelta(minutes=15).total_seconds()
+    print(f"Waiting up to 15 minutes for run to complete.", file=out)
     while time.time() < max_time:
         run = repo.get_workflow_run(run.id)
         if not run.conclusion:
@@ -115,7 +116,7 @@ def create_all_complete_platforms(
     for artifact in artifacts:
         print(f"Downloading {artifact.archive_download_url} to {dest_dir}...", file=out)
         with httpx.stream(
-            "GET", artifact.archive_download_url, follow_redirects=True
+            "GET", artifact.archive_download_url, follow_redirects=True, auth=httpx.NetRCAuth()
         ) as response, tempfile.SpooledTemporaryFile(max_size=1_000_000) as tmp_fp:
             response.raise_for_status()
             for chunk in response.iter_bytes():

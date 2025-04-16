@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.33.8
+
+This release only upgrades the Pex PEX scies from Python 3.13.1 to 3.13.3.
+
+The main thrust of the release is to kick the tires on Pex's new build system which is powered by
+`uv` + `dev-cmd` and make sure all the action machinery is still working properly.
+
 ## 2.33.7
 
 This release fixes `PEX_TOOLS=1 ./path/to/pex` for PEXes using venv-execution and sh-bootstrapping (that is, built with `--sh-boot --venv=... --include-tools` ). Previously, the `PEX_TOOLS=1` was ignored if the venv already existed in the `PEX_ROOT` (for instance, if the PEX had already been run).
