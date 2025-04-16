@@ -82,7 +82,11 @@ def get_requires_for_build_wheel(config_settings=None):
     )  # type: OrderedSet[str]
     if pex_build.INCLUDE_DOCS:
         pyproject_data = toml.load("pyproject.toml")
-        return cast("List[str]", pyproject_data["dependency-groups"]["docs"])
+        return cast(
+            "List[str]",
+            # Here we skip any included dependency groups and just grab the direct doc requirements.
+            [req for req in pyproject_data["dependency-groups"]["docs"] if isinstance(req, str)]
+        )
     return list(reqs)
 
 

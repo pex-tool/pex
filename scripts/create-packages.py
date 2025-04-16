@@ -132,6 +132,8 @@ def build_pex_scies(
             "--scie-busybox",
             "@pex",
             "--scie-busybox-pex-entrypoint-env-passthrough",
+            "--pip-version",
+            PipVersion.LATEST_COMPATIBLE.value,
             "-o",
             output_file,
             "-c",
