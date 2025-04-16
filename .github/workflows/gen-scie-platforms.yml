@@ -52,10 +52,14 @@ jobs:
           pip install -U uv
           python -V
 
-          uv run --only-group gen-scie-platform dev-cmd gen-scie-platform -- \
-            -d "${dest_dir}" \
-            --no-sync-lock \
-            --encoded-scie-config ${{ github.event.inputs.encoded-scie-config }}
+          # N.B.: The extra https://www.piwheels.org/simple index is for the armv7 shard wheels.
+          uv run \
+            --index https://www.piwheels.org/simple \
+            --only-group gen-scie-platform \
+            dev-cmd gen-scie-platform -- \
+              -d "${dest_dir}" \
+              --no-sync-lock \
+              --encoded-scie-config ${{ github.event.inputs.encoded-scie-config }}
           EOF
           chmod +x ./gen-scie-platform.sh
       - name: Setup Docker QEMU Emulation
