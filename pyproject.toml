@@ -80,7 +80,7 @@ gen-scie-platform = [
   "cryptography==43.0.3; python_version >= '3.8'",
 
   "httpx; python_version >= '3.8'",
-  "toml"
+  "tomli; python_version >= '3.8'"
 ]
 lint = [
   {include-group = "dev-cmd"},
