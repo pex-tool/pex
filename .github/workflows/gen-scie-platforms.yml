@@ -52,7 +52,7 @@ jobs:
           pip install -U uv
           python -V
 
-          uv run dev-cmd gen-scie-platform -- \
+          uv run dev-cmd --py 311 gen-scie-platform -- \
             -d "${dest_dir}" \
             --no-sync-lock \
             --encoded-scie-config ${{ github.event.inputs.encoded-scie-config }}

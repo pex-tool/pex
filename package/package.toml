@@ -1,6 +1,6 @@
 [scie]
-pbs-release = "20241206"
-python-version = "3.13.1"
+pbs-release = "20250409"
+python-version = "3.13.3"
 
 pex-extras = [
     "management",
