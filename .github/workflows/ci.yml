@@ -243,52 +243,27 @@ jobs:
             test-cmd: test-py313-pip25_0
             artifact-name: unit
             cache: true
-            pex-test-pos-args: >-
-              ${{ needs.setup.outputs.pex_test_posargs }}
-              --junit-report ../dist/test-results/unit.xml
-              --junit-report-suppress-stdio
-              --junit-report-redact "${{ secrets.GITHUB_TOKEN }}"
-              --junit-report-redact "${{ secrets.SSH_PRIVATE_KEY }}"
+            pex-test-pos-args: --junit-report ../dist/test-results/unit.xml
           - python-version: [ 3, 13 ]
             test-cmd: test-py313-pip25_0-integration
             artifact-name: integration-1
             cache: true
-            pex-test-pos-args: >-
-              --shard 1/4 ${{ needs.setup.outputs.pex_test_posargs }}
-              --junit-report ../dist/test-results/integration-1.xml
-              --junit-report-suppress-stdio
-              --junit-report-redact "${{ secrets.GITHUB_TOKEN }}"
-              --junit-report-redact "${{ secrets.SSH_PRIVATE_KEY }}"
+            pex-test-pos-args: --shard 1/4 --junit-report ../dist/test-results/integration-1.xml
           - python-version: [ 3, 13 ]
             test-cmd: test-py313-pip25_0-integration
             artifact-name: integration-2
             cache: true
-            pex-test-pos-args: >-
-              --shard 2/4 ${{ needs.setup.outputs.pex_test_posargs }}
-              --junit-report ../dist/test-results/integration-2.xml
-              --junit-report-suppress-stdio
-              --junit-report-redact "${{ secrets.GITHUB_TOKEN }}"
-              --junit-report-redact "${{ secrets.SSH_PRIVATE_KEY }}"
+            pex-test-pos-args: --shard 2/4 --junit-report ../dist/test-results/integration-2.xml
           - python-version: [ 3, 13 ]
             test-cmd: test-py313-pip25_0-integration
             artifact-name: integration-3
             cache: true
-            pex-test-pos-args: >-
-              --shard 3/4 ${{ needs.setup.outputs.pex_test_posargs }}
-              --junit-report ../dist/test-results/integration-3.xml
-              --junit-report-suppress-stdio
-              --junit-report-redact "${{ secrets.GITHUB_TOKEN }}"
-              --junit-report-redact "${{ secrets.SSH_PRIVATE_KEY }}"
+            pex-test-pos-args: --shard 3/4 --junit-report ../dist/test-results/integration-3.xml
           - python-version: [ 3, 13 ]
             test-cmd: test-py313-pip25_0-integration
             artifact-name: integration-4
             cache: true
-            pex-test-pos-args: >-
-              --shard 4/4 ${{ needs.setup.outputs.pex_test_posargs }}
-              --junit-report ../dist/test-results/integration-4.xml
-              --junit-report-suppress-stdio
-              --junit-report-redact "${{ secrets.GITHUB_TOKEN }}"
-              --junit-report-redact "${{ secrets.SSH_PRIVATE_KEY }}"
+            pex-test-pos-args: --shard 4/4 --junit-report ../dist/test-results/integration-4.xml
     steps:
       - name: Checkout Pex
         uses: actions/checkout@v4
@@ -326,10 +301,22 @@ jobs:
           echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Append
           vcpkg install openssl:x64-windows-static-md
       - name: Run Tests
+        if: ${{ ! matrix.pex-test-pos-args }}
         continue-on-error: true
         run: |
           cd repo
-          uv run dev-cmd ${{ matrix.test-cmd }} -- ${{ matrix.pex-test-pos-args }}
+          uv run dev-cmd ${{ matrix.test-cmd }}
+      - name: Run Tests
+        if: ${{ matrix.pex-test-pos-args }}
+        continue-on-error: true
+        run: |
+          cd repo
+          uv run dev-cmd ${{ matrix.test-cmd }} -- \
+          ${{ needs.setup.outputs.pex_test_posargs }} \
+          ${{ matrix.pex-test-pos-args }} \
+          --junit-report-suppress-stdio \
+          --junit-report-redact "${{ secrets.GITHUB_TOKEN }}" \
+          --junit-report-redact "${{ secrets.SSH_PRIVATE_KEY }}"
       - uses: actions/upload-artifact@v4
         if: always() && matrix.artifact-name
         with:
