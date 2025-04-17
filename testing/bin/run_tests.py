@@ -10,7 +10,7 @@ import os
 import re
 import subprocess
 import sys
-from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
+from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 
 import coloredlogs
 
@@ -46,12 +46,86 @@ sys.path.insert(0, os.environ["_PEX_TEST_PROJECT_DIR"])
 
 from pex import windows
 from pex.compatibility import urlparse
-from pex.os import WINDOWS
+from pex.fs import safe_rename
 from pex.typing import TYPE_CHECKING, cast
+from pex.util import named_temporary_file
 from testing import devpi, pex_project_dir
 
 if TYPE_CHECKING:
-    from typing import Iterator, Tuple
+    from typing import Iterator, Optional, Tuple
+
+    import attr  # vendor:skip
+else:
+    from pex.third_party import attr
+
+
+@attr.s(frozen=True)
+class JunitReport(object):
+    @staticmethod
+    def register_options(parser):
+        # type: (ArgumentParser) -> None
+        parser.add_argument(
+            "--junit-report",
+            metavar="PATH",
+            help="Produce a junit xml test report at the given path.",
+        )
+        parser.add_argument(
+            "--junit-report-suppress-stdio",
+            action="store_true",
+            help="Do not include stdout or stderr from tests in the report.",
+        )
+        parser.add_argument(
+            "--junit-report-redact",
+            dest="junit_report_redactions",
+            action="append",
+            default=[],
+            help="Add a string to redact from the junit xml test report.",
+        )
+
+    @classmethod
+    def from_options(cls, options):
+        # type: (Namespace) -> Optional[JunitReport]
+
+        if not options.junit_report:
+            return None
+
+        return cls(
+            path=os.path.realpath(options.junit_report),
+            suppress_stdio=options.junit_report_suppress_stdio,
+            redactions=tuple(options.junit_report_redactions),
+        )
+
+    path = attr.ib()  # type: str
+    suppress_stdio = attr.ib()  # type: bool
+    redactions = attr.ib()  # type: Tuple[str, ...]
+
+    def iter_pytest_options(self):
+        # type: () -> Iterator[str]
+
+        yield "--junit-xml"
+        yield self.path
+        if self.suppress_stdio:
+            yield "-o"
+            yield "junit_logging=no"
+
+    def redact(self):
+        # type: () -> None
+
+        if not os.path.exists(self.path):
+            return
+
+        with open(self.path) as in_fp:
+            content = in_fp.read()
+
+        for redaction in self.redactions:
+            content = content.replace(redaction, "***")
+
+        with named_temporary_file(
+            mode="w", dir=os.path.dirname(self.path), prefix="junit-xml.", suffix=".rewritten"
+        ) as out_fp:
+            out_fp.write(content)
+            out_fp.close()
+            safe_rename(out_fp.name, self.path)
 
 
 def iter_test_control_env_vars():
@@ -123,7 +197,10 @@ def main():
         help="If using a devpi server for the run, shut it down at the end of the run.",
     )
     parser.add_argument("--it", action="store_true", help="Restrict scope to integration tests.")
+
+    JunitReport.register_options(parser)
     options, passthrough_args = parser.parse_known_args()
+    junit_report = JunitReport.from_options(options)
 
     coloredlogs.install(
         level=options.log_level, fmt="%(levelname)s %(message)s", isatty=options.color
@@ -208,11 +285,14 @@ def main():
             )
         )
 
-    if WINDOWS:
+    if junit_report:
+        args.extend(junit_report.iter_pytest_options())
+
+    try:
         return subprocess.call(args=args, cwd=pex_project_dir(), env=env)
-    else:
-        os.chdir(pex_project_dir())
-        os.execve(args[0], args, env)
+    finally:
+        if junit_report:
+            junit_report.redact()
 
 
 if __name__ == "__main__":

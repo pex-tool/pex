@@ -243,27 +243,52 @@ jobs:
             test-cmd: test-py313-pip25_0
             artifact-name: unit
             cache: true
-            pex-test-pos-args: ${{ needs.setup.outputs.pex_test_posargs }} -o junit_logging=no --junit-xml ../dist/test-results/unit.xml
+            pex-test-pos-args: >-
+              ${{ needs.setup.outputs.pex_test_posargs }}
+              --junit-report ../dist/test-results/unit.xml
+              --junit-report-suppress-stdio
+              --junit-report-redact "${{ secrets.GITHUB_TOKEN }}"
+              --junit-report-redact "${{ secrets.SSH_PRIVATE_KEY }}"
           - python-version: [ 3, 13 ]
             test-cmd: test-py313-pip25_0-integration
             artifact-name: integration-1
             cache: true
-            pex-test-pos-args: --shard 1/4 ${{ needs.setup.outputs.pex_test_posargs }} -o junit_logging=no --junit-xml ../dist/test-results/integration-1.xml
+            pex-test-pos-args: >-
+              --shard 1/4 ${{ needs.setup.outputs.pex_test_posargs }}
+              --junit-report ../dist/test-results/integration-1.xml
+              --junit-report-suppress-stdio
+              --junit-report-redact "${{ secrets.GITHUB_TOKEN }}"
+              --junit-report-redact "${{ secrets.SSH_PRIVATE_KEY }}"
           - python-version: [ 3, 13 ]
             test-cmd: test-py313-pip25_0-integration
             artifact-name: integration-2
             cache: true
-            pex-test-pos-args: --shard 2/4 ${{ needs.setup.outputs.pex_test_posargs }} -o junit_logging=no --junit-xml ../dist/test-results/integration-2.xml
+            pex-test-pos-args: >-
+              --shard 2/4 ${{ needs.setup.outputs.pex_test_posargs }}
+              --junit-report ../dist/test-results/integration-2.xml
+              --junit-report-suppress-stdio
+              --junit-report-redact "${{ secrets.GITHUB_TOKEN }}"
+              --junit-report-redact "${{ secrets.SSH_PRIVATE_KEY }}"
           - python-version: [ 3, 13 ]
             test-cmd: test-py313-pip25_0-integration
             artifact-name: integration-3
             cache: true
-            pex-test-pos-args: --shard 3/4 ${{ needs.setup.outputs.pex_test_posargs }} -o junit_logging=no --junit-xml ../dist/test-results/integration-3.xml
+            pex-test-pos-args: >-
+              --shard 3/4 ${{ needs.setup.outputs.pex_test_posargs }}
+              --junit-report ../dist/test-results/integration-3.xml
+              --junit-report-suppress-stdio
+              --junit-report-redact "${{ secrets.GITHUB_TOKEN }}"
+              --junit-report-redact "${{ secrets.SSH_PRIVATE_KEY }}"
           - python-version: [ 3, 13 ]
             test-cmd: test-py313-pip25_0-integration
             artifact-name: integration-4
             cache: true
-            pex-test-pos-args: --shard 4/4 ${{ needs.setup.outputs.pex_test_posargs }} -o junit_logging=no --junit-xml ../dist/test-results/integration-4.xml
+            pex-test-pos-args: >-
+              --shard 4/4 ${{ needs.setup.outputs.pex_test_posargs }}
+              --junit-report ../dist/test-results/integration-4.xml
+              --junit-report-suppress-stdio
+              --junit-report-redact "${{ secrets.GITHUB_TOKEN }}"
+              --junit-report-redact "${{ secrets.SSH_PRIVATE_KEY }}"
     steps:
       - name: Checkout Pex
         uses: actions/checkout@v4
