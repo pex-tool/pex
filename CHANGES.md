@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.33.9
+
+Fix argv0 in PEX scies to point to the scie itself instead of the unpacked PEX in the nce cache.
+
+* Fix argv0 in PEX scies to point to the scie itself. (#2738)
+
 ## 2.33.8
 
 This release only upgrades the Pex PEX scies from Python 3.13.1 to 3.13.3.
@@ -9,7 +15,10 @@ The main thrust of the release is to kick the tires on Pex's new build system wh
 
 ## 2.33.7
 
-This release fixes `PEX_TOOLS=1 ./path/to/pex` for PEXes using venv-execution and sh-bootstrapping (that is, built with `--sh-boot --venv=... --include-tools` ). Previously, the `PEX_TOOLS=1` was ignored if the venv already existed in the `PEX_ROOT` (for instance, if the PEX had already been run).
+This release fixes `PEX_TOOLS=1 ./path/to/pex` for PEXes using venv-execution and sh-bootstrapping
+(that is, built with `--sh-boot --venv=... --include-tools` ). Previously, the `PEX_TOOLS=1` was
+ignored if the venv already existed in the `PEX_ROOT` (for instance, if the PEX had already been
+run).
 
 * Avoid fast-path in `--sh-boot` script when `PEX_TOOLS=1`. (#2726)
 
