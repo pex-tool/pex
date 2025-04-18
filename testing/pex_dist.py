@@ -30,7 +30,7 @@ def wheel():
 
     def dir_hash(rel_path):
         # type: (str) -> str
-        return CacheHelper.dir_hash(os.path.join(pex_dir, "build-backend"), hasher=hasher)
+        return CacheHelper.dir_hash(os.path.join(pex_dir, rel_path), hasher=hasher)
 
     pex_wheel_inputs_fingerprint = hasher(
         json.dumps(
@@ -39,8 +39,8 @@ def wheel():
                 "build-system": {
                     "build-backend": dir_hash("build-backend"),
                     "pyproject.toml": file_hash("pyproject.toml"),
-                    "setup.cfg": file_hash("pyproject.toml"),
-                    "setup.py": file_hash("pyproject.toml"),
+                    "setup.cfg": file_hash("setup.cfg"),
+                    "setup.py": file_hash("setup.py"),
                 },
                 "code": dir_hash("pex"),
             },

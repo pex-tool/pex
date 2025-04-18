@@ -114,7 +114,7 @@ def boot(
         argv.extend(sys.argv)
         safe_execv(argv)
 
-    pex_file = os.environ.get("PEX", None)
+    pex_file = os.environ.get("__PEX_EXE__") or os.environ.get("PEX")
     if pex_file:
         pex_file_path = os.path.realpath(pex_file)
         if os.path.isfile(pex_file_path):
