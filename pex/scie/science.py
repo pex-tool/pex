@@ -82,7 +82,7 @@ def _science_binary_url(suffix=""):
 
 
 PTEX_VERSION = "1.5.1"
-SCIE_JUMP_VERSION = "1.6.1"
+SCIE_JUMP_VERSION = "1.7.0"
 
 
 class Filenames(Enum["Filenames.Value"]):
@@ -150,12 +150,19 @@ def create_manifests(
                     configuration.options.busybox_pex_entrypoint_env_passthrough
                     and named_entry_point.entry_point == pex_entry_point
                 ):
-                    env = {"default": default_env(named_entry_point), "remove_exact": ["PEX_VENV"]}
+                    env = {
+                        "default": default_env(named_entry_point),
+                        "remove_exact": ["PEX_VENV"],
+                        "replace": {"__PEX_EXE__": "{scie.argv0}"},
+                    }
                 else:
                     env = {
                         "default": default_env(named_entry_point),
-                        "replace": {"PEX_MODULE": str(named_entry_point.entry_point)},
                         "remove_exact": ["PEX_INTERPRETER", "PEX_SCRIPT", "PEX_VENV"],
+                        "replace": {
+                            "__PEX_EXE__": "{scie.argv0}",
+                            "PEX_MODULE": str(named_entry_point.entry_point),
+                        },
                     }
                 return {
                     "name": named_entry_point.name,
@@ -179,6 +186,7 @@ def create_manifests(
                                 "PEX_SCRIPT",
                                 "PEX_VENV",
                             ],
+                            "replace": {"__PEX_EXE__": "{scie.argv0}"},
                         },
                         "exe": "{scie.bindings.configure:PYTHON}",
                         "args": args(
@@ -196,6 +204,7 @@ def create_manifests(
             yield {
                 "env": {
                     "remove_exact": ["PEX_VENV"],
+                    "replace": {"__PEX_EXE__": "{scie.argv0}"},
                 },
                 "exe": "{scie.bindings.configure:PYTHON}",
                 "args": ["{scie.bindings.configure:PEX}"],
