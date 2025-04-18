@@ -8,11 +8,10 @@ import os.path
 from textwrap import dedent
 
 import pytest
-from tools.commands.test_venv import make_env
 
 from pex.common import safe_open
 from pex.typing import TYPE_CHECKING
-from testing import subprocess
+from testing import make_env, subprocess
 from testing.cli import run_pex3
 
 if TYPE_CHECKING:
