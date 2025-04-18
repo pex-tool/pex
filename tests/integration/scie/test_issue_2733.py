@@ -13,7 +13,6 @@ from testing import run_pex_command
 from testing.pytest_utils.tmp import Tempdir
 from testing.scie import skip_if_no_provider
 
-
 if TYPE_CHECKING:
     from typing import List
 
