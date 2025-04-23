@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.33.10-WIP
+
+This release follows up on the PEX scie argv0 fix in #2738 to further ensure the argv0 of a PEX scie
+is the absolute path of the scie.
+
+* Fix PEX scie argv0 to be the scie absolute path. (#2741)
+
 ## 2.33.9
 
 Fix argv0 in PEX scies to point to the scie itself instead of the unpacked PEX in the nce cache.
