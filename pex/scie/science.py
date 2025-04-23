@@ -153,14 +153,14 @@ def create_manifests(
                     env = {
                         "default": default_env(named_entry_point),
                         "remove_exact": ["PEX_VENV"],
-                        "replace": {"__PEX_EXE__": "{scie.argv0}"},
+                        "replace": {"__PEX_EXE__": "{scie}"},
                     }
                 else:
                     env = {
                         "default": default_env(named_entry_point),
                         "remove_exact": ["PEX_INTERPRETER", "PEX_SCRIPT", "PEX_VENV"],
                         "replace": {
-                            "__PEX_EXE__": "{scie.argv0}",
+                            "__PEX_EXE__": "{scie}",
                             "PEX_MODULE": str(named_entry_point.entry_point),
                         },
                     }
@@ -186,7 +186,7 @@ def create_manifests(
                                 "PEX_SCRIPT",
                                 "PEX_VENV",
                             ],
-                            "replace": {"__PEX_EXE__": "{scie.argv0}"},
+                            "replace": {"__PEX_EXE__": "{scie}"},
                         },
                         "exe": "{scie.bindings.configure:PYTHON}",
                         "args": args(
@@ -204,7 +204,7 @@ def create_manifests(
             yield {
                 "env": {
                     "remove_exact": ["PEX_VENV"],
-                    "replace": {"__PEX_EXE__": "{scie.argv0}"},
+                    "replace": {"__PEX_EXE__": "{scie}"},
                 },
                 "exe": "{scie.bindings.configure:PYTHON}",
                 "args": ["{scie.bindings.configure:PEX}"],
