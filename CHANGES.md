@@ -1,11 +1,13 @@
 # Release Notes
 
-## 2.33.10-WIP
+## 2.33.10
 
 This release follows up on the PEX scie argv0 fix in #2738 to further ensure the argv0 of a PEX scie
-is the absolute path of the scie.
+is the absolute path of the scie. In addition, a regression for PEX scies with no entry point is
+fixed, allowing such PEX scies to be used as `--python` targets in Pex invocations.
 
 * Fix PEX scie argv0 to be the scie absolute path. (#2741)
+* Fix entrypoint-less PEX scies used as `--python`. (#2742)
 
 ## 2.33.9
 
