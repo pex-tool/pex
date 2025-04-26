@@ -220,6 +220,16 @@ def test_latest_pip_version(parser):
     assert pip_configuration.version is PipVersion.LATEST
 
 
+def test_latest_compatible_pip_version(parser):
+    # type: (ArgumentParser) -> None
+    resolver_options.register(parser)
+
+    pip_configuration = compute_pip_configuration(
+        parser, args=["--pip-version", "latest-compatible"]
+    )
+    assert pip_configuration.version is PipVersion.LATEST_COMPATIBLE
+
+
 def test_resolver_version_invalid(parser):
     # type: (ArgumentParser) -> None
     resolver_options.register(parser)

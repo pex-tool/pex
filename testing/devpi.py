@@ -164,7 +164,7 @@ def ensure_devpi_server():
                         "venv",
                         "create",
                         "--pip-version",
-                        "latest",
+                        "latest-compatible",
                         "--intransitive",
                         "-r",
                         locked_reqs,
