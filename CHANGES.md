@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.34.0
+
+This release add support for `--pip-version 25.1`.
+
+* Add support for `--pip-version 25.1`. (#2744)
+
 ## 2.33.10
 
 This release follows up on the PEX scie argv0 fix in #2738 to further ensure the argv0 of a PEX scie

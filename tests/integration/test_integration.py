@@ -130,7 +130,7 @@ def test_pex_root_build():
 
 @skip_if_only_vendored_pip_supported
 def test_pex_root_run(
-    pex_project_dir,  # type: str
+    pex_wheel,  # type: str
     tmpdir,  # type: Any
 ):
     # type: (...) -> None
@@ -149,7 +149,7 @@ def test_pex_root_run(
     args = [
         "--pip-version",
         PipVersion.LATEST_COMPATIBLE.value,
-        pex_project_dir,
+        pex_wheel,
         "-o",
         pex_pex,
         "-c",

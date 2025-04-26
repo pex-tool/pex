@@ -13,7 +13,17 @@ from pex.third_party.packaging.tags import Tag, parse_tag
 from pex.typing import TYPE_CHECKING, cast, overload
 
 if TYPE_CHECKING:
-    from typing import Iterable, Iterator, List, Mapping, MutableMapping, Optional, Tuple, Union
+    from typing import (
+        Iterable,
+        Iterator,
+        List,
+        Mapping,
+        MutableMapping,
+        Optional,
+        Text,
+        Tuple,
+        Union,
+    )
 
     import attr  # vendor:skip
 else:
@@ -56,7 +66,7 @@ class CompatibilityTags(object):
 
     @classmethod
     def from_wheel(cls, wheel):
-        # type: (str) -> CompatibilityTags
+        # type: (Text) -> CompatibilityTags
         if not is_wheel(wheel):
             raise ValueError(
                 "Can only calculate wheel tags from a filename that ends in .whl per "

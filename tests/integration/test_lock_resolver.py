@@ -20,9 +20,10 @@ from pex.interpreter import PythonInterpreter
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pex_info import PexInfo
+from pex.pip.version import PipVersion
 from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper
-from testing import IS_PYPY, PY_VER, built_wheel, make_env, run_pex_command, subprocess
+from testing import IS_PYPY, PY38, PY310, PY_VER, built_wheel, make_env, run_pex_command, subprocess
 from testing.cli import run_pex3
 from testing.lock import index_lock_artifacts
 from testing.pytest_utils.tmp import Tempdir, TempdirFactory
@@ -280,6 +281,15 @@ def test_unavailable_artifacts(
     )
 
 
+@pytest.mark.skipif(
+    not all(
+        PipVersion.DEFAULT.requires_python_applies(Version(version)) for version in (PY38, PY310)
+    ),
+    reason=(
+        "Test requires running against Python 3.8 and Python 3.10 with the current default "
+        "`--pip-version`."
+    ),
+)
 def test_multiplatform(
     tmpdir,  # type: Tempdir
     py38,  # type: PythonInterpreter
@@ -475,8 +485,9 @@ def test_issue_1717_transitive_extras(
         *expected_project_names  # type: str
     ):
         # type: (...) -> None
-        assert set(expected_project_names) == {
-            ProjectNameAndVersion.from_filename(d).project_name for d in pex_info.distributions
+        assert set(map(ProjectName, expected_project_names)) == {
+            ProjectNameAndVersion.from_filename(d).canonicalized_project_name
+            for d in pex_info.distributions
         }
 
     # N.B.: Pex 2.1.78 only works on CPython 3.10 and older and PyPy 3.7 and older.

@@ -348,10 +348,24 @@ class PipVersion(Enum["PipVersionValue"]):
         requires_python=">=3.8,<3.15",
     )
 
+    v25_1 = PipVersionValue(
+        version="25.1",
+        setuptools_version="79.0.1",
+        wheel_version="0.45.1",
+        requires_python=">=3.9,<3.15",
+    )
+
     VENDORED = v20_3_4_patched
     LATEST = LatestPipVersion()
     LATEST_COMPATIBLE = LatestCompatiblePipVersion()
-    DEFAULT = DefaultPipVersion(preferred=(VENDORED, v23_2, v24_1))
+    DEFAULT = DefaultPipVersion(
+        preferred=(
+            VENDORED,  # Default for Python 3.11 and older.
+            v23_2,  # First to support 3.12.
+            v24_1,  # First with 3.8 lower bound and first to support 3.14.
+            v25_1,  # First with 3.9 lower bound.
+        )
+    )
 
 
 PipVersion.seal()

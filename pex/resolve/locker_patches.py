@@ -53,13 +53,16 @@ def patch_marker_evaluate():
     # by ensuring our value for `python_full_version`, either a `skip` sentinel or a list value,
     # both support the `endswith(value)` test and always return `False`.
     class NeverEndsWithMixin(object):
-        def endswith(self, _):
-            # type: (str) -> bool
+        def endswith(self, *args, **kwargs):
+            # type: (...) -> bool
             return False
 
-    skip = NeverEndsWithMixin()
+    class NeverEndsWithStr(NeverEndsWithMixin, str):
+        pass
 
-    class EndsWithList(NeverEndsWithMixin, list):
+    skip = NeverEndsWithStr()
+
+    class NeverEndsWithList(NeverEndsWithMixin, list):
         pass
 
     def versions_to_string(
@@ -81,7 +84,7 @@ def patch_marker_evaluate():
             version_modifier=lambda version: (
                 version + "local" if version.endswith("+") else version
             ),
-            list_type=EndsWithList,
+            list_type=NeverEndsWithList,
         )
         or skip
     )
@@ -141,18 +144,76 @@ def patch_marker_evaluate():
             for right in (rhs if isinstance(rhs, list) else [rhs])
         )
 
+    def _evaluate_markers(
+        marker_values,  # type: List[Any]
+        environment,  # type: Dict[str, str]
+    ):
+        # type: (...) -> bool
+        groups = [[]]  # type: List[List[bool]]
+
+        for marker in marker_values:
+            if isinstance(marker, list):
+                groups[-1].append(_evaluate_markers(marker, environment))
+            elif isinstance(marker, tuple):
+                lhs, op, rhs = marker
+
+                if isinstance(lhs, markers.Variable):
+                    lhs_value = EvaluationEnvironment.get_env(environment, lhs.value)
+                    rhs_value = rhs.value
+                else:
+                    lhs_value = lhs.value
+                    rhs_value = EvaluationEnvironment.get_env(environment, rhs.value)
+
+                groups[-1].append(_eval_op(lhs_value, op, rhs_value))
+            else:
+                assert marker in ["and", "or"]
+                if marker == "or":
+                    groups.append([])
+
+        return any(all(item) for item in groups)
+
     # Works with all Pip vendored packaging distributions.
     markers.default_environment = EvaluationEnvironment
+
     # Covers Pip<24.1 vendored packaging.
     markers._get_env = EvaluationEnvironment.get_env
 
     markers._eval_op = _eval_op
+
+    # Covers Pip>=25.1 vendored packaging where an assertion is added in the tuple case that lhs is
+    # a string, defeating our EvaluationEnvironment patching above which returns lists of strings
+    # for some environment markers. If it weren't for the assertion, we could use the existing
+    # function.
+    markers._evaluate_markers = _evaluate_markers
 
 
 def patch_wheel_model():
     from pip._internal.models.wheel import Wheel
 
     Wheel.support_index_min = lambda *args, **kwargs: 0
+
+    # N.B.: Pip 25.1 updated the Wheel model, removing pyversions, abis and plats and replacing
+    # these with a set of file-tags Tag objects. We unify with these helpers.
+
+    def get_abi_info(self):
+        if hasattr(self, "abis"):
+            abis = list(self.abis)
+        else:
+            abis = [file_tag.abi for file_tag in self.file_tags]
+
+        is_abi3 = ["abi3"] == abis
+        is_abi_none = ["none"] == abis
+        return is_abi3, is_abi_none
+
+    def get_py_versions(self):
+        if hasattr(self, "pyversions"):
+            return self.pyversions
+        return tuple(file_tag.interpreter for file_tag in self.file_tags)
+
+    def get_platforms(self):
+        if hasattr(self, "plats"):
+            return self.plats
+        return tuple(file_tag.platform for file_tag in self.file_tags)
 
     supported_checks = [lambda *args, **kwargs: True]
     if python_versions:
@@ -161,10 +222,8 @@ def patch_wheel_model():
         def supported_version(self, *_args, **_kwargs):
             if not hasattr(self, "_versions"):
                 versions = set()
-                abis = list(self.abis)
-                is_abi3 = ["abi3"] == abis
-                is_abi_none = ["none"] == abis
-                for pyversion in self.pyversions:
+                is_abi3, is_abi_none = get_abi_info(self)
+                for pyversion in get_py_versions(self):
                     # For the format, see: https://peps.python.org/pep-0425/#python-tag
                     match = re.search(r"^(?P<impl>\D{2,})(?P<major>\d)(?P<minor>\d+)?", pyversion)
                     if not match:
@@ -196,10 +255,11 @@ def patch_wheel_model():
         import re
 
         def supported_platform_tag(self, *_args, **_kwargs):
-            if any(plat == "any" for plat in self.plats):
+            platforms = get_platforms(self)
+            if any(plat == "any" for plat in platforms):
                 return True
             for platform_tag_regexp in platform_tag_regexps:
-                if any(re.search(platform_tag_regexp, plat) for plat in self.plats):
+                if any(re.search(platform_tag_regexp, plat) for plat in platforms):
                     return True
             return False
 

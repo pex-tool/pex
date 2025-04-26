@@ -84,7 +84,7 @@ jobs:
           # Unit tests:
           # -----------
           - test-cmd: test-py27-pip20.3.4--patched
-          - test-cmd: test-py313-pip25.0.1
+          - test-cmd: test-py313-pip25.1
           - test-cmd: test-pypy310-pip24.3.1
 
           # Integration tests, split most into two shards:
@@ -93,19 +93,19 @@ jobs:
           # CPython 2.7 is fast enough not to require sharding.
           - test-cmd: test-py27-pip20.3.4--patched-integration
 
-          - test-cmd: test-py38-pip22_3_1-integration
+          - test-cmd: test-py38-pip22.3.1-integration
             pex-test-pos-args: --shard 1/2
-          - test-cmd: test-py38-pip22_3_1-integration
+          - test-cmd: test-py38-pip22.3.1-integration
             pex-test-pos-args: --shard 2/2
 
-          - test-cmd: test-py313-pip25.0.1-integration
+          - test-cmd: test-py313-pip25.1-integration
             pex-test-pos-args: --shard 1/2
-          - test-cmd: test-py313-pip25.0.1-integration
+          - test-cmd: test-py313-pip25.1-integration
             pex-test-pos-args: --shard 2/2
 
-          - test-cmd: test-py314-pip25.0.1-integration
+          - test-cmd: test-py314-pip25.1-integration
             pex-test-pos-args: --shard 1/2
-          - test-cmd: test-py314-pip25.0.1-integration
+          - test-cmd: test-py314-pip25.1-integration
             pex-test-pos-args: --shard 2/2
 
           - test-cmd: test-pypy310-pip24.3.1-integration
@@ -153,16 +153,16 @@ jobs:
       matrix:
         include:
           - python-version: [ 3, 13 ]
-            test-cmd: test-py313-pip25.0.1
+            test-cmd: test-py313-pip25.1
             cache: true
             test-cmd-python: python3.11
           - python-version: [ 3, 13 ]
-            test-cmd: test-py313-pip25.0.1-integration
+            test-cmd: test-py313-pip25.1-integration
             cache: true
             test-cmd-python: python3.11
             pex-test-pos-args: --shard 1/2
           - python-version: [ 3, 13 ]
-            test-cmd: test-py313-pip25.0.1-integration
+            test-cmd: test-py313-pip25.1-integration
             cache: true
             test-cmd-python: python3.11
             pex-test-pos-args: --shard 2/2
@@ -240,27 +240,27 @@ jobs:
           - python-version: [ 3, 11 ]
             test-cmd: typecheck package docs
           - python-version: [ 3, 13 ]
-            test-cmd: test-py313-pip25_0
+            test-cmd: test-py313-pip25.1
             artifact-name: unit
             cache: true
             pex-test-pos-args: --junit-report ../dist/test-results/unit.xml
           - python-version: [ 3, 13 ]
-            test-cmd: test-py313-pip25_0-integration
+            test-cmd: test-py313-pip25.1-integration
             artifact-name: integration-1
             cache: true
             pex-test-pos-args: --shard 1/4 --junit-report ../dist/test-results/integration-1.xml
           - python-version: [ 3, 13 ]
-            test-cmd: test-py313-pip25_0-integration
+            test-cmd: test-py313-pip25.1-integration
             artifact-name: integration-2
             cache: true
             pex-test-pos-args: --shard 2/4 --junit-report ../dist/test-results/integration-2.xml
           - python-version: [ 3, 13 ]
-            test-cmd: test-py313-pip25_0-integration
+            test-cmd: test-py313-pip25.1-integration
             artifact-name: integration-3
             cache: true
             pex-test-pos-args: --shard 3/4 --junit-report ../dist/test-results/integration-3.xml
           - python-version: [ 3, 13 ]
-            test-cmd: test-py313-pip25_0-integration
+            test-cmd: test-py313-pip25.1-integration
             artifact-name: integration-4
             cache: true
             pex-test-pos-args: --shard 4/4 --junit-report ../dist/test-results/integration-4.xml

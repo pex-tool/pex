@@ -31,7 +31,7 @@ from pex.targets import AbbreviatedPlatform, LocalInterpreter, Target
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
 from pex.venv.virtualenv import Virtualenv
-from testing import IS_LINUX, PY310, ensure_python_interpreter
+from testing import IS_LINUX, PY38, PY310, ensure_python_interpreter
 from testing.pytest_utils.tmp import Tempdir
 
 if TYPE_CHECKING:
@@ -144,7 +144,14 @@ def package_index_configuration(
     ),
     reason="Test requires a manylinux2014_x86_64 compatible interpreter.",
 )
-@applicable_pip_versions
+@pytest.mark.parametrize(
+    "version",
+    [
+        pytest.param(version, id=str(version))
+        for version in PipVersion.values()
+        if version.requires_python_applies(Version(PY38))
+    ],
+)
 def test_download_platform_issues_1355(
     create_pip,  # type: CreatePip
     version,  # type: PipVersionValue
