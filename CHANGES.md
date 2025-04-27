@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.35.0
+
+This release adds support for the `--resume-retries` option available in Pip 25.1. If you configure
+Pex to use Pip 25.1 or newer, it will now try to resume incomplete downloads 3 times by default.
+
+* Add support for `--resume-retries` in Pip 25.1. (#2746)
+
 ## 2.34.0
 
 This release add support for `--pip-version 25.1` as well as `--pip-version latest-compatible`. The
