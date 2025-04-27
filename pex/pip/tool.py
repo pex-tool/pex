@@ -62,14 +62,14 @@ else:
     from pex.third_party import attr
 
 
-class PackageIndexConfiguration(object):
-    @staticmethod
-    def _calculate_args(
-        indexes=None,  # type: Optional[Sequence[str]]
-        find_links=None,  # type: Optional[Iterable[str]]
-        network_configuration=None,  # type: Optional[NetworkConfiguration]
-    ):
-        # type: (...) -> Iterator[str]
+@attr.s(frozen=True)
+class PipArgs(object):
+    indexes = attr.ib(default=None)  # type: Optional[Sequence[str]]
+    find_links = attr.ib(default=None)  # type: Optional[Iterable[str]]
+    network_configuration = attr.ib(default=None)  # type: Optional[NetworkConfiguration]
+
+    def iter(self, version):
+        # type: (PipVersionValue) -> Iterator[str]
 
         # N.B.: `--cert` and `--client-cert` are passed via env var to work around:
         #   https://github.com/pypa/pip/issues/5502
@@ -87,11 +87,11 @@ class PackageIndexConfiguration(object):
 
         # N.B.: We interpret None to mean accept pip index defaults, [] to mean turn off all index
         # use.
-        if indexes is not None and tuple(indexes) != ReposConfiguration().indexes:
-            if len(indexes) == 0:
+        if self.indexes is not None and tuple(self.indexes) != ReposConfiguration().indexes:
+            if len(self.indexes) == 0:
                 yield "--no-index"
             else:
-                all_indexes = deque(indexes)
+                all_indexes = deque(self.indexes)
                 yield "--index-url"
                 yield maybe_trust_insecure_host(all_indexes.popleft())
                 if all_indexes:
@@ -99,8 +99,8 @@ class PackageIndexConfiguration(object):
                         yield "--extra-index-url"
                         yield maybe_trust_insecure_host(extra_index)
 
-        if find_links:
-            for find_link_url in find_links:
+        if self.find_links:
+            for find_link_url in self.find_links:
                 yield "--find-links"
                 yield maybe_trust_insecure_host(find_link_url)
 
@@ -108,14 +108,20 @@ class PackageIndexConfiguration(object):
             yield "--trusted-host"
             yield trusted_host
 
-        network_configuration = network_configuration or NetworkConfiguration()
+        network_configuration = self.network_configuration or NetworkConfiguration()
 
         yield "--retries"
         yield str(network_configuration.retries)
 
+        if version >= PipVersion.v25_1:
+            yield "--resume-retries"
+            yield str(network_configuration.resume_retries)
+
         yield "--timeout"
         yield str(network_configuration.timeout)
 
+
+class PackageIndexConfiguration(object):
     @staticmethod
     def _calculate_env(
         network_configuration,  # type: NetworkConfiguration
@@ -167,8 +173,10 @@ class PackageIndexConfiguration(object):
             pip_version=pip_version,
             resolver_version=resolver_version,
             network_configuration=network_configuration,
-            args=cls._calculate_args(
-                indexes=indexes, find_links=find_links, network_configuration=network_configuration
+            args=PipArgs(
+                indexes=indexes,
+                find_links=find_links,
+                network_configuration=network_configuration,
             ),
             env=cls._calculate_env(
                 network_configuration=network_configuration, use_pip_config=use_pip_config
@@ -183,7 +191,7 @@ class PackageIndexConfiguration(object):
         self,
         resolver_version,  # type: ResolverVersion.Value
         network_configuration,  # type: NetworkConfiguration
-        args,  # type: Iterable[str]
+        args,  # type: PipArgs
         env,  # type: Iterable[Tuple[str, str]]
         use_pip_config,  # type: bool
         password_entries=(),  # type: Iterable[PasswordEntry]
@@ -194,7 +202,7 @@ class PackageIndexConfiguration(object):
         # type: (...) -> None
         self.resolver_version = resolver_version  # type: ResolverVersion.Value
         self.network_configuration = network_configuration  # type: NetworkConfiguration
-        self.args = tuple(args)  # type: Iterable[str]
+        self.args = args  # type: PipArgs
         self.env = dict(env)  # type: Mapping[str, str]
         self.use_pip_config = use_pip_config  # type: bool
         self.password_entries = password_entries  # type: Iterable[PasswordEntry]
@@ -451,7 +459,7 @@ class Pip(object):
         # registered as subcommand-specific, so we must append them here _after_ the pip subcommand
         # specified in `args`.
         if package_index_configuration:
-            command.extend(package_index_configuration.args)
+            command.extend(package_index_configuration.args.iter(self.version))
 
         extra_env = extra_env or {}
         if package_index_configuration:

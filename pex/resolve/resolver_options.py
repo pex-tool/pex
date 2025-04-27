@@ -519,6 +519,15 @@ def register_network_options(parser):
         help="Maximum number of retries each connection should attempt.",
     )
     parser.add_argument(
+        "--resume-retries",
+        default=default_network_configuration.resume_retries,
+        type=int,
+        help=(
+            "Maximum attempts to resume or restart an incomplete download. N.B.: This only takes "
+            "effect when using Pip 25.1 or newer."
+        ),
+    )
+    parser.add_argument(
         "--timeout",
         metavar="SECS",
         default=default_network_configuration.timeout,
