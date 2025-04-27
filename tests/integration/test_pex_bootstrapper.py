@@ -14,11 +14,16 @@ import pytest
 from pex.cache.dirs import CacheDir, InterpreterDir
 from pex.common import safe_open
 from pex.compatibility import commonpath
+from pex.dist_metadata import ProjectNameAndVersion
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import InterpreterConstraint
+from pex.pep_425 import CompatibilityTags
+from pex.pep_440 import Version
+from pex.pep_503 import ProjectName
 from pex.pex import PEX
 from pex.pex_bootstrapper import ensure_venv
 from pex.pex_info import PexInfo
+from pex.third_party.packaging.tags import Tag
 from pex.typing import TYPE_CHECKING
 from pex.venv.installer import CollisionError
 from pex.venv.virtualenv import Virtualenv
@@ -230,12 +235,29 @@ def test_ensure_venv_namespace_packages(tmpdir):
         commonpath(list(package_file_installed_wheel_dirs))
     ), "Expected contributing wheel content to be symlinked from the installed wheel cache."
     assert {
-        "twitter.common.{package}-0.3.11-py{py_major}-none-any.whl".format(
-            package=p, py_major=venv_symlinks.interpreter.version[0]
+        (
+            ProjectName("twitter.common.{package}".format(package=p)),
+            Version("0.3.11"),
+            CompatibilityTags(
+                tuple(
+                    [
+                        Tag(
+                            "py{py_major}".format(py_major=venv_symlinks.interpreter.version[0]),
+                            "none",
+                            "any",
+                        )
+                    ]
+                )
+            ),
         )
         for p in ("decorators", "exceptions", "lang", "metrics", "quantity")
     } == {
-        os.path.basename(d) for d in package_file_installed_wheel_dirs
+        (
+            ProjectNameAndVersion.from_filename(d).canonicalized_project_name,
+            ProjectNameAndVersion.from_filename(d).canonicalized_version,
+            CompatibilityTags.from_wheel(d),
+        )
+        for d in package_file_installed_wheel_dirs
     }, "Expected 5 unique contributing wheels."
 
 

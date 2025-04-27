@@ -189,7 +189,7 @@ def create_lock(
             for complete_platform in sorted(complete_platforms)
         ),
         "--pip-version",
-        "latest",
+        "latest-compatible",
         "--allow-pip-version-fallback",
         "--elide-unused-requires-dist",
         "--indent",
@@ -211,7 +211,7 @@ def pex3_binary(platform: PlatformConfig) -> Iterator[str]:
                 "-m",
                 "pex",
                 "--pip-version",
-                "latest",
+                "latest-compatible",
                 "--allow-pip-version-fallback",
                 ".",
                 "-c",

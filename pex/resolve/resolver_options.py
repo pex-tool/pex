@@ -100,11 +100,15 @@ def register(
         "--pip-version",
         dest="pip_version",
         default=str(PipVersion.DEFAULT),
-        choices=["latest", "vendored"] + [str(value) for value in PipVersion.values()],
+        choices=["latest", "latest-compatible", "vendored"]
+        + [str(value) for value in PipVersion.values()],
         help=(
             "The version of Pip to use for resolving dependencies. The `latest` version refers to "
             "the latest version in this list ({latest}) which is not necessarily the latest Pip "
-            "version released on PyPI.".format(latest=PipVersion.LATEST)
+            "version released on PyPI. The `latest-compatible` version refers to the latest "
+            "version of Pip in this list compatible with the current interpreter.".format(
+                latest=PipVersion.LATEST
+            )
         ),
     )
     parser.add_argument(
@@ -661,6 +665,8 @@ def create_pip_configuration(
     pip_version = None  # type: Optional[PipVersionValue]
     if options.pip_version == "latest":
         pip_version = PipVersion.LATEST
+    elif options.pip_version == "latest-compatible":
+        pip_version = PipVersion.LATEST_COMPATIBLE
     elif options.pip_version == "vendored":
         pip_version = PipVersion.VENDORED
     elif options.pip_version:

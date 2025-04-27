@@ -1,5 +1,13 @@
 # Release Notes
 
+## 2.34.0
+
+This release add support for `--pip-version 25.1` as well as `--pip-version latest-compatible`. The
+`latest-compatible` version will be the latest `--pip-version` supported by Pex compatible with the
+current interpreter running Pex.
+
+* Add support for `--pip-version 25.1`. (#2744)
+
 ## 2.33.10
 
 This release follows up on the PEX scie argv0 fix in #2738 to further ensure the argv0 of a PEX scie
