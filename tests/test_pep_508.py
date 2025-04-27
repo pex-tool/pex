@@ -3,8 +3,10 @@
 
 import pytest
 
+from pex.pep_440 import Version
 from pex.pep_508 import MarkerEnvironment
 from pex.resolve import abbreviated_platforms
+from pex.third_party import packaging
 from pex.third_party.packaging import markers
 from pex.typing import TYPE_CHECKING, cast
 
@@ -33,6 +35,13 @@ def assert_unknown_marker(
         evaluate_marker(expression, env)
 
 
+@pytest.mark.skipif(
+    Version(packaging.__version__) >= Version("25.0"),
+    reason=(
+        "Newer packaging unconditionally checks `python_full_version`. We account for that in "
+        "`pex.pip.foreign_platform.markers.patch` and associated integration tests."
+    ),
+)
 def test_platform_marker_environment():
     # type: () -> None
     platform = abbreviated_platforms.create("linux-x86_64-cp-37-cp37m")

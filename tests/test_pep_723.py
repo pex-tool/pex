@@ -78,9 +78,14 @@ def test_parse_greedy():
 
     with pytest.raises(
         InvalidMetadataError,
-        match=re.escape(
-            "Invalid specifier: 'Invalid specifier with embedded script metadata block trojan.\n"
-            "///'"
+        match=re.compile(
+            "^.*{literal}.*$".format(
+                literal=re.escape(
+                    "Invalid specifier: 'Invalid specifier with embedded script metadata block "
+                    "trojan."
+                ),
+            ),
+            re.DOTALL,
         ),
     ):
         ScriptMetadata.parse(

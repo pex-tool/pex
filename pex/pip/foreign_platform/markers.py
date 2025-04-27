@@ -52,3 +52,10 @@ def patch():
         return original_eval_op(lhs, op, rhs)
 
     markers._eval_op = _eval_op
+
+    # Packaging 24.1+ unconditionally patches the env dict `python_full_version` value to work
+    # around Python dev release versions with a `+` trailer not being valid PEP-440 versions. That
+    # check will needlessly blow up for some of our AbbreviatedPlatform target environments; so we
+    # short-circuit here.
+    if "python_full_version" not in evaluation_environment:
+        markers._repair_python_full_version = lambda env: env
