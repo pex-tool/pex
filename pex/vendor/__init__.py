@@ -243,12 +243,12 @@ def iter_vendor_specs(filter_requires_python=None):
         yield VendorSpec.pinned(
             "packaging", "21.3", import_path="packaging_21_3", constraints=("pyparsing<3.0.8",)
         )
-    if not python_major_minor or python_major_minor >= (3, 7):
-        # Modern packaging for everyone else.
-        # N.B.: We can't upgrade past 24.0 without re-working marker evaluation for
-        # AbbreviatedPlatform since modern versions of packaging unconditionally assume the
-        # `python_full_version` marker will always be populated.
+    if not python_major_minor or python_major_minor == (3, 7):
+        # The last version to support 3.7.
         yield VendorSpec.pinned("packaging", "24.0", import_path="packaging_24_0")
+    if not python_major_minor or python_major_minor >= (3, 8):
+        # Modern packaging for everyone else.
+        yield VendorSpec.pinned("packaging", "25.0", import_path="packaging_25_0")
 
     # We use toml to read pyproject.toml when building sdists from local source projects.
     # The toml project provides compatibility back to Python 2.7, but is frozen in time in 2020

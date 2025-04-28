@@ -1,5 +1,14 @@
 # Release Notes
 
+## 2.36.0
+
+This release brings support for creating PEXes that target Android. The Pip 25.1 upgrade in Pex
+2.34.0 brought support for resolving Android platform-specific wheels and this releases upgrade
+of Pex's vendored packaging to 25.0 brings support for Pex properly dealing with those Android
+platform-specific wheels when packaging PEXes and when booting up from a PEX.
+
+* Upgrade to latest packaging for Python 3.8+. (#2748)
+
 ## 2.35.0
 
 This release adds support for the `--resume-retries` option available in Pip 25.1. If you configure
@@ -9,7 +18,7 @@ Pex to use Pip 25.1 or newer, it will now try to resume incomplete downloads 3 t
 
 ## 2.34.0
 
-This release add support for `--pip-version 25.1` as well as `--pip-version latest-compatible`. The
+This release adds support for `--pip-version 25.1` as well as `--pip-version latest-compatible`. The
 `latest-compatible` version will be the latest `--pip-version` supported by Pex compatible with the
 current interpreter running Pex.
 
