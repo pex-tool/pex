@@ -19,13 +19,21 @@ from setuptools.build_meta import *  # NOQA
 
 from pex import hashing, toml, windows
 from pex.common import open_zip, safe_copy, safe_mkdir, temporary_dir
-from pex.orderedset import OrderedSet
 from pex.pep_376 import Hash, InstalledFile, Record
 from pex.typing import cast
 from pex.version import __version__
 
 if pex_build.TYPE_CHECKING:
     from typing import Any, Dict, List, Optional
+
+
+def get_requires_for_build_sdist(config_settings=None):
+    # type: (Optional[Dict[str, Any]]) -> List[str]
+
+    # N.B.: The default setuptools implementation would eventually return nothing, but only after
+    # running code that can temporarily pollute our project directory, foiling concurrent test runs;
+    # so we short-circuit the answer here. Faster and safer.
+    return []
 
 
 def build_sdist(
@@ -77,17 +85,15 @@ def prepare_metadata_for_build_editable(
 def get_requires_for_build_wheel(config_settings=None):
     # type: (Optional[Dict[str, Any]]) -> List[str]
 
-    reqs = OrderedSet(
-        setuptools.build_meta.get_requires_for_build_wheel(config_settings=config_settings)
-    )  # type: OrderedSet[str]
-    if pex_build.INCLUDE_DOCS:
-        pyproject_data = toml.load("pyproject.toml")
-        return cast(
-            "List[str]",
-            # Here we skip any included dependency groups and just grab the direct doc requirements.
-            [req for req in pyproject_data["dependency-groups"]["docs"] if isinstance(req, str)],
-        )
-    return list(reqs)
+    if not pex_build.INCLUDE_DOCS:
+        return []
+
+    pyproject_data = toml.load("pyproject.toml")
+    return cast(
+        "List[str]",
+        # Here we skip any included dependency groups and just grab the direct doc requirements.
+        [req for req in pyproject_data["dependency-groups"]["docs"] if isinstance(req, str)],
+    )
 
 
 def prepare_metadata_for_build_wheel(
