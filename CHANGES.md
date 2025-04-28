@@ -1,5 +1,18 @@
 # Release Notes
 
+## 2.36.1
+
+This release fixes a few issues with creating Pex locks when source requirements were involved.
+
+Previously, locking VCS requirements would fail for projects with non-normalized project names,
+e.g.: PySocks vs its normalized form of pysocks.
+
+Additionally, locking would fail when the requirements were specified at least in part via
+requirements files (`-r` / `--requirements`) and there was either a local project or a VCS
+requirement contained in the requirements files.
+
+* Fix Pex locking for source requirements. (#2750)
+
 ## 2.36.0
 
 This release brings support for creating PEXes that target Android. The Pip 25.1 upgrade in Pex
