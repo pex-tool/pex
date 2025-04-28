@@ -34,7 +34,7 @@ def _find_built_source_dist(
     # encoded in: `pip._internal.req.req_install.InstallRequirement.archive`.
 
     listing = os.listdir(build_dir)
-    pattern = re.compile(r"(?P<project_name>[^-]+)-(?P<version>.+)\.zip")
+    pattern = re.compile(r"(?P<project_name>.+)-(?P<version>.+)\.zip")
     for name in listing:
         match = pattern.match(name)
         if not match:
