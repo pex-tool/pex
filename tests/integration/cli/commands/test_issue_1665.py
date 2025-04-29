@@ -45,4 +45,4 @@ def test_lock_black(tmpdir):
     cwd = os.path.join(str(tmpdir), "cwd")
     tmpdir = os.path.join(cwd, ".tmp")
     os.makedirs(tmpdir)
-    assert_lock("--tmpdir", ".tmp", cwd=cwd)
+    assert_lock(cwd=cwd)

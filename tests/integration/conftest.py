@@ -9,7 +9,6 @@ import os
 import pytest
 
 from pex.atomic_directory import atomic_directory
-from pex.common import temporary_dir
 from pex.interpreter import PythonInterpreter
 from pex.os import WINDOWS
 from pex.pip.version import PipVersion
@@ -19,7 +18,7 @@ from testing import PY310, data, ensure_python_interpreter, make_env, run_pex_co
 from testing.mitmproxy import Proxy
 
 if TYPE_CHECKING:
-    from typing import Any, Callable, Iterator
+    from typing import Any, Callable
 
 
 @pytest.fixture(scope="session")
@@ -90,18 +89,6 @@ def pex_bdist(
     wheels = glob.glob(os.path.join(wheels_dir, "pex-*.whl"))
     assert 1 == len(wheels)
     return wheels[0]
-
-
-@pytest.fixture
-def tmp_workdir():
-    # type: () -> Iterator[str]
-    cwd = os.getcwd()
-    with temporary_dir() as tmpdir:
-        os.chdir(tmpdir)
-        try:
-            yield os.path.realpath(tmpdir)
-        finally:
-            os.chdir(cwd)
 
 
 @pytest.fixture(scope="session")

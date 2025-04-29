@@ -34,15 +34,16 @@ def _find_built_source_dist(
     # encoded in: `pip._internal.req.req_install.InstallRequirement.archive`.
 
     listing = os.listdir(build_dir)
-    pattern = re.compile(
-        r"{project_name}-(?P<version>.+)\.zip".format(
-            project_name=project_name.normalized.replace("-", "[-_.]+")
-        )
-    )
+    pattern = re.compile(r"(?P<project_name>.+)-(?P<version>.+)\.zip")
     for name in listing:
         match = pattern.match(name)
-        if match and Version(match.group("version")) == version:
-            return os.path.join(build_dir, name)
+        if not match:
+            continue
+        if ProjectName(match.group("project_name")) != project_name:
+            continue
+        if Version(match.group("version")) != version:
+            continue
+        return os.path.join(build_dir, name)
 
     return Error(
         "Expected to find built sdist for {project_name} {version} in {build_dir} but only found:\n"

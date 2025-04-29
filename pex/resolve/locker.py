@@ -216,7 +216,7 @@ class ArtifactBuildObserver(object):
         # type: (str) -> Optional[ArtifactBuildResult]
 
         match = re.search(
-            r"Source in .+ has version (?P<version>[^\s]+), which satisfies requirement "
+            r"Source in .+ has version (?P<version>\S+), which satisfies requirement "
             r"(?P<requirement>.+) .*from {url}".format(url=re.escape(self._artifact_url.raw_url)),
             line,
         )
@@ -434,7 +434,7 @@ class Locker(LogAnalyzer):
             return self.Continue()
 
         match = re.search(
-            r"Fetched page (?P<index_url>[^\s]+) as (?P<content_type>{content_types})".format(
+            r"Fetched page (?P<index_url>.+\S) as (?P<content_type>{content_types})".format(
                 content_types="|".join(
                     re.escape(content_type) for content_type in self._fingerprint_service.accept
                 )
@@ -447,18 +447,20 @@ class Locker(LogAnalyzer):
             )
             return self.Continue()
 
-        match = re.search(r"Looking up \"(?P<url>[^\s]+)\" in the cache", line)
+        match = re.search(r"Looking up \"(?P<url>.+\S)\" in the cache", line)
         if match:
             self._maybe_record_wheel(match.group("url"))
 
-        match = re.search(r"Processing (?P<path>.*\.(whl|tar\.(gz|bz2|xz)|tgz|tbz2|txz|zip))", line)
+        match = re.search(r"Processing (?P<path>.+\.(whl|tar\.(gz|bz2|xz)|tgz|tbz2|txz|zip))", line)
         if match:
             self._maybe_record_wheel(
                 "file://{path}".format(path=os.path.abspath(match.group("path")))
             )
 
         match = re.search(
-            r"Added (?P<requirement>.+) from (?P<url>[^\s]+) .*to build tracker",
+            r"Added (?P<requirement>.+) from (?P<url>.+\S) \(from", line
+        ) or re.search(
+            r"Added (?P<requirement>.+) from (?P<url>.+\S) to build tracker",
             line,
         )
         if match:
@@ -478,13 +480,15 @@ class Locker(LogAnalyzer):
                 )
             return self.Continue()
 
-        match = re.search(r"Added (?P<file_url>file:.+) to build tracker", line)
+        match = re.search(r"Added (?P<file_url>file:.+\S) \(from", line) or re.search(
+            r"Added (?P<file_url>file:.+\S) to build tracker", line
+        )
         if match:
             file_url = match.group("file_url")
             self._artifact_build_observer = ArtifactBuildObserver(
                 done_building_patterns=(
                     re.compile(
-                        r"Removed .+ from {file_url} from build tracker".format(
+                        r"Removed .+ from {file_url} (?:.* )?from build tracker".format(
                             file_url=re.escape(file_url)
                         )
                     ),
@@ -503,7 +507,7 @@ class Locker(LogAnalyzer):
             return self.Continue()
 
         if self.style in (LockStyle.SOURCES, LockStyle.UNIVERSAL):
-            match = re.search(r"Found link (?P<url>[^\s]+)(?: \(from .*\))?, version: ", line)
+            match = re.search(r"Found link (?P<url>\S+)(?: \(from .*\))?, version: ", line)
             if match:
                 url = self.parse_url_and_maybe_record_fingerprint(match.group("url"))
                 pin, partial_artifact = self._extract_resolve_data(url)

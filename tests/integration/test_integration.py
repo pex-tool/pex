@@ -59,6 +59,7 @@ from testing.mitmproxy import Proxy
 from testing.pep_427 import get_installable_type_flag
 from testing.pip import skip_if_only_vendored_pip_supported
 from testing.pytest_utils import IS_CI
+from testing.pytest_utils.tmp import Tempdir
 
 if TYPE_CHECKING:
     from typing import Any, Callable, Iterator, List, Optional, Tuple
@@ -1552,8 +1553,9 @@ def test_unzip_mode(tmpdir):
     assert "PEXWarning: The `PEX_UNZIP` env var is deprecated." in error2.decode("utf-8")
 
 
-def test_tmpdir_absolute(tmp_workdir):
-    # type: (str) -> None
+def test_tmpdir_absolute(tmpdir):
+    # type: (Tempdir) -> None
+    tmp_workdir = str(tmpdir)
     result = run_pex_command(
         args=[
             "--tmpdir",
@@ -1569,26 +1571,27 @@ def test_tmpdir_absolute(tmp_workdir):
                 print(tempfile.gettempdir())
                 """
             ),
-        ]
+        ],
+        cwd=tmp_workdir,
     )
     result.assert_success()
     assert [tmp_workdir, tmp_workdir] == result.output.strip().splitlines()
 
 
-def test_tmpdir_dne(tmp_workdir):
-    # type: (str) -> None
-    tmpdir_dne = os.path.join(tmp_workdir, ".tmp")
-    result = run_pex_command(args=["--tmpdir", ".tmp", "--", "-c", ""])
+def test_tmpdir_dne(tmpdir):
+    # type: (Tempdir) -> None
+    tmpdir_dne = tmpdir.join(".tmp")
+    result = run_pex_command(args=["--tmpdir", ".tmp", "--", "-c", ""], cwd=str(tmpdir))
     result.assert_failure()
     assert tmpdir_dne in result.error
     assert "does not exist" in result.error
 
 
-def test_tmpdir_file(tmp_workdir):
-    # type: (str) -> None
-    tmpdir_file = os.path.join(tmp_workdir, ".tmp")
+def test_tmpdir_file(tmpdir):
+    # type: (Tempdir) -> None
+    tmpdir_file = tmpdir.join(".tmp")
     touch(tmpdir_file)
-    result = run_pex_command(args=["--tmpdir", ".tmp", "--", "-c", ""])
+    result = run_pex_command(args=["--tmpdir", ".tmp", "--", "-c", ""], cwd=str(tmpdir))
     result.assert_failure()
     assert tmpdir_file in result.error
     assert "is not a directory" in result.error
@@ -1601,8 +1604,8 @@ EXAMPLE_PYTHON_REQUIREMENTS_URL = (
 )
 
 
-def test_requirements_network_configuration(proxy, tmp_workdir):
-    # type: (Proxy, str) -> None
+def test_requirements_network_configuration(proxy):
+    # type: (Proxy) -> None
     def req(
         contents,  # type: str
         line_no,  # type: int
