@@ -73,7 +73,9 @@ def subset(
                     os.path.abspath(parsed_requirement.path)
                 )
                 if local_project_requirement:
-                    requirements_to_resolve.add(local_project_requirement)
+                    requirements_to_resolve.add(
+                        attr.evolve(local_project_requirement, editable=parsed_requirement.editable)
+                    )
                 else:
                     missing_local_projects.append(parsed_requirement.line.processed_text)
             else:
@@ -108,6 +110,12 @@ def subset(
             resolveds = []
             errors = []
             for locked_resolve in lock.locked_resolves:
+                # TODO: XXX: Handle --style universal subsets where target applicability needs to
+                #  be looser. Maybe a custom Target type?:
+                #  + requirement_applies
+                #  + requires_python_applies
+                #  + tags / wheel_applies -> may need to invert iter_compatible_artifacts into
+                #    target to filter compatible artifacts.
                 resolve_result = locked_resolve.resolve(
                     target,
                     requirements_to_resolve,

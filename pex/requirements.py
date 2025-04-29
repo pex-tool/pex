@@ -149,7 +149,6 @@ class PyPIRequirement(_ParsedRequirement):
     """A requirement realized through a package index or find links repository."""
 
     requirement = attr.ib()  # type: Requirement
-    editable = attr.ib(default=False)  # type: bool
 
 
 @attr.s(frozen=True)
@@ -158,7 +157,6 @@ class URLRequirement(_ParsedRequirement):
 
     url = attr.ib()  # type: Text
     requirement = attr.ib()  # type: Requirement
-    editable = attr.ib(default=False)  # type: bool
 
 
 class VCS(Enum["VCS.Value"]):
@@ -181,7 +179,6 @@ class VCSRequirement(_ParsedRequirement):
     vcs = attr.ib()  # type: VCS.Value
     url = attr.ib()  # type: Text
     requirement = attr.ib()  # type: Requirement
-    editable = attr.ib(default=False)  # type: bool
 
 
 def parse_requirement_from_project_name_and_specifier(
@@ -189,6 +186,8 @@ def parse_requirement_from_project_name_and_specifier(
     extras=None,  # type: Optional[Iterable[str]]
     specifier=None,  # type: Optional[SpecifierSet]
     marker=None,  # type: Optional[Marker]
+    editable=False,  # type: bool
+    url=None,  # type: Optional[Text]
 ):
     # type: (...) -> Requirement
     requirement_string = "{project_name}{extras}{specifier}".format(
@@ -198,13 +197,14 @@ def parse_requirement_from_project_name_and_specifier(
     )
     if marker:
         requirement_string += ";" + str(marker)
-    return Requirement.parse(requirement_string)
+    return attr.evolve(Requirement.parse(requirement_string, editable=editable), url=url)
 
 
 def parse_requirement_from_dist(
     dist,  # type: str
     extras=None,  # type: Optional[Iterable[str]]
     marker=None,  # type: Optional[Marker]
+    editable=False,  # type: bool
 ):
     # type: (...) -> Requirement
     project_name_and_version = dist_metadata.project_name_and_version(dist)
@@ -221,6 +221,7 @@ def parse_requirement_from_dist(
         extras=extras,
         specifier=project_name_and_specifier.specifier,
         marker=marker,
+        editable=editable,
     )
 
 
@@ -236,7 +237,7 @@ class LocalProjectRequirement(_ParsedRequirement):
     def as_requirement(self, dist):
         # type: (str) -> Requirement
         """Create a requirement given a distribution that was built from this local project."""
-        return parse_requirement_from_dist(dist, self.extras, self.marker)
+        return parse_requirement_from_dist(dist, self.extras, self.marker, self.editable)
 
 
 if TYPE_CHECKING:
@@ -523,11 +524,12 @@ def _parse_requirement_line(
             extras=extras,
             specifier=specifier,
             marker=marker,
+            url=url,
         )
         if isinstance(parsed_scheme, VCSScheme):
             url = urlparse.urlparse(url)._replace(scheme=parsed_scheme.scheme).geturl()
-            return VCSRequirement(line, parsed_scheme.vcs, url, requirement, editable=editable)
-        return URLRequirement(line, url, requirement, editable=editable)
+            return VCSRequirement(line, parsed_scheme.vcs, url, requirement)
+        return URLRequirement(line, url, requirement)
 
     # Handle local archives and project directories via path or file URL (Pip proprietary).
     local_requirement = parsed_url._replace(scheme="").geturl()
@@ -556,7 +558,7 @@ def _parse_requirement_line(
             requirement = parse_requirement_from_dist(
                 archive_or_project_path, extras=extras, marker=marker
             )
-            return URLRequirement(line, archive_or_project_path, requirement, editable=editable)
+            return URLRequirement(line, archive_or_project_path, requirement)
         except dist_metadata.UnrecognizedDistributionFormat:
             # This is not a recognized local archive distribution. Fall through and try parsing as a
             # PEP-440 requirement.
@@ -568,7 +570,7 @@ def _parse_requirement_line(
     # `packaging.requirements.Requirement`) except for the handling of PEP-440 direct url
     # references; which we handled above and won't encounter here.
     try:
-        return PyPIRequirement(line, Requirement.parse(processed_text), editable=editable)
+        return PyPIRequirement(line, Requirement.parse(processed_text))
     except RequirementParseError as e:
         raise ParseError(
             line, "Problem parsing {!r} as a requirement: {}".format(processed_text, e)

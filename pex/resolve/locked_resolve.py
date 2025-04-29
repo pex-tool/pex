@@ -12,6 +12,7 @@ from pex.common import pluralize
 from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import DistMetadata, Requirement, is_sdist, is_wheel
 from pex.enum import Enum
+from pex.exceptions import production_assert
 from pex.orderedset import OrderedSet
 from pex.pep_425 import CompatibilityTags, TagRank
 from pex.pep_503 import ProjectName
@@ -117,6 +118,8 @@ class Artifact(object):
         artifact_url,  # type: ArtifactURL
         fingerprint,  # type: Fingerprint
         verified=False,  # type: bool
+        commit_id=None,  # type: Optional[str]
+        editable=False,  # type: bool
     ):
         # type: (...) -> Union[FileArtifact, LocalProjectArtifact, VCSArtifact]
         if isinstance(artifact_url.scheme, VCSScheme):
@@ -124,7 +127,15 @@ class Artifact(object):
                 artifact_url=artifact_url,
                 fingerprint=fingerprint,
                 verified=verified,
+                commit_id=commit_id,
             )
+
+        production_assert(
+            commit_id is None,
+            "Should not have a commit id for artifact from {url}, found: {commit_id}",
+            url=artifact_url.raw_url,
+            commit_id=commit_id,
+        )
 
         if "file" == artifact_url.scheme and os.path.isdir(artifact_url.path):
             directory = os.path.normpath(artifact_url.path)
@@ -133,6 +144,7 @@ class Artifact(object):
                 fingerprint=fingerprint,
                 verified=verified,
                 directory=directory,
+                editable=editable,
             )
 
         filename = os.path.basename(artifact_url.path)
@@ -149,10 +161,16 @@ class Artifact(object):
         url,  # type: str
         fingerprint,  # type: Fingerprint
         verified=False,  # type: bool
+        commit_id=None,  # type: Optional[str]
+        editable=False,  # type: bool
     ):
         # type: (...) -> Union[FileArtifact, LocalProjectArtifact, VCSArtifact]
         return cls.from_artifact_url(
-            artifact_url=ArtifactURL.parse(url), fingerprint=fingerprint, verified=verified
+            artifact_url=ArtifactURL.parse(url),
+            fingerprint=fingerprint,
+            verified=verified,
+            commit_id=commit_id,
+            editable=editable,
         )
 
     url = attr.ib()  # type: ArtifactURL
@@ -175,9 +193,14 @@ class FileArtifact(Artifact):
         # type: () -> bool
         return is_sdist(self.filename)
 
+    @property
+    def is_wheel(self):
+        # type: () -> bool
+        return is_wheel(self.filename)
+
     def parse_tags(self):
         # type: () -> Iterator[tags.Tag]
-        if is_wheel(self.filename):
+        if self.is_wheel:
             for tag in CompatibilityTags.from_wheel(self.filename):
                 yield tag
 
@@ -185,6 +208,7 @@ class FileArtifact(Artifact):
 @attr.s(frozen=True, order=False)
 class LocalProjectArtifact(Artifact):
     directory = attr.ib()  # type: str
+    editable = attr.ib(default=False)  # type: bool
 
     @property
     def is_source(self):
@@ -200,6 +224,8 @@ class VCSArtifact(Artifact):
         artifact_url,  # type: ArtifactURL
         fingerprint,  # type: Fingerprint
         verified=False,  # type: bool
+        commit_id=None,  # type: Optional[str]
+        editable=False,  # type: bool
     ):
         # type: (...) -> VCSArtifact
         if not isinstance(artifact_url.scheme, VCSScheme):
@@ -208,14 +234,25 @@ class VCSArtifact(Artifact):
                     url=artifact_url.raw_url
                 )
             )
+
+        vcs_url, _, requested_revision = artifact_url.normalized_url.partition("@")
+        subdirectories = artifact_url.fragment_parameters.get("subdirectory")
         return cls(
             url=artifact_url,
             fingerprint=fingerprint,
             verified=verified,
             vcs=artifact_url.scheme.vcs,
+            vcs_url=vcs_url,
+            requested_revision=requested_revision or None,
+            commit_id=commit_id,
+            subdirectory=subdirectories[-1] if subdirectories else None,
         )
 
     vcs = attr.ib()  # type: VCS.Value
+    vcs_url = attr.ib()  # type: str
+    requested_revision = attr.ib(default=None)  # type: Optional[str]
+    commit_id = attr.ib(default=None)  # type: Optional[str]
+    subdirectory = attr.ib(default=None)  # type: Optional[str]
 
     @property
     def is_source(self):
@@ -569,6 +606,8 @@ class LockedResolve(object):
                 artifact_url=partial_artifact.url,
                 fingerprint=partial_artifact.fingerprint,
                 verified=partial_artifact.verified,
+                commit_id=partial_artifact.commit_id,
+                editable=partial_artifact.editable,
             )
 
         dist_metadata_by_pin = {

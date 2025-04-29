@@ -13,10 +13,13 @@ from pex.pep_503 import ProjectName
 from pex.pip.version import PipVersion
 from pex.resolve.locked_resolve import (
     Artifact,
+    FileArtifact,
+    LocalProjectArtifact,
     LockedRequirement,
     LockedResolve,
     LockStyle,
     TargetSystem,
+    VCSArtifact,
 )
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.path_mappings import PathMappings
@@ -292,6 +295,8 @@ def loads(
                             algorithm=get("algorithm", data=artifact, path=ap),
                             hash=get("hash", data=artifact, path=ap),
                         ),
+                        commit_id=get("commit_id", data=artifact, path=ap, optional=True),
+                        editable=get("editable", data=artifact, path=ap, optional=True),
                     )
                 )
 
@@ -386,6 +391,20 @@ def as_json_data(
     path_mappings=PathMappings(),  # type: PathMappings
 ):
     # type: (...) -> Dict[str, Any]
+
+    def as_artifact_dict(artifact):
+        # type: (Union[FileArtifact, LocalProjectArtifact, VCSArtifact]) -> Dict[str, Any]
+        data = {
+            "url": path_mappings.maybe_canonicalize(artifact.url.download_url),
+            "algorithm": artifact.fingerprint.algorithm,
+            "hash": artifact.fingerprint.hash,
+        }  # type: Dict[str, Any]
+        if isinstance(artifact, VCSArtifact) and artifact.commit_id:
+            data["commit_id"] = artifact.commit_id
+        if isinstance(artifact, LocalProjectArtifact):
+            data["editable"] = artifact.editable
+        return data
+
     return {
         "pex_version": lockfile.pex_version,
         "style": str(lockfile.style),
@@ -430,16 +449,11 @@ def as_json_data(
                             path_mappings.maybe_canonicalize(str(dependency))
                             for dependency in req.requires_dists
                         ],
-                        "requires_python": str(req.requires_python)
-                        if req.requires_python
-                        else None,
+                        "requires_python": (
+                            str(req.requires_python) if req.requires_python else None
+                        ),
                         "artifacts": [
-                            {
-                                "url": path_mappings.maybe_canonicalize(artifact.url.download_url),
-                                "algorithm": artifact.fingerprint.algorithm,
-                                "hash": artifact.fingerprint.hash,
-                            }
-                            for artifact in req.iter_artifacts()
+                            as_artifact_dict(artifact) for artifact in req.iter_artifacts()
                         ],
                     }
                     for req in locked_resolve.locked_requirements

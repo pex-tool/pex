@@ -198,7 +198,6 @@ def dir_hash(
 
     top = os.path.realpath(directory)
 
-    # TODO: XXX: Ignore .git + .gitignore'd?
     def iter_files():
         # type: () -> Iterator[Text]
         for root, dirs, files in os.walk(top, followlinks=True):

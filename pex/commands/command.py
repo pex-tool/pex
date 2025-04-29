@@ -22,7 +22,7 @@ from pex.compatibility import shlex_quote
 from pex.os import MAC, WINDOWS
 from pex.result import Error, Ok, Result
 from pex.subprocess import subprocess_daemon_kwargs
-from pex.typing import TYPE_CHECKING, Generic, cast
+from pex.typing import TYPE_CHECKING, Generic, cast, overload
 from pex.variables import ENV, Variables
 from pex.version import __version__
 
@@ -30,6 +30,7 @@ if TYPE_CHECKING:
     from typing import (
         IO,
         Any,
+        ContextManager,
         Dict,
         Iterable,
         Iterator,
@@ -42,6 +43,7 @@ if TYPE_CHECKING:
     )
 
     import attr  # vendor:skip
+    from typing_extensions import Literal
 else:
     from pex.third_party import attr
 
@@ -175,6 +177,38 @@ class OutputMixin(object):
     def is_stdout(options):
         # type: (Namespace) -> bool
         return options.output == "-" or not options.output
+
+    @overload
+    @classmethod
+    @contextmanager
+    def output(
+        cls,
+        options,  # type: Namespace
+    ):
+        # type: (...) -> ContextManager[IO[str]]
+        pass
+
+    @overload
+    @classmethod
+    @contextmanager
+    def output(
+        cls,
+        options,  # type: Namespace
+        binary,  # type: Literal[False]
+    ):
+        # type: (...) -> ContextManager[IO[str]]
+        pass
+
+    @overload
+    @classmethod
+    @contextmanager
+    def output(
+        cls,
+        options,  # type: Namespace
+        binary,  # type: Literal[True]
+    ):
+        # type: (...) -> ContextManager[IO[bytes]]
+        pass
 
     @classmethod
     @contextmanager
