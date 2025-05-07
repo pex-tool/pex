@@ -355,6 +355,13 @@ class PipVersion(Enum["PipVersionValue"]):
         requires_python=">=3.9,<3.15",
     )
 
+    v25_1_1 = PipVersionValue(
+        version="25.1.1",
+        setuptools_version="80.2.0",
+        wheel_version="0.45.1",
+        requires_python=">=3.9,<3.15",
+    )
+
     VENDORED = v20_3_4_patched
     LATEST = LatestPipVersion()
     LATEST_COMPATIBLE = LatestCompatiblePipVersion()

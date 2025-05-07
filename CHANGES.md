@@ -1,5 +1,14 @@
 # Release Notes
 
+## 2.37.0
+
+This release fixes a bug in lock file generation for `--pip-version` >= 25.1 that would omit some
+abi3 wheels from locks.
+
+In addition, support for the latest Pip 25.1.1 bugfix release is also added.
+
+* Fix lock support for `--pip-version` >= 25.1. (#2754)
+
 ## 2.36.1
 
 This release fixes a few issues with creating Pex locks when source requirements were involved.

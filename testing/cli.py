@@ -21,7 +21,7 @@ def run_pex3(
 ):
     # type: (...) -> IntegResults
 
-    python = cast("Text", kwargs.pop("python", to_unicode(sys.executable)))
+    python = cast("Text", kwargs.pop("python", None) or to_unicode(sys.executable))
     process = subprocess.Popen(
         args=[python, "-mpex.cli"] + list(args),
         stdout=subprocess.PIPE,

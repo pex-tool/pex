@@ -197,12 +197,12 @@ def patch_wheel_model():
 
     def get_abi_info(self):
         if hasattr(self, "abis"):
-            abis = list(self.abis)
+            abis = set(self.abis)
         else:
-            abis = [file_tag.abi for file_tag in self.file_tags]
+            abis = {file_tag.abi for file_tag in self.file_tags}
 
-        is_abi3 = ["abi3"] == abis
-        is_abi_none = ["none"] == abis
+        is_abi3 = {"abi3"} == abis
+        is_abi_none = {"none"} == abis
         return is_abi3, is_abi_none
 
     def get_py_versions(self):
