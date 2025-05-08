@@ -12,7 +12,7 @@ DEADSNAKES_VERSIONS=(
   "3.9 {dev,venv,distutils}=3.9.22"
   "3.10 {dev,venv,distutils}=3.10.17"
   "3.13 {dev,venv}=3.13.3"
-  "3.14 {dev,venv}=3.14.0~a7"
+  "3.14 {dev,venv}=3.14.0~b1"
 )
 
 DEBIAN_FRONTEND=noninteractive apt install --yes software-properties-common
