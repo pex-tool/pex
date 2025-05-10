@@ -170,11 +170,15 @@ def _register_platform_options(
         default=False,
         action=HandleBoolAction,
         help=(
-            "When --platforms are specified, attempt to resolve a local interpreter that matches "
-            "each platform specified. If found, use the interpreter to resolve distributions; if "
-            "not (or if this option is not specified), resolve for each platform only allowing "
-            "matching binary distributions and failing if only sdists or non-matching binary "
-            "distributions can be found."
+            "When either `--platform`s or `--complete-platform`s are specified, for each such "
+            "`--platform` or `--complete-platform` attempt to resolve a local interpreter that "
+            "matches. If found, use the matching interpreter to resolve distributions for the "
+            "corresponding `--platform` or `--complete-platform`; if not (or if this option is not "
+            "specified), the interpreter executing Pex will be used to attempt to build any "
+            "distributions that have an sdist available but no wheel available that matches the "
+            "specified `--platform` or `--complete-platform`. If the resulting wheel matches the "
+            "specified platform, the resolve proceeds; otherwise it fails fast noting a wheel was "
+            "built whose tags don't match the specified platform."
         ),
     )
 
