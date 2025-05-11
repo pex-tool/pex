@@ -22,7 +22,7 @@ from pex.pip.local_project import digest_local_project
 from pex.pip.log_analyzer import LogAnalyzer
 from pex.pip.vcs import fingerprint_downloaded_vcs_archive
 from pex.pip.version import PipVersionValue
-from pex.requirements import ArchiveScheme, VCSRequirement, VCSScheme
+from pex.requirements import ArchiveScheme, LocalProjectRequirement, VCSRequirement, VCSScheme
 from pex.resolve.locked_resolve import LockConfiguration, LockStyle, TargetSystem
 from pex.resolve.pep_691.fingerprint_service import FingerprintService
 from pex.resolve.pep_691.model import Endpoint
@@ -255,6 +255,12 @@ class Locker(LogAnalyzer):
 
         self._resolved_requirements = OrderedDict()  # type: OrderedDict[Pin, ResolvedRequirement]
         self._pep_691_endpoints = set()  # type: Set[Endpoint]
+        self._commit_ids = {}  # type: Dict[str, str]
+        self._editable_projects = {
+            req.path
+            for req in root_requirements
+            if isinstance(req, LocalProjectRequirement) and req.editable
+        }
         self._links = defaultdict(
             OrderedDict
         )  # type: DefaultDict[Pin, OrderedDict[ArtifactURL, PartialArtifact]]
@@ -335,6 +341,7 @@ class Locker(LogAnalyzer):
         #   1.)        "... Found link <urlN> ..."
         #   1.5. URL)  "... Looking up "<url>" in the cache"
         #   1.5. PATH) "... Processing <path> ..."
+        #   1.5. VCS)  "... Resolved <vcs url with vcs+ prefix stripped> to commit <sha>
         #   2.)        "... Added <varying info ...> to build tracker ..."
         # * 3.)        Lines related to extracting metadata from <requirement> if the selected
         #              distribution is an sdist in any form (VCS, local directory, source archive).
@@ -369,6 +376,8 @@ class Locker(LogAnalyzer):
                 artifact_url = build_result.url
                 source_fingerprint = None  # type: Optional[Fingerprint]
                 verified = False
+                commit_id = None  # type: Optional[str]
+                editable = False
                 if isinstance(artifact_url.scheme, VCSScheme):
                     source_fingerprint, archive_path = fingerprint_downloaded_vcs_archive(
                         download_dir=self._download_dir,
@@ -382,6 +391,10 @@ class Locker(LogAnalyzer):
                         self._vcs_url_manager.normalize_url(artifact_url.raw_url)
                     )
                     self._selected_path_to_pin[selected_path] = build_result.pin
+
+                    vcs, _, vcs_url = artifact_url.normalized_url.partition("+")
+                    vcs_url, _, _ = vcs_url.partition("@")
+                    commit_id = self._commit_ids.pop(vcs_url, None)
                 elif isinstance(artifact_url.scheme, ArchiveScheme.Value):
                     selected_path = os.path.basename(artifact_url.path)
                     source_archive_path = os.path.join(self._download_dir, selected_path)
@@ -412,6 +425,7 @@ class Locker(LogAnalyzer):
                         )
                         self._local_projects.add(artifact_url.path)
                         self._saved.add(build_result.pin)
+                        editable = artifact_url.path in self._editable_projects
                     source_fingerprint = Fingerprint.from_digest(digest)
                     verified = True
                 else:
@@ -427,7 +441,11 @@ class Locker(LogAnalyzer):
                 self._resolved_requirements[build_result.pin] = ResolvedRequirement(
                     pin=build_result.pin,
                     artifact=PartialArtifact(
-                        url=artifact_url, fingerprint=source_fingerprint, verified=verified
+                        url=artifact_url,
+                        fingerprint=source_fingerprint,
+                        verified=verified,
+                        commit_id=commit_id,
+                        editable=editable,
                     ),
                     additional_artifacts=tuple(additional_artifacts.values()),
                 )
@@ -456,6 +474,9 @@ class Locker(LogAnalyzer):
             self._maybe_record_wheel(
                 "file://{path}".format(path=os.path.abspath(match.group("path")))
             )
+        match = re.search(r"Resolved (?P<url>[^\s]+) to commit (?P<commit_id>[^\s]+)", line)
+        if match:
+            self._commit_ids[match.group("url")] = match.group("commit_id")
 
         match = re.search(
             r"Added (?P<requirement>.+) from (?P<url>.+\S) \(from", line

@@ -1,6 +1,8 @@
 # Copyright 2022 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+from __future__ import absolute_import
+
 import filecmp
 import os.path
 import shutil
@@ -239,9 +241,12 @@ def test_vcs_transitive(
     subprocess.check_call(args=["git", "add", "."], cwd=src)
     subprocess.check_call(args=["git", "commit", "--no-gpg-sign", "-m", "Only commit."], cwd=src)
 
-    lock = test_tool.create_lock("git+file://{src}#egg=poetry".format(src=src))
-    pex = test_tool.create_pex(lock, "-c", "recite")
-    assert (
-        colors.green("Prostetnic Vogon Jeltz")
-        == subprocess.check_output(args=[pex]).decode("utf-8").strip()
-    )
+    # Packaging compatible with Python<3.7 cannot handle `{vcs}+file:/...` URLs; so we skip.
+    # (`{vcs}+https?:/...` URLs work fine though as exercised above).
+    if sys.version_info[:2] >= (3, 7):
+        lock = test_tool.create_lock("git+file://{src}#egg=poetry".format(src=src))
+        pex = test_tool.create_pex(lock, "-c", "recite")
+        assert (
+            colors.green("Prostetnic Vogon Jeltz")
+            == subprocess.check_output(args=[pex]).decode("utf-8").strip()
+        )

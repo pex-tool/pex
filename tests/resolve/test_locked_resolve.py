@@ -918,8 +918,9 @@ def test_locked_requirement_mixed_artifacts_issue_2150():
     vcs_artifact = VCSArtifact(
         url=ArtifactURL.parse("git+https://host/a/project"),
         fingerprint=Fingerprint(algorithm="sha1", hash="bar"),
-        verified=False,
         vcs=VCS.Git,
+        vcs_url="https://host/a/project",
+        verified=False,
     )
     local_project_artifact = LocalProjectArtifact(
         url=ArtifactURL.parse("file:///tmp/project"),
@@ -958,8 +959,9 @@ def test_locked_resolve_same_pins_mixed_primary_artifacts_issue_2150():
         VCSArtifact(
             url=ArtifactURL.parse("git+https://host/a/project"),
             fingerprint=Fingerprint(algorithm="sha1", hash="bar"),
-            verified=False,
             vcs=VCS.Git,
+            vcs_url="https://host/a/project",
+            verified=False,
         ),
     )
     local_project_artifact_requirement = LockedRequirement.create(

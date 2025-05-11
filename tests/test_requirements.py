@@ -136,7 +136,6 @@ def req(
     extras=None,  # type: Optional[Iterable[str]]
     specifier=None,  # type: Optional[str]
     marker=None,  # type: Optional[str]
-    editable=False,  # type: bool
 ):
     # type: (...) -> PyPIRequirement
     return PyPIRequirement(
@@ -144,7 +143,23 @@ def req(
         requirement=parse_requirement_from_project_name_and_specifier(
             project_name, extras=extras, specifier=specifier, marker=marker
         ),
-        editable=editable,
+    )
+
+
+def file_req(
+    url,  # type: str
+    project_name,  # type: str
+    extras=None,  # type: Optional[Iterable[str]]
+    specifier=None,  # type: Optional[str]
+    marker=None,  # type: Optional[str]
+):
+    # type: (...) -> URLRequirement
+    return URLRequirement(
+        line=DUMMY_LINE,
+        url=url,
+        requirement=parse_requirement_from_project_name_and_specifier(
+            project_name, extras=extras, specifier=specifier, marker=marker
+        ),
     )
 
 
@@ -154,16 +169,14 @@ def url_req(
     extras=None,  # type: Optional[Iterable[str]]
     specifier=None,  # type: Optional[str]
     marker=None,  # type: Optional[str]
-    editable=False,  # type: bool
 ):
     # type: (...) -> URLRequirement
     return URLRequirement(
         line=DUMMY_LINE,
         url=url,
         requirement=parse_requirement_from_project_name_and_specifier(
-            project_name, extras=extras, specifier=specifier, marker=marker
+            project_name, extras=extras, specifier=specifier, marker=marker, url=url
         ),
-        editable=editable,
     )
 
 
@@ -174,7 +187,7 @@ def vcs_req(
     extras=None,  # type: Optional[Iterable[str]]
     specifier=None,  # type: Optional[str]
     marker=None,  # type: Optional[str]
-    editable=False,  # type: bool
+    req_url=None,  # type: Optional[str]
 ):
     # type: (...) -> VCSRequirement
     return VCSRequirement(
@@ -182,9 +195,12 @@ def vcs_req(
         vcs=vcs,
         url=url,
         requirement=parse_requirement_from_project_name_and_specifier(
-            project_name, extras=extras, specifier=specifier, marker=marker
+            project_name,
+            extras=extras,
+            specifier=specifier,
+            marker=marker,
+            url=req_url or "{vcs}+{url}".format(vcs=vcs.value, url=url),
         ),
-        editable=editable,
     )
 
 
@@ -390,7 +406,12 @@ def test_parse_requirements_stress(chroot):
             url="https://git.example.com/MyProject.git@da39a3ee5e6b4b0d3255bfef95601890afd80709",
         ),
         vcs_req(vcs=VCS.Git, project_name="MyProject", url="ssh://git.example.com/MyProject"),
-        vcs_req(vcs=VCS.Git, project_name="MyProject", url="file:///home/user/projects/MyProject"),
+        vcs_req(
+            vcs=VCS.Git,
+            project_name="MyProject",
+            url="file:///home/user/projects/MyProject",
+            req_url="git+file:/home/user/projects/MyProject",
+        ),
         Constraint(DUMMY_LINE, Requirement.parse("AnotherProject")),
         local_req(
             path=os.path.realpath("extra/a/local/project"),
@@ -458,14 +479,14 @@ def test_parse_requirements_stress(chroot):
             project_name="Django",
             url="https://github.com/django/django.git@fd209f62f1d83233cc634443cfac5ee4328d98b8",
         ),
-        url_req(
-            project_name="Django",
+        file_req(
+            project_name="django",
             url=os.path.realpath("extra/projects/django-2.3.zip"),
             specifier="==2.3",
             marker="python_version>='3.10'",
         ),
-        url_req(
-            project_name="Django",
+        file_req(
+            project_name="django",
             url=os.path.realpath("extra/projects/django-2.3.zip"),
             specifier="==2.3",
             marker="python_version>='3.10'",
@@ -479,7 +500,7 @@ def test_parse_requirements_stress(chroot):
         local_req(path=os.path.join(chroot, "extra/a/local/project"), editable=True),
         local_req(path=os.path.join(chroot, "extra/another/local/project"), editable=True),
         local_req(path=os.path.join(chroot, "extra/another/local/project"), editable=True),
-        url_req(
+        file_req(
             project_name="numpy",
             url=os.path.realpath("./downloads/numpy-1.9.2-cp34-none-win32.whl"),
             specifier="==1.9.2",

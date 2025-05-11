@@ -167,6 +167,8 @@ class PartialArtifact(object):
     url = attr.ib(converter=_convert_url)  # type: ArtifactURL
     fingerprint = attr.ib(default=None)  # type: Optional[Fingerprint]
     verified = attr.ib(default=False)  # type: bool
+    commit_id = attr.ib(default=None)  # type: Optional[str]
+    editable = attr.ib(default=False)  # type: bool
 
 
 @attr.s(frozen=True)

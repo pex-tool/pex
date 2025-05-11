@@ -332,7 +332,7 @@ def get_projects(options):
 
     projects = []  # type: List[Project]
     errors = []  # type: List[str]
-    for project in options.projects:
+    for project in getattr(options, "projects", ()):
         try:
             parsed = requirements.parse_requirement_string(project)
         except (ParseError, ValueError) as e:
@@ -375,7 +375,7 @@ def get_group_requirements(options):
     # type: (Namespace) -> Iterable[Requirement]
 
     group_requirements = OrderedSet()  # type: OrderedSet[Requirement]
-    for dependency_group in options.dependency_groups:
+    for dependency_group in getattr(options, "dependency_groups", ()):
         for requirement in dependency_group.iter_requirements():
             group_requirements.add(requirement)
     return group_requirements

@@ -252,13 +252,12 @@ def iter_vendor_specs(filter_requires_python=None):
 
     # We use toml to read pyproject.toml when building sdists from local source projects.
     # The toml project provides compatibility back to Python 2.7, but is frozen in time in 2020
-    # with bugs - notably no support for heterogeneous lists. We add the more modern tomli/tomli-w
-    # for other Pythons.
+    # with bugs - notably no support for heterogeneous lists. We add the more modern tomli for
+    # other Pythons.
     if not python_major_minor or python_major_minor < (3, 7):
         yield VendorSpec.pinned("toml", "0.10.2")
     if not python_major_minor or python_major_minor >= (3, 7):
         yield VendorSpec.pinned("tomli", "2.0.1")
-        yield VendorSpec.pinned("tomli-w", "1.0.0")
 
     # We shell out to pip at buildtime to resolve and install dependencies.
     yield PIP_SPEC

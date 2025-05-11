@@ -861,26 +861,35 @@ class Requirement(Constraint):
         cls,
         requirement,  # type: Text
         source=None,  # type: Optional[str]
+        editable=False,  # type: bool
     ):
         # type: (...) -> Requirement
         try:
-            return cls.from_packaging_requirement(PackagingRequirement(requirement))
+            return cls.from_packaging_requirement(
+                PackagingRequirement(requirement), editable=editable
+            )
         except InvalidRequirement as e:
             raise RequirementParseError(str(e), source=source)
 
     @classmethod
-    def from_packaging_requirement(cls, requirement):
-        # type: (PackagingRequirement) -> Requirement
+    def from_packaging_requirement(
+        cls,
+        requirement,  # type: PackagingRequirement
+        editable=False,  # type: bool
+    ):
+        # type: (...) -> Requirement
         return cls(
             name=requirement.name,
             url=requirement.url,
             extras=frozenset(requirement.extras),
             specifier=requirement.specifier,
             marker=requirement.marker,
+            editable=editable,
         )
 
     url = attr.ib(default=None)  # type: Optional[str]
     extras = attr.ib(default=frozenset())  # type: FrozenSet[str]
+    editable = attr.ib(default=False)  # type: bool
 
     def __attrs_post_init__(self):
         # type: () -> None

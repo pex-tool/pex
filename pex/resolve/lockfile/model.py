@@ -80,12 +80,13 @@ class Lockfile(object):
                 requirement = Requirement.parse(
                     "{project_name}{extras}=={version}{marker}".format(
                         project_name=pin.project_name,
-                        extras="[{extras}]".format(extras=",".join(req.extras))
-                        if req.extras
-                        else "",
+                        extras=(
+                            "[{extras}]".format(extras=",".join(req.extras)) if req.extras else ""
+                        ),
                         version=pin.version,
                         marker="; {marker}".format(marker=req.marker) if req.marker else "",
-                    )
+                    ),
+                    editable=req.editable,
                 )
                 # N.B.: We've already mapped all available local projects above, but the user may
                 # have supplied the local project requirement with more specific constraints (

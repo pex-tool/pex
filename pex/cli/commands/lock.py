@@ -6,6 +6,7 @@ from __future__ import absolute_import, print_function
 import functools
 import itertools
 import os.path
+import re
 import sys
 from argparse import Action, ArgumentError, ArgumentParser, ArgumentTypeError, _ActionsContainer
 from collections import OrderedDict, deque
@@ -52,7 +53,7 @@ from pex.resolve.locked_resolve import (
     TargetSystem,
     VCSArtifact,
 )
-from pex.resolve.lockfile import json_codec, requires_dist
+from pex.resolve.lockfile import json_codec, pep_751, requires_dist
 from pex.resolve.lockfile.create import create
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.lockfile.subset import subset
@@ -83,7 +84,19 @@ from pex.venv.virtualenv import InvalidVirtualenvError, Virtualenv
 from pex.version import __version__
 
 if TYPE_CHECKING:
-    from typing import IO, Dict, Iterable, List, Mapping, Optional, Set, Text, Tuple, Union
+    from typing import (
+        IO,
+        Dict,
+        Iterable,
+        List,
+        Mapping,
+        Optional,
+        Sequence,
+        Set,
+        Text,
+        Tuple,
+        Union,
+    )
 
     import attr  # vendor:skip
 
@@ -110,7 +123,7 @@ class ExportFormat(Enum["ExportFormat.Value"]):
 
     PIP = Value("pip")
     PIP_NO_HASHES = Value("pip-no-hashes")
-    PEP_665 = Value("pep-665")
+    PEP_751 = Value("pep-751")
 
 
 ExportFormat.seal()
@@ -459,6 +472,13 @@ class LockingConfiguration(object):
         return None
 
 
+@attr.s(frozen=True)
+class LockfileSubset(object):
+    root_requirements = attr.ib()  # type: Iterable[Requirement]
+    constraints = attr.ib()  # type: Iterable[Constraint]
+    locked_resolves = attr.ib()  # type: Sequence[LockedResolve]
+
+
 class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
     """Operate on PEX lock files."""
 
@@ -645,10 +665,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             default=ExportFormat.PIP,
             choices=ExportFormat.values(),
             type=ExportFormat.for_value,
-            help=(
-                "The format to export the lock to. Currently only the Pip requirements file "
-                "formats (using `--hash` or bare) are supported."
-            ),
+            help="The format to export the lock to.",
         )
         export_parser.add_argument(
             "--sort-by",
@@ -656,6 +673,17 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             choices=ExportSortBy.values(),
             type=ExportSortBy.for_value,
             help="How to sort the requirements in the export (if supported).",
+        )
+        export_parser.add_argument(
+            "--include-dependency-info",
+            "--no-include-dependency-info",
+            dest="include_dependency_info",
+            action=HandleBoolAction,
+            default=True,
+            help=(
+                "When exporting with `--format pep-751`, whether or not to include the optional "
+                "`dependencies` list information."
+            ),
         )
         cls._add_lockfile_option(
             export_parser, verb="export", positional=lockfile_option_positional
@@ -1104,16 +1132,67 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             with self.output(self.options) as output:
                 dump_with_terminating_newline(out=output)
 
+    def _check_pylock_toml_output_name(self):
+        if not self.options.output:
+            return
+
+        output_filename = os.path.basename(self.options.output)
+        if re.match(r"^pylock\.([^.]+\.)?toml$", output_filename):
+            return
+
+        pex_warnings.warn(
+            (
+                "The specified pylock.toml export filename is {output_filename} which violates "
+                "the spec.\n"
+                "This may lead to issues using the exported lock with a lock installer later.\n"
+                "See: https://packaging.python.org/en/latest/specifications/pylock-toml/#file-name"
+            ).format(output_filename=output_filename)
+        )
+
     def _export(self, requirement_configuration=RequirementConfiguration()):
         # type: (RequirementConfiguration) -> Result
-        supported_formats = ExportFormat.PIP, ExportFormat.PIP_NO_HASHES
-        if self.options.format not in supported_formats:
-            return Error(
-                "Only the Pip lock formats are supported currently. "
-                "Choose one of: {choices}".format(choices=" or ".join(map(str, supported_formats)))
-            )
 
         lockfile_path, lock_file = self._load_lockfile()
+        if self.options.format is ExportFormat.PEP_751 and lock_file.style is LockStyle.UNIVERSAL:
+            self._check_pylock_toml_output_name()
+            production_assert(
+                len(lock_file.locked_resolves) == 1,
+                "A --style universal lock should have just one locked resolve, found {count}.",
+                len(lock_file.locked_resolves),
+            )
+
+            if requirement_configuration.has_requirements:
+                lock_subset = try_(
+                    self._create_subset(
+                        lockfile_path,
+                        lock_file,
+                        requirement_configuration=requirement_configuration,
+                    )
+                )
+            else:
+                lock_subset = LockfileSubset(
+                    root_requirements=lock_file.requirements,
+                    constraints=lock_file.constraints,
+                    locked_resolves=lock_file.locked_resolves,
+                )
+
+            if len(lock_file.requires_python) > 1:
+                # TODO(John Sirois): Provide a better error message. We could guide on OR
+                #  to and AND paired with != to remove disjoint portions of the range.
+                raise ValueError(
+                    "Can only export a lock file with a single interpreter constraint."
+                )
+            with self.output(self.options, binary=True) as toml_output:
+                pep_751.convert(
+                    root_requirements=lock_subset.root_requirements,
+                    locked_resolve=lock_subset.locked_resolves[0],
+                    requires_python=lock_file.requires_python[0],
+                    target_systems=lock_file.target_systems,
+                    output=toml_output,
+                    include_dependency_info=self.options.include_dependency_info,
+                )
+            return Ok()
+
         pip_configuration = resolver_options.create_pip_configuration(
             self.options, use_system_time=False
         )
@@ -1121,7 +1200,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             self.options, pip_configuration=pip_configuration
         ).resolve_targets()
         target = targets.require_unique_target(
-            purpose="exporting a lock in the {pip!r} format".format(pip=ExportFormat.PIP)
+            purpose="exporting a lock in the {format!r} format".format(format=self.options.format)
         )
 
         with TRACER.timed("Selecting locks for {target}".format(target=target)):
@@ -1155,6 +1234,32 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             )
         else:
             resolved = subset_result.subsets[0].resolved
+
+        if self.options.format is ExportFormat.PEP_751:
+            self._check_pylock_toml_output_name()
+            root_requirements = tuple(lock_file.requirements)
+            if subset_result.requirements:
+                reqs = []
+                for parsed_requirement in subset_result.requirements:
+                    if isinstance(parsed_requirement, LocalProjectRequirement):
+                        reqs.append(
+                            lock_file.local_project_requirement_mapping[
+                                os.path.abspath(parsed_requirement.path)
+                            ]
+                        )
+                    else:
+                        reqs.append(parsed_requirement.requirement)
+                root_requirements = tuple(reqs)
+
+            with self.output(self.options, binary=True) as toml_output:
+                pep_751.convert(
+                    root_requirements=root_requirements,
+                    locked_resolve=resolved.source,
+                    subset=resolved.downloadable_artifacts,
+                    output=toml_output,
+                    include_dependency_info=self.options.include_dependency_info,
+                )
+            return Ok()
 
         requirement_by_pin = {}  # type: Dict[Pin, str]
         fingerprints_by_pin = OrderedDict()  # type: OrderedDict[Pin, List[Fingerprint]]
@@ -1208,17 +1313,17 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 ),
                 file=sys.stderr,
             )
-        with self.output(self.options) as output:
+        with self.output(self.options) as requirements_txt_output:
             pins = fingerprints_by_pin.keys()  # type: Iterable[Pin]
             if self.options.sort_by == ExportSortBy.PROJECT_NAME:
                 pins = sorted(pins, key=attrgetter("project_name.normalized"))
             for pin in pins:
                 requirement = requirement_by_pin[pin]
                 if self.options.format is ExportFormat.PIP_NO_HASHES:
-                    print(requirement, file=output)
+                    print(requirement, file=requirements_txt_output)
                 else:
                     fingerprints = fingerprints_by_pin[pin]
-                    output.write(
+                    requirements_txt_output.write(
                         "{requirement} \\\n"
                         "  {hashes}\n".format(
                             requirement=requirement,
@@ -1307,10 +1412,13 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             )
         return requirement_by_local_project_requirement
 
-    def _subset(self):
-        # type: () -> Result
-
-        lockfile_path, lock_file = self._load_lockfile()
+    def _create_subset(
+        self,
+        lockfile_path,  # type: str
+        lock_file,  # type: Lockfile
+        requirement_configuration=RequirementConfiguration(),  # type: RequirementConfiguration
+    ):
+        # type: (...) -> Union[LockfileSubset, Error]
 
         pip_configuration = resolver_options.create_pip_configuration(
             self.options, use_system_time=False
@@ -1318,9 +1426,8 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         target_configuration = target_options.configure(
             self.options, pip_configuration=pip_configuration
         )
-        requirement_configuration = requirement_options.configure(self.options)
         script_metadata_application = None  # type: Optional[ScriptMetadataApplication]
-        if self.options.scripts:
+        if hasattr(self.options, "scripts") and self.options.scripts:
             script_metadata_application = apply_script_metadata(
                 self.options.scripts, requirement_configuration, target_configuration
             )
@@ -1471,16 +1578,32 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 )
             )
 
+        return LockfileSubset(
+            root_requirements=root_requirements,
+            constraints=constraint_by_project_name.values(),
+            locked_resolves=resolve_subsets,
+        )
+
+    def _subset(self):
+        # type: () -> Result
+
+        lockfile_path, lock_file = self._load_lockfile()
+        requirement_configuration = requirement_options.configure(self.options)
+        lock_subset = try_(
+            self._create_subset(
+                lockfile_path, lock_file, requirement_configuration=requirement_configuration
+            )
+        )
         self._dump_lockfile(
             attr.evolve(
                 lock_file,
-                locked_resolves=SortedTuple(resolve_subsets),
+                locked_resolves=SortedTuple(lock_subset.locked_resolves),
                 constraints=(
-                    SortedTuple(constraint_by_project_name.values(), key=str)
-                    if constraint_by_project_name
+                    SortedTuple(lock_subset.constraints, key=str)
+                    if lock_subset.constraints
                     else lock_file.constraints
                 ),
-                requirements=SortedTuple(root_requirements, key=str),
+                requirements=SortedTuple(lock_subset.root_requirements, key=str),
             )
         )
         return Ok()
