@@ -11,7 +11,6 @@ from typing import Any, Dict, Iterator, Text
 import pytest
 
 from pex import toml
-from pex.common import safe_open
 from pex.interpreter import PythonInterpreter
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
@@ -321,11 +320,26 @@ def test_lock_all_package_types(
                 
                 # Stress VCS handling.
                 cowsay @ https://github.com/VaasuDevanS/cowsay-python/archive/dcf7236f0b5ece9ed56e91271486e560526049cf.zip
-                """.format(pex_project_dir=pex_project_dir)
+                """.format(
+                    pex_project_dir=pex_project_dir
+                )
             )
         )
     lock = tmpdir.join("lock.json")
-    run_pex3("lock", "create", "--pip-version", "latest-compatible", "--style", "sources", "-r", requirements, "--indent", "2", "-o", lock).assert_success()
+    run_pex3(
+        "lock",
+        "create",
+        "--pip-version",
+        "latest-compatible",
+        "--style",
+        "sources",
+        "-r",
+        requirements,
+        "--indent",
+        "2",
+        "-o",
+        lock,
+    ).assert_success()
 
     result = run_pex3("lock", "export", "--format", "pep-751", lock)
     result.assert_success()
