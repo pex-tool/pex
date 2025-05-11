@@ -1,5 +1,21 @@
 # Release Notes
 
+## 2.38.0
+
+This release adds support for `pex3 lock export --format pep-751` to export Pex locks in the new
+[pylock.toml][PEP-751] format. `pex3 lock export-subset` also supports `pylock.toml` and both
+forms of export respect universal locks, leveraging the optional [marker][PEP-751-marker] package
+field to make packages installable or not based on the environment the exported lock is used to
+install in.
+
+This release does _not_ include support for building PEXes using PEP-751 locks. Add your concrete
+use case to [#2756](https://github.com/pex-tool/pex/issues/2756) if you have one.
+
+* Add `pex3 lock export --format pep-751` support. (#2760)
+
+[PEP-751]: https://packaging.python.org/en/latest/specifications/pylock-toml/#pylock-toml-spec
+[PEP-751-marker]: https://packaging.python.org/en/latest/specifications/pylock-toml/#packages-marker
+
 ## 2.37.0
 
 This release fixes a bug in lock file generation for `--pip-version` >= 25.1 that would omit some
