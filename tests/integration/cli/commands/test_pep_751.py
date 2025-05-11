@@ -301,7 +301,7 @@ def test_universal_export_interop(
 
 @pytest.mark.skipif(
     sys.version_info[:2] < (3, 8),
-    reason="Building Pex requires Python >= 3.8 to read pyproject.toml heterogeneous arrays."
+    reason="Building Pex requires Python >= 3.8 to read pyproject.toml heterogeneous arrays.",
 )
 def test_lock_all_package_types(
     tmpdir,  # type: Tempdir
