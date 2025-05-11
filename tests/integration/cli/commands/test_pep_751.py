@@ -11,6 +11,7 @@ from typing import Any, Dict, Iterator, Text
 import pytest
 
 from pex import toml
+from pex.compatibility import string
 from pex.interpreter import PythonInterpreter
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
@@ -32,7 +33,7 @@ def assert_valid_toml(value):
 
     table = toml.loads(value)
     assert isinstance(table, dict)
-    assert all(isinstance(key, str) for key in table)
+    assert all(isinstance(key, string) for key in table)
     return table
 
 
@@ -298,6 +299,10 @@ def test_universal_export_interop(
     )
 
 
+@pytest.mark.skipif(
+    sys.version_info[:2] < (3, 8),
+    reason="Building Pex requires Python >= 3.8 to read pyproject.toml heterogeneous arrays."
+)
 def test_lock_all_package_types(
     tmpdir,  # type: Tempdir
     pex_project_dir,  # type: str

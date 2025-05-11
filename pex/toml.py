@@ -9,6 +9,7 @@ from collections import OrderedDict
 from datetime import date, datetime, time
 from io import BytesIO
 
+from pex.compatibility import string
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
@@ -66,9 +67,8 @@ _INLINE_TYPES = (
     datetime,
     float,
     int,
-    str,
     time,
-)
+) + string
 
 
 # See: https://toml.io/en/v1.0.0#spec
@@ -84,12 +84,12 @@ _STRING_ESCAPES = {
     "\r": r"\r",
     '"': r"\"",
     "\\": r"\\",
-}
+}  # type: Dict[Text, Text]
 
 
 def _escape_string(value):
-    # type: (str) -> str
-    return "".join(_STRING_ESCAPES.get(char, char) for char in value)
+    # type: (Any) -> Text
+    return "".join(_STRING_ESCAPES.get(char, str(char)) for char in value)
 
 
 # See: https://toml.io/en/v1.0.0#keys
@@ -116,7 +116,7 @@ class UnexpectedValueError(ValueError):
 
 
 def _dump(
-    data,  # type: Union[Dict, InlineArray, InlineTable, List, Tuple, bool, date, datetime, float, int, str, time]
+    data,  # type: Union[Dict, InlineArray, InlineTable, List, Text, Tuple, bool, date, datetime, float, int, time]
     output,  # type: IO[bytes]
     path="",  # type: str
     indent=b"",  # type: bytes
@@ -164,7 +164,7 @@ def _dump(
         output.write(str(data).encode(_ENCODING))
         return
 
-    if isinstance(data, str):
+    if isinstance(data, string):
         output.write('"{value}"'.format(value=_escape_string(data)).encode(_ENCODING))
         return
 
