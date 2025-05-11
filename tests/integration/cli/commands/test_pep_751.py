@@ -17,6 +17,7 @@ from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.resolve.resolved_requirement import Pin
 from pex.venv.virtualenv import Virtualenv
+from pex.wheel import Wheel
 from testing import IS_PYPY, data
 from testing.cli import run_pex3
 from testing.pytest_utils.tmp import Tempdir
@@ -306,6 +307,7 @@ def test_universal_export_interop(
 def test_lock_all_package_types(
     tmpdir,  # type: Tempdir
     pex_project_dir,  # type: str
+    pex_wheel,  # type: str
 ):
     # type: (...) -> None
 
@@ -321,7 +323,7 @@ def test_lock_all_package_types(
                 requests[socks]
                 
                 # Stress archive handling.
-                PySocks @ git+https://github.com/Anorov/PySocks
+                PySocks @ git+https://github.com/Anorov/PySocks@1.7.0
                 
                 # Stress VCS handling.
                 cowsay @ https://github.com/VaasuDevanS/cowsay-python/archive/dcf7236f0b5ece9ed56e91271486e560526049cf.zip
@@ -349,4 +351,43 @@ def test_lock_all_package_types(
     result = run_pex3("lock", "export", "--format", "pep-751", lock)
     result.assert_success()
 
-    assert_valid_toml(result.output)
+    pylock_toml = assert_valid_toml(result.output)
+    packages_by_name = {package["name"]: package for package in pylock_toml["packages"]}
+
+    assert {
+        "name": "pex",
+        "requires-python": str(Wheel.load(pex_wheel).dist_metadata().requires_python),
+        "directory": {
+            "path": pex_project_dir,
+            "editable": True,
+        },
+    } == packages_by_name["pex"]
+
+    requests_pkg = packages_by_name["requests"]
+    assert {"name": "pysocks"} in requests_pkg["dependencies"]
+    assert "sdist" in requests_pkg
+    assert len(requests_pkg["wheels"]) > 0
+
+    assert {
+        "name": "pysocks",
+        "requires-python": "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,>=2.7",
+        "version": "1.7",
+        "vcs": {
+            "type": "git",
+            "url": "git+https://github.com/Anorov/PySocks",
+            "requested-revision": "1.7.0",
+            "commit-id": "91dcdf0fec424b6afe9ceef88de63b72d2f8fcfe",
+        },
+    } == packages_by_name["pysocks"]
+
+    assert {
+        "name": "cowsay",
+        "requires-python": ">=3.8",
+        "version": "6.1",
+        "archive": {
+            "url": "https://github.com/VaasuDevanS/cowsay-python/archive/dcf7236f0b5ece9ed56e91271486e560526049cf.zip",
+            "hashes": {
+                "sha256": "27dc8a9f155ed95045cbacb5f5990b80d6bb32193e818b8ab8b09f883a6b7096",
+            },
+        },
+    } == packages_by_name["cowsay"]

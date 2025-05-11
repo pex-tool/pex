@@ -155,6 +155,7 @@ class Wheel(object):
         return self.metadata.root_is_purelib
 
     def dist_metadata(self):
+        # type: () -> DistMetadata
         return DistMetadata.from_metadata_files(self.metadata_files)
 
     def metadata_path(self, *components):
