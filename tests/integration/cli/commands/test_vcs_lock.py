@@ -241,7 +241,7 @@ def test_vcs_transitive(
     subprocess.check_call(args=["git", "add", "."], cwd=src)
     subprocess.check_call(args=["git", "commit", "--no-gpg-sign", "-m", "Only commit."], cwd=src)
 
-    # Packaging compatible with Python>=3.6 cannot handle `{vcs}+file:/...` URLs; so we skip.
+    # Packaging compatible with Python<3.7 cannot handle `{vcs}+file:/...` URLs; so we skip.
     # (`{vcs}+https?:/...` URLs work fine though as exercised above).
     if sys.version_info[:2] >= (3, 7):
         lock = test_tool.create_lock("git+file://{src}#egg=poetry".format(src=src))
