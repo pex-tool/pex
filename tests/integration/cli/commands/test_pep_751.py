@@ -5,11 +5,13 @@ from __future__ import absolute_import
 
 import subprocess
 import sys
+from textwrap import dedent
 from typing import Any, Dict, Iterator, Text
 
 import pytest
 
 from pex import toml
+from pex.common import safe_open
 from pex.interpreter import PythonInterpreter
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
@@ -295,3 +297,37 @@ def test_universal_export_interop(
         ),
         key=sort_by_pin,
     )
+
+
+def test_lock_all_package_types(
+    tmpdir,  # type: Tempdir
+    pex_project_dir,  # type: str
+):
+    # type: (...) -> None
+
+    requirements = tmpdir.join("requirements.txt")
+    with open(requirements, "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                # Stress the editable bit for directory packages.
+                -e {pex_project_dir}
+                
+                # Stress extras handling, sdists and wheels.
+                requests[socks]
+                
+                # Stress archive handling.
+                PySocks @ git+https://github.com/Anorov/PySocks
+                
+                # Stress VCS handling.
+                cowsay @ https://github.com/VaasuDevanS/cowsay-python/archive/dcf7236f0b5ece9ed56e91271486e560526049cf.zip
+                """.format(pex_project_dir=pex_project_dir)
+            )
+        )
+    lock = tmpdir.join("lock.json")
+    run_pex3("lock", "create", "--pip-version", "latest-compatible", "--style", "sources", "-r", requirements, "--indent", "2", "-o", lock).assert_success()
+
+    result = run_pex3("lock", "export", "--format", "pep-751", lock)
+    result.assert_success()
+
+    assert_valid_toml(result.output)
