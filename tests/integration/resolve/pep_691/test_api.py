@@ -5,10 +5,10 @@ import re
 
 import pytest
 
+from pex.artifact_url import Fingerprint
 from pex.pep_503 import ProjectName
 from pex.resolve.pep_691.api import Client
 from pex.resolve.pep_691.model import Endpoint, Project
-from pex.resolve.resolved_requirement import Fingerprint
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:

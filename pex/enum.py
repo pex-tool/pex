@@ -152,7 +152,6 @@ class Enum(Generic["_V"]):
             "Expected Enum subclass {cls} to have a type parameter that is a subclass of "
             "`Enum.Value`. Instead found {type_var} was of type: {enum_value_type}",
             cls=cls,
-            name=cls.__name__,
             type_var=cls.type_var,
             enum_value_type=enum_value_type,
         )

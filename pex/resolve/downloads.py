@@ -7,6 +7,7 @@ import os.path
 import shutil
 
 from pex import hashing
+from pex.artifact_url import ArtifactURL, Fingerprint
 from pex.atomic_directory import atomic_directory
 from pex.cache.dirs import CacheDir, DownloadDir
 from pex.common import safe_mkdir, safe_mkdtemp
@@ -18,7 +19,7 @@ from pex.pip.installation import get_pip
 from pex.pip.tool import PackageIndexConfiguration, Pip
 from pex.resolve import locker
 from pex.resolve.locked_resolve import Artifact, FileArtifact, LockConfiguration
-from pex.resolve.resolved_requirement import ArtifactURL, Fingerprint, PartialArtifact
+from pex.resolve.resolved_requirement import PartialArtifact
 from pex.resolve.resolvers import Resolver
 from pex.result import Error
 from pex.targets import LocalInterpreter, Target

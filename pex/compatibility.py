@@ -126,7 +126,9 @@ if PY3:
     from urllib import parse as _url_parse
     from urllib.error import HTTPError as HTTPError
     from urllib.parse import quote as _url_quote
+    from urllib.parse import quote_plus as _url_quote_plus
     from urllib.parse import unquote as _url_unquote
+    from urllib.parse import unquote_plus as _url_unquote_plus
     from urllib.request import AbstractHTTPHandler as AbstractHTTPHandler
     from urllib.request import FileHandler as FileHandler
     from urllib.request import HTTPBasicAuthHandler as HTTPBasicAuthHandler
@@ -138,7 +140,9 @@ if PY3:
     from urllib.request import build_opener as build_opener
 else:
     from urllib import quote as _url_quote
+    from urllib import quote_plus as _url_quote_plus
     from urllib import unquote as _url_unquote
+    from urllib import unquote_plus as _url_unquote_plus
 
     import urlparse as _url_parse
     from httplib import HTTPConnection as HTTPConnection
@@ -156,8 +160,10 @@ else:
 
 urlparse = _url_parse
 url_unquote = _url_unquote
+url_unquote_plus = _url_unquote_plus
 url_quote = _url_quote
-del _url_parse, _url_unquote, _url_quote
+url_quote_plus = _url_quote_plus
+del _url_parse, _url_unquote, _url_unquote_plus, _url_quote, _url_quote_plus
 
 if PY3:
     from queue import Queue as Queue

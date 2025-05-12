@@ -15,6 +15,7 @@ from operator import attrgetter
 
 from pex import dependency_configuration, pex_warnings
 from pex.argparse import HandleBoolAction
+from pex.artifact_url import Fingerprint
 from pex.build_system import pep_517
 from pex.cli.command import BuildTimeCommand
 from pex.commands.command import JsonMixin, OutputMixin
@@ -43,8 +44,9 @@ from pex.requirements import LocalProjectRequirement
 from pex.resolve import project, requirement_options, resolver_options, target_options
 from pex.resolve.config import finalize as finalize_resolve_config
 from pex.resolve.configured_resolver import ConfiguredResolver
-from pex.resolve.lock_resolver import resolve_from_lock
+from pex.resolve.lock_resolver import resolve_from_pex_lock
 from pex.resolve.locked_resolve import (
+    FileArtifact,
     LocalProjectArtifact,
     LockConfiguration,
     LockedResolve,
@@ -69,7 +71,7 @@ from pex.resolve.lockfile.updater import (
 )
 from pex.resolve.path_mappings import PathMappings
 from pex.resolve.requirement_configuration import RequirementConfiguration
-from pex.resolve.resolved_requirement import Fingerprint, Pin
+from pex.resolve.resolved_requirement import Pin
 from pex.resolve.resolver_configuration import LockRepositoryConfiguration, PipConfiguration
 from pex.resolve.resolver_options import parse_lockfile
 from pex.resolve.resolvers import Resolver
@@ -533,7 +535,8 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         resolver_options.register(
             cls._create_resolver_options_group(parser),
             include_pex_repository=False,
-            include_lock=False,
+            include_pex_lock=False,
+            include_pylock=False,
             include_pre_resolved=False,
         )
 
@@ -561,7 +564,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
     @classmethod
     def _add_lock_options(cls, parser):
         # type: (_ActionsContainer) -> None
-        resolver_options.register_lock_options(parser)
+        resolver_options.register_pex_lock_options(parser)
 
     @classmethod
     def _add_create_arguments(cls, create_parser):
@@ -695,7 +698,8 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         resolver_options.register(
             resolver_options_parser,
             include_pex_repository=False,
-            include_lock=False,
+            include_pex_lock=False,
+            include_pylock=False,
             include_pre_resolved=False,
         )
 
@@ -803,7 +807,8 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         resolver_options.register(
             resolver_options_parser,
             include_pex_repository=False,
-            include_lock=False,
+            include_pex_lock=False,
+            include_pylock=False,
             include_pre_resolved=False,
         )
 
@@ -1158,7 +1163,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             production_assert(
                 len(lock_file.locked_resolves) == 1,
                 "A --style universal lock should have just one locked resolve, found {count}.",
-                len(lock_file.locked_resolves),
+                count=len(lock_file.locked_resolves),
             )
 
             if requirement_configuration.has_requirements:
@@ -1273,30 +1278,50 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             warnings.append("{type} {requirement!r}".format(type=type_, requirement=requirement))
             return requirement
 
-        for downloaded_artifact in resolved.downloadable_artifacts:
-            if isinstance(downloaded_artifact.artifact, LocalProjectArtifact):
-                requirement_by_pin[downloaded_artifact.pin] = add_warning(
+        for downloadable_artifact in resolved.downloadable_artifacts:
+            production_assert(
+                isinstance(
+                    downloadable_artifact.artifact,
+                    (FileArtifact, LocalProjectArtifact, VCSArtifact),
+                ),
+                "Pex locks should only contain fingerprinted artifacts.\n"
+                "Have un-fingerprinted artifact {url} of type {type}.",
+                url=downloadable_artifact.artifact.url,
+                type=type(downloadable_artifact.artifact),
+            )
+            artifact = cast(
+                "Union[FileArtifact, LocalProjectArtifact, VCSArtifact]",
+                downloadable_artifact.artifact,
+            )
+
+            production_assert(
+                downloadable_artifact.version is not None,
+                "Pex locks should always have pins for all downloaded artifacts.",
+            )
+            pin = Pin(
+                project_name=downloadable_artifact.project_name,
+                version=cast(Version, downloadable_artifact.version),
+            )
+            if isinstance(artifact, LocalProjectArtifact):
+                requirement_by_pin[pin] = add_warning(
                     "local project requirement",
                     requirement="{project_name} @ file://{directory}".format(
-                        project_name=downloaded_artifact.pin.project_name,
-                        directory=downloaded_artifact.artifact.directory,
+                        project_name=downloadable_artifact.project_name,
+                        directory=artifact.directory,
                     ),
                 )
-            elif isinstance(downloaded_artifact.artifact, VCSArtifact):
-                requirement_by_pin[downloaded_artifact.pin] = add_warning(
+            elif isinstance(artifact, VCSArtifact):
+                requirement_by_pin[pin] = add_warning(
                     "VCS requirement",
-                    requirement=downloaded_artifact.artifact.as_unparsed_requirement(
-                        downloaded_artifact.pin.project_name
+                    requirement=artifact.as_unparsed_requirement(
+                        downloadable_artifact.project_name
                     ),
                 )
             else:
-                requirement_by_pin[downloaded_artifact.pin] = "{project_name}=={version}".format(
-                    project_name=downloaded_artifact.pin.project_name,
-                    version=downloaded_artifact.pin.version.raw,
+                requirement_by_pin[pin] = "{project_name}=={version}".format(
+                    project_name=pin.project_name, version=pin.version.raw
                 )
-            fingerprints_by_pin.setdefault(downloaded_artifact.pin, []).append(
-                downloaded_artifact.artifact.fingerprint
-            )
+            fingerprints_by_pin.setdefault(pin, []).append(artifact.fingerprint)
 
         if self.options.format is ExportFormat.PIP and warnings:
             print(
@@ -1529,12 +1554,11 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                             req in root_requirements,
                             "Transitive requirements in a lock should always match existing lock "
                             "entries. Found {project} {version} in {lock_file}, which does not "
-                            "satisfy transitive requirement '{req}' found in the same lock.".format(
-                                project=pnav.project_name,
-                                version=pnav.version,
-                                lock_file=lockfile_path,
-                                req=req,
-                            ),
+                            "satisfy transitive requirement '{req}' found in the same lock.",
+                            project=pnav.project_name,
+                            version=pnav.version,
+                            lock_file=lockfile_path,
+                            req=req,
                         )
                         return Error(
                             "The locked version of {project} in {lock_file} is {version} which "
@@ -2217,7 +2241,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         lock_file = try_(parse_lockfile(self.options, lock_file_path=lock_file_path))
         target = LocalInterpreter.create(sync_target.venv.interpreter)
         resolve_result = try_(
-            resolve_from_lock(
+            resolve_from_pex_lock(
                 targets=Targets.from_target(target),
                 lock=lock_file,
                 resolver=ConfiguredResolver(pip_configuration),

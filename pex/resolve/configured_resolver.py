@@ -61,7 +61,7 @@ class ConfiguredResolver(Resolver):
     ):
         # type: (...) -> ResolveResult
         return try_(
-            lock_resolver.resolve_from_lock(
+            lock_resolver.resolve_from_pex_lock(
                 targets=targets,
                 lock=lock,
                 resolver=self,

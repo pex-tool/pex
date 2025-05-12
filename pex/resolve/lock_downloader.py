@@ -25,10 +25,12 @@ from pex.resolve.locked_resolve import (
     DownloadableArtifact,
     FileArtifact,
     LocalProjectArtifact,
+    LockConfiguration,
+    UnFingerprintedLocalProjectArtifact,
+    UnFingerprintedVCSArtifact,
     VCSArtifact,
 )
 from pex.resolve.lockfile.download_manager import DownloadedArtifact, DownloadManager
-from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.resolver_configuration import BuildConfiguration, ResolverVersion
 from pex.resolve.resolvers import MAX_PARALLEL_DOWNLOADS, Resolver
 from pex.result import Error, catch
@@ -113,7 +115,7 @@ class VCSArtifactDownloadManager(DownloadManager[VCSArtifact]):
 
     def save(
         self,
-        artifact,  # type: VCSArtifact
+        artifact,  # type: Union[UnFingerprintedVCSArtifact, VCSArtifact]
         project_name,  # type: ProjectName
         dest_dir,  # type: str
         digest,  # type: HintedDigest
@@ -160,6 +162,7 @@ class VCSArtifactDownloadManager(DownloadManager[VCSArtifact]):
             archive_path=local_distribution.path,
             vcs=artifact.vcs,
             digest=digest,
+            subdirectory=artifact.subdirectory,
         )
         shutil.move(local_distribution.path, os.path.join(dest_dir, filename))
         return filename
@@ -183,7 +186,7 @@ class LocalProjectDownloadManager(DownloadManager[LocalProjectArtifact]):
 
     def save(
         self,
-        artifact,  # type: LocalProjectArtifact
+        artifact,  # type: Union[LocalProjectArtifact, UnFingerprintedLocalProjectArtifact]
         project_name,  # type: ProjectName
         dest_dir,  # type: str
         digest,  # type: HintedDigest
@@ -208,7 +211,7 @@ class LockDownloader(object):
     def create(
         cls,
         targets,  # type: Iterable[Target]
-        lock,  # type: Lockfile
+        lock_configuration,  # type: LockConfiguration
         resolver,  # type: Resolver
         indexes=None,  # type: Optional[Sequence[str]]
         find_links=None,  # type: Optional[Sequence[str]]
@@ -236,7 +239,7 @@ class LockDownloader(object):
                 file_lock_style=file_lock_style,
                 downloader=ArtifactDownloader(
                     resolver=resolver,
-                    lock_configuration=lock.lock_configuration(),
+                    lock_configuration=lock_configuration,
                     target=target,
                     package_index_configuration=PackageIndexConfiguration.create(
                         pip_version=pip_version,
@@ -305,24 +308,24 @@ class LockDownloader(object):
     def download_artifact(self, downloadable_artifact_and_target):
         # type: (Tuple[DownloadableArtifact, Target]) -> Union[DownloadedArtifact, Error]
         downloadable_artifact, target = downloadable_artifact_and_target
-        if isinstance(downloadable_artifact.artifact, VCSArtifact):
+        if isinstance(downloadable_artifact.artifact, (UnFingerprintedVCSArtifact, VCSArtifact)):
             return catch(
                 self.vcs_download_managers_by_target[target].store,
                 downloadable_artifact.artifact,
-                downloadable_artifact.pin.project_name,
+                downloadable_artifact.project_name,
             )
 
         if isinstance(downloadable_artifact.artifact, FileArtifact):
             return catch(
                 self.file_download_managers_by_target[target].store,
                 downloadable_artifact.artifact,
-                downloadable_artifact.pin.project_name,
+                downloadable_artifact.project_name,
             )
 
         return catch(
             self.local_project_download_managers_by_target[target].store,
             downloadable_artifact.artifact,
-            downloadable_artifact.pin.project_name,
+            downloadable_artifact.project_name,
         )
 
     def download_artifacts(self, downloadable_artifacts_and_targets):
@@ -363,9 +366,9 @@ class LockDownloader(object):
                     count=error_count,
                     errors=pluralize(download_errors, "error"),
                     error_details="\n".join(
-                        "{index}. {pin} from {url}\n    {error}".format(
+                        "{index}. {spec} from {url}\n    {error}".format(
                             index=index,
-                            pin=downloadable_artifact.pin,
+                            spec=downloadable_artifact.specifier(),
                             url=downloadable_artifact.artifact.url.download_url,
                             error="\n    ".join(str(error).splitlines()),
                         )

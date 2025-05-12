@@ -8,13 +8,13 @@ import shutil
 
 import pytest
 
+from pex.artifact_url import ArtifactURL
 from pex.common import safe_open
 from pex.fetcher import URLFetcher
 from pex.pip.version import PipVersion
 from pex.resolve.locked_resolve import Artifact, FileArtifact, LockedRequirement
 from pex.resolve.lockfile import json_codec
 from pex.resolve.lockfile.model import Lockfile
-from pex.resolve.resolved_requirement import ArtifactURL
 from pex.typing import TYPE_CHECKING
 from testing import make_env, run_pex_command, subprocess
 from testing.cli import run_pex3

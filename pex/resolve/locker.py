@@ -10,6 +10,7 @@ import re
 from collections import OrderedDict, defaultdict
 
 from pex import hashing
+from pex.artifact_url import ArchiveScheme, ArtifactURL, Fingerprint, VCSScheme
 from pex.common import safe_mkdtemp
 from pex.compatibility import urlparse
 from pex.dist_metadata import ProjectNameAndVersion, Requirement
@@ -22,17 +23,11 @@ from pex.pip.local_project import digest_local_project
 from pex.pip.log_analyzer import LogAnalyzer
 from pex.pip.vcs import fingerprint_downloaded_vcs_archive
 from pex.pip.version import PipVersionValue
-from pex.requirements import ArchiveScheme, LocalProjectRequirement, VCSRequirement, VCSScheme
+from pex.requirements import LocalProjectRequirement, VCSRequirement
 from pex.resolve.locked_resolve import LockConfiguration, LockStyle, TargetSystem
 from pex.resolve.pep_691.fingerprint_service import FingerprintService
 from pex.resolve.pep_691.model import Endpoint
-from pex.resolve.resolved_requirement import (
-    ArtifactURL,
-    Fingerprint,
-    PartialArtifact,
-    Pin,
-    ResolvedRequirement,
-)
+from pex.resolve.resolved_requirement import PartialArtifact, Pin, ResolvedRequirement
 from pex.resolve.resolvers import Resolver
 from pex.targets import Target
 from pex.typing import TYPE_CHECKING
@@ -384,6 +379,7 @@ class Locker(LogAnalyzer):
                         project_name=str(build_result.pin.project_name),
                         version=str(build_result.pin.version),
                         vcs=artifact_url.scheme.vcs,
+                        subdirectory=artifact_url.subdirectory,
                     )
                     verified = True
                     selected_path = os.path.basename(archive_path)

@@ -12,35 +12,47 @@ from pex.dist_metadata import Requirement
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.requirements import LocalProjectRequirement, parse_requirement_strings
-from pex.resolve.locked_resolve import Resolved
+from pex.resolve.locked_resolve import LockedResolve, Resolved
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import BuildConfiguration
 from pex.result import Error
 from pex.targets import Target, Targets
 from pex.tracer import TRACER
-from pex.typing import TYPE_CHECKING
+from pex.typing import TYPE_CHECKING, Generic
 
 if TYPE_CHECKING:
-    from typing import Dict, Iterable, List, Optional, Text, Tuple, Union
+    from typing import Dict, Iterable, List, Optional, Text, Tuple, TypeVar, Union
 
     import attr  # vendor:skip
 
     from pex.requirements import ParsedRequirement
+
+    Source = TypeVar("Source")
 else:
     from pex.third_party import attr
 
 
-@attr.s(frozen=True)
-class Subset(object):
-    target = attr.ib()  # type: Target
-    resolved = attr.ib()  # type: Resolved
+class Subset(Generic["Source"]):
+    def __init__(
+        self,
+        target,  # type: Target
+        resolved,  # type: Resolved[Source]
+    ):
+        # type: (...) -> None
+        self.target = target
+        self.resolved = resolved
 
 
-@attr.s(frozen=True)
-class SubsetResult(object):
-    requirements = attr.ib()  # type: Tuple[ParsedRequirement, ...]
-    subsets = attr.ib()  # type: Tuple[Subset, ...]
+class SubsetResult(Generic["Source"]):
+    def __init__(
+        self,
+        requirements,  # type: Tuple[ParsedRequirement, ...]
+        subsets,  # type: Tuple[Subset[Source], ...]
+    ):
+        # type: (...) -> None
+        self.requirements = requirements
+        self.subsets = subsets
 
 
 def subset(
@@ -53,7 +65,7 @@ def subset(
     include_all_matches=False,  # type: bool
     dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
 ):
-    # type: (...) -> Union[SubsetResult, Error]
+    # type: (...) -> Union[SubsetResult[LockedResolve], Error]
 
     with TRACER.timed("Parsing requirements"):
         parsed_requirements = tuple(
@@ -98,7 +110,7 @@ def subset(
                 )
             )
 
-    resolved_by_target = OrderedDict()  # type: OrderedDict[Target, Resolved]
+    resolved_by_target = OrderedDict()  # type: OrderedDict[Target, Resolved[LockedResolve]]
     errors_by_target = {}  # type: Dict[Target, Iterable[Error]]
 
     with TRACER.timed(
@@ -107,11 +119,11 @@ def subset(
         )
     ):
         for target in targets.unique_targets():
-            resolveds = []
+            resolveds = []  # type: List[Resolved[LockedResolve]]
             errors = []
             for locked_resolve in lock.locked_resolves:
-                # TODO: XXX: Handle --style universal subsets where target applicability needs to
-                #  be looser. Maybe a custom Target type?:
+                # TODO(John Sirois): Handle --style universal subsets where target applicability
+                #  needs to be looser. Maybe a custom Target type?:
                 #  + requirement_applies
                 #  + requires_python_applies
                 #  + tags / wheel_applies -> may need to invert iter_compatible_artifacts into
@@ -155,10 +167,10 @@ def subset(
             )
         )
 
-    return SubsetResult(
+    return SubsetResult[LockedResolve](
         requirements=parsed_requirements,
         subsets=tuple(
-            Subset(target=target, resolved=resolved)
+            Subset[LockedResolve](target=target, resolved=resolved)
             for target, resolved in resolved_by_target.items()
         ),
     )

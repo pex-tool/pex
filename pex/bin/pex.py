@@ -139,7 +139,11 @@ def configure_clp_pex_resolution(parser):
     )
 
     resolver_options.register(
-        group, include_pex_repository=True, include_lock=True, include_pre_resolved=True
+        group,
+        include_pex_repository=True,
+        include_pex_lock=True,
+        include_pylock=True,
+        include_pre_resolved=True,
     )
 
     group.add_argument(

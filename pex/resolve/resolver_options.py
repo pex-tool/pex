@@ -27,6 +27,7 @@ from pex.resolve.resolver_configuration import (
     PipConfiguration,
     PipLog,
     PreResolvedConfiguration,
+    PylockRepositoryConfiguration,
     ReposConfiguration,
     ResolverVersion,
 )
@@ -67,7 +68,8 @@ class _HandleTransitiveAction(Action):
 def register(
     parser,  # type: _ActionsContainer
     include_pex_repository=False,  # type: bool
-    include_lock=False,  # type: bool
+    include_pex_lock=False,  # type: bool
+    include_pylock=False,  # type: bool
     include_pre_resolved=False,  # type: bool
 ):
     # type: (...) -> None
@@ -75,7 +77,8 @@ def register(
 
     :param parser: The parser to register resolver configuration options with.
     :param include_pex_repository: Whether to include the `--pex-repository` option.
-    :param include_lock: Whether to include the `--lock` option.
+    :param include_pex_lock: Whether to include the `--lock` / `--pex-lock` option.
+    :param include_pylock: Whether to include the `--pylock` / `--pep-751-lock` option.
     :param include_pre_resolved: Whether to include the `--pre-resolved-dist` and
                                  `--pre-resolved-dists` options.
     """
@@ -182,7 +185,9 @@ def register(
     repository_types = 0
     if include_pex_repository:
         repository_types += 1
-    if include_lock:
+    if include_pex_lock:
+        repository_types += 1
+    if include_pylock:
         repository_types += 1
     if include_pre_resolved:
         repository_types += 1
@@ -200,9 +205,10 @@ def register(
                 "--find-links repos or a --lock file."
             ),
         )
-    if include_lock:
+    if include_pex_lock:
         repository_choice.add_argument(
             "--lock",
+            "--pex-lock",
             dest="lock",
             metavar="FILE",
             default=None,
@@ -213,7 +219,23 @@ def register(
                 "specified, will install the entire lock."
             ),
         )
-        register_lock_options(parser)
+        register_pex_lock_options(parser)
+    if include_pylock:
+        repository_choice.add_argument(
+            "--pylock",
+            "--pep-751-lock",
+            dest="pylock",
+            metavar="FILE",
+            default=None,
+            type=str,
+            help=(
+                "Resolve requirements from the given PEP-751 lock file instead of from --index "
+                "servers, --find-links repos or a --pex-repository. If no requirements are "
+                "specified, will install the entire lock. If requirements are specified an attempt "
+                "will be made to subset the lock which may fail if the lock does not include "
+                "dependencies information, which is optional in PEP-751."
+            ),
+        )
     if include_pre_resolved:
         repository_choice.add_argument(
             "--pre-resolved-dist",
@@ -439,7 +461,7 @@ def get_use_pip_config_value(options):
     return os.environ.get("_PEX_USE_PIP_CONFIG", "False").lower() in ("1", "true")
 
 
-def register_lock_options(parser):
+def register_pex_lock_options(parser):
     # type: (_ActionsContainer) -> None
     """Register lock options with the given parser.
 
@@ -592,6 +614,7 @@ if TYPE_CHECKING:
         PexRepositoryConfiguration,
         PipConfiguration,
         PreResolvedConfiguration,
+        PylockRepositoryConfiguration,
     ]
 
 
@@ -620,11 +643,18 @@ def configure(
             pex_repository=pex_repository, pip_configuration=pip_configuration
         )
 
-    lock = getattr(options, "lock", None)
-    if lock:
+    pex_lock = getattr(options, "lock", None)
+    if pex_lock:
         return LockRepositoryConfiguration(
-            parse_lock=lambda: parse_lockfile(options, lock_file_path=lock),
-            lock_file_path=lock,
+            parse_lock=lambda: parse_lockfile(options, lock_file_path=pex_lock),
+            lock_file_path=pex_lock,
+            pip_configuration=pip_configuration,
+        )
+
+    pylock = getattr(options, "pylock", None)
+    if pylock:
+        return PylockRepositoryConfiguration(
+            lock_file_path=pylock,
             pip_configuration=pip_configuration,
         )
 

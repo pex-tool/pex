@@ -54,7 +54,7 @@ def test_universal_export_subset(devpi_server_lock):
 
     assert {
         "lock-version": "1.0",
-        "environments": ["platform_system = 'Darwin'", "platform_system = 'Linux'"],
+        "environments": ["platform_system == 'Darwin'", "platform_system == 'Linux'"],
         "requires-python": "<3.14,>=3.10",
         "extras": [],
         "dependency-groups": [],
@@ -127,7 +127,7 @@ def test_universal_export_subset_no_dependency_info(devpi_server_lock):
 
     assert {
         "lock-version": "1.0",
-        "environments": ["platform_system = 'Darwin'", "platform_system = 'Linux'"],
+        "environments": ["platform_system == 'Darwin'", "platform_system == 'Linux'"],
         "requires-python": "<3.14,>=3.10",
         "extras": [],
         "dependency-groups": [],
@@ -374,7 +374,7 @@ def test_lock_all_package_types(
         "version": "1.7",
         "vcs": {
             "type": "git",
-            "url": "git+https://github.com/Anorov/PySocks",
+            "url": "https://github.com/Anorov/PySocks",
             "requested-revision": "1.7.0",
             "commit-id": "91dcdf0fec424b6afe9ceef88de63b72d2f8fcfe",
         },

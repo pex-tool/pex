@@ -5,16 +5,15 @@ from __future__ import absolute_import
 
 import os
 import shutil
-import tarfile
 from collections import OrderedDict, defaultdict
 from multiprocessing.pool import ThreadPool
 
 from pex import hashing, resolver
 from pex.auth import PasswordDatabase
 from pex.build_system import pep_517
-from pex.common import open_zip, pluralize, safe_mkdtemp
+from pex.common import pluralize, safe_mkdtemp
 from pex.dependency_configuration import DependencyConfiguration
-from pex.dist_metadata import DistMetadata, ProjectNameAndVersion, is_tar_sdist, is_zip_sdist
+from pex.dist_metadata import DistMetadata, ProjectNameAndVersion
 from pex.fetcher import URLFetcher
 from pex.jobs import Job, Retain, SpawnedJob, execute_parallel
 from pex.orderedset import OrderedSet
@@ -149,31 +148,7 @@ class LockError(Exception):
 
 def _prepare_project_directory(build_request):
     # type: (BuildRequest) -> Tuple[Target, str]
-
-    project = build_request.source_path
-    target = build_request.target
-    if os.path.isdir(project):
-        return target, project
-
-    extract_dir = os.path.join(safe_mkdtemp(), "project")
-    if is_zip_sdist(project):
-        with open_zip(project) as zf:
-            zf.extractall(extract_dir)
-    elif is_tar_sdist(project):
-        with tarfile.open(project) as tf:
-            tf.extractall(extract_dir)
-    else:
-        raise LockError("Unexpected archive type for sdist {project}".format(project=project))
-
-    listing = os.listdir(extract_dir)
-    if len(listing) != 1:
-        raise LockError(
-            "Expected one top-level project directory to be extracted from {project}, "
-            "found {count}: {listing}".format(
-                project=project, count=len(listing), listing=", ".join(listing)
-            )
-        )
-    return target, os.path.join(extract_dir, listing[0])
+    return build_request.target, build_request.prepare()
 
 
 @attr.s(frozen=True)
@@ -241,7 +216,9 @@ class LockObserver(ResolveObserver):
             else:
                 build_requests.add(
                     BuildRequest.create(
-                        target=local_distribution.target, source_path=local_distribution.path
+                        target=local_distribution.target,
+                        source_path=local_distribution.path,
+                        subdirectory=local_distribution.subdirectory,
                     )
                 )
 
@@ -473,7 +450,7 @@ def create(
             "Checking lock can resolve for platforms: {targets}".format(targets=check_targets)
         ):
             try_(
-                lock_resolver.resolve_from_lock(
+                lock_resolver.resolve_from_pex_lock(
                     targets=check_targets,
                     lock=lock,
                     resolver=configured_resolver,
