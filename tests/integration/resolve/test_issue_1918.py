@@ -118,7 +118,17 @@ def test_redacted_requirement_handling(
         "2",
     ).assert_success()
     lockfile = json_codec.load(lock)
-    assert SortedTuple([Requirement.parse("ansicolors")]) == lockfile.requirements
+    assert (
+        SortedTuple(
+            [
+                attr.evolve(
+                    Requirement.parse("ansicolors"),
+                    url=ArtifactURL.parse(expected_url).normalized_url,
+                )
+            ]
+        )
+        == lockfile.requirements
+    )
 
     assert 1 == len(lockfile.locked_resolves)
     locked_resolve = lockfile.locked_resolves[0]
