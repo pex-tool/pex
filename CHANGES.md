@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.38.1
+
+This release fixes a long-standing bug parsing requirements files that included other requirements
+files.
+
+* Fix requirement file includes relative path handling. (#2764)
+
 ## 2.38.0
 
 This release adds support for `pex3 lock export --format pep-751` to export Pex locks in the new
