@@ -128,6 +128,8 @@ class Source(object):
             return
 
         path = url.path if url.scheme == "file" else origin
+        if not os.path.isabs(path) and self.is_file:
+            path = os.path.join(os.path.dirname(self.origin), path)
         try:
             with self.from_file(path, is_constraints=is_constraints) as source:
                 yield source

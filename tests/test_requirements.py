@@ -8,7 +8,7 @@ from textwrap import dedent
 
 import pytest
 
-from pex.common import environment_as, safe_open, temporary_dir, touch
+from pex.common import environment_as, safe_open, touch
 from pex.dist_metadata import Requirement
 from pex.fetcher import URLFetcher
 from pex.requirements import (
@@ -30,9 +30,10 @@ from pex.requirements import (
 )
 from pex.third_party.packaging.markers import Marker
 from pex.typing import TYPE_CHECKING
+from testing.pytest_utils.tmp import Tempdir
 
 if TYPE_CHECKING:
-    from typing import Any, Iterable, Iterator, List, Optional, Union
+    from typing import Any, Iterable, List, Optional, Union
 
     import attr  # vendor:skip
 
@@ -43,19 +44,11 @@ else:
     from pex.third_party import attr
 
 
-@pytest.fixture
-def chroot():
-    # type: () -> Iterator[str]
-    with temporary_dir() as chroot:
-        curdir = os.getcwd()
-        try:
-            os.chdir(chroot)
-            yield os.path.realpath(chroot)
-        finally:
-            os.chdir(curdir)
+def test_parse_requirements_failure_bad_include(tmpdir):
+    # type: (Tempdir) -> None
 
-
-def test_parse_requirements_failure_bad_include(chroot):
+    # N.B.: This test assumes there is no `other-requirements.txt` in the root of the Pex repo,
+    # which is the cwd of the test runner.
     req_iter = parse_requirements(Source.from_text("\n-r other-requirements.txt"))
     with pytest.raises(ParseError) as exc_info:
         next(req_iter)
@@ -69,9 +62,9 @@ def test_parse_requirements_failure_bad_include(chroot):
     )
 
 
-def test_parse_requirements_failure_bad_requirement(chroot):
-    # type: (str) -> None
-    other_requirement_file = os.path.realpath(os.path.join(chroot, "other-requirements.txt"))
+def test_parse_requirements_failure_bad_requirement(tmpdir):
+    # type: (Tempdir) -> None
+    other_requirement_file = tmpdir.join("other-requirements.txt")
     with safe_open(other_requirement_file, "w") as fp:
         fp.write(
             dedent(
@@ -91,7 +84,9 @@ def test_parse_requirements_failure_bad_requirement(chroot):
             )
         )
 
-    req_iter = parse_requirements(Source.from_text("-r other-requirements.txt"))
+    req_iter = parse_requirements(
+        Source.from_text("-r {requirements_txt}".format(requirements_txt=other_requirement_file))
+    )
 
     parsed_requirement = next(req_iter)
     assert isinstance(parsed_requirement, PyPIRequirement)
@@ -232,9 +227,10 @@ def normalize_results(parsed_requirements):
     ]
 
 
-def test_parse_requirements_stress(chroot):
-    # type: (str) -> None
-    with safe_open(os.path.join(chroot, "other-requirements.txt"), "w") as fp:
+def test_parse_requirements_stress(tmpdir):
+    # type: (Tempdir) -> None
+    other_requirements_txt = tmpdir.join("other-requirements.txt")
+    with safe_open(other_requirements_txt, "w") as fp:
         fp.write(
             # This includes both example snippets taken directly from
             # https://pip.pypa.io/en/stable/reference/pip_install/#requirements-file-format
@@ -268,9 +264,9 @@ def test_parse_requirements_stress(chroot):
                 """
             )
         )
-    touch("somewhere/over/here/pyproject.toml")
+    touch(tmpdir.join("somewhere", "over", "here", "pyproject.toml"))
 
-    with safe_open(os.path.join(chroot, "extra", "stress.txt"), "w") as fp:
+    with safe_open(tmpdir.join("extra", "stress.txt"), "w") as fp:
         fp.write(
             # These are tests of edge cases not included anywhere in the examples found in
             # https://pip.pypa.io/en/stable/reference/pip_install/#requirements-file-format.
@@ -317,15 +313,15 @@ def test_parse_requirements_stress(chroot):
                 -e ./another/local/project
                 --editable ./another/local/project/
                 """
-            ).format(chroot=chroot)
+            ).format(chroot=tmpdir)
         )
-    touch("extra/pyproject.toml")
-    touch("extra/a/local/project/pyproject.toml")
-    touch("extra/another/local/project/setup.py")
-    touch("extra/tmp/tmpW8tdb_/setup.py")
-    touch("extra/projects/django-2.3.zip")
+    touch(tmpdir.join("extra", "pyproject.toml"))
+    touch(tmpdir.join("extra", "a", "local", "project", "pyproject.toml"))
+    touch(tmpdir.join("extra", "another", "local", "project", "setup.py"))
+    touch(tmpdir.join("extra", "tmp", "tmpW8tdb_", "setup.py"))
+    touch(tmpdir.join("extra", "projects", "django-2.3.zip"))
 
-    with safe_open(os.path.join(chroot, "subdir", "more-requirements.txt"), "w") as fp:
+    with safe_open(tmpdir.join("extra", "subdir", "more-requirements.txt"), "w") as fp:
         fp.write(
             # This checks requirements (`ReqInfo`s) are wrapped up into `Constraints`.
             dedent(
@@ -335,8 +331,9 @@ def test_parse_requirements_stress(chroot):
             )
         )
 
-    req_iter = parse_requirements(
-        Source.from_text(
+    root_requirements_txt = tmpdir.join("requirements.txt")
+    with safe_open(root_requirements_txt, "w") as fp:
+        fp.write(
             # N.B.: Taken verbatim from:
             #   https://pip.pypa.io/en/stable/reference/pip_install/#example-requirements-file
             dedent(
@@ -370,15 +367,15 @@ def test_parse_requirements_stress(chroot):
                 green
                 #
                 """
-            ),
+            )
         )
-    )
+    req_iter = parse_requirement_file(root_requirements_txt)
 
     # Ensure local non-distribution files matching distribution names are not erroneously probed
     # as distributions to find name and version metadata.
-    touch("nose")
+    touch(tmpdir.join("nose"))
 
-    touch("downloads/numpy-1.9.2-cp34-none-win32.whl")
+    touch(tmpdir.join("downloads", "numpy-1.9.2-cp34-none-win32.whl"))
     with environment_as(PROJECT_NAME="Project"):
         results = normalize_results(req_iter)
 
@@ -398,7 +395,7 @@ def test_parse_requirements_stress(chroot):
         req(project_name="SomeProject", specifier="==5.4", marker="python_version < '2.7'"),
         req(project_name="SomeProject", marker="sys_platform == 'win32'"),
         url_req(project_name="SomeProject", url="https://example.com/somewhere/over/here"),
-        local_req(path=os.path.realpath("somewhere/over/here")),
+        local_req(path=tmpdir.join("somewhere", "over", "here")),
         req(project_name="FooProject", specifier=">=1.2"),
         vcs_req(
             vcs=VCS.Git,
@@ -414,24 +411,24 @@ def test_parse_requirements_stress(chroot):
         ),
         Constraint(DUMMY_LINE, Requirement.parse("AnotherProject")),
         local_req(
-            path=os.path.realpath("extra/a/local/project"),
+            path=tmpdir.join("extra", "a", "local", "project"),
             extras=["foo"],
             marker="python_full_version == '2.7.8'",
         ),
         local_req(
-            path=os.path.realpath("extra/another/local/project"),
+            path=tmpdir.join("extra", "another", "local", "project"),
             marker="python_version == '2.7.*'",
         ),
         local_req(
-            path=os.path.realpath("extra/another/local/project"),
+            path=tmpdir.join("extra", "another", "local", "project"),
             marker="python_version == '2.7.*'",
         ),
-        local_req(path=os.path.realpath("extra/another/local/project")),
-        local_req(path=os.path.realpath("extra")),
-        local_req(path=os.path.realpath("extra/tmp/tmpW8tdb_")),
-        local_req(path=os.path.realpath("extra/tmp/tmpW8tdb_"), extras=["foo"]),
+        local_req(path=tmpdir.join("extra", "another", "local", "project")),
+        local_req(path=tmpdir.join("extra")),
+        local_req(path=tmpdir.join("extra", "tmp", "tmpW8tdb_")),
+        local_req(path=tmpdir.join("extra", "tmp", "tmpW8tdb_"), extras=["foo"]),
         local_req(
-            path=os.path.realpath("extra/tmp/tmpW8tdb_"),
+            path=tmpdir.join("extra", "tmp", "tmpW8tdb_"),
             extras=["foo"],
             marker="python_version == '3.9'",
         ),
@@ -481,13 +478,13 @@ def test_parse_requirements_stress(chroot):
         ),
         file_req(
             project_name="django",
-            url=os.path.realpath("extra/projects/django-2.3.zip"),
+            url=tmpdir.join("extra", "projects", "django-2.3.zip"),
             specifier="==2.3",
             marker="python_version>='3.10'",
         ),
         file_req(
             project_name="django",
-            url=os.path.realpath("extra/projects/django-2.3.zip"),
+            url=tmpdir.join("extra", "projects", "django-2.3.zip"),
             specifier="==2.3",
             marker="python_version>='3.10'",
         ),
@@ -496,13 +493,13 @@ def test_parse_requirements_stress(chroot):
             url="http://download.pytorch.org/whl/cpu/torch-1.12.1%2Bcpu-cp310-cp310-linux_x86_64.whl",
             specifier="==1.12.1+cpu",
         ),
-        local_req(path=os.path.join(chroot, "extra/a/local/project"), editable=True),
-        local_req(path=os.path.join(chroot, "extra/a/local/project"), editable=True),
-        local_req(path=os.path.join(chroot, "extra/another/local/project"), editable=True),
-        local_req(path=os.path.join(chroot, "extra/another/local/project"), editable=True),
+        local_req(path=tmpdir.join("extra", "a", "local", "project"), editable=True),
+        local_req(path=tmpdir.join("extra", "a", "local", "project"), editable=True),
+        local_req(path=tmpdir.join("extra", "another", "local", "project"), editable=True),
+        local_req(path=tmpdir.join("extra", "another", "local", "project"), editable=True),
         file_req(
             project_name="numpy",
-            url=os.path.realpath("./downloads/numpy-1.9.2-cp34-none-win32.whl"),
+            url=tmpdir.join("downloads", "numpy-1.9.2-cp34-none-win32.whl"),
             specifier="==1.9.2",
         ),
         url_req(
