@@ -537,8 +537,10 @@ class ParseContext(object):
                     key=key,
                     index=index,
                     diagnostic=(
-                        "{{{key} = {value}}}".format(key=diagnostic_key, value=item[diagnostic_key])
-                        if diagnostic_key
+                        "{{{key} = {value!r}}}".format(
+                            key=diagnostic_key, value=item[diagnostic_key]
+                        )
+                        if diagnostic_key and diagnostic_key in item
                         else ""
                     ),
                 ),
@@ -818,7 +820,7 @@ class PackageParser(object):
     def parse_url_or_path(self, parse_context):
         # type: (ParseContext) -> ArtifactURL
 
-        url = parse_context.get_string("url")
+        url = parse_context.get_string("url", "")
         if not url:
             path = parse_context.get_string("path")
             if not os.path.isabs(path):
@@ -859,7 +861,7 @@ class PackageParser(object):
                 return dep_parse_context.error(
                     "The {project_name} package depends on {dep_name}, but there is no {dep_name} "
                     "package in the packages array.".format(
-                        project_name=project_name, dep_name=dep_name
+                        project_name=project_name.raw, dep_name=dep_name.raw
                     )
                 )
 
@@ -872,14 +874,14 @@ class PackageParser(object):
                 return dep_parse_context.error(
                     "No matching {dep_name} package could be found for {project_name} "
                     "dependencies[{dep_idx}].".format(
-                        dep_name=dep_name, project_name=project_name, dep_idx=dep_idx
+                        dep_name=dep_name.raw, project_name=project_name.raw, dep_idx=dep_idx
                     )
                 )
             elif len(deps) > 1:
                 return dep_parse_context.error(
                     "More than one package matches {project_name} dependencies[{dep_idx}]:\n"
                     "{matches}".format(
-                        project_name=project_name,
+                        project_name=project_name.raw,
                         dep_idx=dep_idx,
                         matches="\n".join(
                             "+ packages[{index}]".format(index=dep.index) for dep in deps
@@ -983,7 +985,7 @@ class PackageParser(object):
                 path = os.path.join(os.path.dirname(self.source), path)
             subdirectory = directory_parse_context.get_string("subdirectory", default="") or None
             if subdirectory:
-                path = os.path.join(path, subdirectory)
+                path = os.path.normpath(os.path.join(path, subdirectory))
             url = ArtifactURL.parse("file://{path}".format(path=path))
 
             editable = directory_parse_context.get("editable", bool, default=False)
@@ -1021,7 +1023,7 @@ class PackageParser(object):
             if sdist_parse_context:
                 url = self.parse_url_or_path(sdist_parse_context)
                 fingerprint = self.get_fingerprint(sdist_parse_context)
-                filename = os.path.basename(url.path)
+                filename = sdist_parse_context.get_string("name", os.path.basename(url.path))
 
                 artifact = FileArtifact(
                     url, verified=False, fingerprint=fingerprint, filename=filename
@@ -1030,7 +1032,7 @@ class PackageParser(object):
                 for whl_idx, whl_parse_context in enumerate(wheels):
                     url = self.parse_url_or_path(whl_parse_context)
                     fingerprint = self.get_fingerprint(whl_parse_context)
-                    filename = os.path.basename(url.path)
+                    filename = whl_parse_context.get_string("name", os.path.basename(url.path))
 
                     wheel_artifact = FileArtifact(
                         url, verified=False, fingerprint=fingerprint, filename=filename
@@ -1040,9 +1042,8 @@ class PackageParser(object):
                     else:
                         artifact = wheel_artifact
 
-        assert artifact is not None, reportable_unexpected_error_msg(
-            "An artifact should have been established via all code paths above."
-        )
+        if artifact is None:
+            return parse_context.error("Package must define an artifact.")
 
         package = Package(
             project_name=project_name,
