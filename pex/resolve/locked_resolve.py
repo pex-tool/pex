@@ -236,10 +236,10 @@ class UnFingerprintedLocalProjectArtifact(UnFingerprintedArtifact):
 class VCSArtifact(Artifact):
     @staticmethod
     def split_requested_revision(artifact_url):
-        # type: (ArtifactURL) -> Tuple[str, Optional[str]]
+        # type: (ArtifactURL) -> Tuple[ArtifactURL, Optional[str]]
 
         vcs_url, _, requested_revision = artifact_url.normalized_url.partition("@")
-        return vcs_url, requested_revision or None
+        return ArtifactURL.parse(vcs_url), requested_revision or None
 
     @classmethod
     def from_artifact_url(

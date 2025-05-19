@@ -321,12 +321,21 @@ def convert(
             archive = InlineTable()  # type: OrderedDict[str, Any]
 
             # https://peps.python.org/pep-0751/#packages-archive-url
-            archive["url"] = archive_artifact.url.download_url
+            download_url = ArtifactURL.parse(archive_artifact.url.download_url)
+            download_url_info = download_url.url_info._replace(
+                fragment=download_url.fragment(excludes=("egg", "subdirectory"))
+            )
+            archive["url"] = urlparse.urlunparse(download_url_info)
 
             # https://peps.python.org/pep-0751/#packages-archive-hashes
             archive["hashes"] = InlineTable.create(
                 (archive_artifact.fingerprint.algorithm, archive_artifact.fingerprint.hash)
             )
+
+            # https://peps.python.org/pep-0751/#packages-archive-subdirectory
+            subdirectory = archive_artifact.subdirectory
+            if subdirectory:
+                archive["subdirectory"] = subdirectory
 
             package["archive"] = archive
         else:
@@ -386,13 +395,14 @@ def convert(
 
                     # https://peps.python.org/pep-0751/#packages-vcs-url
                     vcs_url, _ = VCSArtifact.split_requested_revision(artifact.url)
+                    vcs_url_info = vcs_url.url_info._replace(
+                        fragment=vcs_url.fragment(excludes=("egg", "subdirectory"))
+                    )
                     if isinstance(artifact.url.scheme, VCSScheme):
                         vcs_scheme = artifact.url.scheme
                         # Strip the vcs part; e.g.: git+https -> https
-                        vcs_url = urlparse.urlunparse(
-                            urlparse.urlparse(vcs_url)._replace(scheme=vcs_scheme.scheme)
-                        )
-                    vcs_artifact["url"] = vcs_url
+                        vcs_url_info = vcs_url_info._replace(scheme=vcs_scheme.scheme)
+                    vcs_artifact["url"] = urlparse.urlunparse(vcs_url_info)
 
                     # https://peps.python.org/pep-0751/#packages-vcs-requested-revision
                     if artifact.requested_revision:
@@ -402,8 +412,9 @@ def convert(
                     vcs_artifact["commit-id"] = artifact.commit_id
 
                     # https://peps.python.org/pep-0751/#packages-vcs-subdirectory
-                    if artifact.subdirectory:
-                        vcs_artifact["subdirectory"] = artifact.subdirectory
+                    subdirectory = artifact.subdirectory
+                    if subdirectory:
+                        vcs_artifact["subdirectory"] = subdirectory
 
                     package["vcs"] = vcs_artifact
                 else:
@@ -982,7 +993,7 @@ class PackageParser(object):
             )
         elif archive_parse_context:
             url = self.parse_url_or_path(archive_parse_context)
-            subdirectory = vcs_parse_context.get_string("subdirectory", default="") or None
+            subdirectory = archive_parse_context.get_string("subdirectory", default="") or None
             if subdirectory:
                 archive_fragment_parameters = defaultdict(list)  # type: DefaultDict[str, List[str]]
                 archive_fragment_parameters.update(
