@@ -196,7 +196,7 @@ jobs:
         id: restore-windows-stubs
         uses: actions/cache/restore@v4
         with:
-          path: ${{ _PEX_CACHE_WINDOWS_STUBS_DIR }}
+          path: ${{ env._PEX_CACHE_WINDOWS_STUBS_DIR }}
           key: macos-13-${{ runner.arch }}-pex-cache-windows-stubs-dir-v1
       # Some ITs need this for VCS URLs of the form git+ssh://git@github.com/...
       - name: Setup SSH Agent
@@ -228,7 +228,7 @@ jobs:
         uses: actions/cache/save@v4
         if: github.ref == 'refs/heads/main'
         with:
-          path: ${{ _PEX_CACHE_WINDOWS_STUBS_DIR }}
+          path: ${{ env._PEX_CACHE_WINDOWS_STUBS_DIR }}
           key: ${{ steps.restore-windows-stubs.outputs.cache-primary-key }}
   windows-tests:
     name: "Windows: uv run dev-cmd ${{ matrix.test-cmd }} ${{ matrix.pex-test-pos-args }}"
@@ -293,7 +293,7 @@ jobs:
         id: restore-windows-stubs
         uses: actions/cache/restore@v4
         with:
-          path: ${{ _PEX_CACHE_WINDOWS_STUBS_DIR }}
+          path: ${{ env._PEX_CACHE_WINDOWS_STUBS_DIR }}
           key: windows-2022-${{ runner.arch }}-pex-cache-windows-stubs-dir-v1
       # Some ITs need this for VCS URLs of the form git+ssh://git@github.com/...
       - name: Setup SSH Agent
@@ -342,7 +342,7 @@ jobs:
         uses: actions/cache/save@v4
         if: github.ref == 'refs/heads/main'
         with:
-          path: ${{ _PEX_CACHE_WINDOWS_STUBS_DIR }}
+          path: ${{ env._PEX_CACHE_WINDOWS_STUBS_DIR }}
           key: ${{ steps.restore-windows-stubs.outputs.cache-primary-key }}
   windows-reports:
     name: Consolidate Windows Test Results
