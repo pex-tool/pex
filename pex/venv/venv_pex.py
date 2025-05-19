@@ -167,6 +167,7 @@ def boot(
             "__PEX_UNVENDORED__",
             # These are _not_ used at runtime, but are present under testing / CI and
             # simplest to add an exception for here and not warn about in CI runs.
+            "_PEX_CACHE_WINDOWS_STUBS_DIR",
             "_PEX_FETCH_WINDOWS_STUBS_BEARER",
             "_PEX_PEXPECT_TIMEOUT",
             "_PEX_PIP_VERSION",
