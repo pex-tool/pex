@@ -5,11 +5,15 @@ from __future__ import absolute_import
 
 import contextlib
 import os.path
+import shutil
 import struct
 import uuid
 import zipfile
 
+from pex.atomic_directory import atomic_directory
+from pex.cache.dirs import CacheDir
 from pex.common import open_zip, safe_open
+from pex.executables import chmod_plus_x
 from pex.fetcher import URLFetcher
 from pex.fs import safe_rename
 from pex.os import Os
@@ -52,15 +56,28 @@ _EXTRA_HEADERS = (
     if "_PEX_FETCH_WINDOWS_STUBS_BEARER" in os.environ
     else None
 )
+_CACHE_DIR = os.environ.get(
+    "_PEX_CACHE_WINDOWS_STUBS_DIR", CacheDir.DEV.path("windows_stubs", _TRAMPOLINE_VERSION)
+)
 
 
 def _fetch_stub(stub_name):
     # type: (str) -> bytes
-    with URLFetcher().get_body_stream(
-        "https://raw.githubusercontent.com/astral-sh/uv/refs/tags/{version}/crates/uv-trampoline/"
-        "trampolines/{stub_name}".format(version=_TRAMPOLINE_VERSION, stub_name=stub_name),
-        extra_headers=_EXTRA_HEADERS,
-    ) as in_fp:
+
+    stub_dir = os.path.join(_CACHE_DIR, stub_name)
+    with atomic_directory(stub_dir) as atomic_dir:
+        if not atomic_dir.is_finalized():
+            with URLFetcher().get_body_stream(
+                "https://raw.githubusercontent.com/astral-sh/uv/refs/tags/{version}/crates/"
+                "uv-trampoline/trampolines/{stub_name}".format(
+                    version=_TRAMPOLINE_VERSION, stub_name=stub_name
+                ),
+                extra_headers=_EXTRA_HEADERS,
+            ) as in_fp, open(os.path.join(atomic_dir.work_dir, "stub.exe"), "wb") as out_fp:
+                shutil.copyfileobj(in_fp, out_fp)
+            chmod_plus_x(out_fp.name)
+
+    with open(os.path.join(stub_dir, "stub.exe"), "rb") as in_fp:
         return in_fp.read()
 
 

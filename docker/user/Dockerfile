@@ -23,6 +23,7 @@ VOLUME /development/pex/.dev-cmd
 # from the host ~/.pex_dev development cache.
 VOLUME /development/pex_dev
 ENV _PEX_TEST_DEV_ROOT=/development/pex_dev
+ENV _PEX_CACHE_WINDOWS_STUBS_DIR=${_PEX_TEST_DEV_ROOT}/windows_stubs
 
 # This will be a named volume used to persist caches on the host but isolated from the host caches.
 VOLUME /var/cache
