@@ -35,8 +35,7 @@ from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import DefaultDict, List, Set
-    from typing import Iterable, Optional, Sequence, Tuple, Union
+    from typing import DefaultDict, Iterable, List, Optional, Sequence, Set, Tuple, Union
 
 
 def _check_subset(
