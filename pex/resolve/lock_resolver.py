@@ -8,6 +8,7 @@ from collections import defaultdict
 from pex.auth import PasswordDatabase, PasswordEntry
 from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import Distribution, Requirement, is_wheel
+from pex.exceptions import production_assert
 from pex.network_configuration import NetworkConfiguration
 from pex.pep_427 import InstallableType
 from pex.pep_503 import ProjectName
@@ -60,19 +61,23 @@ def _check_subset(
     if expected_resolve == actual_resolve:
         return None
 
+    needed = actual_resolve - expected_resolve
     mismatch_msg = (
-        "Expected the following projects to be resolved:\n"
+        "The following projects were resolved:\n"
         "+ {expected}\n"
         "\n"
-        "Actually resolved:\n"
-        "+ {actual}".format(
+        "These additional dependencies need to be resolved (as well as any transitive "
+        "dependencies they may have):\n"
+        "+ {needed}".format(
             expected="\n+ ".join(sorted(map(str, expected_resolve))),
-            actual="\n+ ".join(sorted(map(str, actual_resolve))),
+            needed="\n+ ".join(sorted(map(str, needed))),
         )
     )
-    if pylock.created_by == "pex":
-        return Error(mismatch_msg)
-
+    production_assert(
+        pylock.created_by != "pex",
+        "{mismatch_msg}\n" "\n" "This indicates a bug in Pex PEP-751 support.",
+        mismatch_msg,
+    )
     return Error(
         "{mismatch_msg}\n"
         "\n"

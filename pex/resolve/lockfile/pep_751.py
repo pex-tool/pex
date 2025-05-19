@@ -1221,12 +1221,10 @@ class Pylock(object):
         package_index = PackageIndex.create(packages_data)
         package_parser = PackageParser(package_index=package_index, source=pylock_toml_path)
 
-        has_dependency_info = False
         local_project_requirement_mapping = {}  # type: Dict[str, Requirement]
         packages = []  # type: List[Package]
         for indexed_package in package_index.iter_packages():
             package = try_(package_parser.parse(indexed_package))
-            has_dependency_info |= package.dependencies is not None
             if isinstance(package.artifact, LocalProjectArtifact):
                 directory = package.artifact.directory
                 if not os.path.isabs(directory):
@@ -1242,7 +1240,6 @@ class Pylock(object):
             lock_version=lock_version,
             created_by=created_by,
             packages=tuple(packages),
-            has_dependency_info=has_dependency_info,
             local_project_requirement_mapping=local_project_requirement_mapping,
             source=pylock_toml_path,
             environments=environments,
@@ -1255,7 +1252,6 @@ class Pylock(object):
     lock_version = attr.ib()  # type: Version
     created_by = attr.ib()  # type: str
     packages = attr.ib()  # type: Tuple[Package, ...]
-    has_dependency_info = attr.ib()  # type: bool
 
     local_project_requirement_mapping = attr.ib()  # type: Mapping[str, Requirement]
     source = attr.ib()  # type: str
