@@ -99,6 +99,13 @@ class CacheDir(Enum["CacheDir.Value"]):
         can_purge=False,
     )
 
+    DEV = Value(
+        "dev",
+        version=0,
+        name="Pex Development Caches",
+        description="Items cached as part of the development of Pex itself only.",
+    )
+
     DOCS = Value(
         "docs",
         version=0,

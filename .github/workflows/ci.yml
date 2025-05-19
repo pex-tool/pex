@@ -11,6 +11,7 @@ env:
   # GitHub Releases that needed elevated rate limit quota, which this gives.
   SCIENCE_AUTH_API_GITHUB_COM_BEARER: ${{ secrets.GITHUB_TOKEN }}
   # We fetch Windows script executable stubs when building Pex.
+  _PEX_CACHE_WINDOWS_STUBS_DIR: ${{ github.workspace }}/.pex_dev/windows_stubs
   _PEX_FETCH_WINDOWS_STUBS_BEARER: ${{ secrets.GITHUB_TOKEN }}
 concurrency:
   group: CI-${{ github.ref }}
@@ -154,16 +155,13 @@ jobs:
         include:
           - python-version: [ 3, 13 ]
             test-cmd: test-py313-pip25.1.1
-            cache: true
             test-cmd-python: python3.11
           - python-version: [ 3, 13 ]
             test-cmd: test-py313-pip25.1.1-integration
-            cache: true
             test-cmd-python: python3.11
             pex-test-pos-args: --shard 1/2
           - python-version: [ 3, 13 ]
             test-cmd: test-py313-pip25.1.1-integration
-            cache: true
             test-cmd-python: python3.11
             pex-test-pos-args: --shard 2/2
     steps:
@@ -180,14 +178,12 @@ jobs:
       - name: Expose Pythons
         uses: pex-tool/actions/expose-pythons@c53dadd8b410bbd66480de91067e9e45d2b3af38
       - name: Restore Cached Pyenv Interpreters
-        if: matrix.cache
         id: restore-pyenv-interpreters
         uses: actions/cache/restore@v4
         with:
           path: ${{ env._PEX_TEST_DEV_ROOT }}/pyenv
           key: macos-13-${{ runner.arch }}-pex-test-dev-root-pyenv-v1
       - name: Restore Cached Devpi Server
-        if: matrix.cache
         id: restore-devpi-server
         uses: actions/cache/restore@v4
         with:
@@ -196,6 +192,12 @@ jobs:
           # See: https://github.com/actions/cache/blob/main/tips-and-workarounds.md#update-a-cache
           key: macos-13-${{ runner.arch }}-${{ matrix.test-cmd }}-pex-test-dev-root-devpi-v2-${{ github.run_id }}
           restore-keys: macos-13-${{ runner.arch }}-${{ matrix.test-cmd }}-pex-test-dev-root-devpi-v2
+      - name: Restore Windows Stubs
+        id: restore-windows-stubs
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env._PEX_CACHE_WINDOWS_STUBS_DIR }}
+          key: macos-13-${{ runner.arch }}-pex-cache-windows-stubs-dir-v1
       # Some ITs need this for VCS URLs of the form git+ssh://git@github.com/...
       - name: Setup SSH Agent
         uses: webfactory/ssh-agent@v0.9.0
@@ -212,16 +214,22 @@ jobs:
           uv run dev-cmd ${{ matrix.test-cmd }} -- ${{ env._PEX_TEST_POS_ARGS }} ${{ matrix.pex-test-pos-args }}
       - name: Cache Pyenv Interpreters
         uses: actions/cache/save@v4
-        if: matrix.cache && github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main'
         with:
           path: ${{ env._PEX_TEST_DEV_ROOT }}/pyenv
           key: ${{ steps.restore-pyenv-interpreters.outputs.cache-primary-key }}
       - name: Cache Devpi Server
         uses: actions/cache/save@v4
-        if: matrix.cache && github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main'
         with:
           path: ${{ env._PEX_TEST_DEV_ROOT }}/devpi
           key: ${{ steps.restore-devpi-server.outputs.cache-primary-key }}
+      - name: Cache Windows Stubs
+        uses: actions/cache/save@v4
+        if: github.ref == 'refs/heads/main'
+        with:
+          path: ${{ env._PEX_CACHE_WINDOWS_STUBS_DIR }}
+          key: ${{ steps.restore-windows-stubs.outputs.cache-primary-key }}
   windows-tests:
     name: "Windows: uv run dev-cmd ${{ matrix.test-cmd }} ${{ matrix.pex-test-pos-args }}"
     needs: setup
@@ -242,27 +250,22 @@ jobs:
           - python-version: [ 3, 13 ]
             test-cmd: test-py313-pip25.1.1
             artifact-name: unit
-            cache: true
             pex-test-pos-args: --junit-report ../dist/test-results/unit.xml
           - python-version: [ 3, 13 ]
             test-cmd: test-py313-pip25.1.1-integration
             artifact-name: integration-1
-            cache: true
             pex-test-pos-args: --shard 1/4 --junit-report ../dist/test-results/integration-1.xml
           - python-version: [ 3, 13 ]
             test-cmd: test-py313-pip25.1.1-integration
             artifact-name: integration-2
-            cache: true
             pex-test-pos-args: --shard 2/4 --junit-report ../dist/test-results/integration-2.xml
           - python-version: [ 3, 13 ]
             test-cmd: test-py313-pip25.1.1-integration
             artifact-name: integration-3
-            cache: true
             pex-test-pos-args: --shard 3/4 --junit-report ../dist/test-results/integration-3.xml
           - python-version: [ 3, 13 ]
             test-cmd: test-py313-pip25.1.1-integration
             artifact-name: integration-4
-            cache: true
             pex-test-pos-args: --shard 4/4 --junit-report ../dist/test-results/integration-4.xml
     steps:
       - name: Checkout Pex
@@ -278,7 +281,6 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v5
       - name: Restore Cached Devpi Server
-        if: matrix.cache
         id: restore-devpi-server
         uses: actions/cache/restore@v4
         with:
@@ -287,6 +289,12 @@ jobs:
           # See: https://github.com/actions/cache/blob/main/tips-and-workarounds.md#update-a-cache
           key: windows-2022-${{ runner.arch }}-${{ matrix.test-cmd }}-pex-test-dev-root-devpi-v2-${{ github.run_id }}
           restore-keys: windows-2022-${{ runner.arch }}-${{ matrix.test-cmd }}-pex-test-dev-root-devpi-v2
+      - name: Restore Windows Stubs
+        id: restore-windows-stubs
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env._PEX_CACHE_WINDOWS_STUBS_DIR }}
+          key: windows-2022-${{ runner.arch }}-pex-cache-windows-stubs-dir-v1
       # Some ITs need this for VCS URLs of the form git+ssh://git@github.com/...
       - name: Setup SSH Agent
         uses: webfactory/ssh-agent@v0.9.0
@@ -326,10 +334,16 @@ jobs:
             .gitignore
       - name: Cache Devpi Server
         uses: actions/cache/save@v4
-        if: matrix.cache && github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main'
         with:
           path: ${{ env._PEX_TEST_DEV_ROOT }}/devpi
           key: ${{ steps.restore-devpi-server.outputs.cache-primary-key }}
+      - name: Cache Windows Stubs
+        uses: actions/cache/save@v4
+        if: github.ref == 'refs/heads/main'
+        with:
+          path: ${{ env._PEX_CACHE_WINDOWS_STUBS_DIR }}
+          key: ${{ steps.restore-windows-stubs.outputs.cache-primary-key }}
   windows-reports:
     name: Consolidate Windows Test Results
     needs: windows-tests
