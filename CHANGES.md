@@ -1,5 +1,15 @@
 # Release Notes
 
+## 2.39.0
+
+This release adds support for `pex --pylock` and `pex3 venv create --pylock` for building PEXes and
+venvs from [pylock.toml][PEP-751] locks. In both cases PEX supports subsetting the lock if it
+provides `dependencies` metadata for its locked packages, bit this metadata is optional in the spec;
+so your mileage may vary. If the metadata is not available and was required, Pex will let you know
+with an appropriate error post resolve and pre building the final PEX or venv.
+
+* Add support for `pex --pylock`. (#2766)
+
 ## 2.38.1
 
 This release fixes a long-standing bug parsing requirements files that included other requirements
