@@ -1360,7 +1360,7 @@ def do_main(
         pex_builder.build(
             pex_file,
             bytecode_compile=options.compile,
-            deterministic_timestamp=not options.use_system_time,
+            deterministic=not options.use_system_time,
             layout=options.layout,
             compress=options.compress,
             check=options.check,

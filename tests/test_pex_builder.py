@@ -201,7 +201,7 @@ def test_pex_builder_deterministic_timestamp():
     pb = PEXBuilder()
     with temporary_dir() as td:
         target = os.path.join(td, "foo.pex")
-        pb.build(target, deterministic_timestamp=True)
+        pb.build(target, deterministic=True)
         with zipfile.ZipFile(target) as zf:
             assert all(zinfo.date_time == (1980, 1, 1, 0, 0, 0) for zinfo in zf.infolist())
 
