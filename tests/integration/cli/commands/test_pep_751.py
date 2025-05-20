@@ -6,6 +6,7 @@ from __future__ import absolute_import
 import filecmp
 import itertools
 import os.path
+import platform
 import re
 import subprocess
 import sys
@@ -14,6 +15,7 @@ from typing import Any, Dict, Iterator, Text
 
 import pytest
 
+import testing
 from pex import toml
 from pex.common import CopyMode, iter_copytree, safe_copy
 from pex.compatibility import string
@@ -23,11 +25,17 @@ from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pex import PEX
 from pex.resolve.resolved_requirement import Pin
+from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import Virtualenv
 from pex.wheel import Wheel
 from testing import IS_PYPY, data, run_pex_command
 from testing.cli import run_pex3
 from testing.pytest_utils.tmp import Tempdir
+
+if TYPE_CHECKING:
+    from packaging.specifiers import SpecifierSet  # vendor:skip
+else:
+    from pex.third_party.packaging.specifiers import SpecifierSet
 
 
 @pytest.fixture
@@ -353,6 +361,7 @@ def test_lock_all_package_types(
         "2",
         "-o",
         lock,
+        "-v",
     ).assert_success()
 
     result = run_pex3("lock", "export", "--format", "pep-751", lock)
@@ -477,9 +486,29 @@ def test_locks_equivalent_round_trip(
     )
 
 
+def pex_pylock_applicable():
+    # type: () -> bool
+
+    if sys.version_info[:2] < (3, 8):
+        return False
+
+    # PyPy can't track the early return above vs the possibility the test is run under, say
+    # Python 2.7.
+    pex_pyproject_data = toml.load(  # type: ignore[unreachable]
+        os.path.join(testing.pex_project_dir(), "pyproject.toml")
+    )
+    pex_requires_python = pex_pyproject_data["project"]["requires-python"]
+    return platform.python_version() in SpecifierSet(pex_requires_python)
+
+
 @pytest.mark.skipif(
-    sys.version_info[:2] < (3, 8),
-    reason="Building Pex requires Python >= 3.8 to read pyproject.toml heterogeneous arrays.",
+    not pex_pylock_applicable(),
+    reason=(
+        "Building Pex requires Python >= 3.8 to read pyproject.toml heterogeneous arrays and this"
+        "test also needs the current interpreter to work with production PEX (be within its "
+        "Requires-Python upper bounds) since its the production PEX Requires-Python that will be "
+        "seen by the PEX's `uv.lock`."
+    ),
 )
 def test_uv_pylock_interop(
     tmpdir,  # type: Tempdir
