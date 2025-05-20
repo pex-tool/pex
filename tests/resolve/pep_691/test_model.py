@@ -6,8 +6,8 @@ from collections import defaultdict
 
 import pytest
 
+from pex.artifact_url import Fingerprint
 from pex.resolve.pep_691.model import File
-from pex.resolve.resolved_requirement import Fingerprint
 from pex.sorted_tuple import SortedTuple
 from pex.typing import TYPE_CHECKING
 

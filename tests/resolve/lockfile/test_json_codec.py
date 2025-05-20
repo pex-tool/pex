@@ -8,6 +8,7 @@ from textwrap import dedent
 
 import pytest
 
+from pex.artifact_url import ArtifactURL, Fingerprint
 from pex.compatibility import PY2
 from pex.dist_metadata import Constraint, Requirement
 from pex.pep_440 import Version
@@ -18,7 +19,7 @@ from pex.resolve.lockfile import json_codec
 from pex.resolve.lockfile.json_codec import ParseError, PathMappingError
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.path_mappings import PathMapping, PathMappings
-from pex.resolve.resolved_requirement import ArtifactURL, Fingerprint, Pin
+from pex.resolve.resolved_requirement import Pin
 from pex.resolve.resolver_configuration import BuildConfiguration, ResolverVersion
 from pex.sorted_tuple import SortedTuple
 from pex.third_party.packaging import tags

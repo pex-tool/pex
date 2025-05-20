@@ -3,13 +3,13 @@
 
 import os
 
+from pex.artifact_url import ArtifactURL, Fingerprint
 from pex.compatibility import PY3
 from pex.interpreter import PythonInterpreter
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.resolve.locked_resolve import Artifact, FileArtifact, LockedRequirement
 from pex.resolve.lockfile import json_codec
-from pex.resolve.resolved_requirement import ArtifactURL, Fingerprint
 from pex.typing import TYPE_CHECKING
 from testing import IS_PYPY, PY_VER, run_pex_command
 from testing.cli import run_pex3

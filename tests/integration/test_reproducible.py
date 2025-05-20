@@ -69,6 +69,7 @@ def assert_reproducible_build(
             zf.extractall(path=destination_dir)
             return [os.path.join(destination_dir, member) for member in sorted(zf.namelist())]
 
+    pexes_dir = tmpdir.join("pexes")
     if pythons:
         pexes = run_commands_with_jitter(
             path_argument="--output-file",
@@ -80,12 +81,14 @@ def assert_reproducible_build(
                 )
                 for python in pythons
             ],
+            dest=pexes_dir,
         )
     else:
         pexes = run_command_with_jitter(
             create_pex_command(args=args, quiet=True),
             path_argument="--output-file",
             count=3,
+            dest=pexes_dir,
         )
 
     pex_members = {pex: explode_pex(path=pex) for pex in pexes}

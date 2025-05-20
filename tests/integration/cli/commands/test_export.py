@@ -11,6 +11,7 @@ from textwrap import dedent
 
 import pytest
 
+from pex.artifact_url import ArtifactURL, Fingerprint
 from pex.dist_metadata import Requirement
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
@@ -25,7 +26,7 @@ from pex.resolve.locked_resolve import (
 )
 from pex.resolve.lockfile import json_codec
 from pex.resolve.lockfile.model import Lockfile
-from pex.resolve.resolved_requirement import ArtifactURL, Fingerprint, Pin
+from pex.resolve.resolved_requirement import Pin
 from pex.resolve.resolver_configuration import ResolverVersion
 from pex.sorted_tuple import SortedTuple
 from pex.typing import TYPE_CHECKING

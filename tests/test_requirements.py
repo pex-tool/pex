@@ -8,12 +8,12 @@ from textwrap import dedent
 
 import pytest
 
+from pex.artifact_url import VCS, ArtifactURL
 from pex.common import environment_as, safe_open, touch
+from pex.compatibility import urlparse
 from pex.dist_metadata import Requirement
 from pex.fetcher import URLFetcher
 from pex.requirements import (
-    VCS,
-    ArchiveScheme,
     Constraint,
     LocalProjectRequirement,
     LogicalLine,
@@ -22,11 +22,9 @@ from pex.requirements import (
     Source,
     URLRequirement,
     VCSRequirement,
-    VCSScheme,
     parse_requirement_file,
     parse_requirement_from_project_name_and_specifier,
     parse_requirements,
-    parse_scheme,
 )
 from pex.third_party.packaging.markers import Marker
 from pex.typing import TYPE_CHECKING
@@ -151,7 +149,7 @@ def file_req(
     # type: (...) -> URLRequirement
     return URLRequirement(
         line=DUMMY_LINE,
-        url=url,
+        url=ArtifactURL.parse(url),
         requirement=parse_requirement_from_project_name_and_specifier(
             project_name, extras=extras, specifier=specifier, marker=marker
         ),
@@ -168,7 +166,7 @@ def url_req(
     # type: (...) -> URLRequirement
     return URLRequirement(
         line=DUMMY_LINE,
-        url=url,
+        url=ArtifactURL.parse(url),
         requirement=parse_requirement_from_project_name_and_specifier(
             project_name, extras=extras, specifier=specifier, marker=marker, url=url
         ),
@@ -182,9 +180,10 @@ def vcs_req(
     extras=None,  # type: Optional[Iterable[str]]
     specifier=None,  # type: Optional[str]
     marker=None,  # type: Optional[str]
-    req_url=None,  # type: Optional[str]
 ):
     # type: (...) -> VCSRequirement
+
+    url_info = urlparse.urlparse(url)
     return VCSRequirement(
         line=DUMMY_LINE,
         vcs=vcs,
@@ -194,7 +193,9 @@ def vcs_req(
             extras=extras,
             specifier=specifier,
             marker=marker,
-            url=req_url or "{vcs}+{url}".format(vcs=vcs.value, url=url),
+            url=url_info._replace(
+                scheme="{vcs}+{scheme}".format(vcs=vcs, scheme=url_info.scheme)
+            ).geturl(),
         ),
     )
 
@@ -406,8 +407,7 @@ def test_parse_requirements_stress(tmpdir):
         vcs_req(
             vcs=VCS.Git,
             project_name="MyProject",
-            url="file:///home/user/projects/MyProject",
-            req_url="git+file:/home/user/projects/MyProject",
+            url="file:///home/user/projects/MyProject#subdirectory=pkg_dir",
         ),
         Constraint(DUMMY_LINE, Requirement.parse("AnotherProject")),
         local_req(
@@ -435,14 +435,14 @@ def test_parse_requirements_stress(tmpdir):
         vcs_req(
             vcs=VCS.Mercurial,
             project_name="AnotherProject",
-            url="http://hg.example.com/MyProject@da39a3ee5e6b",
+            url="http://hg.example.com/MyProject@da39a3ee5e6b#subdirectory=foo/bar",
             extras=["more", "extra"],
             marker="python_version == '3.9.*'",
         ),
         vcs_req(
             vcs=VCS.Mercurial,
             project_name="AnotherProject",
-            url="http://hg.example.com/MyProject@da39a3ee5e6b",
+            url="http://hg.example.com/MyProject@da39a3ee5e6b#subdirectory=foo/bar",
             extras=["more", "extra"],
             marker="python_version == '3.9.*'",
         ),
@@ -591,21 +591,3 @@ def test_parse_requirements_from_url_no_fetcher():
         "Problem resolving requirements file: The source is a url but no fetcher was supplied to "
         "resolve its contents with.".format(EXAMPLE_PYTHON_REQUIREMENTS_URL)
     ) == str(exec_info.value)
-
-
-def test_parse_scheme():
-    # type: () -> None
-
-    assert "not a scheme" == parse_scheme("not a scheme")
-    assert "gopher" == parse_scheme("gopher")
-
-    assert ArchiveScheme.FTP == parse_scheme("ftp")
-    assert ArchiveScheme.HTTP == parse_scheme("http")
-    assert ArchiveScheme.HTTPS == parse_scheme("https")
-
-    assert VCSScheme(VCS.Bazaar, "nfs") == parse_scheme("bzr+nfs")
-    assert VCSScheme(VCS.Git, "file") == parse_scheme("git+file")
-    assert VCSScheme(VCS.Mercurial, "http") == parse_scheme("hg+http")
-    assert VCSScheme(VCS.Subversion, "https") == parse_scheme("svn+https")
-
-    assert "cvs+https" == parse_scheme("cvs+https")

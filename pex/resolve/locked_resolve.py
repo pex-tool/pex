@@ -3,11 +3,13 @@
 
 from __future__ import absolute_import, division
 
+import functools
 import itertools
 import os
 from collections import OrderedDict, defaultdict, deque
 from functools import total_ordering
 
+from pex.artifact_url import VCS, ArtifactURL, Fingerprint, VCSScheme
 from pex.common import pluralize
 from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import DistMetadata, Requirement, is_sdist, is_wheel
@@ -17,20 +19,13 @@ from pex.orderedset import OrderedSet
 from pex.pep_425 import CompatibilityTags, TagRank
 from pex.pep_503 import ProjectName
 from pex.rank import Rank
-from pex.requirements import VCS, VCSScheme
-from pex.resolve.resolved_requirement import (
-    ArtifactURL,
-    Fingerprint,
-    PartialArtifact,
-    Pin,
-    ResolvedRequirement,
-)
+from pex.resolve.resolved_requirement import PartialArtifact, Pin, ResolvedRequirement
 from pex.resolve.resolver_configuration import BuildConfiguration
 from pex.result import Error
 from pex.sorted_tuple import SortedTuple
 from pex.targets import Target
 from pex.tracer import TRACER
-from pex.typing import TYPE_CHECKING
+from pex.typing import TYPE_CHECKING, Generic
 
 if TYPE_CHECKING:
     from typing import (
@@ -45,6 +40,7 @@ if TYPE_CHECKING:
         Protocol,
         Set,
         Tuple,
+        TypeVar,
         Union,
     )
 
@@ -111,7 +107,24 @@ class LockConfiguration(object):
 
 @total_ordering
 @attr.s(frozen=True, order=False)
-class Artifact(object):
+class UnFingerprintedArtifact(object):
+    url = attr.ib()  # type: ArtifactURL
+    verified = attr.ib()  # type: bool
+
+    @property
+    def subdirectory(self):
+        # type: () -> Optional[str]
+        return self.url.subdirectory
+
+    def __lt__(self, other):
+        # type: (Any) -> bool
+        if not isinstance(other, UnFingerprintedArtifact):
+            return NotImplemented
+        return self.url < other.url
+
+
+@attr.s(frozen=True, order=False)
+class Artifact(UnFingerprintedArtifact):
     @classmethod
     def from_artifact_url(
         cls,
@@ -173,15 +186,7 @@ class Artifact(object):
             editable=editable,
         )
 
-    url = attr.ib()  # type: ArtifactURL
     fingerprint = attr.ib()  # type: Fingerprint
-    verified = attr.ib()  # type: bool
-
-    def __lt__(self, other):
-        # type: (Any) -> bool
-        if not isinstance(other, Artifact):
-            return NotImplemented
-        return self.url < other.url
 
 
 @attr.s(frozen=True, order=False)
@@ -217,7 +222,25 @@ class LocalProjectArtifact(Artifact):
 
 
 @attr.s(frozen=True, order=False)
+class UnFingerprintedLocalProjectArtifact(UnFingerprintedArtifact):
+    directory = attr.ib()  # type: str
+    editable = attr.ib(default=False)  # type: bool
+
+    @property
+    def is_source(self):
+        # type: () -> bool
+        return True
+
+
+@attr.s(frozen=True, order=False)
 class VCSArtifact(Artifact):
+    @staticmethod
+    def split_requested_revision(artifact_url):
+        # type: (ArtifactURL) -> Tuple[ArtifactURL, Optional[str]]
+
+        vcs_url, _, requested_revision = artifact_url.normalized_url.partition("@")
+        return ArtifactURL.parse(vcs_url), requested_revision or None
+
     @classmethod
     def from_artifact_url(
         cls,
@@ -235,24 +258,19 @@ class VCSArtifact(Artifact):
                 )
             )
 
-        vcs_url, _, requested_revision = artifact_url.normalized_url.partition("@")
-        subdirectories = artifact_url.fragment_parameters.get("subdirectory")
+        _, requested_revision = cls.split_requested_revision(artifact_url)
         return cls(
             url=artifact_url,
             fingerprint=fingerprint,
             verified=verified,
             vcs=artifact_url.scheme.vcs,
-            vcs_url=vcs_url,
-            requested_revision=requested_revision or None,
+            requested_revision=requested_revision,
             commit_id=commit_id,
-            subdirectory=subdirectories[-1] if subdirectories else None,
         )
 
     vcs = attr.ib()  # type: VCS.Value
-    vcs_url = attr.ib()  # type: str
     requested_revision = attr.ib(default=None)  # type: Optional[str]
     commit_id = attr.ib(default=None)  # type: Optional[str]
-    subdirectory = attr.ib(default=None)  # type: Optional[str]
 
     @property
     def is_source(self):
@@ -260,13 +278,47 @@ class VCSArtifact(Artifact):
 
     def as_unparsed_requirement(self, project_name):
         # type: (ProjectName) -> str
+
         names = self.url.fragment_parameters.get("egg")
         if names and ProjectName(names[-1]) == project_name:
             # A Pip proprietary VCS requirement.
             return self.url.raw_url
+
         # A PEP-440 direct reference VCS requirement with the project name stripped from earlier
         # processing. See: https://peps.python.org/pep-0440/#direct-references
         return "{project_name} @ {url}".format(project_name=project_name, url=self.url.raw_url)
+
+
+@attr.s(frozen=True, order=False)
+class UnFingerprintedVCSArtifact(UnFingerprintedArtifact):
+    vcs = attr.ib()  # type: VCS.Value
+    requested_revision = attr.ib(default=None)  # type: Optional[str]
+    commit_id = attr.ib(default=None)  # type: Optional[str]
+
+    @property
+    def is_source(self):
+        return True
+
+    def as_unparsed_requirement(self, project_name):
+        # type: (ProjectName) -> str
+
+        # A PEP-440 direct reference VCS requirement with the project name and vcs stripped from
+        # earlier processing. See: https://peps.python.org/pep-0440/#direct-references
+        return "{project_name} @ {vcs}+{url}{ref}{subdirectory}".format(
+            project_name=project_name,
+            vcs=self.vcs,
+            url=self.url.normalized_url,
+            ref=(
+                "@{ref}".format(ref=self.commit_id or self.requested_revision)
+                if self.commit_id or self.requested_revision
+                else ""
+            ),
+            subdirectory=(
+                "#subdirectory={subdirectory}".format(subdirectory=self.subdirectory)
+                if self.subdirectory
+                else ""
+            ),
+        )
 
 
 @attr.s(frozen=True)
@@ -473,85 +525,78 @@ class DownloadableArtifact(object):
     def create(
         cls,
         pin,  # type: Pin
-        artifact,  # type: Union[FileArtifact, LocalProjectArtifact, VCSArtifact]
+        artifact,  # type: Union[FileArtifact, LocalProjectArtifact, UnFingerprintedLocalProjectArtifact, UnFingerprintedVCSArtifact, VCSArtifact]
         satisfied_direct_requirements=(),  # type: Iterable[Requirement]
     ):
         # type: (...) -> DownloadableArtifact
         return cls(
-            pin=pin,
+            project_name=pin.project_name,
+            version=pin.version,
             artifact=artifact,
             satisfied_direct_requirements=SortedTuple(satisfied_direct_requirements, key=str),
         )
 
-    pin = attr.ib()  # type: Pin
-    artifact = attr.ib()  # type: Union[FileArtifact, LocalProjectArtifact, VCSArtifact]
+    project_name = attr.ib()  # type: ProjectName
+    artifact = (
+        attr.ib()
+    )  # type: Union[FileArtifact, LocalProjectArtifact, UnFingerprintedLocalProjectArtifact, UnFingerprintedVCSArtifact, VCSArtifact]
     satisfied_direct_requirements = attr.ib(default=SortedTuple())  # type: SortedTuple[Requirement]
+    version = attr.ib(default=None)
 
-
-@attr.s(frozen=True)
-class Resolved(object):
-    @classmethod
-    def create(
-        cls,
-        target,  # type: Target
-        direct_requirements,  # type: Iterable[Requirement]
-        resolved_artifacts,  # type: Iterable[_ResolvedArtifact]
-        source,  # type: LockedResolve
-    ):
-        # type: (...) -> Resolved
-
-        direct_requirements_by_project_name = defaultdict(
-            list
-        )  # type: DefaultDict[ProjectName, List[Requirement]]
-        for requirement in direct_requirements:
-            direct_requirements_by_project_name[requirement.project_name].append(requirement)
-
-        # N.B.: Lowest rank means highest rank value. I.E.: The 1st tag is the most specific and
-        # the 765th tag is the least specific.
-        largest_rank_value = target.supported_tags.lowest_rank.value
-        smallest_rank_value = TagRank.highest_natural().value
-        rank_span = largest_rank_value - smallest_rank_value
-
-        downloadable_artifacts = []
-        target_specificities = []
-        for resolved_artifact in resolved_artifacts:
-            pin = resolved_artifact.locked_requirement.pin
-            downloadable_artifacts.append(
-                DownloadableArtifact.create(
-                    pin=pin,
-                    artifact=resolved_artifact.artifact,
-                    satisfied_direct_requirements=direct_requirements_by_project_name[
-                        pin.project_name
-                    ],
-                )
+    def specifier(self):
+        # type: () -> str
+        if self.version:
+            return "{project_name} {version}".format(
+                project_name=self.project_name, version=self.version
             )
-            target_specificities.append(
-                (rank_span - (resolved_artifact.ranked_artifact.rank.value - smallest_rank_value))
-                / rank_span
-            )
+        return str(self.project_name)
 
-        return cls(
-            target_specificity=(
-                smallest_rank_value
-                if not target_specificities
-                else sum(target_specificities) / len(target_specificities)
-            ),
-            downloadable_artifacts=tuple(downloadable_artifacts),
-            source=source,
-        )
 
+if TYPE_CHECKING:
+    Source = TypeVar("Source")
+
+
+@functools.total_ordering
+class Resolved(Generic["Source"]):
     @classmethod
     def most_specific(cls, resolves):
-        # type: (Iterable[Resolved]) -> Resolved
+        # type: (Iterable[Resolved[Source]]) -> Resolved[Source]
         sorted_resolves = sorted(resolves)
         if len(sorted_resolves) == 0:
             raise ValueError("Given no resolves to pick from.")
         # The most specific has the highest specificity which sorts last.
         return sorted_resolves[-1]
 
-    target_specificity = attr.ib()  # type: float
-    downloadable_artifacts = attr.ib()  # type: Tuple[DownloadableArtifact, ...]
-    source = attr.ib(eq=False)  # type: LockedResolve
+    def __init__(
+        self,
+        target_specificity,  # type: float
+        downloadable_artifacts,  # type: Iterable[DownloadableArtifact]
+        source,  # type: Source
+    ):
+        # type: (...) -> None
+        self.target_specificity = target_specificity
+        self.downloadable_artifacts = tuple(downloadable_artifacts)
+        self.source = source
+
+    def _tup(self):
+        # type: () -> Tuple[float, Tuple[DownloadableArtifact, ...]]
+        return self.target_specificity, self.downloadable_artifacts
+
+    def __eq__(self, other):
+        # type: (Any) -> bool
+        if isinstance(other, Resolved):
+            return self._tup() == other._tup()
+        return NotImplemented
+
+    def __hash__(self):
+        # type: () -> int
+        return hash(self._tup())
+
+    def __lt__(self, other):
+        # type: (Any) -> bool
+        if isinstance(other, Resolved):
+            return self.target_specificity < other.target_specificity
+        return NotImplemented
 
 
 if TYPE_CHECKING:
@@ -650,6 +695,54 @@ class LockedResolve(object):
         # type: () -> str
         return str(self.platform_tag) if self.platform_tag else "universal"
 
+    def create_resolved_artifacts(
+        self,
+        target,  # type: Target
+        direct_requirements,  # type: Iterable[Requirement]
+        resolved_artifacts,  # type: Iterable[_ResolvedArtifact]
+    ):
+        # type: (...) -> Resolved[LockedResolve]
+
+        direct_requirements_by_project_name = defaultdict(
+            list
+        )  # type: DefaultDict[ProjectName, List[Requirement]]
+        for requirement in direct_requirements:
+            direct_requirements_by_project_name[requirement.project_name].append(requirement)
+
+        # N.B.: Lowest rank means highest rank value. I.E.: The 1st tag is the most specific and
+        # the 765th tag is the least specific.
+        largest_rank_value = target.supported_tags.lowest_rank.value
+        smallest_rank_value = TagRank.highest_natural().value
+        rank_span = largest_rank_value - smallest_rank_value
+
+        downloadable_artifacts = []
+        target_specificities = []
+        for resolved_artifact in resolved_artifacts:
+            pin = resolved_artifact.locked_requirement.pin
+            downloadable_artifacts.append(
+                DownloadableArtifact.create(
+                    pin=pin,
+                    artifact=resolved_artifact.artifact,
+                    satisfied_direct_requirements=direct_requirements_by_project_name[
+                        pin.project_name
+                    ],
+                )
+            )
+            target_specificities.append(
+                (rank_span - (resolved_artifact.ranked_artifact.rank.value - smallest_rank_value))
+                / rank_span
+            )
+
+        return Resolved[LockedResolve](
+            target_specificity=(
+                smallest_rank_value
+                if not target_specificities
+                else sum(target_specificities) / len(target_specificities)
+            ),
+            downloadable_artifacts=tuple(downloadable_artifacts),
+            source=self,
+        )
+
     def resolve(
         self,
         target,  # type: Target
@@ -661,7 +754,7 @@ class LockedResolve(object):
         include_all_matches=False,  # type: bool
         dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
     ):
-        # type: (...) -> Union[Resolved, Error]
+        # type: (...) -> Union[Resolved[LockedResolve], Error]
 
         repository = defaultdict(list)  # type: DefaultDict[ProjectName, List[LockedRequirement]]
         for locked_requirement in self.locked_requirements:
@@ -891,9 +984,8 @@ class LockedResolve(object):
                 uniqued_resolved_artifacts.append(resolved_artifact)
                 seen.add(resolved_artifact.ranked_artifact.artifact)
 
-        return Resolved.create(
+        return self.create_resolved_artifacts(
             target=target,
             direct_requirements=requirements,
             resolved_artifacts=uniqued_resolved_artifacts,
-            source=self,
         )

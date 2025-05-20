@@ -6,13 +6,13 @@ from textwrap import dedent
 import pytest
 
 from pex import targets
+from pex.artifact_url import VCS, ArtifactURL, Fingerprint
 from pex.dist_metadata import Requirement
 from pex.interpreter import PythonInterpreter
 from pex.pep_425 import CompatibilityTags, TagRank
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pep_508 import MarkerEnvironment
-from pex.requirements import VCS
 from pex.resolve import abbreviated_platforms
 from pex.resolve.locked_resolve import (
     Artifact,
@@ -26,7 +26,7 @@ from pex.resolve.locked_resolve import (
     VCSArtifact,
     _ResolvedArtifact,
 )
-from pex.resolve.resolved_requirement import ArtifactURL, Fingerprint, PartialArtifact, Pin
+from pex.resolve.resolved_requirement import PartialArtifact, Pin
 from pex.resolve.resolver_configuration import BuildConfiguration
 from pex.result import Error, try_
 from pex.sorted_tuple import SortedTuple
@@ -123,7 +123,7 @@ def ansicolors_simple():
 
 
 def assert_resolved(
-    result,  # type: Union[Resolved, Error]
+    result,  # type: Union[Resolved[LockedResolve], Error]
     *downloadable_artifacts  # type: DownloadableArtifact
 ):
     # type: (...) -> None
@@ -264,7 +264,7 @@ def ansicolors_exotic():
 
 
 def assert_error(
-    result,  # type: Union[Resolved, Error]
+    result,  # type: Union[Resolved[LockedResolve], Error]
     expected_error_message,  # type: str
 ):
     assert Error(expected_error_message.strip()) == result
@@ -835,15 +835,14 @@ def test_resolved():
             dist_metadatas=(),
             fingerprinter=DevNullFingerprinter(),
         )
-        assert Resolved(
+        assert Resolved[LockedResolve](
             target_specificity=expected_target_specificity,
             downloadable_artifacts=downloadable_artifacts,
             source=locked_resolve,
-        ) == Resolved.create(
+        ) == locked_resolve.create_resolved_artifacts(
             target=target,
             direct_requirements=direct_requirements,
             resolved_artifacts=resolved_artifacts,
-            source=locked_resolve,
         )
 
     # For tag ranks of 1, 2, 1 should rank 100% target specific (best match) and 2 should rank 0%
@@ -919,7 +918,6 @@ def test_locked_requirement_mixed_artifacts_issue_2150():
         url=ArtifactURL.parse("git+https://host/a/project"),
         fingerprint=Fingerprint(algorithm="sha1", hash="bar"),
         vcs=VCS.Git,
-        vcs_url="https://host/a/project",
         verified=False,
     )
     local_project_artifact = LocalProjectArtifact(
@@ -960,7 +958,6 @@ def test_locked_resolve_same_pins_mixed_primary_artifacts_issue_2150():
             url=ArtifactURL.parse("git+https://host/a/project"),
             fingerprint=Fingerprint(algorithm="sha1", hash="bar"),
             vcs=VCS.Git,
-            vcs_url="https://host/a/project",
             verified=False,
         ),
     )

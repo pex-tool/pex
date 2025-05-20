@@ -7,8 +7,10 @@ import hashlib
 import os
 from collections import defaultdict
 
+from pex.artifact_url import ArtifactURL, Fingerprint
 from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import Distribution, Requirement
+from pex.exceptions import production_assert
 from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.interpreter import PythonInterpreter
 from pex.jobs import iter_map_parallel
@@ -18,9 +20,9 @@ from pex.pep_503 import ProjectName
 from pex.pip.tool import PackageIndexConfiguration
 from pex.requirements import LocalProjectRequirement
 from pex.resolve.configured_resolver import ConfiguredResolver
-from pex.resolve.locked_resolve import Artifact, FileArtifact, LockedRequirement, LockedResolve
+from pex.resolve.locked_resolve import FileArtifact, LockedRequirement, LockedResolve
 from pex.resolve.requirement_configuration import RequirementConfiguration
-from pex.resolve.resolved_requirement import ArtifactURL, Fingerprint, Pin
+from pex.resolve.resolved_requirement import Pin
 from pex.resolve.resolver_configuration import PipConfiguration
 from pex.resolve.resolvers import (
     ResolvedDistribution,
@@ -33,7 +35,7 @@ from pex.result import try_
 from pex.sorted_tuple import SortedTuple
 from pex.targets import Targets
 from pex.tracer import TRACER
-from pex.typing import TYPE_CHECKING
+from pex.typing import TYPE_CHECKING, cast
 from pex.util import CacheHelper
 
 if TYPE_CHECKING:
@@ -162,7 +164,7 @@ def resolve_from_dists(
     with TRACER.timed("Sub-setting pre-resolved wheels"):
         root_requirements = OrderedSet()  # type: OrderedSet[Requirement]
         locked_requirements = []  # type: List[LockedRequirement]
-        resolved_dist_by_file_artifact = {}  # type: Dict[Artifact, ResolvedDistribution]
+        resolved_dist_by_file_artifact = {}  # type: Dict[FileArtifact, ResolvedDistribution]
         for resolved_dist in resolved_dists:
             file_artifact = FileArtifact(
                 url=ArtifactURL.parse(resolved_dist.distribution.location),
@@ -207,8 +209,10 @@ def resolve_from_dists(
                     dependency_configuration=dependency_configuration,
                 )
             )
-            for artifact in resolved.downloadable_artifacts:
-                resolved_dists_subset.add(resolved_dist_by_file_artifact[artifact.artifact])
+            for downloadable_artifact in resolved.downloadable_artifacts:
+                production_assert(isinstance(downloadable_artifact.artifact, FileArtifact))
+                file_artifact = cast(FileArtifact, downloadable_artifact.artifact)
+                resolved_dists_subset.add(resolved_dist_by_file_artifact[file_artifact])
 
     return ResolveResult(
         dependency_configuration=dependency_configuration,

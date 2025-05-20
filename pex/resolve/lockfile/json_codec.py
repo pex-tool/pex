@@ -6,6 +6,7 @@ from __future__ import absolute_import
 import json
 
 from pex import compatibility
+from pex.artifact_url import Fingerprint
 from pex.dist_metadata import Requirement, RequirementParseError
 from pex.enum import Enum
 from pex.pep_440 import Version
@@ -23,7 +24,7 @@ from pex.resolve.locked_resolve import (
 )
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.path_mappings import PathMappings
-from pex.resolve.resolved_requirement import Fingerprint, Pin
+from pex.resolve.resolved_requirement import Pin
 from pex.resolve.resolver_configuration import BuildConfiguration, PipConfiguration, ResolverVersion
 from pex.sorted_tuple import SortedTuple
 from pex.third_party.packaging import tags

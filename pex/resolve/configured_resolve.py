@@ -7,7 +7,8 @@ from pex.common import pluralize
 from pex.dependency_configuration import DependencyConfiguration
 from pex.pep_427 import InstallableType
 from pex.resolve.configured_resolver import ConfiguredResolver
-from pex.resolve.lock_resolver import resolve_from_lock
+from pex.resolve.lock_resolver import resolve_from_pex_lock, resolve_from_pylock
+from pex.resolve.lockfile.pep_751 import Pylock
 from pex.resolve.pex_repository_resolver import resolve_from_pex
 from pex.resolve.pre_resolved_resolver import resolve_from_dists
 from pex.resolve.requirement_configuration import RequirementConfiguration
@@ -15,6 +16,7 @@ from pex.resolve.resolver_configuration import (
     LockRepositoryConfiguration,
     PexRepositoryConfiguration,
     PreResolvedConfiguration,
+    PylockRepositoryConfiguration,
 )
 from pex.resolve.resolvers import ResolveResult
 from pex.resolver import resolve as resolve_via_pip
@@ -45,7 +47,7 @@ def resolve(
         ):
             pip_configuration = resolver_configuration.pip_configuration
             return try_(
-                resolve_from_lock(
+                resolve_from_pex_lock(
                     targets=targets,
                     lock=lock,
                     resolver=ConfiguredResolver(pip_configuration=pip_configuration),
@@ -62,6 +64,37 @@ def resolve(
                     compile=compile_pyc,
                     max_parallel_jobs=pip_configuration.max_jobs,
                     pip_version=lock.pip_version,
+                    use_pip_config=pip_configuration.use_pip_config,
+                    extra_pip_requirements=pip_configuration.extra_requirements,
+                    keyring_provider=pip_configuration.keyring_provider,
+                    result_type=result_type,
+                    dependency_configuration=dependency_configuration,
+                )
+            )
+    elif isinstance(resolver_configuration, PylockRepositoryConfiguration):
+        pylock = try_(Pylock.parse(resolver_configuration.lock_file_path))
+        with TRACER.timed(
+            "Resolving requirements from lock file {lock_file}".format(lock_file=pylock.source)
+        ):
+            pip_configuration = resolver_configuration.pip_configuration
+            return try_(
+                resolve_from_pylock(
+                    targets=targets,
+                    pylock=pylock,
+                    resolver=ConfiguredResolver(pip_configuration=pip_configuration),
+                    requirements=requirement_configuration.requirements,
+                    requirement_files=requirement_configuration.requirement_files,
+                    constraint_files=requirement_configuration.constraint_files,
+                    transitive=pip_configuration.transitive,
+                    indexes=pip_configuration.repos_configuration.indexes,
+                    find_links=pip_configuration.repos_configuration.find_links,
+                    resolver_version=pip_configuration.resolver_version,
+                    network_configuration=pip_configuration.network_configuration,
+                    password_entries=pip_configuration.repos_configuration.password_entries,
+                    build_configuration=pip_configuration.build_configuration,
+                    compile=compile_pyc,
+                    max_parallel_jobs=pip_configuration.max_jobs,
+                    pip_version=pip_configuration.version,
                     use_pip_config=pip_configuration.use_pip_config,
                     extra_pip_requirements=pip_configuration.extra_requirements,
                     keyring_provider=pip_configuration.keyring_provider,

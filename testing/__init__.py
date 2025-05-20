@@ -810,6 +810,7 @@ def run_commands_with_jitter(
     path_argument,  # type: str
     extra_env=None,  # type: Optional[Mapping[str, str]]
     delay=2.0,  # type: float
+    dest=None,  # type: Optional[str]
 ):
     # type: (...) -> List[str]
     """Runs the commands with tactics that attempt to introduce randomness in outputs.
@@ -820,12 +821,12 @@ def run_commands_with_jitter(
     Additionally, a delay is inserted between executions. By default, this delay is 2s to ensure zip
     precision is stressed. See: https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT.
     """
-    td = safe_mkdtemp()
-    pex_root = os.path.join(td, "pex_root")
+    dest_dir = dest or safe_mkdtemp()
+    pex_root = os.path.join(dest_dir, "pex_root")
 
     paths = []
     for index, command in enumerate(commands):
-        path = os.path.join(td, str(index))
+        path = os.path.join(dest_dir, str(index))
         cmd = list(command) + [path_argument, path]
 
         # Note that we change the `PYTHONHASHSEED` to ensure we're impervious to data structure
@@ -850,6 +851,7 @@ def run_command_with_jitter(
     extra_env=None,  # type: Optional[Mapping[str, str]]
     delay=2.0,  # type: float
     count=3,  # type: int
+    dest=None,  # type: Optional[str]
 ):
     # type: (...) -> List[str]
     """Runs the command `count` times in an attempt to introduce randomness.
@@ -866,6 +868,7 @@ def run_command_with_jitter(
         path_argument=path_argument,
         extra_env=extra_env,
         delay=delay,
+        dest=dest,
     )
 
 

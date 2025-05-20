@@ -10,6 +10,7 @@ from pex.resolve.resolver_configuration import (
     PexRepositoryConfiguration,
     PipConfiguration,
     PreResolvedConfiguration,
+    PylockRepositoryConfiguration,
 )
 from pex.result import Error, catch, try_
 from pex.targets import Targets
@@ -23,8 +24,9 @@ if TYPE_CHECKING:
     Configuration = Union[
         LockRepositoryConfiguration,
         PexRepositoryConfiguration,
-        PreResolvedConfiguration,
         PipConfiguration,
+        PreResolvedConfiguration,
+        PylockRepositoryConfiguration,
     ]
     _C = TypeVar("_C", bound=Configuration)
 

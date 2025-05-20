@@ -3,12 +3,13 @@
 
 from __future__ import absolute_import
 
+from pex.artifact_url import Fingerprint
 from pex.dist_metadata import Requirement
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.resolve.locked_resolve import Artifact, LockedRequirement, LockedResolve
 from pex.resolve.lockfile import requires_dist
-from pex.resolve.resolved_requirement import Fingerprint, Pin
+from pex.resolve.resolved_requirement import Pin
 from pex.sorted_tuple import SortedTuple
 
 req = Requirement.parse

@@ -11,6 +11,7 @@ from textwrap import dedent
 
 import pytest
 
+from pex.artifact_url import Fingerprint
 from pex.cache.dirs import CacheDir
 from pex.common import safe_open
 from pex.dist_metadata import Constraint, Requirement
@@ -24,7 +25,7 @@ from pex.resolve.locked_resolve import Artifact, LockedRequirement
 from pex.resolve.lockfile import json_codec
 from pex.resolve.lockfile.download_manager import DownloadedArtifact
 from pex.resolve.lockfile.model import Lockfile
-from pex.resolve.resolved_requirement import Fingerprint, Pin
+from pex.resolve.resolved_requirement import Pin
 from pex.resolve.resolver_configuration import ResolverVersion
 from pex.sorted_tuple import SortedTuple
 from pex.targets import AbbreviatedPlatform, LocalInterpreter

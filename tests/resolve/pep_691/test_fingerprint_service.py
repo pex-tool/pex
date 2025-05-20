@@ -11,13 +11,14 @@ try:
 except ImportError:
     import mock  # type: ignore[no-redef,import]
 
+from pex.artifact_url import ArtifactURL, Fingerprint
 from pex.compatibility import urlparse
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.resolve.pep_691.api import Client
 from pex.resolve.pep_691.fingerprint_service import FingerprintService
 from pex.resolve.pep_691.model import Endpoint, File, Meta, Project
-from pex.resolve.resolved_requirement import ArtifactURL, Fingerprint, PartialArtifact
+from pex.resolve.resolved_requirement import PartialArtifact
 from pex.sorted_tuple import SortedTuple
 from pex.typing import TYPE_CHECKING
 

@@ -7,18 +7,17 @@ import os
 import re
 
 from pex import hashing
+from pex.artifact_url import VCS, Fingerprint
 from pex.common import is_pyc_dir, is_pyc_file, open_zip, temporary_dir
 from pex.hashing import Sha256
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
-from pex.requirements import VCS
-from pex.resolve.resolved_requirement import Fingerprint
 from pex.result import Error, try_
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Tuple, Union
+    from typing import Optional, Tuple, Union
 
     from pex.hashing import HintedDigest
 
@@ -61,6 +60,7 @@ def fingerprint_downloaded_vcs_archive(
     project_name,  # type: str
     version,  # type: str
     vcs,  # type: VCS.Value
+    subdirectory=None,  # type: Optional[str]
 ):
     # type: (...) -> Tuple[Fingerprint, str]
 
@@ -70,7 +70,7 @@ def fingerprint_downloaded_vcs_archive(
         )
     )
     digest = Sha256()
-    digest_vcs_archive(archive_path=archive_path, vcs=vcs, digest=digest)
+    digest_vcs_archive(archive_path=archive_path, vcs=vcs, digest=digest, subdirectory=subdirectory)
     return Fingerprint.from_digest(digest), archive_path
 
 
@@ -78,6 +78,7 @@ def digest_vcs_archive(
     archive_path,  # type: str
     vcs,  # type: VCS.Value
     digest,  # type: HintedDigest
+    subdirectory=None,  # type: Optional[str]
 ):
     # type: (...) -> None
 
@@ -101,7 +102,7 @@ def digest_vcs_archive(
 
         # TODO(John Sirois): Consider implementing zip_hash to avoid the extractall.
         hashing.dir_hash(
-            directory=chroot,
+            directory=os.path.join(chroot, subdirectory) if subdirectory else chroot,
             digest=digest,
             dir_filter=(
                 lambda dir_path: (

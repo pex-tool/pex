@@ -10,6 +10,7 @@ from itertools import repeat
 from multiprocessing.pool import ThreadPool
 
 from pex import pex_warnings
+from pex.artifact_url import Fingerprint
 from pex.atomic_directory import atomic_directory
 from pex.cache.dirs import CacheDir
 from pex.compatibility import cpu_count
@@ -17,7 +18,7 @@ from pex.fetcher import URLFetcher
 from pex.os import WINDOWS
 from pex.resolve.pep_691.api import Client
 from pex.resolve.pep_691.model import Endpoint, Project
-from pex.resolve.resolved_requirement import Fingerprint, PartialArtifact
+from pex.resolve.resolved_requirement import PartialArtifact
 from pex.resolve.resolvers import MAX_PARALLEL_DOWNLOADS
 from pex.result import Error, catch
 from pex.tracer import TRACER

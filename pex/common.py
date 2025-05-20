@@ -25,6 +25,7 @@ from zipfile import ZipFile, ZipInfo
 from pex.enum import Enum
 from pex.executables import chmod_plus_x
 from pex.fs import safe_link, safe_rename, safe_symlink
+from pex.os import is_exe
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
@@ -210,6 +211,7 @@ class ZipFileEx(ZipFile):
         filename,  # type: str
         arcname=None,  # type: Optional[str]
         date_time=None,  # type: Optional[time.struct_time]
+        file_mode=None,  # type: Optional[int]
     ):
         # type: (...) -> ZipEntry
         """Construct a ZipEntry for a file on the filesystem.
@@ -231,7 +233,13 @@ class ZipFileEx(ZipFile):
         if date_time is None:
             date_time = time.localtime(st.st_mtime)
         zip_info = zipfile.ZipInfo(filename=arcname, date_time=date_time[:6])
-        zip_info.external_attr = (st.st_mode & 0xFFFF) << 16  # Unix attributes
+
+        # Unix attributes
+        if file_mode:
+            zip_info.external_attr = file_mode << 16
+        else:
+            zip_info.external_attr = (st.st_mode & 0xFFFF) << 16
+
         if isdir:
             zip_info.file_size = 0
             zip_info.external_attr |= 0x10  # MS-DOS directory flag
@@ -699,7 +707,7 @@ class Chroot(object):
         self,
         filename,  # type: str
         mode="w",  # type: str
-        deterministic_timestamp=False,  # type: bool
+        deterministic=False,  # type: bool
         exclude_file=lambda _: False,  # type: Callable[[str], bool]
         strip_prefix=None,  # type: Optional[str]
         labels=None,  # type: Optional[Iterable[str]]
@@ -723,12 +731,16 @@ class Chroot(object):
                 arcname,  # type: str
             ):
                 # type: (...) -> None
+
+                file_mode = None  # type: Optional[int]
+                if deterministic:
+                    file_mode = 0o755 if is_exe(filename) or os.path.isdir(filename) else 0o644
+
                 zip_entry = zf.zip_entry_from_file(
                     filename=filename,
                     arcname=os.path.relpath(arcname, strip_prefix) if strip_prefix else arcname,
-                    date_time=DETERMINISTIC_DATETIME.timetuple()
-                    if deterministic_timestamp
-                    else None,
+                    date_time=(DETERMINISTIC_DATETIME.timetuple() if deterministic else None),
+                    file_mode=file_mode,
                 )
                 compress_file = compress and self._compress_by_file.get(arcname, True)
                 compression = zipfile.ZIP_DEFLATED if compress_file else zipfile.ZIP_STORED

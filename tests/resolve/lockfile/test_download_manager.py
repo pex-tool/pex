@@ -8,12 +8,12 @@ from io import BytesIO
 import pytest
 
 from pex import hashing
+from pex.artifact_url import ArtifactURL, Fingerprint
 from pex.cache.dirs import CacheDir
 from pex.hashing import Sha1Fingerprint, Sha256Fingerprint
 from pex.pep_503 import ProjectName
 from pex.resolve.locked_resolve import FileArtifact
 from pex.resolve.lockfile.download_manager import DownloadedArtifact, DownloadManager
-from pex.resolve.resolved_requirement import ArtifactURL, Fingerprint
 from pex.result import Error, catch
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV, Variables

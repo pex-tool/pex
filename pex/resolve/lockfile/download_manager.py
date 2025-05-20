@@ -10,21 +10,25 @@ import os
 from pex import hashing
 from pex.atomic_directory import atomic_directory
 from pex.cache.dirs import DownloadDir
-from pex.common import safe_rmtree
+from pex.common import safe_mkdtemp, safe_rmtree
 from pex.fs.lock import FileLockStyle
 from pex.pep_503 import ProjectName
-from pex.resolve.locked_resolve import Artifact
+from pex.resolve.locked_resolve import (
+    Artifact,
+    UnFingerprintedLocalProjectArtifact,
+    UnFingerprintedVCSArtifact,
+)
 from pex.result import Error, ResultError, try_
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, Generic
 from pex.variables import ENV, Variables
 
 if TYPE_CHECKING:
-    from typing import List, TypeVar, Union
+    from typing import List, Optional, TypeVar, Union
 
     import attr  # vendor:skip
 
-    from pex.hashing import HintedDigest
+    from pex.hashing import Hasher, HintedDigest
 
     _A = TypeVar("_A", bound=Artifact)
 else:
@@ -127,62 +131,19 @@ class DownloadManager(Generic["_A"]):
     ):
         # type: (...) -> DownloadedArtifact
 
-        download_dir = DownloadDir.create(
-            file_hash=artifact.fingerprint.hash, pex_root=self._pex_root
-        )
-        with atomic_directory(download_dir, lock_style=self._file_lock_style) as atomic_dir:
-            if atomic_dir.is_finalized():
-                TRACER.log("Using cached artifact at {} for {}".format(download_dir, artifact))
-            else:
-                legacy_internal_fingerprint = hashing.Sha1()  # Legacy internal
-                internal_fingerprint = hashing.Sha256()  # Internal
-                digests = [
-                    legacy_internal_fingerprint,
-                    internal_fingerprint,
-                ]  # type: List[HintedDigest]
+        if hasattr(artifact, "fingerprint"):
+            download_dir = DownloadDir.create(
+                file_hash=artifact.fingerprint.hash, pex_root=self._pex_root
+            )  # type: str
+            with atomic_directory(download_dir, lock_style=self._file_lock_style) as atomic_dir:
+                if atomic_dir.is_finalized():
+                    TRACER.log("Using cached artifact at {} for {}".format(download_dir, artifact))
+                else:
+                    self._download(artifact, project_name, atomic_dir.work_dir)
+        else:
+            download_dir = safe_mkdtemp()
+            self._download(artifact, project_name, download_dir)
 
-                # The locking process will have pre-calculated some artifact fingerprints ahead of
-                # time; these will be marked as verified and can be trusted.
-                if not artifact.verified:
-                    # For the rest (E.G.: PyPI URLs with embedded fingerprints), we distrust and
-                    # establish our own fingerprint. This will mostly be wasted effort since we
-                    # share the same hash algorithm as PyPI currently, but it will serve to upgrade
-                    # the fingerprint on other cheeseshops that use a lower-grade hash algorithm (
-                    # See: https://peps.python.org/pep-0503/#specification).
-                    check = hashlib.new(artifact.fingerprint.algorithm)  # External
-                    digests.append(check)
-
-                with TRACER.timed("Downloading {artifact}".format(artifact=artifact)):
-                    filename = try_(
-                        self.save(
-                            artifact=artifact,
-                            project_name=project_name,
-                            dest_dir=atomic_dir.work_dir,
-                            digest=hashing.MultiDigest(digests),
-                        )
-                    )
-
-                if not artifact.verified:
-                    actual_hash = check.hexdigest()
-                    if artifact.fingerprint.hash != actual_hash:
-                        raise ResultError(
-                            Error(
-                                "Expected {algorithm} hash of {expected_hash} when downloading "
-                                "{project_name} but hashed to {actual_hash}.".format(
-                                    algorithm=artifact.fingerprint.algorithm,
-                                    expected_hash=artifact.fingerprint.hash,
-                                    project_name=project_name,
-                                    actual_hash=actual_hash,
-                                )
-                            )
-                        )
-
-                DownloadedArtifact.store(
-                    artifact_dir=atomic_dir.work_dir,
-                    filename=filename,
-                    legacy_fingerprint=legacy_internal_fingerprint.hexdigest(),
-                    fingerprint=internal_fingerprint.hexdigest(),
-                )
         try:
             return DownloadedArtifact.load(download_dir)
         except DownloadedArtifact.LoadError as e:
@@ -194,6 +155,69 @@ class DownloadManager(Generic["_A"]):
             )
             safe_rmtree(download_dir)
             return self.store(artifact, project_name, retry=False)
+
+    def _download(
+        self,
+        artifact,  # type: _A
+        project_name,  # type: ProjectName
+        dest_dir,  # type: str
+    ):
+        # type: (...) -> None
+
+        # The locking process will have pre-calculated some artifact fingerprints ahead of
+        # time; these will be marked as verified and can be trusted.
+        perform_hash_check = not artifact.verified and not isinstance(
+            artifact, (UnFingerprintedLocalProjectArtifact, UnFingerprintedVCSArtifact)
+        )
+
+        legacy_internal_fingerprint = hashing.Sha1()  # Legacy internal
+        internal_fingerprint = hashing.Sha256()  # Internal
+        digests = [
+            legacy_internal_fingerprint,
+            internal_fingerprint,
+        ]  # type: List[HintedDigest]
+
+        check = None  # type: Optional[Hasher]
+        if perform_hash_check:
+            # For the rest (E.G.: PyPI URLs with embedded fingerprints), we distrust and
+            # establish our own fingerprint. This will mostly be wasted effort since we
+            # share the same hash algorithm as PyPI currently, but it will serve to upgrade
+            # the fingerprint on other cheeseshops that use a lower-grade hash algorithm (
+            # See: https://peps.python.org/pep-0503/#specification).
+            check = hashlib.new(artifact.fingerprint.algorithm)  # External
+            digests.append(check)
+
+        with TRACER.timed("Downloading {artifact}".format(artifact=artifact)):
+            filename = try_(
+                self.save(
+                    artifact=artifact,
+                    project_name=project_name,
+                    dest_dir=dest_dir,
+                    digest=hashing.MultiDigest(digests),
+                )
+            )
+
+        if check:
+            actual_hash = check.hexdigest()
+            if artifact.fingerprint.hash != actual_hash:
+                raise ResultError(
+                    Error(
+                        "Expected {algorithm} hash of {expected_hash} when downloading "
+                        "{project_name} but hashed to {actual_hash}.".format(
+                            algorithm=artifact.fingerprint.algorithm,
+                            expected_hash=artifact.fingerprint.hash,
+                            project_name=project_name,
+                            actual_hash=actual_hash,
+                        )
+                    )
+                )
+
+        DownloadedArtifact.store(
+            artifact_dir=dest_dir,
+            filename=filename,
+            legacy_fingerprint=legacy_internal_fingerprint.hexdigest(),
+            fingerprint=internal_fingerprint.hexdigest(),
+        )
 
     def save(
         self,

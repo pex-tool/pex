@@ -3,6 +3,11 @@
 
 from __future__ import absolute_import
 
+import filecmp
+import itertools
+import os.path
+import platform
+import re
 import subprocess
 import sys
 from textwrap import dedent
@@ -10,17 +15,27 @@ from typing import Any, Dict, Iterator, Text
 
 import pytest
 
+import testing
 from pex import toml
+from pex.common import CopyMode, iter_copytree, safe_copy
 from pex.compatibility import string
 from pex.interpreter import PythonInterpreter
+from pex.os import WINDOWS
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
+from pex.pex import PEX
 from pex.resolve.resolved_requirement import Pin
+from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import Virtualenv
 from pex.wheel import Wheel
-from testing import IS_PYPY, data
+from testing import IS_PYPY, data, run_pex_command
 from testing.cli import run_pex3
 from testing.pytest_utils.tmp import Tempdir
+
+if TYPE_CHECKING:
+    from packaging.specifiers import SpecifierSet  # vendor:skip
+else:
+    from pex.third_party.packaging.specifiers import SpecifierSet
 
 
 @pytest.fixture
@@ -54,7 +69,7 @@ def test_universal_export_subset(devpi_server_lock):
 
     assert {
         "lock-version": "1.0",
-        "environments": ["platform_system = 'Darwin'", "platform_system = 'Linux'"],
+        "environments": ["platform_system == 'Darwin'", "platform_system == 'Linux'"],
         "requires-python": "<3.14,>=3.10",
         "extras": [],
         "dependency-groups": [],
@@ -127,7 +142,7 @@ def test_universal_export_subset_no_dependency_info(devpi_server_lock):
 
     assert {
         "lock-version": "1.0",
-        "environments": ["platform_system = 'Darwin'", "platform_system = 'Linux'"],
+        "environments": ["platform_system == 'Darwin'", "platform_system == 'Linux'"],
         "requires-python": "<3.14,>=3.10",
         "extras": [],
         "dependency-groups": [],
@@ -346,6 +361,7 @@ def test_lock_all_package_types(
         "2",
         "-o",
         lock,
+        "-v",
     ).assert_success()
 
     result = run_pex3("lock", "export", "--format", "pep-751", lock)
@@ -374,7 +390,7 @@ def test_lock_all_package_types(
         "version": "1.7",
         "vcs": {
             "type": "git",
-            "url": "git+https://github.com/Anorov/PySocks",
+            "url": "https://github.com/Anorov/PySocks",
             "requested-revision": "1.7.0",
             "commit-id": "91dcdf0fec424b6afe9ceef88de63b72d2f8fcfe",
         },
@@ -391,3 +407,188 @@ def test_lock_all_package_types(
             },
         },
     } == packages_by_name["cowsay"]
+
+
+@pytest.mark.skipif(
+    sys.version_info[:2] < (3, 8),
+    reason="Building Pex requires Python >= 3.8 to read pyproject.toml heterogeneous arrays.",
+)
+def test_locks_equivalent_round_trip(
+    tmpdir,  # type: Tempdir
+    pex_project_dir,  # type: str
+):
+    # type: (...) -> None
+
+    pex_management_req = "{pex_project_dir}[management]".format(pex_project_dir=pex_project_dir)
+
+    requirements = tmpdir.join("requirements.txt")
+    with open(requirements, "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                # Stress the editable bit for directory packages as well as handling extras.
+                -e {pex_management_req}
+
+                # Stress archive subdirectory handling.
+                git+https://github.com/SerialDev/sdev_py_utils.git@bd4d36a0#egg=sdev_logging_utils&subdirectory=sdev_logging_utils
+
+                # Stress VCS subdirectory handling as well as sdists and wheels (insta-science has
+                # a fair number of transitive deps).
+                insta-science @ https://github.com/a-scie/science-installers/archive/refs/tags/python-v0.6.1.zip#subdirectory=python
+                """.format(
+                    pex_management_req=pex_management_req
+                )
+            )
+        )
+    lock = tmpdir.join("lock.json")
+    run_pex3(
+        "lock",
+        "create",
+        "--pip-version",
+        "latest-compatible",
+        "--style",
+        "sources",
+        "-r",
+        requirements,
+        "--indent",
+        "2",
+        "-o",
+        lock,
+    ).assert_success()
+
+    pylock_toml = tmpdir.join("pylock.toml")
+    run_pex3("lock", "export", "--format", "pep-751", lock, "-o", pylock_toml).assert_success()
+
+    lock_pex_full = tmpdir.join("lock.pex")
+    pylock_pex_full = tmpdir.join("pylock.pex")
+    lock_pex_subset = tmpdir.join("lock.subset.pex")
+    pylock_pex_subset = tmpdir.join("pylock.subset.pex")
+
+    lock_full_args = ["--pip-version", "latest-compatible"]
+    lock_subset_args = lock_full_args + [pex_management_req]
+    results = [
+        run_pex_command(args=lock_full_args + ["--lock", lock, "-o", lock_pex_full]),
+        run_pex_command(args=lock_full_args + ["--pylock", pylock_toml, "-o", pylock_pex_full]),
+        run_pex_command(args=lock_subset_args + ["--lock", lock, "-o", lock_pex_subset]),
+        run_pex_command(args=lock_subset_args + ["--pylock", pylock_toml, "-o", pylock_pex_subset]),
+    ]
+    for result in results:
+        result.assert_success()
+
+    filecmp.cmp(lock_pex_full, pylock_pex_full, shallow=False)
+    filecmp.cmp(lock_pex_subset, pylock_pex_subset, shallow=False)
+
+    assert {ProjectName("pex"), ProjectName("psutil")} == {
+        dist.metadata.project_name for dist in PEX(pylock_pex_subset).resolve()
+    }, (
+        "Expected extras in root requirements to be respected throughout the lock, export and PEX "
+        "build chain of custody."
+    )
+
+
+def pex_pylock_applicable():
+    # type: () -> bool
+
+    if sys.version_info[:2] < (3, 8):
+        return False
+
+    # PyPy can't track the early return above vs the possibility the test is run under, say
+    # Python 2.7.
+    pex_pyproject_data = toml.load(  # type: ignore[unreachable]
+        os.path.join(testing.pex_project_dir(), "pyproject.toml")
+    )
+    pex_requires_python = pex_pyproject_data["project"]["requires-python"]
+    return platform.python_version() in SpecifierSet(pex_requires_python)
+
+
+@pytest.mark.skipif(
+    not pex_pylock_applicable(),
+    reason=(
+        "Building Pex requires Python >= 3.8 to read pyproject.toml heterogeneous arrays and this"
+        "test also needs the current interpreter to work with production PEX (be within its "
+        "Requires-Python upper bounds) since its the production PEX Requires-Python that will be "
+        "seen by the PEX's `uv.lock`."
+    ),
+)
+def test_uv_pylock_interop(
+    tmpdir,  # type: Tempdir
+    pex_project_dir,  # type: str
+):
+    # type: (...) -> None
+
+    chroot = tmpdir.join("chroot")
+    list(
+        itertools.chain.from_iterable(
+            (
+                iter_copytree(
+                    src=os.path.join(pex_project_dir, "build-backend"),
+                    dst=os.path.join(chroot, "build-backend"),
+                    copy_mode=CopyMode.LINK if WINDOWS else CopyMode.SYMLINK,
+                ),
+                iter_copytree(
+                    src=os.path.join(pex_project_dir, "pex"),
+                    dst=os.path.join(chroot, "pex"),
+                    copy_mode=CopyMode.LINK if WINDOWS else CopyMode.SYMLINK,
+                ),
+            )
+        )
+    )
+    for file in "MANIFEST.in", "pyproject.toml", "setup.cfg", "setup.py", "uv.lock":
+        safe_copy(os.path.join(pex_project_dir, file), os.path.join(chroot, file))
+
+    pylock_toml = os.path.join(chroot, "pylock.toml")
+    subprocess.check_call(
+        args=[
+            "uv",
+            "export",
+            "--directory",
+            chroot,
+            "--no-dev",
+            "--extra",
+            "management",
+            "--format",
+            "pylock.toml",
+            "-q",
+            "-o",
+            pylock_toml,
+        ]
+    )
+
+    management_pex = tmpdir.join("management.pex")
+    run_pex_command(
+        args=[
+            ".[management]",
+            "--pylock",
+            pylock_toml,
+            "--pip-version",
+            "latest-compatible",
+            "-o",
+            management_pex,
+        ],
+        cwd=chroot,
+        quiet=True,
+    ).assert_failure(
+        expected_error_re=r"^{escaped}$".format(
+            escaped=re.escape(
+                "The following projects were resolved:\n"
+                "+ pex\n"
+                "\n"
+                "These additional dependencies need to be resolved (as well as any transitive "
+                "dependencies they may have):\n"
+                "+ psutil\n"
+                "\n"
+                "The lock {pylock} created by uv likely does not include optional `dependencies` "
+                "metadata for its packages.\n"
+                "This metadata is required for Pex to subset a PEP-751 lock.".format(
+                    pylock=pylock_toml
+                )
+            )
+        )
+    )
+
+    run_pex_command(
+        args=["--pylock", pylock_toml, "--pip-version", "latest-compatible", "-o", management_pex]
+    ).assert_success()
+    assert {ProjectName("pex"), ProjectName("psutil")} == {
+        dist.metadata.project_name for dist in PEX(management_pex).resolve()
+    }

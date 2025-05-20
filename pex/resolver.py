@@ -9,6 +9,7 @@ import glob
 import hashlib
 import itertools
 import os
+import tarfile
 import zipfile
 from abc import abstractmethod
 from collections import OrderedDict, defaultdict
@@ -17,10 +18,24 @@ from pex import targets
 from pex.atomic_directory import AtomicDirectory, atomic_directory
 from pex.auth import PasswordEntry
 from pex.cache.dirs import BuiltWheelDir, CacheDir
-from pex.common import pluralize, safe_mkdir, safe_mkdtemp, safe_open, safe_relative_symlink
+from pex.common import (
+    open_zip,
+    pluralize,
+    safe_mkdir,
+    safe_mkdtemp,
+    safe_open,
+    safe_relative_symlink,
+)
 from pex.compatibility import url_unquote, urlparse
 from pex.dependency_configuration import DependencyConfiguration
-from pex.dist_metadata import DistMetadata, Distribution, Requirement, is_wheel
+from pex.dist_metadata import (
+    DistMetadata,
+    Distribution,
+    Requirement,
+    is_tar_sdist,
+    is_wheel,
+    is_zip_sdist,
+)
 from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.jobs import Raise, SpawnedJob, execute_parallel, iter_map_parallel
 from pex.network_configuration import NetworkConfiguration
@@ -33,7 +48,7 @@ from pex.pip.download_observer import DownloadObserver
 from pex.pip.installation import get_pip
 from pex.pip.tool import PackageIndexConfiguration
 from pex.pip.version import PipVersionValue
-from pex.requirements import LocalProjectRequirement
+from pex.requirements import LocalProjectRequirement, URLRequirement
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import BuildConfiguration, PipLog, ResolverVersion
 from pex.resolve.resolvers import (
@@ -186,7 +201,30 @@ class DownloadRequest(object):
                 V=ENV.PEX_VERBOSE,
             )
 
-        spawn_download = functools.partial(self._spawn_download, dest, log_manager)
+        requirement_config = RequirementConfiguration(
+            requirements=self.requirements,
+            requirement_files=self.requirement_files,
+            constraint_files=self.constraint_files,
+        )
+        network_configuration = (
+            self.package_index_configuration.network_configuration
+            if self.package_index_configuration
+            else None
+        )
+        subdirectory_by_filename = {}  # type: Dict[str, str]
+        for parsed_requirement in requirement_config.parse_requirements(network_configuration):
+            if not isinstance(parsed_requirement, URLRequirement):
+                continue
+            subdirectory = parsed_requirement.subdirectory
+            if subdirectory:
+                subdirectory_by_filename[parsed_requirement.filename] = subdirectory
+
+        spawn_download = functools.partial(
+            self._spawn_download,
+            resolved_dists_dir=dest,
+            log_manager=log_manager,
+            subdirectory_by_filename=subdirectory_by_filename,
+        )
         with TRACER.timed(
             "Resolving for:\n  {}".format(
                 "\n  ".join(target.render_description() for target in self.targets)
@@ -206,9 +244,10 @@ class DownloadRequest(object):
 
     def _spawn_download(
         self,
+        target,  # type: Target
         resolved_dists_dir,  # type: str
         log_manager,  # type: PipLogManager
-        target,  # type: Target
+        subdirectory_by_filename,  # type: Mapping[str, str]
     ):
         # type: (...) -> SpawnedJob[DownloadResult]
         download_dir = os.path.join(resolved_dists_dir, target.id)
@@ -218,7 +257,7 @@ class DownloadRequest(object):
             else None
         )
 
-        download_result = DownloadResult(target, download_dir)
+        download_result = DownloadResult(target, download_dir, subdirectory_by_filename)
         download_job = get_pip(
             interpreter=target.get_interpreter(),
             version=self.pip_version,
@@ -255,6 +294,7 @@ class DownloadResult(object):
 
     target = attr.ib()  # type: Target
     download_dir = attr.ib()  # type: str
+    subdirectory_by_filename = attr.ib()  # type: Mapping[str, str]
 
     def _iter_distribution_paths(self):
         # type: () -> Iterator[str]
@@ -267,7 +307,12 @@ class DownloadResult(object):
         # type: () -> Iterator[BuildRequest]
         for distribution_path in self._iter_distribution_paths():
             if not self._is_wheel(distribution_path):
-                yield BuildRequest.create(target=self.target, source_path=distribution_path)
+                subdirectory = self.subdirectory_by_filename.get(
+                    os.path.basename(distribution_path)
+                )
+                yield BuildRequest.create(
+                    target=self.target, source_path=distribution_path, subdirectory=subdirectory
+                )
 
     def install_requests(self):
         # type: () -> Iterator[InstallRequest]
@@ -302,6 +347,10 @@ def fingerprint_path(path):
     return CacheHelper.hash(path, hasher=hasher)
 
 
+class BuildError(Exception):
+    pass
+
+
 @attr.s(frozen=True)
 class BuildRequest(object):
     @classmethod
@@ -309,27 +358,71 @@ class BuildRequest(object):
         cls,
         target,  # type: Target
         source_path,  # type: str
+        subdirectory=None,  # type: Optional[str]
     ):
         # type: (...) -> BuildRequest
         fingerprint = fingerprint_path(source_path)
-        return cls(target=target, source_path=source_path, fingerprint=fingerprint)
+        return cls(
+            target=target,
+            source_path=source_path,
+            fingerprint=fingerprint,
+            subdirectory=subdirectory,
+        )
 
     target = attr.ib()  # type: Target
     source_path = attr.ib()  # type: str
     fingerprint = attr.ib()  # type: str
+    subdirectory = attr.ib()  # type: Optional[str]
 
-    def result(self):
-        # type: () -> BuildResult
-        return BuildResult.from_request(self)
+    def prepare(self):
+        # type: () -> str
+
+        if os.path.isdir(self.source_path):
+            if self.subdirectory:
+                return os.path.join(self.source_path, self.subdirectory)
+            return self.source_path
+
+        extract_dir = os.path.join(safe_mkdtemp(), "project")
+        if is_zip_sdist(self.source_path):
+            with open_zip(self.source_path) as zf:
+                zf.extractall(extract_dir)
+        elif is_tar_sdist(self.source_path):
+            with tarfile.open(self.source_path) as tf:
+                tf.extractall(extract_dir)
+        else:
+            raise BuildError(
+                "Unexpected archive type for sdist {project}".format(project=self.source_path)
+            )
+
+        listing = os.listdir(extract_dir)
+        if len(listing) != 1:
+            raise BuildError(
+                "Expected one top-level project directory to be extracted from {project}, "
+                "found {count}: {listing}".format(
+                    project=self.source_path, count=len(listing), listing=", ".join(listing)
+                )
+            )
+        project_directory = os.path.join(extract_dir, listing[0])
+        if self.subdirectory:
+            project_directory = os.path.join(project_directory, self.subdirectory)
+        return project_directory
+
+    def result(self, source_path=None):
+        # type: (Optional[str]) -> BuildResult
+        return BuildResult.from_request(self, source_path=source_path)
 
 
 @attr.s(frozen=True)
 class BuildResult(object):
     @classmethod
-    def from_request(cls, build_request):
-        # type: (BuildRequest) -> BuildResult
+    def from_request(
+        cls,
+        build_request,  # type: BuildRequest
+        source_path=None,  # type: Optional[str]
+    ):
+        # type: (...) -> BuildResult
         built_wheel = BuiltWheelDir.create(
-            sdist=build_request.source_path,
+            sdist=source_path or build_request.source_path,
             fingerprint=build_request.fingerprint,
             target=build_request.target,
         )
@@ -637,7 +730,8 @@ class WheelBuilder(object):
 
     def _spawn_wheel_build(self, build_request):
         # type: (BuildRequest) -> SpawnedJob[BuildResult]
-        build_result = build_request.result()
+        source_path = build_request.prepare()
+        build_result = build_request.result(source_path)
         build_job = get_pip(
             interpreter=build_request.target.get_interpreter(),
             version=self._pip_version,
@@ -648,7 +742,7 @@ class WheelBuilder(object):
                 else ()
             ),
         ).spawn_build_wheels(
-            distributions=[build_request.source_path],
+            distributions=[source_path],
             wheel_dir=build_result.build_dir,
             package_index_configuration=self._package_index_configuration,
             interpreter=build_request.target.get_interpreter(),
@@ -713,6 +807,10 @@ class DirectRequirements(object):
                 for requirement in direct_requirements:
                     if not isinstance(requirement, LocalProjectRequirement):
                         yield requirement.requirement
+                        continue
+
+                    if requirement.project_name is not None:
+                        yield requirement.as_requirement()
                         continue
 
                     install_reqs = install_requests.get(requirement.path)
@@ -1276,6 +1374,7 @@ class LocalDistribution(object):
     path = attr.ib()  # type: str
     fingerprint = attr.ib()  # type: str
     target = attr.ib(factory=targets.current)  # type: Target
+    subdirectory = attr.ib(default=None)  # type: Optional[str]
 
     @fingerprint.default
     def _calculate_fingerprint(self):
@@ -1401,6 +1500,7 @@ def download(
                     target=request.target,
                     path=request.source_path,
                     fingerprint=request.fingerprint,
+                    subdirectory=request.subdirectory,
                 )
             )
 
