@@ -556,7 +556,15 @@ def test_uv_pylock_interop(
 
     management_pex = tmpdir.join("management.pex")
     run_pex_command(
-        args=[".[management]", "--pylock", pylock_toml, "-o", management_pex],
+        args=[
+            ".[management]",
+            "--pylock",
+            pylock_toml,
+            "--pip-version",
+            "latest-compatible",
+            "-o",
+            management_pex,
+        ],
         cwd=chroot,
         quiet=True,
     ).assert_failure(
@@ -578,7 +586,9 @@ def test_uv_pylock_interop(
         )
     )
 
-    run_pex_command(args=["--pylock", pylock_toml, "-o", management_pex]).assert_success()
+    run_pex_command(
+        args=["--pylock", pylock_toml, "--pip-version", "latest-compatible", "-o", management_pex]
+    ).assert_success()
     assert {ProjectName("pex"), ProjectName("psutil")} == {
         dist.metadata.project_name for dist in PEX(management_pex).resolve()
     }
