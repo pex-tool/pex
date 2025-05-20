@@ -278,8 +278,8 @@ def test_pylock_parse_toplevel_items():
         dedent(
             """\
             environments = [
-                "platform_system == 'Darwin' and python_version >= '3.12'",
-                "platform_system == 'Linux'"
+                "platform_system == \\"Darwin\\" and python_version >=\\"3.12\\"",
+                "platform_system == \\"Linux\\""
             ]
             requires-python = ">=3.9"
             extras = ["admin"]
@@ -291,9 +291,9 @@ def test_pylock_parse_toplevel_items():
     )
 
     assert (
-        Marker("platform_system == 'Darwin' and python_version >= '3.12'"),
-        Marker("platform_system == 'Linux'"),
-    ) == pylock.environments
+        'platform_system == "Darwin" and python_version >= "3.12"',
+        'platform_system == "Linux"',
+    ) == tuple(map(str, pylock.environments))
     assert ">=3.9" == str(pylock.requires_python)
     assert tuple(["admin"]) == pylock.extras
     assert ("dev", "debug") == pylock.dependency_groups
@@ -549,7 +549,7 @@ def test_pylock_parse_archive():
             [[packages]]
             name = "foo"
             version = "1.2.3"
-            marker = "python_version >= '3.9'"
+            marker = "python_version >= \\"3.9\\""
             [packages.archive]
             name = "foo-1.2.3.tar.gz"
             url = "https://example.org/foo-1.2.3.tar.gz"
@@ -562,7 +562,7 @@ def test_pylock_parse_archive():
 
     assert ProjectName("foo") == package.project_name
     assert Version("1.2.3") == package.version
-    assert Marker("python_version >= '3.9'") == package.marker
+    assert 'python_version >= "3.9"' == str(package.marker)
     assert isinstance(package.artifact, FileArtifact)
     assert not package.artifact.verified
     assert package.artifact.is_source
@@ -714,7 +714,7 @@ def test_pylock_parse_errors(tmpdir):
 
     assert_pylock_error(
         "Failed to parse the PEP-751 lock at {lock_path}. "
-        "Error parsing content at packages[0]{{name = 'foo'}}.\n"
+        'Error parsing content at packages[0]{{name = "foo"}}.\n'
         "Package must define an artifact.".format(lock_path=lock_path),
         dedent(
             """\
@@ -726,10 +726,10 @@ def test_pylock_parse_errors(tmpdir):
 
     assert_pylock_error(
         "Failed to parse the PEP-751 lock at {lock_path}. "
-        "Error parsing content at packages[0]{{name = 'foo'}}.\n"
-        "These artifacts are mutually exclusive with packages[0]{{name = 'foo'}}.vcs:\n"
-        "+ packages[0]{{name = 'foo'}}.sdist\n"
-        "+ packages[0]{{name = 'foo'}}.wheels".format(lock_path=lock_path),
+        'Error parsing content at packages[0]{{name = "foo"}}.\n'
+        'These artifacts are mutually exclusive with packages[0]{{name = "foo"}}.vcs:\n'
+        '+ packages[0]{{name = "foo"}}.sdist\n'
+        '+ packages[0]{{name = "foo"}}.wheels'.format(lock_path=lock_path),
         dedent(
             """\
             [[packages]]
@@ -743,7 +743,7 @@ def test_pylock_parse_errors(tmpdir):
 
     assert_pylock_error(
         "Failed to parse the PEP-751 lock at {lock_path}. "
-        "Error parsing content at packages[0]{{name = 'A'}}.dependencies[0]{{name = 'C'}}.\n"
+        'Error parsing content at packages[0]{{name = "A"}}.dependencies[0]{{name = "C"}}.\n'
         "The A package depends on C, but there is no C package in the packages array.".format(
             lock_path=lock_path
         ),
@@ -753,19 +753,19 @@ def test_pylock_parse_errors(tmpdir):
             name = "A"
             version = "1"
             dependencies = [{name = "C"}]
-            directory = "A"
+            directory = {path = "A"}
             
             [[packages]]
             name = "B"
             version = "2"
-            directory = "B"
+            directory = {path = "B"}
             """
         ),
     )
 
     assert_pylock_error(
         "Failed to parse the PEP-751 lock at {lock_path}. "
-        "Error parsing content at packages[0]{{name = 'A'}}.dependencies[0]{{name = 'B'}}.\n"
+        'Error parsing content at packages[0]{{name = "A"}}.dependencies[0]{{name = "B"}}.\n'
         "No matching B package could be found for A dependencies[0].".format(lock_path=lock_path),
         dedent(
             """\
@@ -773,19 +773,19 @@ def test_pylock_parse_errors(tmpdir):
             name = "A"
             version = "1"
             dependencies = [{name = "B", version = "1"}]
-            directory = "A"
+            directory = {path = "A"}
             
             [[packages]]
             name = "B"
             version = "2"
-            directory = "B"
+            directory = {path = "B"}
             """
         ),
     )
 
     assert_pylock_error(
         "Failed to parse the PEP-751 lock at {lock_path}. "
-        "Error parsing content at packages[0]{{name = 'A'}}.dependencies[0]{{name = 'B'}}.\n"
+        'Error parsing content at packages[0]{{name = "A"}}.dependencies[0]{{name = "B"}}.\n'
         "More than one package matches A dependencies[0]:\n"
         "+ packages[1]\n"
         "+ packages[2]".format(lock_path=lock_path),
@@ -795,19 +795,17 @@ def test_pylock_parse_errors(tmpdir):
             name = "A"
             version = "1"
             dependencies = [{name = "B", version = "1"}]
-            directory = "A"
+            directory = {path = "A"}
             
             [[packages]]
             name = "B"
             version = "1"
-            directory = "B"
-            subdirectory = "standard-b"
+            directory = {path = "B", subdirectory = "standard-b"}
             
             [[packages]]
             name = "B"
             version = "1"
-            directory = "B"
-            subdirectory = "special-b"
+            directory = {path = "B", subdirectory = "special-b"}
             """
         ),
     )

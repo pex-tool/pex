@@ -9,7 +9,7 @@ from collections import OrderedDict, defaultdict, deque
 from pex import toml
 from pex.artifact_url import RANKED_ALGORITHMS, VCS, ArtifactURL, Fingerprint, VCSScheme
 from pex.common import pluralize
-from pex.compatibility import urlparse
+from pex.compatibility import text, urlparse
 from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import Constraint, Requirement
 from pex.exceptions import production_assert, reportable_unexpected_error_msg
@@ -499,7 +499,9 @@ class ParseContext(object):
         default=None,  # type: Optional[str]
     ):
         # type: (...) -> str
-        return self.get(key, str, default=default)
+        # The cast is of Python 2. The return type will actually be `unicode` in that case, but it
+        # doesn't matter since there will be no further runtime type checks above this call.
+        return cast(str, self.get(key, text, default=default))
 
     def get_array_of_strings(
         self,
@@ -508,7 +510,7 @@ class ParseContext(object):
     ):
         # type: (...) -> List[str]
         value = self.get(key, list, default=default)
-        if not all(isinstance(item, str) for item in value):
+        if not all(isinstance(item, text) for item in value):
             raise ResultError(
                 self.error(
                     "Expected {key} to be an arrays of strings.".format(key=self.subpath(key))
@@ -525,24 +527,34 @@ class ParseContext(object):
         # type: (...) -> List[ParseContext]
         value = self.get(key, list, default=default)
         if not all(
-            isinstance(item, dict) and all(isinstance(key, str) for key in item) for item in value
+            isinstance(item, dict) and all(isinstance(key, text) for key in item) for item in value
         ):
             raise ResultError(
                 self.error("Expected {key} to be an array of tables.".format(key=self.subpath(key)))
             )
+
+        def diagnostic(data):
+            # type: (Dict[str, Any]) -> str
+
+            if not diagnostic_key:
+                return ""
+
+            diagnostic_value = data.get(diagnostic_key, None)
+            if diagnostic_value is None:
+                return ""
+
+            value_repr = (
+                '"{value}"'.format(value=diagnostic_value)
+                if isinstance(diagnostic_value, text)
+                else repr(diagnostic_value)
+            )
+            return "{{{key} = {value}}}".format(key=diagnostic_key, value=value_repr)
+
         return [
             self.with_table(
                 item,
                 path="{key}[{index}]{diagnostic}".format(
-                    key=key,
-                    index=index,
-                    diagnostic=(
-                        "{{{key} = {value!r}}}".format(
-                            key=diagnostic_key, value=item[diagnostic_key]
-                        )
-                        if diagnostic_key and diagnostic_key in item
-                        else ""
-                    ),
+                    key=key, index=index, diagnostic=diagnostic(item)
                 ),
             )
             for index, item in enumerate(value)
@@ -555,7 +567,7 @@ class ParseContext(object):
     ):
         # type: (...) -> ParseContext
         value = self.get(key, dict, default=default)
-        if not all(isinstance(name, str) for name in value):
+        if not all(isinstance(name, text) for name in value):
             raise ResultError(
                 self.error(
                     "Expected {key} to be a table but not all dict keys are strings.".format(
