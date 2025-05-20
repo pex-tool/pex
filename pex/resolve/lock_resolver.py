@@ -7,7 +7,7 @@ from collections import defaultdict
 
 from pex.auth import PasswordDatabase, PasswordEntry
 from pex.dependency_configuration import DependencyConfiguration
-from pex.dist_metadata import Distribution, Requirement, is_wheel
+from pex.dist_metadata import Requirement, is_wheel
 from pex.exceptions import production_assert
 from pex.network_configuration import NetworkConfiguration
 from pex.pep_427 import InstallableType
@@ -20,6 +20,7 @@ from pex.resolve.locked_resolve import (
     LocalProjectArtifact,
     LockConfiguration,
     LockStyle,
+    UnFingerprintedLocalProjectArtifact,
 )
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.lockfile.pep_751 import Package, Pylock
@@ -28,7 +29,7 @@ from pex.resolve.lockfile.subset import SubsetResult
 from pex.resolve.lockfile.subset import subset as subset_pex_lock
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import BuildConfiguration, ResolverVersion
-from pex.resolve.resolvers import Resolver, ResolveResult
+from pex.resolve.resolvers import ResolvedDistribution, Resolver, ResolveResult
 from pex.resolver import BuildAndInstallRequest, BuildRequest, InstallRequest
 from pex.result import Error, try_
 from pex.targets import Target, Targets
@@ -44,7 +45,7 @@ def _check_subset(
     transitive,  # type: bool
     target,  # type: Target
     packages,  # type: Sequence[Package]
-    resolved_distributions,  # type: Sequence[Distribution]
+    resolved_distributions,  # type: Sequence[ResolvedDistribution]
 ):
     # type: (...) -> Optional[Error]
 
@@ -52,10 +53,15 @@ def _check_subset(
 
     actual_resolve = set()  # type: Set[ProjectName]
     for resolved_distribution in resolved_distributions:
-        actual_resolve.add(resolved_distribution.metadata.project_name)
+        actual_resolve.add(resolved_distribution.distribution.metadata.project_name)
         if transitive:
-            for req in resolved_distribution.metadata.requires_dists:
-                if target.requirement_applies(req):
+            extras = frozenset(
+                extra
+                for direct_requirement in resolved_distribution.direct_requirements
+                for extra in direct_requirement.extras
+            )
+            for req in resolved_distribution.distribution.metadata.requires_dists:
+                if target.requirement_applies(req, extras=extras):
                     actual_resolve.add(req.project_name)
 
     if expected_resolve == actual_resolve:
@@ -161,11 +167,9 @@ def resolve_from_pylock(
 
     resolved_distributions_by_target = defaultdict(
         list
-    )  # type: DefaultDict[Target, List[Distribution]]
+    )  # type: DefaultDict[Target, List[ResolvedDistribution]]
     for resolved_distribution in resolve_result.distributions:
-        resolved_distributions_by_target[resolved_distribution.target].append(
-            resolved_distribution.distribution
-        )
+        resolved_distributions_by_target[resolved_distribution.target].append(resolved_distribution)
     for target, packages in pylock_subset_result.packages_by_target.items():
         resolved_distributions = resolved_distributions_by_target[target]
         error = _check_subset(pylock, transitive, target, packages, resolved_distributions)
@@ -351,7 +355,10 @@ def _resolve_from_subset_result(
         local_project_directory_to_sdist = {
             downloadable_artifact.artifact.directory: downloaded_artifact.path
             for downloadable_artifact, downloaded_artifact in downloaded_artifacts.items()
-            if isinstance(downloadable_artifact.artifact, LocalProjectArtifact)
+            if isinstance(
+                downloadable_artifact.artifact,
+                (LocalProjectArtifact, UnFingerprintedLocalProjectArtifact),
+            )
         }
 
         # This otherwise checks that resolved distributions all meet internal requirement

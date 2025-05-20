@@ -24,7 +24,7 @@ from pex.third_party.packaging.version import InvalidVersion, Version
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Iterable, Iterator, Match, Optional, Text, Tuple, Union
+    from typing import FrozenSet, Iterable, Iterator, Match, Optional, Text, Tuple, Union
 
     import attr  # vendor:skip
 else:
@@ -153,6 +153,11 @@ class PyPIRequirement(_ParsedRequirement):
 
     requirement = attr.ib()  # type: Requirement
 
+    @property
+    def extras(self):
+        # type: () -> FrozenSet[str]
+        return self.requirement.extras
+
 
 @attr.s(frozen=True)
 class URLRequirement(_ParsedRequirement):
@@ -160,6 +165,11 @@ class URLRequirement(_ParsedRequirement):
 
     url = attr.ib()  # type: ArtifactURL
     requirement = attr.ib()  # type: Requirement
+
+    @property
+    def extras(self):
+        # type: () -> FrozenSet[str]
+        return self.requirement.extras
 
     @property
     def filename(self):
@@ -184,6 +194,11 @@ class VCSRequirement(_ParsedRequirement):
     vcs = attr.ib()  # type: VCS.Value
     url = attr.ib()  # type: Text
     requirement = attr.ib()  # type: Requirement
+
+    @property
+    def extras(self):
+        # type: () -> FrozenSet[str]
+        return self.requirement.extras
 
 
 def parse_requirement_from_project_name_and_specifier(

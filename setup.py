@@ -50,8 +50,10 @@ if __name__ == "__main__":
         # sub-command options we pass below work around the otherwise default `<CWD>/build/`
         # directory for all three which defeats concurrency in tests.
         options={
-            "egg_info": {"egg_base": unique_build_dir("egg_base")},
             "build": {"build_base": unique_build_dir("build_base")},
             "bdist_wheel": {"bdist_dir": unique_build_dir("bdist_dir")},
+            "editable_wheel": {"dist_dir": unique_build_dir("edist_dir")},
+            "egg_info": {"egg_base": unique_build_dir("egg_base")},
+            "sdist": {"dist_dir": unique_build_dir("sdist_dir")},
         },
     )

@@ -994,7 +994,7 @@ class PackageParser(object):
 
             path = directory_parse_context.get_string("path")
             if not os.path.isabs(path):
-                path = os.path.join(os.path.dirname(self.source), path)
+                path = os.path.normpath(os.path.join(os.path.dirname(self.source), path))
             subdirectory = directory_parse_context.get_string("subdirectory", default="") or None
             if subdirectory:
                 path = os.path.normpath(os.path.join(path, subdirectory))
@@ -1249,11 +1249,13 @@ class Pylock(object):
         packages = []  # type: List[Package]
         for indexed_package in package_index.iter_packages():
             package = try_(package_parser.parse(indexed_package))
-            if isinstance(package.artifact, LocalProjectArtifact):
+            if isinstance(package.artifact, UnFingerprintedLocalProjectArtifact):
                 directory = package.artifact.directory
                 if not os.path.isabs(directory):
-                    directory = os.path.join(os.path.dirname(pylock_toml_path), directory)
-                local_project_requirement_mapping[package.artifact.directory] = Requirement.parse(
+                    directory = os.path.normpath(
+                        os.path.join(os.path.dirname(pylock_toml_path), directory)
+                    )
+                local_project_requirement_mapping[directory] = Requirement.parse(
                     "{project_name} @ file://{directory}".format(
                         project_name=package.project_name, directory=directory
                     )
