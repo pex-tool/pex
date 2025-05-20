@@ -12,7 +12,7 @@ from pex.common import pluralize
 from pex.compatibility import text, urlparse
 from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import Constraint, Requirement
-from pex.exceptions import production_assert, reportable_unexpected_error_msg
+from pex.exceptions import production_assert
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.pep_425 import CompatibilityTags, RankedTag
@@ -1071,11 +1071,16 @@ class PackageParser(object):
         return package
 
 
+class ResolveError(Exception):
+    pass
+
+
 @attr.s(frozen=True)
 class PackageEvaluator(object):
     @classmethod
     def create(
         cls,
+        source,  # type: str
         target,  # type: Target
         constraints=(),  # type: Iterable[Requirement]
         build_configuration=BuildConfiguration(),  # type: BuildConfiguration
@@ -1087,6 +1092,7 @@ class PackageEvaluator(object):
             constraint.project_name: constraint.as_constraint() for constraint in constraints
         }
         return cls(
+            source=source,
             target=target,
             marker_environment=target.marker_environment.as_dict(),
             constraints_by_project_name=constraints_by_project_name,
@@ -1094,6 +1100,7 @@ class PackageEvaluator(object):
             dependency_configuration=dependency_configuration,
         )
 
+    source = attr.ib()  # type: str
     target = attr.ib()  # type: Target
     marker_environment = attr.ib()  # type: Mapping[str, str]
     constraints_by_project_name = attr.ib(factory=dict)  # type: Mapping[ProjectName, Constraint]
@@ -1152,7 +1159,7 @@ class PackageEvaluator(object):
         return True
 
     def select_best_fit_wheel(self, wheels):
-        # type: (Sequence[FileArtifact]) -> FileArtifact
+        # type: (Sequence[FileArtifact]) -> Optional[FileArtifact]
 
         production_assert(len(wheels) > 0)
 
@@ -1166,10 +1173,6 @@ class PackageEvaluator(object):
             ):
                 best_match = ranked_tag
                 selected_wheel = wheel
-
-        assert selected_wheel is not None, reportable_unexpected_error_msg(
-            "Should have selected a best-fit wheel via all code paths above."
-        )
         return selected_wheel
 
     def select_best_fit_artifact(self, package):
@@ -1183,7 +1186,19 @@ class PackageEvaluator(object):
             # A sole wheel.
             return package.artifact
 
-        return self.select_best_fit_wheel(list(package.iter_wheels()))
+        best_fit_wheel = self.select_best_fit_wheel(list(package.iter_wheels()))
+        if best_fit_wheel:
+            return best_fit_wheel
+        if package.artifact.is_source:
+            return package.artifact
+
+        raise ResolveError(
+            "No locked artifacts for {package} in {source} are compatible with {target}.".format(
+                package=package.identify(),
+                source=self.source,
+                target=self.target.render_description(),
+            )
+        )
 
 
 @attr.s(frozen=True)
@@ -1305,7 +1320,11 @@ class Pylock(object):
             )
 
         package_evaluator = PackageEvaluator.create(
-            target, constraints, build_configuration, dependency_configuration
+            source=self.source,
+            target=target,
+            constraints=constraints,
+            build_configuration=build_configuration,
+            dependency_configuration=dependency_configuration,
         )
         applicable_packages = [
             package for package in self.packages if package_evaluator.applies(package)
