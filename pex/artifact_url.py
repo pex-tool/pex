@@ -139,12 +139,6 @@ RANKED_ALGORITHMS = tuple(
 )
 
 
-def split_requested_revision(artifact_url):
-    # type: (ArtifactURL) -> Tuple[str, Optional[str]]
-    vcs_url, _, requested_revision = artifact_url.normalized_url.partition("@")
-    return vcs_url, requested_revision or None
-
-
 def parse_qs(query_string):
     # type: (str) -> Dict[str, List[str]]
     if PY3:
