@@ -37,7 +37,7 @@ from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import DefaultDict, Iterable, List, Optional, Sequence, Set, Tuple, Union
+    from typing import DefaultDict, FrozenSet, Iterable, List, Optional, Sequence, Set, Tuple, Union
 
 
 def _check_subset(
@@ -101,6 +101,8 @@ def resolve_from_pylock(
     resolver,  # type: Resolver
     requirements=None,  # type: Optional[Iterable[str]]
     requirement_files=None,  # type: Optional[Iterable[str]]
+    extras=frozenset(),  # type: FrozenSet[str]
+    dependency_groups=frozenset(),  # type: FrozenSet[str]
     constraint_files=None,  # type: Optional[Iterable[str]]
     indexes=None,  # type: Optional[Sequence[str]]
     find_links=None,  # type: Optional[Sequence[str]]
@@ -131,6 +133,8 @@ def resolve_from_pylock(
             targets=targets,
             pylock=pylock,
             requirement_configuration=requirement_configuration,
+            extras=extras,
+            dependency_groups=dependency_groups,
             network_configuration=network_configuration,
             build_configuration=build_configuration,
             transitive=transitive,

@@ -1,5 +1,13 @@
 # Release Notes
 
+## 2.40.0
+
+This release fills out `--pylock` support with `--pylock-extra` and `--pylock-group` to have Pex
+resolve extras and dependency groups defined for a PEP-751 lock. This support only works when Pex
+is run under Python 3.8 or newer.
+
+* Support PEP-751 extras and dependency groups. (#2770)
+
 ## 2.39.0
 
 This release adds support for `pex --pylock` and `pex3 venv create --pylock` for building PEXes and

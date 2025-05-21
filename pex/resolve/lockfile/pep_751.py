@@ -4,6 +4,7 @@
 from __future__ import absolute_import
 
 import os
+import sys
 from collections import OrderedDict, defaultdict, deque
 
 from pex import toml
@@ -39,7 +40,7 @@ from pex.resolve.resolver_configuration import BuildConfiguration
 from pex.result import Error, ResultError, try_
 from pex.sorted_tuple import SortedTuple
 from pex.targets import Target, Targets
-from pex.third_party.packaging.markers import Marker
+from pex.third_party.packaging.markers import InvalidMarker, Marker
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.toml import InlineTable, TomlDecodeError
 from pex.tracer import TRACER
@@ -51,6 +52,7 @@ if TYPE_CHECKING:
         Any,
         DefaultDict,
         Dict,
+        FrozenSet,
         Iterable,
         Iterator,
         List,
@@ -855,7 +857,24 @@ class PackageParser(object):
         version = Version(raw_version) if raw_version else None
 
         raw_marker = parse_context.get_string("marker", default="")
-        marker = Marker(raw_marker) if raw_marker else None
+        try:
+            marker = Marker(raw_marker) if raw_marker else None
+        except InvalidMarker as e:
+            error_msg = str(e)
+            if (
+                sys.version_info[:2] < (3, 8)
+                and ("dependency_groups" in raw_marker)
+                or ("extras" in raw_marker)
+            ):
+                return parse_context.error(
+                    "Failed to parse marker {raw_marker}: {error_msg}\n"
+                    "It appears this marker uses `extras` or `dependency_groups` which are only "
+                    "supported for Python 3.8 or newer.".format(
+                        raw_marker=raw_marker, error_msg=error_msg
+                    )
+                )
+            else:
+                return parse_context.error(error_msg)
 
         raw_requires_python = parse_context.get_string("requires-python", default="")
         requires_python = SpecifierSet(raw_requires_python) if raw_requires_python else None
@@ -1082,6 +1101,8 @@ class PackageEvaluator(object):
         cls,
         source,  # type: str
         target,  # type: Target
+        extras=frozenset(),  # type: FrozenSet[str]
+        dependency_groups=frozenset(),  # type: FrozenSet[str]
         constraints=(),  # type: Iterable[Requirement]
         build_configuration=BuildConfiguration(),  # type: BuildConfiguration
         dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
@@ -1091,10 +1112,35 @@ class PackageEvaluator(object):
         constraints_by_project_name = {
             constraint.project_name: constraint.as_constraint() for constraint in constraints
         }
+
+        if (extras or dependency_groups) and sys.version_info[:2] < (3, 8):
+            suggestion = ""
+            if target.python_version and target.python_version >= (3, 8):
+                suggestion = (
+                    "\n"
+                    "The target Python is version {version}; so you should be able to re-run Pex "
+                    "using a newer Python as a work-around.".format(
+                        version=target.python_version_str
+                    )
+                )
+            raise ResolveError(
+                "Pex can only resolve extras and dependency-groups from {source} using Python 3.8 "
+                "or newer.{suggestion}".format(source=source, suggestion=suggestion)
+            )
+
+        # The dict from MarkerEnvironment.as_dict is typed Dict[str, str], which is true. We'll
+        # add the frozenset values though below, transforming the type.
+        marker_environment = cast(
+            "Dict[str, Union[str, FrozenSet[str]]]", target.marker_environment.as_dict()
+        )
+        if sys.version_info[:2] >= (3, 8):
+            marker_environment["extras"] = extras
+            marker_environment["dependency_groups"] = dependency_groups
+
         return cls(
             source=source,
             target=target,
-            marker_environment=target.marker_environment.as_dict(),
+            marker_environment=marker_environment,
             constraints_by_project_name=constraints_by_project_name,
             build_configuration=build_configuration,
             dependency_configuration=dependency_configuration,
@@ -1102,7 +1148,7 @@ class PackageEvaluator(object):
 
     source = attr.ib()  # type: str
     target = attr.ib()  # type: Target
-    marker_environment = attr.ib()  # type: Mapping[str, str]
+    marker_environment = attr.ib()  # type: Mapping[str, Union[str, FrozenSet[str]]]
     constraints_by_project_name = attr.ib(factory=dict)  # type: Mapping[ProjectName, Constraint]
     build_configuration = attr.ib(default=BuildConfiguration())  # type: BuildConfiguration
     dependency_configuration = attr.ib(
@@ -1247,11 +1293,11 @@ class Pylock(object):
             map(Marker, parse_context.get_array_of_strings("environments", default=[]))
         )
         requires_python = SpecifierSet(parse_context.get_string("requires-python", default=""))
-        extras = tuple(parse_context.get_array_of_strings("extras", default=[]))
-        dependency_groups = tuple(
+        extras = frozenset(parse_context.get_array_of_strings("extras", default=[]))
+        dependency_groups = frozenset(
             parse_context.get_array_of_strings("dependency-groups", default=[])
         )
-        default_groups = tuple(parse_context.get_array_of_strings("default-groups", default=[]))
+        default_groups = frozenset(parse_context.get_array_of_strings("default-groups", default=[]))
         created_by = parse_context.get_string("created-by")
 
         packages_data = parse_context.get_array_of_tables(
@@ -1299,14 +1345,16 @@ class Pylock(object):
 
     environments = attr.ib(default=())  # type: Tuple[Marker, ...]
     requires_python = attr.ib(default=SpecifierSet())  # type: SpecifierSet
-    extras = attr.ib(default=())  # type: Tuple[str, ...]
-    dependency_groups = attr.ib(default=())  # type: Tuple[str, ...]
-    default_groups = attr.ib(default=())  # type: Tuple[str, ...]
+    extras = attr.ib(default=())  # type: FrozenSet[str]
+    dependency_groups = attr.ib(default=())  # type: FrozenSet[str]
+    default_groups = attr.ib(default=())  # type: FrozenSet[str]
 
     def resolve(
         self,
         target,  # type: Target
         requirements,  # type: Iterable[Requirement]
+        extras=frozenset(),  # type: FrozenSet[str]
+        dependency_groups=frozenset(),  # type: FrozenSet[str]
         constraints=(),  # type: Iterable[Requirement]
         transitive=True,  # type: bool
         build_configuration=BuildConfiguration(),  # type: BuildConfiguration
@@ -1319,9 +1367,67 @@ class Pylock(object):
                 "This lock only supports Python {specifier}.".format(specifier=self.requires_python)
             )
 
+        def format_sequence(sequence):
+            # type: (Sequence[str]) -> str
+            head = ", ".join(sequence[:-1])
+            tail = sequence[-1]
+            return "{head} and {tail}".format(head=head, tail=tail) if head else tail
+
+        missing_extras = sorted(extras - self.extras)
+        if missing_extras:
+            missing_extras_error_lines = []  # type: List[str]
+            if len(extras) == 1:
+                missing_extras_error_lines.append(
+                    "The extra {extra} was requested but it is not available in {source}.".format(
+                        extra=missing_extras[0], source=self.source
+                    )
+                )
+            else:
+                missing_extras_error_lines.append(
+                    "The extras {extras} were requested but not all are available in "
+                    "{source}.".format(extras=format_sequence(missing_extras), source=self.source)
+                )
+            missing_extras_error_lines.append(
+                "The available {extra} {are}:\n+ {extras}".format(
+                    extra=pluralize(self.extras, "extra"),
+                    are="is" if len(self.extras) == 1 else "are",
+                    extras=format_sequence(sorted(self.extras)),
+                )
+            )
+            return Error("\n".join(missing_extras_error_lines))
+
+        groups = self.default_groups
+        if dependency_groups:
+            missing_groups = sorted(dependency_groups - self.dependency_groups)
+            if missing_groups:
+                missing_groups_error_lines = []  # type: List[str]
+                if len(dependency_groups) == 1:
+                    missing_groups_error_lines.append(
+                        "The dependency group {group} was requested but it is not available in "
+                        "{source}.".format(group=missing_groups[0], source=self.source)
+                    )
+                else:
+                    missing_groups_error_lines.append(
+                        "The dependency groups {groups} were requested but not all are available "
+                        "in {source}.".format(
+                            groups=format_sequence(missing_groups), source=self.source
+                        )
+                    )
+                missing_groups_error_lines.append(
+                    "The available dependency {group} {are} {groups}".format(
+                        group=pluralize(self.extras, "group"),
+                        are="is" if len(self.extras) == 1 else "are",
+                        groups=format_sequence(sorted(self.dependency_groups)),
+                    )
+                )
+                return Error("\n".join(missing_groups_error_lines))
+            groups = dependency_groups
+
         package_evaluator = PackageEvaluator.create(
             source=self.source,
             target=target,
+            extras=extras,
+            dependency_groups=groups,
             constraints=constraints,
             build_configuration=build_configuration,
             dependency_configuration=dependency_configuration,
@@ -1431,6 +1537,8 @@ def subset(
     targets,  # type: Targets
     pylock,  # type: Pylock
     requirement_configuration=RequirementConfiguration(),  # type: RequirementConfiguration
+    extras=frozenset(),  # type: FrozenSet[str]
+    dependency_groups=frozenset(),  # type: FrozenSet[str]
     network_configuration=None,  # type: Optional[NetworkConfiguration]
     build_configuration=BuildConfiguration(),  # type: BuildConfiguration
     transitive=True,  # type: bool
@@ -1503,6 +1611,8 @@ def subset(
             resolved_packages = pylock.resolve(
                 target,
                 requirements_to_resolve,
+                extras=extras,
+                dependency_groups=dependency_groups,
                 constraints=constraints,
                 build_configuration=build_configuration,
                 transitive=transitive,

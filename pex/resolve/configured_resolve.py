@@ -84,6 +84,8 @@ def resolve(
                     resolver=ConfiguredResolver(pip_configuration=pip_configuration),
                     requirements=requirement_configuration.requirements,
                     requirement_files=requirement_configuration.requirement_files,
+                    extras=resolver_configuration.extras,
+                    dependency_groups=resolver_configuration.dependency_groups,
                     constraint_files=requirement_configuration.constraint_files,
                     transitive=pip_configuration.transitive,
                     indexes=pip_configuration.repos_configuration.indexes,
