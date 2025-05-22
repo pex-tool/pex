@@ -731,32 +731,33 @@ def test_pdm_dependency_groups_interop(
     # type: (...) -> None
 
     tox_pex = tmpdir.join("tox.pex")
-    args = [
-        "--pylock",
-        pdm_exported_pylock_toml,
-        "--pylock-group",
-        "tox",
-        "-c",
-        "tox",
-        "-o",
-        tox_pex,
-    ]
-
-    pylock = try_(Pylock.parse(pdm_exported_pylock_toml))
-
-    # N.B.: We need the default groups to cover `pdm` which we included via --self when exporting
-    # the `pdm.lock` to pylock format.
-    for group in pylock.default_groups:
-        args.append("--pylock-group")
-        args.append(group)
-
     pdm_build_env = make_env(PDM_BUILD_NO_CLEAN="1")
-    result = run_pex_command(args=args, env=pdm_build_env, quiet=True)
+    result = run_pex_command(
+        args=[
+            "--pylock",
+            pdm_exported_pylock_toml,
+            "--pylock-group",
+            "tox",
+
+            # N.B.: We need the default group to cover `pdm` which we included via --self when exporting
+            # the `pdm.lock` to pylock format.
+            "--pylock-group",
+            "default",
+
+            "-c",
+            "tox",
+            "-o",
+            tox_pex,
+        ],
+        env=pdm_build_env,
+        quiet=True,
+    )
     if sys.version_info[:2] < (3, 9):
         assert_pdm_less_than_39_failure(result, pdm_exported_pylock_toml)
     else:
         result.assert_success()
 
+        pylock = try_(Pylock.parse(pdm_exported_pylock_toml))
         packages_by_project_name = {package.project_name: package for package in pylock.packages}
         tox_version = packages_by_project_name[ProjectName("tox")].version
         assert tox_version is not None
