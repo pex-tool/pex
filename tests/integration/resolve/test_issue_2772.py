@@ -4,13 +4,17 @@
 from __future__ import absolute_import
 
 import subprocess
+import sys
 from textwrap import dedent
+
+import pytest
 
 from pex.compatibility import commonpath
 from testing import run_pex_command
 from testing.pytest_utils.tmp import Tempdir
 
 
+@pytest.mark.skipif(sys.version_info[:2] < (3, 8), reason="PyYAML 6.0.2 requires Python>=3.8.")
 def test_uv_lock_export_name_normalization(tmpdir):
     # type: (Tempdir) -> None
 
@@ -21,8 +25,11 @@ def test_uv_lock_export_name_normalization(tmpdir):
                 [project]
                 name = "fake"
                 version = "1"
+                requires-python = "=={major}.{minor}.*"
                 dependencies = ["PyYAML==6.0.2"]
-                """
+                """.format(
+                    major=sys.version_info[0], minor=sys.version_info[1]
+                )
             )
         )
 
