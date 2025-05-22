@@ -685,7 +685,7 @@ class PEXEnvironment(object):
                     else:
                         rendered_contains = (
                             "\n    But this pex had no {project_name!r} distributions.".format(
-                                project_name=requirement.project_name
+                                project_name=requirement.project_name.raw
                             )
                         )
                     items.append(
