@@ -311,7 +311,7 @@ def test_pylock_parse_sdist_url():
             version = "1.2.3"
             [packages.sdist]
             name = "foo-1.2.3.tar.gz"
-            url = "https://example.org/foo-1.2.3.tar.gz/content-endpoint"
+            url = "https://example.org/Foo-1.2.3.tar.gz"
             hashes = {md5 = "4321dcba", sha256 = "abcd1234"}
             """
         )
@@ -323,11 +323,8 @@ def test_pylock_parse_sdist_url():
     assert isinstance(package.artifact, FileArtifact)
     assert not package.artifact.verified
     assert package.artifact.is_source
-    assert "foo-1.2.3.tar.gz" == package.artifact.filename
-    assert (
-        ArtifactURL.parse("https://example.org/foo-1.2.3.tar.gz/content-endpoint")
-        == package.artifact.url
-    )
+    assert "Foo-1.2.3.tar.gz" == package.artifact.filename
+    assert ArtifactURL.parse("https://example.org/Foo-1.2.3.tar.gz") == package.artifact.url
     assert (
         Fingerprint(algorithm="sha256", hash="abcd1234") == package.artifact.fingerprint
     ), "Expected the strongest hash to be selected."
@@ -448,7 +445,7 @@ def test_pylock_parse_wheels():
             hashes = {md5 = "4321dcba", sha1 = "abcd1234"}
             [[packages.wheels]]
             name = "foo-1.2.3-py2-none-any.whl"
-            url = "https://example.org/foo-1.2.3-py2-none-any.whl/content-endpoint"
+            url = "https://example.org/Foo-1.2.3-py2-none-any.whl"
             hashes = {sha256 = "4321dcba"}
             """
         )
@@ -475,10 +472,9 @@ def test_pylock_parse_wheels():
     assert isinstance(additional_wheel, FileArtifact)
     assert not additional_wheel.verified
     assert additional_wheel.is_wheel
-    assert "foo-1.2.3-py2-none-any.whl" == additional_wheel.filename
+    assert "Foo-1.2.3-py2-none-any.whl" == additional_wheel.filename
     assert (
-        ArtifactURL.parse("https://example.org/foo-1.2.3-py2-none-any.whl/content-endpoint")
-        == additional_wheel.url
+        ArtifactURL.parse("https://example.org/Foo-1.2.3-py2-none-any.whl") == additional_wheel.url
     )
     assert Fingerprint(algorithm="sha256", hash="4321dcba") == additional_wheel.fingerprint
 

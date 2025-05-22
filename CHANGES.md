@@ -1,5 +1,14 @@
 # Release Notes
 
+## 2.40.1
+
+This release fixes `pex --pylock` for locked sdist and wheel artifacts whose locked URL path
+basename does not match the optional sdist or wheel `name` field when present. Notably, this fixes
+interop with `uv` which appears to use the `name` field to store the normalized name of the wheel
+when the wheel name is not normalized already in the index URL basename.
+
+* Fix `--pylock` handling of sdist and wheel `name`. (#2775)
+
 ## 2.40.0
 
 This release fills out `--pylock` support with `--pylock-extra` and `--pylock-group` to have Pex
