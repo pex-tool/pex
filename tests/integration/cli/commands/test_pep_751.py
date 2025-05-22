@@ -738,12 +738,10 @@ def test_pdm_dependency_groups_interop(
             pdm_exported_pylock_toml,
             "--pylock-group",
             "tox",
-
             # N.B.: We need the default group to cover `pdm` which we included via --self when exporting
             # the `pdm.lock` to pylock format.
             "--pylock-group",
             "default",
-
             "-c",
             "tox",
             "-o",
