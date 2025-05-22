@@ -247,6 +247,8 @@ class LockRepositoryConfiguration(object):
 @attr.s(frozen=True)
 class PylockRepositoryConfiguration(object):
     lock_file_path = attr.ib()  # type: str
+    extras = attr.ib()  # type: FrozenSet[str]
+    dependency_groups = attr.ib()  # type: FrozenSet[str]
     pip_configuration = attr.ib()  # type: PipConfiguration
 
     @property

@@ -16,7 +16,8 @@ from typing import Any, Dict, Iterator, Text
 import pytest
 
 import testing
-from pex import toml
+from pex import targets, toml
+from pex.atomic_directory import atomic_directory
 from pex.common import CopyMode, iter_copytree, safe_copy
 from pex.compatibility import string
 from pex.interpreter import PythonInterpreter
@@ -24,11 +25,13 @@ from pex.os import WINDOWS
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pex import PEX
+from pex.resolve.lockfile.pep_751 import Pylock
 from pex.resolve.resolved_requirement import Pin
+from pex.result import try_
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import Virtualenv
 from pex.wheel import Wheel
-from testing import IS_PYPY, data, run_pex_command
+from testing import IS_PYPY, IntegResults, data, make_env, run_pex_command
 from testing.cli import run_pex3
 from testing.pytest_utils.tmp import Tempdir
 
@@ -592,3 +595,210 @@ def test_uv_pylock_interop(
     assert {ProjectName("pex"), ProjectName("psutil")} == {
         dist.metadata.project_name for dist in PEX(management_pex).resolve()
     }
+
+
+PDM_COMMIT = "55560dfe852c291b3ecda40795882ab406af59a4"
+PDM_VERSION = "42"
+
+
+@pytest.fixture(scope="session")
+def pdm_exported_pylock_toml(shared_integration_test_tmpdir):
+    # type: (str) -> str
+
+    clone_dir = os.path.join(shared_integration_test_tmpdir, "test_pep_751_pdm_clone", PDM_COMMIT)
+    with atomic_directory(clone_dir) as chroot:
+        if not chroot.is_finalized():
+            subprocess.check_call(
+                args=[
+                    "git",
+                    "clone",
+                    "--depth",
+                    "1",
+                    "https://github.com/pdm-project/pdm",
+                    chroot.work_dir,
+                ]
+            )
+            subprocess.check_call(
+                args=["git", "fetch", "--depth", "1", "origin", PDM_COMMIT], cwd=chroot.work_dir
+            )
+            subprocess.check_call(args=["git", "checkout", PDM_COMMIT], cwd=chroot.work_dir)
+
+            # Running `pdm -V` in a pdm clone fails since their packaging process is needed to
+            # create a VERSION file with that data. We skip a build of pdm and hand roll this here.
+            with open(os.path.join(chroot.work_dir, "src", "pdm", "VERSION"), "w") as fp:
+                fp.write(PDM_VERSION)
+
+            # N.B.: PDM ships with a lock that does not include static URLs leading to an exported
+            # pylock.toml without either path or url for sdists and wheels, which is invalid per the PEP-751
+            # spec. We work around by re-locking with static URLs and then exporting that.
+            pdm_static_urls_lock = os.path.join(chroot.work_dir, "pdm.static-urls.lock")
+            subprocess.check_call(
+                args=[
+                    "uv",
+                    "tool",
+                    "run",
+                    "pdm",
+                    "lock",
+                    "--strategy",
+                    "static_urls",
+                    "-L",
+                    pdm_static_urls_lock,
+                ],
+                cwd=chroot.work_dir,
+                env=make_env(PDM_IGNORE_ACTIVE_VENV="1"),
+            )
+            pylock_toml = os.path.join(chroot.work_dir, "pylock.toml")
+            subprocess.check_call(
+                args=[
+                    "uv",
+                    "tool",
+                    "run",
+                    "pdm",
+                    "export",
+                    "-L",
+                    pdm_static_urls_lock,
+                    "-f",
+                    "pylock",
+                    "-o",
+                    pylock_toml,
+                ],
+                cwd=chroot.work_dir,
+                env=make_env(PDM_IGNORE_ACTIVE_VENV="1"),
+            )
+    return os.path.join(clone_dir, "pylock.toml")
+
+
+def assert_pdm_less_than_39_failure(
+    result,  # type: IntegResults
+    pdm_exported_pylock_toml,  # type: str
+):
+    # type: (...) -> None
+
+    assert sys.version_info[:2] <= (3, 9)
+
+    if sys.version_info[:2] == (3, 8):
+        result.assert_failure(
+            expected_error_re="^{exact}$".format(
+                exact=re.escape(
+                    "Failed to resolve compatible artifacts from lock {pylock} created by pdm for 1 target:\n"
+                    "1. {target}: This lock only works in limited environments, none of which support the current target.\n"
+                    "The supported environments are:\n"
+                    '+ python_version >= "3.9"\n'.format(
+                        pylock=pdm_exported_pylock_toml, target=targets.current()
+                    )
+                )
+            )
+        )
+        return
+
+    result.assert_failure(
+        expected_error_re=(
+            r"^Failed to parse the PEP-751 lock at {pylock}. Error parsing content at "
+            r"packages\[\d.+\n"
+            r"Failed to parse marker .+\n"
+            r"It appears this marker uses `extras` or `dependency_groups` which are only "
+            r"supported for Python 3.8 or newer.\n$".format(pylock=pdm_exported_pylock_toml)
+        ),
+        re_flags=re.DOTALL | re.MULTILINE,
+    )
+
+
+def test_pdm_extras_interop(
+    pdm_exported_pylock_toml,  # type: str
+    tmpdir,  # type: Tempdir
+):
+    # type: (...) -> None
+
+    pytest_pex = tmpdir.join("pytest.pex")
+    result = run_pex_command(
+        args=[
+            "--pylock",
+            pdm_exported_pylock_toml,
+            "--pylock-extra",
+            "pytest",
+            "-c",
+            "pytest",
+            "-o",
+            pytest_pex,
+        ],
+        quiet=True,
+    )
+    if sys.version_info[:2] < (3, 9):
+        assert_pdm_less_than_39_failure(result, pdm_exported_pylock_toml)
+    else:
+        result.assert_success()
+
+        pylock = try_(Pylock.parse(pdm_exported_pylock_toml))
+        packages_by_project_name = {package.project_name: package for package in pylock.packages}
+        pytest_version = packages_by_project_name[ProjectName("pytest")].version
+        assert pytest_version is not None
+
+        assert (
+            "pytest {version}".format(version=pytest_version.raw)
+            == subprocess.check_output(args=[pytest_pex, "-V"]).decode("utf-8").strip()
+        )
+
+        # N.B.: This both tests that without activating the pytest extra, we don't get pytest and
+        # default-groups which is what are used here.
+        pdm_pex = tmpdir.join("pdm.pex")
+        run_pex_command(args=["--pylock", pdm_exported_pylock_toml, "-o", pdm_pex]).assert_success()
+
+        assert ProjectName("pytest") not in {
+            dist.metadata.project_name for dist in PEX(pdm_pex).resolve()
+        }
+        assert (
+            "PDM, version {version}".format(version=PDM_VERSION)
+            == subprocess.check_output(
+                args=[pdm_pex, "-m", "pdm", "-V"],
+                env=make_env(
+                    PEX_EXTRA_SYS_PATH=os.path.join(
+                        os.path.dirname(pdm_exported_pylock_toml), "src"
+                    )
+                ),
+            )
+            .decode("utf-8")
+            .strip()
+        )
+
+
+def test_pdm_dependency_groups_interop(
+    pdm_exported_pylock_toml,  # type: str
+    tmpdir,  # type: Tempdir
+):
+    # type: (...) -> None
+
+    tox_pex = tmpdir.join("tox.pex")
+    result = run_pex_command(
+        args=[
+            "--pylock",
+            pdm_exported_pylock_toml,
+            "--pylock-group",
+            "tox",
+            "-c",
+            "tox",
+            "-o",
+            tox_pex,
+        ],
+        quiet=True,
+    )
+    if sys.version_info[:2] < (3, 9):
+        assert_pdm_less_than_39_failure(result, pdm_exported_pylock_toml)
+    else:
+        result.assert_success()
+
+        pylock = try_(Pylock.parse(pdm_exported_pylock_toml))
+        packages_by_project_name = {package.project_name: package for package in pylock.packages}
+        tox_version = packages_by_project_name[ProjectName("tox")].version
+        assert tox_version is not None
+
+        assert (
+            "{version} from ".format(version=tox_version.raw)
+            in subprocess.check_output(args=[tox_pex, "--version"]).decode("utf-8").strip()
+        )
+
+        pdm_pex = tmpdir.join("pdm.pex")
+        run_pex_command(args=["--pylock", pdm_exported_pylock_toml, "-o", pdm_pex]).assert_success()
+
+        assert ProjectName("tox") not in {
+            dist.metadata.project_name for dist in PEX(pdm_pex).resolve()
+        }

@@ -295,9 +295,9 @@ def test_pylock_parse_toplevel_items():
         'platform_system == "Linux"',
     ) == tuple(map(str, pylock.environments))
     assert ">=3.9" == str(pylock.requires_python)
-    assert tuple(["admin"]) == pylock.extras
-    assert ("dev", "debug") == pylock.dependency_groups
-    assert tuple(["dev"]) == pylock.default_groups
+    assert frozenset(["admin"]) == pylock.extras
+    assert frozenset(["dev", "debug"]) == pylock.dependency_groups
+    assert frozenset(["dev"]) == pylock.default_groups
 
 
 def test_pylock_parse_sdist_url():

@@ -236,6 +236,23 @@ def register(
                 "dependencies information, which is optional in PEP-751."
             ),
         )
+        parser.add_argument(
+            "--pylock-extra",
+            dest="pylock_extras",
+            default=[],
+            type=str,
+            action="append",
+            help="The extras to include when resolving from the `--pylock` lock.",
+        )
+        parser.add_argument(
+            "--pylock-group",
+            "--pylock-dependency-group",
+            dest="pylock_dependency_groups",
+            default=[],
+            type=str,
+            action="append",
+            help="The dependency groups to include when resolving from the `--pylock` lock.",
+        )
     if include_pre_resolved:
         repository_choice.add_argument(
             "--pre-resolved-dist",
@@ -655,6 +672,8 @@ def configure(
     if pylock:
         return PylockRepositoryConfiguration(
             lock_file_path=pylock,
+            extras=frozenset(options.pylock_extras),
+            dependency_groups=frozenset(options.pylock_dependency_groups),
             pip_configuration=pip_configuration,
         )
 
