@@ -187,7 +187,11 @@ class DownloadManager(Generic["_A"]):
             check = hashlib.new(artifact.fingerprint.algorithm)  # External
             digests.append(check)
 
-        with TRACER.timed("Downloading {artifact}".format(artifact=artifact)):
+        with TRACER.timed(
+            "Downloading {project_name} from {url}".format(
+                project_name=project_name, url=artifact.url.download_url
+            )
+        ):
             filename = try_(
                 self.save(
                     artifact=artifact,
