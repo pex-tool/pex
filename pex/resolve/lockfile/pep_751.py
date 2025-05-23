@@ -1054,7 +1054,13 @@ class PackageParser(object):
             if sdist_parse_context:
                 url = self.parse_url_or_path(sdist_parse_context)
                 fingerprint = self.get_fingerprint(sdist_parse_context)
-                filename = sdist_parse_context.get_string("name", os.path.basename(url.path))
+
+                # N.B.: We used to use `name` when present, but it appears at least `uv` writes down
+                # the normalized wheel name here even when the basename of the index URL for the
+                # file is non-normalized. This leads to issues collecting the files after Pip
+                # downloads them using the index URL.
+                # See: https://github.com/pex-tool/pex/issues/2772
+                filename = os.path.basename(url.path)
 
                 artifact = FileArtifact(
                     url, verified=False, fingerprint=fingerprint, filename=filename
@@ -1063,7 +1069,13 @@ class PackageParser(object):
                 for whl_idx, whl_parse_context in enumerate(wheels):
                     url = self.parse_url_or_path(whl_parse_context)
                     fingerprint = self.get_fingerprint(whl_parse_context)
-                    filename = whl_parse_context.get_string("name", os.path.basename(url.path))
+
+                    # N.B.: We used to use `name` when present, but it appears at least `uv` writes down
+                    # the normalized wheel name here even when the basename of the index URL for the
+                    # file is non-normalized. This leads to issues collecting the files after Pip
+                    # downloads them using the index URL.
+                    # See: https://github.com/pex-tool/pex/issues/2772
+                    filename = os.path.basename(url.path)
 
                     wheel_artifact = FileArtifact(
                         url, verified=False, fingerprint=fingerprint, filename=filename
