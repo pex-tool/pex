@@ -760,10 +760,34 @@ def test_pdm_dependency_groups_interop(
         tox_version = packages_by_project_name[ProjectName("tox")].version
         assert tox_version is not None
 
-        assert (
-            "{version} from ".format(version=tox_version.raw)
-            in subprocess.check_output(args=[tox_pex, "--version"]).decode("utf-8").strip()
-        )
+        # Pre PI-stabilization, tox fails to run under Python 3.14 with:
+        #   File ".../tox/config/cli/parser.py", line 277, in add_argument
+        #     result = super().add_argument(*args, **kwargs)
+        #   File ".../lib/python3.14/argparse.py", line 1562, in add_argument
+        #     formatter = self._get_formatter()
+        #   File ".../lib/python3.14/argparse.py", line 2729, in _get_formatter
+        #     return self.formatter_class(
+        #            ~~~~~~~~~~~~~~~~~~~~^
+        #         prog=self.prog,
+        #         ^^^^^^^^^^^^^^^
+        #         prefix_chars=self.prefix_chars,
+        #         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        #         color=self.color,
+        #         ^^^^^^^^^^^^^^^^^
+        #     )
+        #     ^
+        # TypeError: HelpFormatter.__init__() got an unexpected keyword argument 'prefix_chars'
+        #
+        # So we perform an alternated sanity check for 3.14.
+        if sys.version_info[:2] < (3, 14):
+            assert (
+                "{version} from ".format(version=tox_version.raw)
+                in subprocess.check_output(args=[tox_pex, "--version"]).decode("utf-8").strip()
+            )
+        else:
+            assert ProjectName("tox") in {
+                dist.metadata.project_name for dist in PEX(tox_pex).resolve()
+            }
 
         pdm_pex = tmpdir.join("pdm.pex")
         run_pex_command(
