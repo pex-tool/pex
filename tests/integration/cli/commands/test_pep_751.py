@@ -1,7 +1,7 @@
 # Copyright 2025 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-from __future__ import absolute_import
+from __future__ import absolute_import, print_function
 
 import filecmp
 import itertools
@@ -597,45 +597,43 @@ def test_uv_pylock_interop(
     }
 
 
-PDM_COMMIT = "c0fb96d2442b6ab60671098f69d2079b23dcfb68"
-PDM_VERSION = "0.1.dev1+gc0fb96d"
-
-
 @pytest.fixture(scope="session")
 def pdm_exported_pylock_toml(shared_integration_test_tmpdir):
     # type: (str) -> str
 
-    clone_dir = os.path.join(shared_integration_test_tmpdir, "test_pep_751_pdm_clone", PDM_COMMIT)
-    with atomic_directory(clone_dir) as chroot:
+    lock_dir = os.path.join(shared_integration_test_tmpdir, "test_pep_751_pdm_exported")
+    with atomic_directory(lock_dir) as chroot:
         if not chroot.is_finalized():
-            subprocess.check_call(args=["git", "init"], cwd=chroot.work_dir)
-            subprocess.check_call(
-                args=["git", "remote", "add", "origin", "https://github.com/pdm-project/pdm"],
-                cwd=chroot.work_dir,
-            )
-            subprocess.check_call(
-                args=["git", "fetch", "--depth", "1", "origin", PDM_COMMIT], cwd=chroot.work_dir
-            )
-            subprocess.check_call(args=["git", "reset", "--hard", PDM_COMMIT], cwd=chroot.work_dir)
+            with open(os.path.join(chroot.work_dir, "pyproject.toml"), "w") as fp:
+                fp.write(
+                    dedent(
+                        """\
+                        [project]
+                        name = "fake"
+                        version = "1"
+                        requires-python = ">=3.9"
+                        dependencies = ["cowsay<6"]
 
-            pylock_toml = os.path.join(chroot.work_dir, "pylock.toml")
-            subprocess.check_call(
-                args=[
-                    "uv",
-                    "tool",
-                    "run",
-                    ".",
-                    "export",
-                    "--self",
-                    "-f",
-                    "pylock",
-                    "-o",
-                    pylock_toml,
-                ],
-                cwd=chroot.work_dir,
-                env=make_env(PDM_IGNORE_ACTIVE_VENV="1"),
-            )
-    return os.path.join(clone_dir, "pylock.toml")
+                        [project.optional-dependencies]
+                        pytest = ["pytest"]
+
+                        [dependency-groups]
+                        tox = ["tox"]
+                        """
+                    )
+                )
+
+            def run_pdm(*args):
+                # type: (*str) -> None
+                subprocess.check_call(
+                    args=["uv", "tool", "run", "--from", "pdm>=2.24.2", "pdm"] + list(args),
+                    cwd=chroot.work_dir,
+                    env=make_env(PDM_USE_VENV="False"),
+                )
+
+            run_pdm("lock", "-d", "-G", ":all")
+            run_pdm("export", "-f", "pylock", "-o", "pylock.toml")
+    return os.path.join(lock_dir, "pylock.toml")
 
 
 def assert_pdm_less_than_39_failure(
@@ -650,8 +648,10 @@ def assert_pdm_less_than_39_failure(
         result.assert_failure(
             expected_error_re="^{exact}$".format(
                 exact=re.escape(
-                    "Failed to resolve compatible artifacts from lock {pylock} created by pdm for 1 target:\n"
-                    "1. {target}: This lock only works in limited environments, none of which support the current target.\n"
+                    "Failed to resolve compatible artifacts from lock {pylock} created by pdm for "
+                    "1 target:\n"
+                    "1. {target}: This lock only works in limited environments, none of which "
+                    "support the current target.\n"
                     "The supported environments are:\n"
                     '+ python_version >= "3.9"\n'.format(
                         pylock=pdm_exported_pylock_toml, target=targets.current()
@@ -710,17 +710,19 @@ def test_pdm_extras_interop(
 
         # N.B.: This both tests that without activating the pytest extra, we don't get pytest and
         # that default-groups are applied, which is what are used here.
-        pdm_pex = tmpdir.join("pdm.pex")
+        cowsay_version = packages_by_project_name[ProjectName("cowsay")].version
+        assert cowsay_version is not None
+
+        cowsay_pex = tmpdir.join("cowsay.pex")
         run_pex_command(
-            args=["--pylock", pdm_exported_pylock_toml, "-c", "pdm", "-o", pdm_pex]
+            args=["--pylock", pdm_exported_pylock_toml, "-c", "cowsay", "-o", cowsay_pex]
         ).assert_success()
 
         assert ProjectName("pytest") not in {
-            dist.metadata.project_name for dist in PEX(pdm_pex).resolve()
+            dist.metadata.project_name for dist in PEX(cowsay_pex).resolve()
         }
-        assert (
-            "PDM, version {version}".format(version=PDM_VERSION)
-            == subprocess.check_output(args=[pdm_pex, "-V"]).decode("utf-8").strip()
+        assert cowsay_version == Version(
+            subprocess.check_output(args=[cowsay_pex, "--version"]).decode("utf-8").strip()
         )
 
 
@@ -731,15 +733,12 @@ def test_pdm_dependency_groups_interop(
     # type: (...) -> None
 
     tox_pex = tmpdir.join("tox.pex")
-    pdm_build_env = make_env(PDM_BUILD_NO_CLEAN="1")
     result = run_pex_command(
         args=[
             "--pylock",
             pdm_exported_pylock_toml,
             "--pylock-group",
             "tox",
-            # N.B.: We need the default group to cover `pdm` which we included via --self when exporting
-            # the `pdm.lock` to pylock format.
             "--pylock-group",
             "default",
             "-c",
@@ -747,7 +746,6 @@ def test_pdm_dependency_groups_interop(
             "-o",
             tox_pex,
         ],
-        env=pdm_build_env,
         quiet=True,
     )
     if sys.version_info[:2] < (3, 9):
@@ -789,11 +787,12 @@ def test_pdm_dependency_groups_interop(
                 dist.metadata.project_name for dist in PEX(tox_pex).resolve()
             }
 
-        pdm_pex = tmpdir.join("pdm.pex")
+        cowsay_pex = tmpdir.join("cowsay.pex")
         run_pex_command(
-            args=["--pylock", pdm_exported_pylock_toml, "-o", pdm_pex], env=pdm_build_env
+            args=["--pylock", pdm_exported_pylock_toml, "-c", "cowsay", "-o", cowsay_pex]
         ).assert_success()
 
         assert ProjectName("tox") not in {
-            dist.metadata.project_name for dist in PEX(pdm_pex).resolve()
+            dist.metadata.project_name for dist in PEX(cowsay_pex).resolve()
         }
+        assert "| Moo! |" in subprocess.check_output(args=[cowsay_pex, "Moo!"]).decode("utf-8")
