@@ -12,10 +12,9 @@ DEADSNAKES_VERSIONS=(
   "3.9 {dev,venv,distutils}=3.9.22"
   "3.10 {dev,venv,distutils}=3.10.17"
   "3.13 {dev,venv}=3.13.3"
-  "3.14 {dev,venv}=3.14.0~b1"
+  "3.14 {dev,venv}=3.14.0~b2"
 )
 
-DEBIAN_FRONTEND=noninteractive apt install --yes software-properties-common
 add-apt-repository --yes --ppa deadsnakes
 for entry in "${DEADSNAKES_VERSIONS[@]}"; do
   version="${entry/ */}"
