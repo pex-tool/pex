@@ -3,10 +3,12 @@ FROM ubuntu:24.04
 
 # We use pyenv to bootstrap interpreters and pyenv needs most of these packages.
 # See: https://github.com/pyenv/pyenv/wiki#suggested-build-environment
-# Additionally, some sdists need cargo to build native extensions.
+# Additionally, some sdists need cargo to build native extensions and we need add-apt-repository
+# from software-properties-common to install the deadsnakes ppa and ssh for integration tests to
+# use.
 RUN apt update && \
   DEBIAN_FRONTEND=noninteractive apt upgrade --yes && \
-  DEBIAN_FRONTEND=noninteractive apt install --yes \
+  DEBIAN_FRONTEND=noninteractive apt install --yes --no-install-recommends \
     build-essential \
     cargo \
     curl \
@@ -20,6 +22,8 @@ RUN apt update && \
     libssl-dev \
     libxml2-dev \
     libxmlsec1-dev \
+    software-properties-common \
+    ssh \
     tk-dev \
     xz-utils \
     zlib1g-dev
