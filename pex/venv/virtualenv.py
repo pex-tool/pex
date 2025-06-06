@@ -16,7 +16,7 @@ from textwrap import dedent
 
 from pex.atomic_directory import AtomicDirectory, atomic_directory
 from pex.common import safe_mkdir, safe_open
-from pex.compatibility import commonpath, get_stdout_bytes_buffer, safe_commonpath
+from pex.compatibility import get_stdout_bytes_buffer, safe_commonpath
 from pex.dist_metadata import Distribution, find_distributions
 from pex.enum import Enum
 from pex.executor import Executor
@@ -106,7 +106,7 @@ def _find_preferred_site_packages_dir(
 
     interpreter = interpreter or PythonInterpreter.get()
     for entry in interpreter.site_packages:
-        if commonpath((real_venv_dir, entry.path)) != real_venv_dir:
+        if safe_commonpath((real_venv_dir, entry.path)) != real_venv_dir:
             # This ignores system site packages when the venv is built with --system-site-packages.
             continue
         if os.path.isdir(entry.path):
