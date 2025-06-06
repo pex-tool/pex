@@ -22,7 +22,7 @@ from pex.interpreter_constraints import (
 )
 from pex.layout import Layout
 from pex.orderedset import OrderedSet
-from pex.os import safe_execv
+from pex.os import WINDOWS, safe_execv
 from pex.pex_info import PexInfo
 from pex.sysconfig import SCRIPT_DIR, script_name
 from pex.targets import LocalInterpreter
@@ -585,7 +585,8 @@ def ensure_venv(
                             copy_mode = copy_mode or (
                                 CopyMode.SYMLINK
                                 if (
-                                    pex.layout != Layout.LOOSE
+                                    not WINDOWS
+                                    and pex.layout != Layout.LOOSE
                                     and not pex_info.venv_site_packages_copies
                                 )
                                 else CopyMode.LINK

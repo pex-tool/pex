@@ -20,6 +20,7 @@ from pex.fs import safe_symlink
 from pex.interpreter import PythonInterpreter
 from pex.jobs import iter_map_parallel
 from pex.orderedset import OrderedSet
+from pex.os import WINDOWS
 from pex.pep_503 import ProjectName
 from pex.pex import PEX
 from pex.pex_bootstrapper import ensure_venv
@@ -54,7 +55,9 @@ def _create_pip(
 
     pip_interpreter = interpreter or PythonInterpreter.get()
     pex = PEX(pip_pex.path, interpreter=pip_interpreter)
-    venv_pex = ensure_venv(pex, copy_mode=CopyMode.SYMLINK, record_access=record_access)
+    venv_pex = ensure_venv(
+        pex, copy_mode=CopyMode.LINK if WINDOWS else CopyMode.SYMLINK, record_access=record_access
+    )
     pex_hash = pex.pex_info().pex_hash
     production_assert(pex_hash is not None)
     pip_venv = PipVenv(

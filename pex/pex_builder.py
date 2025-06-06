@@ -36,6 +36,7 @@ from pex.fs import safe_rename, safe_symlink
 from pex.interpreter import PythonInterpreter
 from pex.layout import Layout
 from pex.orderedset import OrderedSet
+from pex.os import WINDOWS
 from pex.pep_376 import InstalledWheel
 from pex.pex import PEX
 from pex.pex_info import PexInfo
@@ -164,7 +165,9 @@ class PEXBuilder(object):
         self._chroot = chroot or Chroot(path or safe_mkdtemp())
         self._pex_info = pex_info or PexInfo.default()
         self._preamble = preamble or ""
-        self._copy_mode = copy_mode
+        self._copy_mode = (
+            CopyMode.LINK if ((copy_mode is CopyMode.SYMLINK) and WINDOWS) else copy_mode
+        )
 
         self._shebang = self._interpreter.identity.hashbang()
         self._header = None  # type: Optional[str]
