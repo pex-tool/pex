@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.40.2
+
+This relase fixes Pex to work in more scenarios on Windows. Windows is still not officially
+supported though!
+
+* Fix some Windows cross-drive issues. (#2781)
+
 ## 2.40.1
 
 This release fixes `pex --pylock` for locked sdist and wheel artifacts whose locked URL path
