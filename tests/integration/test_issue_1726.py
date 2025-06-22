@@ -1,7 +1,7 @@
 # Copyright 2022 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-from __future__ import absolute_import
+from __future__ import absolute_import, print_function
 
 import os
 import sys
@@ -49,9 +49,12 @@ def test_check_install_issue_1726(
     # Via: jaraco-collections==3.5.1 -> jaraco-text -> inflect -> pydantic>=1.9.1
     # Pydantic 2.0 can get pulled in which defeats the Pip legacy resolver and leads to a resolve
     # conflict for PyPy; so we bound pydantic low.
+    # The jaraco-functools pin fights bitrot but has not been investigated to root cause. The jaraco
+    # universe is a bit baroque.
     constraints = os.path.join(str(tmpdir), "constraints.txt")
     with open(constraints, "w") as fp:
-        fp.write("pydantic<2")
+        print("pydantic<2", file=fp)
+        print("jaraco-functools<4.2", file=fp)
 
     pex_root = os.path.join(str(tmpdir), "pex_root")
     pex_args = [
@@ -78,7 +81,7 @@ def test_check_install_issue_1726(
         "Failed to resolve compatible distributions:\n"
         "1: pex-test==0.1 requires jaraco-collections==3.5.1 but jaraco.collections 3.5.1 was "
         "resolved" in old_result.error
-    )
+    ), old_result.error
 
     new_result = run_pex_command(args=pex_args)
     new_result.assert_success()
