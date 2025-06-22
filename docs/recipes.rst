@@ -167,4 +167,4 @@ While building pex files, you may need to fetch dependencies through a proxy. Th
 
     $ pex -v pex
 
-For more information on the requests module support for proxies via environment variables, see the official documentation here: https://docs.python-requests.org/en/latest/user/advanced/#proxies.
+For more information on the requests module support for proxies via environment variables, see the official documentation here: https://requests.readthedocs.io/en/latest/user/advanced/#proxies.
