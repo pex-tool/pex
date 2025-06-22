@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.40.3
+
+This release updates vendored Pip's vendored certifi's cacert.pem to that from certifi 2025.6.15.
+
+* Update vendored Pip's CA cert bundle. (#2787)
+
 ## 2.40.2
 
 This relase fixes Pex to work in more scenarios on Windows. Windows is still not officially
