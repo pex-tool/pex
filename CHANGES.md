@@ -1,5 +1,14 @@
 # Release Notes
 
+## 2.41.0
+
+This release adds support for `pex3 download [ --lock | --pylock ] [requirements args] ...`. This
+allows downloading distributions that satisfy a resolve directly or through a lock. Foreign targets
+via `--platform` and `--complete-platform` are supported as well as sub-setting when a lock is
+used.
+
+* Add `pex3 download`. (#2791)
+
 ## 2.40.3
 
 This release updates vendored Pip's vendored certifi's cacert.pem to that from certifi 2025.6.15.
