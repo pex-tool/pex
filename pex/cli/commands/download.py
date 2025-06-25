@@ -136,7 +136,7 @@ class Download(BuildTimeCommand):
                 reportable_unexpected_error_msg(
                     "Pex should only allow the download subcommand against Pex lock files, PEP-751 "
                     "lock files (pylock.toml) and simple index / find-links configurations. "
-                    "Encountered an unexpected`{resolver_configuration}` resolver "
+                    "Encountered an unexpected `{resolver_configuration}` resolver "
                     "configuration.".format(
                         resolver_configuration=type(resolver_configuration).__name__
                     )
