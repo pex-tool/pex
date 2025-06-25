@@ -10,7 +10,12 @@ from pex.common import safe_copy, safe_mkdir
 from pex.exceptions import reportable_unexpected_error_msg
 from pex.resolve import lock_resolver, requirement_options, resolver_options, target_options
 from pex.resolve.configured_resolver import ConfiguredResolver
-from pex.resolve.resolver_configuration import LockRepositoryConfiguration, PipConfiguration
+from pex.resolve.lockfile.pep_751 import Pylock
+from pex.resolve.resolver_configuration import (
+    LockRepositoryConfiguration,
+    PipConfiguration,
+    PylockRepositoryConfiguration,
+)
 from pex.result import Error, Ok, Result, try_
 
 
@@ -26,7 +31,7 @@ class Download(BuildTimeCommand):
             help="The path to download distribution to.",
         )
         requirement_options.register(parser)
-        resolver_options.register(parser, include_pex_lock=True)
+        resolver_options.register(parser, include_pex_lock=True, include_pylock=True)
         target_options.register(parser, include_platforms=True)
         dependency_configuration.register(parser)
 
@@ -55,6 +60,33 @@ class Download(BuildTimeCommand):
                     resolver,
                     requirements=requirement_configuration.requirements,
                     requirement_files=requirement_configuration.requirement_files,
+                    constraint_files=requirement_configuration.constraint_files,
+                    indexes=resolver_configuration.repos_configuration.indexes,
+                    find_links=resolver_configuration.repos_configuration.find_links,
+                    resolver_version=pip_configuration.resolver_version,
+                    network_configuration=resolver_configuration.network_configuration,
+                    password_entries=pip_configuration.repos_configuration.password_entries,
+                    build_configuration=pip_configuration.build_configuration,
+                    transitive=pip_configuration.transitive,
+                    max_parallel_jobs=pip_configuration.max_jobs,
+                    pip_version=pip_configuration.version,
+                    use_pip_config=pip_configuration.use_pip_config,
+                    extra_pip_requirements=pip_configuration.extra_requirements,
+                    keyring_provider=pip_configuration.keyring_provider,
+                    dependency_configuration=dep_configuration,
+                )
+            )
+        elif isinstance(resolver_configuration, PylockRepositoryConfiguration):
+            pylock = try_(Pylock.parse(resolver_configuration.lock_file_path))
+            artifact_paths = try_(
+                lock_resolver.download_from_pylock(
+                    targets,
+                    pylock,
+                    resolver,
+                    requirements=requirement_configuration.requirements,
+                    requirement_files=requirement_configuration.requirement_files,
+                    extras=resolver_configuration.extras,
+                    dependency_groups=resolver_configuration.dependency_groups,
                     constraint_files=requirement_configuration.constraint_files,
                     indexes=resolver_configuration.repos_configuration.indexes,
                     find_links=resolver_configuration.repos_configuration.find_links,

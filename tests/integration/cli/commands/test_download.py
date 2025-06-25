@@ -5,12 +5,14 @@ from __future__ import absolute_import
 
 import os
 import shutil
+import subprocess
 import sys
 from textwrap import dedent
 
 import pytest
 
 from pex.interpreter import PythonInterpreter
+from pex.interpreter_constraints import COMPATIBLE_PYTHON_VERSIONS
 from pex.os import LINUX, MAC, WINDOWS
 from testing.cli import run_pex3
 from testing.pytest_utils.tmp import Tempdir
@@ -76,7 +78,7 @@ def test_download_via_pip(
     assert_downloaded_requirements(dest_dir)
 
 
-def test_download_via_lock(
+def test_download_via_pex_lock(
     tmpdir,  # type: Tempdir
     requirements_txt,  # type: str
 ):
@@ -92,3 +94,57 @@ def test_download_via_lock(
     shutil.rmtree(dest_dir)
     run_pex3("download", "cowsay", "--lock", lock, "-d", dest_dir).assert_success()
     assert ["cowsay-5.0.tar.gz"] == os.listdir(dest_dir)
+
+
+@pytest.mark.skipif(
+    sys.version_info[:2] < (3, 8),
+    reason="The uv export does not work correctly for Pythons older than it supports (3.8).",
+)
+def test_download_via_pylock(
+    tmpdir,  # type: Tempdir
+    requirements_txt,  # type: str
+):
+    # type: (...) -> None
+
+    max_major, max_minor = max(
+        (version.major, version.minor) for version in COMPATIBLE_PYTHON_VERSIONS
+    )
+
+    pyproject_toml = tmpdir.join("pyproject.toml")
+    with open(pyproject_toml, "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                [project]
+                name = "example"
+                version = "0.0.1"
+                requires-python = ">=2.7,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,<{max_plus_one}"
+                dependencies = [
+                    "cowsay<6",
+                    "psutil<7",
+                ]
+                """
+            ).format(
+                max_plus_one="{major}.{minor_plus_one}".format(
+                    major=max_major, minor_plus_one=max_minor + 1
+                )
+            )
+        )
+
+    pylock_toml = tmpdir.join("pylock.toml")
+    subprocess.check_call(
+        args=[
+            "uv",
+            "--directory",
+            str(tmpdir),
+            "export",
+            "-q",
+            "--no-emit-project",
+            "-o",
+            pylock_toml,
+        ]
+    )
+
+    dest_dir = tmpdir.join("dest")
+    run_pex3("download", "--pylock", pylock_toml, "-d", dest_dir).assert_success()
+    assert_downloaded_requirements(dest_dir)
