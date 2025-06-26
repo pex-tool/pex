@@ -50,11 +50,10 @@ def test_platform_create():
         "linux_x86_64", "cp", "27", (2, 7), "cp27mu"
     )
     assert PlatformSpec.parse("macosx-10.4-x86_64-cp-27-m") == PlatformSpec(
-        "macosx_10_4_x86_64",
-        "cp",
-        "27",
-        (2, 7),
-        "cp27m",
+        "macosx_10_4_x86_64", "cp", "27", (2, 7), "cp27m"
+    )
+    assert PlatformSpec.parse("win-amd64-cp-38-cp38") == PlatformSpec(
+        "win_amd64", "cp", "38", (3, 8), "cp38"
     )
 
 
