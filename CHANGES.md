@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.41.1
+
+This release fixes `pex3 download` to require a `-d` / `--dest-dir` be set.
+
+* Require `--dest-dir` is set for `pex3 download`. (#2793)
+
 ## 2.41.0
 
 This release adds support for `pex3 download [ --lock | --pylock ] [requirements args] ...`. This

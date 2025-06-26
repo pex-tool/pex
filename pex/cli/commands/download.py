@@ -28,6 +28,7 @@ class Download(BuildTimeCommand):
             "-d",
             "--dest-dir",
             metavar="PATH",
+            required=True,
             help="The path to download distribution to.",
         )
         requirement_options.register(parser)
