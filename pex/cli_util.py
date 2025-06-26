@@ -6,7 +6,7 @@ from __future__ import absolute_import
 import os
 import sys
 
-from pex.compatibility import commonpath
+from pex.compatibility import safe_commonpath
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -19,7 +19,7 @@ def prog_path(prog=None):
 
     exe_path = os.path.abspath(prog or sys.argv[0])
     cwd = os.path.abspath(os.getcwd())
-    if commonpath((exe_path, cwd)) == cwd:
+    if safe_commonpath((exe_path, cwd)) == cwd:
         exe_path = os.path.relpath(exe_path, cwd)
         # Handle users that do not have . as a PATH entry.
         if not os.path.dirname(exe_path) and os.curdir not in os.environ.get("PATH", "").split(

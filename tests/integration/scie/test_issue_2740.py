@@ -9,7 +9,7 @@ from textwrap import dedent
 
 import pytest
 
-from pex.compatibility import commonpath
+from pex.compatibility import safe_commonpath
 from pex.typing import TYPE_CHECKING
 from testing import run_pex_command
 from testing.pytest_utils.tmp import Tempdir
@@ -98,6 +98,6 @@ def test_use_pex_scie_as_interpreter(
             ]
         )
     )
-    assert pex_root == commonpath((pex_root, data.pop("pip")))
-    assert pex_root == commonpath((pex_root, data.pop("setproctitle")))
+    assert pex_root == safe_commonpath((pex_root, data.pop("pip")))
+    assert pex_root == safe_commonpath((pex_root, data.pop("setproctitle")))
     assert not data
