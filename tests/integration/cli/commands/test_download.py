@@ -74,7 +74,9 @@ def test_download_via_pip(
     # type: (...) -> None
 
     dest_dir = tmpdir.join("dest")
-    run_pex3("download", "-r", requirements_txt, "-d", dest_dir).assert_success()
+    run_pex3(
+        "download", "--pip-version", "latest-compatible", "-r", requirements_txt, "-d", dest_dir
+    ).assert_success()
     assert_downloaded_requirements(dest_dir)
 
 
@@ -88,11 +90,15 @@ def test_download_via_pex_lock(
     run_pex3("lock", "create", "-r", requirements_txt, "--indent", "2", "-o", lock).assert_success()
 
     dest_dir = tmpdir.join("dest")
-    run_pex3("download", "--lock", lock, "-d", dest_dir).assert_success()
+    run_pex3(
+        "download", "--pip-version", "latest-compatible", "--lock", lock, "-d", dest_dir
+    ).assert_success()
     assert_downloaded_requirements(dest_dir)
 
     shutil.rmtree(dest_dir)
-    run_pex3("download", "cowsay", "--lock", lock, "-d", dest_dir).assert_success()
+    run_pex3(
+        "download", "cowsay", "--pip-version", "latest-compatible", "--lock", lock, "-d", dest_dir
+    ).assert_success()
     assert ["cowsay-5.0.tar.gz"] == os.listdir(dest_dir)
 
 
@@ -146,5 +152,7 @@ def test_download_via_pylock(
     )
 
     dest_dir = tmpdir.join("dest")
-    run_pex3("download", "--pylock", pylock_toml, "-d", dest_dir).assert_success()
+    run_pex3(
+        "download", "--pip-version", "latest-compatible", "--pylock", pylock_toml, "-d", dest_dir
+    ).assert_success()
     assert_downloaded_requirements(dest_dir)
