@@ -389,11 +389,11 @@ The (abbreviated) platform to build the PEX for. This will look for wheels for t
 platform.
 
 The abbreviated platform is described by a string of the form ``PLATFORM-IMPL-PYVER-ABI``, where
-``PLATFORM`` is the platform (e.g. ``linux-x86_64``, ``macosx-10.4-x86_64``), ``IMPL`` is the python
-implementation abbreviation (``cp`` or ``pp``), ``PYVER`` is either a two or more digit string
-representing the python version (e.g., ``36`` or ``310``) or else a component dotted version
-string (e.g., ``3.6`` or ``3.10.1``) and ``ABI`` is the ABI tag (e.g., ``cp36m``, ``cp27mu``,
-``abi3``, ``none``). A complete example: ``linux_x86_64-cp-36-cp36m``.
+``PLATFORM`` is the platform (e.g. ``linux-x86_64``, ``macosx-10.4-x86_64`` or ``win-amd64```),
+``IMPL`` is the python implementation abbreviation (``cp`` or ``pp``), ``PYVER`` is either a two or
+more digit string representing the python version (e.g., ``36`` or ``310``) or else a component
+dotted version string (e.g., ``3.6`` or ``3.10.1``) and ``ABI`` is the ABI tag (e.g., ``cp36m``,
+``cp27mu``, ``cp38``, ``abi3``, ``none``). A complete example: ``linux_x86_64-cp-38-cp38``.
 
 **Constraints**: when ``--platform`` is used the
 `environment marker <https://peps.python.org/pep-0508/#environment-markers>`_

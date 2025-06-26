@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.42.0
+
+This release expands `--platform` support to Windows. Windows is still not officially
+supported though!
+
+* Add `--platform` support for Windows. (#2794)
+
 ## 2.41.1
 
 This release fixes `pex3 download` to require a `-d` / `--dest-dir` be set.

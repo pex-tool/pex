@@ -42,7 +42,7 @@ def assert_unknown_marker(
         "`pex.pip.foreign_platform.markers.patch` and associated integration tests."
     ),
 )
-def test_platform_marker_environment():
+def test_platform_marker_environment_linux():
     # type: () -> None
     platform = abbreviated_platforms.create("linux-x86_64-cp-37-cp37m")
     marker_environment = MarkerEnvironment.from_platform(platform)
@@ -62,6 +62,33 @@ def test_platform_marker_environment():
     assert_unknown_marker(
         env, "platform_version == '#1 SMP PREEMPT Fri, 18 Jun 2021 21:59:22 +0000'"
     )
+
+
+@pytest.mark.skipif(
+    Version(packaging.__version__) >= Version("25.0"),
+    reason=(
+        "Newer packaging unconditionally checks `python_full_version`. We account for that in "
+        "`pex.pip.foreign_platform.markers.patch` and associated integration tests."
+    ),
+)
+def test_platform_marker_environment_windows():
+    # type: () -> None
+    platform = abbreviated_platforms.create("win-amd64-cp-38-cp38")
+    marker_environment = MarkerEnvironment.from_platform(platform)
+    env = marker_environment.as_dict()
+
+    def assert_known_marker(expression):
+        # type: (str) -> None
+        assert evaluate_marker(expression, env)
+
+    assert_known_marker("python_version == '3.8'")
+    assert_known_marker("implementation_name == 'cpython'")
+    assert_known_marker("platform_system == 'Windows'")
+    assert_known_marker("platform_machine == 'amd64'")
+
+    assert_unknown_marker(env, "python_full_version == '3.8.10'")
+    assert_unknown_marker(env, "platform_release == '11'")
+    assert_unknown_marker(env, "platform_version == '10.0.26100'")
 
 
 def test_extended_platform_marker_environment():
