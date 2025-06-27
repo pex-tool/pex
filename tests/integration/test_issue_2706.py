@@ -8,7 +8,7 @@ import subprocess
 
 from pex.cache.dirs import CacheDir
 from pex.common import safe_mkdir
-from pex.compatibility import commonpath
+from pex.compatibility import safe_commonpath
 from pex.pip.version import PipVersion
 from pex.venv.virtualenv import InstallationChoice, Virtualenv
 from testing import built_wheel, run_pex_command
@@ -58,7 +58,7 @@ def test_extras_from_dup_root_reqs(tmpdir):
 
         installed_wheel_dir = CacheDir.INSTALLED_WHEELS.path(pex_root=pex_root)
         for module in "foo", "bar", "baz":
-            assert installed_wheel_dir == commonpath(
+            assert installed_wheel_dir == safe_commonpath(
                 (
                     installed_wheel_dir,
                     subprocess.check_output(

@@ -9,7 +9,7 @@ from textwrap import dedent
 
 import pytest
 
-from pex.compatibility import commonpath
+from pex.compatibility import safe_commonpath
 from testing import run_pex_command
 from testing.pytest_utils.tmp import Tempdir
 
@@ -68,4 +68,4 @@ def test_uv_lock_export_name_normalization(tmpdir):
         .decode("utf-8")
         .strip()
     )
-    assert pex_root == commonpath((pex_root, pyyaml_package_path))
+    assert pex_root == safe_commonpath((pex_root, pyyaml_package_path))
