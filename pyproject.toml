@@ -8,6 +8,7 @@ build-backend = "pex_build.setuptools.build"
 
 [project]
 name = "pex"
+license = "Apache-2.0"
 
 # N.B.: This must be kept in sync with the same setting in setup.cfg to support Python 2.7.
 requires-python = ">=2.7,<3.14,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*"

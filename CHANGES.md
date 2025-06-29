@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.42.1
+
+This release just fixes missing `License-Expression` METADATA in Pex distributions.
+
+* Fix missing `License-Expression` METADATA field. (#2798)
+
 ## 2.42.0
 
 This release expands `--platform` support to Windows. Windows is still not officially
