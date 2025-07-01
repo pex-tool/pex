@@ -4,6 +4,8 @@ __pycache__/
 
 *~
 
+/build-backend/pex_build/setuptools/build.py.lck
+
 /.mypy_cache/
 /dist/
 /docs/_static_dynamic/
