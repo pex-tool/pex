@@ -27,6 +27,15 @@ if pex_build.TYPE_CHECKING:
     from typing import Any, Dict, List, Optional
 
 
+def get_requires_for_build_editable(config_settings=None):
+    # type: (Optional[Dict[str, Any]]) -> List[str]
+
+    # N.B.: The default setuptools implementation would eventually return nothing, but only after
+    # running code that can temporarily pollute our project directory, foiling concurrent test runs;
+    # so we short-circuit the answer here. Faster and safer.
+    return []
+
+
 def get_requires_for_build_sdist(config_settings=None):
     # type: (Optional[Dict[str, Any]]) -> List[str]
 

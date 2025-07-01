@@ -34,6 +34,8 @@ def unique_build_dir(name):
 
 if __name__ == "__main__":
     setup(
+        license_expression="Apache-2.0",
+        license_files=["LICENSE"],
         download_url="https://github.com/pex-tool/pex/releases/download/v{pex_version}/pex".format(
             pex_version=__version__
         ),
