@@ -176,6 +176,10 @@ def _dump(
             for index, item in enumerate(data):
                 output.write(b"\n")
                 output.write(list_indent)
+                if isinstance(item, dict):
+                    item = InlineTable(item)
+                elif isinstance(item, (list, tuple)):
+                    item = InlineArray(item)
                 _dump(item, output, indent=list_indent)
                 output.write(b",")
             output.write(b"\n")
@@ -196,7 +200,10 @@ def _dump(
         main_table_output = isinstance(value, _INLINE_TYPES)
         main_table_output = main_table_output or (
             isinstance(value, (list, tuple))
-            and all(isinstance(item, _INLINE_TYPES) for item in value)
+            and (
+                all(isinstance(item, _INLINE_TYPES) for item in value)
+                or not all(isinstance(item, dict) for item in value)
+            )
         )
         if not main_table_output:
             new_tables.append((key, value))
@@ -209,7 +216,8 @@ def _dump(
     for key, value in new_tables:
         if isinstance(value, dict):
             new_path = extend_path(key)
-            output.write("\n[{path}]\n".format(path=new_path).encode(_ENCODING))
+            if any(not isinstance(value, dict) for value in value.values()):
+                output.write("\n[{path}]\n".format(path=new_path).encode(_ENCODING))
             _dump(value, output, path=new_path)
         elif isinstance(value, (list, tuple)):
             new_path = extend_path(key)

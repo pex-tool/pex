@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.42.2
+
+This release is a follow-up to 2.42.1 that again attempts a fix for missing `License-Expression`
+METADATA in Pex distributions.
+
+* Really fix `License-Expression` METADATA field. (#2800)
+
 ## 2.42.1
 
 This release just fixes missing `License-Expression` METADATA in Pex distributions.

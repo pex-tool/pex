@@ -6,6 +6,15 @@ requires = ["setuptools"]
 backend-path = ["build-backend", ""]
 build-backend = "pex_build.setuptools.build"
 
+[tool.pex_build.setuptools.build.project]
+# N.B.: When the `when` criteria is met, the remaining fields are copied to the [project] table
+# during metadata generation. Since our `package` command runs under the `when` criteria, this
+# ensures modern project metadata is used to create our distributions even when it conflicts with
+# older version of Python / setuptools.
+when = "python_version >= '3.9'"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+
 [project]
 name = "pex"
 
