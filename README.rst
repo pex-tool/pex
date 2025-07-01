@@ -1,7 +1,7 @@
 ***
 PEX
 ***
-.. image:: https://github.com/pex-tool/pex/workflows/CI/badge.svg?branch=main
+.. image:: https://github.com/pex-tool/pex/actions/workflows/ci.yml/badge.svg?branch=main
    :target: https://github.com/pex-tool/pex/actions?query=branch%3Amain+workflow%3ACI
 
 .. image:: https://img.shields.io/pypi/l/pex.svg
