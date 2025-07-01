@@ -37,7 +37,7 @@ else:
 
 @attr.s(frozen=True)
 class DownloadedArtifact(object):
-    _METADATA_VERSION = 1
+    _METADATA_VERSION = 2
 
     class LoadError(Exception):
         pass
@@ -54,6 +54,7 @@ class DownloadedArtifact(object):
         filename,  # type: str
         legacy_fingerprint,  # type: hashing.Sha1Fingerprint
         fingerprint,  # type: hashing.Fingerprint
+        subdirectory=None,  # type: Optional[str]
     ):
         # type: (...) -> None
 
@@ -68,6 +69,7 @@ class DownloadedArtifact(object):
                     algorithm=fingerprint.algorithm,
                     hexdigest=fingerprint,
                     filename=filename,
+                    subdirectory=subdirectory,
                     version=cls._METADATA_VERSION,
                 ),
                 fp,
@@ -101,6 +103,7 @@ class DownloadedArtifact(object):
                     fingerprint=hashing.new_fingerprint(
                         algorithm=str(metadata["algorithm"]), hexdigest=str(metadata["hexdigest"])
                     ),
+                    subdirectory=metadata["subdirectory"],
                 )
         except (OSError, IOError) as e:
             raise cls.LoadError(
@@ -111,6 +114,7 @@ class DownloadedArtifact(object):
 
     path = attr.ib()  # type: str
     fingerprint = attr.ib()  # type: hashing.Fingerprint
+    subdirectory = attr.ib(default=None)  # type: Optional[str]
 
 
 class DownloadManager(Generic["_A"]):
@@ -221,6 +225,7 @@ class DownloadManager(Generic["_A"]):
             filename=filename,
             legacy_fingerprint=legacy_internal_fingerprint.hexdigest(),
             fingerprint=internal_fingerprint.hexdigest(),
+            subdirectory=artifact.subdirectory,
         )
 
     def save(
