@@ -17,7 +17,6 @@ from pex.pip.version import PipVersionValue
 from pex.resolve.lock_downloader import LockDownloader
 from pex.resolve.locked_resolve import (
     DownloadableArtifact,
-    FileArtifact,
     LocalProjectArtifact,
     LockConfiguration,
     LockStyle,
@@ -498,14 +497,7 @@ def _resolve_from_subset_result(
                             target=resolved_subset.target,
                             source_path=downloaded_artifact.path,
                             fingerprint=downloaded_artifact.fingerprint,
-                            # N.B.: Pip already accounts for subdirectory when it creates source
-                            # zips from VCS requirements; so we elide unless the archive was a
-                            # directly downloaded file artifact.
-                            subdirectory=(
-                                downloaded_artifact.subdirectory
-                                if isinstance(downloadable_artifact.artifact, FileArtifact)
-                                else None
-                            ),
+                            subdirectory=downloaded_artifact.subdirectory,
                         )
                     )
     with TRACER.timed(
