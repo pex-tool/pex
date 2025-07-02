@@ -46,21 +46,22 @@ class Wheel(BuildTimeCommand):
                 sdists.append(dist)
 
         if sdists:
-            targets = configuration.resolve_targets().unique_targets()
-            build_requests = []  # type: List[BuildRequest]
-            for sdist in sdists:
-                for target in targets:
-                    build_requests.append(
-                        BuildRequest.create(
-                            target=target,
-                            source_path=sdist.path,
-                            subdirectory=sdist.subdirectory,
-                        )
-                    )
-
             wheels.update(
                 (os.path.basename(wheel), wheel)
-                for wheel in try_(core.build_wheels(configuration, build_requests))
+                for wheel in try_(
+                    core.build_wheels(
+                        configuration,
+                        tuple(
+                            BuildRequest.create(
+                                target=target,
+                                source_path=sdist.path,
+                                subdirectory=sdist.subdirectory,
+                            )
+                            for sdist in sdists
+                            for target in configuration.resolve_targets().unique_targets()
+                        ),
+                    )
+                )
             )
 
         safe_mkdir(self.options.dest_dir)
