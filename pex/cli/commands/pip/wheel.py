@@ -6,7 +6,6 @@ from __future__ import absolute_import
 import os.path
 from argparse import _ActionsContainer
 from collections import OrderedDict
-from typing import List
 
 from pex.cli.command import BuildTimeCommand
 from pex.cli.commands.pip import core
@@ -14,6 +13,10 @@ from pex.cli.commands.pip.core import SourceDist, WheelDist
 from pex.common import safe_copy, safe_mkdir
 from pex.resolver import BuildRequest
 from pex.result import Ok, Result, try_
+from pex.typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import List
 
 
 class Wheel(BuildTimeCommand):
