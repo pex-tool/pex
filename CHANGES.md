@@ -1,5 +1,14 @@
 # Release Notes
 
+## 2.43.0
+
+This release adds support for `pex3 wheel [--lock|--pylock] [requirements args] ...`. This
+allows resolving and building wheels that satisfy a resolve directly or through a lock. Foreign
+targets via `--platform` and `--complete-platform` are supported as well as sub-setting when a lock
+is used. This compliments `pex3 download` introduced in Pex 2.41.0.
+
+* Add pex3 wheel for resolving & building wheels. (#2803)
+
 ## 2.42.2
 
 This release is a follow-up to 2.42.1 that again attempts a fix for missing `License-Expression`
@@ -28,7 +37,7 @@ This release fixes `pex3 download` to require a `-d` / `--dest-dir` be set.
 
 ## 2.41.0
 
-This release adds support for `pex3 download [ --lock | --pylock ] [requirements args] ...`. This
+This release adds support for `pex3 download [--lock|--pylock] [requirements args] ...`. This
 allows downloading distributions that satisfy a resolve directly or through a lock. Foreign targets
 via `--platform` and `--complete-platform` are supported as well as sub-setting when a lock is
 used.
