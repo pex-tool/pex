@@ -17,6 +17,7 @@ from pex.pip.version import PipVersionValue
 from pex.resolve.lock_downloader import LockDownloader
 from pex.resolve.locked_resolve import (
     DownloadableArtifact,
+    FileArtifact,
     LocalProjectArtifact,
     LockConfiguration,
     LockStyle,
@@ -497,7 +498,11 @@ def _resolve_from_subset_result(
                             target=resolved_subset.target,
                             source_path=downloaded_artifact.path,
                             fingerprint=downloaded_artifact.fingerprint,
-                            subdirectory=downloaded_artifact.subdirectory,
+                            subdirectory=(
+                                downloaded_artifact.subdirectory
+                                if isinstance(downloadable_artifact.artifact, FileArtifact)
+                                else None
+                            ),
                         )
                     )
     with TRACER.timed(
