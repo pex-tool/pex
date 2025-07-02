@@ -167,3 +167,57 @@ def test_wheel_via_pylock(
         "wheel", "--pip-version", "latest-compatible", "--pylock", pylock_toml, "-d", dest_dir
     ).assert_success()
     assert_wheels(dest_dir)
+
+
+EXPECTED_SDEV_LOGGING_UTILS_WHL = "sdev_logging_utils-0.1-py{major}-none-any.whl".format(
+    major=sys.version_info.major
+)
+
+
+def test_archive_subdir_via_pex_lock(tmpdir):
+    # type: (Tempdir) -> None
+
+    lock = tmpdir.join("lock.json")
+    run_pex3(
+        "lock",
+        "create",
+        (
+            "sdev_logging_utils @ "
+            "https://github.com/SerialDev/sdev_py_utils/archive/"
+            "bd4d36a02d1beb062ef911796cc18aec0ab99885.zip#subdirectory=sdev_logging_utils"
+        ),
+        "--indent",
+        "2",
+        "-o",
+        lock,
+    ).assert_success()
+
+    dest_dir = tmpdir.join("dest")
+    run_pex3(
+        "wheel", "--pip-version", "latest-compatible", "--lock", lock, "-d", dest_dir
+    ).assert_success()
+    assert [EXPECTED_SDEV_LOGGING_UTILS_WHL] == os.listdir(dest_dir)
+
+
+def test_vcs_subdir_via_pex_lock(tmpdir):
+    # type: (Tempdir) -> None
+
+    lock = tmpdir.join("lock.json")
+    run_pex3(
+        "lock",
+        "create",
+        (
+            "git+https://github.com/SerialDev/sdev_py_utils"
+            "@bd4d36a0#egg=sdev_logging_utils&subdirectory=sdev_logging_utils"
+        ),
+        "--indent",
+        "2",
+        "-o",
+        lock,
+    ).assert_success()
+
+    dest_dir = tmpdir.join("dest")
+    run_pex3(
+        "wheel", "--pip-version", "latest-compatible", "--lock", lock, "-d", dest_dir
+    ).assert_success()
+    assert [EXPECTED_SDEV_LOGGING_UTILS_WHL] == os.listdir(dest_dir)

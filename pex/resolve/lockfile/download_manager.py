@@ -15,6 +15,7 @@ from pex.fs.lock import FileLockStyle
 from pex.pep_503 import ProjectName
 from pex.resolve.locked_resolve import (
     Artifact,
+    FileArtifact,
     UnFingerprintedLocalProjectArtifact,
     UnFingerprintedVCSArtifact,
 )
@@ -225,7 +226,9 @@ class DownloadManager(Generic["_A"]):
             filename=filename,
             legacy_fingerprint=legacy_internal_fingerprint.hexdigest(),
             fingerprint=internal_fingerprint.hexdigest(),
-            subdirectory=artifact.subdirectory,
+            # N.B.: Pip already accounts for subdirectory when it creates source zips from VCS
+            # requirements; so we elide unless the archive was a directly downloaded file artifact.
+            subdirectory=artifact.subdirectory if isinstance(artifact, FileArtifact) else None,
         )
 
     def save(
