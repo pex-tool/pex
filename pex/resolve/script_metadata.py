@@ -58,7 +58,7 @@ def apply_script_metadata(
     )  # type: OrderedSet[str]
     requires_python = SpecifierSet()
     for script in scripts:
-        with open(script) as fp:
+        with open(script, encoding="utf-8") as fp:
             script_metadata = ScriptMetadata.parse(fp.read(), source=fp.name)
         script_metadatas.append(script_metadata)
         requirements.update(map(str, script_metadata.dependencies))
