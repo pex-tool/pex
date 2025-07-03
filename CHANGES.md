@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.43.1
+
+This release fixes PEP-723 script metadata parsing handling of the file encoding of the script.
+
+* Fix PEP-723 script parsing file encoding handling. (#2806)
+
 ## 2.43.0
 
 This release adds support for `pex3 wheel [--lock|--pylock] [requirements args] ...`. This

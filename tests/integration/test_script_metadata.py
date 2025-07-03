@@ -1,7 +1,8 @@
+# coding=utf-8
 # Copyright 2024 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-from __future__ import absolute_import
+from __future__ import absolute_import, print_function
 
 import os.path
 import re
@@ -9,11 +10,16 @@ import sys
 from textwrap import dedent
 
 import colors  # vendor:skip
+import pytest
 
+from pex.resolve.requirement_configuration import RequirementConfiguration
+from pex.resolve.script_metadata import ScriptMetadataApplication, apply_script_metadata
+from pex.resolve.target_configuration import TargetConfiguration
 from pex.targets import LocalInterpreter
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.typing import TYPE_CHECKING
 from testing import PY310, ensure_python_interpreter, run_pex_command, subprocess
+from testing.pytest_utils.tmp import Tempdir
 
 if TYPE_CHECKING:
     from typing import Any
@@ -247,3 +253,58 @@ def test_no_script_metadata(tmpdir):
         expected_output_re=re.escape(colors.yellow("Mellow"))
     )
     run_pex_command(args=["--exe", exe, "--no-pep723"]).assert_success(expected_output_re=r"Mellow")
+
+
+@pytest.mark.parametrize(
+    ["encoding_comment", "pos"],
+    [
+        pytest.param("# coding=ascii", 24, id="nominal"),
+        pytest.param("# -*- coding: ascii -*-", 33, id="editor"),
+        pytest.param("# vim: set fileencoding=ascii :", 41, id="vim"),
+    ],
+)
+@pytest.mark.parametrize("comment_line", [1, 2])
+def test_script_encoding_bad(
+    tmpdir,  # type: Tempdir
+    encoding_comment,  # type: str
+    comment_line,  # type: int
+    pos,  # type: int
+):
+    # type: (...) -> None
+
+    script = tmpdir.join("incorrect-encoding-comment.py")
+    with open(script, "w") as fp:
+        if comment_line == 2:
+            shebang = "#!/usr/bin/env python"
+            print(shebang, file=fp)
+            pos += len(shebang) + len(os.linesep)
+        print(encoding_comment, file=fp)
+        print("# micro: µ", file=fp)
+
+    with pytest.raises(
+        UnicodeDecodeError,
+        match=re.escape(
+            "'ascii' codec can't decode byte 0xc2 in position {pos}: "
+            "ordinal not in range(128)".format(pos=pos)
+        ),
+    ):
+        apply_script_metadata([script])
+
+
+def test_script_encoding_default(tmpdir):
+    # type: (Tempdir) -> None
+
+    script = tmpdir.join("incorrect-encoding-comment.py")
+    with open(script, "w") as fp:
+        fp.write(
+            dedent(
+                """
+                # Sigma: ∑
+                """
+            )
+        )
+    assert ScriptMetadataApplication(
+        scripts=(),
+        requirement_configuration=RequirementConfiguration(),
+        target_configuration=TargetConfiguration(),
+    )
