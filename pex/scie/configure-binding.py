@@ -3,6 +3,7 @@
 
 from __future__ import print_function
 
+import json
 import os
 import sys
 from argparse import ArgumentParser
@@ -30,35 +31,54 @@ def write_bindings(
             print("VENV_BIN_DIR_PLUS_SEP=" + venv_bin_dir + os.path.sep, file=fp)
 
 
+class PexDirNotFound(Exception):
+    pass
+
+
+def find_pex_dir(pex_hash):
+    # type: (str) -> str
+
+    for entry in sys.path:
+        pex_info = os.path.join(entry, "PEX-INFO")
+        if not os.path.exists(pex_info):
+            continue
+        try:
+            with open(pex_info) as fp:
+                data = json.load(fp)
+        except (IOError, OSError, ValueError):
+            continue
+        else:
+            if pex_hash == data.get("pex_hash"):
+                return os.path.realpath(entry)
+    raise PexDirNotFound()
+
+
 if __name__ == "__main__":
     parser = ArgumentParser()
-    group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument(
-        "--installed-pex-dir",
-        help=(
-            "The final resting install directory of the PEX if it is a zipapp PEX. If left unset, "
-            "this indicates the PEX is a venv PEX whose resting venv directory should be "
-            "determined dynamically."
-        ),
+    parser.add_argument(
+        "pex_hash",
+        nargs=1,
+        help="The PEX hash.",
     )
-    group.add_argument("--venv-bin-dir", help="The platform-specific venv bin dir name.")
+    parser.add_argument("--venv-bin-dir", help="The platform-specific venv bin dir name.")
     options = parser.parse_args()
 
-    if options.installed_pex_dir:
-        pex = os.path.realpath(options.installed_pex_dir)
-        venv_bin_dir = None  # type: Optional[str]
-    else:
-        venv_dir = os.path.realpath(
-            # N.B.: In practice, VIRTUAL_ENV should always be set by the PEX venv __main__.py
-            # script.
-            os.environ.get("VIRTUAL_ENV", os.path.dirname(os.path.dirname(sys.executable)))
+    pex_hash = options.pex_hash[0]
+
+    try:
+        pex = find_pex_dir(pex_hash)
+    except PexDirNotFound:
+        sys.exit(
+            "Failed to determine installed PEX (pex_hash: {pex_hash}) directory using sys.path:{eol}    {sys_path}".format(
+                pex_hash=pex_hash,
+                eol=os.linesep,
+                sys_path=os.linesep.join("    {entry}".format(entry=entry) for entry in sys.path),
+            )
         )
-        pex = venv_dir
-        venv_bin_dir = os.path.join(venv_dir, options.venv_bin_dir)
 
     write_bindings(
         env_file=os.environ["SCIE_BINDING_ENV"],
         pex=pex,
-        venv_bin_dir=venv_bin_dir,
+        venv_bin_dir=os.path.join(pex, options.venv_bin_dir) if options.venv_bin_dir else None,
     )
     sys.exit(0)
