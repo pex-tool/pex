@@ -17,7 +17,6 @@ from pex.pip.version import PipVersionValue
 from pex.resolve.lock_downloader import LockDownloader
 from pex.resolve.locked_resolve import (
     DownloadableArtifact,
-    FileArtifact,
     LocalProjectArtifact,
     LockConfiguration,
     LockStyle,
@@ -219,7 +218,7 @@ def download_from_pylock(
     keyring_provider=None,  # type: Optional[str]
     dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
 ):
-    # type: (...) -> Union[Tuple[str, ...], Error]
+    # type: (...) -> Union[Tuple[DownloadedArtifact, ...], Error]
 
     requirement_configuration = RequirementConfiguration(
         requirements=requirements,
@@ -262,7 +261,7 @@ def download_from_pylock(
     )
     if isinstance(downloaded_artifacts, Error):
         return downloaded_artifacts
-    return tuple(downloaded_artifact.path for downloaded_artifact in downloaded_artifacts.values())
+    return tuple(downloaded_artifacts.values())
 
 
 def resolve_from_pex_lock(
@@ -350,7 +349,7 @@ def download_from_pex_lock(
     keyring_provider=None,  # type: Optional[str]
     dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
 ):
-    # type: (...) -> Union[Tuple[str, ...], Error]
+    # type: (...) -> Union[Tuple[DownloadedArtifact, ...], Error]
 
     dependency_configuration = lock.dependency_configuration().merge(dependency_configuration)
     subset_result = try_(
@@ -386,7 +385,7 @@ def download_from_pex_lock(
     )
     if isinstance(downloaded_artifacts, Error):
         return downloaded_artifacts
-    return tuple(downloaded_artifact.path for downloaded_artifact in downloaded_artifacts.values())
+    return tuple(downloaded_artifacts.values())
 
 
 def _download_from_subset_result(
@@ -498,11 +497,7 @@ def _resolve_from_subset_result(
                             target=resolved_subset.target,
                             source_path=downloaded_artifact.path,
                             fingerprint=downloaded_artifact.fingerprint,
-                            subdirectory=(
-                                downloadable_artifact.artifact.subdirectory
-                                if isinstance(downloadable_artifact.artifact, FileArtifact)
-                                else None
-                            ),
+                            subdirectory=downloaded_artifact.subdirectory,
                         )
                     )
     with TRACER.timed(
