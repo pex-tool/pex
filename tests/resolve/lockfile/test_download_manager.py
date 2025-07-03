@@ -155,7 +155,16 @@ def test_storage_version_downgrade_v0(tmpdir):
         assert "bar" == fp.read()
 
     with open(DownloadedArtifact.metadata_filename(str(tmpdir))) as fp:
-        assert dict(algorithm="sha256", hexdigest="baz", filename="foo", version=1) == json.load(fp)
+        assert (
+            dict(
+                algorithm="sha256",
+                hexdigest="baz",
+                filename="foo",
+                subdirectory=None,
+                version=DownloadedArtifact._METADATA_VERSION,
+            )
+            == json.load(fp)
+        )
 
 
 def test_fingerprint_checking(

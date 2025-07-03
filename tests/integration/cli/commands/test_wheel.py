@@ -33,7 +33,7 @@ def requirements_txt(tmpdir):
     return fp.name
 
 
-def assert_downloaded_requirements(dest_dir):
+def assert_wheels(dest_dir):
     # type: (str) -> None
 
     # N.B.: This is currently tuned to cases in our CI setup and may need to change as we change
@@ -41,11 +41,22 @@ def assert_downloaded_requirements(dest_dir):
     interpreter = PythonInterpreter.get()
     platform = interpreter.platform
     if interpreter.is_pypy or (LINUX and sys.version_info[:2] == (3, 5)):
-        expected_psutil = "psutil-5.9.5.tar.gz"
+        interpreter = PythonInterpreter.get()
+        expected_psutil = "psutil-5.9.5-{tag}.whl".format(
+            tag=str(
+                next(
+                    tag
+                    for tag in interpreter.identity.supported_tags
+                    if "manylinux" not in tag.platform
+                )
+            )
+        )
     elif LINUX and sys.version_info[0] == 2:
         expected_psutil = "psutil-5.9.5-cp27-{abi}-manylinux2010_x86_64.whl".format(
             abi=platform.abi
         )
+    elif LINUX and sys.version_info[:2] == (3, 5):
+        expected_psutil = "psutil-5.9.5.tar.gz"
     elif LINUX and sys.version_info[:2] >= (3, 6):
         expected_psutil = (
             "psutil-5.9.5-cp36-abi3-"
@@ -62,10 +73,12 @@ def assert_downloaded_requirements(dest_dir):
     else:
         assert False, "The current OS / arch / interpreter is not supported by this test."
 
-    assert sorted(("cowsay-5.0.tar.gz", expected_psutil)) == sorted(os.listdir(dest_dir))
+    assert sorted(("cowsay-5.0-py2.py3-none-any.whl", expected_psutil)) == sorted(
+        os.listdir(dest_dir)
+    )
 
 
-def test_download_via_pip(
+def test_wheel_via_pip(
     tmpdir,  # type: Tempdir
     requirements_txt,  # type: str
 ):
@@ -73,12 +86,12 @@ def test_download_via_pip(
 
     dest_dir = tmpdir.join("dest")
     run_pex3(
-        "download", "--pip-version", "latest-compatible", "-r", requirements_txt, "-d", dest_dir
+        "wheel", "--pip-version", "latest-compatible", "-r", requirements_txt, "-d", dest_dir
     ).assert_success()
-    assert_downloaded_requirements(dest_dir)
+    assert_wheels(dest_dir)
 
 
-def test_download_via_pex_lock(
+def test_wheel_via_pex_lock(
     tmpdir,  # type: Tempdir
     requirements_txt,  # type: str
 ):
@@ -89,22 +102,22 @@ def test_download_via_pex_lock(
 
     dest_dir = tmpdir.join("dest")
     run_pex3(
-        "download", "--pip-version", "latest-compatible", "--lock", lock, "-d", dest_dir
+        "wheel", "--pip-version", "latest-compatible", "--lock", lock, "-d", dest_dir
     ).assert_success()
-    assert_downloaded_requirements(dest_dir)
+    assert_wheels(dest_dir)
 
     shutil.rmtree(dest_dir)
     run_pex3(
-        "download", "cowsay", "--pip-version", "latest-compatible", "--lock", lock, "-d", dest_dir
+        "wheel", "cowsay", "--pip-version", "latest-compatible", "--lock", lock, "-d", dest_dir
     ).assert_success()
-    assert ["cowsay-5.0.tar.gz"] == os.listdir(dest_dir)
+    assert ["cowsay-5.0-py2.py3-none-any.whl"] == os.listdir(dest_dir)
 
 
 @pytest.mark.skipif(
     sys.version_info[:2] < (3, 8),
     reason="The uv export does not work correctly for Pythons older than it supports (3.8).",
 )
-def test_download_via_pylock(
+def test_wheel_via_pylock(
     tmpdir,  # type: Tempdir
     requirements_txt,  # type: str
 ):
@@ -151,6 +164,60 @@ def test_download_via_pylock(
 
     dest_dir = tmpdir.join("dest")
     run_pex3(
-        "download", "--pip-version", "latest-compatible", "--pylock", pylock_toml, "-d", dest_dir
+        "wheel", "--pip-version", "latest-compatible", "--pylock", pylock_toml, "-d", dest_dir
     ).assert_success()
-    assert_downloaded_requirements(dest_dir)
+    assert_wheels(dest_dir)
+
+
+EXPECTED_SDEV_LOGGING_UTILS_WHL = "sdev_logging_utils-0.1-py{major}-none-any.whl".format(
+    major=sys.version_info.major
+)
+
+
+def test_archive_subdir_via_pex_lock(tmpdir):
+    # type: (Tempdir) -> None
+
+    lock = tmpdir.join("lock.json")
+    run_pex3(
+        "lock",
+        "create",
+        (
+            "sdev_logging_utils @ "
+            "https://github.com/SerialDev/sdev_py_utils/archive/"
+            "bd4d36a02d1beb062ef911796cc18aec0ab99885.zip#subdirectory=sdev_logging_utils"
+        ),
+        "--indent",
+        "2",
+        "-o",
+        lock,
+    ).assert_success()
+
+    dest_dir = tmpdir.join("dest")
+    run_pex3(
+        "wheel", "--pip-version", "latest-compatible", "--lock", lock, "-d", dest_dir
+    ).assert_success()
+    assert [EXPECTED_SDEV_LOGGING_UTILS_WHL] == os.listdir(dest_dir)
+
+
+def test_vcs_subdir_via_pex_lock(tmpdir):
+    # type: (Tempdir) -> None
+
+    lock = tmpdir.join("lock.json")
+    run_pex3(
+        "lock",
+        "create",
+        (
+            "git+https://github.com/SerialDev/sdev_py_utils"
+            "@bd4d36a0#egg=sdev_logging_utils&subdirectory=sdev_logging_utils"
+        ),
+        "--indent",
+        "2",
+        "-o",
+        lock,
+    ).assert_success()
+
+    dest_dir = tmpdir.join("dest")
+    run_pex3(
+        "wheel", "--pip-version", "latest-compatible", "--lock", lock, "-d", dest_dir
+    ).assert_success()
+    assert [EXPECTED_SDEV_LOGGING_UTILS_WHL] == os.listdir(dest_dir)
