@@ -256,7 +256,7 @@ def test_no_script_metadata(tmpdir):
 
 
 @pytest.mark.parametrize(
-    ["encoding_comment", "column"],
+    ["encoding_comment", "pos"],
     [
         pytest.param("# coding=ascii", 24, id="nominal"),
         pytest.param("# -*- coding: ascii -*-", 33, id="editor"),
@@ -268,11 +268,10 @@ def test_script_encoding_bad(
     tmpdir,  # type: Tempdir
     encoding_comment,  # type: str
     comment_line,  # type: int
-    column,  # type: int
+    pos,  # type: int
 ):
     # type: (...) -> None
 
-    pos = column
     script = tmpdir.join("incorrect-encoding-comment.py")
     with open(script, "w") as fp:
         if comment_line == 2:
