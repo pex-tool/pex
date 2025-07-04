@@ -11,6 +11,7 @@ from pex.atomic_directory import atomic_directory
 from pex.common import safe_rmtree
 from pex.interpreter import PythonInterpreter
 from pex.typing import TYPE_CHECKING
+from pex.util import CacheHelper
 from pex.venv.virtualenv import InvalidVirtualenvError, Virtualenv
 from testing import PEX_TEST_DEV_ROOT, data
 
@@ -31,7 +32,8 @@ MITMPROXY_DIR = os.path.join(PEX_TEST_DEV_ROOT, "mitmproxy")
 def _ensure_mitmproxy_venv():
     # type: () -> Virtualenv
 
-    venv_dir = os.path.join(MITMPROXY_DIR, "venv")
+    mitmproxy_lock = data.path("locks", "mitmproxy.lock.json")
+    venv_dir = os.path.join(MITMPROXY_DIR, CacheHelper.hash(mitmproxy_lock), "venv")
     try:
         return Virtualenv(venv_dir=venv_dir)
     except InvalidVirtualenvError as e:
@@ -40,7 +42,6 @@ def _ensure_mitmproxy_venv():
         with atomic_directory(venv_dir) as atomic_venvdir:
             if not atomic_venvdir.is_finalized():
                 logger.info("Installing mitmproxy...")
-                mitmproxy_lock = data.path("locks", "mitmproxy.lock.json")
                 subprocess.check_call(args=["uv", "python", "install", "3.12"])
                 python = str(
                     subprocess.check_output(args=["uv", "python", "find", "3.12"])
