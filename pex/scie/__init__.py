@@ -266,11 +266,14 @@ def register_options(parser):
         ),
     )
     parser.add_argument(
-        "--scie-assets-base-url",
+        "-",
         dest="assets_base_url",
         default=None,
         type=str,
-        help="TODO: XXX",
+        help=(
+            "The URL of a mirror created using `science download ...` to populate a directory tree "
+            "with `ptex`, `scie-jump` and science interpreter providers."
+        ),
     )
 
 
