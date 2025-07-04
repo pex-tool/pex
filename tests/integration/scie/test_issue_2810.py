@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from typing import Iterator
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def scie_assets_dir(shared_integration_test_tmpdir):
     # type: (str) -> str
 
@@ -61,7 +61,7 @@ def scie_assets_server(
 ):
     # type: (...) -> Iterator[ServerInfo]
     server = Server(name="Test Providers Server", cache_dir=tmpdir.join("server"))
-    result = server.launch(scie_assets_dir)
+    result = server.launch(scie_assets_dir, verbose_error=True)
     try:
         yield result.server_info
     finally:

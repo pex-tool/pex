@@ -130,13 +130,19 @@ class LaunchError(Exception):
 
     log = attr.ib()  # type: str
     additional_msg = attr.ib(default=None)  # type: Optional[str]
+    verbose = attr.ib(default=False)  # type: bool
 
     def __str__(self):
         # type: () -> str
         lines = ["Error launching server."]
         if self.additional_msg:
             lines.append(self.additional_msg)
-        lines.append("See the log at {log} for more details.".format(log=self.log))
+        if self.verbose:
+            lines.append("Contents of the server log:")
+            with open(self.log) as fp:
+                lines.extend(fp.read().splitlines())
+        else:
+            lines.append("See the log at {log} for more details.".format(log=self.log))
         return "\n".join(lines)
 
 
@@ -154,6 +160,7 @@ class Server(object):
         document_root,  # type: str
         port=0,  # type: int
         timeout=5.0,  # type: float
+        verbose_error=False,  # type: bool
     ):
         # type: (...) -> LaunchResult
 
@@ -192,8 +199,9 @@ class Server(object):
                         "Also failed to kill the partially launched server at pid {pid}: "
                         "{err}".format(pid=process.pid, err=e)
                     ),
+                    verbose=verbose_error,
                 )
-            raise LaunchError(log)
+            raise LaunchError(log, verbose=verbose_error)
         return LaunchResult(server_info=pidfile.server_info, already_running=False)
 
     def shutdown(self):
