@@ -42,9 +42,11 @@ def _ensure_mitmproxy_venv():
         with atomic_directory(venv_dir) as atomic_venvdir:
             if not atomic_venvdir.is_finalized():
                 logger.info("Installing mitmproxy...")
-                subprocess.check_call(args=["uv", "python", "install", "3.12"])
+                subprocess.check_call(args=["uv", "python", "install", "--managed-python", "3.12"])
                 python = str(
-                    subprocess.check_output(args=["uv", "python", "find", "3.12"])
+                    subprocess.check_output(
+                        args=["uv", "python", "find", "--managed-python", "3.12"]
+                    )
                     .decode("utf-8")
                     .strip()
                 )
