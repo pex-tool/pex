@@ -14,7 +14,7 @@ from pex.os import WINDOWS
 from pex.pip.version import PipVersion
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import Virtualenv
-from testing import PY310, data, ensure_python_interpreter, make_env, run_pex_command, subprocess
+from testing import data, make_env, run_pex_command, subprocess
 from testing.mitmproxy import Proxy
 
 if TYPE_CHECKING:
@@ -97,7 +97,12 @@ def mitmdump_venv(shared_integration_test_tmpdir):
     mitmproxy_venv_dir = os.path.join(shared_integration_test_tmpdir, "mitmproxy")
     with atomic_directory(mitmproxy_venv_dir) as atomic_venvdir:
         if not atomic_venvdir.is_finalized():
-            python = ensure_python_interpreter(PY310)
+            subprocess.check_call(args=["uv", "python", "install", "3.12"])
+            python = str(
+                subprocess.check_output(args=["uv", "python", "find", "3.12"])
+                .decode("utf-8")
+                .strip()
+            )
             Virtualenv.create_atomic(
                 venv_dir=atomic_venvdir,
                 interpreter=PythonInterpreter.from_binary(python),

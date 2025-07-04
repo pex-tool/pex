@@ -10,12 +10,10 @@ import subprocess
 import sys
 import time
 
-from pex.cache.dirs import CacheDir
 from pex.common import safe_open
 from pex.os import is_alive, kill
 from pex.subprocess import launch_python_daemon
 from pex.typing import TYPE_CHECKING
-from pex.version import __version__
 
 if TYPE_CHECKING:
     from typing import Optional
@@ -26,10 +24,6 @@ else:
 
 
 logger = logging.getLogger(__name__)
-
-SERVER_NAME = "Pex v{version} docs HTTP server".format(version=__version__)
-
-_SERVER_DIR = CacheDir.DOCS.path("server", __version__)
 
 
 @attr.s(frozen=True)
@@ -44,19 +38,27 @@ class ServerInfo(object):
 
 @attr.s(frozen=True)
 class Pidfile(object):
-    _PIDFILE = os.path.join(_SERVER_DIR, "pidfile")
+    @staticmethod
+    def _pidfile(cache_dir):
+        # type: (str) -> str
+        return os.path.join(cache_dir, "pidfile")
 
     @classmethod
-    def load(cls):
-        # type: () -> Optional[Pidfile]
+    def load(
+        cls,
+        server_name,  # type: str
+        cache_dir,  # type: str
+    ):
+        # type: (...) -> Optional[Pidfile]
+        pidfile = cls._pidfile(cache_dir)
         try:
-            with open(cls._PIDFILE) as fp:
+            with open(pidfile) as fp:
                 data = json.load(fp)
             return cls(ServerInfo(url=data["url"], pid=data["pid"]))
         except (OSError, IOError, ValueError, KeyError) as e:
             logger.debug(
                 "Failed to load {server} pid file from {path}: {err}".format(
-                    server=SERVER_NAME, path=cls._PIDFILE, err=e
+                    server=server_name, path=pidfile, err=e
                 )
             )
             return None
@@ -87,6 +89,7 @@ class Pidfile(object):
     @classmethod
     def record(
         cls,
+        cache_dir,  # type: str
         server_log,  # type: str
         pid,  # type: int
         timeout=5.0,  # type: float
@@ -96,7 +99,8 @@ class Pidfile(object):
         if not url:
             return None
 
-        with safe_open(cls._PIDFILE, "w") as fp:
+        pidfile = cls._pidfile(cache_dir)
+        with safe_open(pidfile, "w") as fp:
             json.dump(dict(url=url, pid=pid), fp, indent=2, sort_keys=True)
         return cls(ServerInfo(url=url, pid=pid))
 
@@ -122,7 +126,7 @@ class LaunchResult(object):
 # after construction in some cases.
 @attr.s
 class LaunchError(Exception):
-    """Indicates an error launching the docs server."""
+    """Indicates an error launching the server."""
 
     log = attr.ib()  # type: str
     additional_msg = attr.ib(default=None)  # type: Optional[str]
@@ -136,58 +140,69 @@ class LaunchError(Exception):
         return "\n".join(lines)
 
 
-def launch(
-    document_root,  # type: str
-    port,  # type: int
-    timeout=5.0,  # type: float
-):
-    # type: (...) -> LaunchResult
+@attr.s(frozen=True)
+class Server(object):
+    name = attr.ib()  # type: str
+    cache_dir = attr.ib()  # type: str
 
-    pidfile = Pidfile.load()
-    if pidfile and pidfile.alive():
-        return LaunchResult(server_info=pidfile.server_info, already_running=True)
+    def pidfile(self):
+        # type: () -> Optional[Pidfile]
+        return Pidfile.load(self.name, self.cache_dir)
 
-    # Not proper daemonization, but good enough.
-    log = os.path.join(_SERVER_DIR, "log.txt")
-    http_server_module = "http.server" if sys.version_info[0] == 3 else "SimpleHttpServer"
-    env = os.environ.copy()
-    # N.B.: We set up line buffering for the process pipes as well as the underlying Python running
-    # the http server to ensure we can observe the `Serving HTTP on ...` line we need to grab the
-    # ephemeral port chosen.
-    env.update(PYTHONUNBUFFERED="1")
-    with safe_open(log, "w") as fp:
-        process = launch_python_daemon(
-            args=[sys.executable, "-m", http_server_module, str(port)],
-            env=env,
-            cwd=document_root,
-            bufsize=1,
-            stdout=fp.fileno(),
-            stderr=subprocess.STDOUT,
-        )
+    def launch(
+        self,
+        document_root,  # type: str
+        port=0,  # type: int
+        timeout=5.0,  # type: float
+    ):
+        # type: (...) -> LaunchResult
 
-    pidfile = Pidfile.record(server_log=log, pid=process.pid, timeout=timeout)
-    if not pidfile:
-        try:
-            kill(process.pid)
-        except OSError as e:
-            raise LaunchError(
-                log,
-                additional_msg=(
-                    "Also failed to kill the partially launched server at pid {pid}: "
-                    "{err}".format(pid=process.pid, err=e)
-                ),
+        pidfile = self.pidfile()
+        if pidfile and pidfile.alive():
+            return LaunchResult(server_info=pidfile.server_info, already_running=True)
+
+        # Not proper daemonization, but good enough.
+        log = os.path.join(self.cache_dir, "log.txt")
+        http_server_module = "http.server" if sys.version_info[0] == 3 else "SimpleHttpServer"
+        env = os.environ.copy()
+        # N.B.: We set up line buffering for the process pipes as well as the underlying Python running
+        # the http server to ensure we can observe the `Serving HTTP on ...` line we need to grab the
+        # ephemeral port chosen.
+        env.update(PYTHONUNBUFFERED="1")
+        with safe_open(log, "w") as fp:
+            process = launch_python_daemon(
+                args=[sys.executable, "-m", http_server_module, str(port)],
+                env=env,
+                cwd=document_root,
+                bufsize=1,
+                stdout=fp.fileno(),
+                stderr=subprocess.STDOUT,
             )
-        raise LaunchError(log)
-    return LaunchResult(server_info=pidfile.server_info, already_running=False)
 
+        pidfile = Pidfile.record(
+            cache_dir=self.cache_dir, server_log=log, pid=process.pid, timeout=timeout
+        )
+        if not pidfile:
+            try:
+                kill(process.pid)
+            except OSError as e:
+                raise LaunchError(
+                    log,
+                    additional_msg=(
+                        "Also failed to kill the partially launched server at pid {pid}: "
+                        "{err}".format(pid=process.pid, err=e)
+                    ),
+                )
+            raise LaunchError(log)
+        return LaunchResult(server_info=pidfile.server_info, already_running=False)
 
-def shutdown():
-    # type: () -> Optional[ServerInfo]
+    def shutdown(self):
+        # type: () -> Optional[ServerInfo]
 
-    pidfile = Pidfile.load()
-    if not pidfile or not pidfile.alive():
-        return None
+        pidfile = self.pidfile()
+        if not pidfile or not pidfile.alive():
+            return None
 
-    logger.debug("Killing {server} {info}".format(server=SERVER_NAME, info=pidfile.server_info))
-    pidfile.kill()
-    return pidfile.server_info
+        logger.debug("Killing {server} {info}".format(server=self.name, info=pidfile.server_info))
+        pidfile.kill()
+        return pidfile.server_info

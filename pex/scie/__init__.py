@@ -265,6 +265,13 @@ def register_options(parser):
             )
         ),
     )
+    parser.add_argument(
+        "--scie-assets-base-url",
+        dest="assets_base_url",
+        default=None,
+        type=str,
+        help="TODO: XXX",
+    )
 
 
 def render_options(options):
@@ -303,6 +310,9 @@ def render_options(options):
     if options.science_binary:
         args.append("--scie-science-binary")
         args.append(options.science_binary)
+    if options.assets_base_url:
+        args.append("--scie-assets-base-url")
+        args.append(options.assets_base_url)
     return " ".join(args)
 
 
@@ -377,6 +387,10 @@ def extract_options(options):
         else:
             science_binary = Url(options.scie_science_binary)
 
+    assets_base_url = None  # type: Optional[Url]
+    if options.assets_base_url:
+        assets_base_url = Url(options.assets_base_url)
+
     return ScieOptions(
         style=options.scie_style,
         naming_style=options.naming_style,
@@ -390,6 +404,7 @@ def extract_options(options):
         pbs_stripped=options.scie_pbs_stripped,
         hash_algorithms=tuple(options.scie_hash_algorithms),
         science_binary=science_binary,
+        assets_base_url=assets_base_url,
     )
 
 
