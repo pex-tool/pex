@@ -133,7 +133,7 @@ class LaunchError(Exception):
 
     def __str__(self):
         # type: () -> str
-        lines = ["Error launching docs server."]
+        lines = ["Error launching server."]
         if self.additional_msg:
             lines.append(self.additional_msg)
         lines.append("See the log at {log} for more details.".format(log=self.log))
