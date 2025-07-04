@@ -12,16 +12,15 @@ from subprocess import CalledProcessError
 
 from pex import toml
 from pex.atomic_directory import atomic_directory
-from pex.cache.dirs import CacheDir, UnzipDir
+from pex.cache.dirs import CacheDir
 from pex.common import pluralize, safe_mkdtemp, safe_open
 from pex.compatibility import shlex_quote
 from pex.dist_metadata import NamedEntryPoint, parse_entry_point
 from pex.enum import Enum
-from pex.exceptions import production_assert
+from pex.exceptions import reportable_unexpected_error_msg
 from pex.executables import chmod_plus_x
 from pex.fetcher import URLFetcher
 from pex.hashing import Sha256
-from pex.layout import Layout
 from pex.os import is_exe
 from pex.pep_440 import Version
 from pex.pex import PEX
@@ -40,12 +39,12 @@ from pex.sysconfig import SysPlatform
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.third_party.packaging.version import InvalidVersion
 from pex.tracer import TRACER
-from pex.typing import TYPE_CHECKING, cast
+from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper
 from pex.variables import ENV, Variables
 
 if TYPE_CHECKING:
-    from typing import Any, Dict, Iterator, List, Optional, Union, cast
+    from typing import Any, Dict, Iterator, List, Optional, Union
 
     import attr  # vendor:skip
 else:
@@ -114,7 +113,13 @@ def create_manifests(
     # type: (...) -> Iterator[Manifest]
 
     pex_info = pex.pex_info(include_env_overrides=False)
-    pex_root = "{scie.bindings}/pex_root"
+    if pex_info.pex_hash is None:
+        raise ValueError(
+            reportable_unexpected_error_msg(
+                "PEX at {pex} is unexpectedly missing a `pex_hash` in its PEX-INFO.", pex=pex.path()
+            )
+        )
+    pex_hash = pex_info.pex_hash
 
     def create_commands(platform):
         # type: (SysPlatform.Value) -> Iterator[Dict[str, Any]]
@@ -246,7 +251,6 @@ def create_manifests(
             "remove_exact": ["PATH"],
             "remove_re": ["PEX_.*", "PYTHON.*"],
             "replace": {
-                "PEX_ROOT": pex_root,
                 "PEX_INTERPRETER": "1",
                 # We can get a warning about too-long script shebangs, but this is not
                 # relevant since we above run the PEX via python and not via shebang.
@@ -281,20 +285,12 @@ def create_manifests(
                 )
             )
 
-        # N.B.: For the venv case, we let the configure-binding calculate the installed PEX dir
-        # (venv dir) at runtime since it depends on the interpreter executing the venv PEX.
+        extra_configure_binding_args = []  # type: List[str]
         if pex_info.venv:
-            extra_configure_binding_args = ["--venv-bin-dir", interpreter.platform.venv_bin_dir]
-        else:
-            extra_configure_binding_args = ["--installed-pex-dir"]
-            if pex.layout is Layout.LOOSE:
-                extra_configure_binding_args.append(Filenames.PEX.placeholder)
-            else:
-                production_assert(pex_info.pex_hash is not None)
-                pex_hash = cast(str, pex_info.pex_hash)
-                extra_configure_binding_args.append(
-                    UnzipDir.create(pex_hash, pex_root=pex_root).path
-                )
+            extra_configure_binding_args.extend(
+                ("--venv-bin-dir", interpreter.platform.venv_bin_dir)
+            )
+        extra_configure_binding_args.append(pex_hash)
 
         if use_platform_suffix is True or (
             use_platform_suffix is None and interpreter.platform is not SysPlatform.CURRENT

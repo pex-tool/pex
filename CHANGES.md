@@ -1,5 +1,17 @@
 # Release Notes
 
+## 2.44.0
+
+This release expands PEX scie support on Windows to more cases by changing how the `PEX_ROOT` is
+handled for PEX scies on all operating systems. Previously, the `PEX_ROOT` was constrained to be
+in a special location inside the scie `nce` cache direcgtory structure. Now PEX scies install their
+PEXes inside the normal system `PEX_ROOT` like other PEXes do. This leads to shorted PEX cache paths
+that work on more Windows systems in particular.
+
+All that said, Windows is still not officially supported!
+
+* Let PEX scies install PEXes in the `PEX_ROOT`. (#2807)
+
 ## 2.43.1
 
 This release fixes PEP-723 script metadata parsing handling of the file encoding of the script.
