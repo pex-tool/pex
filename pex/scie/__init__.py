@@ -266,7 +266,7 @@ def register_options(parser):
         ),
     )
     parser.add_argument(
-        "-",
+        "--scie-assets-base-url",
         dest="assets_base_url",
         default=None,
         type=str,
