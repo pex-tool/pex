@@ -9,12 +9,10 @@ import os
 import pytest
 
 from pex.atomic_directory import atomic_directory
-from pex.interpreter import PythonInterpreter
 from pex.os import WINDOWS
 from pex.pip.version import PipVersion
 from pex.typing import TYPE_CHECKING
-from pex.venv.virtualenv import Virtualenv
-from testing import data, make_env, run_pex_command, subprocess
+from testing import make_env, run_pex_command, subprocess
 from testing.mitmproxy import Proxy
 
 if TYPE_CHECKING:
@@ -89,40 +87,6 @@ def pex_bdist(
     wheels = glob.glob(os.path.join(wheels_dir, "pex-*.whl"))
     assert 1 == len(wheels)
     return wheels[0]
-
-
-@pytest.fixture(scope="session")
-def mitmdump_venv(shared_integration_test_tmpdir):
-    # type: (str) -> Virtualenv
-    mitmproxy_venv_dir = os.path.join(shared_integration_test_tmpdir, "mitmproxy")
-    with atomic_directory(mitmproxy_venv_dir) as atomic_venvdir:
-        if not atomic_venvdir.is_finalized():
-            subprocess.check_call(args=["uv", "python", "install", "3.12"])
-            python = str(
-                subprocess.check_output(args=["uv", "python", "find", "3.12"])
-                .decode("utf-8")
-                .strip()
-            )
-            Virtualenv.create_atomic(
-                venv_dir=atomic_venvdir,
-                interpreter=PythonInterpreter.from_binary(python),
-                force=True,
-            )
-            mitmproxy_lock = data.path("locks", "mitmproxy.lock.json")
-            subprocess.check_call(
-                args=[
-                    python,
-                    "-m",
-                    "pex.cli",
-                    "venv",
-                    "create",
-                    "-d",
-                    atomic_venvdir.work_dir,
-                    "--lock",
-                    mitmproxy_lock,
-                ]
-            )
-    return Virtualenv(mitmproxy_venv_dir)
 
 
 @pytest.fixture
