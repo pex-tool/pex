@@ -7,8 +7,12 @@ env:
   _PEX_TEST_DEV_ROOT: ${{ github.workspace }}/.pex_dev
   _PEX_TEST_POS_ARGS: "--color --devpi --devpi-timeout 15.0 --shutdown-devpi -vvs"
   _PEX_PEXPECT_TIMEOUT: 10
+  _PEX_HTTP_SERVER_TIMEOUT: 30
   # We have integration tests that exercise `--scie` support and these can trigger downloads from
-  # GitHub Releases that needed elevated rate limit quota, which this gives.
+  # GitHub Releases that can be slow which this timeout accounts for.
+  SCIENCE_NET_TIMEOUT: 30.0
+  # We have integration tests that exercise `--scie` support and these can trigger downloads from
+  # GitHub Releases that need elevated rate limit quota, which this gives.
   SCIENCE_AUTH_API_GITHUB_COM_BEARER: ${{ secrets.GITHUB_TOKEN }}
   # We fetch Windows script executable stubs when building Pex.
   _PEX_CACHE_WINDOWS_STUBS_DIR: ${{ github.workspace }}/.pex_dev/windows_stubs

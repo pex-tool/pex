@@ -1,5 +1,19 @@
 # Release Notes
 
+## 2.45.0
+
+This release adds support for `--scie-assets-base-url` if you've used `science download ...` to set
+up a local repository for `ptex`, `scie-jump` and science interpreter providers.
+
+This release also fixes PEX scie creation to use either of `--proxy` or `--cert` if set when
+building scies. Previously, these options were only honored when downloading the `science` binary
+itself but not when running it subsequently to build scies.
+
+Finally, PEX scies built on Windows for Linux or Mac now should work more often. That said, Windows
+is still not officially supported!
+
+* Add `--scie-assets-base-url` & honor `--{proxy,cert}`. (#2811)
+
 ## 2.44.0
 
 This release expands PEX scie support on Windows to more cases by changing how the `PEX_ROOT` is

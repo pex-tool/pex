@@ -11,8 +11,9 @@ from pex.atomic_directory import atomic_directory
 from pex.common import safe_rmtree
 from pex.interpreter import PythonInterpreter
 from pex.typing import TYPE_CHECKING
+from pex.util import CacheHelper
 from pex.venv.virtualenv import InvalidVirtualenvError, Virtualenv
-from testing import PEX_TEST_DEV_ROOT, PY310, data, ensure_python_interpreter
+from testing import PEX_TEST_DEV_ROOT, data
 
 if TYPE_CHECKING:
     from typing import Iterable, Iterator, Optional, Tuple
@@ -31,7 +32,8 @@ MITMPROXY_DIR = os.path.join(PEX_TEST_DEV_ROOT, "mitmproxy")
 def _ensure_mitmproxy_venv():
     # type: () -> Virtualenv
 
-    venv_dir = os.path.join(MITMPROXY_DIR, "venv")
+    mitmproxy_lock = data.path("locks", "mitmproxy.lock.json")
+    venv_dir = os.path.join(MITMPROXY_DIR, CacheHelper.hash(mitmproxy_lock), "venv")
     try:
         return Virtualenv(venv_dir=venv_dir)
     except InvalidVirtualenvError as e:
@@ -40,8 +42,12 @@ def _ensure_mitmproxy_venv():
         with atomic_directory(venv_dir) as atomic_venvdir:
             if not atomic_venvdir.is_finalized():
                 logger.info("Installing mitmproxy...")
-                mitmproxy_lock = data.path("locks", "mitmproxy.lock.json")
-                python = ensure_python_interpreter(PY310)
+                subprocess.check_call(args=["uv", "python", "install", "3.12"])
+                python = str(
+                    subprocess.check_output(args=["uv", "python", "find", "3.12"])
+                    .decode("utf-8")
+                    .strip()
+                )
                 Virtualenv.create_atomic(
                     venv_dir=atomic_venvdir,
                     interpreter=PythonInterpreter.from_binary(python),
@@ -54,6 +60,8 @@ def _ensure_mitmproxy_venv():
                         "pex.cli",
                         "venv",
                         "create",
+                        "--pip-version",
+                        "latest-compatible",
                         "--lock",
                         mitmproxy_lock,
                         "-d",
@@ -104,6 +112,7 @@ class Proxy(object):
         self,
         targets,  # type: Iterable[str]
         proxy_auth=None,  # type: Optional[str]
+        dump_headers=False,  # type: bool
     ):
         # type: (...) -> Iterator[Tuple[int, str]]
         os.mkfifo(self.messages)
@@ -112,6 +121,8 @@ class Proxy(object):
             self.mitmdump_venv.bin_path("mitmdump"),
             "--set",
             "confdir={confdir}".format(confdir=self.confdir),
+            "--set",
+            "flow_detail={level}".format(level="2" if dump_headers else "1"),
             "-p",
             "0",
             "-s",
@@ -131,8 +142,15 @@ class Proxy(object):
             os.unlink(self.messages)
 
     @contextmanager
-    def run(self, proxy_auth=None):
-        # type: (Optional[str]) -> Iterator[Tuple[int, str]]
+    def run(
+        self,
+        proxy_auth=None,  # type: Optional[str]
+        dump_headers=False,  # type: bool
+    ):
+        # type: (...) -> Iterator[Tuple[int, str]]
 
-        with self.reverse(targets=(), proxy_auth=proxy_auth) as (port, cert):
+        with self.reverse(targets=(), proxy_auth=proxy_auth, dump_headers=dump_headers) as (
+            port,
+            cert,
+        ):
             yield port, cert

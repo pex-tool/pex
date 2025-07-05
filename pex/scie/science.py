@@ -66,7 +66,7 @@ class Manifest(object):
 
 
 SCIENCE_RELEASES_URL = "https://github.com/a-scie/lift/releases"
-MIN_SCIENCE_VERSION = Version("0.12.2")
+MIN_SCIENCE_VERSION = Version("0.12.4")
 SCIENCE_REQUIREMENT = SpecifierSet("~={min_version}".format(min_version=MIN_SCIENCE_VERSION))
 
 
@@ -80,7 +80,7 @@ def _science_binary_url(suffix=""):
     )
 
 
-PTEX_VERSION = "1.5.1"
+PTEX_VERSION = "1.6.1"
 SCIE_JUMP_VERSION = "1.7.0"
 
 
@@ -230,9 +230,13 @@ def create_manifests(
         pex_name = Filenames.PEX.name
         pex_key = None
 
+    scie_jump_config = {"version": SCIE_JUMP_VERSION}
+    if configuration.options.assets_base_url:
+        scie_jump_config["base_url"] = "/".join((configuration.options.assets_base_url, "jump"))
+
     lift = {
         "name": name,
-        "scie_jump": {"version": SCIE_JUMP_VERSION},
+        "scie_jump": scie_jump_config,
         "files": [
             {"name": Filenames.CONFIGURE_BINDING.name},
             dict(name=pex_name, is_executable=True, **({"key": pex_key} if pex_key else {})),
@@ -240,11 +244,13 @@ def create_manifests(
     }  # type: Dict[str, Any]
 
     if configuration.options.style is ScieStyle.LAZY:
-        lift["ptex"] = {
+        ptex_config = lift["ptex"] = {
             "id": Filenames.PTEX.name,
             "version": PTEX_VERSION,
             "argv1": "{scie.env.PEX_BOOTSTRAP_URLS={scie.lift}}",
         }
+        if configuration.options.assets_base_url:
+            ptex_config["base_url"] = "/".join((configuration.options.assets_base_url, "ptex"))
 
     configure_binding = {
         "env": {
@@ -276,6 +282,10 @@ def create_manifests(
         }
         if interpreter.release:
             interpreter_config["release"] = interpreter.release
+        if configuration.options.assets_base_url:
+            interpreter_config["base_url"] = "/".join(
+                (configuration.options.assets_base_url, "providers", str(interpreter.provider))
+            )
         if Provider.PythonBuildStandalone is interpreter.provider:
             interpreter_config.update(
                 flavor=(
@@ -375,7 +385,7 @@ def _path_science():
     return None
 
 
-def _ensure_science(
+def ensure_science(
     url_fetcher=None,  # type: Optional[URLFetcher]
     science_binary=None,  # type: Optional[Union[File, Url]]
     env=ENV,  # type: Variables
@@ -458,7 +468,7 @@ def build(
 ):
     # type: (...) -> Iterator[ScieInfo]
 
-    science = _ensure_science(
+    science = ensure_science(
         url_fetcher=url_fetcher,
         science_binary=configuration.options.science_binary,
         env=env,
@@ -507,8 +517,15 @@ def build(
         for hash_algorithm in configuration.options.hash_algorithms:
             args.extend(["--hash", hash_algorithm])
         args.append(manifest.path)
+
+        environ = os.environ.copy()
+        if url_fetcher:
+            environ.update(url_fetcher.network_env())
+
         with open(os.devnull, "wb") as devnull:
-            process = subprocess.Popen(args=args, stdout=devnull, stderr=subprocess.PIPE)
+            process = subprocess.Popen(
+                args=args, env=environ, stdout=devnull, stderr=subprocess.PIPE
+            )
             _, stderr = process.communicate()
             if process.returncode != 0:
                 saved_manifest = os.path.relpath(

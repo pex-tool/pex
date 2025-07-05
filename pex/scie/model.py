@@ -306,6 +306,7 @@ class ScieOptions(object):
     pbs_stripped = attr.ib(default=False)  # type: bool
     hash_algorithms = attr.ib(default=())  # type: Tuple[str, ...]
     science_binary = attr.ib(default=None)  # type: Optional[Union[File, Url]]
+    assets_base_url = attr.ib(default=None)  # type: Optional[Url]
 
     def create_configuration(self, targets):
         # type: (Targets) -> ScieConfiguration

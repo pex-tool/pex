@@ -169,6 +169,7 @@ def boot(
             # simplest to add an exception for here and not warn about in CI runs.
             "_PEX_CACHE_WINDOWS_STUBS_DIR",
             "_PEX_FETCH_WINDOWS_STUBS_BEARER",
+            "_PEX_HTTP_SERVER_TIMEOUT",
             "_PEX_PEXPECT_TIMEOUT",
             "_PEX_PIP_VERSION",
             "_PEX_REQUIRES_PYTHON",
