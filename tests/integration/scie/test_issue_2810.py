@@ -13,7 +13,7 @@ from pex.atomic_directory import atomic_directory
 from pex.http.server import Server, ServerInfo
 from pex.scie.science import SCIE_JUMP_VERSION, ensure_science
 from pex.typing import TYPE_CHECKING
-from testing import run_pex_command, make_env
+from testing import make_env, run_pex_command
 from testing.mitmproxy import Proxy
 from testing.pytest_utils.tmp import Tempdir
 from testing.scie import provider, skip_if_no_provider
@@ -61,7 +61,11 @@ def scie_assets_server(
 ):
     # type: (...) -> Iterator[ServerInfo]
     server = Server(name="Test Providers Server", cache_dir=tmpdir.join("server"))
-    result = server.launch(scie_assets_dir, verbose_error=True)
+    result = server.launch(
+        scie_assets_dir,
+        timeout=float(os.environ.get("_PEX_HTTP_SERVER_TIMEOUT", "5.0")),
+        verbose_error=True,
+    )
     try:
         yield result.server_info
     finally:
