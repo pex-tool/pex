@@ -13,7 +13,7 @@ from pex.atomic_directory import atomic_directory
 from pex.http.server import Server, ServerInfo
 from pex.scie.science import SCIE_JUMP_VERSION, ensure_science
 from pex.typing import TYPE_CHECKING
-from testing import run_pex_command
+from testing import run_pex_command, make_env
 from testing.mitmproxy import Proxy
 from testing.pytest_utils.tmp import Tempdir
 from testing.scie import provider, skip_if_no_provider
@@ -69,7 +69,7 @@ def scie_assets_server(
 
 
 @skip_if_no_provider
-def test_proxy(
+def test_proxy_args(
     tmpdir,  # type: Tempdir
     scie_assets_server,  # type: ServerInfo
     proxy,  # type: Proxy
@@ -98,6 +98,43 @@ def test_proxy(
                 "-o",
                 cowsay_scie,
             ],
+        ).assert_success()
+
+    assert b"| Moo! |" in subprocess.check_output(args=[cowsay_scie, "Moo!"])
+
+
+@skip_if_no_provider
+def test_proxy_env(
+    tmpdir,  # type: Tempdir
+    scie_assets_server,  # type: ServerInfo
+    proxy,  # type: Proxy
+):
+    # type: (...) -> None
+
+    pex_root = tmpdir.join("pex_root")
+    cowsay_scie = tmpdir.join("cowsay")
+    with proxy.run() as (port, cert):
+        proxy_url = "http://localhost:{port}".format(port=port)
+        run_pex_command(
+            args=[
+                "--pex-root",
+                pex_root,
+                "cowsay<6",
+                "-c",
+                "cowsay",
+                "--scie",
+                "eager",
+                "--scie-only",
+                "--scie-assets-base-url",
+                scie_assets_server.url,
+                "-o",
+                cowsay_scie,
+            ],
+            env=make_env(
+                http_proxy=proxy_url,
+                https_proxy=proxy_url,
+                SSL_CERT_FILE=cert,
+            ),
         ).assert_success()
 
     assert b"| Moo! |" in subprocess.check_output(args=[cowsay_scie, "Moo!"])

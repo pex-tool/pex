@@ -9,6 +9,9 @@ This release also fixes PEX scie creation to use either of `--proxy` or `--cert`
 building scies. Previously, these options were only honored when downloading the `science` binary
 itself but not when running it subsequently to build scies.
 
+Finally, PEX scies built on Windows for Linux or Mac now should work more often. That said, Windows
+is still not officially supported!
+
 * Add `--scie-assets-base-url` & honor `--{proxy,cert}`. (#2811)
 
 ## 2.44.0

@@ -60,6 +60,8 @@ def _ensure_mitmproxy_venv():
                         "pex.cli",
                         "venv",
                         "create",
+                        "--pip-version",
+                        "latest-compatible",
                         "--lock",
                         mitmproxy_lock,
                         "-d",
