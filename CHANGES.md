@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.45.1
+
+This release updates vendored Pip's vendored certifi's cacert.pem to that from certifi 2025.7.9.
+
+* Update vendored Pip's CA cert bundle. (#2816)
+
 ## 2.45.0
 
 This release adds support for `--scie-assets-base-url` if you've used `science download ...` to set
