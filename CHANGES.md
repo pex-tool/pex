@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.45.2
+
+This release fixes a long-standing temporary directory resource leak when running PEXes built with
+`--no-pre-install-wheels`.
+
+* Fix temp dir leak on boot of `--no-pre-install-wheels` PEX. (#2820)
+
 ## 2.45.1
 
 This release updates vendored Pip's vendored certifi's cacert.pem to that from certifi 2025.7.9.
