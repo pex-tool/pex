@@ -3,7 +3,6 @@
 
 from __future__ import absolute_import, print_function
 
-import atexit
 import contextlib
 import errno
 import itertools
@@ -22,6 +21,7 @@ from datetime import datetime
 from uuid import uuid4
 from zipfile import ZipFile, ZipInfo
 
+from pex import atexit
 from pex.enum import Enum
 from pex.executables import chmod_plus_x
 from pex.fs import safe_link, safe_rename, safe_symlink

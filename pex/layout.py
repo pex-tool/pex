@@ -493,7 +493,9 @@ class _ZipAppPEX(_Layout):
 
     def wheel_file_path(self, dist_relpath_components):
         # type: (Tuple[str, ...]) -> str
-        extract_chroot = safe_mkdtemp()
+        extract_chroot = safe_mkdtemp(
+            prefix="pex-whl-install.", suffix=".{name}".format(name=dist_relpath_components[-1])
+        )
         self.zfp.extract("/".join(dist_relpath_components), extract_chroot)
         return os.path.join(extract_chroot, *dist_relpath_components)
 

@@ -58,15 +58,23 @@ if WINDOWS:
 
     def safe_execv(argv):
         # type: (Union[List[str], Tuple[str, ...]]) -> NoReturn
+
         import subprocess
         import sys
 
+        from pex import atexit
+
+        atexit.perform_exit()
         sys.exit(subprocess.call(args=argv))
 
 else:
 
     def safe_execv(argv):
         # type: (Union[List[str], Tuple[str, ...]]) -> NoReturn
+
+        from pex import atexit
+
+        atexit.perform_exit()
         os.execv(argv[0], argv)
 
 
