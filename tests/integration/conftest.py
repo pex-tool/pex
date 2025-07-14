@@ -5,15 +5,20 @@ from __future__ import absolute_import
 
 import glob
 import os
+import sys
 
 import pytest
+from _pytest.monkeypatch import MonkeyPatch
 
 from pex.atomic_directory import atomic_directory
+from pex.common import safe_mkdir, safe_rmtree
+from pex.compatibility import commonpath
 from pex.os import WINDOWS
 from pex.pip.version import PipVersion
 from pex.typing import TYPE_CHECKING
 from testing import make_env, run_pex_command, subprocess
 from testing.mitmproxy import Proxy
+from testing.pytest_utils.tmp import Tempdir
 
 if TYPE_CHECKING:
     from typing import Any, Callable
@@ -115,3 +120,26 @@ def clone(tmpdir):
         return project_dir
 
     return _clone
+
+
+@pytest.fixture
+def fake_system_tmp_dir(
+    tmpdir,  # type: Tempdir
+    monkeypatch,  # type: MonkeyPatch
+):
+    # type: (...) -> str
+
+    fake_system_tmp_dir = safe_mkdir(tmpdir.join("tmp"))
+    monkeypatch.setenv("TMPDIR", fake_system_tmp_dir)
+
+    tmpdir_path = (
+        subprocess.check_output(
+            args=[sys.executable, "-c", "import tempfile; print(tempfile.mkdtemp())"]
+        )
+        .decode("utf-8")
+        .strip()
+    )
+    safe_rmtree(tmpdir_path)
+    assert fake_system_tmp_dir == commonpath((fake_system_tmp_dir, tmpdir_path))
+
+    return fake_system_tmp_dir
