@@ -13,8 +13,7 @@ from pex import pex_warnings
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Dict, Iterator, Optional
-
+    from typing import Dict, Iterator, Optional, Tuple
 
 _FALLBACK = None  # type: Optional[str]
 
@@ -39,9 +38,10 @@ def can_write_dir(path):
 
 
 def ensure_writeable(raw_pex_root):
-    # type: (str) -> str
+    # type: (str) -> Tuple[str, bool]
 
     pex_root = os.path.realpath(os.path.expanduser(raw_pex_root))
+    is_fallback = False
     if not can_write_dir(pex_root):
         fallback = os.environ.pop("_PEX_ROOT_FALLBACK", None)
         if not fallback:
@@ -55,8 +55,9 @@ def ensure_writeable(raw_pex_root):
         )
         global _FALLBACK
         pex_root = _FALLBACK = fallback
+        is_fallback = True
         atexit.register(_cleanup_fallback)
-    return pex_root
+    return pex_root, is_fallback
 
 
 @contextmanager

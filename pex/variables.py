@@ -660,7 +660,9 @@ class Variables(object):
 
     @PEX_ROOT.validator
     def _ensure_writeable_pex_root(self, raw_pex_root):
-        writeable_pex_root = self._environ["PEX_ROOT"] = pex_root.ensure_writeable(raw_pex_root)
+        writeable_pex_root, is_fallback = pex_root.ensure_writeable(raw_pex_root)
+        if is_fallback:
+            self._environ["PEX_ROOT"] = writeable_pex_root
         return writeable_pex_root
 
     @property

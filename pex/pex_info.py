@@ -509,9 +509,9 @@ class PexInfo(object):
     @property
     def pex_root(self):
         # type: () -> str
-        writeable_pex_root = self._pex_info["pex_root"] = pex_root.ensure_writeable(
-            self.raw_pex_root
-        )
+        writeable_pex_root, is_fallback = pex_root.ensure_writeable(self.raw_pex_root)
+        if is_fallback:
+            self._pex_info["pex_root"] = writeable_pex_root
         return writeable_pex_root
 
     @pex_root.setter
