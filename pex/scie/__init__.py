@@ -275,6 +275,19 @@ def register_options(parser):
             "with `ptex`, `scie-jump` and science interpreter providers."
         ),
     )
+    parser.add_argument(
+        "--scie-base",
+        dest="scie_base",
+        default=None,
+        type=str,
+        help=(
+            "A custom SCIE_BASE to use at runtime to unpack the Pex scie to. The scie-jump default "
+            "scie base is normally used (`~/.cache/nce` on Linux, `~/Library/Caches/nce` on Mac "
+            "and `~\\AppData\\Local\\nce` on Windows) or else the `scie-base` subdirectory of "
+            "`--runtime-pex-root` if that is set. If `--scie-base` is set, it overrides all of "
+            "these defaults."
+        ),
+    )
 
 
 def render_options(options):
@@ -316,6 +329,9 @@ def render_options(options):
     if options.assets_base_url:
         args.append("--scie-assets-base-url")
         args.append(options.assets_base_url)
+    if options.base:
+        args.append("--scie-base")
+        args.append(options.base)
     return " ".join(args)
 
 
@@ -408,6 +424,7 @@ def extract_options(options):
         hash_algorithms=tuple(options.scie_hash_algorithms),
         science_binary=science_binary,
         assets_base_url=assets_base_url,
+        base=options.scie_base,
     )
 
 

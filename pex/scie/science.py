@@ -234,7 +234,7 @@ def create_manifests(
     if configuration.options.assets_base_url:
         scie_jump_config["base_url"] = "/".join((configuration.options.assets_base_url, "jump"))
 
-    lift = {
+    lift_template = {
         "name": name,
         "scie_jump": scie_jump_config,
         "files": [
@@ -244,7 +244,7 @@ def create_manifests(
     }  # type: Dict[str, Any]
 
     if configuration.options.style is ScieStyle.LAZY:
-        ptex_config = lift["ptex"] = {
+        ptex_config = lift_template["ptex"] = {
             "id": Filenames.PTEX.name,
             "version": PTEX_VERSION,
             "argv1": "{scie.env.PEX_BOOTSTRAP_URLS={scie.lift}}",
@@ -269,6 +269,13 @@ def create_manifests(
 
     configure_binding_args = [Filenames.PEX.placeholder, Filenames.CONFIGURE_BINDING.placeholder]
     for interpreter in configuration.interpreters:
+        lift = lift_template.copy()
+
+        if configuration.options.base:
+            lift["base"] = configuration.options.base
+        elif pex_info.pex_root:
+            lift["base"] = interpreter.platform.os.path_join(pex_info.pex_root, "scie-base")
+
         manifest_path = os.path.join(
             safe_mkdtemp(),
             interpreter.platform.qualified_file_name("{name}-lift.toml".format(name=name)),
