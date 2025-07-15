@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.45.4
+
+This release follows up on 2.45.3 to ensure `--venv` PEXes too participate in temporary `PEX_ROOT`
+cleanup. Previously these leaked the temporary `PEX_ROOT`.
+
+* Fix `--venv` PEXes to clean fallback `PEX_ROOT`. (#2826)
+
 ## 2.45.3
 
 This release fixes a bug introduced in 2.45.2 by #2820 that would cause a temporary `PEX_ROOT` (

@@ -196,6 +196,8 @@ def boot(
             "PEX_BOOTSTRAP_URLS",
             # This is used to support `pex3 cache {prune,purge}`.
             "_PEX_CACHE_ACCESS_LOCK",
+            # This is used to support cleanup of temporary PEX_ROOTs on exit.
+            "_PEX_ROOT_FALLBACK",
         )
     ]
     if ignored_pex_env_vars:
