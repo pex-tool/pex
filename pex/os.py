@@ -6,6 +6,7 @@ from __future__ import absolute_import
 import os
 import sys
 
+from pex import pex_root
 from pex.enum import Enum
 from pex.typing import TYPE_CHECKING
 
@@ -65,7 +66,8 @@ if WINDOWS:
         from pex import atexit
 
         atexit.perform_exit()
-        sys.exit(subprocess.call(args=argv))
+        with pex_root.preserve_fallback():
+            sys.exit(subprocess.call(args=argv))
 
 else:
 
@@ -75,7 +77,8 @@ else:
         from pex import atexit
 
         atexit.perform_exit()
-        os.execv(argv[0], argv)
+        with pex_root.preserve_fallback() as env:
+            os.execve(argv[0], argv, env)
 
 
 if WINDOWS:

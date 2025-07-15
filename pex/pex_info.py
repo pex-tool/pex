@@ -7,9 +7,9 @@ import json
 import os
 import zipfile
 
-from pex import layout, pex_warnings, variables
+from pex import layout, pex_root, pex_warnings, variables
 from pex.cache import root as cache_root
-from pex.common import can_write_dir, open_zip, safe_mkdtemp
+from pex.common import open_zip
 from pex.compatibility import PY2
 from pex.compatibility import string as compatibility_string
 from pex.inherit_path import InheritPath
@@ -509,16 +509,10 @@ class PexInfo(object):
     @property
     def pex_root(self):
         # type: () -> str
-        pex_root = os.path.realpath(os.path.expanduser(self.raw_pex_root))
-        if not can_write_dir(pex_root):
-            tmp_root = os.path.realpath(safe_mkdtemp())
-            pex_warnings.warn(
-                "PEX_ROOT is configured as {pex_root} but that path is un-writeable, "
-                "falling back to a temporary PEX_ROOT of {tmp_root} which will hurt "
-                "performance.".format(pex_root=pex_root, tmp_root=tmp_root)
-            )
-            pex_root = self._pex_info["pex_root"] = tmp_root
-        return pex_root
+        writeable_pex_root, is_fallback = pex_root.ensure_writeable(self.raw_pex_root)
+        if is_fallback:
+            self._pex_info["pex_root"] = writeable_pex_root
+        return writeable_pex_root
 
     @pex_root.setter
     def pex_root(self, value):

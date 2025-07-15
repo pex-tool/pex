@@ -10,7 +10,6 @@ import pytest
 from pex.common import (
     Chroot,
     ZipFileEx,
-    can_write_dir,
     deterministic_walk,
     open_zip,
     safe_open,
@@ -247,32 +246,6 @@ def test_deterministic_walk():
             (dir_b, [], ["file_b"]),
         ], "Modifying dirs should not affect the order of the walk"
         assert result_a == result_b, "Should be resilient to os.walk yielding in arbitrary order"
-
-
-def test_can_write_dir_writeable_perms():
-    # type: () -> None
-    with temporary_dir() as writeable:
-        assert can_write_dir(writeable)
-
-        path = os.path.join(writeable, "does/not/exist/yet")
-        assert can_write_dir(path)
-        touch(path)
-        assert not can_write_dir(path), "Should not be able to write to a file."
-
-
-def test_can_write_dir_unwriteable_perms():
-    # type: () -> None
-    with temporary_dir() as writeable:
-        no_perms_path = os.path.join(writeable, "no_perms")
-        os.mkdir(no_perms_path, 0o444)
-        assert not can_write_dir(no_perms_path)
-
-        path_that_does_not_exist_yet = os.path.join(no_perms_path, "does/not/exist/yet")
-        assert not can_write_dir(path_that_does_not_exist_yet)
-
-        os.chmod(no_perms_path, 0o744)
-        assert can_write_dir(no_perms_path)
-        assert can_write_dir(path_that_does_not_exist_yet)
 
 
 @pytest.fixture

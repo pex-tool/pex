@@ -14,8 +14,8 @@ import sys
 from contextlib import contextmanager
 from textwrap import dedent
 
-from pex import pex_warnings
-from pex.common import can_write_dir, die, safe_mkdtemp
+from pex import pex_root, pex_warnings
+from pex.common import die
 from pex.inherit_path import InheritPath
 from pex.orderedset import OrderedSet
 from pex.typing import TYPE_CHECKING, Generic, overload
@@ -660,16 +660,10 @@ class Variables(object):
 
     @PEX_ROOT.validator
     def _ensure_writeable_pex_root(self, raw_pex_root):
-        pex_root = os.path.realpath(os.path.expanduser(raw_pex_root))
-        if not can_write_dir(pex_root):
-            tmp_root = os.path.realpath(safe_mkdtemp())
-            pex_warnings.warn(
-                "PEX_ROOT is configured as {pex_root} but that path is un-writeable, "
-                "falling back to a temporary PEX_ROOT of {tmp_root} which will hurt "
-                "performance.".format(pex_root=pex_root, tmp_root=tmp_root)
-            )
-            pex_root = self._environ["PEX_ROOT"] = tmp_root
-        return pex_root
+        writeable_pex_root, is_fallback = pex_root.ensure_writeable(raw_pex_root)
+        if is_fallback:
+            self._environ["PEX_ROOT"] = writeable_pex_root
+        return writeable_pex_root
 
     @property
     def PEX_PATH(self):

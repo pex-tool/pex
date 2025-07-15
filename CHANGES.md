@@ -1,5 +1,13 @@
 # Release Notes
 
+## 2.45.3
+
+This release fixes a bug introduced in 2.45.2 by #2820 that would cause a temporary `PEX_ROOT` (
+these are created when the default `PEX_ROOT` directory is not writeable) to be cleaned up too
+early, leading to PEX boot failures.
+
+* Do not clean fallback `PEX_ROOT` prematurely. (#2823)
+
 ## 2.45.2
 
 This release fixes a long-standing temporary directory resource leak when running PEXes built with
