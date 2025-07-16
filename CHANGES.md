@@ -1,5 +1,14 @@
 # Release Notes
 
+## 2.46.2
+
+This release updates vendored Pip's vendored certifi's cacert.pem to that from certifi 2025.7.14 and
+fixes the default scie base when `--runtime-pex-root` is used to be a `pex3 cache` managed
+directory.
+
+* Update vendored Pip's CA cert bundle. (#2831)
+* Re-organize default `--runtime-pex-root` scie base. (#2830)
+
 ## 2.46.1
 
 This release follows up on 2.45.3 to ensure `--venv` PEXes also participate in temporary `PEX_ROOT`
