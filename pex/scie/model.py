@@ -307,6 +307,7 @@ class ScieOptions(object):
     hash_algorithms = attr.ib(default=())  # type: Tuple[str, ...]
     science_binary = attr.ib(default=None)  # type: Optional[Union[File, Url]]
     assets_base_url = attr.ib(default=None)  # type: Optional[Url]
+    base = attr.ib(default=None)  # type: Optional[str]
 
     def create_configuration(self, targets):
         # type: (Targets) -> ScieConfiguration

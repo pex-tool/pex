@@ -36,7 +36,9 @@ class _CurrentOs(object):
 
 class Os(Enum["Os.Value"]):
     class Value(Enum.Value):
-        pass
+        def path_join(self, *components):
+            # type: (*str) -> str
+            return ("\\" if self is Os.WINDOWS else "/").join(components)
 
     LINUX = Value("linux")
     MACOS = Value("macos")
