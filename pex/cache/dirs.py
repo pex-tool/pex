@@ -7,7 +7,7 @@ import glob
 import os
 
 from pex.common import pluralize, safe_rmtree
-from pex.compatibility import safe_commonpath
+from pex.compatibility import safe_commonpath, string
 from pex.enum import Enum
 from pex.exceptions import production_assert
 from pex.orderedset import OrderedSet
@@ -63,7 +63,7 @@ class CacheDir(Enum["CacheDir.Value"]):
                 )
 
             pex_root = kwargs.pop("pex_root", ENV)
-            if not isinstance(pex_root, (str, Variables)):
+            if not isinstance(pex_root, string) and not isinstance(pex_root, Variables):
                 raise ValueError(
                     "The `pex_root` kwarg must be either a `str` or a `Variables` instance but "
                     "given {pex_root} of type {type}.".format(
