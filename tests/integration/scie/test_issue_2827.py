@@ -4,9 +4,9 @@
 from __future__ import absolute_import
 
 import json
-import os.path
 import subprocess
 
+from pex.cache.dirs import CacheDir
 from pex.compatibility import commonpath
 from testing import make_env, run_pex_command
 from testing.pytest_utils.tmp import Tempdir
@@ -50,7 +50,7 @@ def test_runtime_pex_root(tmpdir):
         args=["--scie", "eager", "--scie-only", "--runtime-pex-root", pex_root, "-o", scie]
     ).assert_success()
 
-    expected_scie_base = os.path.join(pex_root, "scie-base")
+    expected_scie_base = CacheDir.SCIES.path("base", pex_root=pex_root)
     assert_scie_base(scie, expected_scie_base)
 
 

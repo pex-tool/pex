@@ -274,7 +274,9 @@ def create_manifests(
         if configuration.options.base:
             lift["base"] = configuration.options.base
         elif pex_info.pex_root:
-            lift["base"] = interpreter.platform.os.path_join(pex_info.pex_root, "scie-base")
+            lift["base"] = CacheDir.SCIES.path(
+                "base", os=interpreter.platform.os, pex_root=pex_info.pex_root
+            )
 
         manifest_path = os.path.join(
             safe_mkdtemp(),

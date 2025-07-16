@@ -346,7 +346,7 @@ class Cache(OutputMixin, BuildTimeCommand):
             ):
                 disk_usages.append(disk_usage)
                 print(
-                    "{name}: {path}".format(name=cache_dir.name, path=cache_dir.rel_path), file=fp
+                    "{name}: {path}".format(name=cache_dir.name, path=cache_dir.rel_path()), file=fp
                 )
                 print(cache_dir.description, file=fp)
                 print(self._render_usage(disk_usage), file=fp)
@@ -461,7 +461,7 @@ class Cache(OutputMixin, BuildTimeCommand):
                     "{purging} requested entries from {pex_root}: {cache_dirs}".format(
                         purging="Would purge" if self.options.dry_run else "Purging",
                         pex_root=ENV.PEX_ROOT,
-                        cache_dirs=", ".join(cache_dir.rel_path for cache_dir in cache_dirs),
+                        cache_dirs=", ".join(cache_dir.rel_path() for cache_dir in cache_dirs),
                     ),
                     file=fp,
                 )
@@ -473,7 +473,7 @@ class Cache(OutputMixin, BuildTimeCommand):
                     print(
                         "{purging} those entries transitive dependents in: {dependents}".format(
                             purging="Would also purge" if self.options.dry_run else "Also purging",
-                            dependents=", ".join(dep.rel_path for dep in dependents),
+                            dependents=", ".join(dep.rel_path() for dep in dependents),
                         ),
                         file=fp,
                     )
@@ -510,7 +510,7 @@ class Cache(OutputMixin, BuildTimeCommand):
                     "{purged} cache {name} from {rel_path}".format(
                         purged="Would have purged" if self.options.dry_run else "Purged",
                         name=cache_dir.name,
-                        rel_path=cache_dir.rel_path,
+                        rel_path=cache_dir.rel_path(),
                     ),
                     file=fp,
                 )
