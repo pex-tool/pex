@@ -283,7 +283,7 @@ def register_options(parser):
         help=(
             "A custom SCIE_BASE to use at runtime to unpack the Pex scie to. The scie-jump default "
             "scie base is normally used (`~/.cache/nce` on Linux, `~/Library/Caches/nce` on Mac "
-            "and `~\\AppData\\Local\\nce` on Windows) or else the `scie-base` subdirectory of "
+            "and `~\\AppData\\Local\\nce` on Windows) or else a subdirectory of "
             "`--runtime-pex-root` if that is set. If `--scie-base` is set, it overrides all of "
             "these defaults."
         ),

@@ -6,12 +6,12 @@ from __future__ import absolute_import
 import glob
 import os
 
-from pex.common import safe_rmtree
-from pex.compatibility import safe_commonpath
+from pex.common import pluralize, safe_rmtree
+from pex.compatibility import safe_commonpath, string
 from pex.enum import Enum
 from pex.exceptions import production_assert
 from pex.orderedset import OrderedSet
-from pex.os import is_exe
+from pex.os import Os, is_exe
 from pex.typing import TYPE_CHECKING, cast
 from pex.variables import ENV, Variables
 
@@ -44,21 +44,43 @@ class CacheDir(Enum["CacheDir.Value"]):
             self.dependencies = tuple(dependencies)
             self.can_purge = can_purge
 
-        @property
-        def rel_path(self):
-            # type: () -> str
-            return os.path.join(self.value, str(self.version))
+        def rel_path(self, operating_system=Os.CURRENT):
+            # type: (Os.Value) -> str
+            return operating_system.path_join(self.value, str(self.version))
 
         def path(
             self,
             *subdirs,  # type: str
-            **kwargs  # type: Union[str, Variables]
+            **kwargs  # type: Any
         ):
             # type: (...) -> str
-            pex_root = kwargs.get("pex_root", ENV)
-            return os.path.join(
+            operating_system = kwargs.pop("os", Os.CURRENT)
+            if not isinstance(operating_system, Os.Value):
+                raise ValueError(
+                    "The `os` kwarg must be an `Os.Value` but given {os} of type {type}.".format(
+                        os=operating_system, type=type(operating_system)
+                    )
+                )
+
+            pex_root = kwargs.pop("pex_root", ENV)
+            if not isinstance(pex_root, string) and not isinstance(pex_root, Variables):
+                raise ValueError(
+                    "The `pex_root` kwarg must be either a `str` or a `Variables` instance but "
+                    "given {pex_root} of type {type}.".format(
+                        pex_root=pex_root, type=type(pex_root)
+                    )
+                )
+
+            if kwargs:
+                raise TypeError(
+                    "Unexpected {kwargs}: {values}".format(
+                        kwargs=pluralize(kwargs, "kwarg"), values=kwargs
+                    )
+                )
+
+            return operating_system.path_join(
                 pex_root.PEX_ROOT if isinstance(pex_root, Variables) else pex_root,
-                self.rel_path,
+                self.rel_path(operating_system),
                 *subdirs
             )
 
@@ -150,7 +172,7 @@ class CacheDir(Enum["CacheDir.Value"]):
         name="Packed Wheels",
         description=(
             "The same content as {installed_wheels!r}, but zipped up for `--layout packed` "
-            "PEXes.".format(installed_wheels=INSTALLED_WHEELS.rel_path)
+            "PEXes.".format(installed_wheels=INSTALLED_WHEELS.rel_path())
         ),
     )
 
