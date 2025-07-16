@@ -345,6 +345,14 @@ def install_scripts(
                     entry_point = getattr(entry_point, attr)
 
                 if __name__ == "__main__":
+                    import os
+                    pex_root_fallback = os.environ.get("_PEX_ROOT_FALLBACK")
+                    if pex_root_fallback:
+                        import atexit
+                        import shutil
+
+                        atexit.register(shutil.rmtree, pex_root_fallback, True)
+
                     sys.exit(entry_point())
                 """
             ).format(shebang=shebang, modname=entry_point.module, attrs=entry_point.attrs)
@@ -357,6 +365,14 @@ def install_scripts(
                 import sys
 
                 if __name__ == "__main__":
+                    import os
+                    pex_root_fallback = os.environ.get("_PEX_ROOT_FALLBACK")
+                    if pex_root_fallback:
+                        import atexit
+                        import shutil
+
+                        atexit.register(shutil.rmtree, pex_root_fallback, True)
+
                     runpy.run_module({modname!r}, run_name="__main__", alter_sys=True)
                     sys.exit(0)
                 """

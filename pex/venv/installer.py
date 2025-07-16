@@ -614,6 +614,14 @@ def _populate_first_party(
 
 
                 if __name__ == "__main__":
+                    import os
+                    pex_root_fallback = os.environ.get("_PEX_ROOT_FALLBACK")
+                    if pex_root_fallback:
+                        import atexit
+                        import shutil
+
+                        atexit.register(shutil.rmtree, pex_root_fallback, True)
+
                     boot(
                         shebang_python={shebang_python!r},
                         venv_bin_dir={venv_bin_dir!r},
