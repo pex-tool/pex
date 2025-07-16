@@ -12,7 +12,7 @@ cleanup. Previously these leaked the temporary `PEX_ROOT`.
 This release adds support for setting a custom `--scie-base` when building PEX scies. The default
 scie base is the same as used by the scie-jump natively; e.g. `~/.cache/nce` on Linux. When
 specifying a custom `--runtime-pex-root`, the scie base now will live under it in the `scie-base`
-directory. To specify a custom scie base, `--scie-base` can be used and it will trump all these
+directory. To specify a custom scie base, `--scie-base` can be used, and it will trump all these
 defaults.
 
 * Add `--scie-base` to control the PEX scie cache dir. (#2828)
