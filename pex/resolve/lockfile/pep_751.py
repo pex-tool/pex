@@ -616,9 +616,15 @@ class ParseContext(object):
         )
 
 
-# Not frozen to support cyclic dependencies in the dependency graph.
-@attr.s(eq=False)
+@attr.s(frozen=True)
+class Dependency(object):
+    index = attr.ib()  # type: int
+    project_name = attr.ib()  # type: ProjectName
+
+
+@attr.s(frozen=True)
 class Package(object):
+    index = attr.ib()  # type: int
     project_name = attr.ib()  # type: ProjectName
     artifact = (
         attr.ib()
@@ -627,8 +633,12 @@ class Package(object):
     version = attr.ib(default=None)  # type: Optional[Version]
     requires_python = attr.ib(default=None)  # type: Optional[SpecifierSet]
     marker = attr.ib(default=None)  # type: Optional[Marker]
-    dependencies = attr.ib(default=None)  # type: Optional[Tuple[Package, ...]]
+    dependencies = attr.ib(default=None)  # type: Optional[Tuple[Dependency, ...]]
     additional_wheels = attr.ib(default=())  # type: Tuple[FileArtifact, ...]
+
+    def as_dependency(self):
+        # type: () -> Dependency
+        return Dependency(index=self.index, project_name=self.project_name)
 
     @property
     def artifact_is_wheel(self):
@@ -719,36 +729,6 @@ class Package(object):
                 )
 
         return "{spec} {artifacts}".format(spec=spec, artifacts=artifacts)
-    
-    def __eq__(self, other):
-        # type: (Any) -> bool
-        if not isinstance(other, Package):
-            return False
-        return (
-            self.project_name == other.project_name
-            and self.artifact == other.artifact
-            and self.artifact_is_archive == other.artifact_is_archive
-            and self.version == other.version
-            and self.requires_python == other.requires_python
-            and self.marker == other.marker
-            and self.dependencies == other.dependencies
-            and self.additional_wheels == other.additional_wheels
-        )
-    
-    def __hash__(self):
-        # type: () -> int
-        # Hash based on immutable identity fields
-        return hash((
-            self.project_name,
-            self.artifact,
-            self.artifact_is_archive,
-            self.version,
-            self.requires_python,
-            self.marker,
-            # Don't hash dependencies of dependencies to avoid cycles.
-            tuple((dep.project_name, dep.version, dep.marker) for dep in self.dependencies or ()),
-            self.additional_wheels,
-        ))
 
 
 @attr.s(frozen=True)
@@ -847,7 +827,6 @@ class PackageParser(object):
     source = attr.ib()  # type: str
 
     parsed_packages_by_index = attr.ib(factory=dict)  # type: Dict[int, Package]
-    dependency_indices = attr.ib(factory=lambda: defaultdict(list))  # type: DefaultDict[int, List[int]]
 
     @staticmethod
     def get_fingerprint(parse_context):
@@ -911,6 +890,8 @@ class PackageParser(object):
         raw_requires_python = parse_context.get_string("requires-python", default="")
         requires_python = SpecifierSet(raw_requires_python) if raw_requires_python else None
 
+        dependencies = []  # type: List[Dependency]
+
         dep_parse_contexts = parse_context.get_array_of_tables(
             "dependencies", default=[], diagnostic_key="name"
         )
@@ -949,8 +930,7 @@ class PackageParser(object):
                         ),
                     )
                 )
-            # Store the dependency index for later resolution
-            self.dependency_indices[index].append(deps[0].index)
+            dependencies.append(Dependency(index=deps[0].index, project_name=dep_name))
 
         vcs_parse_context = parse_context.get_table("vcs", default={})
         directory_parse_context = parse_context.get_table("directory", default={})
@@ -1120,13 +1100,14 @@ class PackageParser(object):
             return parse_context.error("Package must define an artifact.")
 
         package = Package(
+            index=index,
             project_name=project_name,
             artifact=artifact,
             artifact_is_archive=bool(archive_parse_context),
             version=version,
             requires_python=requires_python,
             marker=marker,
-            dependencies=None,  # Will be resolved in a second pass
+            dependencies=tuple(dependencies) if dependencies is not None else None,
             additional_wheels=tuple(additional_wheels),
         )
         self.parsed_packages_by_index[index] = package
@@ -1298,13 +1279,15 @@ class ResolvedPackages(object):
     def resolve_roots(self):
         # type: () -> Iterable[Package]
 
-        dependants_by_package = defaultdict(list)  # type: DefaultDict[Package, List[Package]]
+        dependants_by_package_index = defaultdict(list)  # type: DefaultDict[int, List[Package]]
         for package in self.packages:
             if package.dependencies:
                 for dependency in package.dependencies:
-                    dependants_by_package[dependency].append(package)
+                    dependants_by_package_index[dependency.index].append(package)
 
-        return tuple(package for package in self.packages if not dependants_by_package[package])
+        return tuple(
+            package for package in self.packages if not dependants_by_package_index[package.index]
+        )
 
 
 @attr.s(frozen=True)
@@ -1365,17 +1348,6 @@ class Pylock(object):
                     )
                 )
             packages.append(package)
-
-        # Second pass: Resolve dependencies based on stored indices
-        for pkg_index, dep_indices in package_parser.dependency_indices.items():
-                package = package_parser.parsed_packages_by_index[pkg_index]
-                dependencies = []
-                for dep_index in dep_indices:
-                    dep_package = package_parser.parsed_packages_by_index.get(dep_index)
-                    if dep_package:
-                        dependencies.append(dep_package)
-                # Update package dependencies in place
-            package.dependencies = tuple(dependencies) if dependencies else None
 
         return cls(
             lock_version=lock_version,
