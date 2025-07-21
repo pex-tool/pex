@@ -617,7 +617,14 @@ class ParseContext(object):
 
 
 @attr.s(frozen=True)
+class Dependency(object):
+    index = attr.ib()  # type: int
+    project_name = attr.ib()  # type: ProjectName
+
+
+@attr.s(frozen=True)
 class Package(object):
+    index = attr.ib()  # type: int
     project_name = attr.ib()  # type: ProjectName
     artifact = (
         attr.ib()
@@ -626,8 +633,12 @@ class Package(object):
     version = attr.ib(default=None)  # type: Optional[Version]
     requires_python = attr.ib(default=None)  # type: Optional[SpecifierSet]
     marker = attr.ib(default=None)  # type: Optional[Marker]
-    dependencies = attr.ib(default=None)  # type: Optional[Tuple[Package, ...]]
+    dependencies = attr.ib(default=None)  # type: Optional[Tuple[Dependency, ...]]
     additional_wheels = attr.ib(default=())  # type: Tuple[FileArtifact, ...]
+
+    def as_dependency(self):
+        # type: () -> Dependency
+        return Dependency(index=self.index, project_name=self.project_name)
 
     @property
     def artifact_is_wheel(self):
@@ -879,7 +890,7 @@ class PackageParser(object):
         raw_requires_python = parse_context.get_string("requires-python", default="")
         requires_python = SpecifierSet(raw_requires_python) if raw_requires_python else None
 
-        dependencies = []  # type: List[Package]
+        dependencies = []  # type: List[Dependency]
 
         dep_parse_contexts = parse_context.get_array_of_tables(
             "dependencies", default=[], diagnostic_key="name"
@@ -919,7 +930,7 @@ class PackageParser(object):
                         ),
                     )
                 )
-            dependencies.append(try_(self.parse(deps[0])))
+            dependencies.append(Dependency(index=deps[0].index, project_name=dep_name))
 
         vcs_parse_context = parse_context.get_table("vcs", default={})
         directory_parse_context = parse_context.get_table("directory", default={})
@@ -1089,6 +1100,7 @@ class PackageParser(object):
             return parse_context.error("Package must define an artifact.")
 
         package = Package(
+            index=index,
             project_name=project_name,
             artifact=artifact,
             artifact_is_archive=bool(archive_parse_context),
@@ -1267,13 +1279,15 @@ class ResolvedPackages(object):
     def resolve_roots(self):
         # type: () -> Iterable[Package]
 
-        dependants_by_package = defaultdict(list)  # type: DefaultDict[Package, List[Package]]
+        dependants_by_package_index = defaultdict(list)  # type: DefaultDict[int, List[Package]]
         for package in self.packages:
             if package.dependencies:
                 for dependency in package.dependencies:
-                    dependants_by_package[dependency].append(package)
+                    dependants_by_package_index[dependency.index].append(package)
 
-        return tuple(package for package in self.packages if not dependants_by_package[package])
+        return tuple(
+            package for package in self.packages if not dependants_by_package_index[package.index]
+        )
 
 
 @attr.s(frozen=True)

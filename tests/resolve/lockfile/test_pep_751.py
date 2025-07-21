@@ -674,10 +674,10 @@ def test_pylock_parse_dependencies():
     package_D = packages_by_project_name.pop(ProjectName("D"))
     package_E = packages_by_project_name.pop(ProjectName("E"))
     assert not packages_by_project_name
-    assert (package_B, package_E) == package_A.dependencies
-    assert tuple([package_C]) == package_B.dependencies
+    assert (package_B.as_dependency(), package_E.as_dependency()) == package_A.dependencies
+    assert tuple([package_C.as_dependency()]) == package_B.dependencies
     assert not package_C.dependencies
-    assert tuple([package_E]) == package_D.dependencies
+    assert tuple([package_E.as_dependency()]) == package_D.dependencies
     assert not package_E.dependencies
 
 
@@ -805,3 +805,34 @@ def test_pylock_parse_errors(tmpdir):
             """
         ),
     )
+
+
+def test_pylock_parse_cyclic_dependencies():
+    # type: () -> None
+
+    pylock = parse_lock(
+        dedent(
+            """\
+            [[packages]]
+            name = "A"
+            version = "1"
+            dependencies = [{ name = "B", version = "2" }]
+            sdist = { url = "https://example.org/A.1.tar.gz", hashes = { sha256 = "123" } }
+
+            [[packages]]
+            name = "B"
+            version = "2"
+            dependencies = [{ name = "A", version = "1" }]
+            sdist = { url = "https://example.org/B.2.tar.gz", hashes = { sha256 = "456" } }
+            """
+        ),
+        expected_package_count=2,
+    )
+
+    packages_by_project_name = {package.project_name: package for package in pylock.packages}
+    package_a = packages_by_project_name[ProjectName("A")]
+    package_b = packages_by_project_name[ProjectName("B")]
+
+    # The cyclic dependencies should be preserved
+    assert tuple([package_b.as_dependency()]) == package_a.dependencies
+    assert tuple([package_a.as_dependency()]) == package_b.dependencies
