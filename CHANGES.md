@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.46.3
+
+This release brings a fix from @pimdh for `--pylock` handling that allows Pex to work with
+`pylock.toml` locks containing dependency cycles.
+
+* Handle cyclic dependencies in pylock.toml (#2835)
+
 ## 2.46.2
 
 This release updates vendored Pip's vendored certifi's cacert.pem to that from certifi 2025.7.14 and
