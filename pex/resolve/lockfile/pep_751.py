@@ -616,7 +616,8 @@ class ParseContext(object):
         )
 
 
-@attr.s(frozen=True)
+# Not frozen to support cyclic dependencies in the dependency graph.
+@attr.s(eq=False)
 class Package(object):
     project_name = attr.ib()  # type: ProjectName
     artifact = (
@@ -718,6 +719,36 @@ class Package(object):
                 )
 
         return "{spec} {artifacts}".format(spec=spec, artifacts=artifacts)
+    
+    def __eq__(self, other):
+        # type: (Any) -> bool
+        if not isinstance(other, Package):
+            return False
+        return (
+            self.project_name == other.project_name
+            and self.artifact == other.artifact
+            and self.artifact_is_archive == other.artifact_is_archive
+            and self.version == other.version
+            and self.requires_python == other.requires_python
+            and self.marker == other.marker
+            and self.dependencies == other.dependencies
+            and self.additional_wheels == other.additional_wheels
+        )
+    
+    def __hash__(self):
+        # type: () -> int
+        # Hash based on immutable identity fields
+        return hash((
+            self.project_name,
+            self.artifact,
+            self.artifact_is_archive,
+            self.version,
+            self.requires_python,
+            self.marker,
+            # Don't hash dependencies of dependencies to avoid cycles.
+            tuple((dep.project_name, dep.version, dep.marker) for dep in self.dependencies or ()),
+            self.additional_wheels,
+        ))
 
 
 @attr.s(frozen=True)
@@ -816,6 +847,7 @@ class PackageParser(object):
     source = attr.ib()  # type: str
 
     parsed_packages_by_index = attr.ib(factory=dict)  # type: Dict[int, Package]
+    dependency_indices = attr.ib(factory=lambda: defaultdict(list))  # type: DefaultDict[int, List[int]]
 
     @staticmethod
     def get_fingerprint(parse_context):
@@ -879,8 +911,6 @@ class PackageParser(object):
         raw_requires_python = parse_context.get_string("requires-python", default="")
         requires_python = SpecifierSet(raw_requires_python) if raw_requires_python else None
 
-        dependencies = []  # type: List[Package]
-
         dep_parse_contexts = parse_context.get_array_of_tables(
             "dependencies", default=[], diagnostic_key="name"
         )
@@ -919,7 +949,8 @@ class PackageParser(object):
                         ),
                     )
                 )
-            dependencies.append(try_(self.parse(deps[0])))
+            # Store the dependency index for later resolution
+            self.dependency_indices[index].append(deps[0].index)
 
         vcs_parse_context = parse_context.get_table("vcs", default={})
         directory_parse_context = parse_context.get_table("directory", default={})
@@ -1095,7 +1126,7 @@ class PackageParser(object):
             version=version,
             requires_python=requires_python,
             marker=marker,
-            dependencies=tuple(dependencies) if dependencies is not None else None,
+            dependencies=None,  # Will be resolved in a second pass
             additional_wheels=tuple(additional_wheels),
         )
         self.parsed_packages_by_index[index] = package
@@ -1334,6 +1365,17 @@ class Pylock(object):
                     )
                 )
             packages.append(package)
+
+        # Second pass: Resolve dependencies based on stored indices
+        for pkg_index, dep_indices in package_parser.dependency_indices.items():
+                package = package_parser.parsed_packages_by_index[pkg_index]
+                dependencies = []
+                for dep_index in dep_indices:
+                    dep_package = package_parser.parsed_packages_by_index.get(dep_index)
+                    if dep_package:
+                        dependencies.append(dep_package)
+                # Update package dependencies in place
+            package.dependencies = tuple(dependencies) if dependencies else None
 
         return cls(
             lock_version=lock_version,

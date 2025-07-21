@@ -805,3 +805,35 @@ def test_pylock_parse_errors(tmpdir):
             """
         ),
     )
+
+
+def test_pylock_parse_cyclic_dependencies():
+    # type: () -> None
+    
+    pylock = parse_lock(
+        dedent(
+            """\
+            [[packages]]
+            name = "A"
+            version = "1"
+            dependencies = [{ name = "B", version = "2" }]
+                url = "https://example.org/Foo-1.2.3.tar.gz"
+            sdist = { url = "https://example.org/A.1.tar.gz", hashes = { sha256 = "123" } }
+
+            [[packages]]
+            name = "B"
+            version = "2"
+            dependencies = [{ name = "A", version = "1" }]
+            sdist = { url = "https://example.org/B.2.tar.gz", hashes = { sha256 = "456" } }
+            """
+        ),
+        expected_package_count=2,
+    )
+    
+    packages_by_project_name = {package.project_name: package for package in pylock.packages}
+    package_a = packages_by_project_name[ProjectName("A")]
+    package_b = packages_by_project_name[ProjectName("B")]
+    
+    # The cyclic dependencies should be preserved
+    assert package_a.dependencies == (package_b, )
+    assert package_b.dependencies == (package_a,)
