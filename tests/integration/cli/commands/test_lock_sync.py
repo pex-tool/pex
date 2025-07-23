@@ -49,6 +49,7 @@ from testing import (
 )
 from testing.cli import run_pex3
 from testing.find_links import FindLinksRepo
+from testing.pytest_utils.tmp import Tempdir
 
 if TYPE_CHECKING:
     from typing import Any, Dict, Iterable, List, Mapping, Optional, Union
@@ -1373,17 +1374,50 @@ def test_sync_strict_to_sources(tmpdir):
     ), "Expected the `--style sources` lock to contain an sdist"
 
 
-def test_sync_universal_to_universal(tmpdir):
-    # type: (Any) -> None
+def test_sync_universal_to_universal(
+    tmpdir,  # type: Tempdir
+    py39,  # type: PythonInterpreter
+    py310,  # type: PythonInterpreter
+):
+    # type: (...) -> None
 
     # Make sure we can change ICs to migrate to a new Python version with a sync.
 
-    lock = os.path.join(str(tmpdir), "lock.json")
+    lock = tmpdir.join("lock.json")
     run_pex3(
         "lock",
         "sync",
         "--style",
         "universal",
+        "--python-path",
+        py39.binary,
+        "--interpreter-constraint",
+        "CPython==3.9.*",
+        "p537==1.0.8",
+        "--indent",
+        "2",
+        "--lock",
+        lock,
+    ).assert_success()
+    p537_py39 = assert_p537_lock(
+        lock,
+        LockStyle.UNIVERSAL,
+        expected_requires_python="CPython==3.9.*",
+        expected_python_tag="cp39",
+        expected_abi_tag="cp39",
+    )
+
+    # We expect a wheel each for Linux, Mac and Windows as well as an sdist.
+    assert len(p537_py39.artifacts_by_tag) == 4
+    p537_py39_sdist = p537_py39.artifacts_by_tag[None]
+
+    run_pex3(
+        "lock",
+        "sync",
+        "--style",
+        "universal",
+        "--python-path",
+        py310.binary,
         "--interpreter-constraint",
         "CPython==3.10.*",
         "p537==1.0.8",
@@ -1399,34 +1433,9 @@ def test_sync_universal_to_universal(tmpdir):
         expected_python_tag="cp310",
         expected_abi_tag="cp310",
     )
-
-    # We expect a wheel each for Linux, Mac and Windows as well as an sdist.
+    assert p537_py39.pin == p537_py310.pin
     assert len(p537_py310.artifacts_by_tag) == 4
-    p537_py310_sdist = p537_py310.artifacts_by_tag[None]
-
-    run_pex3(
-        "lock",
-        "sync",
-        "--style",
-        "universal",
-        "--interpreter-constraint",
-        "CPython==3.11.*",
-        "p537==1.0.8",
-        "--indent",
-        "2",
-        "--lock",
-        lock,
-    ).assert_success()
-    p537_py311 = assert_p537_lock(
-        lock,
-        LockStyle.UNIVERSAL,
-        expected_requires_python="CPython==3.11.*",
-        expected_python_tag="cp311",
-        expected_abi_tag="cp311",
-    )
-    assert p537_py310.pin == p537_py311.pin
-    assert len(p537_py311.artifacts_by_tag) == 4
-    assert p537_py310_sdist == p537_py311.artifacts_by_tag[None]
+    assert p537_py39_sdist == p537_py310.artifacts_by_tag[None]
 
 
 @pytest.mark.skipif(PY_VER < (3, 6), reason="The shiv 1.0.5 release requires Python >=3.6.")
