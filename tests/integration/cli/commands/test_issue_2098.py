@@ -50,6 +50,8 @@ def test_missing_download_lock_analysis_handling(
     run_pex3(
         "lock",
         "create",
+        "--python-path",
+        py310.binary,
         "--interpreter-constraint",
         "==3.10.*",
         "--style",
