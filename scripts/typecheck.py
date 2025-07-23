@@ -82,7 +82,7 @@ def main() -> None:
             exclude_files=[vendor_main],
         )
     )
-    for python_version in ("3.13", "3.5", "2.7"):
+    for python_version in ("3.14", "3.5", "2.7"):
         run_mypy(python_version, files=source_and_tests)
 
 

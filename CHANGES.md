@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.47.0
+
+Support for Python PI. Pex started testing against Python 3.14 on October 26th, 2024 and now
+officially advertises support with the 3.14.0rc1 release candidate just published.
+
+* Support Python PI. (#2838)
+
 ## 2.46.3
 
 This release brings a fix from @pimdh for `--pylock` handling that allows Pex to work with
