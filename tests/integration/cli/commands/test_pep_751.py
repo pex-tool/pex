@@ -206,8 +206,8 @@ def pin(
     return Pin(project_name=ProjectName(project_name), version=Version(version))
 
 
-def iter_expected_devpi_server_deps():
-    # type: () -> Iterator[Pin]
+def iter_expected_devpi_server_deps(interpreter):
+    # type: (PythonInterpreter) -> Iterator[Pin]
 
     yield pin("anyio", "4.4.0")
     yield pin("argon2-cffi", "23.1.0")
@@ -220,7 +220,7 @@ def iter_expected_devpi_server_deps():
     yield pin("devpi-common", "4.0.4")
     yield pin("devpi-server", "6.12.1")
 
-    if sys.version_info[:2] < (3, 11):
+    if interpreter.version[:2] < (3, 11):
         yield pin("exceptiongroup", "1.2.2")
 
     yield pin("h11", "0.14.0")
@@ -231,7 +231,7 @@ def iter_expected_devpi_server_deps():
     yield pin("itsdangerous", "2.2.0")
     yield pin("lazy", "1.6")
 
-    if sys.version_info[:2] >= (3, 13):
+    if interpreter.version[:2] >= (3, 13):
         yield pin("legacy-cgi", "2.6.1")
 
     yield pin("packaging", "24.1")
@@ -250,7 +250,7 @@ def iter_expected_devpi_server_deps():
     yield pin("requests", "2.32.3")
     yield pin("ruamel-yaml", "0.18.6")
 
-    if not IS_PYPY and sys.version_info[:2] < (3, 13):
+    if not IS_PYPY and interpreter.version[:2] < (3, 13):
         yield pin("ruamel-yaml-clib", "0.2.8")
 
     yield pin("setuptools", "74.1.2")
@@ -259,7 +259,7 @@ def iter_expected_devpi_server_deps():
     yield pin("strictyaml", "1.7.3")
     yield pin("translationstring", "1.4")
 
-    if sys.version_info[:2] < (3, 11):
+    if interpreter.version[:2] < (3, 11):
         yield pin("typing-extensions", "4.12.2")
 
     yield pin("urllib3", "2.2.3")
@@ -276,6 +276,7 @@ def iter_expected_devpi_server_deps():
 def test_universal_export_interop(
     tmpdir,  # type: Tempdir
     devpi_server_lock,  # type: str
+    py310,  # type: PythonInterpreter
 ):
     # type: (...) -> None
 
@@ -297,19 +298,20 @@ def test_universal_export_interop(
 
     assert_valid_toml(result.output)
 
+    interpreter = PythonInterpreter.get() if sys.version_info[:2] < (3, 14) else py310
+
     venv_dir = tmpdir.join("venv")
-    venv = Virtualenv.create(venv_dir=venv_dir)
+    venv = Virtualenv.create(venv_dir=venv_dir, interpreter=interpreter)
     assert [] == list(venv.iter_distributions())
 
-    current_interpreter = PythonInterpreter.get()
     python = "{impl}{version}".format(
-        impl="pypy" if current_interpreter.is_pypy else "python", version=current_interpreter.python
+        impl="pypy" if interpreter.is_pypy else "python", version=interpreter.python
     )
     subprocess.check_call(
         args=["uv", "pip", "install", "--python", python, "-r", pylock_toml, "--prefix", venv_dir]
     )
     sort_by_pin = lambda pin: (pin.project_name.normalized, pin.version.normalized)
-    assert sorted(iter_expected_devpi_server_deps(), key=sort_by_pin) == sorted(
+    assert sorted(iter_expected_devpi_server_deps(interpreter), key=sort_by_pin) == sorted(
         (
             Pin(dist.metadata.project_name, dist.metadata.version)
             for dist in venv.iter_distributions(rescan=True)
