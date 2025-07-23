@@ -1115,9 +1115,14 @@ def test_setup_python(
 
     pex = tmpdir.join("pex.pex")
     run_pex_command(
-        args=["jsonschema==2.6.0", "--disable-cache", "-o", pex], python=py39.binary
+        args=["jsonschema==2.6.0", "--disable-cache", "--python", py39.binary, "-o", pex]
     ).assert_success()
-    subprocess.check_call(args=[pex, "-c", "import jsonschema"])
+    subprocess.check_call(
+        args=[pex, "-c", "import jsonschema"],
+        env=make_env(
+            PATH=os.pathsep.join((os.path.dirname(py39.binary), os.environ.get("PATH", os.defpath)))
+        ),
+    )
 
 
 @pytest.fixture
