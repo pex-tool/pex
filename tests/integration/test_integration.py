@@ -1107,16 +1107,17 @@ def test_pex_interpreter_interact_custom_setuptools_useable():
         assert rc == 0, stdout
 
 
-def test_setup_python():
-    # type: () -> None
-    interpreter = ensure_python_interpreter(PY39)
-    with temporary_dir() as out:
-        pex = os.path.join(out, "pex.pex")
-        results = run_pex_command(
-            ["jsonschema==2.6.0", "--disable-cache", "--python={}".format(interpreter), "-o", pex]
-        )
-        results.assert_success()
-        subprocess.check_call([pex, "-c", "import jsonschema"])
+def test_setup_python(
+    tmpdir,  # type: Tempdir
+    py39,  # type: PythonInterpreter
+):
+    # type: (...) -> None
+
+    pex = tmpdir.join("pex.pex")
+    run_pex_command(
+        args=["jsonschema==2.6.0", "--disable-cache", "-o", pex], python=py39.binary
+    ).assert_success()
+    subprocess.check_call(args=[pex, "-c", "import jsonschema"])
 
 
 @pytest.fixture

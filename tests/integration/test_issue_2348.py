@@ -8,13 +8,9 @@ import shutil
 from pex.dist_metadata import ProjectNameAndVersion
 from pex.interpreter import PythonInterpreter
 from pex.pex_info import PexInfo
-from pex.typing import TYPE_CHECKING
-from testing import IS_ARM_64, IS_MAC, PY310, ensure_python_interpreter, run_pex_command
+from testing import IS_ARM_64, IS_MAC, run_pex_command
 from testing.cli import run_pex3
 from testing.pytest_utils.tmp import Tempdir
-
-if TYPE_CHECKING:
-    pass
 
 
 def test_find_links_url_escaping(
@@ -75,7 +71,7 @@ def test_find_links_url_escaping(
             "-o",
             pex,
         ],
-        python=ensure_python_interpreter(PY310),
+        python=py310.binary,
     ).assert_success()
 
     pex_info = PexInfo.from_pex(pex)
