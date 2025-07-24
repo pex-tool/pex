@@ -187,25 +187,29 @@ jobs:
           # See: https://github.com/pyenv/pyenv/wiki#suggested-build-environment
           brew install openssl readline sqlite3 xz zlib tcl-tk@8 libb2
 
+          echo >&2 "BEFORE:"
+          echo >&2 "LDFLAGS=$LDFLAGS"
+          echo >&2 "CPPFLAGS=$CPPFLAGS"
+          echo >&2 "PKG_CONFIG_PATH=$PKG_CONFIG_PATH"
+
           # N.B.: The `brew install` output notes these env vars may need to be set for proper
           # linkage.
-          echo >&2 "LDFLAGS=$LDFLAGS"
-          echo >&2 "CPPFLAGS=CPPFLAGS"
-          echo >&2 "PKG_CONFIG_PATH=PKG_CONFIG_PATH"
-          
-          cat <<EOF >> "${GITHUB_ENV}"
-          LDFLAGS="-L/opt/homebrew/opt/zlib/lib $LDFLAGS"
-          CPPFLAGS="-I/opt/homebrew/opt/zlib/include $CPPFLAGS"
-          PKG_CONFIG_PATH="/opt/homebrew/opt/zlib/lib/pkgconfig:$PKG_CONFIG_PATH"
+          export LDFLAGS="-L/opt/homebrew/opt/zlib/lib $LDFLAGS"
+          export CPPFLAGS="-I/opt/homebrew/opt/zlib/include $CPPFLAGS"
+          export PKG_CONFIG_PATH="/opt/homebrew/opt/zlib/lib/pkgconfig:$PKG_CONFIG_PATH"
 
-          LDFLAGS="-L/opt/homebrew/opt/tcl-tk@8/lib $LDFLAGS"
-          CPPFLAGS="-I/opt/homebrew/opt/tcl-tk@8/include $CPPFLAGS"
-          PKG_CONFIG_PATH="/opt/homebrew/opt/tcl-tk@8/lib/pkgconfig:$PKG_CONFIG_PATH"
-          EOF
-          
+          export LDFLAGS="-L/opt/homebrew/opt/tcl-tk@8/lib $LDFLAGS"
+          export CPPFLAGS="-I/opt/homebrew/opt/tcl-tk@8/include $CPPFLAGS"
+          export PKG_CONFIG_PATH="/opt/homebrew/opt/tcl-tk@8/lib/pkgconfig:$PKG_CONFIG_PATH"
+
+          echo "LDFLAGS=$LDFLAGS" >> "${GITHUB_ENV}"
+          echo "CPPFLAGS=$CPPFLAGS" >> "${GITHUB_ENV}"
+          echo "PKG_CONFIG_PATH=$PKG_CONFIG_PATH" >> "${GITHUB_ENV}"
+
+          echo >&2 "AFTER:"
           echo >&2 "LDFLAGS=$LDFLAGS"
-          echo >&2 "CPPFLAGS=CPPFLAGS"
-          echo >&2 "PKG_CONFIG_PATH=PKG_CONFIG_PATH"
+          echo >&2 "CPPFLAGS=$CPPFLAGS"
+          echo >&2 "PKG_CONFIG_PATH=$PKG_CONFIG_PATH"
       - name: Restore Cached Devpi Server
         id: restore-devpi-server
         uses: actions/cache/restore@v4
