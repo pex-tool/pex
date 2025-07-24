@@ -185,7 +185,7 @@ jobs:
       - name: Install Pyenv Requirements
         run: |
           # See: https://github.com/pyenv/pyenv/wiki#suggested-build-environment
-          brew install openssl readline sqlite3 xz zlib tcl-tk@8 libb2
+          brew install openssl readline sqlite3 xz zlib tcl-tk@8 libb2 gettext
       - name: Restore Cached Devpi Server
         id: restore-devpi-server
         uses: actions/cache/restore@v4
