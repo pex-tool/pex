@@ -190,13 +190,9 @@ jobs:
           # N.B.: The `brew install` output notes these env vars may need to be set for proper
           # linkage.
           cat <<EOF >> "${GITHUB_ENV}"
-          LDFLAGS="-L/opt/homebrew/opt/zlib/lib $LDFLAGS"
-          CPPFLAGS="-I/opt/homebrew/opt/zlib/include $CPPFLAGS"
-          PKG_CONFIG_PATH="/opt/homebrew/opt/zlib/lib/pkgconfig:$PKG_CONFIG_PATH"
-
-          LDFLAGS="-L/opt/homebrew/opt/tcl-tk@8/lib $LDFLAGS"
-          CPPFLAGS="-I/opt/homebrew/opt/tcl-tk@8/include $CPPFLAGS"
-          PKG_CONFIG_PATH="/opt/homebrew/opt/tcl-tk@8/lib/pkgconfig:$PKG_CONFIG_PATH"
+          LDFLAGS="-L/opt/homebrew/opt/zlib/lib -L/opt/homebrew/opt/tcl-tk@8/lib ${LDFLAGS:-}"
+          CPPFLAGS="-I/opt/homebrew/opt/zlib/include -I/opt/homebrew/opt/tcl-tk@8/include ${CPPFLAGS:-}"
+          PKG_CONFIG_PATH="/opt/homebrew/opt/zlib/lib/pkgconfig:/opt/homebrew/opt/tcl-tk@8/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
           EOF
       - name: Restore Cached Devpi Server
         id: restore-devpi-server
