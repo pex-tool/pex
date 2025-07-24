@@ -148,7 +148,7 @@ jobs:
   mac-tests:
     name: "Mac: uv run dev-cmd ${{ matrix.test-cmd }} ${{ matrix.pex-test-pos-args }}"
     needs: setup
-    runs-on: macos-15
+    runs-on: macos-14
     strategy:
       matrix:
         include:
@@ -181,7 +181,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ env._PEX_TEST_DEV_ROOT }}/pyenv
-          key: macos-15-${{ runner.arch }}-pex-test-dev-root-pyenv-v1
+          key: macos-14-${{ runner.arch }}-pex-test-dev-root-pyenv-v1
       - name: Restore Cached Devpi Server
         id: restore-devpi-server
         uses: actions/cache/restore@v4
@@ -189,14 +189,14 @@ jobs:
           path: ${{ env._PEX_TEST_DEV_ROOT }}/devpi
           # We're using a key suffix / restore-keys prefix trick here to get an updatable cache.
           # See: https://github.com/actions/cache/blob/main/tips-and-workarounds.md#update-a-cache
-          key: macos-15-${{ runner.arch }}-${{ matrix.test-cmd }}-pex-test-dev-root-devpi-v2-${{ github.run_id }}
-          restore-keys: macos-15-${{ runner.arch }}-${{ matrix.test-cmd }}-pex-test-dev-root-devpi-v2
+          key: macos-14-${{ runner.arch }}-${{ matrix.test-cmd }}-pex-test-dev-root-devpi-v2-${{ github.run_id }}
+          restore-keys: macos-14-${{ runner.arch }}-${{ matrix.test-cmd }}-pex-test-dev-root-devpi-v2
       - name: Restore Windows Stubs
         id: restore-windows-stubs
         uses: actions/cache/restore@v4
         with:
           path: ${{ env._PEX_CACHE_WINDOWS_STUBS_DIR }}
-          key: macos-15-${{ runner.arch }}-pex-cache-windows-stubs-dir-v1
+          key: macos-14-${{ runner.arch }}-pex-cache-windows-stubs-dir-v1
       # Some ITs need this for VCS URLs of the form git+ssh://git@github.com/...
       - name: Setup SSH Agent
         uses: webfactory/ssh-agent@v0.9.0
