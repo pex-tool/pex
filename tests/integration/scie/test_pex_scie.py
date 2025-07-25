@@ -51,6 +51,7 @@ if TYPE_CHECKING:
         pytest.param(["--venv", "--sh-boot"], id="VENV-sh-boot"),
     ],
 )
+@skip_if_no_provider
 def test_basic(
     tmpdir,  # type: Any
     scie_style,  # type: ScieStyle.Value
