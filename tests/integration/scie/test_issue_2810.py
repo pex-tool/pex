@@ -76,7 +76,7 @@ def scie_assets_server(
     IS_MAC,
     reason=(
         "The scie asset server fails to start, at least on the macos-15 CI runners, and since this "
-        "is not a multi-platform test, just checking on Linux is nit ideal but good enough."
+        "is not a multi-platform test, just checking on Linux is not ideal but good enough."
     ),
 )
 @skip_if_no_provider
