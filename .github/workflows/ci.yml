@@ -152,13 +152,13 @@ jobs:
     strategy:
       matrix:
         include:
-          - python-version: "3.14.0-rc.1"
-            test-cmd: test-py314-pip25.1.1
-          - python-version: "3.14.0-rc.1"
-            test-cmd: test-py314-pip25.1.1-integration
+          - python-version: "3.13"
+            test-cmd: test-py313-pip25.1.1
+          - python-version: "3.13"
+            test-cmd: test-py313-pip25.1.1-integration
             pex-test-pos-args: --shard 1/2
-          - python-version: "3.14.0-rc.1"
-            test-cmd: test-py314-pip25.1.1-integration
+          - python-version: "3.13"
+            test-cmd: test-py313-pip25.1.1-integration
             pex-test-pos-args: --shard 2/2
     steps:
       - name: Checkout Pex
