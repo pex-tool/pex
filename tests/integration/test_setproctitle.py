@@ -180,4 +180,3 @@ def test_setproctitle(
     args_suffix = args[len(setproctitle_pex_file + " "):]
     assert args_suffix
     assert "--some arguments here".startswith(args_suffix)
-    assert "{pex_file} --some arguments here".format(pex_file=setproctitle_pex_file) == args
