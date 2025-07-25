@@ -185,8 +185,15 @@ jobs:
       - name: Install Pyenv Requirements
         run: |
           brew install pyenv
+          
+          pyenv root
+          export PYENV_ROOT="$(pyenv root)"
+          export PATH="$PYENV_ROOT/bin:$PATH"
+          eval "$(pyenv init - bash)"
+          
           pyenv install 3.9.13
           python3.9 -V
+          
           pyenv install 3.10.7
           python3.10 -V
 
