@@ -6,7 +6,7 @@ import os
 import pytest
 
 from pex.common import temporary_dir
-from testing import IS_ARM_64, PY38, ensure_python_interpreter, run_pex_command
+from testing import IS_ARM_64, PY39, ensure_python_interpreter, run_pex_command
 
 
 @pytest.mark.skipif(
@@ -18,7 +18,7 @@ from testing import IS_ARM_64, PY38, ensure_python_interpreter, run_pex_command
 )
 def test_resolve_python_requires_full_version():
     # type: () -> None
-    python38 = ensure_python_interpreter(PY38)
+    python39 = ensure_python_interpreter(PY39)
     with temporary_dir() as tmpdir:
         constraints_file = os.path.join(tmpdir, "constraints.txt")
         with open(constraints_file, "w") as fp:
@@ -26,9 +26,9 @@ def test_resolve_python_requires_full_version():
             # incompatible with numpy>=1.24.0 because it drops np.bool support.
             fp.write("numpy==1.23.5")
         result = run_pex_command(
-            python=python38,
+            python=python39,
             args=[
-                "pandas==1.0.5",
+                "pandas==1.1.5",
                 "--constraints",
                 constraints_file,
                 "--",
@@ -38,4 +38,4 @@ def test_resolve_python_requires_full_version():
             quiet=True,
         )
     result.assert_success()
-    assert "1.0.5" == result.output.strip()
+    assert "1.1.5" == result.output.strip()

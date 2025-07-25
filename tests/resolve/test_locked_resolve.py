@@ -46,9 +46,9 @@ def current_target():
 
 
 @pytest.fixture
-def py37_target(py38):
+def py39_target(py39):
     # type: (PythonInterpreter) -> Target
-    return LocalInterpreter.create(py38)
+    return LocalInterpreter.create(py39)
 
 
 @pytest.fixture
@@ -434,7 +434,7 @@ def test_wheel_tag_mismatch(
 
 
 def test_requires_python_mismatch(
-    py37_target,  # type: Target
+    py39_target,  # type: Target
     py310_target,  # type: Target
 ):
     # type: (...) -> None
@@ -471,7 +471,7 @@ def test_requires_python_mismatch(
     )
 
     assert_resolved(
-        locked_resolve.resolve(py37_target, [req("ansicolors==1.1.7")]),
+        locked_resolve.resolve(py39_target, [req("ansicolors==1.1.7")]),
         DownloadableArtifact.create(
             pin=pin("ansicolors", "1.1.7"),
             artifact=artifact(

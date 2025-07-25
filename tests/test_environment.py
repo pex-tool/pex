@@ -26,7 +26,7 @@ from pex.typing import TYPE_CHECKING
 from testing import (
     IS_LINUX_X86_64,
     IS_PYPY3,
-    PY38,
+    PY39,
     WheelBuilder,
     ensure_python_interpreter,
     install_wheel,
@@ -227,26 +227,26 @@ def test_issues_598_explicit_missing_requirement():
 
 
 @pytest.fixture
-def python_38_interpreter():
+def python_39_interpreter():
     # type: () -> PythonInterpreter
     # Python 3.7 supports implicit namespace packages.
-    return PythonInterpreter.from_binary(ensure_python_interpreter(PY38))
+    return PythonInterpreter.from_binary(ensure_python_interpreter(PY39))
 
 
 @skip_if_no_pkg_resources
-def test_issues_598_implicit(python_38_interpreter):
+def test_issues_598_implicit(python_39_interpreter):
     # type: (PythonInterpreter) -> None
     assert_force_local_implicit_ns_packages_issues_598(
-        interpreter=python_38_interpreter, create_ns_packages=False
+        interpreter=python_39_interpreter, create_ns_packages=False
     )
 
 
 @skip_if_no_pkg_resources
-def test_issues_598_implicit_explicit_mixed(python_38_interpreter):
+def test_issues_598_implicit_explicit_mixed(python_39_interpreter):
     # type: (PythonInterpreter) -> None
     assert_force_local_implicit_ns_packages_issues_598(
-        interpreter=python_38_interpreter,
-        requirements=[get_setuptools_requirement(python_38_interpreter)],
+        interpreter=python_39_interpreter,
+        requirements=[get_setuptools_requirement(python_39_interpreter)],
         create_ns_packages=True,
     )
 
@@ -430,11 +430,11 @@ def create_dist(
 
 
 @pytest.fixture
-def cpython_38_environment(python_38_interpreter):
+def cpython_39_environment(python_39_interpreter):
     return PEXEnvironment(
         pex="",
         pex_info=PexInfo.default(),
-        target=LocalInterpreter.create(python_38_interpreter),
+        target=LocalInterpreter.create(python_39_interpreter),
     )
 
 
@@ -442,48 +442,48 @@ def cpython_38_environment(python_38_interpreter):
     ("wheel_distribution", "wheel_is_linux_x86_64"),
     [
         pytest.param(
-            create_dist("llvmlite-0.29.0-cp38-cp38-linux_x86_64.whl", "llvmlite", "0.29.0"),
+            create_dist("llvmlite-0.29.0-cp39-cp39-linux_x86_64.whl", "llvmlite", "0.29.0"),
             True,
             id="without_build_tag_linux",
         ),
         pytest.param(
-            create_dist("llvmlite-0.29.0-1-cp38-cp38-linux_x86_64.whl", "llvmlite", "0.29.0"),
+            create_dist("llvmlite-0.29.0-1-cp39-cp39-linux_x86_64.whl", "llvmlite", "0.29.0"),
             True,
             id="with_build_tag_linux",
         ),
         pytest.param(
-            create_dist("llvmlite-0.29.0-cp38-cp38-macosx_10.9_x86_64.whl", "llvmlite", "0.29.0"),
+            create_dist("llvmlite-0.29.0-cp39-cp39-macosx_10.9_x86_64.whl", "llvmlite", "0.29.0"),
             False,
             id="without_build_tag_osx",
         ),
         pytest.param(
-            create_dist("llvmlite-0.29.0-1-cp38-cp38-macosx_10.9_x86_64.whl", "llvmlite", "0.29.0"),
+            create_dist("llvmlite-0.29.0-1-cp39-cp39-macosx_10.9_x86_64.whl", "llvmlite", "0.29.0"),
             False,
             id="with_build_tag_osx",
         ),
     ],
 )
 def test_can_add_handles_optional_build_tag_in_wheel(
-    cpython_38_environment, wheel_distribution, wheel_is_linux_x86_64
+    cpython_39_environment, wheel_distribution, wheel_is_linux_x86_64
 ):
     # type: (PEXEnvironment, FingerprintedDistribution, bool) -> None
     native_wheel = IS_LINUX_X86_64 and wheel_is_linux_x86_64
-    added = isinstance(cpython_38_environment._can_add(wheel_distribution), _RankedDistribution)
+    added = isinstance(cpython_39_environment._can_add(wheel_distribution), _RankedDistribution)
     assert added is native_wheel
 
 
-def test_can_add_handles_invalid_wheel_filename(cpython_38_environment):
+def test_can_add_handles_invalid_wheel_filename(cpython_39_environment):
     # type: (PEXEnvironment) -> None
     dist = create_dist("pep427-invalid.whl")
-    assert _InvalidWheelName(dist, "pep427-invalid.whl") == cpython_38_environment._can_add(dist)
+    assert _InvalidWheelName(dist, "pep427-invalid.whl") == cpython_39_environment._can_add(dist)
 
 
 @pytest.fixture
-def assert_cpython_38_environment_can_add(cpython_38_environment):
+def assert_cpython_39_environment_can_add(cpython_39_environment):
     # type: (PEXEnvironment) -> Callable[[FingerprintedDistribution], _RankedDistribution]
     def assert_can_add(fingerprinted_dist):
         # type: (FingerprintedDistribution) -> _RankedDistribution
-        rank = cpython_38_environment._can_add(fingerprinted_dist)
+        rank = cpython_39_environment._can_add(fingerprinted_dist)
         assert isinstance(rank, _RankedDistribution)
         return rank
 
@@ -494,17 +494,17 @@ def assert_cpython_38_environment_can_add(cpython_38_environment):
 _wheel_tags = "macosx_10_9_x86_64.macosx_11_0_arm64.linux_x86_64.linux_aarch64"
 
 
-def test_can_add_ranking_platform_tag_more_specific(assert_cpython_38_environment_can_add):
+def test_can_add_ranking_platform_tag_more_specific(assert_cpython_39_environment_can_add):
     # type: (Callable[[FingerprintedDistribution], _RankedDistribution]) -> None
-    ranked_specific = assert_cpython_38_environment_can_add(
-        create_dist("foo-1.0.0-cp38-cp38-{}.whl".format(_wheel_tags), "foo", "1.0.0")
+    ranked_specific = assert_cpython_39_environment_can_add(
+        create_dist("foo-1.0.0-cp39-cp39-{}.whl".format(_wheel_tags), "foo", "1.0.0")
     )
-    ranked_universal = assert_cpython_38_environment_can_add(
+    ranked_universal = assert_cpython_39_environment_can_add(
         create_dist("foo-2.0.0-py2.py3-none-any.whl", "foo", "2.0.0")
     )
     assert ranked_specific < ranked_universal
 
-    ranked_almost_py3universal = assert_cpython_38_environment_can_add(
+    ranked_almost_py3universal = assert_cpython_39_environment_can_add(
         create_dist("foo-2.0.0-py3-none-any.whl", "foo", "2.0.0")
     )
     assert ranked_universal.rank == ranked_almost_py3universal.rank, (
@@ -513,12 +513,12 @@ def test_can_add_ranking_platform_tag_more_specific(assert_cpython_38_environmen
     )
 
 
-def test_can_add_ranking_version_newer_tie_break(assert_cpython_38_environment_can_add):
+def test_can_add_ranking_version_newer_tie_break(assert_cpython_39_environment_can_add):
     # type: (Callable[[FingerprintedDistribution], _RankedDistribution]) -> None
-    ranked_v1 = assert_cpython_38_environment_can_add(
-        create_dist("foo-1.0.0-cp38-cp38-{}.whl".format(_wheel_tags), "foo", "1.0.0")
+    ranked_v1 = assert_cpython_39_environment_can_add(
+        create_dist("foo-1.0.0-cp39-cp39-{}.whl".format(_wheel_tags), "foo", "1.0.0")
     )
-    ranked_v2 = assert_cpython_38_environment_can_add(
-        create_dist("foo-2.0.0-cp38-cp38-{}.whl".format(_wheel_tags), "foo", "2.0.0")
+    ranked_v2 = assert_cpython_39_environment_can_add(
+        create_dist("foo-2.0.0-cp39-cp39-{}.whl".format(_wheel_tags), "foo", "2.0.0")
     )
     assert ranked_v2 < ranked_v1

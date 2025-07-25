@@ -182,51 +182,6 @@ jobs:
         with:
           path: ${{ env._PEX_TEST_DEV_ROOT }}/pyenv
           key: macos-15-${{ runner.arch }}-pex-test-dev-root-pyenv-v1
-      - name: Install Pyenv Requirements
-        run: |
-          brew install pyenv
-          
-          pyenv root
-          export PYENV_ROOT="$(pyenv root)"
-          export PATH="$PYENV_ROOT/bin:$PATH"
-          eval "$(pyenv init - bash)"
-          
-          pyenv install 3.9.13
-          pyenv install 3.10.7
-          pyenv install 3.11.13
-          
-          pyenv global system 3.9.13 3.10.7 3.111.13
-          
-          python3.9 -V
-          python3.10 -V
-          python3.11 -V
-
-          # See: https://github.com/pyenv/pyenv/wiki#suggested-build-environment
-          brew install openssl readline sqlite3 xz zlib tcl-tk@8 libb2
-
-          echo >&2 "BEFORE:"
-          echo >&2 "LDFLAGS=$LDFLAGS"
-          echo >&2 "CPPFLAGS=$CPPFLAGS"
-          echo >&2 "PKG_CONFIG_PATH=$PKG_CONFIG_PATH"
-
-          # N.B.: The `brew install` output notes these env vars may need to be set for proper
-          # linkage.
-          export LDFLAGS="-L/opt/homebrew/opt/zlib/lib $LDFLAGS"
-          export CPPFLAGS="-I/opt/homebrew/opt/zlib/include $CPPFLAGS"
-          export PKG_CONFIG_PATH="/opt/homebrew/opt/zlib/lib/pkgconfig:$PKG_CONFIG_PATH"
-
-          export LDFLAGS="-L/opt/homebrew/opt/tcl-tk@8/lib $LDFLAGS"
-          export CPPFLAGS="-I/opt/homebrew/opt/tcl-tk@8/include $CPPFLAGS"
-          export PKG_CONFIG_PATH="/opt/homebrew/opt/tcl-tk@8/lib/pkgconfig:$PKG_CONFIG_PATH"
-
-          echo "LDFLAGS=$LDFLAGS" >> "${GITHUB_ENV}"
-          echo "CPPFLAGS=$CPPFLAGS" >> "${GITHUB_ENV}"
-          echo "PKG_CONFIG_PATH=$PKG_CONFIG_PATH" >> "${GITHUB_ENV}"
-
-          echo >&2 "AFTER:"
-          echo >&2 "LDFLAGS=$LDFLAGS"
-          echo >&2 "CPPFLAGS=$CPPFLAGS"
-          echo >&2 "PKG_CONFIG_PATH=$PKG_CONFIG_PATH"
       - name: Restore Cached Devpi Server
         id: restore-devpi-server
         uses: actions/cache/restore@v4
