@@ -183,6 +183,6 @@ def test_mixed_pex_root(
         env=make_env(PEX_IGNORE_ERRORS=True),
     )
     include_path = greenlet_include_venv_path(py39_venv_dir_new)
-    assert os.path.exists(include_path), (
-        "Expected {include_path} to exist.".format(include_path=include_path)
+    assert os.path.exists(include_path), "Expected {include_path} to exist.".format(
+        include_path=include_path
     )
