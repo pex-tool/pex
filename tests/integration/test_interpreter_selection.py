@@ -14,9 +14,9 @@ from pex.pex_info import PexInfo
 from pex.pip.version import PipVersion
 from pex.typing import TYPE_CHECKING
 from testing import (
-    PY38,
     PY39,
     PY310,
+    PY311,
     ensure_python_interpreter,
     make_env,
     run_pex_command,
@@ -122,17 +122,17 @@ def test_interpreter_resolution_with_multiple_constraint_options(
 def test_interpreter_resolution_with_pex_python_path():
     # type: () -> None
 
-    py38 = ensure_python_interpreter(PY38)
     py39 = ensure_python_interpreter(PY39)
+    py310 = ensure_python_interpreter(PY310)
 
     with temporary_dir() as td:
         pexrc_path = os.path.join(td, ".pexrc")
         with open(pexrc_path, "w") as pexrc:
-            pexrc.write("PEX_PYTHON_PATH={}".format(os.pathsep.join([py38, py39])))
+            pexrc.write("PEX_PYTHON_PATH={}".format(os.pathsep.join([py39, py310])))
 
         # constraints to build pex cleanly; PPP + pex_bootstrapper.py
         # will use these constraints to override sys.executable on pex re-exec
-        interpreter_constraint = "==3.8.*" if sys.version_info[:2] == (3, 9) else "==3.9.*"
+        interpreter_constraint = "==3.9.*" if sys.version_info[:2] == (3, 10) else "==3.10.*"
 
         pex_out_path = os.path.join(td, "pex.pex")
         res = run_pex_command(
@@ -150,36 +150,33 @@ def test_interpreter_resolution_with_pex_python_path():
         stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload)
 
         assert rc == 0
-        if sys.version_info[:2] == (3, 9):
-            assert py38 in stdout.decode("utf-8")
-        else:
+        if sys.version_info[:2] == (3, 10):
             assert py39 in stdout.decode("utf-8")
+        else:
+            assert py310 in stdout.decode("utf-8")
 
 
 def test_interpreter_constraints_honored_without_ppp_or_pp(tmpdir):
     # type: (Any) -> None
     # Create a pex with interpreter constraints, but for not the default interpreter in the path.
 
-    py310_path = ensure_python_interpreter(PY310)
-    py38_path = ensure_python_interpreter(PY38)
+    py311_path = ensure_python_interpreter(PY311)
+    py39_path = ensure_python_interpreter(PY39)
 
     pex_out_path = os.path.join(str(tmpdir), "pex.pex")
     env = make_env(
         PEX_IGNORE_RCFILES="1",
         PATH=os.pathsep.join(
             [
-                os.path.dirname(py38_path),
-                os.path.dirname(py310_path),
+                os.path.dirname(py39_path),
+                os.path.dirname(py311_path),
             ]
         ),
     )
     res = run_pex_command(
-        ["--disable-cache", "--interpreter-constraint===%s" % PY310, "-o", pex_out_path], env=env
+        ["--disable-cache", "--interpreter-constraint===%s" % PY311, "-o", pex_out_path], env=env
     )
     res.assert_success()
-
-    # We want to try to run that pex with no environment variables set
-    stdin_payload = b"import sys; print(sys.executable); sys.exit(0)"
 
     stdout, rc = run_simple_pex(
         pex_out_path,
@@ -191,14 +188,14 @@ def test_interpreter_constraints_honored_without_ppp_or_pp(tmpdir):
     # If the constraints are honored, it will have run python3.10 and not python3.7
     # Without constraints, we would expect it to use python3.7 as it is the minimum interpreter
     # in the PATH.
-    assert b"3.10\n" == stdout
+    assert b"3.11\n" == stdout
 
 
 def test_interpreter_resolution_pex_python_path_precedence_over_pex_python(tmpdir):
     # type: (Any) -> None
 
     pexrc_path = os.path.join(str(tmpdir), ".pexrc")
-    ppp = os.pathsep.join(os.path.dirname(ensure_python_interpreter(py)) for py in (PY38, PY39))
+    ppp = os.pathsep.join(os.path.dirname(ensure_python_interpreter(py)) for py in (PY39, PY310))
     with open(pexrc_path, "w") as pexrc:
         # set both PPP and PP
         pexrc.write(
@@ -207,7 +204,7 @@ def test_interpreter_resolution_pex_python_path_precedence_over_pex_python(tmpdi
                 PEX_PYTHON_PATH={ppp}
                 PEX_PYTHON={pp}
                 """.format(
-                    ppp=ppp, pp=ensure_python_interpreter(PY310)
+                    ppp=ppp, pp=ensure_python_interpreter(PY311)
                 )
             )
         )
@@ -219,7 +216,7 @@ def test_interpreter_resolution_pex_python_path_precedence_over_pex_python(tmpdi
             "--rcfile",
             pexrc_path,
             "--interpreter-constraint",
-            ">=3.8,<3.10",
+            ">=3.9,<3.11",
             "-o",
             pex_out_path,
         ]
@@ -250,7 +247,7 @@ def test_interpreter_resolution_pex_python_path_precedence_over_pex_python(tmpdi
         )
     stdout, rc = run_simple_pex(pex_out_path, print_python_version_command)
     assert rc == 0
-    assert b"3.8\n" == stdout
+    assert b"3.9\n" == stdout
 
 
 def test_plain_pex_exec_no_ppp_no_pp_no_constraints():
@@ -329,13 +326,13 @@ def test_pex_exec_with_pex_python_path_and_pex_python_but_no_constraints(tmpdir)
 
 def test_pex_python():
     # type: () -> None
-    py38 = ensure_python_interpreter(PY38)
     py39 = ensure_python_interpreter(PY39)
-    env = make_env(PATH=os.pathsep.join([os.path.dirname(py38), os.path.dirname(py39)]))
+    py310 = ensure_python_interpreter(PY310)
+    env = make_env(PATH=os.pathsep.join([os.path.dirname(py39), os.path.dirname(py310)]))
     with temporary_dir() as td:
         pexrc_path = os.path.join(td, ".pexrc")
         with open(pexrc_path, "w") as pexrc:
-            pexrc.write("PEX_PYTHON={}".format(py38))
+            pexrc.write("PEX_PYTHON={}".format(py39))
 
         # test PEX_PYTHON with valid constraints
         pex_out_path = os.path.join(td, "pex.pex")
@@ -345,7 +342,7 @@ def test_pex_python():
                 "--rcfile",
                 pexrc_path,
                 "--interpreter-constraint",
-                ">=3.8,<3.10",
+                ">=3.9,<3.11",
                 "-o",
                 pex_out_path,
             ],
@@ -356,7 +353,7 @@ def test_pex_python():
         stdin_payload = b"import sys; print(sys.executable); sys.exit(0)"
         stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload, env=env)
         assert rc == 0
-        assert py38 in stdout.decode("utf-8")
+        assert py39 in stdout.decode("utf-8")
 
         # test PEX_PYTHON with incompatible constraints
         py310 = ensure_python_interpreter(PY310)

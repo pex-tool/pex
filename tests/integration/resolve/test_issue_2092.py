@@ -14,8 +14,8 @@ if TYPE_CHECKING:
 
 def test_vcs_respects_target(
     tmpdir,  # type: Any
-    py38,  # type: PythonInterpreter
     py39,  # type: PythonInterpreter
+    py310,  # type: PythonInterpreter
 ):
     # type: (...) -> None
 
@@ -39,9 +39,9 @@ def test_vcs_respects_target(
         "--target-system",
         "mac",
         "--python-path",
-        os.pathsep.join((py38.binary, py39.binary)),
+        os.pathsep.join((py39.binary, py310.binary)),
         "--interpreter-constraint",
-        "==3.9.*",
+        "==3.10.*",
         vcs_requirement,
         "-o",
         lock,
@@ -60,15 +60,15 @@ def test_vcs_respects_target(
             "--lock",
             lock,
             "--python-path",
-            os.pathsep.join((py38.binary, py39.binary)),
+            os.pathsep.join((py39.binary, py310.binary)),
             "--interpreter-constraint",
-            "==3.9.*",
+            "==3.10.*",
             "--intransitive",
             vcs_requirement,
             "-o",
             pex,
         ],
-        python=py38.binary,
+        python=py39.binary,
     ).assert_success()
 
     # N.B.: It would be nice to assert the hash of the distribution here as well, but it uses:

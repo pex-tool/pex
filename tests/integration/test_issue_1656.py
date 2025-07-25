@@ -109,7 +109,7 @@ def test_new_venv_tool_vs_old_pex(
 def test_mixed_pex_root(
     tmpdir,  # type: Any
     old_pex,  # type: str
-    py38,  # type: PythonInterpreter
+    py39,  # type: PythonInterpreter
 ):
     # type: (...) -> None
 
@@ -124,7 +124,7 @@ def test_mixed_pex_root(
         # just this and no more, proving out the particular bugged cases in #1656.
         return list(args) + [
             "--python",
-            py38.binary,
+            py39.binary,
             "--python",
             sys.executable,
             "--venv",
@@ -139,7 +139,7 @@ def test_mixed_pex_root(
 
     def greenlet_include_venv_path(venv_dir):
         # type: (str) -> str
-        return os.path.join(venv_dir, "include", "site", "python3.8", "greenlet", "greenlet.h")
+        return os.path.join(venv_dir, "include", "site", "python3.9", "greenlet", "greenlet.h")
 
     pex_app_old = os.path.join(str(tmpdir), "app.old.pex")
     subprocess.check_call(args=create_pex_args(old_pex, "-o", pex_app_old))
@@ -164,22 +164,25 @@ def test_mixed_pex_root(
         env=make_env(PEX_IGNORE_ERRORS=True),
     )
 
-    py38_venv_dir_old = PexInfo.from_pex(pex_app_new).runtime_venv_dir(pex_app_old, py38)
-    assert py38_venv_dir_old is not None
-    assert not os.path.exists(py38_venv_dir_old)
+    py39_venv_dir_old = PexInfo.from_pex(pex_app_new).runtime_venv_dir(pex_app_old, py39)
+    assert py39_venv_dir_old is not None
+    assert not os.path.exists(py39_venv_dir_old)
 
     subprocess.check_call(
-        args=[py38.binary, pex_app_old, "-c", "import greenlet"],
+        args=[py39.binary, pex_app_old, "-c", "import greenlet"],
         env=make_env(PEX_IGNORE_ERRORS=True),
     )
-    assert not os.path.exists(greenlet_include_venv_path(py38_venv_dir_old))
+    assert not os.path.exists(greenlet_include_venv_path(py39_venv_dir_old))
 
-    py38_venv_dir_new = PexInfo.from_pex(pex_app_new).runtime_venv_dir(pex_app_new, py38)
-    assert py38_venv_dir_new is not None
-    assert not os.path.exists(py38_venv_dir_new)
+    py39_venv_dir_new = PexInfo.from_pex(pex_app_new).runtime_venv_dir(pex_app_new, py39)
+    assert py39_venv_dir_new is not None
+    assert not os.path.exists(py39_venv_dir_new)
 
     subprocess.check_call(
-        args=[py38.binary, pex_app_new, "-c", "import greenlet"],
+        args=[py39.binary, pex_app_new, "-c", "import greenlet"],
         env=make_env(PEX_IGNORE_ERRORS=True),
     )
-    assert os.path.exists(greenlet_include_venv_path(py38_venv_dir_new))
+    include_path = greenlet_include_venv_path(py39_venv_dir_new)
+    assert os.path.exists(include_path), "Expected {include_path} to exist.".format(
+        include_path=include_path
+    )

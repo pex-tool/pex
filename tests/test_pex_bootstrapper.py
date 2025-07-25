@@ -24,7 +24,7 @@ from pex.pex_bootstrapper import (
 from pex.pex_builder import PEXBuilder
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
-from testing import PY38, PY39, PY310, ensure_python_interpreter, subprocess
+from testing import PY39, PY310, PY311, ensure_python_interpreter, subprocess
 
 if TYPE_CHECKING:
     from typing import Any, Iterable, List, Optional
@@ -55,17 +55,17 @@ def find_interpreters(
 
 def test_find_compatible_interpreters():
     # type: () -> None
-    py38 = ensure_python_interpreter(PY38)
     py39 = ensure_python_interpreter(PY39)
     py310 = ensure_python_interpreter(PY310)
-    path = [py38, py39, py310]
+    py311 = ensure_python_interpreter(PY311)
+    path = [py39, py310, py311]
 
-    assert [py39, py310] == find_interpreters(path, constraints=[">3.9"])
-    assert [py38] == find_interpreters(path, constraints=["<3.9"])
+    assert [py310, py311] == find_interpreters(path, constraints=[">3.10"])
+    assert [py39] == find_interpreters(path, constraints=["<3.10"])
 
-    assert [py310] == find_interpreters(path, constraints=[">{}".format(PY39)])
-    assert [py39] == find_interpreters(path, constraints=[">{}, <{}".format(PY38, PY310)])
-    assert [py310] == find_interpreters(path, constraints=[">=3.10"])
+    assert [py311] == find_interpreters(path, constraints=[">{}".format(PY310)])
+    assert [py310] == find_interpreters(path, constraints=[">{}, <{}".format(PY39, PY311)])
+    assert [py311] == find_interpreters(path, constraints=[">=3.11"])
 
     with pytest.raises(UnsatisfiableInterpreterConstraintsError):
         find_interpreters(path, constraints=["<3"])
@@ -74,7 +74,7 @@ def test_find_compatible_interpreters():
         find_interpreters(path, constraints=[">4"])
 
     with pytest.raises(UnsatisfiableInterpreterConstraintsError):
-        find_interpreters(path, constraints=[">{}, <{}".format(PY38, PY39)])
+        find_interpreters(path, constraints=[">{}, <{}".format(PY39, PY310)])
 
     # All interpreters on PATH including whatever interpreter is currently running.
     all_known_interpreters = set(PythonInterpreter.from_binary(python) for python in path)
@@ -82,7 +82,7 @@ def test_find_compatible_interpreters():
 
     interpreters = set(
         iter_compatible_interpreters(
-            path, interpreter_constraints=InterpreterConstraints.parse("<3.9")
+            path, interpreter_constraints=InterpreterConstraints.parse("<3.10")
         )
     )
     i_rendered = "\n      ".join(sorted(map(repr, interpreters)))
@@ -107,71 +107,71 @@ def test_find_compatible_interpreters_none():
 
 def test_find_compatible_interpreters_none_with_valid_basenames():
     # type: () -> None
-    py38 = ensure_python_interpreter(PY38)
     py39 = ensure_python_interpreter(PY39)
-    path = [py38, py39]
+    py310 = ensure_python_interpreter(PY310)
+    path = [py39, py310]
 
     with pytest.raises(UnsatisfiableInterpreterConstraintsError) as exec_info:
         find_interpreters(path, valid_basenames=["python3.6"])
 
     exception_message = str(exec_info.value)
-    assert py38 not in exception_message
     assert py39 not in exception_message
+    assert py310 not in exception_message
 
 
 def test_find_compatible_interpreters_none_with_constraints():
     # type: () -> None
-    py38 = ensure_python_interpreter(PY38)
     py39 = ensure_python_interpreter(PY39)
-    path = [py38, py39]
+    py310 = ensure_python_interpreter(PY310)
+    path = [py39, py310]
 
     with pytest.raises(UnsatisfiableInterpreterConstraintsError) as exec_info:
-        find_interpreters(path, constraints=[">=3.10"])
+        find_interpreters(path, constraints=[">=3.11"])
 
     exception_message = str(exec_info.value)
-    assert py38 in exception_message
     assert py39 in exception_message
-    assert ">=3.10" in exception_message
+    assert py310 in exception_message
+    assert ">=3.11" in exception_message
 
 
 def test_find_compatible_interpreters_none_with_valid_basenames_and_constraints():
     # type: () -> None
-    py38 = ensure_python_interpreter(PY38)
     py39 = ensure_python_interpreter(PY39)
-    path = [py39, py38]
+    py310 = ensure_python_interpreter(PY310)
+    path = [py310, py39]
 
     with pytest.raises(UnsatisfiableInterpreterConstraintsError) as exec_info:
-        find_interpreters(path, valid_basenames=basenames(py38), constraints=[">=3.9"])
+        find_interpreters(path, valid_basenames=basenames(py39), constraints=[">=3.10"])
 
     exception_message = str(exec_info.value)
-    assert py38 in exception_message
-    assert os.path.basename(py38) in exception_message
-    assert py39 not in exception_message
-    assert ">=3.9" in exception_message
+    assert py39 in exception_message
+    assert os.path.basename(py39) in exception_message
+    assert py310 not in exception_message
+    assert ">=3.10" in exception_message
 
 
 def test_find_compatible_interpreters_with_valid_basenames():
     # type: () -> None
-    py38 = ensure_python_interpreter(PY38)
     py39 = ensure_python_interpreter(PY39)
     py310 = ensure_python_interpreter(PY310)
-    path = [py38, py39, py310]
+    py311 = ensure_python_interpreter(PY311)
+    path = [py39, py310, py311]
 
-    assert [py38] == find_interpreters(path, valid_basenames=basenames(py38))
-    assert [py39, py310] == find_interpreters(
-        path, valid_basenames=basenames(*reversed([py39, py310]))
+    assert [py39] == find_interpreters(path, valid_basenames=basenames(py39))
+    assert [py310, py311] == find_interpreters(
+        path, valid_basenames=basenames(*reversed([py310, py311]))
     )
 
 
 def test_find_compatible_interpreters_with_valid_basenames_and_constraints():
     # type: () -> None
-    py38 = ensure_python_interpreter(PY38)
     py39 = ensure_python_interpreter(PY39)
     py310 = ensure_python_interpreter(PY310)
-    path = [py38, py39, py310]
+    py311 = ensure_python_interpreter(PY311)
+    path = [py39, py310, py311]
 
-    assert [py39] == find_interpreters(
-        path, valid_basenames=basenames(py38, py39), constraints=[">=3.9"]
+    assert [py310] == find_interpreters(
+        path, valid_basenames=basenames(py39, py310), constraints=[">=3.10"]
     )
 
 
@@ -271,15 +271,15 @@ def test_pp_exact():
 def test_pp_exact_on_ppp():
     # type: () -> None
 
-    py38 = ensure_python_interpreter(PY38)
     py39 = ensure_python_interpreter(PY39)
     py310 = ensure_python_interpreter(PY310)
+    py311 = ensure_python_interpreter(PY311)
 
     with ENV.patch(
-        PEX_PYTHON=py310,
-        PEX_PYTHON_PATH=os.pathsep.join(os.path.dirname(py) for py in (py38, py39, py310)),
+        PEX_PYTHON=py311,
+        PEX_PYTHON_PATH=os.pathsep.join(os.path.dirname(py) for py in (py39, py310, py311)),
     ):
-        assert PythonInterpreter.from_binary(py310) == find_compatible_interpreter()
+        assert PythonInterpreter.from_binary(py311) == find_compatible_interpreter()
 
 
 def test_pp_exact_satisfies_constraints():
@@ -319,16 +319,16 @@ def test_pp_exact_does_not_satisfy_constraints():
 def test_pp_exact_not_on_ppp():
     # type: () -> None
 
-    py38 = ensure_python_interpreter(PY38)
     py39 = ensure_python_interpreter(PY39)
     py310 = ensure_python_interpreter(PY310)
+    py311 = ensure_python_interpreter(PY311)
 
     with ENV.patch(
-        PEX_PYTHON=py310,
-        PEX_PYTHON_PATH=os.pathsep.join(os.path.dirname(py) for py in (py38, py39)),
+        PEX_PYTHON=py311,
+        PEX_PYTHON_PATH=os.pathsep.join(os.path.dirname(py) for py in (py39, py310)),
     ):
         with pytest.raises(
             UnsatisfiableInterpreterConstraintsError,
-            match=r"The specified PEX_PYTHON={pp} did not meet other constraints.".format(pp=py310),
+            match=r"The specified PEX_PYTHON={pp} did not meet other constraints.".format(pp=py311),
         ):
             find_compatible_interpreter()

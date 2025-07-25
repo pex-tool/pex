@@ -127,8 +127,8 @@ def test_calculate_platforms_no_ics(requires_python):
 def test_calculate_interpreters_no_ics(
     requires_python,  # type: str
     py27,  # type: PythonInterpreter
+    py311,  # type: PythonInterpreter
     py310,  # type: PythonInterpreter
-    py38,  # type: PythonInterpreter
 ):
     # type: (...) -> None
 
@@ -136,10 +136,10 @@ def test_calculate_interpreters_no_ics(
         expected(
             requires_python,
             PythonBinaryName(name="python", version=(2, 7)),
+            PythonBinaryName(name="python", version=(3, 11)),
             PythonBinaryName(name="python", version=(3, 10)),
-            PythonBinaryName(name="python", version=(3, 8)),
         )
-        == calculate_binary_names(targets=Targets(interpreters=(py27, py310, py38)))
+        == calculate_binary_names(targets=Targets(interpreters=(py27, py311, py310)))
     )
 
 

@@ -17,18 +17,18 @@ if TYPE_CHECKING:
 def test_multiplatform_sdist(
     tmpdir,  # type: Any
     py27,  # type: PythonInterpreter
-    py38,  # type: PythonInterpreter
-    py310,  # type: PythonInterpreter
+    py39,  # type: PythonInterpreter
+    py311,  # type: PythonInterpreter
 ):
     # type: (...) -> None
 
-    all_interpreters = (py27, py38, py310)
+    all_interpreters = (py27, py39, py311)
     python_path = os.pathsep.join((interp.binary for interp in all_interpreters))
     interpreter_selection_args = [
         "--python-path",
         python_path,
         "--interpreter-constraint",
-        ">=2.7,<3.11",
+        ">=2.7,<3.12",
     ]
 
     lock = os.path.join(str(tmpdir), "lock")

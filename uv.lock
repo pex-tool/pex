@@ -872,7 +872,7 @@ wheels = [
 
 [[package]]
 name = "dev-cmd"
-version = "0.31.2"
+version = "0.31.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aioconsole", marker = "python_full_version >= '3.8'" },
@@ -883,9 +883,9 @@ dependencies = [
     { name = "tomli", marker = "python_full_version >= '3.8'" },
     { name = "typing-extensions", version = "4.13.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.8'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/54/98/cb8920216ae78d36858344ae265b9f35ac11cb9f70d0e9e11b8924f4480c/dev_cmd-0.31.2.tar.gz", hash = "sha256:fb5d6e04cd0e1ea2bb974c8a03465a2eaa5d5d9eb6040c27672bd55cc3c57ed0", size = 64322, upload-time = "2025-04-17T13:55:54.541Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/79/42/f5a240225255ba1f2624d13401e4661f4c6fb373bf9c53c4e75876d5c9c5/dev_cmd-0.31.3.tar.gz", hash = "sha256:c81846ca60e8e5ce20e68efc1d8ee370bef27610dbcb809c555dffea38911b7d", size = 64410, upload-time = "2025-07-12T05:27:40.27Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e1/f5/bfbbfe758bf2e31bd89e84c5615bd64f94596431d00f08e4b0bd7fd155e4/dev_cmd-0.31.2-py3-none-any.whl", hash = "sha256:e38429d4f349055e635ad843f61e764191db2c5efb1e8108059dde253f4d6a2c", size = 49658, upload-time = "2025-04-17T13:55:53.24Z" },
+    { url = "https://files.pythonhosted.org/packages/6a/a6/9fa95068e67b9c6aad98ab1c6a3dbe983787bf527534081b373504ab1b5a/dev_cmd-0.31.3-py3-none-any.whl", hash = "sha256:d90aa7d6a9781f5efca46b49f591d6948f2d9f97baae07351ed65c56091db664", size = 49774, upload-time = "2025-07-12T05:27:38.804Z" },
 ]
 
 [package.optional-dependencies]

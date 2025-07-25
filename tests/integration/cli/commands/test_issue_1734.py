@@ -17,8 +17,8 @@ if TYPE_CHECKING:
 def test_lock_create_sdist_requires_python_different_from_current(
     tmpdir,  # type: Any
     py27,  # type: PythonInterpreter
-    py38,  # type: PythonInterpreter
-    py310,  # type: PythonInterpreter
+    py39,  # type: PythonInterpreter
+    py311,  # type: PythonInterpreter
 ):
     # type: (...) -> None
 
@@ -31,9 +31,9 @@ def test_lock_create_sdist_requires_python_different_from_current(
         "--style",
         "universal",
         "--interpreter-constraint",
-        "CPython<3.11,>=3.8",
+        "CPython<3.12,>=3.9",
         "--python-path",
-        os.pathsep.join(interp.binary for interp in (py27, py38, py310)),
+        os.pathsep.join(interp.binary for interp in (py27, py39, py311)),
         "aioconsole==0.4.1",
         "-o",
         lock,
@@ -61,14 +61,14 @@ def test_lock_create_sdist_requires_python_different_from_current(
     )
     run_pex_command(
         args=["--lock", lock, "--", "-c", "import aioconsole"],
-        python=py310.binary,
+        python=py311.binary,
     ).assert_success()
 
 
 def test_lock_create_universal_interpreter_constraint_unsatisfiable(
     tmpdir,  # type: Any
     py27,  # type: PythonInterpreter
-    py38,  # type: PythonInterpreter
+    py39,  # type: PythonInterpreter
 ):
     # type: (...) -> None
 
@@ -81,9 +81,9 @@ def test_lock_create_universal_interpreter_constraint_unsatisfiable(
         "--style",
         "universal",
         "--interpreter-constraint",
-        "CPython<3.11,>=3.9",
+        "CPython<3.12,>=3.10",
         "--python-path",
-        os.pathsep.join(interp.binary for interp in (py27, py38)),
+        os.pathsep.join(interp.binary for interp in (py27, py39)),
         "aioconsole==0.4.1",
         "-o",
         lock,
@@ -98,15 +98,15 @@ def test_lock_create_universal_interpreter_constraint_unsatisfiable(
         r"\n"
         r"Examined the following interpreters:\n"
         r"1\.\)\s+{py27_path} {py27_req}\n"
-        r"2\.\)\s+{py38_path} {py38_req}\n"
+        r"2\.\)\s+{py39_path} {py39_req}\n"
         r"\n"
         r"No interpreter compatible with the requested constraints was found:\n"
         r"\n"
-        r"  Version matches CPython<3\.11,>=3\.9\n".format(
+        r"  Version matches CPython<3\.12,>=3\.10\n".format(
             py27_path=py27.binary,
             py27_req=InterpreterConstraint.exact_version(py27),
-            py38_path=py38.binary,
-            py38_req=InterpreterConstraint.exact_version(py38),
+            py39_path=py39.binary,
+            py39_req=InterpreterConstraint.exact_version(py39),
         ),
         result.error,
     )

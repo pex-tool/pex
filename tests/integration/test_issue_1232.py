@@ -10,7 +10,7 @@ from pex.cache.dirs import CacheDir
 from pex.pep_440 import Version
 from pex.pip.version import PipVersion
 from pex.typing import TYPE_CHECKING
-from testing import PY38, PY310, ensure_python_interpreter, make_env, run_pex_command, subprocess
+from testing import PY39, PY311, ensure_python_interpreter, make_env, run_pex_command, subprocess
 
 if TYPE_CHECKING:
     from typing import Any, Dict, FrozenSet, Iterator, List
@@ -24,10 +24,10 @@ def test_isolated_pex_zip(
 
     pex_root = os.path.join(str(tmpdir), "pex_root")
 
-    python38 = ensure_python_interpreter(PY38)
-    python310 = ensure_python_interpreter(PY310)
+    python39 = ensure_python_interpreter(PY39)
+    python311 = ensure_python_interpreter(PY311)
 
-    pex_env = make_env(PEX_PYTHON_PATH=os.pathsep.join((python38, python310)))
+    pex_env = make_env(PEX_PYTHON_PATH=os.pathsep.join((python39, python311)))
 
     def add_pex_args(*args):
         # type: (*str) -> List[str]
@@ -37,9 +37,9 @@ def test_isolated_pex_zip(
             "--runtime-pex-root",
             pex_root,
             "--interpreter-constraint",
-            "CPython=={version}".format(version=PY38),
+            "CPython=={version}".format(version=PY39),
             "--pip-version",
-            PipVersion.latest_compatible(Version(PY38)).value,
+            PipVersion.latest_compatible(Version(PY39)).value,
         ]
 
     def tally_isolated_vendoreds():
@@ -71,7 +71,7 @@ def test_isolated_pex_zip(
     results = run_pex_command(
         args=add_pex_args(pex_project_dir, "-c", "pex", "-o", current_pex_pex),
         env=pex_env,
-        python=python38,
+        python=python39,
     )
     results.assert_success()
 
@@ -106,7 +106,7 @@ def test_isolated_pex_zip(
     modified_pex = os.path.join(str(tmpdir), "modified.pex")
     subprocess.check_call(
         args=add_pex_args(
-            python310, current_pex_pex, modified_pex_src, "-c", "pex", "-o", modified_pex
+            python311, current_pex_pex, modified_pex_src, "-c", "pex", "-o", modified_pex
         ),
         env=pex_env,
     )
@@ -124,7 +124,7 @@ def test_isolated_pex_zip(
     ansicolors_pex = os.path.join(str(tmpdir), "ansicolors.pex")
     subprocess.check_call(
         args=add_pex_args(
-            python310,
+            python311,
             modified_pex,
             "ansicolors==1.1.8",
             "-o",
@@ -148,7 +148,7 @@ def test_isolated_pex_zip(
     # ===
     # Force the bootstrap to run interpreter identification which will force a Pex isolation.
     shutil.rmtree(CacheDir.INTERPRETERS.path(pex_root=pex_root))
-    subprocess.check_call(args=[python310, ansicolors_pex, "-c", "import colors"], env=pex_env)
+    subprocess.check_call(args=[python311, ansicolors_pex, "-c", "import colors"], env=pex_env)
     ansicolors_pex_isolated_vendoreds = tally_isolated_vendoreds()
     ansicolors_pex_isolation = set(modified_pex_isolated_vendoreds.keys()) ^ set(
         ansicolors_pex_isolated_vendoreds.keys()
@@ -166,7 +166,7 @@ def test_isolated_pex_zip(
     ansicolors_pex = os.path.join(str(tmpdir), "ansicolors.old.pex")
     subprocess.check_call(
         args=add_pex_args(
-            python310,
+            python311,
             modified_pex,
             "ansicolors==1.0.2",
             "-o",
@@ -177,7 +177,7 @@ def test_isolated_pex_zip(
 
     # Force the bootstrap to run interpreter identification which will force a Pex isolation.
     shutil.rmtree(CacheDir.INTERPRETERS.path(pex_root=pex_root))
-    subprocess.check_call(args=[python310, ansicolors_pex, "-c", "import colors"], env=pex_env)
+    subprocess.check_call(args=[python311, ansicolors_pex, "-c", "import colors"], env=pex_env)
     assert (
         ansicolors_pex_isolated_vendoreds == tally_isolated_vendoreds()
     ), "Expecting no new Pex isolations."
