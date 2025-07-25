@@ -139,7 +139,7 @@ def test_mixed_pex_root(
 
     def greenlet_include_venv_path(venv_dir):
         # type: (str) -> str
-        return os.path.join(venv_dir, "include", "site", "python3.8", "greenlet", "greenlet.h")
+        return os.path.join(venv_dir, "include", "site", "python3.9", "greenlet", "greenlet.h")
 
     pex_app_old = os.path.join(str(tmpdir), "app.old.pex")
     subprocess.check_call(args=create_pex_args(old_pex, "-o", pex_app_old))
@@ -182,4 +182,7 @@ def test_mixed_pex_root(
         args=[py39.binary, pex_app_new, "-c", "import greenlet"],
         env=make_env(PEX_IGNORE_ERRORS=True),
     )
-    assert os.path.exists(greenlet_include_venv_path(py39_venv_dir_new))
+    include_path = greenlet_include_venv_path(py39_venv_dir_new)
+    assert os.path.exists(include_path), (
+        "Expected {include_path} to exist.".format(include_path=include_path)
+    )
