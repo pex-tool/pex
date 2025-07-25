@@ -152,14 +152,14 @@ jobs:
     strategy:
       matrix:
         include:
-          - python-version: [ 3, 13 ]
+          - python-version: "3.14.0-rc.1"
             test-cmd: test-py313-pip25.1.1
             test-cmd-python: python3.11
-          - python-version: [ 3, 13 ]
+          - python-version: "3.14.0-rc.1"
             test-cmd: test-py313-pip25.1.1-integration
             test-cmd-python: python3.11
             pex-test-pos-args: --shard 1/2
-          - python-version: [ 3, 13 ]
+          - python-version: "3.14.0-rc.1"
             test-cmd: test-py313-pip25.1.1-integration
             test-cmd-python: python3.11
             pex-test-pos-args: --shard 2/2
@@ -170,10 +170,10 @@ jobs:
           # We need branches and tags for some ITs.
           fetch-depth: 0
           path: repo
-      - name: Setup Python ${{ join(matrix.python-version, '.') }}
+      - name: Setup Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
-          python-version: "${{ join(matrix.python-version, '.') }}"
+          python-version: "${{ matrix.python-version }}"
       - name: Expose Pythons
         uses: pex-tool/actions/expose-pythons@e22fe0e0fe85e1f7eb5bbfc7674c7cbbf24ae6b5
       - name: Restore Cached Pyenv Interpreters
@@ -244,25 +244,25 @@ jobs:
           # stderr do not make it in junit xml artifacts. Env var secrets can leak this way when
           # subprocess launches fail and env vars are logged. We only need the success / fail counts
           # for the overall Windows bring-up project health report.
-          - python-version: [ 3, 11 ]
+          - python-version: "3.11"
             test-cmd: typecheck package docs
-          - python-version: [ 3, 13 ]
+          - python-version: "3.13"
             test-cmd: test-py313-pip25.1.1
             artifact-name: unit
             pex-test-pos-args: --junit-report ../dist/test-results/unit.xml
-          - python-version: [ 3, 13 ]
+          - python-version: "3.13"
             test-cmd: test-py313-pip25.1.1-integration
             artifact-name: integration-1
             pex-test-pos-args: --shard 1/4 --junit-report ../dist/test-results/integration-1.xml
-          - python-version: [ 3, 13 ]
+          - python-version: "3.13"
             test-cmd: test-py313-pip25.1.1-integration
             artifact-name: integration-2
             pex-test-pos-args: --shard 2/4 --junit-report ../dist/test-results/integration-2.xml
-          - python-version: [ 3, 13 ]
+          - python-version: "3.13"
             test-cmd: test-py313-pip25.1.1-integration
             artifact-name: integration-3
             pex-test-pos-args: --shard 3/4 --junit-report ../dist/test-results/integration-3.xml
-          - python-version: [ 3, 13 ]
+          - python-version: "3.13"
             test-cmd: test-py313-pip25.1.1-integration
             artifact-name: integration-4
             pex-test-pos-args: --shard 4/4 --junit-report ../dist/test-results/integration-4.xml
@@ -273,10 +273,10 @@ jobs:
           # We need branches and tags for some ITs.
           fetch-depth: 0
           path: repo
-      - name: Setup Python ${{ join(matrix.python-version, '.') }}
+      - name: Setup Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
-          python-version: "${{ join(matrix.python-version, '.') }}"
+          python-version: "${{ matrix.python-version }}"
       - name: Install uv
         uses: astral-sh/setup-uv@v5
       - name: Restore Cached Devpi Server
