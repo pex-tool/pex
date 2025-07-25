@@ -185,8 +185,10 @@ jobs:
       - name: Install Pyenv Requirements
         run: |
           brew install pyenv
-          pyenv install 3.8.10
-          python3.8 -V
+          pyenv install 3.9.13
+          python3.9 -V
+          pyenv install 3.10.7
+          python3.10 -V
 
           # See: https://github.com/pyenv/pyenv/wiki#suggested-build-environment
           brew install openssl readline sqlite3 xz zlib tcl-tk@8 libb2
