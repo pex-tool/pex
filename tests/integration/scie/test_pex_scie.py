@@ -51,7 +51,6 @@ if TYPE_CHECKING:
         pytest.param(["--venv", "--sh-boot"], id="VENV-sh-boot"),
     ],
 )
-@skip_if_no_provider
 def test_basic(
     tmpdir,  # type: Any
     scie_style,  # type: ScieStyle.Value
@@ -89,7 +88,19 @@ def test_basic(
             re_flags=re.DOTALL | re.MULTILINE,
         )
         return
-    if PY_VER == (3, 8) or PY_VER >= (3, 14):
+    if PY_VER == (3, 8) and not IS_PYPY:
+        result.assert_failure(
+            expected_error_re=r".*{message}$".format(
+                message=re.escape(
+                    "No released assets available for Python 3.8 in the latest "
+                    "PythonBuildStandalone release. Support for Python 3.8 was dropped in the "
+                    "20241205 release. Try specifying an older PythonBuildStandalone release.\n"
+                )
+            ),
+            re_flags=re.DOTALL | re.MULTILINE,
+        )
+        return
+    if PY_VER >= (3, 14):
         result.assert_failure(
             expected_error_re=(
                 r".*"
