@@ -192,9 +192,11 @@ jobs:
           eval "$(pyenv init - bash)"
           
           pyenv install 3.9.13
-          python3.9 -V
-          
           pyenv install 3.10.7
+          
+          pyenv global system 3.9.13 3.10.7
+          
+          python3.9 -V
           python3.10 -V
 
           # See: https://github.com/pyenv/pyenv/wiki#suggested-build-environment
