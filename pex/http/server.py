@@ -172,16 +172,19 @@ class Server(object):
         log = os.path.join(self.cache_dir, "log.txt")
         http_server_module = "http.server" if sys.version_info[0] == 3 else "SimpleHttpServer"
         env = os.environ.copy()
-        # N.B.: We set up line buffering for the process pipes as well as the underlying Python running
-        # the http server to ensure we can observe the `Serving HTTP on ...` line we need to grab the
-        # ephemeral port chosen.
+        # N.B.: We set up line buffering for the process pipes as well as the underlying Python
+        # running the http server to ensure we can observe the `Serving HTTP on ...` line we need to
+        # grab the ephemeral port chosen.
         env.update(PYTHONUNBUFFERED="1")
         with safe_open(log, "w") as fp:
             process = launch_python_daemon(
                 args=[sys.executable, "-m", http_server_module, str(port)],
                 env=env,
                 cwd=document_root,
+                # N.B.: Line buffering under Python 3 requires both bufsize=1 and
+                # universal_newlines=True.
                 bufsize=1,
+                universal_newlines=True,
                 stdout=fp.fileno(),
                 stderr=subprocess.STDOUT,
             )
