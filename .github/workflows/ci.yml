@@ -185,6 +185,12 @@ jobs:
       - name: Install Pyenv Requirements
         run: |
           # See: https://github.com/pyenv/pyenv/wiki#suggested-build-environment
+          xcode-select --install
+
+          brew install pyenv
+          pyenv install 3.8.10
+          python3.8 -V
+
           brew install openssl readline sqlite3 xz zlib tcl-tk@8 libb2
 
           echo >&2 "BEFORE:"
