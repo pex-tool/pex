@@ -177,6 +177,6 @@ def test_setproctitle(
     assert_expected_python(exe)
 
     assert args.startswith(setproctitle_pex_file)
-    args_suffix = args[len(setproctitle_pex_file + " "):]
+    args_suffix = args[len(setproctitle_pex_file + " ") :]
     assert args_suffix
     assert "--some arguments here".startswith(args_suffix)
