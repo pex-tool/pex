@@ -193,11 +193,13 @@ jobs:
           
           pyenv install 3.9.13
           pyenv install 3.10.7
+          pyenv install 3.11.13
           
-          pyenv global system 3.9.13 3.10.7
+          pyenv global system 3.9.13 3.10.7 3.111.13
           
           python3.9 -V
           python3.10 -V
+          python3.11 -V
 
           # See: https://github.com/pyenv/pyenv/wiki#suggested-build-environment
           brew install openssl readline sqlite3 xz zlib tcl-tk@8 libb2
