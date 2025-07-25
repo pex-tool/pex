@@ -13,7 +13,7 @@ import testing
 from pex.interpreter import PythonInterpreter
 from pex.platforms import Platform
 from pex.typing import TYPE_CHECKING
-from testing import PY27, PY38, PY39, PY310, ensure_python_interpreter, pex_dist
+from testing import PY27, PY39, PY310, PY311, ensure_python_interpreter, pex_dist
 from testing.pytest_utils import tmp, track_status_hook
 
 if TYPE_CHECKING:
@@ -104,12 +104,6 @@ def py27():
 
 
 @pytest.fixture
-def py38():
-    # type: () -> PythonInterpreter
-    return PythonInterpreter.from_binary(ensure_python_interpreter(PY38))
-
-
-@pytest.fixture
 def py39():
     # type: () -> PythonInterpreter
     return PythonInterpreter.from_binary(ensure_python_interpreter(PY39))
@@ -119,3 +113,9 @@ def py39():
 def py310():
     # type: () -> PythonInterpreter
     return PythonInterpreter.from_binary(ensure_python_interpreter(PY310))
+
+
+@pytest.fixture
+def py311():
+    # type: () -> PythonInterpreter
+    return PythonInterpreter.from_binary(ensure_python_interpreter(PY311))

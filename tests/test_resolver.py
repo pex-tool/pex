@@ -30,8 +30,9 @@ from testing import (
     IS_LINUX,
     IS_PYPY,
     PY27,
-    PY38,
+    PY39,
     PY310,
+    PY311,
     PY_VER,
     built_wheel,
     ensure_python_interpreter,
@@ -306,7 +307,7 @@ def test_resolve_current_platform(p537_resolve_cache):
             targets=Targets(platforms=current_platform, interpreters=tuple(interpreters)),
         )
 
-    other_python_version = PY310 if PY_VER == (3, 8) else PY38
+    other_python_version = PY311 if PY_VER == (3, 9) else PY39
     other_python = PythonInterpreter.from_binary(ensure_python_interpreter(other_python_version))
     current_python = PythonInterpreter.get()
 
@@ -344,7 +345,7 @@ def test_resolve_current_and_foreign_platforms(p537_resolve_cache):
 
     assert 2 == len(resolve_current_and_foreign())
 
-    other_python_version = PY310 if PY_VER == (3, 8) else PY38
+    other_python_version = PY311 if PY_VER == (3, 9) else PY39
     other_python = PythonInterpreter.from_binary(ensure_python_interpreter(other_python_version))
     current_python = PythonInterpreter.get()
 
@@ -423,7 +424,7 @@ def test_issues_851():
         return project_to_version
 
     resolved_project_to_version = resolve_pytest(
-        python=ensure_python_interpreter(PY38), pytest_version="5.3.4"
+        python=ensure_python_interpreter(PY39), pytest_version="5.3.4"
     )
     assert "importlib-metadata" not in resolved_project_to_version
     assert "configparser" not in resolved_project_to_version

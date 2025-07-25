@@ -17,20 +17,20 @@ from pex.interpreter_constraints import (
 )
 from pex.pex_warnings import PEXWarning
 from pex.typing import TYPE_CHECKING
-from testing import PY38, ensure_python_interpreter
+from testing import PY39, ensure_python_interpreter
 
 if TYPE_CHECKING:
     from typing import List, Tuple
 
 
 def test_parse():
-    py38 = PythonInterpreter.from_binary(ensure_python_interpreter(PY38))
+    py39 = PythonInterpreter.from_binary(ensure_python_interpreter(PY39))
 
-    assert py38 in InterpreterConstraint.parse("==3.8.*")
-    assert py38 in InterpreterConstraint.parse("CPython==3.8.*")
-    assert py38 in InterpreterConstraint.parse("==3.8.*", default_interpreter="CPython")
-    assert py38 not in InterpreterConstraint.parse("==3.8.*", default_interpreter="PyPy")
-    assert py38 not in InterpreterConstraint.parse("PyPy==3.8.*")
+    assert py39 in InterpreterConstraint.parse("==3.9.*")
+    assert py39 in InterpreterConstraint.parse("CPython==3.9.*")
+    assert py39 in InterpreterConstraint.parse("==3.9.*", default_interpreter="CPython")
+    assert py39 not in InterpreterConstraint.parse("==3.9.*", default_interpreter="PyPy")
+    assert py39 not in InterpreterConstraint.parse("PyPy==3.9.*")
 
     with pytest.raises(
         UnsatisfiableError, match="The interpreter constraint ==3.8.*,==3.9.* is unsatisfiable."

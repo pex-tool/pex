@@ -31,7 +31,7 @@ from pex.targets import AbbreviatedPlatform, LocalInterpreter, Target
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
 from pex.venv.virtualenv import Virtualenv
-from testing import IS_LINUX, PY38, PY310, ensure_python_interpreter
+from testing import IS_LINUX, PY39, PY310, ensure_python_interpreter
 from testing.pytest_utils.tmp import Tempdir
 
 if TYPE_CHECKING:
@@ -149,17 +149,17 @@ def package_index_configuration(
     [
         pytest.param(version, id=str(version))
         for version in PipVersion.values()
-        if version.requires_python_applies(Version(PY38))
+        if version.requires_python_applies(Version(PY39))
     ],
 )
 def test_download_platform_issues_1355(
     create_pip,  # type: CreatePip
     version,  # type: PipVersionValue
-    py38,  # type: PythonInterpreter
+    py39,  # type: PythonInterpreter
     tmpdir,  # type: Any
 ):
     # type: (...) -> None
-    pip = create_pip(py38, version=version)
+    pip = create_pip(py39, version=version)
     download_dir = os.path.join(str(tmpdir), "downloads")
 
     def download_pyarrow(target=None):
@@ -182,12 +182,12 @@ def test_download_platform_issues_1355(
         assert [expected_wheel] == os.listdir(download_dir)
 
     assert_pyarrow_downloaded(
-        "pyarrow-4.0.1-cp38-cp38-manylinux2014_x86_64.whl", target=LocalInterpreter.create(py38)
+        "pyarrow-4.0.1-cp39-cp39-manylinux2014_x86_64.whl", target=LocalInterpreter.create(py39)
     )
     assert_pyarrow_downloaded(
-        "pyarrow-4.0.1-cp38-cp38-manylinux2010_x86_64.whl",
+        "pyarrow-4.0.1-cp39-cp39-manylinux2010_x86_64.whl",
         target=AbbreviatedPlatform.create(
-            abbreviated_platforms.create("linux-x86_64-cp-38-cp38", manylinux="manylinux2010")
+            abbreviated_platforms.create("linux-x86_64-cp-39-cp39", manylinux="manylinux2010")
         ),
     )
 

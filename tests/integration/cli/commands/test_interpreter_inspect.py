@@ -116,24 +116,24 @@ def test_inspect_all():
 
 def test_inspect_interpreter_selection(
     py27,  # type: PythonInterpreter
-    py38,  # type: PythonInterpreter
-    py310,  # type: PythonInterpreter
+    py39,  # type: PythonInterpreter
+    py311,  # type: PythonInterpreter
 ):
     # type: (...) -> None
 
-    assert [py27.binary, py310.binary] == assert_inspect(
-        "--python", py27.binary, "--python", py310.binary
+    assert [py27.binary, py311.binary] == assert_inspect(
+        "--python", py27.binary, "--python", py311.binary
     ).splitlines()
 
-    assert [py38.binary, py310.binary] == assert_inspect(
-        "--all", "--python-path", os.pathsep.join([os.path.dirname(py38.binary), py310.binary])
+    assert [py39.binary, py311.binary] == assert_inspect(
+        "--all", "--python-path", os.pathsep.join([os.path.dirname(py39.binary), py311.binary])
     ).splitlines()
 
-    assert [py38.binary] == assert_inspect(
+    assert [py39.binary] == assert_inspect(
         "--interpreter-constraint",
-        "<3.10",
+        "<3.11",
         "--python-path",
-        os.pathsep.join([os.path.dirname(py38.binary), py310.binary]),
+        os.pathsep.join([os.path.dirname(py39.binary), py311.binary]),
     ).splitlines()
 
 

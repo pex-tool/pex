@@ -9,7 +9,7 @@ import pytest
 from pex.compatibility import PY3
 from pex.fs import safe_symlink
 from pex.typing import TYPE_CHECKING
-from testing import PY38, ensure_python_interpreter, run_pex_command, subprocess
+from testing import PY39, ensure_python_interpreter, run_pex_command, subprocess
 
 if TYPE_CHECKING:
     from typing import Any, List
@@ -63,7 +63,7 @@ def test_symlink_preserved_in_argv0(
     # N.B.: This fortune implementation uses print(..., file=...) without
     # `from __future__ import print_function`; so fails under Python 2.7 despite the fact its
     # released as a py2.py3 wheel.
-    python = sys.executable if PY3 else ensure_python_interpreter(PY38)
+    python = sys.executable if PY3 else ensure_python_interpreter(PY39)
     assert (
         "Just the one"
         == subprocess.check_output(args=[python, fortune, fortune_file]).decode("utf-8").strip()
