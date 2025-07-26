@@ -19,6 +19,7 @@ from pex.build_system import pep_517
 from pex.cache import access as cache_access
 from pex.cli.command import BuildTimeCommand
 from pex.common import open_zip, safe_mkdtemp, safe_rmtree
+from pex.compatibility import shlex_quote
 from pex.dist_metadata import DistMetadata, is_sdist, is_tar_sdist, is_wheel
 from pex.enum import Enum
 from pex.exceptions import production_assert
@@ -33,6 +34,7 @@ from pex.resolve.target_configuration import TargetConfiguration
 from pex.resolver import LocalDistribution
 from pex.result import Error, Result, try_
 from pex.targets import LocalInterpreter, Target, Targets
+from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper
 from pex.variables import ENV, venv_dir
@@ -124,9 +126,9 @@ class Run(BuildTimeCommand):
                 "Whether to resolve the tool to run respecting the PEP-751 lock file it ships "
                 "with, if any. By default the search order is for `pylock.<entry point>.toml` "
                 "first and then `pylock.toml` if the entry-point-specific lock file is not found. "
-                "If the project is distributed as a wheel, the lock file is looked for in its "
-                "`.dist-info/pylock/` directory. If the project is a source distribution the lock "
-                "file is looked for in the source distribution root directory respecting "
+                "If the project is distributed as a wheel, the lock file is looked for in the "
+                "`pylock` dist-info sub-directory. If the project is a source distribution the "
+                "lock file is looked for in the source distribution root directory respecting "
                 "#subdirectory= if used in the project `--requirement`. If no lock file is found, "
                 "the tool transitive dependencies are resolved as per --requirement if supplied; "
                 "otherwise the latest compatible version and its latest compatible transitive "
@@ -215,6 +217,9 @@ class Run(BuildTimeCommand):
                 os.path.isfile(os.path.join(distribution.path, lock_name))
                 for lock_name in lock_names
             ):
+                TRACER.log(
+                    "No lock found in local project at {path}.".format(path=distribution.path)
+                )
                 return None
 
             sdist = try_(
@@ -260,6 +265,11 @@ class Run(BuildTimeCommand):
                     )
                     if lock_path in names:
                         zf.extract(lock_path, lock_dest_dir)
+                        TRACER.log(
+                            "Using lock in {wheel} at {path}.".format(
+                                wheel=os.path.basename(distribution.path), path=lock_path
+                            )
+                        )
                         return package, os.path.join(lock_dest_dir, lock_path)
         elif is_sdist(distribution.path):
             if is_tar_sdist(distribution.path):
@@ -279,8 +289,15 @@ class Run(BuildTimeCommand):
             for lock_name in lock_names:
                 lock_path = os.path.join(sdist_root, lock_name)
                 if os.path.exists(lock_path):
+                    TRACER.log(
+                        "Using lock in {sdist} at {path}.".format(
+                            sdist=os.path.basename(distribution.path),
+                            path=os.path.relpath(lock_path, lock_dest_dir),
+                        )
+                    )
                     return package, lock_path
 
+        TRACER.log("No lock found in {dist}.".format(dist=os.path.basename(distribution.path)))
         return None
 
     def _resolve_tool(
@@ -384,8 +401,8 @@ class Run(BuildTimeCommand):
                                 index=len(packages),
                                 dependencies=tuple(
                                     # N.B.: The root tool package does not necessarily depend on all
-                                    # other packages in the lock, but it is harmless to claim this to
-                                    # ensure a full tool + lock install.
+                                    # other packages in the lock, but it is harmless to claim this
+                                    # to ensure a full tool + lock install.
                                     Dependency(package.index, package.project_name)
                                     for package in packages
                                 ),
@@ -421,4 +438,7 @@ class Run(BuildTimeCommand):
             command.append("-m")
             command.append(run_config.entry_point)
         command.extend(run_config.args)
+        TRACER.log(
+            "Running: {command}".format(command=" ".join(shlex_quote(arg) for arg in command))
+        )
         safe_execv(command)
