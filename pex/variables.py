@@ -813,10 +813,10 @@ def unzip_dir(
 
 
 def venv_dir(
-    pex_file,  # type: str
     pex_root,  # type: str
     pex_hash,  # type: str
     has_interpreter_constraints,  # type: bool
+    pex_file=None,  # type: Optional[str]
     interpreter=None,  # type: Optional[PythonInterpreter]
     pex_path=(),  # type: Tuple[str, ...]
     expand_pex_root=True,  # type: bool
@@ -891,13 +891,18 @@ def venv_dir(
 
     def warn(message):
         # type: (str) -> None
+
+        if not pex_file:
+            return
+
         from pex.pex_info import PexInfo
 
         pex_warnings.configure_warnings(ENV, PexInfo.from_pex(pex_file))
         pex_warnings.warn(message)
 
     if (
-        ENV.PEX_PYTHON
+        pex_file
+        and ENV.PEX_PYTHON
         and not precise_pex_python
         and not re.match(r".*[^\d][\d]+\.[\d]+$", ENV.PEX_PYTHON)
     ):
@@ -921,7 +926,7 @@ def venv_dir(
                 )
             )
         )
-    if not interpreter_path and ENV.PEX_PYTHON_PATH:
+    if pex_file and not interpreter_path and ENV.PEX_PYTHON_PATH:
         warn(
             dedent(
                 """\

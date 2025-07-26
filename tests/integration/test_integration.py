@@ -1686,10 +1686,10 @@ def test_venv_mode(
             pex_hash = pex_info.pex_hash
             assert pex_hash is not None
             expected_venv_home = venv_dir(
-                pex_file=pex_file,
                 pex_root=pex_root,
                 pex_hash=pex_hash,
                 has_interpreter_constraints=False,
+                pex_file=pex_file,
             )
         assert expected_venv_home == safe_commonpath([pex_interpreter, expected_venv_home])
         return pex_interpreter
