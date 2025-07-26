@@ -154,9 +154,11 @@ class Run(BuildTimeCommand):
                 "point the project provides."
             ),
         )
-        target_options.register(parser, include_platforms=False)
-        resolver_options.register(parser)
-        dependency_configuration.register(parser)
+        target_options.register(
+            parser.add_argument_group("Target python options"), include_platforms=False
+        )
+        resolver_options.register(parser.add_argument_group("Resolver options"))
+        dependency_configuration.register(parser.add_argument_group("Dependency options"))
 
     def _parse_options(self):
         # type: () -> RunConfig
