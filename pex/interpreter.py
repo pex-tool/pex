@@ -137,7 +137,7 @@ def path_mappings(mappings):
             _PATH_MAPPINGS.pop(current_path)
 
 
-def _adjust_to_final_path(path):
+def adjust_to_final_path(path):
     # type: (str) -> str
     for current_path, final_path in _PATH_MAPPINGS.items():
         if path.startswith(current_path):
@@ -458,7 +458,7 @@ class PythonIdentity(object):
         purelib = None  # type: Optional[str]
         platlib = None  # type: Optional[str]
         for entry in self._site_packages:
-            entry_path = _adjust_to_final_path(entry.path)
+            entry_path = adjust_to_final_path(entry.path)
             site_packages.append(entry_path)
             if isinstance(entry, Purelib):
                 purelib = entry_path
@@ -467,18 +467,18 @@ class PythonIdentity(object):
 
         values = dict(
             __format_version__=self._FORMAT_VERSION,
-            binary=_adjust_to_final_path(self._binary),
-            prefix=_adjust_to_final_path(self._prefix),
-            base_prefix=_adjust_to_final_path(self._base_prefix),
-            sys_path=[_adjust_to_final_path(entry) for entry in self._sys_path],
+            binary=adjust_to_final_path(self._binary),
+            prefix=adjust_to_final_path(self._prefix),
+            base_prefix=adjust_to_final_path(self._base_prefix),
+            sys_path=[adjust_to_final_path(entry) for entry in self._sys_path],
             site_packages=site_packages,
             # N.B.: We encode purelib and platlib site-packages entries on the side like this to
             # ensure older Pex versions that did not know the distinction can still use the
             # interpreter cache.
             purelib=purelib,
             platlib=platlib,
-            extras_paths=[_adjust_to_final_path(extras_path) for extras_path in self._extras_paths],
-            paths={name: _adjust_to_final_path(path) for name, path in self._paths.items()},
+            extras_paths=[adjust_to_final_path(extras_path) for extras_path in self._extras_paths],
+            paths={name: adjust_to_final_path(path) for name, path in self._paths.items()},
             packaging_version=self._packaging_version,
             python_tag=self._python_tag,
             abi_tag=self._abi_tag,

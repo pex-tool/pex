@@ -283,10 +283,10 @@ class PexInfo(object):
         if self.pex_hash is None:
             raise ValueError("The venv_dir was requested but no pex_hash was set.")
         return variables.venv_dir(
-            pex_file=pex_file,
             pex_root=pex_root,
             pex_hash=self.pex_hash,
             has_interpreter_constraints=self.has_interpreter_constraints,
+            pex_file=pex_file,
             interpreter=interpreter,
             pex_path=self.pex_path,
             expand_pex_root=expand_pex_root,
