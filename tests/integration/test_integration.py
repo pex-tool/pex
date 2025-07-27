@@ -35,6 +35,7 @@ from pex.typing import TYPE_CHECKING, cast
 from pex.util import named_temporary_file
 from pex.variables import ENV, unzip_dir, venv_dir
 from testing import (
+    IS_LINUX,
     IS_LINUX_ARM64,
     IS_MAC,
     IS_MAC_ARM64,
@@ -391,11 +392,20 @@ def test_entry_point_exit_code(tmpdir):
         assert rc == 1
 
 
+CI_multi_resolve_test = pytest.mark.skipif(
+    IS_CI and not IS_LINUX,
+    reason=(
+        "This multiplatform test exercises its full breadth on any given OS; so just running on "
+        "Linux is enough"
+    ),
+)
+
 CI_flaky = pytest.mark.flaky(retries=2, condition=IS_CI)
 
 
 # This test often fails when there is no devpi cache built up yet; so give it a few burns.
 @CI_flaky
+@CI_multi_resolve_test
 def test_pex_multi_resolve_1(tmpdir):
     # type: (Any) -> None
     """Tests multi-interpreter + multi-platform resolution."""
@@ -617,6 +627,7 @@ def inherit_path(inherit_path):
 
 # This test often fails when there is no devpi cache built up yet; so give it a few burns.
 @CI_flaky
+@CI_multi_resolve_test
 def test_pex_multi_resolve_2(tmpdir):
     # type: (Any) -> None
 
