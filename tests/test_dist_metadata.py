@@ -14,10 +14,13 @@ import pytest
 
 from pex.common import open_zip, safe_open, temporary_dir, touch
 from pex.dist_metadata import (
+    CallableEntryPoint,
     Distribution,
     InvalidMetadataError,
     MetadataError,
     MetadataType,
+    ModuleEntryPoint,
+    NamedEntryPoint,
     ProjectNameAndVersion,
     Requirement,
     project_name_and_version,
@@ -479,3 +482,51 @@ def test_invalid_metadata_requires_dists_error_issue_2441(tmpdir):
             location=location,
             metadata_type=MetadataType.EGG_INFO,
         )
+
+
+def test_parse_named_entry_point():
+    # type: () -> None
+
+    assert NamedEntryPoint(
+        name="foo", entry_point=ModuleEntryPoint(module="bar")
+    ) == NamedEntryPoint.parse("foo = bar")
+    assert NamedEntryPoint(
+        name="foo", entry_point=ModuleEntryPoint(module="bar")
+    ) == NamedEntryPoint.parse("foo=bar")
+    assert NamedEntryPoint(
+        name="foo", entry_point=ModuleEntryPoint(module="bar")
+    ) == NamedEntryPoint.parse(" foo= bar ")
+
+    assert NamedEntryPoint(
+        name="foo", entry_point=ModuleEntryPoint(module="bar.baz")
+    ) == NamedEntryPoint.parse("foo = bar.baz")
+    assert NamedEntryPoint(
+        name="foo", entry_point=ModuleEntryPoint(module="bar.baz")
+    ) == NamedEntryPoint.parse("foo = bar.baz[extra]")
+    assert NamedEntryPoint(
+        name="foo", entry_point=ModuleEntryPoint(module="bar.baz")
+    ) == NamedEntryPoint.parse("foo = bar.baz [extra1,extra2]")
+
+    assert NamedEntryPoint(
+        name="foo", entry_point=CallableEntryPoint(module="bar", attrs=("baz",))
+    ) == NamedEntryPoint.parse("foo = bar:baz")
+    assert NamedEntryPoint(
+        name="foo", entry_point=CallableEntryPoint(module="bar", attrs=("baz", "spam"))
+    ) == NamedEntryPoint.parse("foo = bar:baz.spam")
+    assert NamedEntryPoint(
+        name="foo", entry_point=CallableEntryPoint(module="bar", attrs=("baz", "spam"))
+    ) == NamedEntryPoint.parse("foo = bar:baz.spam[extra]")
+    assert NamedEntryPoint(
+        name="foo", entry_point=CallableEntryPoint(module="bar", attrs=("baz", "spam"))
+    ) == NamedEntryPoint.parse("foo = bar:baz.spam [extra1, extra2]")
+
+    with pytest.raises(ValueError, match=r"Invalid entry point specification: ''"):
+        NamedEntryPoint.parse("")
+    with pytest.raises(ValueError, match=r"Invalid entry point specification: ' = '"):
+        NamedEntryPoint.parse(" = ")
+    with pytest.raises(ValueError, match=r"Invalid entry point specification: 'foo = '"):
+        NamedEntryPoint.parse("foo = ")
+    with pytest.raises(ValueError, match=r"Invalid entry point specification: 'foo = bar:'"):
+        NamedEntryPoint.parse("foo = bar:")
+    with pytest.raises(ValueError, match=r"Invalid entry point specification: 'foo = bar: '"):
+        NamedEntryPoint.parse("foo = bar: ")
