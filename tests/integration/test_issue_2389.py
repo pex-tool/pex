@@ -51,7 +51,7 @@ def test_lock_use_no_build_wheel(
         ]
     ).assert_success()
 
-    output = subprocess.check_output(args=[pex, "--version"])
+    output = subprocess.check_output(args=[python, pex, "--version"])
     assert (
         "black.pex, 22.8.0 (compiled: {compiled})".format(
             compiled="no" if PythonInterpreter.from_binary(python).is_pypy else "yes"

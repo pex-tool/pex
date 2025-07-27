@@ -1686,11 +1686,19 @@ def test_venv_mode(
     other_interpreter = ensure_python_interpreter(other_interpreter_version)
 
     pex_file, args = isort_pex_args
-    results = run_pex_command(
-        args=args + ["--python", sys.executable, "--python", other_interpreter, "--venv"],
+    run_pex_command(
+        args=args
+        + [
+            "--python-shebang",
+            sys.executable,
+            "--python",
+            sys.executable,
+            "--python",
+            other_interpreter,
+            "--venv",
+        ],
         quiet=True,
-    )
-    results.assert_success()
+    ).assert_success()
 
     def run_isort_pex(pex_python=None):
         # type: (Optional[str]) -> str
