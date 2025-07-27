@@ -1,5 +1,13 @@
 # Release Notes
 
+## 2.48.1
+
+This release fixes the failure mode of `pex3 run --locked require`. Previously, subsequent runs
+with `--locked auto` would not fall back to using no lock, but instead error with a malformed venv
+from the failed run prior.
+
+* Fix `pex3 run --locked require` failure mode. (#2843)
+
 ## 2.48.0
 
 This release adds support for `pex3 run` akin to `pipx run` and `uvx`. By default,
