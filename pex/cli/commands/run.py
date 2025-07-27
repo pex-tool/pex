@@ -32,7 +32,7 @@ from pex.resolve.lockfile.pep_751 import Dependency, Package, Pylock
 from pex.resolve.resolvers import ResolveResult
 from pex.resolve.target_configuration import TargetConfiguration
 from pex.resolver import LocalDistribution
-from pex.result import Error, Result, try_
+from pex.result import Error, Result, ResultError, try_
 from pex.targets import LocalInterpreter, Target, Targets
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
@@ -381,9 +381,9 @@ class Run(BuildTimeCommand):
         )
         if not os.path.exists(tool_venv_dir.path):
             cache_access.read_write()
+        elif self.options.refresh:
+            safe_rmtree(tool_venv_dir.path)
         with atomic_directory(tool_venv_dir.path) as atomic_dir:
-            if self.options.refresh:
-                safe_rmtree(atomic_dir.target_dir)
             if not atomic_dir.is_finalized():
                 pylock = None  # type: Optional[Pylock]
                 if run_config.locks:
@@ -391,7 +391,9 @@ class Run(BuildTimeCommand):
                         self._resolve_pylock(target, run_config.requirement, run_config.locks)
                     )
                     if not maybe_lock and run_config.locked_choice is LockedChoice.REQUIRE:
-                        return Error("A tool lock file was required but none was found.")
+                        raise ResultError(
+                            Error("A tool lock file was required but none was found.")
+                        )
                     if maybe_lock:
                         package, pylock_toml = maybe_lock
                         pylock = try_(Pylock.parse(pylock_toml))
