@@ -105,7 +105,10 @@ def test_locked_require_error(
         pex_project_dir,
         "pex",
         "-V",
-    ).assert_failure(expected_error_re=r"A tool lock file was required but none was found.")
+    ).assert_failure(
+        expected_error_re=r".*^A tool lock file was required but none was found\.$.*",
+        re_flags=re.MULTILINE | re.DOTALL,
+    )
 
 
 @skip_if_locked_dev_cmd_not_compatible
@@ -129,7 +132,10 @@ def test_locked_require_backoff(
         pex_project_dir,
         "pex",
         "-V",
-    ).assert_failure(expected_error_re=r"A tool lock file was required but none was found.")
+    ).assert_failure(
+        expected_error_re=r".*^A tool lock file was required but none was found\.$.*",
+        re_flags=re.MULTILINE | re.DOTALL,
+    )
 
     # We should go back to success in auto mode.
     run_pex3(
