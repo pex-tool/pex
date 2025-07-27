@@ -5,6 +5,7 @@ from __future__ import absolute_import
 
 import hashlib
 import os
+from contextlib import contextmanager
 
 from pex.common import open_zip
 from pex.compatibility import to_unicode
@@ -187,6 +188,37 @@ def file_hash(
         update_hash(filelike=fp, digest=digest)
 
 
+@contextmanager
+def lock_pex_project_dir():
+    # type: () -> Iterator[None]
+
+    from pex.fs import lock
+    from pex.fs.lock import FileLockStyle
+
+    lck = lock.acquire(__file__ + ".lck", exclusive=True, style=FileLockStyle.BSD)
+    try:
+        yield
+    finally:
+        lck.release()
+
+
+@contextmanager
+def locked_directory(directory):
+    # type: (Text) -> Iterator[Text]
+
+    top = os.path.realpath(directory)
+    if __file__:
+        maybe_pex_project_directory = os.path.dirname(os.path.dirname(__file__))
+        if directory == maybe_pex_project_directory and os.path.isfile(
+            os.path.join(maybe_pex_project_directory, "pyproject.toml")
+        ):
+            with lock_pex_project_dir():
+                yield top
+            return
+
+    yield top
+
+
 def dir_hash(
     directory,  # type: Text
     digest,  # type: HintedDigest
@@ -196,26 +228,26 @@ def dir_hash(
     # type: (...) -> None
     """Digest the contents of a directory in a reproducible manner."""
 
-    top = os.path.realpath(directory)
+    with locked_directory(directory) as top:
 
-    def iter_files():
-        # type: () -> Iterator[Text]
-        for root, dirs, files in os.walk(top, followlinks=True):
-            dirs[:] = [d for d in dirs if dir_filter(os.path.join(root, d))]
-            for f in files:
-                path = os.path.join(root, f)
-                if file_filter(path):
-                    yield path
+        def iter_files():
+            # type: () -> Iterator[Text]
+            for root, dirs, files in os.walk(top, followlinks=True):
+                dirs[:] = [d for d in dirs if dir_filter(os.path.join(root, d))]
+                for f in files:
+                    path = os.path.join(root, f)
+                    if file_filter(path):
+                        yield path
 
-    file_paths = sorted(iter_files())
+        file_paths = sorted(iter_files())
 
-    # Regularize to / as the directory separator so that a dir hash on Unix matches a dir hash on
-    # Windows matches a zip hash (see below) of that same dir.
-    hashed_names = [os.path.relpath(n, top).replace(os.sep, "/") for n in file_paths]
-    digest.update(to_unicode("").join(map(to_unicode, hashed_names)).encode("utf-8"))
+        # Regularize to / as the directory separator so that a dir hash on Unix matches a dir hash
+        # on Windows matches a zip hash (see below) of that same dir.
+        hashed_names = [os.path.relpath(n, top).replace(os.sep, "/") for n in file_paths]
+        digest.update(to_unicode("").join(map(to_unicode, hashed_names)).encode("utf-8"))
 
-    for file_path in file_paths:
-        file_hash(file_path, digest)
+        for file_path in file_paths:
+            file_hash(file_path, digest)
 
 
 def zip_hash(

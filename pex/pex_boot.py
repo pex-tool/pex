@@ -123,10 +123,10 @@ def __maybe_run_venv__(
     from pex.variables import venv_dir
 
     venv_root_dir = venv_dir(
-        pex_file=pex,
         pex_root=pex_root,
         pex_hash=pex_hash,
         has_interpreter_constraints=has_interpreter_constraints,
+        pex_file=pex,
         pex_path=pex_path,
     )
     venv_pex = os.path.join(venv_root_dir, "pex")

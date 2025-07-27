@@ -36,6 +36,7 @@ def assert_locks_match(
     run_pex3(
         "lock",
         "create",
+        "-v",
         "--pip-version",
         "latest-compatible",
         "-o",
@@ -54,6 +55,7 @@ def assert_locks_match(
     run_pex3(
         "lock",
         "create",
+        "-v",
         "--pip-version",
         "latest-compatible",
         "-o",

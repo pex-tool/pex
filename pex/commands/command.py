@@ -152,6 +152,11 @@ class Command(object):
         # type: (ArgumentParser) -> None
         pass
 
+    @classmethod
+    def supports_unknown_args(cls):
+        # type: () -> bool
+        return False
+
     options = attr.ib()  # type: Namespace
     passthrough_args = attr.ib(default=None)  # type: Optional[Tuple[str, ...]]
 
@@ -496,7 +501,17 @@ class Main(Generic["_C"]):
             passthrough_args = tuple(args[passthrough_divide + 1 :])
             args = args[:passthrough_divide]
 
-        options = parser.parse_args(args=args)
+        options, unknown_args = parser.parse_known_args(args=args)
         with global_environment(options):
             command_type = cast("Type[_C]", options.command_type)
+            if unknown_args and not command_type.supports_unknown_args():
+                parser.error(
+                    "Unrecognized arguments: {args}".format(
+                        args=" ".join(shlex_quote(arg) for arg in unknown_args)
+                    )
+                )
+            if passthrough_args:
+                unknown_args.extend(passthrough_args)
+            if unknown_args:
+                passthrough_args = tuple(unknown_args)
             yield command_type(options, passthrough_args)

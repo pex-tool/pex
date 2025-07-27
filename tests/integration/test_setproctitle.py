@@ -155,10 +155,10 @@ def test_setproctitle(
         assert (
             os.path.join(
                 variables.venv_dir(
-                    pex_file,
                     pex_info.pex_root,
                     pex_info.pex_hash,
                     has_interpreter_constraints=False,
+                    pex_file=pex_file,
                 ),
                 "pex",
             )

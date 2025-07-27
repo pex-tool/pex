@@ -54,6 +54,8 @@ InstallLayout.seal()
 
 
 class Venv(OutputMixin, JsonMixin, BuildTimeCommand):
+    """Interact with venvs."""
+
     @classmethod
     def _add_inspect_arguments(cls, parser):
         # type: (_ActionsContainer) -> None

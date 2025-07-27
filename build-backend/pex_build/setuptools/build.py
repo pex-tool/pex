@@ -23,8 +23,6 @@ from setuptools.build_meta import *  # NOQA
 
 from pex import hashing, toml, windows
 from pex.common import open_zip, safe_copy, safe_mkdir, safe_mkdtemp, temporary_dir
-from pex.fs import lock
-from pex.fs.lock import FileLockStyle
 from pex.pep_376 import Hash, InstalledFile, Record
 from pex.third_party.packaging.markers import Marker
 from pex.typing import cast
@@ -122,8 +120,7 @@ def _serialized_build(func):
 
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
-        lck = lock.acquire(__file__ + ".lck", exclusive=True, style=FileLockStyle.BSD)
-        try:
+        with hashing.lock_pex_project_dir():
             with _maybe_rewrite_project() as preserved_pyproject_toml:
                 global _PRESERVED_PYPROJECT_TOML
                 _PRESERVED_PYPROJECT_TOML = preserved_pyproject_toml
@@ -131,8 +128,6 @@ def _serialized_build(func):
                     return func(*args, **kwargs)
                 finally:
                     _PRESERVED_PYPROJECT_TOML = None
-        finally:
-            lck.release()
 
     return wrapper
 

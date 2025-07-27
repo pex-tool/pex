@@ -24,6 +24,8 @@ logger = logging.getLogger(__name__)
 
 
 class Interpreter(OutputMixin, JsonMixin, BuildTimeCommand):
+    """Inspect interpreters."""
+
     @classmethod
     def _add_inspect_arguments(cls, parser):
         # type: (_ActionsContainer) -> None
