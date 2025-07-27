@@ -39,7 +39,7 @@ def normalize_artifact(artifact):
 
 def test_backtrack_links_preserved(
     tmpdir,  # type: Any
-    py38,  # type: PythonInterpreter
+    py39,  # type: PythonInterpreter
 ):
     # type: (...) -> None
 
@@ -54,7 +54,7 @@ def test_backtrack_links_preserved(
         "--interpreter-constraint",
         ">=3.7,<3.10",
         "--python-path",
-        py38.binary,
+        py39.binary,
         "psutil",
         "psutil<5.5",  # force a back-track
         "-o",
@@ -98,7 +98,7 @@ def test_backtrack_links_preserved(
         run_pex_command(
             args=["pex==2.1.77", "-c", "pex3", "--"] + create_lock_args,
             # N.B.: Pex 2.1.77 only works on CPython 3.10 and older and PyPy 3.7 and older.
-            python=py38.binary if PY_VER > (3, 10) or (IS_PYPY and PY_VER > (3, 7)) else None,
+            python=py39.binary if PY_VER > (3, 10) or (IS_PYPY and PY_VER > (3, 7)) else None,
         ).assert_success()
         psutil_old = assert_psutil_basics()
         assert 0 == len(psutil_old.additional_artifacts), (

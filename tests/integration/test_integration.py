@@ -35,14 +35,15 @@ from pex.typing import TYPE_CHECKING, cast
 from pex.util import named_temporary_file
 from pex.variables import ENV, unzip_dir, venv_dir
 from testing import (
+    IS_LINUX,
     IS_LINUX_ARM64,
     IS_MAC,
     IS_MAC_ARM64,
     NOT_CPYTHON27,
     PY27,
-    PY38,
     PY39,
     PY310,
+    PY311,
     PY_VER,
     IntegResults,
     built_wheel,
@@ -135,13 +136,13 @@ def test_pex_root_run(
     tmpdir,  # type: Any
 ):
     # type: (...) -> None
-    python38 = ensure_python_interpreter(PY38)
-    python310 = ensure_python_interpreter(PY310)
+    python39 = ensure_python_interpreter(PY39)
+    python311 = ensure_python_interpreter(PY311)
 
     runtime_pex_root = safe_mkdir(os.path.join(str(tmpdir), "runtime_pex_root"))
     home = safe_mkdir(os.path.join(str(tmpdir), "home"))
 
-    pex_env = make_env(HOME=home, PEX_PYTHON_PATH=os.pathsep.join((python38, python310)))
+    pex_env = make_env(HOME=home, PEX_PYTHON_PATH=os.pathsep.join((python39, python311)))
 
     buildtime_pex_root = os.path.join(str(tmpdir), "buildtime_pex_root")
     output_dir = os.path.join(str(tmpdir), "output_dir")
@@ -158,9 +159,9 @@ def test_pex_root_run(
         "--not-zip-safe",
         "--pex-root={}".format(buildtime_pex_root),
         "--runtime-pex-root={}".format(runtime_pex_root),
-        "--interpreter-constraint=CPython=={version}".format(version=PY38),
+        "--interpreter-constraint=CPython=={version}".format(version=PY311),
     ]
-    results = run_pex_command(args=args, env=pex_env, python=python310)
+    results = run_pex_command(args=args, env=pex_env, python=python311)
     results.assert_success()
     assert ["pex.pex"] == os.listdir(output_dir), "Expected built pex file."
     assert_empty_home_dir(home_dir=home)
@@ -173,7 +174,7 @@ def test_pex_root_run(
         runtime_pex_root
     ), "Expected runtime pex root to be empty prior to any runs."
 
-    subprocess.check_call(args=[python310, pex_pex, "--version"], env=pex_env)
+    subprocess.check_call(args=[python311, pex_pex, "--version"], env=pex_env)
     assert_interpreters(label="runtime", pex_root=runtime_pex_root)
     assert_installed_wheels(label="runtime", pex_root=runtime_pex_root)
     assert [] == os.listdir(
@@ -391,16 +392,25 @@ def test_entry_point_exit_code(tmpdir):
         assert rc == 1
 
 
+CI_multi_resolve_test = pytest.mark.skipif(
+    IS_CI and not IS_LINUX,
+    reason=(
+        "This multiplatform test exercises its full breadth on any given OS; so just running on "
+        "Linux is enough"
+    ),
+)
+
 CI_flaky = pytest.mark.flaky(retries=2, condition=IS_CI)
 
 
 # This test often fails when there is no devpi cache built up yet; so give it a few burns.
 @CI_flaky
+@CI_multi_resolve_test
 def test_pex_multi_resolve_1(tmpdir):
     # type: (Any) -> None
     """Tests multi-interpreter + multi-platform resolution."""
-    python38 = ensure_python_interpreter(PY38)
     python39 = ensure_python_interpreter(PY39)
+    python310 = ensure_python_interpreter(PY310)
 
     pex_path = os.path.join(str(tmpdir), "pex.pex")
 
@@ -416,12 +426,12 @@ def test_pex_multi_resolve_1(tmpdir):
     result = run_pex_command(
         args=[
             "--disable-cache",
-            "lxml==4.6.1",
+            "lxml==4.6.5",
             "--no-build",
             "--platform=linux-x86_64-cp-36-m",
-            "--platform=macosx-10.9-x86_64-cp-36-m",
-            "--python={}".format(python38),
+            "--platform=macosx-10.14-x86_64-cp-37-m",
             "--python={}".format(python39),
+            "--python={}".format(python310),
             "-o",
             pex_path,
             "--pip-log",
@@ -439,8 +449,12 @@ def test_pex_multi_resolve_1(tmpdir):
 
     included_dists = get_dep_dist_names_from_pex(pex_path, "lxml")
     assert len(included_dists) == 4
-    for dist_substr in ("-cp36-", "-cp38-", "-cp39-", "-manylinux1_x86_64", "-macosx_"):
-        assert any(dist_substr in f for f in included_dists)
+    for dist_substr in ("-cp36-", "-cp39-", "-cp310-", "manylinux2014_x86_64", "-macosx_"):
+        assert any(
+            dist_substr in f for f in included_dists
+        ), "Failed to find substring {dist_substr} in {included_dists}.".format(
+            dist_substr=dist_substr, included_dists=included_dists
+        )
 
 
 def test_pex_path_arg():
@@ -613,6 +627,7 @@ def inherit_path(inherit_path):
 
 # This test often fails when there is no devpi cache built up yet; so give it a few burns.
 @CI_flaky
+@CI_multi_resolve_test
 def test_pex_multi_resolve_2(tmpdir):
     # type: (Any) -> None
 
@@ -1000,7 +1015,7 @@ def test_multiplatform_entrypoint(tmpdir):
     # type: (Any) -> None
 
     pex_out_path = os.path.join(str(tmpdir), "p537.pex")
-    interpreter = ensure_python_interpreter(PY38)
+    interpreter = ensure_python_interpreter(PY39)
     res = run_pex_command(
         [
             "p537==1.0.8",
@@ -1107,16 +1122,22 @@ def test_pex_interpreter_interact_custom_setuptools_useable():
         assert rc == 0, stdout
 
 
-def test_setup_python():
-    # type: () -> None
-    interpreter = ensure_python_interpreter(PY39)
-    with temporary_dir() as out:
-        pex = os.path.join(out, "pex.pex")
-        results = run_pex_command(
-            ["jsonschema==2.6.0", "--disable-cache", "--python={}".format(interpreter), "-o", pex]
-        )
-        results.assert_success()
-        subprocess.check_call([pex, "-c", "import jsonschema"])
+def test_setup_python(
+    tmpdir,  # type: Tempdir
+    py39,  # type: PythonInterpreter
+):
+    # type: (...) -> None
+
+    pex = tmpdir.join("pex.pex")
+    run_pex_command(
+        args=["jsonschema==2.6.0", "--disable-cache", "--python", py39.binary, "-o", pex]
+    ).assert_success()
+    subprocess.check_call(
+        args=[pex, "-c", "import jsonschema"],
+        env=make_env(
+            PATH=os.pathsep.join((os.path.dirname(py39.binary), os.environ.get("PATH", os.defpath)))
+        ),
+    )
 
 
 @pytest.fixture
@@ -1168,8 +1189,8 @@ def test_setup_interpreter_constraint(path_with_git):
 def test_setup_python_path(path_with_git):
     # type: (Callable[[str], str]) -> None
     """Check that `--python-path` is used rather than the default $PATH."""
-    py38_interpreter_dir = os.path.dirname(ensure_python_interpreter(PY38))
     py39_interpreter_dir = os.path.dirname(ensure_python_interpreter(PY39))
+    py310_interpreter_dir = os.path.dirname(ensure_python_interpreter(PY310))
     with temporary_dir() as out:
         pex = os.path.join(out, "pex.pex")
         # Even though we set $PATH="", we still expect for both interpreters to be used when
@@ -1178,9 +1199,9 @@ def test_setup_python_path(path_with_git):
             [
                 "more-itertools==5.0.0",
                 "--disable-cache",
-                "--interpreter-constraint=CPython>={},<={}".format(PY38, PY39),
+                "--interpreter-constraint=CPython>={},<={}".format(PY39, PY310),
                 "--python-path={}".format(
-                    os.pathsep.join([py38_interpreter_dir, py39_interpreter_dir])
+                    os.pathsep.join([py39_interpreter_dir, py310_interpreter_dir])
                 ),
                 "-o",
                 pex,
@@ -1189,27 +1210,27 @@ def test_setup_python_path(path_with_git):
         )
         results.assert_success()
 
-        py310_interpreter = PythonInterpreter.from_binary(ensure_python_interpreter(PY310))
-
-        py38_env = make_env(PEX_IGNORE_RCFILES="1", PATH=py38_interpreter_dir)
-        stdout, rc = run_simple_pex(
-            pex,
-            interpreter=py310_interpreter,
-            env=py38_env,
-            stdin=b"import more_itertools, sys; print(sys.version_info[:2])",
-        )
-        assert rc == 0
-        assert b"(3, 8)" in stdout
+        py311_interpreter = PythonInterpreter.from_binary(ensure_python_interpreter(PY311))
 
         py39_env = make_env(PEX_IGNORE_RCFILES="1", PATH=py39_interpreter_dir)
         stdout, rc = run_simple_pex(
             pex,
-            interpreter=py310_interpreter,
+            interpreter=py311_interpreter,
             env=py39_env,
             stdin=b"import more_itertools, sys; print(sys.version_info[:2])",
         )
         assert rc == 0
         assert b"(3, 9)" in stdout
+
+        py310_env = make_env(PEX_IGNORE_RCFILES="1", PATH=py310_interpreter_dir)
+        stdout, rc = run_simple_pex(
+            pex,
+            interpreter=py311_interpreter,
+            env=py310_env,
+            stdin=b"import more_itertools, sys; print(sys.version_info[:2])",
+        )
+        assert rc == 0
+        assert b"(3, 10)" in stdout
 
 
 def test_setup_python_multiple_transitive_markers():
@@ -1438,7 +1459,7 @@ def iter_distributions(pex_root, project_name):
 
 def test_pex_cache_dir_and_pex_root():
     # type: () -> None
-    python = ensure_python_interpreter(PY38)
+    python = ensure_python_interpreter(PY39)
     with temporary_dir() as td:
         cache_dir = os.path.join(td, "cache_dir")
         pex_root = os.path.join(td, "pex_root")
@@ -1468,7 +1489,7 @@ def test_pex_cache_dir_and_pex_root():
 
 def test_disable_cache():
     # type: () -> None
-    python = ensure_python_interpreter(PY38)
+    python = ensure_python_interpreter(PY39)
     with temporary_dir() as td:
         pex_root = os.path.join(td, "pex_root")
         pex_file = os.path.join(td, "pex_file")
@@ -1665,11 +1686,19 @@ def test_venv_mode(
     other_interpreter = ensure_python_interpreter(other_interpreter_version)
 
     pex_file, args = isort_pex_args
-    results = run_pex_command(
-        args=args + ["--python", sys.executable, "--python", other_interpreter, "--venv"],
+    run_pex_command(
+        args=args
+        + [
+            "--python-shebang",
+            sys.executable,
+            "--python",
+            sys.executable,
+            "--python",
+            other_interpreter,
+            "--venv",
+        ],
         quiet=True,
-    )
-    results.assert_success()
+    ).assert_success()
 
     def run_isort_pex(pex_python=None):
         # type: (Optional[str]) -> str

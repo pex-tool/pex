@@ -22,9 +22,9 @@ from testing import (
     IS_MAC_ARM64,
     IS_PYPY,
     PY27,
-    PY38,
     PY39,
     PY310,
+    PY311,
     PY_VER,
     create_pex_command,
     ensure_python_interpreter,
@@ -126,8 +126,8 @@ def mixed_major_pythons():
     return (
         sys.executable,
         ensure_python_interpreter(PY27),
-        ensure_python_interpreter(PY38),
-        ensure_python_interpreter(PY310),
+        ensure_python_interpreter(PY39),
+        ensure_python_interpreter(PY311),
     )
 
 

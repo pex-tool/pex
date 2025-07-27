@@ -3,32 +3,34 @@
 
 from __future__ import print_function
 
-import os.path
 import shutil
 
 from pex.dist_metadata import ProjectNameAndVersion
+from pex.interpreter import PythonInterpreter
 from pex.pex_info import PexInfo
-from pex.typing import TYPE_CHECKING
-from testing import IS_ARM_64, IS_MAC, PY310, ensure_python_interpreter, run_pex_command
+from testing import IS_ARM_64, IS_MAC, run_pex_command
 from testing.cli import run_pex3
-
-if TYPE_CHECKING:
-    from typing import Any
+from testing.pytest_utils.tmp import Tempdir
 
 
-def test_find_links_url_escaping(tmpdir):
-    # type: (Any) -> None
+def test_find_links_url_escaping(
+    tmpdir,  # type: Tempdir
+    py310,  # type: PythonInterpreter
+):
+    # type: (...) -> None
 
     # N.B.: The use of --intransitive here (and --no-compress and --no-pre-install-wheels below)
     # just serve to make this issue reproduction less expensive: torch and its dependency set are
     # several GB worth.
-    lock = os.path.join(str(tmpdir), "lock.json")
-    pex_root = os.path.join(str(tmpdir), "pex_root")
+    lock = tmpdir.join("lock.json")
+    pex_root = tmpdir.join("pex_root")
     run_pex3(
         "lock",
         "create",
         "--pex-root",
         pex_root,
+        "--python-path",
+        py310.binary,
         "--interpreter-constraint",
         "CPython==3.10.*",
         "--style",
@@ -56,7 +58,7 @@ def test_find_links_url_escaping(tmpdir):
     # Force the torch 2.0.1+cpu wheel to be re-downloaded from the lock.
     shutil.rmtree(pex_root)
 
-    pex = os.path.join(str(tmpdir), "pex")
+    pex = tmpdir.join("pex")
     run_pex_command(
         args=[
             "--pex-root",
@@ -69,7 +71,7 @@ def test_find_links_url_escaping(tmpdir):
             "-o",
             pex,
         ],
-        python=ensure_python_interpreter(PY310),
+        python=py310.binary,
     ).assert_success()
 
     pex_info = PexInfo.from_pex(pex)

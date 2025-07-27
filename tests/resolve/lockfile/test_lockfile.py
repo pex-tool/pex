@@ -11,7 +11,7 @@ from pex.interpreter import PythonInterpreter
 from pex.resolve.lockfile import json_codec
 from pex.targets import LocalInterpreter, Target
 from pex.typing import TYPE_CHECKING
-from testing import PY27, PY38, IntegResults, ensure_python_interpreter, run_pex_command
+from testing import PY27, PY39, IntegResults, ensure_python_interpreter, run_pex_command
 
 if TYPE_CHECKING:
     from typing import Any
@@ -28,8 +28,8 @@ def py27():
 
 
 @pytest.fixture
-def py38():
-    return create_target(ensure_python_interpreter(PY38))
+def py39():
+    return create_target(ensure_python_interpreter(PY39))
 
 
 LOCK_STYLE_SOURCES = json_codec.loads(
@@ -89,7 +89,7 @@ LOCK_STYLE_SOURCES = json_codec.loads(
 
 def test_lockfile_style_sources(
     py27,  # type: Target
-    py38,  # type: Target
+    py39,  # type: Target
     tmpdir,  # type: Any
 ):
     # type: (...) -> None
@@ -105,7 +105,7 @@ def test_lockfile_style_sources(
             python=target.get_interpreter().binary,
         )
 
-    use_lock(py38).assert_success()
+    use_lock(py39).assert_success()
 
     # N.B.: We created a lock above that falsely advertises there is a solution for Python 2.7.
     # This is the devil's bargain with non-strict lock styles and the lock will fail only some time

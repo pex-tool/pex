@@ -540,11 +540,11 @@ def bootstrap_python_installer(dest):
 # support use of pyenv-win which does not build from source, just running released installers
 # instead.
 PY27 = "2.7.18"
-PY38 = "3.8.10"
 PY39 = "3.9.13"
 PY310 = "3.10.7"
+PY311 = "3.11.13"
 
-ALL_PY_VERSIONS = (PY27, PY38, PY39, PY310)
+ALL_PY_VERSIONS = (PY27, PY39, PY310, PY311)
 _ALL_PY_VERSIONS_TO_VERSION_INFO = {
     version: tuple(map(int, version.split("."))) for version in ALL_PY_VERSIONS
 }

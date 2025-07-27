@@ -13,8 +13,9 @@ from pex.atomic_directory import atomic_directory
 from pex.http.server import Server, ServerInfo
 from pex.scie.science import SCIE_JUMP_VERSION, ensure_science
 from pex.typing import TYPE_CHECKING
-from testing import make_env, run_pex_command
+from testing import IS_MAC, make_env, run_pex_command
 from testing.mitmproxy import Proxy
+from testing.pytest_utils import IS_CI
 from testing.pytest_utils.tmp import Tempdir
 from testing.scie import provider, skip_if_no_provider
 
@@ -72,6 +73,16 @@ def scie_assets_server(
         server.shutdown()
 
 
+CI_skip_mac = pytest.mark.xfail(
+    IS_CI and IS_MAC,
+    reason=(
+        "The scie asset server fails to start, at least on the macos-15 CI runners, and since this "
+        "is not a multi-platform test, just checking on Linux is not ideal but good enough."
+    ),
+)
+
+
+@CI_skip_mac
 @skip_if_no_provider
 def test_proxy_args(
     tmpdir,  # type: Tempdir
@@ -107,6 +118,7 @@ def test_proxy_args(
     assert b"| Moo! |" in subprocess.check_output(args=[cowsay_scie, "Moo!"])
 
 
+@CI_skip_mac
 @skip_if_no_provider
 def test_proxy_env(
     tmpdir,  # type: Tempdir

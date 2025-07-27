@@ -88,7 +88,19 @@ def test_basic(
             re_flags=re.DOTALL | re.MULTILINE,
         )
         return
-    if PY_VER == (3, 8) or PY_VER >= (3, 14):
+    if PY_VER == (3, 8) and not IS_PYPY:
+        result.assert_failure(
+            expected_error_re=r".*{message}$".format(
+                message=re.escape(
+                    "No released assets available for Python 3.8 in the latest "
+                    "PythonBuildStandalone release. Support for Python 3.8 was dropped in the "
+                    "20241205 release. Try specifying an older PythonBuildStandalone release.\n"
+                )
+            ),
+            re_flags=re.DOTALL | re.MULTILINE,
+        )
+        return
+    if PY_VER >= (3, 14):
         result.assert_failure(
             expected_error_re=(
                 r".*"
@@ -315,7 +327,7 @@ def test_specified_science_binary(tmpdir):
 
     local_science_binary = os.path.join(str(tmpdir), "science")
     with open(local_science_binary, "wb") as write_fp, URLFetcher().get_body_stream(
-        "https://github.com/a-scie/lift/releases/download/v0.12.4/{binary}".format(
+        "https://github.com/a-scie/lift/releases/download/v0.12.8/{binary}".format(
             binary=SysPlatform.CURRENT.qualified_binary_name("science")
         )
     ) as read_fp:
@@ -359,7 +371,7 @@ def test_specified_science_binary(tmpdir):
         cached_science_binaries
     ), "Expected the local science binary to be used but not cached."
     assert (
-        "0.12.4"
+        "0.12.8"
         == subprocess.check_output(args=[local_science_binary, "--version"]).decode("utf-8").strip()
     )
 

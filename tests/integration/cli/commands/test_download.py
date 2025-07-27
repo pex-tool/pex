@@ -54,7 +54,7 @@ def assert_downloaded_requirements(dest_dir):
         )
     elif MAC:
         if "arm64" in platform.platform:
-            expected_psutil = "psutil-5.9.5-cp36-abi3-macosx_11_0_arm64.whl"
+            expected_psutil = "psutil-5.9.5-cp38-abi3-macosx_11_0_arm64.whl"
         else:
             expected_psutil = "psutil-5.9.5-cp36-abi3-macosx_10_9_x86_64.whl"
     elif WINDOWS:

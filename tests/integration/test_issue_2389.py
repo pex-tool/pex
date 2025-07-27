@@ -1,22 +1,21 @@
 # Copyright 2024 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-import os.path
 import sys
 
 from pex.interpreter import PythonInterpreter
-from pex.typing import TYPE_CHECKING
-from testing import PY310, ensure_python_interpreter, run_pex_command, subprocess
+from testing import run_pex_command, subprocess
 from testing.cli import run_pex3
-
-if TYPE_CHECKING:
-    from typing import Any
+from testing.pytest_utils.tmp import Tempdir
 
 
-def test_lock_use_no_build_wheel(tmpdir):
-    # type: (Any)-> None
+def test_lock_use_no_build_wheel(
+    tmpdir,  # type: Tempdir
+    py310,  # type: PythonInterpreter
+):
+    # type: (...)-> None
 
-    lock = os.path.join(str(tmpdir), "black.lock")
+    lock = tmpdir.join("black.lock")
     run_pex3(
         "lock",
         "create",
@@ -27,14 +26,16 @@ def test_lock_use_no_build_wheel(tmpdir):
         "universal",
         "--indent",
         "2",
+        "--python-path",
+        py310.binary,
         "--interpreter-constraint",
         "CPython==3.10.*",
         "--wheel",
         "--no-build",
     ).assert_success()
 
-    pex = os.path.join(str(tmpdir), "black.pex")
-    python = sys.executable if sys.version_info[:2] == (3, 10) else ensure_python_interpreter(PY310)
+    pex = tmpdir.join("black.pex")
+    python = sys.executable if sys.version_info[:2] == (3, 10) else py310.binary
     run_pex_command(
         args=[
             "-o",
@@ -50,7 +51,7 @@ def test_lock_use_no_build_wheel(tmpdir):
         ]
     ).assert_success()
 
-    output = subprocess.check_output(args=[pex, "--version"])
+    output = subprocess.check_output(args=[python, pex, "--version"])
     assert (
         "black.pex, 22.8.0 (compiled: {compiled})".format(
             compiled="no" if PythonInterpreter.from_binary(python).is_pypy else "yes"

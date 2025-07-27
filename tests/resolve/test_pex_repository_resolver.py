@@ -22,6 +22,7 @@ from pex.resolve.pex_repository_resolver import resolve_from_pex
 from pex.resolve.resolver_configuration import PipConfiguration
 from pex.resolve.resolvers import ResolveResult, Unsatisfiable
 from pex.resolver import resolve
+from pex.sysconfig import SysPlatform
 from pex.targets import Targets
 from pex.typing import TYPE_CHECKING, cast
 from testing import IS_LINUX, PY27, PY310, ensure_python_interpreter
@@ -115,6 +116,12 @@ def pex_repository(
     request,  # type: pytest.FixtureRequest
 ):
     # type (...) -> str
+
+    if SysPlatform.CURRENT.arch != "x86_64":
+        pytest.skip(
+            "The PEX repository used only has pre-built wheels for x86_64 making testing on other "
+            "platforms dependent on installed toolchains and native libraries."
+        )
 
     constraints_file = create_constraints_file(
         # The 2.25.1 release of requests constrains urllib3 to <1.27,>=1.21.1 and picks 1.26.2 on
