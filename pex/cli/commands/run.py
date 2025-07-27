@@ -23,6 +23,7 @@ from pex.compatibility import shlex_quote
 from pex.dist_metadata import DistMetadata, is_sdist, is_tar_sdist, is_wheel
 from pex.enum import Enum
 from pex.exceptions import production_assert
+from pex.executables import is_python_script
 from pex.interpreter import PythonInterpreter
 from pex.os import safe_execv
 from pex.resolve import lock_resolver, resolver_options, target_options
@@ -80,8 +81,7 @@ class RunConfig(object):
         return hashlib.sha1(
             json.dumps(
                 {
-                    "entry_point": self.entry_point,
-                    "requirement": self.entry_point,
+                    "requirement": self.requirement,
                     "target": {
                         "markers": target.marker_environment.as_dict(),
                         "tag": str(target.platform.supported_tags[0]),
@@ -432,13 +432,12 @@ class Run(BuildTimeCommand):
         cache_access.record_access(tool_venv_dir)
 
         venv = Virtualenv(tool_venv_dir.path)
-        command = [venv.interpreter.binary]
+        command = []  # type: List[str]
         script = venv.bin_path(run_config.entry_point)
         if os.path.isfile(script):
             command.append(script)
         else:
-            command.append("-m")
-            command.append(run_config.entry_point)
+            command.extend((venv.interpreter.binary, "-m", run_config.entry_point))
         command.extend(run_config.args)
         TRACER.log(
             "Running: {command}".format(command=" ".join(shlex_quote(arg) for arg in command))
