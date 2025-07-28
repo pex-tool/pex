@@ -125,7 +125,9 @@ def create_manifests(
         # type: (SysPlatform.Value) -> Iterator[Dict[str, Any]]
         entrypoints = configuration.options.busybox_entrypoints
         if entrypoints:
-            pex_entry_point = parse_entry_point(pex_info.entry_point)
+            pex_entry_point = (
+                parse_entry_point(pex_info.entry_point) if pex_info.entry_point else None
+            )
 
             def default_env(named_entry_point):
                 # type: (...) -> Dict[str, str]

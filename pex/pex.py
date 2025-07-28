@@ -622,6 +622,9 @@ class PEX(object):  # noqa: T000
         if self._pex_info.script:
             return self.execute_script(self._pex_info.script)
         else:
+            # N.B.: We tested one of script or entry_point in pex_info or overrides was non-empty
+            # above; so this just satisfies type checking.
+            assert self._pex_info.entry_point
             return self.execute_entry(parse_entry_point(self._pex_info.entry_point))
 
     def execute_interpreter(self):

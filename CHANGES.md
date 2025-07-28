@@ -1,5 +1,13 @@
 # Release Notes
 
+## 2.48.2
+
+This release brings a fix for Pex entry-point parsing. Previously, entry-points specifying an extra
+like `blackd = blackd:patched_main [d]` would be parsed as having the extra as part of the module or
+object reference leading to errors when executing the entry point.
+
+* Fix Pex entry-point parsing. (#2846)
+
 ## 2.48.1
 
 This release fixes the failure mode of `pex3 run --locked require`. Previously, subsequent runs

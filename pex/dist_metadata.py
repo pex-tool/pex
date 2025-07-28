@@ -1140,12 +1140,17 @@ def parse_entry_point(value):
     # The format of the value of an entry point (minus the name part), is specified here:
     #   https://packaging.python.org/en/latest/specifications/entry-points/#file-format
 
-    # N.B.: Python identifiers must be ascii.
-    module, sep, attrs = str(value).strip().partition(":")
-    if sep:
-        if not attrs:
-            raise ValueError("Invalid entry point specification: {value}.".format(value=value))
-        return CallableEntryPoint(module=module, attrs=tuple(attrs.split(".")))
+    # The spec allows for extras via a trailing: [extra1,extra2,...]
+    entry_point, _, _ = value.strip().partition("[")
+
+    module, sep, object_reference = entry_point.strip().partition(":")
+    module = module.strip()
+    object_reference = object_reference.strip()
+    if not module or (sep and not object_reference):
+        raise ValueError("Invalid entry point specification: {value!r}.".format(value=value))
+
+    if object_reference:
+        return CallableEntryPoint(module=module, attrs=tuple(object_reference.split(".")))
     return ModuleEntryPoint(module=module)
 
 
@@ -1160,10 +1165,13 @@ class NamedEntryPoint(object):
 
         components = spec.split("=")
         if len(components) != 2:
-            raise ValueError("Invalid entry point specification: {spec}.".format(spec=spec))
+            raise ValueError("Invalid entry point specification: {spec!r}.".format(spec=spec))
 
         name, value = components
-        entry_point = parse_entry_point(value)
+        try:
+            entry_point = parse_entry_point(value)
+        except ValueError:
+            raise ValueError("Invalid entry point specification: {spec!r}.".format(spec=spec))
         return cls(name=name.strip(), entry_point=entry_point)
 
     name = attr.ib()  # type: str

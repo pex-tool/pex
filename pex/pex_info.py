@@ -153,11 +153,14 @@ class PexInfo(object):
         self._excluded = OrderedSet(self._pex_info.get("excluded", ()))  # type: OrderedSet[str]
         self._overridden = OrderedSet(self._pex_info.get("overridden", ()))  # type: OrderedSet[str]
 
-    def _get_safe(self, key):
+    def _get_python2_import_system_safe_str(self, key):
+        # type: (str) -> Optional[str]
         if key not in self._pex_info:
             return None
         value = self._pex_info[key]
-        return value.encode("utf-8") if PY2 else value
+        if PY2 and isinstance(value, unicode):
+            return str(value.encode("utf-8"))
+        return cast(str, value)
 
     @property
     def build_properties(self):
@@ -453,18 +456,22 @@ class PexInfo(object):
 
     @property
     def entry_point(self):
-        return self._get_safe("entry_point")
+        # type: () -> Optional[str]
+        return self._get_python2_import_system_safe_str("entry_point")
 
     @entry_point.setter
     def entry_point(self, value):
+        # type: (str) -> None
         self._pex_info["entry_point"] = value
 
     @property
     def script(self):
-        return self._get_safe("script")
+        # type: () -> Optional[str]
+        return self._get_python2_import_system_safe_str("script")
 
     @script.setter
     def script(self, value):
+        # type: (str) -> None
         self._pex_info["script"] = value
 
     def add_requirement(self, requirement):

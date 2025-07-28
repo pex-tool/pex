@@ -149,3 +149,14 @@ def test_locked_require_backoff(
         "pex",
         "-V",
     ).assert_success(expected_output_re=re.escape(__version__))
+
+
+@pytest.mark.skipif(
+    sys.version_info[:2] < (3, 9), reason="The black 25.1 release requires Python>=3.9."
+)
+def test_entry_point_with_extras():
+    # type: () -> None
+
+    run_pex3("run", "--from", "black[d]==25.1", "blackd", "--version").assert_success(
+        expected_output_re=re.escape("blackd, version 25.1.0")
+    )
