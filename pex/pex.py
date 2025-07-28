@@ -28,7 +28,7 @@ from pex.pex_info import PexInfo
 from pex.subprocess import subprocess_daemon_kwargs
 from pex.targets import LocalInterpreter
 from pex.tracer import TRACER
-from pex.typing import TYPE_CHECKING, cast
+from pex.typing import TYPE_CHECKING
 from pex.util import named_temporary_file
 from pex.variables import ENV, Variables
 
@@ -623,8 +623,9 @@ class PEX(object):  # noqa: T000
             return self.execute_script(self._pex_info.script)
         else:
             # N.B.: We tested one of script or entry_point in pex_info or overrides was non-empty
-            # above.
-            return self.execute_entry(parse_entry_point(cast("str", self._pex_info.entry_point)))
+            # above; so this just satisfies type checking.
+            assert self._pex_info.entry_point
+            return self.execute_entry(parse_entry_point(self._pex_info.entry_point))
 
     def execute_interpreter(self):
         # type: () -> Any

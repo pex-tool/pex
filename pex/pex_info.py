@@ -10,6 +10,7 @@ import zipfile
 from pex import layout, pex_root, pex_warnings, variables
 from pex.cache import root as cache_root
 from pex.common import open_zip
+from pex.compatibility import PY2
 from pex.compatibility import string as compatibility_string
 from pex.inherit_path import InheritPath
 from pex.orderedset import OrderedSet
@@ -151,6 +152,15 @@ class PexInfo(object):
 
         self._excluded = OrderedSet(self._pex_info.get("excluded", ()))  # type: OrderedSet[str]
         self._overridden = OrderedSet(self._pex_info.get("overridden", ()))  # type: OrderedSet[str]
+
+    def _get_python2_import_system_safe_str(self, key):
+        # type: (str) -> Optional[str]
+        if key not in self._pex_info:
+            return None
+        value = self._pex_info[key]
+        if PY2 and isinstance(value, unicode):
+            return str(value.encode("utf-8"))
+        return cast(str, value)
 
     @property
     def build_properties(self):
@@ -447,7 +457,7 @@ class PexInfo(object):
     @property
     def entry_point(self):
         # type: () -> Optional[str]
-        return self._pex_info.get("entry_point", None)
+        return self._get_python2_import_system_safe_str("entry_point")
 
     @entry_point.setter
     def entry_point(self, value):
@@ -457,7 +467,7 @@ class PexInfo(object):
     @property
     def script(self):
         # type: () -> Optional[str]
-        return self._pex_info.get("script", None)
+        return self._get_python2_import_system_safe_str("script")
 
     @script.setter
     def script(self, value):

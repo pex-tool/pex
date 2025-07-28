@@ -1141,16 +1141,16 @@ def parse_entry_point(value):
     #   https://packaging.python.org/en/latest/specifications/entry-points/#file-format
 
     # The spec allows for extras via a trailing: [extra1,extra2,...]
-    entry_point, _, _ = value.partition("[")
+    entry_point, _, _ = value.strip().partition("[")
 
-    module, sep, attrs = entry_point.strip().partition(":")
+    module, sep, object_reference = entry_point.strip().partition(":")
     module = module.strip()
-    attrs = attrs.strip()
-    if not module or (sep and not attrs):
+    object_reference = object_reference.strip()
+    if not module or (sep and not object_reference):
         raise ValueError("Invalid entry point specification: {value!r}.".format(value=value))
 
-    if attrs:
-        return CallableEntryPoint(module=module, attrs=tuple(attrs.split(".")))
+    if object_reference:
+        return CallableEntryPoint(module=module, attrs=tuple(object_reference.split(".")))
     return ModuleEntryPoint(module=module)
 
 
