@@ -250,19 +250,23 @@ jobs:
           - python-version: "3.13"
             test-cmd: test-py313-pip25.1.1-integration
             artifact-name: integration-1
-            pex-test-pos-args: --shard 1/4 --junit-report ../dist/test-results/integration-1.xml
+            pex-test-pos-args: --shard 1/5 --junit-report ../dist/test-results/integration-1.xml
           - python-version: "3.13"
             test-cmd: test-py313-pip25.1.1-integration
             artifact-name: integration-2
-            pex-test-pos-args: --shard 2/4 --junit-report ../dist/test-results/integration-2.xml
+            pex-test-pos-args: --shard 2/5 --junit-report ../dist/test-results/integration-2.xml
           - python-version: "3.13"
             test-cmd: test-py313-pip25.1.1-integration
             artifact-name: integration-3
-            pex-test-pos-args: --shard 3/4 --junit-report ../dist/test-results/integration-3.xml
+            pex-test-pos-args: --shard 3/5 --junit-report ../dist/test-results/integration-3.xml
           - python-version: "3.13"
             test-cmd: test-py313-pip25.1.1-integration
             artifact-name: integration-4
-            pex-test-pos-args: --shard 4/4 --junit-report ../dist/test-results/integration-4.xml
+            pex-test-pos-args: --shard 4/5 --junit-report ../dist/test-results/integration-4.xml
+          - python-version: "3.13"
+            test-cmd: test-py313-pip25.1.1-integration
+            artifact-name: integration-5
+            pex-test-pos-args: --shard 5/5 --junit-report ../dist/test-results/integration-5.xml
     steps:
       - name: Checkout Pex
         uses: actions/checkout@v4
