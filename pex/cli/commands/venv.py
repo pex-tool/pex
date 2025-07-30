@@ -11,7 +11,7 @@ from argparse import ArgumentParser, _ActionsContainer
 from pex import pex_warnings
 from pex.cli.command import BuildTimeCommand
 from pex.commands.command import JsonMixin, OutputMixin
-from pex.common import DETERMINISTIC_DATETIME, CopyMode, open_zip, pluralize
+from pex.common import CopyMode, open_zip, pluralize
 from pex.dist_metadata import Distribution
 from pex.enum import Enum
 from pex.executables import is_python_script, is_script
@@ -389,12 +389,7 @@ class Venv(OutputMixin, JsonMixin, BuildTimeCommand):
             unprefixed_dest_dir = self.options.dest_dir
             with open_zip("{dest_dir}.zip".format(dest_dir=unprefixed_dest_dir), "w") as zf:
                 for path in paths:
-                    zip_entry = zf.zip_entry_from_file(
-                        filename=path,
-                        arcname=os.path.relpath(path, unprefixed_dest_dir),
-                        date_time=DETERMINISTIC_DATETIME.timetuple(),
-                    )
-                    zf.writestr(zip_entry.info, zip_entry.data)
+                    zf.write_deterministic(path, arcname=os.path.relpath(path, unprefixed_dest_dir))
 
         return Ok()
 

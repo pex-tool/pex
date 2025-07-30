@@ -5,6 +5,7 @@ from __future__ import absolute_import, print_function
 
 import contextlib
 import errno
+import io
 import itertools
 import os
 import re
@@ -16,7 +17,7 @@ import threading
 import time
 import zipfile
 from collections import defaultdict, namedtuple
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from datetime import datetime
 from uuid import uuid4
 from zipfile import ZipFile, ZipInfo
@@ -40,6 +41,7 @@ if TYPE_CHECKING:
         List,
         NoReturn,
         Optional,
+        Protocol,
         Set,
         Sized,
         Text,
@@ -50,13 +52,19 @@ if TYPE_CHECKING:
 
     _Text = TypeVar("_Text", bytes, str, Text)
 
+    class Digest(Protocol):
+        def update(self, data):
+            # type: (bytes) -> None
+            pass
+
+
 # We use the start of MS-DOS time, which is what zipfiles use (see section 4.4.6 of
 # https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT).
 DETERMINISTIC_DATETIME = datetime(
     year=1980, month=1, day=1, hour=0, minute=0, second=0, tzinfo=None
 )
 _UNIX_EPOCH = datetime(year=1970, month=1, day=1, hour=0, minute=0, second=0, tzinfo=None)
-DETERMINISTIC_DATETIME_TIMESTAMP = (DETERMINISTIC_DATETIME - _UNIX_EPOCH).total_seconds()
+DETERMINISTIC_DATETIME_TIMESTAMP = int((DETERMINISTIC_DATETIME - _UNIX_EPOCH).total_seconds())
 
 # N.B.: The `SOURCE_DATE_EPOCH` env var is semi-standard magic for controlling
 # build tools. Wheel, for example, has supported this since 2016.
@@ -64,7 +72,7 @@ DETERMINISTIC_DATETIME_TIMESTAMP = (DETERMINISTIC_DATETIME - _UNIX_EPOCH).total_
 # + https://reproducible-builds.org/docs/source-date-epoch/
 # + https://github.com/pypa/wheel/blob/1b879e53fed1f179897ed47e55a68bc51df188db/wheel/archive.py#L36-L39
 REPRODUCIBLE_BUILDS_ENV = dict(
-    PYTHONHASHSEED="0", SOURCE_DATE_EPOCH=str(int(DETERMINISTIC_DATETIME_TIMESTAMP))
+    PYTHONHASHSEED="0", SOURCE_DATE_EPOCH=str(DETERMINISTIC_DATETIME_TIMESTAMP)
 )
 
 
@@ -107,7 +115,9 @@ def pluralize(
     count = subject if isinstance(subject, int) else len(subject)
     if count == 1:
         return noun
-    if noun[-1] == "y":
+    if len(noun) == 1:
+        raise ValueError("There is no single letter noun; given: {noun}".format(noun=noun))
+    if noun[-1] == "y" and noun[-2] not in ("a", "e", "i", "o", "u"):
         return noun[:-1] + "ies"
     elif noun[-1] in ("s", "x", "z") or noun[-2:] in ("sh", "ch"):
         return noun + "es"
@@ -206,51 +216,97 @@ class ZipFileEx(ZipFile):
         pass
 
     @classmethod
-    def zip_entry_from_file(
+    def zip_info_from_file(
         cls,
         filename,  # type: str
         arcname=None,  # type: Optional[str]
         date_time=None,  # type: Optional[time.struct_time]
         file_mode=None,  # type: Optional[int]
+        compress=True,  # type: bool
     ):
-        # type: (...) -> ZipEntry
-        """Construct a ZipEntry for a file on the filesystem.
+        # type: (...) -> Tuple[ZipInfo, bool]
+        """Construct a ZipInfo for a file on the filesystem.
 
-        Usually a similar `zip_info_from_file` method is provided by `ZipInfo`, but it is not
-        implemented in Python 2.7 so we re-implement it here to construct the `info` for `ZipEntry`
-        adding the possibility to control the `ZipInfo` date_time separately from the underlying
-        file mtime. See https://github.com/python/cpython/blob/master/Lib/zipfile.py#L495.
+        Usually a similar `from_file` method is provided by `ZipInfo`, but it is not implemented in
+         Python 2.7 or Python 3.5; so we re-implement it here adding the possibility to control the
+         `ZipInfo` date_time separately from the underlying file mtime.
+         See https://github.com/python/cpython/blob/9d3b53c47fab9ebf1f40d6f21b7d1ad391c14cd7/Lib/zipfile/__init__.py#L607-L642
         """
         st = os.stat(filename)
-        isdir = stat.S_ISDIR(st.st_mode)
+        is_dir = stat.S_ISDIR(st.st_mode)
         if arcname is None:
             arcname = filename
         arcname = os.path.normpath(os.path.splitdrive(arcname)[1])
         while arcname[0] in (os.sep, os.altsep):
             arcname = arcname[1:]
-        if isdir:
+        if is_dir:
             arcname += "/"
         if date_time is None:
             date_time = time.localtime(st.st_mtime)
         zip_info = zipfile.ZipInfo(filename=arcname, date_time=date_time[:6])
 
         # Unix attributes
-        if file_mode:
-            zip_info.external_attr = file_mode << 16
-        else:
-            zip_info.external_attr = (st.st_mode & 0xFFFF) << 16
+        zip_info.external_attr = ((file_mode or st.st_mode) & 0xFFFF) << 16
 
-        if isdir:
+        if is_dir:
             zip_info.file_size = 0
             zip_info.external_attr |= 0x10  # MS-DOS directory flag
             zip_info.compress_type = zipfile.ZIP_STORED
-            data = b""
         else:
             zip_info.file_size = st.st_size
-            zip_info.compress_type = zipfile.ZIP_DEFLATED
+            zip_info.compress_type = zipfile.ZIP_DEFLATED if compress else zipfile.ZIP_STORED
+        return zip_info, is_dir
+
+    def write_deterministic(
+        self,
+        filename,  # type: str
+        arcname=None,  # type: Optional[str]
+        digest=None,  # type: Optional[Digest]
+        deterministic=True,  # type: bool
+        compress=True,  # type: bool
+    ):
+        if deterministic:
+            return self.write_ex(
+                filename,
+                arcname=arcname,
+                date_time=DETERMINISTIC_DATETIME.timetuple(),
+                file_mode=0o755 if (is_exe(filename) or os.path.isdir(filename)) else 0o644,
+                digest=digest,
+                compress=compress,
+            )
+        return self.write_ex(filename, arcname=arcname, digest=digest, compress=compress)
+
+    def write_ex(
+        self,
+        filename,  # type: str
+        arcname=None,  # type: Optional[str]
+        date_time=None,  # type: Optional[time.struct_time]
+        file_mode=None,  # type: Optional[int]
+        digest=None,  # type: Optional[Digest]
+        compress=True,  # type: bool
+    ):
+        # type: (...) -> int
+        zip_info, is_dir = self.zip_info_from_file(
+            filename, arcname=arcname, date_time=date_time, file_mode=file_mode, compress=compress
+        )
+        size = 0
+        if is_dir:
+            self.writestr(zip_info, b"")
+        elif sys.version_info[:2] >= (3, 6):
+            with closing(self.open(zip_info, "w")) as dst_fp, open(filename, "rb") as src_fp:
+                for chunk in iter(lambda: src_fp.read(io.DEFAULT_BUFFER_SIZE), b""):
+                    size += len(chunk)
+                    if digest:
+                        digest.update(chunk)
+                    dst_fp.write(chunk)
+        else:
             with open(filename, "rb") as fp:
                 data = fp.read()
-        return cls.ZipEntry(info=zip_info, data=data)
+            size = len(data)
+            if digest:
+                digest.update(data)
+            self.writestr(zip_info, data)
+        return size
 
     def _extract_member(
         self,
@@ -710,20 +766,12 @@ class Chroot(object):
                 arcname,  # type: str
             ):
                 # type: (...) -> None
-
-                file_mode = None  # type: Optional[int]
-                if deterministic:
-                    file_mode = 0o755 if is_exe(filename) or os.path.isdir(filename) else 0o644
-
-                zip_entry = zf.zip_entry_from_file(
+                zf.write_deterministic(
                     filename=filename,
                     arcname=os.path.relpath(arcname, strip_prefix) if strip_prefix else arcname,
-                    date_time=(DETERMINISTIC_DATETIME.timetuple() if deterministic else None),
-                    file_mode=file_mode,
+                    deterministic=deterministic,
+                    compress=compress and self._compress_by_file.get(arcname, True),
                 )
-                compress_file = compress and self._compress_by_file.get(arcname, True)
-                compression = zipfile.ZIP_DEFLATED if compress_file else zipfile.ZIP_STORED
-                zf.writestr(zip_entry.info, zip_entry.data, compression)
 
             def get_parent_dir(path):
                 # type: (str) -> Optional[str]

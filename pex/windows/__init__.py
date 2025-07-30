@@ -104,11 +104,15 @@ class Stub(object):
 def _load_stub(
     platform=SysPlatform.CURRENT,  # type: SysPlatform.Value
     gui=False,  # type: bool
+    dest_dir=None,  # type: Optional[str]
 ):
     # type: (...) -> Stub
 
     stub_name = _stub_name(platform=platform, gui=gui)
-    stub_dst = os.path.join(os.path.dirname(__file__), "stubs", stub_name)
+    if dest_dir:
+        stub_dst = os.path.join(dest_dir, os.sep.join(__name__.split(".")), "stubs", stub_name)
+    else:
+        stub_dst = os.path.join(os.path.dirname(__file__), "stubs", stub_name)
     if os.path.exists(stub_dst):
         return Stub(path=stub_dst)
 
@@ -121,11 +125,11 @@ def _load_stub(
     return Stub(path=stub_dst, data=stub)
 
 
-def fetch_all_stubs():
-    # type: () -> Iterator[Stub]
+def fetch_all_stubs(dest_dir=None):
+    # type: (Optional[str]) -> Iterator[Stub]
     for platform in (SysPlatform.WINDOWS_AARCH64, SysPlatform.WINDOWS_X86_64):
         for gui in (True, False):
-            yield _load_stub(platform=platform, gui=gui)
+            yield _load_stub(platform=platform, gui=gui, dest_dir=dest_dir)
 
 
 if TYPE_CHECKING:
