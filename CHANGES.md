@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.49.0
+
+This release adds support for `--pip-version 25.2`
+
+* Add support for `--pip-version 25.2`. (#2849)
+
 ## 2.48.2
 
 This release brings a fix for Pex entry-point parsing. Previously, entry-points specifying an extra
