@@ -255,7 +255,7 @@ def _bootstrap_pip(
         venv = Virtualenv.create(
             venv_dir=os.path.join(chroot, "pip"),
             interpreter=interpreter,
-            install_pip=InstallationChoice.YES,
+            install_pip=InstallationChoice.UPGRADED,
         )
 
         wheels = os.path.join(chroot, "wheels")
