@@ -259,7 +259,7 @@ def _bootstrap_pip(
         )
 
         wheels = os.path.join(chroot, "wheels")
-        wheels_cmd = ["-m", "pip", "wheel", "--wheel-dir", wheels]
+        wheels_cmd = ["-m", "pip", "wheel", "-vvv", "--wheel-dir", wheels]
         wheels_cmd.extend(str(req) for req in version.requirements)
         try:
             venv.interpreter.execute(args=wheels_cmd)
