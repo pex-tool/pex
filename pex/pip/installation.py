@@ -267,8 +267,10 @@ def _bootstrap_pip(
             raise PipInstallError(
                 "Failed to bootstrap Pip {version}.\n"
                 "Failed to download its dependencies: {err}\n"
+                "STDOUT:\n"
+                "{stdout}"
                 "STDERR:\n"
-                "{stderr}".format(version=version, err=str(e), stderr=e.stderr)
+                "{stderr}".format(version=version, err=str(e), stdout=e.stdout, stderr=e.stderr)
             )
 
         return iter_map_parallel(
