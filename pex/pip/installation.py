@@ -255,18 +255,22 @@ def _bootstrap_pip(
         venv = Virtualenv.create(
             venv_dir=os.path.join(chroot, "pip"),
             interpreter=interpreter,
-            install_pip=InstallationChoice.YES,
+            install_pip=InstallationChoice.UPGRADED,
         )
 
         wheels = os.path.join(chroot, "wheels")
-        wheels_cmd = ["-m", "pip", "wheel", "--wheel-dir", wheels]
+        wheels_cmd = ["-m", "pip", "wheel", "-vvv", "--wheel-dir", wheels]
         wheels_cmd.extend(str(req) for req in version.requirements)
         try:
             venv.interpreter.execute(args=wheels_cmd)
         except Executor.NonZeroExit as e:
             raise PipInstallError(
                 "Failed to bootstrap Pip {version}.\n"
-                "Failed to download its dependencies: {err}".format(version=version, err=str(e))
+                "Failed to download its dependencies: {err}\n"
+                "STDOUT:\n"
+                "{stdout}"
+                "STDERR:\n"
+                "{stderr}".format(version=version, err=str(e), stdout=e.stdout, stderr=e.stderr)
             )
 
         return iter_map_parallel(
