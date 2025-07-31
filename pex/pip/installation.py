@@ -266,7 +266,9 @@ def _bootstrap_pip(
         except Executor.NonZeroExit as e:
             raise PipInstallError(
                 "Failed to bootstrap Pip {version}.\n"
-                "Failed to download its dependencies: {err}".format(version=version, err=str(e))
+                "Failed to download its dependencies: {err}\n"
+                "STDERR:\n"
+                "{stderr}".format(version=version, err=str(e), stderr=e.stderr)
             )
 
         return iter_map_parallel(
