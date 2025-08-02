@@ -92,7 +92,14 @@ class JunitReport(object):
         return cls(
             path=os.path.realpath(options.junit_report),
             suppress_stdio=options.junit_report_suppress_stdio,
-            redactions=tuple(options.junit_report_redactions),
+            redactions=tuple(
+                redaction
+                for redaction in options.junit_report_redactions
+                # N.B.: Skip the empty string - there is nothing to redact. We can get these when
+                # redactions come from sensitive env vars that are not set in the current
+                # environment, for example.
+                if redaction
+            ),
         )
 
     path = attr.ib()  # type: str
