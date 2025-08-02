@@ -6,6 +6,25 @@ requires = ["setuptools"]
 backend-path = ["build-backend", ""]
 build-backend = "pex_build.setuptools.build"
 
+[tool.pex.build_backend]
+delegate-build-backend = "setuptools.build_meta"
+plugins = ["pex_build"]
+
+[[tool.pex.build_backend.script-locks]]
+command = [
+  "uv",
+  "export",
+  "--format",
+  "pylock.toml",
+  "--no-header",
+  "--no-emit-project",
+  "--all-extras",
+  "--no-dev",
+  "-q",
+  "-o",
+  "{lock_path}",
+]
+
 [tool.pex_build.setuptools.build.project]
 # N.B.: When the `when` criteria is met, the remaining fields are copied to the [project] table
 # during metadata generation. Since our `package` command runs under the `when` criteria, this

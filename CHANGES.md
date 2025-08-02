@@ -1,5 +1,13 @@
 # Release Notes
 
+## 2.50.0
+
+This release introduces the `pex.build_backend.wrap` build backend useable for embedding console
+script locks in your project distributions for use by tools like `pex3 run` (see: #2841). Pex
+dogfoods this backend to embed its own console script lock for its extras.
+
+* Introduce `pex.build_backend.wrap` build backend. (#2850)
+
 ## 2.49.0
 
 This release adds support for `--pip-version 25.2`

@@ -29,6 +29,7 @@ from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
 from pex.pip.installation import get_pip
+from pex.pip.version import PipVersion, PipVersionValue
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.sysconfig import SCRIPT_DIR, script_name
 from pex.typing import TYPE_CHECKING, cast
@@ -226,6 +227,7 @@ class WheelBuilder(object):
         self,
         source_dir,  # type: str
         interpreter=None,  # type: Optional[PythonInterpreter]
+        pip_version=None,  # type: Optional[PipVersionValue]
         wheel_dir=None,  # type: Optional[str]
         verify=True,  # type: bool
     ):
@@ -234,13 +236,16 @@ class WheelBuilder(object):
         self._source_dir = source_dir
         self._wheel_dir = wheel_dir or safe_mkdtemp()
         self._interpreter = interpreter or PythonInterpreter.get()
+        self._pip_version = pip_version or PipVersion.DEFAULT
+        self._resolver = ConfiguredResolver.version(self._pip_version)
         self._verify = verify
 
     def bdist(self):
         # type: () -> str
         get_pip(
             interpreter=self._interpreter,
-            resolver=ConfiguredResolver.default(),
+            version=self._pip_version,
+            resolver=self._resolver,
         ).spawn_build_wheels(
             distributions=[self._source_dir],
             wheel_dir=self._wheel_dir,

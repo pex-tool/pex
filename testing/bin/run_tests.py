@@ -257,7 +257,7 @@ def main():
     for var, value in test_control_env_vars:
         logger.info("{var}={value}".format(var=var, value=value))
 
-    args = [sys.executable, "-m", "pytest", "-n", "auto"]
+    args = [sys.executable, "-m", "pytest", "-n", "auto", "-p", "testing.pytest_utils.shard"]
 
     # When run under dev-cmd, FORCE_COLOR=1 is set to propagate auto-detection of a color terminal.
     # This affects a handful of our tests; so we discard and let the --color option below control
@@ -269,7 +269,7 @@ def main():
         args.extend(["--color", "yes"])
 
     if options.it:
-        args.extend(["tests/integration", "-p", "testing.pytest_utils.shard"])
+        args.append("tests/integration")
     else:
         args.extend(["tests", "--ignore", "tests/integration"])
     args.extend(passthrough_args or ["-vvs"])

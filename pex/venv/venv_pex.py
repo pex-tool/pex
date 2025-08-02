@@ -198,6 +198,8 @@ def boot(
             "_PEX_CACHE_ACCESS_LOCK",
             # This is used to support cleanup of temporary PEX_ROOTs on exit.
             "_PEX_ROOT_FALLBACK",
+            # This is used to support concurrent Pex test suite runs.
+            "_PEX_LOCKED_PROJECT_DIR",
         )
     ]
     if ignored_pex_env_vars:

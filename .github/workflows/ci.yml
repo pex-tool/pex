@@ -245,8 +245,12 @@ jobs:
             test-cmd: typecheck package docs
           - python-version: "3.13"
             test-cmd: test-py313-pip25.2
-            artifact-name: unit
-            pex-test-pos-args: --junit-report ../dist/test-results/unit.xml
+            artifact-name: unit-1
+            pex-test-pos-args: --shard 1/2 --junit-report ../dist/test-results/unit-1.xml
+          - python-version: "3.13"
+            test-cmd: test-py313-pip25.2
+            artifact-name: unit-2
+            pex-test-pos-args: --shard 2/2 --junit-report ../dist/test-results/unit-2.xml
           - python-version: "3.13"
             test-cmd: test-py313-pip25.2-integration
             artifact-name: integration-1

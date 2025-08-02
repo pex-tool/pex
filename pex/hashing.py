@@ -192,14 +192,22 @@ def file_hash(
 def lock_pex_project_dir():
     # type: () -> Iterator[None]
 
+    if "_PEX_LOCKED_PROJECT_DIR" in os.environ:
+        # N.B.: We're in a subprocess of a root Pex invocation that holds the lock; so it's
+        # ok to proceed.
+        yield
+        return
+
     from pex.fs import lock
     from pex.fs.lock import FileLockStyle
 
     lck = lock.acquire(__file__ + ".lck", exclusive=True, style=FileLockStyle.BSD)
+    os.environ["_PEX_LOCKED_PROJECT_DIR"] = str(os.getpid())
     try:
         yield
     finally:
         lck.release()
+        del os.environ["_PEX_LOCKED_PROJECT_DIR"]
 
 
 @contextmanager
