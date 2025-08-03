@@ -225,7 +225,7 @@ class Run(BuildTimeCommand):
             "{dists}",
             requirement=requirement,
             count=len(downloaded.local_distributions),
-            dists="\n".join(ld.path for ld in downloaded.local_distributions)
+            dists="\n".join(ld.path for ld in downloaded.local_distributions),
         )
         distribution = downloaded.local_distributions[0]
 
