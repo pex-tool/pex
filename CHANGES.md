@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.50.1
+
+This release fixes `pex3 run` handling of local project directory requirements. For example, you
+can now `pex3 run . -V` in the Pex project directory successfully.
+
+* Fix `pex3 run` for local projects. (#2854)
+
 ## 2.50.0
 
 This release introduces the `pex.build_backend.wrap` build backend useable for embedding console
