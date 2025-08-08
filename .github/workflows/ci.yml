@@ -90,7 +90,7 @@ jobs:
           # -----------
           - test-cmd: test-py27-pip20.3.4--patched
           - test-cmd: test-py314-pip25.2
-          - test-cmd: test-pypy310-pip24.3.1
+          - test-cmd: test-pypy311-pip24.3.1
 
           # Integration tests, split most into two shards:
           # ----------------------------------------------
@@ -108,9 +108,9 @@ jobs:
           - test-cmd: test-py314-pip25.2-integration
             pex-test-pos-args: --shard 2/2
 
-          - test-cmd: test-pypy310-pip24.3.1-integration
+          - test-cmd: test-pypy311-pip24.3.1-integration
             pex-test-pos-args: --shard 1/2
-          - test-cmd: test-pypy310-pip24.3.1-integration
+          - test-cmd: test-pypy311-pip24.3.1-integration
             pex-test-pos-args: --shard 2/2
     steps:
       - name: Free Up Disk Space

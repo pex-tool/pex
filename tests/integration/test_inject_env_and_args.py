@@ -148,10 +148,7 @@ def test_inject_args(
 
 
 @pytest.mark.skipif(
-    PY_VER < (3, 7) or PY_VER >= (3, 12),
-    reason=(
-        "Uvicorn only supports Python 3.7+ and pre-built wheels are only available through 3.11."
-    ),
+    PY_VER < (3, 8), reason="The version of uvicorn tested only supports Python 3.8+."
 )
 @parametrize_execution_mode_args
 def test_complex(
@@ -197,7 +194,7 @@ def test_complex(
         args=[
             "-D",
             src,
-            "uvicorn[standard]==0.18.3",
+            "uvicorn==0.33",
             "-c",
             "uvicorn",
             "--inject-args",
