@@ -11,7 +11,7 @@ DEADSNAKES_VERSIONS=(
   "3.8 {dev,venv,distutils}=3.8.20"
   "3.9 {dev,venv,distutils}=3.9.23"
   "3.10 {dev,venv,distutils}=3.10.18"
-  "3.13 {dev,venv}=3.13.5"
+  "3.13 {dev,venv}=3.13.6"
   "3.14 {dev,venv}=3.14.0~rc1"
 )
 
