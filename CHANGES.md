@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.50.2
+
+This release updates vendored Pip's vendored certifi's cacert.pem to that from certifi 2025.8.3.
+
+* Update vendored Pip's CA cert bundle. (#2857)
+
 ## 2.50.1
 
 This release fixes `pex3 run` handling of local project directory requirements. For example, you
