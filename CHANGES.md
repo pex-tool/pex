@@ -2,9 +2,14 @@
 
 ## 2.50.2
 
-This release updates vendored Pip's vendored certifi's cacert.pem to that from certifi 2025.8.3.
+This release fixes creating `--scie {eager,lazy}` PEX scies when no specific `--scie-pbs-release` is
+specified by upgrading to `science` 0.12.9.
+
+Pex's vendored Pip's vendored certifi's cacert.pem is also updated to that from certifi 2025.8.3
+(Good luck parsing that!).
 
 * Update vendored Pip's CA cert bundle. (#2857)
+* Fix CPython scies with no `--scie-pbs-release`. (#2859)
 
 ## 2.50.1
 
