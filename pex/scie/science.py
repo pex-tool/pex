@@ -66,7 +66,7 @@ class Manifest(object):
 
 
 SCIENCE_RELEASES_URL = "https://github.com/a-scie/lift/releases"
-MIN_SCIENCE_VERSION = Version("0.12.8")
+MIN_SCIENCE_VERSION = Version("0.12.9")
 SCIENCE_REQUIREMENT = SpecifierSet("~={min_version}".format(min_version=MIN_SCIENCE_VERSION))
 
 
