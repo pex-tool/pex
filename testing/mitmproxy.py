@@ -13,7 +13,7 @@ from pex.interpreter import PythonInterpreter
 from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper
 from pex.venv.virtualenv import InvalidVirtualenvError, Virtualenv
-from testing import PEX_TEST_DEV_ROOT, data
+from testing import PEX_TEST_DEV_ROOT, PY311, data, ensure_python_interpreter
 
 if TYPE_CHECKING:
     from typing import Iterable, Iterator, Optional, Tuple
@@ -42,12 +42,7 @@ def _ensure_mitmproxy_venv():
         with atomic_directory(venv_dir) as atomic_venvdir:
             if not atomic_venvdir.is_finalized():
                 logger.info("Installing mitmproxy...")
-                subprocess.check_call(args=["uv", "python", "install", "3.12"])
-                python = str(
-                    subprocess.check_output(args=["uv", "python", "find", "3.12"])
-                    .decode("utf-8")
-                    .strip()
-                )
+                python = ensure_python_interpreter(PY311)
                 Virtualenv.create_atomic(
                     venv_dir=atomic_venvdir,
                     interpreter=PythonInterpreter.from_binary(python),
