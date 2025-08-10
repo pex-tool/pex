@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.51.0
+
+This release augments `pex3 run` with the ability to run both local and remote scripts as well as
+augmenting the run environment with additional requirements specified via `--with`.
+
+* Support running both local & remote scripts. (#2861)
+
 ## 2.50.4
 
 This release fixes a bug introduced by #2828 that would assign PEX scies a `SCIE_BASE` of the

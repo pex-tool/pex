@@ -11,7 +11,6 @@ from argparse import Action, ArgumentError, _ActionsContainer
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 
-from pex.cache import access as cache_access
 from pex.cache.dirs import (
     AtomicCacheDir,
     BootstrapDir,
@@ -25,6 +24,7 @@ from pex.cache.prunable import Prunable
 from pex.cli.command import BuildTimeCommand
 from pex.cli.commands.cache.bytes import ByteAmount, ByteUnits
 from pex.cli.commands.cache.du import DiskUsage
+from pex.cli.commands.cache_aware import CacheAwareMixin
 from pex.commands.command import OutputMixin
 from pex.common import pluralize, safe_rmtree
 from pex.dist_metadata import ProjectNameAndVersion
@@ -152,7 +152,7 @@ def _prune_pip(
     return du
 
 
-class Cache(OutputMixin, BuildTimeCommand):
+class Cache(CacheAwareMixin, OutputMixin, BuildTimeCommand):
     """Interact with the Pex cache."""
 
     @staticmethod
@@ -490,17 +490,10 @@ class Cache(OutputMixin, BuildTimeCommand):
             print(file=fp)
 
             if not self.options.dry_run:
-                try:
-                    with cache_access.await_delete_lock() as lock_file:
-                        self._log_delete_start(lock_file, out=fp)
-                        print(
-                            "Attempting to acquire cache write lock (press CTRL-C to abort) ...",
-                            file=fp,
-                        )
-                except KeyboardInterrupt:
+                locked = self.lock_cache_for_delete(out=fp)
+                print(file=fp)
+                if not locked:
                     return Error("No cache entries purged.")
-                finally:
-                    print(file=fp)
 
             disk_usages = []  # type: List[DiskUsage]
             for cache_dir, du in iter_map_parallel(
@@ -528,17 +521,10 @@ class Cache(OutputMixin, BuildTimeCommand):
 
         with self.output(self.options) as fp:
             if not self.options.dry_run:
-                try:
-                    with cache_access.await_delete_lock() as lock_file:
-                        self._log_delete_start(lock_file, out=fp)
-                        print(
-                            "Attempting to acquire cache write lock (press CTRL-C to abort) ...",
-                            file=fp,
-                        )
-                except KeyboardInterrupt:
-                    return Error("No cache entries purged.")
-                finally:
-                    print(file=fp)
+                locked = self.lock_cache_for_delete(out=fp)
+                print(file=fp)
+                if not locked:
+                    return Error("No cache entries pruned.")
 
         cutoff = self.options.cutoff
         prunable = Prunable.scan(cutoff.cutoff)

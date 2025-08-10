@@ -193,6 +193,13 @@ class CacheDir(Enum["CacheDir.Value"]):
         ),
     )
 
+    RUN = Value(
+        "run",
+        version=0,
+        name="Run files",
+        description="Fetched scripts and built local projects for `pex3 run`.",
+    )
+
     SCIES = Value(
         "scies",
         version=0,

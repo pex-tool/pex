@@ -41,6 +41,10 @@ def has_ssh_access():
             "PasswordAuthentication=no",
             "-o",
             "NumberOfPasswordPrompts=0",
+            "-o",
+            "ConnectTimeout={timeout}".format(
+                timeout=os.environ.get("_PEX_TEST_GITHUB_SSH_TIMEOUT", "1")
+            ),
             "git@github.com",
         ],
         stdout=subprocess.PIPE,

@@ -1,6 +1,8 @@
 # Copyright 2021 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+from __future__ import absolute_import
+
 from pex.cli.command import BuildTimeCommand
 from pex.cli.commands.cache.command import Cache
 from pex.cli.commands.docs import Docs
