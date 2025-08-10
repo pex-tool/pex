@@ -7,6 +7,7 @@ import glob
 import hashlib
 import json
 import os.path
+import shutil
 import tarfile
 from argparse import _ActionsContainer
 from contextlib import closing
@@ -18,19 +19,24 @@ from pex.atomic_directory import atomic_directory
 from pex.build_system import pep_517
 from pex.cache import access as cache_access
 from pex.cli.command import BuildTimeCommand
-from pex.common import open_zip, safe_mkdtemp, safe_rmtree
+from pex.common import open_zip, safe_copy, safe_mkdtemp, safe_rmtree
 from pex.compatibility import shlex_quote
-from pex.dist_metadata import DistMetadata, is_sdist, is_tar_sdist, is_wheel
+from pex.dist_metadata import DistMetadata, Distribution, is_sdist, is_tar_sdist, is_wheel
 from pex.enum import Enum
 from pex.exceptions import production_assert
+from pex.fetcher import URLFetcher
 from pex.interpreter import PythonInterpreter
+from pex.orderedset import OrderedSet
 from pex.os import safe_execv
-from pex.requirements import LocalProjectRequirement, parse_requirement_string
+from pex.requirements import LocalProjectRequirement, ParseError, parse_requirement_string
 from pex.resolve import lock_resolver, resolver_options, target_options
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.locked_resolve import FileArtifact, UnFingerprintedLocalProjectArtifact
 from pex.resolve.lockfile.pep_751 import Dependency, Package, Pylock
-from pex.resolve.resolvers import ResolveResult
+from pex.resolve.requirement_configuration import RequirementConfiguration
+from pex.resolve.resolver_configuration import PipConfiguration
+from pex.resolve.resolvers import Unsatisfiable
+from pex.resolve.script_metadata import apply_script_metadata
 from pex.resolve.target_configuration import TargetConfiguration
 from pex.resolver import LocalDistribution
 from pex.result import Error, Result, ResultError, try_
@@ -71,9 +77,9 @@ LockedChoice.seal()
 
 @attr.s(frozen=True)
 class RunConfig(object):
-    entry_point = attr.ib()  # type: str
-    requirement = attr.ib()  # type: ParsedRequirement
-    entry_point_is_requirement = attr.ib()  # type: bool
+    entry_point = attr.ib()  # type: Union[str, ArtifactURL]
+    requirement = attr.ib(default=None)  # type: Optional[ParsedRequirement]
+    requirement_is_entry_point = attr.ib(default=False)  # type: bool
     args = attr.ib(default=())  # type: Tuple[str, ...]
     locks = attr.ib(default=())  # type: Tuple[str, ...]
     locked_choice = attr.ib(default=LockedChoice.AUTO)  # type: LockedChoice.Value
@@ -84,11 +90,7 @@ class RunConfig(object):
         return hashlib.sha1(
             json.dumps(
                 {
-                    "requirement": (
-                        str(self.requirement.path)
-                        if isinstance(self.requirement, LocalProjectRequirement)
-                        else str(self.requirement.requirement)
-                    ),
+                    "requirement": str(self.requirement) if self.requirement else self.entry_point,
                     "target": {
                         "markers": target.marker_environment.as_dict(),
                         "tag": str(target.platform.supported_tags[0]),
@@ -97,6 +99,84 @@ class RunConfig(object):
                 sort_keys=True,
             ).encode("utf-8")
         ).hexdigest()
+
+
+@attr.s(frozen=True)
+class ToolResolve(object):
+    run_distribution = attr.ib(default=None)  # type: Optional[Distribution]
+    distributions = attr.ib(default=())  # type: Tuple[Distribution, ...]
+    script = attr.ib(default=None)  # type: Optional[str]
+
+
+class EntryPointType(Enum["EntryPointType.Value"]):
+    class Value(Enum.Value):
+        pass
+
+    CONSOLE_SCRIPT = Value("console-script")
+    MODULE = Value("module")
+    SCRIPT = Value("script")
+
+
+EntryPointType.seal()
+
+
+@attr.s(frozen=True)
+class EntryPoint(object):
+    @classmethod
+    def load(cls, tool_venv_dir):
+        # type: (str) -> Union[EntryPoint, Error]
+
+        entry_point_file = os.path.join(tool_venv_dir, "ENTRY-POINT")
+        try:
+            with open(entry_point_file) as fp:
+                entry_point_data = json.load(fp)
+        except (IOError, OSError, ValueError) as e:
+            return Error(str(e))
+
+        if not isinstance(entry_point_data, dict):
+            return Error(
+                "The entry point file at {path} has an unexpected schema.".format(
+                    path=entry_point_file
+                )
+            )
+
+        ep_type = entry_point_data.pop("type", None)
+        ep_value = entry_point_data.pop("value", None)
+        if entry_point_data or not isinstance(ep_type, str) or not isinstance(ep_value, str):
+            return Error(
+                "The entry point file at {path} has an unexpected schema.".format(
+                    path=entry_point_file
+                )
+            )
+
+        try:
+            return cls(type=EntryPointType.for_value(ep_type), value=ep_value)
+        except ValueError as e:
+            return Error(str(e))
+
+    type = attr.ib()  # type: EntryPointType.Value
+    value = attr.ib()  # type: str
+
+    def store(self, tool_venv_dir):
+        # type: (str) -> None
+        with open(os.path.join(tool_venv_dir, "ENTRY-POINT"), "w") as fp:
+            json.dump({"type": self.type.value, "value": self.value}, fp)
+
+    def command(
+        self,
+        venv,  # type: Virtualenv
+        *args  # type: str
+    ):
+        # type: (...) -> List[str]
+
+        if self.type is EntryPointType.CONSOLE_SCRIPT:
+            command = [os.path.join(venv.venv_dir, self.value)]
+        elif self.type is EntryPointType.SCRIPT:
+            command = [venv.interpreter.binary, os.path.join(venv.venv_dir, self.value)]
+        else:
+            command = [venv.interpreter.binary, "-m", self.value]
+        command.extend(args)
+        return command
 
 
 class Run(BuildTimeCommand):
@@ -168,9 +248,37 @@ class Run(BuildTimeCommand):
         dependency_configuration.register(parser.add_argument_group("Dependency options"))
 
     def _parse_options(self):
-        # type: () -> RunConfig
+        # type: () -> Union[RunConfig, Error]
 
         entry_point = self.options.entry_point[0]
+
+        requirement = None  # type: Optional[ParsedRequirement]
+        requirement_is_entry_point = False
+        if self.options.requirement:
+            try:
+                requirement = parse_requirement_string(self.options.requirement)
+            except ParseError as e:
+                return Error(
+                    "Invalid requirement {requirement}: {err}".format(
+                        requirement=self.options.requirement, err=e
+                    )
+                )
+            script = ArtifactURL.parse(entry_point)
+            if script.scheme != "file" or os.path.isfile(script.path):
+                entry_point = script
+        else:
+            try:
+                requirement = parse_requirement_string(entry_point)
+            except ParseError:
+                try:
+                    entry_point = ArtifactURL.parse(entry_point)
+                except ValueError as e:
+                    return Error(
+                        "Invalid entry point {entry_point!r}. It is neither a valid requirement "
+                        "nor a local or remote script: {err}".format(entry_point=entry_point, err=e)
+                    )
+            else:
+                requirement_is_entry_point = True
 
         locks = []  # type: List[str]
         if self.options.locked is not LockedChoice.IGNORE:
@@ -179,8 +287,8 @@ class Run(BuildTimeCommand):
 
         return RunConfig(
             entry_point=entry_point,
-            requirement=parse_requirement_string(self.options.requirement or entry_point),
-            entry_point_is_requirement=not self.options.requirement,
+            requirement=requirement,
+            requirement_is_entry_point=requirement_is_entry_point,
             args=self.passthrough_args or (),
             locks=tuple(locks),
             locked_choice=self.options.locked,
@@ -192,7 +300,7 @@ class Run(BuildTimeCommand):
         requirement,  # type: ParsedRequirement
         lock_names,  # type: Iterable[str]
     ):
-        # type: (...) -> Union[Optional[Tuple[Package, str]], Error]
+        # type: (...) -> Union[Tuple[Package, Optional[str]], Error]
 
         pip_configuration = resolver_options.create_pip_configuration(self.options)
         resolver = ConfiguredResolver(pip_configuration=pip_configuration)
@@ -324,24 +432,83 @@ class Run(BuildTimeCommand):
                     return package, lock_path
 
         TRACER.log("No lock found in {dist}.".format(dist=os.path.basename(distribution.path)))
-        return None
+        return package, None
+
+    @staticmethod
+    def _resolve_script(
+        url,  # type: ArtifactURL
+        pip_configuration,  # type: PipConfiguration
+    ):
+        # type: (...) -> Union[str, Error]
+
+        if "file" == url.scheme:
+            if not os.path.exists(url.path):
+                return Error(
+                    "The path {path} pointed at by {entry_point} does not exist.".format(
+                        path=url.path, entry_point=url
+                    )
+                )
+            return url.path
+
+        fetcher = URLFetcher(
+            network_configuration=pip_configuration.network_configuration,
+            password_entries=pip_configuration.repos_configuration.password_entries,
+        )
+        with fetcher.get_body_stream(url.download_url) as src_fp, open(
+            os.path.join(
+                safe_mkdtemp(prefix="pex3-run.", suffix=".remote-script"),
+                os.path.basename(url.path),
+            ),
+            "wb",
+        ) as dst_fp:
+            shutil.copyfileobj(src_fp, dst_fp)
+        return dst_fp.name
 
     def _resolve_tool(
         self,
+        target_configuration,  # type: TargetConfiguration
         target,  # type: Target
-        requirement,  # type: ParsedRequirement
+        run_config,  # type: RunConfig
         pylock=None,  # type: Optional[Pylock]
     ):
-        # type: (...) -> Union[ResolveResult, Error]
+        # type: (...) -> Union[ToolResolve, Error]
 
         pip_configuration = resolver_options.create_pip_configuration(self.options)
         resolver = ConfiguredResolver(pip_configuration=pip_configuration)
         targets = Targets.from_target(target)
         dep_config = dependency_configuration.configure(self.options)
 
-        requirements = [str(requirement)]
+        script = None  # type: Optional[str]
+        requirements = OrderedSet()  # type: OrderedSet[str]
+        if run_config.requirement:
+            requirements.add(str(run_config.requirement))
+
+        if isinstance(run_config.entry_point, ArtifactURL):
+            script = try_(
+                self._resolve_script(
+                    url=run_config.entry_point, pip_configuration=pip_configuration
+                )
+            )
+            try:
+                script_metadata_application = apply_script_metadata(
+                    scripts=[script],
+                    requirement_configuration=RequirementConfiguration(),
+                    target_configuration=target_configuration,
+                )
+            except Unsatisfiable as e:
+                return Error(str(e))
+            if script_metadata_application.target_does_not_apply(target):
+                targets = Targets.from_target(self._resolve_target(target_configuration, script))
+            if script_metadata_application.requirement_configuration.requirements:
+                requirements.update(
+                    script_metadata_application.requirement_configuration.requirements
+                )
+
+        if not requirements:
+            return ToolResolve(script=script)
+
         if pylock:
-            return lock_resolver.resolve_from_pylock(
+            resolved = lock_resolver.resolve_from_pylock(
                 targets=targets,
                 pylock=pylock,
                 resolver=resolver,
@@ -361,7 +528,7 @@ class Run(BuildTimeCommand):
                 dependency_configuration=dep_config,
             )
         else:
-            return pip_resolver.resolve(
+            resolved = pip_resolver.resolve(
                 targets=targets,
                 requirements=requirements,
                 allow_prereleases=pip_configuration.allow_prereleases,
@@ -381,10 +548,32 @@ class Run(BuildTimeCommand):
                 keyring_provider=pip_configuration.keyring_provider,
                 dependency_configuration=dep_config,
             )
+        if isinstance(resolved, Error):
+            return resolved
+
+        root_distributions = []  # type: List[Distribution]
+        distributions = []  # type: List[Distribution]
+        for resolved_dist in resolved.distributions:
+            if resolved_dist.direct_requirements:
+                root_distributions.append(resolved_dist.distribution)
+            distributions.append(resolved_dist.distribution)
+        production_assert(
+            len(root_distributions) == 1,
+            "Expected to resolve exactly one distribution for {requirement}, but found {count}.",
+            requirement=run_config.requirement or run_config.entry_point,
+            count=len(root_distributions),
+        )
+
+        return ToolResolve(
+            run_distribution=root_distributions[0],
+            distributions=tuple(distributions),
+            script=script,
+        )
 
     def _ensure_tool_venv(
         self,
         tool_venv_dir,  # type: str
+        target_configuration,  # type: TargetConfiguration
         target,  # type: Target
         run_config,  # type: RunConfig
         repair=True,  # type: bool
@@ -394,8 +583,8 @@ class Run(BuildTimeCommand):
         with atomic_directory(tool_venv_dir) as atomic_dir:
             if not atomic_dir.is_finalized():
                 pylock = None  # type: Optional[Pylock]
-                if run_config.locks:
-                    maybe_lock = try_(
+                if run_config.locks and run_config.requirement:
+                    package, maybe_lock = try_(
                         self._resolve_pylock(target, run_config.requirement, run_config.locks)
                     )
                     if not maybe_lock and run_config.locked_choice is LockedChoice.REQUIRE:
@@ -403,8 +592,7 @@ class Run(BuildTimeCommand):
                             Error("A tool lock file was required but none was found.")
                         )
                     if maybe_lock:
-                        package, pylock_toml = maybe_lock
-                        pylock = try_(Pylock.parse(pylock_toml))
+                        pylock = try_(Pylock.parse(maybe_lock))
                         packages = list(pylock.packages)
                         packages.append(
                             attr.evolve(
@@ -431,12 +619,9 @@ class Run(BuildTimeCommand):
                             local_project_requirement_mapping=local_project_requirement_mapping,
                         )
 
-                resolved = try_(self._resolve_tool(target, run_config.requirement, pylock=pylock))
-                distributions = tuple(
-                    resolved_distribution.distribution
-                    for resolved_distribution in resolved.distributions
+                tool_resolve = try_(
+                    self._resolve_tool(target_configuration, target, run_config, pylock=pylock)
                 )
-
                 with interpreter.path_mapping(atomic_dir.work_dir, tool_venv_dir):
                     venv = Virtualenv.create_atomic(
                         venv_dir=atomic_dir,
@@ -446,57 +631,109 @@ class Run(BuildTimeCommand):
                         venv=venv, python=interpreter.adjust_to_final_path(venv.interpreter.binary)
                     )
                     installer.populate_venv_distributions(
-                        venv=venv, distributions=distributions, provenance=provenance
+                        venv=venv, distributions=tool_resolve.distributions, provenance=provenance
                     )
 
-                if isinstance(run_config.requirement, LocalProjectRequirement):
-                    with open(os.path.join(atomic_dir.work_dir, "DEFAULT-ENTRY-POINT"), "w") as fp:
-                        fp.write(package.project_name.raw)
-
-        if not run_config.entry_point_is_requirement:
-            entry_point = run_config.entry_point
-        elif isinstance(run_config.requirement, LocalProjectRequirement):
-            entry_point_file = os.path.join(tool_venv_dir, "DEFAULT-ENTRY-POINT")
-            if repair and not os.path.isfile(entry_point_file):
-                # Old versions of `pex3 run` did not record an ENTRY-POINT file; this serves to
-                # upgrade those venvs as needed.
-                safe_rmtree(tool_venv_dir)
-                return self._ensure_tool_venv(tool_venv_dir, target, run_config, repair=False)
-
-            with open(entry_point_file) as fp:
-                entry_point = fp.read()
-        else:
-            parsed_requirement = run_config.requirement
-            packaging_requirement = parsed_requirement.requirement
-            entry_point = packaging_requirement.project_name.raw
+                if run_config.requirement_is_entry_point:
+                    assert tool_resolve.run_distribution is not None
+                    entry_point = EntryPoint(
+                        type=EntryPointType.MODULE, value=tool_resolve.run_distribution.project_name
+                    )
+                else:
+                    entry_point = self._calculate_entry_point(run_config, venv)
+                    if entry_point.type is EntryPointType.SCRIPT:
+                        production_assert(
+                            tool_resolve.script is not None,
+                            "Expected a script for {run_config}",
+                            run_config=run_config,
+                        )
+                        dst = os.path.join(venv.venv_dir, entry_point.value)
+                        # N.B.: MyPy does not see the production_assert above.
+                        safe_copy(cast(str, tool_resolve.script), dst)
+                entry_point.store(venv.venv_dir)
 
         venv = Virtualenv(tool_venv_dir)
-        command = []  # type: List[str]
-
-        script = venv.bin_path(entry_point)
-        if os.path.isfile(script):
-            command.append(script)
+        if not run_config.requirement_is_entry_point:
+            entry_point = self._calculate_entry_point(run_config, venv)
+            if entry_point.type is EntryPointType.SCRIPT and isinstance(
+                run_config.entry_point, ArtifactURL
+            ):
+                dst = os.path.join(venv.venv_dir, entry_point.value)
+                if not os.path.exists(dst):
+                    pip_configuration = resolver_options.create_pip_configuration(self.options)
+                    src = try_(self._resolve_script(run_config.entry_point, pip_configuration))
+                    safe_copy(src, dst)
         else:
-            command.extend((venv.interpreter.binary, "-m", entry_point))
-        command.extend(run_config.args)
-        return command
+            ep = EntryPoint.load(tool_venv_dir)
+            if isinstance(ep, Error):
+                if repair:
+                    # Old versions of `pex3 run` either did not record an DEFAULT-ENTRY-POINT file or
+                    # else recorded a different schema; this serves to upgrade those venvs as needed.
+                    safe_rmtree(tool_venv_dir)
+                    return self._ensure_tool_venv(
+                        tool_venv_dir, target_configuration, target, run_config, repair=False
+                    )
+                raise ResultError(error=ep)
+            entry_point = ep
+        return entry_point.command(venv, *run_config.args)
 
-    def run(self):
-        # type: () -> Result
+    @staticmethod
+    def _calculate_entry_point(
+        run_config,  # type: RunConfig
+        venv,  # type: Virtualenv
+    ):
+        # type: (...) -> EntryPoint
 
-        run_config = self._parse_options()
+        if isinstance(run_config.entry_point, ArtifactURL):
+            name, ext = os.path.splitext(os.path.basename(run_config.entry_point.path))
+            return EntryPoint(
+                type=EntryPointType.SCRIPT,
+                value="{name}.{hash}{ext}".format(
+                    name=name,
+                    hash=hashlib.sha1(
+                        run_config.entry_point.normalized_url.encode("utf-8")
+                    ).hexdigest(),
+                    ext=ext,
+                ),
+            )
 
-        target_configuration = TargetConfiguration(
-            interpreter_configuration=target_options.configure_interpreters(self.options)
-        )
-        target = (
+        console_script = venv.bin_path(run_config.entry_point)
+        if os.path.isfile(console_script):
+            script_relpath = os.path.relpath(console_script, venv.venv_dir)
+            return EntryPoint(type=EntryPointType.CONSOLE_SCRIPT, value=script_relpath)
+
+        return EntryPoint(type=EntryPointType.MODULE, value=run_config.entry_point)
+
+    @staticmethod
+    def _resolve_target(
+        target_configuration,  # type: TargetConfiguration
+        source,  # type: str
+    ):
+        # type: (...) -> Target
+        return (
             try_(
                 target_configuration.resolve_targets().require_at_most_one_target(
-                    "resolving {requirement}".format(requirement=run_config.requirement)
+                    "resolving {source}".format(source=source)
                 )
             )
             or LocalInterpreter.create()
         )
+
+    def run(self):
+        # type: () -> Result
+
+        run_config = try_(self._parse_options())
+
+        target_configuration = TargetConfiguration(
+            interpreter_configuration=target_options.configure_interpreters(self.options)
+        )
+        if run_config.requirement:
+            source = str(run_config.requirement)
+        elif isinstance(run_config.entry_point, ArtifactURL):
+            source = run_config.entry_point.normalized_url
+        else:
+            source = run_config.entry_point
+        target = self._resolve_target(target_configuration, source=source)
 
         tool_venv_dir = venv_dir(
             pex_root=ENV.PEX_ROOT,
@@ -506,8 +743,11 @@ class Run(BuildTimeCommand):
         if not os.path.exists(tool_venv_dir.path):
             cache_access.read_write()
         elif self.options.refresh:
+            # TODO: XXX: Obtain cache write lock 1st.
             safe_rmtree(tool_venv_dir.path)
-        command = self._ensure_tool_venv(tool_venv_dir.path, target, run_config)
+        command = self._ensure_tool_venv(
+            tool_venv_dir.path, target_configuration, target, run_config
+        )
         cache_access.record_access(tool_venv_dir)
 
         TRACER.log(
