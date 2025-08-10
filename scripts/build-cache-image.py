@@ -232,7 +232,7 @@ def main() -> Any:
                         if not tar_info.isdir() and (chroot / tar_info.name).exists():
                             logger.debug(f"Skipping already extracted {tar_info.name}")
                             continue
-                        tf.extract(tar_info, chroot)
+                        tf.extract(tar_info, chroot, set_attrs=False)
 
             logger.info(f"Merging {len(tarballs)} extracted tarballs...")
             merged_tarball = export_tarball_path()
