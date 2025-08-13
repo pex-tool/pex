@@ -872,6 +872,17 @@ class Requirement(Constraint):
             raise RequirementParseError(str(e), source=source)
 
     @classmethod
+    def local(
+        cls,
+        project_name,  # type: ProjectName
+        path,  # type: Text
+    ):
+        # type: (...) -> Requirement
+        return cls.parse(
+            "{project_name} @ file://{path}".format(project_name=project_name, path=path)
+        )
+
+    @classmethod
     def from_packaging_requirement(
         cls,
         requirement,  # type: PackagingRequirement
