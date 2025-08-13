@@ -1305,7 +1305,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             if isinstance(artifact, LocalProjectArtifact):
                 requirement_by_pin[pin] = add_warning(
                     "local project requirement",
-                    requirement="{project_name} @ file:{directory}".format(
+                    requirement="{project_name} @ file://{directory}".format(
                         project_name=downloadable_artifact.project_name,
                         directory=artifact.directory,
                     ),

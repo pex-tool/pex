@@ -879,7 +879,7 @@ class Requirement(Constraint):
     ):
         # type: (...) -> Requirement
         return cls.parse(
-            "{project_name} @ file:{path}".format(project_name=project_name, path=path)
+            "{project_name} @ file://{path}".format(project_name=project_name, path=path)
         )
 
     @classmethod

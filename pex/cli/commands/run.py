@@ -611,7 +611,7 @@ class Run(BuildTimeCommand):
             index=-1,
             project_name=dist_metadata.project_name,
             artifact=FileArtifact(
-                url=ArtifactURL.parse("file:{path}".format(path=distribution.path)),
+                url=ArtifactURL.parse("file://{path}".format(path=distribution.path)),
                 verified=True,
                 fingerprint=Fingerprint(algorithm="sha256", hash=distribution.fingerprint),
                 filename=os.path.basename(distribution.path),
