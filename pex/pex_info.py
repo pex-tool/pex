@@ -509,6 +509,11 @@ class PexInfo(object):
         return self._distributions
 
     @property
+    def pex_root_set(self):
+        # type: () -> bool
+        return "pex_root" in self._pex_info
+
+    @property
     def raw_pex_root(self):
         # type: () -> str
         return cast(str, self._pex_info.get("pex_root", cache_root.path(expand_user=False)))
