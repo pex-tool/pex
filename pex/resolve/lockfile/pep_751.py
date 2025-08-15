@@ -82,6 +82,11 @@ def _calculate_marker(
 ):
     # type: (...) -> Optional[Marker]
 
+    visited = set() if seen is None else seen
+    if project_name in visited:
+        return None
+    visited.add(project_name)
+
     dependants = dependants_by_project_name.get(project_name)
     if not dependants:
         return None
@@ -90,13 +95,8 @@ def _calculate_marker(
     # TODO: Perform post-processing on the calculated Marker that does proper logic reduction; e.g:
     #  python_version >= '3.9' and python_version == '3.11.*' -> python_version == '3.11.*'
 
-    visited = set() if seen is None else seen
     or_markers = OrderedSet()  # type: OrderedSet[str]
     for dependant_project_name, marker in dependants:
-        if dependant_project_name in visited:
-            continue
-        visited.add(dependant_project_name)
-
         and_markers = OrderedSet()  # type: OrderedSet[str]
         if marker:
             and_markers.add(str(marker))
