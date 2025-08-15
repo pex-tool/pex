@@ -32,6 +32,7 @@ from pex.resolve.locked_resolve import (
     UnFingerprintedVCSArtifact,
     VCSArtifact,
 )
+from pex.resolve.lockfile import tarjan
 from pex.resolve.lockfile.requires_dist import remove_unused_requires_dist
 from pex.resolve.lockfile.subset import Subset, SubsetResult
 from pex.resolve.requirement_configuration import RequirementConfiguration
@@ -77,8 +78,14 @@ else:
 def _calculate_marker(
     project_name,  # type: ProjectName
     dependants_by_project_name,  # type: Mapping[ProjectName, OrderedSet[Tuple[ProjectName, Optional[Marker]]]]
+    seen=None,  # type: Optional[Set[ProjectName]]
 ):
     # type: (...) -> Optional[Marker]
+
+    visited = set() if seen is None else seen
+    if project_name in visited:
+        return None
+    visited.add(project_name)
 
     dependants = dependants_by_project_name.get(project_name)
     if not dependants:
@@ -93,7 +100,9 @@ def _calculate_marker(
         and_markers = OrderedSet()  # type: OrderedSet[str]
         if marker:
             and_markers.add(str(marker))
-        guard_marker = _calculate_marker(dependant_project_name, dependants_by_project_name)
+        guard_marker = _calculate_marker(
+            dependant_project_name, dependants_by_project_name, seen=visited
+        )
         if guard_marker:
             and_markers.add(str(guard_marker))
 
@@ -1279,15 +1288,14 @@ class ResolvedPackages(object):
     def resolve_roots(self):
         # type: () -> Iterable[Package]
 
-        dependants_by_package_index = defaultdict(list)  # type: DefaultDict[int, List[Package]]
-        for package in self.packages:
-            if package.dependencies:
-                for dependency in package.dependencies:
-                    dependants_by_package_index[dependency.index].append(package)
-
-        return tuple(
-            package for package in self.packages if not dependants_by_package_index[package.index]
+        packages_by_index = {package.index: package for package in self.packages}
+        dag = tarjan.scc(
+            nodes=self.packages,
+            successors_fn=lambda package: tuple(
+                packages_by_index[dep.index] for dep in (package.dependencies or ())
+            ),
         )
+        return dag.roots()
 
 
 @attr.s(frozen=True)

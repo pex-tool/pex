@@ -1,5 +1,13 @@
 # Release Notes
 
+## 2.50.3
+
+This release fixes handling of cycles both when exporting Pex lock files to PEP-751 `pylock.toml`
+format as well as when creating PEXes from `--pylock` locks with cycles. This should complete the
+cycle-handling fix work started in #2835 by @pimdh.
+
+* Fix `pylock.toml` cycle handling. (#2863)
+
 ## 2.50.2
 
 This release fixes creating `--scie {eager,lazy}` PEX scies when no specific `--scie-pbs-release` is
