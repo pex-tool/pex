@@ -8,15 +8,26 @@ import subprocess
 
 from pex.cache.dirs import CacheDir
 from pex.compatibility import commonpath
+from pex.typing import TYPE_CHECKING
 from testing import make_env, run_pex_command
 from testing.pytest_utils.tmp import Tempdir
 from testing.scie import skip_if_no_provider
 
+if TYPE_CHECKING:
+    from typing import Optional
 
-def assert_scie_base(scie, expected_base):
+
+def assert_scie_base(
+    scie,  # type: str
+    expected_base=None,  # type: Optional[str]
+):
     manifest = json.loads(subprocess.check_output(args=[scie], env=make_env(SCIE="inspect")))
-    assert expected_base == manifest["scie"]["lift"]["base"]
+    actual_base = manifest["scie"]["lift"].get("base", None)
+    if actual_base is None:
+        assert expected_base is None
+        return
 
+    assert expected_base == actual_base
     assert expected_base == commonpath(
         (
             expected_base,
@@ -76,3 +87,12 @@ def test_custom_base_trumps(tmpdir):
     ).assert_success()
 
     assert_scie_base(scie, nce)
+
+
+@skip_if_no_provider
+def test_issue_2864(tmpdir):
+    # type: (Tempdir) -> None
+
+    scie = tmpdir.join("scie")
+    run_pex_command(args=["--scie", "eager", "--scie-only", "-o", scie]).assert_success()
+    assert_scie_base(scie)
