@@ -1,5 +1,13 @@
 # Release Notes
 
+## 2.50.4
+
+This release fixes a bug introduced by #2828 that would assign PEX scies a `SCIE_BASE` of the
+current user's `PEX_ROOT` at PEX scie build time. PEX scies now only get a custom `SCIE_BASE`
+when `--scie-base` or `--runtime-pex-root` are specified when building the PEX scie.
+
+* Fix PEX scie `--runtime-pex-root` handling. (#2866)
+
 ## 2.50.3
 
 This release fixes handling of cycles both when exporting Pex lock files to PEP-751 `pylock.toml`
