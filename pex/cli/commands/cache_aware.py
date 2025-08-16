@@ -5,10 +5,13 @@ from __future__ import absolute_import, print_function
 
 import os
 from datetime import datetime
-from typing import IO, Dict, List, Optional
 
 from pex.cache import access as cache_access
 from pex.common import pluralize
+from pex.typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import IO, Dict, List, Optional
 
 
 def _log_delete_start(
