@@ -1350,10 +1350,8 @@ class Pylock(object):
                     directory = os.path.normpath(
                         os.path.join(os.path.dirname(pylock_toml_path), directory)
                     )
-                local_project_requirement_mapping[directory] = Requirement.parse(
-                    "{project_name} @ file://{directory}".format(
-                        project_name=package.project_name, directory=directory
-                    )
+                local_project_requirement_mapping[directory] = Requirement.local(
+                    project_name=package.project_name, path=directory
                 )
             packages.append(package)
 

@@ -11,7 +11,6 @@ from argparse import Action, ArgumentError, _ActionsContainer
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 
-from pex.cache import access as cache_access
 from pex.cache.dirs import (
     AtomicCacheDir,
     BootstrapDir,
@@ -25,6 +24,7 @@ from pex.cache.prunable import Prunable
 from pex.cli.command import BuildTimeCommand
 from pex.cli.commands.cache.bytes import ByteAmount, ByteUnits
 from pex.cli.commands.cache.du import DiskUsage
+from pex.cli.commands.cache_aware import CacheAwareMixin
 from pex.commands.command import OutputMixin
 from pex.common import pluralize, safe_rmtree
 from pex.dist_metadata import ProjectNameAndVersion
@@ -40,18 +40,7 @@ from pex.variables import ENV
 
 if TYPE_CHECKING:
     import typing
-    from typing import (
-        IO,
-        DefaultDict,
-        Dict,
-        Iterable,
-        Iterator,
-        List,
-        Mapping,
-        Optional,
-        Tuple,
-        Union,
-    )
+    from typing import DefaultDict, Iterable, Iterator, List, Mapping, Optional, Tuple, Union
 
     import attr  # vendor:skip
 else:
@@ -152,7 +141,7 @@ def _prune_pip(
     return du
 
 
-class Cache(OutputMixin, BuildTimeCommand):
+class Cache(CacheAwareMixin, OutputMixin, BuildTimeCommand):
     """Interact with the Pex cache."""
 
     @staticmethod
@@ -364,92 +353,6 @@ class Cache(OutputMixin, BuildTimeCommand):
             safe_rmtree(cache_dir_path)
         return cache_dir, du
 
-    @staticmethod
-    def _log_delete_start(
-        lock_file,  # type: str
-        out,  # type: IO[str]
-    ):
-        # type: (...) -> None
-
-        try:
-            import psutil  # type: ignore[import]
-
-            # N.B.: the `version_info` tuple was introduced in psutil 0.2.0.
-            psutil_version = getattr(psutil, "version_info", None)
-            if not psutil_version or psutil_version < (5, 3, 0):
-                print(
-                    "The psutil{version} module is available, but it is too old. "
-                    "Need at least version 5.3.0.".format(
-                        version=(
-                            " {version}".format(version=".".join(map(str, psutil_version)))
-                            if psutil_version
-                            else ""
-                        )
-                    ),
-                    file=out,
-                )
-                psutil = None
-        except ImportError as e:
-            print("Failed to import psutil:", e, file=out)
-            psutil = None
-
-        if not psutil:
-            print("Will proceed with basic output.", file=out)
-            print("---", file=out)
-            print(
-                "Note: this process will block until all other running Pex processes have exited.",
-                file=out,
-            )
-            print(
-                "To get information on which processes these are, re-install Pex with the", file=out
-            )
-            print("management extra; e.g.: with requirement pex[management]", file=out)
-            print(file=out)
-            return
-
-        running = []  # type: List[psutil.Process]
-        pid = os.getpid()  # type: int
-        for process in psutil.process_iter(
-            ["pid", "open_files", "username", "create_time", "environ", "cmdline"]
-        ):
-            if pid == process.info["pid"]:
-                continue
-            if any(lock_file == of.path for of in process.info["open_files"] or ()):
-                running.append(process)
-
-        if running:
-            print(
-                "Waiting on {count} in flight {processes} (with shared lock on {lock_file}) to "
-                "complete before deleting:".format(
-                    count=len(running), processes=pluralize(running, "process"), lock_file=lock_file
-                ),
-                file=out,
-            )
-            print("---", file=out)
-            for index, process in enumerate(running, start=1):
-                print(
-                    "{index}. pid {pid} started by {username} at {create_time}".format(
-                        index=index,
-                        pid=process.info["pid"],
-                        username=process.info["username"],
-                        create_time=datetime.fromtimestamp(process.info["create_time"]).strftime(
-                            "%Y-%m-%d %H:%M:%S"
-                        ),
-                    ),
-                    file=out,
-                )
-
-                pex_env = process.info["environ"]  # type: Optional[Dict[str, str]]
-                if pex_env:
-                    pex_env = {k: v for k, v in pex_env.items() if k.startswith("PEX")}
-                if pex_env:
-                    print("   Pex env: {pex_env}".format(pex_env=pex_env), file=out)
-
-                cmdline = process.info["cmdline"]
-                if cmdline:
-                    print("   cmdline: {cmdline}".format(cmdline=cmdline), file=out)
-            print(file=out)
-
     def _purge(self):
         # type: () -> Result
 
@@ -490,17 +393,10 @@ class Cache(OutputMixin, BuildTimeCommand):
             print(file=fp)
 
             if not self.options.dry_run:
-                try:
-                    with cache_access.await_delete_lock() as lock_file:
-                        self._log_delete_start(lock_file, out=fp)
-                        print(
-                            "Attempting to acquire cache write lock (press CTRL-C to abort) ...",
-                            file=fp,
-                        )
-                except KeyboardInterrupt:
+                locked = self.lock_cache_for_delete(out=fp)
+                print(file=fp)
+                if not locked:
                     return Error("No cache entries purged.")
-                finally:
-                    print(file=fp)
 
             disk_usages = []  # type: List[DiskUsage]
             for cache_dir, du in iter_map_parallel(
@@ -528,17 +424,10 @@ class Cache(OutputMixin, BuildTimeCommand):
 
         with self.output(self.options) as fp:
             if not self.options.dry_run:
-                try:
-                    with cache_access.await_delete_lock() as lock_file:
-                        self._log_delete_start(lock_file, out=fp)
-                        print(
-                            "Attempting to acquire cache write lock (press CTRL-C to abort) ...",
-                            file=fp,
-                        )
-                except KeyboardInterrupt:
-                    return Error("No cache entries purged.")
-                finally:
-                    print(file=fp)
+                locked = self.lock_cache_for_delete(out=fp)
+                print(file=fp)
+                if not locked:
+                    return Error("No cache entries pruned.")
 
         cutoff = self.options.cutoff
         prunable = Prunable.scan(cutoff.cutoff)
