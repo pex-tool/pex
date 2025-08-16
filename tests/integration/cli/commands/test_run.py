@@ -9,14 +9,19 @@ import sys
 from textwrap import dedent
 
 import pytest
-from colors import colors
 
 from pex.cache.dirs import VenvDirs
 from pex.common import safe_open
+from pex.typing import TYPE_CHECKING
 from pex.version import __version__
 from testing import run_pex_command
 from testing.cli import run_pex3
 from testing.pytest_utils.tmp import Tempdir
+
+if TYPE_CHECKING:
+    import colors  # vendor:skip
+else:
+    from pex.third_party import colors
 
 skip_if_locked_dev_cmd_not_compatible = pytest.mark.skipif(
     sys.version_info[:2] < (3, 9),
