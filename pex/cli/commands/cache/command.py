@@ -40,16 +40,7 @@ from pex.variables import ENV
 
 if TYPE_CHECKING:
     import typing
-    from typing import (
-        DefaultDict,
-        Iterable,
-        Iterator,
-        List,
-        Mapping,
-        Optional,
-        Tuple,
-        Union,
-    )
+    from typing import DefaultDict, Iterable, Iterator, List, Mapping, Optional, Tuple, Union
 
     import attr  # vendor:skip
 else:
