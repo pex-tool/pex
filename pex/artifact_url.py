@@ -188,6 +188,17 @@ class ArtifactURL(object):
             raw_url = str(url)
 
         url_info = urlparse.urlparse(raw_url)
+        return cls.from_url_info(url_info, raw_url)
+
+    @classmethod
+    def from_url_info(
+        cls,
+        url_info,  # type: urlparse.ParseResult
+        original_url=None,  # type: Optional[str]
+    ):
+        # type: (...) -> ArtifactURL
+
+        raw_url = original_url or str(url_info.geturl())
         scheme = parse_scheme(url_info.scheme) if url_info.scheme else "file"
         path = url_unquote(url_info.path)
 
@@ -206,7 +217,7 @@ class ArtifactURL(object):
                 if len(hashes) > 1 and len(set(hashes)) > 1:
                     TRACER.log(
                         "The artifact url contains multiple distinct hash values for the {alg} "
-                        "algorithm, not trusting any of these: {url}".format(alg=alg, url=url)
+                        "algorithm, not trusting any of these: {url}".format(alg=alg, url=raw_url)
                     )
                     continue
                 fingerprints.append(Fingerprint(algorithm=alg, hash=hashes[0]))

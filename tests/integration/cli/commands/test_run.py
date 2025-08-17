@@ -7,15 +7,18 @@ import os.path
 import re
 import sys
 from textwrap import dedent
+from typing import Iterator
 
 import pytest
 
 from pex.cache.dirs import VenvDirs
-from pex.common import safe_open
+from pex.common import safe_copy, safe_open
+from pex.http.server import Server, ServerInfo
 from pex.typing import TYPE_CHECKING
 from pex.version import __version__
-from testing import run_pex_command
+from testing import IS_MAC, run_pex_command
 from testing.cli import run_pex3
+from testing.pytest_utils import IS_CI
 from testing.pytest_utils.tmp import Tempdir
 
 if TYPE_CHECKING:
@@ -346,4 +349,121 @@ def test_script_pep_723(
         )
     run_pex3("run", "--pex-root", pex_root, script, "Moo!").assert_success(
         expected_output_re=r".*\| Moo! \|.*", re_flags=re.DOTALL | re.MULTILINE
+    )
+
+
+@pytest.fixture
+def cowsay_pylock(tmpdir):
+    # type: (Tempdir) -> str
+
+    lock = tmpdir.join("lock.json")
+    run_pex3("lock", "create", "cowsay<6", "--indent", "2", "-o", lock).assert_success()
+
+    pylock = tmpdir.join("pylock.toml")
+    run_pex3("lock", "export", "--format", "pep-751", "-o", pylock, lock).assert_success()
+
+    return pylock
+
+
+def test_local_script_locked(
+    tmpdir,  # type: Tempdir
+    script,  # type: str
+    cowsay_pylock,  # type: str
+):
+    # type: (...) -> None
+
+    pex_root = tmpdir.join("pex-root")
+
+    def assert_locked(lock_name):
+        # type: (str) -> None
+
+        pylock = os.path.join(os.path.dirname(script), lock_name)
+        safe_copy(cowsay_pylock, pylock)
+        run_pex3(
+            "run", "-v", "--pex-root", pex_root, script, "--locked", "require", "Moo!"
+        ).assert_success(expected_output_re=r".*\| Moo! \|.*", re_flags=re.DOTALL | re.MULTILINE)
+        os.unlink(pylock)
+
+    assert_locked("pylock.script.toml")
+    assert_locked("pylock.toml")
+
+
+@pytest.fixture
+def script_server(
+    tmpdir,  # type: Tempdir
+    script,  # type: str
+    cowsay_pylock,  # type: str
+):
+    # type: (...) -> Iterator[ServerInfo]
+
+    script_dir = os.path.dirname(script)
+    safe_copy(cowsay_pylock, os.path.join(script_dir, "pylock.toml"))
+
+    server = Server(name="Test Providers Server", cache_dir=tmpdir.join("server"))
+    result = server.launch(
+        script_dir,
+        timeout=float(os.environ.get("_PEX_HTTP_SERVER_TIMEOUT", "5.0")),
+        verbose_error=True,
+    )
+    try:
+        yield result.server_info
+    finally:
+        server.shutdown()
+
+
+CI_skip_mac = pytest.mark.xfail(
+    IS_CI and IS_MAC,
+    reason=(
+        "The script server fails to start, at least on the macos-15 CI runners, and since this "
+        "is not a multi-platform test, just checking on Linux is not ideal but good enough."
+    ),
+)
+
+
+@CI_skip_mac
+def test_remote_script_locked(
+    tmpdir,  # type: Tempdir
+    script,  # type: str
+    script_server,  # type: ServerInfo
+):
+    # type: (...) -> None
+
+    pex_root = tmpdir.join("pex-root")
+    script_url = "/".join((script_server.url, os.path.basename(script)))
+    run_pex3(
+        "run",
+        "--pex-root",
+        pex_root,
+        "--locked",
+        "require",
+        script_url,
+        "Moo!",
+    ).assert_success(expected_output_re=r".*\| Moo! \|.*", re_flags=re.DOTALL | re.MULTILINE)
+
+    with open(script, "a") as fp:
+        fp.write(
+            dedent(
+                """\
+                # /// script
+                # dependencies = [
+                #   "cowsay==6",
+                # ]
+                # ///
+                """
+            )
+        )
+    run_pex3(
+        "run",
+        "--pex-root",
+        pex_root,
+        "--refresh",
+        "--locked",
+        "require",
+        script_url,
+        "Moo!",
+    ).assert_failure(
+        expected_error_re=r".*{err}.*".format(
+            err=re.escape("Failed to resolve a package satisfying cowsay==6 from ")
+        ),
+        re_flags=re.DOTALL | re.MULTILINE,
     )

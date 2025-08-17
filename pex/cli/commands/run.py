@@ -7,6 +7,7 @@ import glob
 import hashlib
 import json
 import os.path
+import posixpath
 import shutil
 import sys
 import tarfile
@@ -33,7 +34,7 @@ from pex.dist_metadata import (
     is_wheel,
 )
 from pex.enum import Enum
-from pex.exceptions import production_assert
+from pex.exceptions import production_assert, reportable_unexpected_error_msg
 from pex.fetcher import URLFetcher
 from pex.interpreter import PythonInterpreter
 from pex.orderedset import OrderedSet
@@ -247,6 +248,7 @@ class RunConfig(object):
         extra_requirements = OrderedSet()  # type: OrderedSet[Requirement]
         local_projects = OrderedSet()  # type: OrderedSet[LocalProjectRequirement]
 
+        entry_point = None  # type: Optional[str]
         is_script = False
         if isinstance(self.entry_point, str):
             entry_point = self.entry_point
@@ -255,7 +257,11 @@ class RunConfig(object):
         else:  # Script
             entry_point, script_reqs, target = try_(
                 self.entry_point.resolve(
-                    target_configuration, target, pip_configuration, refresh=refresh
+                    target_configuration,
+                    target,
+                    pip_configuration,
+                    refresh=refresh,
+                    locked_choice=self.locked_choice,
                 )
             )
             is_script = True
@@ -290,6 +296,22 @@ class RunConfig(object):
             else:
                 extra_requirements.add(local_project_req)
 
+        if entry_point is None:
+            raise AssertionError(
+                reportable_unexpected_error_msg(
+                    "Failed to calculate and entry point from: {self}", self=self
+                )
+            )
+
+        locks = []  # type: List[str]
+        if self.locked_choice is not LockedChoice.IGNORE:
+            if isinstance(self.entry_point, Script):
+                name, _ = os.path.splitext(os.path.basename(entry_point))
+            else:
+                name = entry_point
+            locks.append("pylock.{name}.toml".format(name=name))
+            locks.append("pylock.toml")
+
         return RunSpec(
             target_configuration=target_configuration,
             target=target,
@@ -299,7 +321,7 @@ class RunConfig(object):
             requirement=requirement,
             extra_requirements=tuple(extra_requirements),
             args=self.args,
-            locks=self.locks,
+            locks=tuple(locks),
             locked_choice=self.locked_choice,
         )
 
@@ -308,10 +330,34 @@ class RunConfig(object):
 class Script(object):
     url = attr.ib()  # type: ArtifactURL
 
+    def _resolve_lock(
+        self,
+        fetcher,  # type: URLFetcher
+        download_dir,  # type: str
+        lock_name,  # type: str
+    ):
+        # type: (...) -> bool
+
+        lock_url = ArtifactURL.from_url_info(
+            self.url.url_info._replace(
+                path=posixpath.join(posixpath.dirname(self.url.path), lock_name)
+            )
+        )
+        try:
+            with fetcher.get_body_stream(lock_url.download_url) as src_fp, open(
+                os.path.join(download_dir, lock_name), "wb"
+            ) as dst_fp:
+                shutil.copyfileobj(src_fp, dst_fp)
+        except (IOError, OSError):
+            return False
+        else:
+            return True
+
     def _resolve_script(
         self,
         pip_configuration,  # type: PipConfiguration
         refresh=False,  # type: bool
+        locked_choice=LockedChoice.AUTO,  # type: LockedChoice.Value
     ):
         # type: (...) -> Union[str, Error]
 
@@ -328,7 +374,7 @@ class Script(object):
         cache_dir = CacheDir.RUN.path(
             "scripts", hashlib.sha1(download_url.encode("utf-8")).hexdigest()
         )
-        script_name = os.path.basename(self.url.path)
+        script_name = posixpath.basename(self.url.path)
 
         if refresh:
             safe_rmtree(cache_dir)
@@ -342,6 +388,11 @@ class Script(object):
                     os.path.join(atomic_dir.work_dir, script_name), "wb"
                 ) as dst_fp:
                     shutil.copyfileobj(src_fp, dst_fp)
+                if locked_choice is not LockedChoice.IGNORE:
+                    name, _ = os.path.splitext(script_name)
+                    for lock in "pylock.{name}.toml".format(name=name), "pylock.toml":
+                        if self._resolve_lock(fetcher, atomic_dir.work_dir, lock):
+                            break
         return os.path.join(cache_dir, script_name)
 
     def resolve(
@@ -350,10 +401,13 @@ class Script(object):
         target,  # type: LocalInterpreter
         pip_configuration,  # type: PipConfiguration
         refresh=False,  # type: bool
+        locked_choice=LockedChoice.AUTO,  # type: LockedChoice.Value
     ):
         # type: (...) -> Union[Tuple[str, Iterable[Requirement], LocalInterpreter], Error]
 
-        script = try_(self._resolve_script(pip_configuration, refresh=refresh))
+        script = try_(
+            self._resolve_script(pip_configuration, refresh=refresh, locked_choice=locked_choice)
+        )
         try:
             script_metadata_application = apply_script_metadata(
                 scripts=[script],
@@ -533,30 +587,22 @@ class Run(CacheAwareMixin, BuildTimeCommand):
             else:
                 entry_point = entry_point_req.requirement.project_name.raw
 
-        locks = []  # type: List[str]
-        if self.options.locked is not LockedChoice.IGNORE:
-            name = None  # type: (Optional[str])
-            if isinstance(entry_point, str):
-                name = entry_point
-            elif isinstance(entry_point, ArtifactURL):
-                name, _ = os.path.splitext(os.path.basename(entry_point.path))
-            if name:
-                locks.append("pylock.{name}.toml".format(name=name))
-            locks.append("pylock.toml")
-
         return RunConfig(
             entry_point=entry_point,
             requirement=requirement,
             extra_requirements=tuple(extra_requirements),
             args=self.passthrough_args or (),
-            locks=tuple(locks),
             locked_choice=self.options.locked,
         )
 
     def _resolve_pylock(self, run_spec):
-        # type: (RunSpec) -> Union[Optional[Tuple[Package, str]], Error]
+        # type: (RunSpec) -> Union[Optional[Tuple[Optional[Package], str]], Error]
 
         if run_spec.is_script:
+            for lock_name in run_spec.locks:
+                lock_path = os.path.join(os.path.dirname(run_spec.entry_point), lock_name)
+                if os.path.isfile(lock_path):
+                    return None, lock_path
             return None
 
         requirement = run_spec.requirement
@@ -670,9 +716,6 @@ class Run(CacheAwareMixin, BuildTimeCommand):
         # type: (...) -> Union[Tuple[Distribution, ...], Error]
 
         requirements = OrderedSet(str(req) for req in run_spec.iter_requirements())
-        if not requirements:
-            return ()
-
         pip_configuration = run_spec.pip_configuration
         resolver = ConfiguredResolver(pip_configuration=pip_configuration)
         targets = Targets.from_target(run_spec.target)
@@ -732,7 +775,7 @@ class Run(CacheAwareMixin, BuildTimeCommand):
         with atomic_directory(tool_venv_dir) as atomic_dir:
             if not atomic_dir.is_finalized():
                 pylock = None  # type: Optional[Pylock]
-                if run_spec.locks and run_spec.requirement:
+                if run_spec.locks:
                     maybe_lock = try_(self._resolve_pylock(run_spec))
                     if not maybe_lock and run_spec.locked_choice is LockedChoice.REQUIRE:
                         raise ResultError(
@@ -742,24 +785,25 @@ class Run(CacheAwareMixin, BuildTimeCommand):
                         package, lock_path = maybe_lock
                         pylock = try_(Pylock.parse(lock_path))
                         packages = list(pylock.packages)
-                        packages.append(
-                            attr.evolve(
-                                package,
-                                index=len(packages),
-                                dependencies=tuple(
-                                    # N.B.: The root tool package does not necessarily depend on all
-                                    # other packages in the lock, but it is harmless to claim this
-                                    # to ensure a full tool + lock install.
-                                    Dependency(package.index, package.project_name)
-                                    for package in packages
-                                ),
-                            )
-                        )
                         local_project_requirement_mapping = {}
-                        if isinstance(package.artifact, UnFingerprintedLocalProjectArtifact):
-                            local_project_requirement_mapping[
-                                package.artifact.directory
-                            ] = package.as_requirement()
+                        if package:
+                            packages.append(
+                                attr.evolve(
+                                    package,
+                                    index=len(packages),
+                                    dependencies=tuple(
+                                        # N.B.: The root tool package does not necessarily depend on all
+                                        # other packages in the lock, but it is harmless to claim this
+                                        # to ensure a full tool + lock install.
+                                        Dependency(package.index, package.project_name)
+                                        for package in packages
+                                    ),
+                                )
+                            )
+                            if isinstance(package.artifact, UnFingerprintedLocalProjectArtifact):
+                                local_project_requirement_mapping[
+                                    package.artifact.directory
+                                ] = package.as_requirement()
 
                         pylock = attr.evolve(
                             pylock,
