@@ -1,5 +1,14 @@
 # Release Notes
 
+## 2.52.0
+
+This release adds `pex3 run --locked {auto,require}` support for both local and remote scripts. In
+either case a sibling `pylock.<script name>.toml` and then a sibling `pylock.toml` are searched for
+and, if found, are subsetted with PEP-723 script requirements or explicit `--with` or `--from`
+requirements if present.
+
+* Support sibling script locks in `pex3 run`. (#2874)
+
 ## 2.51.1
 
 This release fixes a bug in Pex's HTTP server used for serving `pex --docs` and `pex3 docs` when
