@@ -1,5 +1,15 @@
 # Release Notes
 
+## 2.51.1
+
+This release fixes a bug in Pex's HTTP server used for serving `pex --docs` and `pex3 docs` when
+running on Python 2.7.
+
+Also, `pylock.toml` subsets are now fixed to fully honor subset requirement specifiers and markers.
+
+* Fix HTTP Server for Python 2.7. (#2871)
+* Fix pylock.toml subsetting. (#2872)
+
 ## 2.51.0
 
 This release augments `pex3 run` with the ability to run both local and remote scripts as well as
