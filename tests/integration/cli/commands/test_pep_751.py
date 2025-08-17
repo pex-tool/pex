@@ -198,6 +198,56 @@ def test_universal_export_subset_no_dependency_info(devpi_server_lock):
     } == assert_valid_toml(result.output)
 
 
+def test_subset_invalid(tmpdir):
+    # type: (Tempdir) -> None
+
+    lock = tmpdir.join("lock.json")
+    run_pex3("lock", "create", "cowsay<6", "--indent", "2", "-o", lock).assert_success()
+
+    pylock = tmpdir.join("pylock.toml")
+    run_pex3("lock", "export", "--format", "pep-751", "-o", pylock, lock).assert_success()
+
+    pex_root = tmpdir.join("pex-root")
+    run_pex_command(
+        args=[
+            "--pex-root",
+            pex_root,
+            "--runtime-pex-root",
+            pex_root,
+            "--pylock",
+            pylock,
+            "cowsay",
+            "--",
+            "-c",
+            "import cowsay; print(cowsay.__file__)",
+        ]
+    ).assert_success(expected_output_re=r"^{pex_root}.*".format(pex_root=re.escape(pex_root)))
+
+    pex = tmpdir.join("pex")
+    run_pex_command(
+        args=[
+            "--pex-root",
+            pex_root,
+            "--runtime-pex-root",
+            pex_root,
+            "--pylock",
+            pylock,
+            "cowsay>=6",
+            "-o",
+            pex,
+        ]
+    ).assert_failure(
+        expected_error_re=r".* {err}$".format(
+            err=re.escape(
+                "Failed to resolve a package satisfying cowsay>=6 from {pylock}.".format(
+                    pylock=pylock
+                )
+            )
+        ),
+        re_flags=re.DOTALL | re.MULTILINE,
+    )
+
+
 def pin(
     project_name,  # type: str
     version,  # type: str
