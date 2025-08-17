@@ -71,7 +71,7 @@ class Pidfile(object):
         # type: (...) -> Optional[str]
 
         # The permutations of Python versions, simple http server module and the output it provides:
-        #  2.7: Serving HTTP on 0.0.0.0 port 46399 ... -mSimpleHttpServer
+        #  2.7: Serving HTTP on 0.0.0.0 port 46399 ... -mSimpleHTTPServer
         #  3.5: Serving HTTP on 0.0.0.0 port 45577 ... -mhttp.server
         # 3.6+: Serving HTTP on 0.0.0.0 port 33539 (http://0.0.0.0:33539/) ... -mhttp.server
 
@@ -170,7 +170,7 @@ class Server(object):
 
         # Not proper daemonization, but good enough.
         log = os.path.join(self.cache_dir, "log.txt")
-        http_server_module = "http.server" if sys.version_info[0] == 3 else "SimpleHttpServer"
+        http_server_module = "http.server" if sys.version_info[0] == 3 else "SimpleHTTPServer"
         env = os.environ.copy()
         # N.B.: We set up line buffering for the process pipes as well as the underlying Python
         # running the http server to ensure we can observe the `Serving HTTP on ...` line we need to
