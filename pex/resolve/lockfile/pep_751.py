@@ -1136,12 +1136,16 @@ class PackageEvaluator(object):
         target,  # type: Target
         extras=frozenset(),  # type: FrozenSet[str]
         dependency_groups=frozenset(),  # type: FrozenSet[str]
+        requirements=(),  # type: Iterable[Requirement]
         constraints=(),  # type: Iterable[Requirement]
         build_configuration=BuildConfiguration(),  # type: BuildConfiguration
         dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
     ):
         # type: (...) -> PackageEvaluator
 
+        requirements_by_project_name = {
+            requirement.project_name: requirement for requirement in requirements
+        }
         constraints_by_project_name = {
             constraint.project_name: constraint.as_constraint() for constraint in constraints
         }
@@ -1174,6 +1178,7 @@ class PackageEvaluator(object):
             source=source,
             target=target,
             marker_environment=marker_environment,
+            requirements_by_project_name=requirements_by_project_name,
             constraints_by_project_name=constraints_by_project_name,
             build_configuration=build_configuration,
             dependency_configuration=dependency_configuration,
@@ -1182,6 +1187,7 @@ class PackageEvaluator(object):
     source = attr.ib()  # type: str
     target = attr.ib()  # type: Target
     marker_environment = attr.ib()  # type: Mapping[str, Union[str, FrozenSet[str]]]
+    requirements_by_project_name = attr.ib(factory=dict)  # type: Mapping[ProjectName, Requirement]
     constraints_by_project_name = attr.ib(factory=dict)  # type: Mapping[ProjectName, Constraint]
     build_configuration = attr.ib(default=BuildConfiguration())  # type: BuildConfiguration
     dependency_configuration = attr.ib(
@@ -1198,6 +1204,22 @@ class PackageEvaluator(object):
         if package.has_wheel and self.build_configuration.allow_wheel(package.project_name):
             return True
         return self.build_configuration.allow_build(package.project_name)
+
+    def _satisfies_requirements(
+        self,
+        project_name,  # type: ProjectName
+        version=None,  # type: Optional[Version]
+    ):
+        # type: (...) -> bool
+
+        if not version:
+            return True
+
+        requirement = self.requirements_by_project_name.get(project_name)
+        if not requirement:
+            return True
+
+        return requirement.contains(version)
 
     def _satisfies_constraints(
         self,
@@ -1222,6 +1244,9 @@ class PackageEvaluator(object):
             return False
 
         if not self._satisfies_build_configuration(package):
+            return False
+
+        if not self._satisfies_requirements(package.project_name, package.version):
             return False
 
         if not self._satisfies_constraints(package.project_name, package.version):
@@ -1460,6 +1485,7 @@ class Pylock(object):
             target=target,
             extras=extras,
             dependency_groups=groups,
+            requirements=requirements,
             constraints=constraints,
             build_configuration=build_configuration,
             dependency_configuration=dependency_configuration,
@@ -1467,7 +1493,6 @@ class Pylock(object):
         applicable_packages = [
             package for package in self.packages if package_evaluator.applies(package)
         ]
-
         packages_by_project_name = defaultdict(
             list
         )  # type: DefaultDict[ProjectName, List[Package]]
@@ -1475,22 +1500,36 @@ class Pylock(object):
             packages_by_project_name[package.project_name].append(package)
 
         if requirements:
+            marker_env = target.marker_environment.as_dict()
             required_project_names = deque(
-                OrderedSet(requirement.project_name for requirement in requirements)
+                OrderedSet(
+                    (requirement.project_name, str(requirement))
+                    for requirement in requirements
+                    if not requirement.marker or requirement.marker.evaluate(marker_env)
+                )
             )
             visited_projects = set()  # type: Set[ProjectName]
             packages = OrderedSet()  # type: OrderedSet[Package]
             while required_project_names:
-                project_name = required_project_names.popleft()
+                project_name, requirement = required_project_names.popleft()
                 if project_name in visited_projects:
                     continue
                 visited_projects.add(project_name)
                 selected_packages = packages_by_project_name[project_name]
+                if not selected_packages:
+                    return Error(
+                        "Failed to resolve a package satisfying {requirement} from "
+                        "{source}.".format(requirement=requirement, source=self.source)
+                    )
                 if transitive:
                     for selected_package in selected_packages:
                         if selected_package.dependencies:
                             for dep in selected_package.dependencies:
-                                required_project_names.append(dep.project_name)
+                                if dep.project_name not in packages_by_project_name:
+                                    continue
+                                required_project_names.append(
+                                    (dep.project_name, str(dep.project_name))
+                                )
                 packages.update(selected_packages)
 
             applicable_packages = list(packages)
