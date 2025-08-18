@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.52.1
+
+This release fixes use of creating PEXes from a `--pylock` when no requirements are specified.
+
+* Fix `--pylock` with no reqs roots calculation. (#2878)
+
 ## 2.52.0
 
 This release adds `pex3 run --locked {auto,require}` support for both local and remote scripts. In
@@ -7,7 +13,7 @@ either case a sibling `pylock.<script name>.toml` and then a sibling `pylock.tom
 and, if found, are subsetted with PEP-723 script requirements or explicit `--with` or `--from`
 requirements if present.
 
-* Support sibling script locks in `pex3 run`. (#2874)
+* Support sibling script locks in `pex3 run`. (#2870)
 
 ## 2.51.1
 
