@@ -2,7 +2,8 @@
 
 ## 2.52.1
 
-This release fixes use of creating PEXes from a `--pylock` when no requirements are specified.
+This release fixes some cases of creating PEXes from a `--pylock` when no requirements are
+specified.
 
 * Fix `--pylock` with no reqs roots calculation. (#2878)
 
