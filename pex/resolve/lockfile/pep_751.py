@@ -1317,7 +1317,9 @@ class ResolvedPackages(object):
         dag = tarjan.scc(
             nodes=self.packages,
             successors_fn=lambda package: tuple(
-                packages_by_index[dep.index] for dep in (package.dependencies or ())
+                packages_by_index[dep.index]
+                for dep in (package.dependencies or ())
+                if dep.index in packages_by_index
             ),
         )
         return dag.roots()
