@@ -1,7 +1,7 @@
 # Copyright 2025 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-from __future__ import absolute_import
+from __future__ import absolute_import, print_function
 
 import os.path
 import re
@@ -467,3 +467,73 @@ def test_remote_script_locked(
         ),
         re_flags=re.DOTALL | re.MULTILINE,
     )
+
+
+def test_run_requirements_file(
+    tmpdir,  # type: Tempdir
+    example,  # type: str
+):
+    # type: (...) -> None
+
+    pex_root = tmpdir.join("pex-root")
+    with open(tmpdir.join("requirements.txt"), "w") as fp:
+        print("ansicolors", file=fp)
+
+    run_pex3(
+        "run",
+        "--pex-root",
+        pex_root,
+        "--with-requirements",
+        fp.name,
+        "--from",
+        example,
+        "say",
+        "Moo!",
+    ).assert_success(
+        expected_output_re=r".*\| {msg} \|.*".format(msg=re.escape(colors.yellow("Moo!"))),
+        re_flags=re.DOTALL | re.MULTILINE,
+    )
+
+    with open(fp.name, "a") as fp:
+        print(example, file=fp)
+
+    run_pex3(
+        "run",
+        "--pex-root",
+        pex_root,
+        "--with-requirements",
+        fp.name,
+        os.path.join(example, "example.py"),
+        "Foo!",
+    ).assert_success(
+        expected_output_re=r".*\| {msg} \|.*".format(msg=re.escape(colors.yellow("Foo!"))),
+        re_flags=re.DOTALL | re.MULTILINE,
+    )
+
+
+def test_run_constraints(
+    tmpdir,  # type: Tempdir
+    example,  # type: str
+):
+    # type: (...) -> None
+
+    pex_root = tmpdir.join("pex-root")
+
+    run_pex3(
+        "run", "--pex-root", pex_root, "--from", example, "cowsay", "--version"
+    ).assert_success(expected_output_re=r"^5\.0$")
+
+    with open(tmpdir.join("constraints.txt"), "w") as fp:
+        print("cowsay<5", file=fp)
+
+    run_pex3(
+        "run",
+        "--pex-root",
+        pex_root,
+        "--constraints",
+        fp.name,
+        "--from",
+        example,
+        "cowsay",
+        "--version",
+    ).assert_success(expected_output_re=r"^4\.0$")

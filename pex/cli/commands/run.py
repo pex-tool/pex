@@ -23,7 +23,7 @@ from pex.cache import access as cache_access
 from pex.cache.dirs import CacheDir
 from pex.cli.command import BuildTimeCommand
 from pex.cli.commands.cache_aware import CacheAwareMixin
-from pex.common import open_zip, pluralize, safe_copy, safe_mkdtemp, safe_rmtree
+from pex.common import open_zip, safe_copy, safe_mkdtemp, safe_rmtree
 from pex.compatibility import shlex_quote
 from pex.dist_metadata import (
     DistMetadata,
@@ -37,16 +37,12 @@ from pex.enum import Enum
 from pex.exceptions import production_assert, reportable_unexpected_error_msg
 from pex.fetcher import URLFetcher
 from pex.interpreter import PythonInterpreter
+from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.os import safe_execv
 from pex.pip.version import PipVersionValue
-from pex.requirements import (
-    LocalProjectRequirement,
-    ParseError,
-    parse_requirement_string,
-    parse_requirement_strings,
-)
-from pex.resolve import lock_resolver, resolver_options, target_options
+from pex.requirements import LocalProjectRequirement, ParseError, parse_requirement_string
+from pex.resolve import lock_resolver, requirement_options, resolver_options, target_options
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.locked_resolve import FileArtifact, UnFingerprintedLocalProjectArtifact
 from pex.resolve.lockfile.pep_751 import Dependency, Package, Pylock
@@ -120,26 +116,34 @@ class RunSpec(object):
     entry_point = attr.ib()  # type: str
     is_script = attr.ib()  # type: bool
     pip_configuration = attr.ib()  # type: PipConfiguration
-    requirement = attr.ib(default=None)  # type: Optional[Requirement]
-    extra_requirements = attr.ib(default=())  # type: Tuple[Requirement, ...]
+    run_requirement = attr.ib(default=None)  # type: Optional[Requirement]
+    all_requirements = attr.ib(default=RequirementConfiguration())  # type: RequirementConfiguration
     args = attr.ib(default=())  # type: Tuple[str, ...]
     locks = attr.ib(default=())  # type: Tuple[str, ...]
     locked_choice = attr.ib(default=LockedChoice.AUTO)  # type: LockedChoice.Value
 
-    def iter_requirements(self):
-        # type: () -> Iterator[Requirement]
-        if self.requirement:
-            yield self.requirement
-        for extra_req in self.extra_requirements:
-            yield extra_req
-
-    def fingerprint(self):
-        # type: (...) -> str
+    def fingerprint(self, network_configuration):
+        # type: (NetworkConfiguration) -> str
 
         return hashlib.sha1(
             json.dumps(
                 {
-                    "requirements": sorted((str(req) for req in self.iter_requirements())),
+                    "requirements": sorted(
+                        (
+                            str(req)
+                            for req in self.all_requirements.parse_requirements(
+                                network_configuration=network_configuration
+                            )
+                        )
+                    ),
+                    "constraints": sorted(
+                        (
+                            str(req)
+                            for req in self.all_requirements.parse_constraints(
+                                network_configuration=network_configuration
+                            )
+                        )
+                    ),
                     "target": {
                         "markers": self.target.marker_environment.as_dict(),
                         "tag": str(self.target.supported_tags[0]),
@@ -230,7 +234,9 @@ def _create_sdists(
 class RunConfig(object):
     entry_point = attr.ib(default=None)  # type: Union[str, LocalProjectRequirement, Script]
     requirement = attr.ib(default=None)  # type: Optional[ParsedRequirement]
-    extra_requirements = attr.ib(default=())  # type: Tuple[ParsedRequirement, ...]
+    extra_requirements = attr.ib(
+        default=RequirementConfiguration()
+    )  # type: RequirementConfiguration
     args = attr.ib(default=())  # type: Tuple[str, ...]
     locks = attr.ib(default=())  # type: Tuple[str, ...]
     locked_choice = attr.ib(default=LockedChoice.AUTO)  # type: LockedChoice.Value
@@ -272,12 +278,6 @@ class RunConfig(object):
         elif self.requirement:
             requirement = self.requirement.requirement
 
-        for extra_req in self.extra_requirements:
-            if isinstance(extra_req, LocalProjectRequirement):
-                local_projects.add(extra_req)
-            else:
-                extra_requirements.add(extra_req.requirement)
-
         local_project_to_sdist = dict(
             _create_sdists(
                 projects=local_projects,
@@ -312,14 +312,21 @@ class RunConfig(object):
             locks.append("pylock.{name}.toml".format(name=name))
             locks.append("pylock.toml")
 
+        requirements = OrderedSet()  # type: OrderedSet[str]
+        if requirement:
+            requirements.add(str(requirement))
+        requirements.update(map(str, extra_requirements))
+        if self.extra_requirements.requirements:
+            requirements.update(self.extra_requirements.requirements)
+
         return RunSpec(
             target_configuration=target_configuration,
             target=target,
             entry_point=entry_point,
             is_script=is_script,
             pip_configuration=pip_configuration,
-            requirement=requirement,
-            extra_requirements=tuple(extra_requirements),
+            run_requirement=requirement,
+            all_requirements=attr.evolve(self.extra_requirements, requirements=requirements),
             args=self.args,
             locks=tuple(locks),
             locked_choice=self.locked_choice,
@@ -533,6 +540,7 @@ class Run(CacheAwareMixin, BuildTimeCommand):
                 "point the project provides."
             ),
         )
+        requirement_options.register(parser, include_positional_requirements=False)
         target_options.register(
             parser.add_argument_group("Target python options"), include_platforms=False
         )
@@ -542,21 +550,9 @@ class Run(CacheAwareMixin, BuildTimeCommand):
     def _parse_options(self, raw_entry_point):
         # type: (str) -> Union[RunConfig, Error]
 
-        try:
-            extra_requirements = OrderedSet(
-                parse_requirement_strings(self.options.extra_requirements)
-            )
-        except ParseError as e:
-            return Error(
-                "Invalid {extra_requirements} {extra_reqs}: {err}".format(
-                    extra_requirements=pluralize(
-                        self.options.extra_requirements, "extra requirement"
-                    ),
-                    extra_reqs=", ".join(self.options.extra_requirements),
-                    err=e,
-                )
-            )
-
+        requirement_configuration = requirement_options.configure(
+            self.options, self.options.extra_requirements
+        )
         entry_point = raw_entry_point  # type: Union[str, LocalProjectRequirement, Script]
         requirement = None  # type: Optional[ParsedRequirement]
         if self.options.requirement:
@@ -590,7 +586,7 @@ class Run(CacheAwareMixin, BuildTimeCommand):
         return RunConfig(
             entry_point=entry_point,
             requirement=requirement,
-            extra_requirements=tuple(extra_requirements),
+            extra_requirements=requirement_configuration,
             args=self.passthrough_args or (),
             locked_choice=self.options.locked,
         )
@@ -605,8 +601,8 @@ class Run(CacheAwareMixin, BuildTimeCommand):
                     return None, lock_path
             return None
 
-        requirement = run_spec.requirement
-        if run_spec.requirement is None:
+        requirement = run_spec.run_requirement
+        if requirement is None:
             return None
 
         pip_configuration = run_spec.pip_configuration
@@ -617,6 +613,7 @@ class Run(CacheAwareMixin, BuildTimeCommand):
         downloaded = pip_resolver.download(
             targets=targets,
             requirements=[str(requirement)],
+            constraint_files=run_spec.all_requirements.constraint_files,
             allow_prereleases=pip_configuration.allow_prereleases,
             transitive=False,
             indexes=pip_configuration.repos_configuration.indexes,
@@ -715,7 +712,6 @@ class Run(CacheAwareMixin, BuildTimeCommand):
     ):
         # type: (...) -> Union[Tuple[Distribution, ...], Error]
 
-        requirements = OrderedSet(str(req) for req in run_spec.iter_requirements())
         pip_configuration = run_spec.pip_configuration
         resolver = ConfiguredResolver(pip_configuration=pip_configuration)
         targets = Targets.from_target(run_spec.target)
@@ -725,7 +721,9 @@ class Run(CacheAwareMixin, BuildTimeCommand):
                 targets=targets,
                 pylock=pylock,
                 resolver=resolver,
-                requirements=requirements,
+                requirements=run_spec.all_requirements.requirements,
+                requirement_files=run_spec.all_requirements.requirement_files,
+                constraint_files=run_spec.all_requirements.constraint_files,
                 indexes=pip_configuration.repos_configuration.indexes,
                 find_links=pip_configuration.repos_configuration.find_links,
                 resolver_version=pip_configuration.resolver_version,
@@ -743,7 +741,9 @@ class Run(CacheAwareMixin, BuildTimeCommand):
         else:
             resolved = pip_resolver.resolve(
                 targets=targets,
-                requirements=requirements,
+                requirements=run_spec.all_requirements.requirements,
+                requirement_files=run_spec.all_requirements.requirement_files,
+                constraint_files=run_spec.all_requirements.constraint_files,
                 allow_prereleases=pip_configuration.allow_prereleases,
                 transitive=pip_configuration.transitive,
                 indexes=pip_configuration.repos_configuration.indexes,
@@ -853,7 +853,9 @@ class Run(CacheAwareMixin, BuildTimeCommand):
 
         tool_venv_dir = venv_dir(
             pex_root=ENV.PEX_ROOT,
-            pex_hash=run_spec.fingerprint(),
+            pex_hash=run_spec.fingerprint(
+                network_configuration=pip_configuration.network_configuration
+            ),
             has_interpreter_constraints=False,
         )
 
