@@ -494,7 +494,7 @@ def test_run_requirements_file(
         re_flags=re.DOTALL | re.MULTILINE,
     )
 
-    with open(tmpdir.join("requirements.txt"), "a") as fp:
+    with open(fp.name, "a") as fp:
         print(example, file=fp)
 
     run_pex3(
@@ -503,7 +503,7 @@ def test_run_requirements_file(
         pex_root,
         "--with-requirements",
         fp.name,
-        "say",
+        os.path.join(example, "example.py"),
         "Foo!",
     ).assert_success(
         expected_output_re=r".*\| {msg} \|.*".format(msg=re.escape(colors.yellow("Foo!"))),
