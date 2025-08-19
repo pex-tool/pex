@@ -136,6 +136,14 @@ class RunSpec(object):
                             )
                         )
                     ),
+                    "constraints": sorted(
+                        (
+                            str(req)
+                            for req in self.all_requirements.parse_constraints(
+                                network_configuration=network_configuration
+                            )
+                        )
+                    ),
                     "target": {
                         "markers": self.target.marker_environment.as_dict(),
                         "tag": str(self.target.supported_tags[0]),
