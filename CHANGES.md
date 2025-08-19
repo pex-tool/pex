@@ -1,5 +1,13 @@
 # Release Notes
 
+## 2.53.0
+
+This release adds support to `pex3 run` for `--with-requirements` to complement `--with` for
+specifying additional run requirements via a requirements file. In addition, `--constraints`
+can now be specified to constrain versions with a constraints file.
+
+* Support `-r` & `--constraints` in `pex3 run`. (#2879)
+
 ## 2.52.1
 
 This release fixes some cases of creating PEXes from a `--pylock` when no requirements are
