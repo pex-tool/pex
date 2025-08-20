@@ -48,7 +48,6 @@ from testing import (
 )
 from testing.cli import run_pex3
 from testing.pip import skip_if_only_vendored_pip_supported
-from testing.pythonPI import skip_flit_core_39
 from testing.resolve import normalize_locked_resolve
 
 if TYPE_CHECKING:
@@ -262,7 +261,6 @@ def test_create_universal_python_unsupported():
     ) == result.error
 
 
-@skip_flit_core_39
 def test_create_universal_platform_check(tmpdir):
     # type: (Any) -> None
 
