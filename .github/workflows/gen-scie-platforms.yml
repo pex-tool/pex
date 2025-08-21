@@ -59,7 +59,10 @@ jobs:
           elif [[ "riscv64" == "${{ matrix.docker-arch }}" ]]; then
             export PIP_EXTRA_INDEX_URL=https://gitlab.com/api/v4/projects/56254198/packages/pypi/simple
           fi
-          pip install uv dev-cmd .
+          # N.B.: Instead of using dev-cmd[old-pythons], which includes a released Pex, we rely on
+          # Pex installed from local sources and manually add in the remaining old-pythons extra
+          # deps.:
+          pip install uv dev-cmd filelock .
           python -V
 
           dev-cmd --py 311 gen-scie-platform -- \
