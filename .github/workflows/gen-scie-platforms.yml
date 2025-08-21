@@ -52,9 +52,15 @@ jobs:
           #!/usr/bin/env bash
           python -m venv .venv
           source .venv/bin/activate
-          pip install -U pip
-          pip install uv dev-cmd[old-pythons] .
           python -V
+          pip install -U pip
+
+          if [[ "arm/v7" == "${{ matrix.docker-arch }}" ]]; then
+            export PIP_EXTRA_INDEX_URL=https://www.piwheels.org/simple
+          elif [[ "riscv64" == "${{ matrix.docker-arch }}" ]]; then
+            export PIP_EXTRA_INDEX_URL=https://gitlab.com/api/v4/projects/56254198/packages/pypi/simple
+          fi
+          pip install uv dev-cmd[old-pythons] .
 
           if ! uv python find 3.11; then
             uv python install 3.11
@@ -92,7 +98,7 @@ jobs:
             --platform linux/${{ matrix.docker-arch }} \
             debian:trixie bash -c "
               apt update && \
-              apt install -y git python3-dev python3-venv python-is-python3 && \
+              apt install -y gcc git python3-dev python3-venv python-is-python3 && \
               ./gen-scie-platform.sh
             "
       - name: Setup Python 3.11
