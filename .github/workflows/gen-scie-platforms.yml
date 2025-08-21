@@ -60,9 +60,8 @@ jobs:
             uv python install 3.11
           fi
           py311="$(uv python find 3.11)"
-          export PATH="${PATH}:$(dirname ${py311})"
 
-          dev-cmd --py 311 gen-scie-platform -- \
+          dev-cmd --py "${py311}" gen-scie-platform -- \
             -d "${dest_dir}" \
             --no-sync-lock \
             --encoded-scie-config ${{ github.event.inputs.encoded-scie-config }}
