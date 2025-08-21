@@ -76,13 +76,7 @@ build-cache-image = [
   "coloredlogs; python_version >= '3.8'",
   "PyYAML; python_version >= '3.8'",
 ]
-dev-cmd = [
-    "dev-cmd; python_version >= '3.8'",
-    # N.B.: Instead of using dev-cmd[old-pythons], which includes a released Pex, we rely on the Pex
-    # implicitly installed from local sources and manually add in the remaining old-pythons extra
-    # deps below:
-    "filelock",
-]
+dev-cmd = ["dev-cmd[old-pythons]; python_version >= '3.8'"]
 devpi-server = ["devpi-server; python_version >= '3.8'"]
 docs = [
   {include-group = "dev-cmd"},

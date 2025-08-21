@@ -47,6 +47,8 @@ class _CurrentPlatform(object):
                     self._current = SysPlatform.LINUX_ARMV7L
                 elif machine == "ppc64le":
                     self._current = SysPlatform.LINUX_PPC64LE
+                elif machine == "riscv64":
+                    self._current = SysPlatform.LINUX_RISCV64
                 elif machine == "s390x":
                     self._current = SysPlatform.LINUX_S390X
                 elif machine in ("amd64", "x86_64"):

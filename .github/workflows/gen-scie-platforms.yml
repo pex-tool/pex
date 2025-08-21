@@ -53,19 +53,10 @@ jobs:
           python -m venv .venv
           source .venv/bin/activate
           pip install -U pip
-
-          if [[ "arm/v7" == "${{ matrix.docker-arch }}" ]]; then
-            export PIP_EXTRA_INDEX_URL=https://www.piwheels.org/simple
-          elif [[ "riscv64" == "${{ matrix.docker-arch }}" ]]; then
-            export PIP_EXTRA_INDEX_URL=https://gitlab.com/api/v4/projects/56254198/packages/pypi/simple
-          fi
-          # N.B.: Instead of using dev-cmd[old-pythons], which includes a released Pex, we rely on
-          # Pex installed from local sources and manually add in the remaining old-pythons extra
-          # deps.:
-          pip install uv dev-cmd filelock .
+          pip install uv
           python -V
 
-          dev-cmd --py 311 gen-scie-platform -- \
+          uv run dev-cmd --py 311 gen-scie-platform -- \
             -d "${dest_dir}" \
             --no-sync-lock \
             --encoded-scie-config ${{ github.event.inputs.encoded-scie-config }}
@@ -100,9 +91,6 @@ jobs:
               apt install -y python3-dev python3-venv python-is-python3 && \
               ./gen-scie-platform.sh
             "
-      - name: Install uv
-        if: matrix.docker-arch == ''
-        uses: astral-sh/setup-uv@v5
       - name: Setup Python 3.11
         if: matrix.docker-arch == ''
         uses: actions/setup-python@v5
