@@ -66,7 +66,7 @@ class Manifest(object):
 
 
 SCIENCE_RELEASES_URL = "https://github.com/a-scie/lift/releases"
-MIN_SCIENCE_VERSION = Version("0.12.9")
+MIN_SCIENCE_VERSION = Version("0.13.0")
 SCIENCE_REQUIREMENT = SpecifierSet("~={min_version}".format(min_version=MIN_SCIENCE_VERSION))
 
 
@@ -80,8 +80,8 @@ def _science_binary_url(suffix=""):
     )
 
 
-PTEX_VERSION = "1.6.1"
-SCIE_JUMP_VERSION = "1.7.0"
+PTEX_VERSION = "1.7.0"
+SCIE_JUMP_VERSION = "1.8.0"
 
 
 class Filenames(Enum["Filenames.Value"]):

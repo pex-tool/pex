@@ -112,6 +112,7 @@ class SysPlatform(Enum["SysPlatform.Value"]):
     LINUX_AARCH64 = Value(Os.LINUX, "aarch64")
     LINUX_ARMV7L = Value(Os.LINUX, "armv7l")
     LINUX_PPC64LE = Value(Os.LINUX, "powerpc64")
+    LINUX_RISCV64 = Value(Os.LINUX, "riscv64")
     LINUX_S390X = Value(Os.LINUX, "s390x")
     LINUX_X86_64 = Value(Os.LINUX, "x86_64")
     MACOS_AARCH64 = Value(Os.MACOS, "aarch64")
