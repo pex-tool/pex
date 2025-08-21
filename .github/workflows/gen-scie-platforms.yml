@@ -59,7 +59,7 @@ jobs:
           elif [[ "riscv64" == "${{ matrix.docker-arch }}" ]]; then
             export PIP_EXTRA_INDEX_URL=https://gitlab.com/api/v4/projects/56254198/packages/pypi/simple
           fi
-          pip install uv dev-cmd[old-pythons]
+          pip install uv dev-cmd[old-pythons] .
           python -V
 
           dev-cmd --py 311 gen-scie-platform -- \
