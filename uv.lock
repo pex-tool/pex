@@ -961,12 +961,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/6a/a6/9fa95068e67b9c6aad98ab1c6a3dbe983787bf527534081b373504ab1b5a/dev_cmd-0.31.3-py3-none-any.whl", hash = "sha256:d90aa7d6a9781f5efca46b49f591d6948f2d9f97baae07351ed65c56091db664", size = 49774, upload-time = "2025-07-12T05:27:38.804Z" },
 ]
 
-[package.optional-dependencies]
-old-pythons = [
-    { name = "filelock", version = "3.16.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.8.*'" },
-    { name = "pex", marker = "python_full_version == '3.8.*'" },
-]
-
 [[package]]
 name = "dev-cmd"
 version = "0.32.3"
@@ -991,12 +985,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/65/4c/9975281d96bd7318702a9db3ba281b55ee6a3b238d29faa6da5c218f151b/dev_cmd-0.32.3.tar.gz", hash = "sha256:dd1ee9a09bd451199974b2fef923eebeae98f38bdb1747ae4b711bb6866b7c8d", size = 64050, upload-time = "2025-08-02T21:12:20.555Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/66/e2/e32b1bbb3fc5c5726d0178f37e26907c39cad9ece0d210fd862bf76ecee3/dev_cmd-0.32.3-py3-none-any.whl", hash = "sha256:96482753c5aab818c2ddce2488181ead3b1bc4ab94df9769f3268dc226366ab4", size = 51271, upload-time = "2025-08-02T21:12:18.829Z" },
-]
-
-[package.optional-dependencies]
-old-pythons = [
-    { name = "filelock", version = "3.19.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
-    { name = "pex", marker = "python_full_version >= '3.9'" },
 ]
 
 [[package]]
@@ -1115,7 +1103,7 @@ source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "typing-extensions", version = "4.7.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.7.*'" },
     { name = "typing-extensions", version = "4.13.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.8.*'" },
-    { name = "typing-extensions", version = "4.14.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9' and python_full_version < '3.12'" },
+    { name = "typing-extensions", version = "4.14.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9' and python_full_version < '3.11'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/0b/9f/a65090624ecf468cdca03533906e7c69ed7588582240cfe7cc9e770b50eb/exceptiongroup-1.3.0.tar.gz", hash = "sha256:b241f5885f560bc56a59ee63ca4c6a8bfa46ae4ad651af316d4e81817bb9fd88", size = 29749, upload-time = "2025-05-10T17:42:51.123Z" }
 wheels = [
@@ -1175,42 +1163,9 @@ wheels = [
 name = "filelock"
 version = "3.2.1"
 source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "python_full_version >= '2.8' and python_full_version < '3.4'",
-    "python_full_version < '2.8'",
-]
 sdist = { url = "https://files.pythonhosted.org/packages/40/8b/94990052eb2165c3e8bd803f523d12c675616db48944ce18c22857ee8a4f/filelock-3.2.1.tar.gz", hash = "sha256:9cdd29c411ab196cf4c35a1da684f7b9da723696cb356efa45bf5eb1ff313ee3", size = 202950, upload-time = "2021-10-02T17:27:49.692Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/f1/12/585c4d8bef61cd7f9497a021d935ba9fb3127f5e45593c2fcc313897f582/filelock-3.2.1-py2.py3-none-any.whl", hash = "sha256:7f07b08d731907441ff40d0c5b81f9512cd968842e0b6264c8bd18a8ce877760", size = 9271, upload-time = "2021-10-02T17:27:48.818Z" },
-]
-
-[[package]]
-name = "filelock"
-version = "3.16.1"
-source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "python_full_version == '3.8.*'",
-]
-sdist = { url = "https://files.pythonhosted.org/packages/9d/db/3ef5bb276dae18d6ec2124224403d1d67bccdbefc17af4cc8f553e341ab1/filelock-3.16.1.tar.gz", hash = "sha256:c249fbfcd5db47e5e2d6d62198e565475ee65e4831e2561c8e313fa7eb961435", size = 18037, upload-time = "2024-09-17T19:02:01.779Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/b9/f8/feced7779d755758a52d1f6635d990b8d98dc0a29fa568bbe0625f18fdf3/filelock-3.16.1-py3-none-any.whl", hash = "sha256:2082e5703d51fbf98ea75855d9d5527e33d8ff23099bec374a134febee6946b0", size = 16163, upload-time = "2024-09-17T19:02:00.268Z" },
-]
-
-[[package]]
-name = "filelock"
-version = "3.19.1"
-source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "python_full_version >= '3.14'",
-    "python_full_version == '3.13.*'",
-    "python_full_version == '3.12.*'",
-    "python_full_version == '3.11.*'",
-    "python_full_version == '3.10.*'",
-    "python_full_version == '3.9.*'",
-]
-sdist = { url = "https://files.pythonhosted.org/packages/40/bb/0ab3e58d22305b6f5440629d20683af28959bf793d98d11950e305c1c326/filelock-3.19.1.tar.gz", hash = "sha256:66eda1888b0171c998b35be2bcc0f6d75c388a7ce20c3f3f37aa8e96c2dddf58", size = 17687, upload-time = "2025-08-14T16:56:03.016Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/42/14/42b2651a2f46b022ccd948bca9f2d5af0fd8929c4eec235b8d6d844fbe67/filelock-3.19.1-py3-none-any.whl", hash = "sha256:d38e30481def20772f5baf097c122c3babc4fcdb7e14e57049eb9d88c6dc017d", size = 15988, upload-time = "2025-08-14T16:56:01.633Z" },
 ]
 
 [[package]]
@@ -1583,7 +1538,7 @@ resolution-markers = [
     "python_full_version == '3.9.*'",
 ]
 dependencies = [
-    { name = "zipp", version = "3.23.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9' and python_full_version < '3.12'" },
+    { name = "zipp", version = "3.23.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9' and python_full_version < '3.11'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/76/66/650a33bd90f786193e4de4b3ad86ea60b53c89b669a5c7be931fac31cdb0/importlib_metadata-8.7.0.tar.gz", hash = "sha256:d13b81ad223b890aa16c5471f2ac3056cf76c5f10f82d6f9292f0b415f389000", size = 56641, upload-time = "2025-04-27T15:29:01.736Z" }
 wheels = [
@@ -1598,8 +1553,8 @@ dependencies = [
     { name = "contextlib2", marker = "python_full_version < '3'" },
     { name = "pathlib2", marker = "python_full_version < '3'" },
     { name = "singledispatch", marker = "python_full_version < '3.4'" },
-    { name = "typing", marker = "python_full_version < '3.5'" },
-    { name = "zipp", version = "1.2.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.6'" },
+    { name = "typing", marker = "python_full_version < '3.4'" },
+    { name = "zipp", version = "1.2.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.4'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/e1/bf/b40e6ecb611fa3be5b0ecae7b37ae1fa0d8df3146477ec0a554e8f62c976/importlib_resources-3.3.1.tar.gz", hash = "sha256:0ed250dbd291947d1a298e89f39afcc477d5a6624770503034b72588601bcc05", size = 29012, upload-time = "2020-12-23T03:02:54.562Z" }
 wheels = [
@@ -2188,8 +2143,8 @@ name = "mock"
 version = "3.0.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "funcsigs", marker = "python_full_version < '3.3'" },
-    { name = "six", marker = "python_full_version < '3.6'" },
+    { name = "funcsigs", marker = "python_full_version < '2.8'" },
+    { name = "six", marker = "python_full_version < '2.8'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/2e/ab/4fe657d78b270aa6a32f027849513b829b41b0f28d9d8d7f8c3d29ea559a/mock-3.0.5.tar.gz", hash = "sha256:83657d894c90d5681d62155c82bda9c1187827525880eda8ff5df4ec813437c3", size = 28126, upload-time = "2019-05-07T21:22:24.036Z" }
 wheels = [
@@ -2574,8 +2529,8 @@ subprocess = [
 build-cache-image = [
     { name = "ansicolors" },
     { name = "coloredlogs", marker = "python_full_version >= '3.8'" },
-    { name = "dev-cmd", version = "0.31.3", source = { registry = "https://pypi.org/simple" }, extra = ["old-pythons"], marker = "python_full_version == '3.8.*'" },
-    { name = "dev-cmd", version = "0.32.3", source = { registry = "https://pypi.org/simple" }, extra = ["old-pythons"], marker = "python_full_version >= '3.9'" },
+    { name = "dev-cmd", version = "0.31.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.8.*'" },
+    { name = "dev-cmd", version = "0.32.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
     { name = "pyyaml", marker = "python_full_version >= '3.8'" },
 ]
 dev = [
@@ -2593,8 +2548,8 @@ dev = [
     { name = "click", marker = "python_full_version >= '3.6'" },
     { name = "coloredlogs" },
     { name = "cryptography", marker = "python_full_version >= '3.8'" },
-    { name = "dev-cmd", version = "0.31.3", source = { registry = "https://pypi.org/simple" }, extra = ["old-pythons"], marker = "python_full_version == '3.8.*'" },
-    { name = "dev-cmd", version = "0.32.3", source = { registry = "https://pypi.org/simple" }, extra = ["old-pythons"], marker = "python_full_version >= '3.9'" },
+    { name = "dev-cmd", version = "0.31.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.8.*'" },
+    { name = "dev-cmd", version = "0.32.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
     { name = "devpi-server", marker = "python_full_version >= '3.8'" },
     { name = "furo", version = "2023.3.27", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.8' and python_full_version < '3.12'" },
     { name = "furo", version = "2025.7.19", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
@@ -2653,15 +2608,15 @@ dev = [
     { name = "wheel", marker = "python_full_version >= '3.8'" },
 ]
 dev-cmd = [
-    { name = "dev-cmd", version = "0.31.3", source = { registry = "https://pypi.org/simple" }, extra = ["old-pythons"], marker = "python_full_version == '3.8.*'" },
-    { name = "dev-cmd", version = "0.32.3", source = { registry = "https://pypi.org/simple" }, extra = ["old-pythons"], marker = "python_full_version >= '3.9'" },
+    { name = "dev-cmd", version = "0.31.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.8.*'" },
+    { name = "dev-cmd", version = "0.32.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
 ]
 devpi-server = [
     { name = "devpi-server", marker = "python_full_version >= '3.8'" },
 ]
 docs = [
-    { name = "dev-cmd", version = "0.31.3", source = { registry = "https://pypi.org/simple" }, extra = ["old-pythons"], marker = "python_full_version == '3.8.*'" },
-    { name = "dev-cmd", version = "0.32.3", source = { registry = "https://pypi.org/simple" }, extra = ["old-pythons"], marker = "python_full_version >= '3.9'" },
+    { name = "dev-cmd", version = "0.31.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.8.*'" },
+    { name = "dev-cmd", version = "0.32.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
     { name = "furo", version = "2023.3.27", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.8' and python_full_version < '3.12'" },
     { name = "furo", version = "2025.7.19", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "httpx", marker = "python_full_version >= '3.8'" },
@@ -2675,15 +2630,15 @@ docs = [
 fmt = [
     { name = "black", marker = "python_full_version >= '3.6.2'" },
     { name = "click", marker = "python_full_version >= '3.6'" },
-    { name = "dev-cmd", version = "0.31.3", source = { registry = "https://pypi.org/simple" }, extra = ["old-pythons"], marker = "python_full_version == '3.8.*'" },
-    { name = "dev-cmd", version = "0.32.3", source = { registry = "https://pypi.org/simple" }, extra = ["old-pythons"], marker = "python_full_version >= '3.9'" },
+    { name = "dev-cmd", version = "0.31.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.8.*'" },
+    { name = "dev-cmd", version = "0.32.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
     { name = "isort", marker = "python_full_version >= '3.6.1'" },
 ]
 gen-scie-platform = [
     { name = "cffi", marker = "python_full_version >= '3.8'" },
     { name = "cryptography", marker = "python_full_version >= '3.8'" },
-    { name = "dev-cmd", version = "0.31.3", source = { registry = "https://pypi.org/simple" }, extra = ["old-pythons"], marker = "python_full_version == '3.8.*'" },
-    { name = "dev-cmd", version = "0.32.3", source = { registry = "https://pypi.org/simple" }, extra = ["old-pythons"], marker = "python_full_version >= '3.9'" },
+    { name = "dev-cmd", version = "0.31.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.8.*'" },
+    { name = "dev-cmd", version = "0.32.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
     { name = "httpx", marker = "python_full_version >= '3.8'" },
     { name = "pygithub", marker = "python_full_version >= '3.8'" },
     { name = "pynacl", marker = "python_full_version >= '3.8'" },
@@ -2691,8 +2646,8 @@ gen-scie-platform = [
 ]
 lint = [
     { name = "autoflake", marker = "python_full_version >= '3.8'" },
-    { name = "dev-cmd", version = "0.31.3", source = { registry = "https://pypi.org/simple" }, extra = ["old-pythons"], marker = "python_full_version == '3.8.*'" },
-    { name = "dev-cmd", version = "0.32.3", source = { registry = "https://pypi.org/simple" }, extra = ["old-pythons"], marker = "python_full_version >= '3.9'" },
+    { name = "dev-cmd", version = "0.31.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.8.*'" },
+    { name = "dev-cmd", version = "0.32.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
     { name = "pyflakes", marker = "python_full_version >= '3.8'" },
 ]
 mypy = [
@@ -2709,8 +2664,8 @@ mypy = [
     { name = "click", marker = "python_full_version >= '3.6'" },
     { name = "coloredlogs" },
     { name = "cryptography", marker = "python_full_version >= '3.8'" },
-    { name = "dev-cmd", version = "0.31.3", source = { registry = "https://pypi.org/simple" }, extra = ["old-pythons"], marker = "python_full_version == '3.8.*'" },
-    { name = "dev-cmd", version = "0.32.3", source = { registry = "https://pypi.org/simple" }, extra = ["old-pythons"], marker = "python_full_version >= '3.9'" },
+    { name = "dev-cmd", version = "0.31.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.8.*'" },
+    { name = "dev-cmd", version = "0.32.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
     { name = "devpi-server", marker = "python_full_version >= '3.8'" },
     { name = "furo", version = "2023.3.27", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.8' and python_full_version < '3.12'" },
     { name = "furo", version = "2025.7.19", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
@@ -2777,8 +2732,8 @@ package = [
 test = [
     { name = "ansicolors" },
     { name = "coloredlogs" },
-    { name = "dev-cmd", version = "0.31.3", source = { registry = "https://pypi.org/simple" }, extra = ["old-pythons"], marker = "python_full_version == '3.8.*'" },
-    { name = "dev-cmd", version = "0.32.3", source = { registry = "https://pypi.org/simple" }, extra = ["old-pythons"], marker = "python_full_version >= '3.9'" },
+    { name = "dev-cmd", version = "0.31.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.8.*'" },
+    { name = "dev-cmd", version = "0.32.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
     { name = "devpi-server", marker = "python_full_version >= '3.8'" },
     { name = "mock", marker = "python_full_version < '2.8'" },
     { name = "more-itertools", version = "5.0.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.4'" },
@@ -2805,8 +2760,8 @@ test = [
 ]
 vendor = [
     { name = "ansicolors" },
-    { name = "dev-cmd", version = "0.31.3", source = { registry = "https://pypi.org/simple" }, extra = ["old-pythons"], marker = "python_full_version == '3.8.*'" },
-    { name = "dev-cmd", version = "0.32.3", source = { registry = "https://pypi.org/simple" }, extra = ["old-pythons"], marker = "python_full_version >= '3.9'" },
+    { name = "dev-cmd", version = "0.31.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.8.*'" },
+    { name = "dev-cmd", version = "0.32.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
     { name = "httpx", marker = "python_full_version >= '3.8'" },
     { name = "libcst", version = "1.1.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.8.*'" },
     { name = "libcst", version = "1.8.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
@@ -2826,7 +2781,7 @@ provides-extras = ["subprocess", "management"]
 build-cache-image = [
     { name = "ansicolors" },
     { name = "coloredlogs", marker = "python_full_version >= '3.8'" },
-    { name = "dev-cmd", extras = ["old-pythons"], marker = "python_full_version >= '3.8'" },
+    { name = "dev-cmd", marker = "python_full_version >= '3.8'" },
     { name = "pyyaml", marker = "python_full_version >= '3.8'" },
 ]
 dev = [
@@ -2842,7 +2797,7 @@ dev = [
     { name = "coloredlogs" },
     { name = "coloredlogs", marker = "python_full_version >= '3.8'" },
     { name = "cryptography", marker = "python_full_version >= '3.8'", specifier = "==42.0.8" },
-    { name = "dev-cmd", extras = ["old-pythons"], marker = "python_full_version >= '3.8'" },
+    { name = "dev-cmd", marker = "python_full_version >= '3.8'" },
     { name = "devpi-server", marker = "python_full_version >= '3.8'" },
     { name = "furo", marker = "python_full_version >= '3.8'" },
     { name = "httpx", marker = "python_full_version >= '3.8'" },
@@ -2882,10 +2837,10 @@ dev = [
     { name = "types-toml", marker = "python_full_version >= '3.8'", specifier = "==0.10.5" },
     { name = "wheel", marker = "python_full_version >= '3.8'", specifier = "==0.35.1" },
 ]
-dev-cmd = [{ name = "dev-cmd", extras = ["old-pythons"], marker = "python_full_version >= '3.8'" }]
+dev-cmd = [{ name = "dev-cmd", marker = "python_full_version >= '3.8'" }]
 devpi-server = [{ name = "devpi-server", marker = "python_full_version >= '3.8'" }]
 docs = [
-    { name = "dev-cmd", extras = ["old-pythons"], marker = "python_full_version >= '3.8'" },
+    { name = "dev-cmd", marker = "python_full_version >= '3.8'" },
     { name = "furo", marker = "python_full_version >= '3.8'" },
     { name = "httpx", marker = "python_full_version >= '3.8'" },
     { name = "myst-parser", extras = ["linkify"], marker = "python_full_version >= '3.8'" },
@@ -2896,13 +2851,13 @@ docs = [
 fmt = [
     { name = "black", marker = "python_full_version >= '3.6.2'", specifier = "==21.12b0" },
     { name = "click", marker = "python_full_version >= '3.6'", specifier = "==8.0.1" },
-    { name = "dev-cmd", extras = ["old-pythons"], marker = "python_full_version >= '3.8'" },
+    { name = "dev-cmd", marker = "python_full_version >= '3.8'" },
     { name = "isort", marker = "python_full_version >= '3.6.1'", specifier = "==5.10.1" },
 ]
 gen-scie-platform = [
     { name = "cffi", marker = "python_full_version >= '3.8'", specifier = "==1.17.1" },
     { name = "cryptography", marker = "python_full_version >= '3.8'", specifier = "==42.0.8" },
-    { name = "dev-cmd", extras = ["old-pythons"], marker = "python_full_version >= '3.8'" },
+    { name = "dev-cmd", marker = "python_full_version >= '3.8'" },
     { name = "httpx", marker = "python_full_version >= '3.8'" },
     { name = "pygithub", marker = "python_full_version >= '3.8'" },
     { name = "pynacl", marker = "python_full_version >= '3.8'", specifier = "==1.5.0" },
@@ -2910,7 +2865,7 @@ gen-scie-platform = [
 ]
 lint = [
     { name = "autoflake", marker = "python_full_version >= '3.8'", specifier = "==1.7.8" },
-    { name = "dev-cmd", extras = ["old-pythons"], marker = "python_full_version >= '3.8'" },
+    { name = "dev-cmd", marker = "python_full_version >= '3.8'" },
     { name = "pyflakes", marker = "python_full_version >= '3.8'", specifier = "==2.4.0" },
 ]
 mypy = [
@@ -2925,7 +2880,7 @@ mypy = [
     { name = "coloredlogs" },
     { name = "coloredlogs", marker = "python_full_version >= '3.8'" },
     { name = "cryptography", marker = "python_full_version >= '3.8'", specifier = "==42.0.8" },
-    { name = "dev-cmd", extras = ["old-pythons"], marker = "python_full_version >= '3.8'" },
+    { name = "dev-cmd", marker = "python_full_version >= '3.8'" },
     { name = "devpi-server", marker = "python_full_version >= '3.8'" },
     { name = "furo", marker = "python_full_version >= '3.8'" },
     { name = "httpx", marker = "python_full_version >= '3.8'" },
@@ -2968,7 +2923,7 @@ package = [{ name = "build" }]
 test = [
     { name = "ansicolors" },
     { name = "coloredlogs" },
-    { name = "dev-cmd", extras = ["old-pythons"], marker = "python_full_version >= '3.8'" },
+    { name = "dev-cmd", marker = "python_full_version >= '3.8'" },
     { name = "devpi-server", marker = "python_full_version >= '3.8'" },
     { name = "mock", marker = "python_full_version == '2.7.*'" },
     { name = "more-itertools", marker = "python_full_version < '3.6'", specifier = "<=8.10.0" },
@@ -2982,7 +2937,7 @@ test = [
 ]
 vendor = [
     { name = "ansicolors" },
-    { name = "dev-cmd", extras = ["old-pythons"], marker = "python_full_version >= '3.8'" },
+    { name = "dev-cmd", marker = "python_full_version >= '3.8'" },
     { name = "httpx", marker = "python_full_version >= '3.8'" },
     { name = "libcst", marker = "python_full_version >= '3.8'" },
     { name = "pip", marker = "python_full_version >= '3.8'", specifier = "==24.0" },
@@ -4997,13 +4952,13 @@ name = "virtualenv"
 version = "20.15.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "distlib", marker = "python_full_version < '3.6'" },
-    { name = "filelock", version = "3.2.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.6'" },
-    { name = "importlib-metadata", version = "2.1.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.6'" },
-    { name = "importlib-resources", marker = "python_full_version < '3.6'" },
+    { name = "distlib", marker = "python_full_version < '3.4'" },
+    { name = "filelock", marker = "python_full_version < '3.4'" },
+    { name = "importlib-metadata", version = "2.1.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.4'" },
+    { name = "importlib-resources", marker = "python_full_version < '3.4'" },
     { name = "pathlib2", marker = "python_full_version < '3.4' and sys_platform != 'win32'" },
-    { name = "platformdirs", version = "2.0.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.6'" },
-    { name = "six", marker = "python_full_version < '3.6'" },
+    { name = "platformdirs", version = "2.0.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.4'" },
+    { name = "six", marker = "python_full_version < '3.4'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/a4/2f/05b77cb73501c01963de2cef343839f0803b64aab4d5476771ae303b97a6/virtualenv-20.15.1.tar.gz", hash = "sha256:288171134a2ff3bfb1a2f54f119e77cd1b81c29fc1265a2356f3e8d14c7d58c4", size = 13523736, upload-time = "2022-06-29T01:46:59.253Z" }
 wheels = [

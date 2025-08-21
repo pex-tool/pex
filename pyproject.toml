@@ -76,7 +76,7 @@ build-cache-image = [
   "coloredlogs; python_version >= '3.8'",
   "PyYAML; python_version >= '3.8'",
 ]
-dev-cmd = ["dev-cmd[old-pythons]; python_version >= '3.8'"]
+dev-cmd = ["dev-cmd; python_version >= '3.8'"]
 devpi-server = ["devpi-server; python_version >= '3.8'"]
 docs = [
   {include-group = "dev-cmd"},
