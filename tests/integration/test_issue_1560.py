@@ -18,7 +18,6 @@ from testing import (
     subprocess,
 )
 from testing.pytest_utils.tmp import Tempdir
-from testing.pythonPI import skip_flit_core_39
 
 if TYPE_CHECKING:
     pass
@@ -75,7 +74,6 @@ def test_build_isolation(
     subprocess.check_call(args=[python, pex, "-c", "import foo"])
 
 
-@skip_flit_core_39
 def test_pep_517_for_pep_517_project():
     # type: () -> None
 
