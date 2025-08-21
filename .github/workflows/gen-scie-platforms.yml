@@ -28,6 +28,10 @@ jobs:
             os: ubuntu-24.04
             docker-arch: arm/v7
             artifact-name: linux-armv7l
+          - platform: Linux riscv64
+            os: ubuntu-24.04
+            docker-arch: riscv64
+            artifact-name: linux-riscv64
           - platform: macOS x86_64
             os: macos-x86_64
             artifact-name: macos-x86_64
@@ -52,6 +56,8 @@ jobs:
 
           if [[ "arm/v7" == "${{ matrix.docker-arch }}" ]]; then
             export PIP_EXTRA_INDEX_URL=https://www.piwheels.org/simple
+          elif [[ "riscv64" == "${{ matrix.docker-arch }}" ]]; then
+            export PIP_EXTRA_INDEX_URL=https://gitlab.com/api/v4/projects/56254198/packages/pypi/simple
           fi
           pip install uv dev-cmd[old-pythons]
           python -V
@@ -64,11 +70,11 @@ jobs:
           chmod +x ./gen-scie-platform.sh
       - name: Setup Docker QEMU Emulation
         uses: docker/setup-qemu-action@v3
-        if: ${{ matrix.docker-arch }}
+        if: matrix.docker-arch != ''
         with:
           platforms: linux/${{ matrix.docker-arch }}
       - name: Generate Complete Platform
-        if: ${{ matrix.docker-arch }}
+        if: matrix.docker-arch != '' && matrix.docker-arch != 'riscv64'
         run: |
           docker run \
             --rm \
@@ -77,13 +83,27 @@ jobs:
             -w /code \
             --platform linux/${{ matrix.docker-arch }} \
             python:3.11-bookworm bash ./gen-scie-platform.sh
+      - name: Generate Complete Platform
+        if: matrix.docker-arch == 'riscv64'
+        run: |
+          docker run \
+            --rm \
+            -v "${{ steps.generate.outputs.dest-dir }}:${{ steps.generate.outputs.dest-dir }}" \
+            -v $PWD:/code \
+            -w /code \
+            --platform linux/${{ matrix.docker-arch }} \
+            debian:trixie bash -c "
+              apt update && \
+              apt install -y python3.13-venv python-is-python3 && \
+              ./gen-scie-platform.sh
+            "
       - name: Setup Python 3.11
-        if: ${{ ! matrix.docker-arch }}
+        if: matrix.docker-arch == ''
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
       - name: Generate Complete Platform
-        if: ${{ ! matrix.docker-arch }}
+        if: matrix.docker-arch == ''
         run: ./gen-scie-platform.sh
       - name: Upload Complete Platform File Artifact
         uses: actions/upload-artifact@v4

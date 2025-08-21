@@ -1,16 +1,21 @@
 [scie]
-pbs-release = "20250409"
-python-version = "3.13.3"
+pbs-release = "20250818"
+python-version = "3.13.7"
 
 pex-extras = [
     "management",
 ]
 
-# This customization gets us a lockable psutil wheel for armv7l.
-extra-lock-args = ["--index", "https://www.piwheels.org/simple"]
+extra-lock-args = [
+    # This customization gets us a lockable psutil wheel for armv7l.
+    "--index", "https://www.piwheels.org/simple",
+    # This customization gets us a lockable psutil wheel for riscv64.
+    "--index", "https://gitlab.com/api/v4/projects/56254198/packages/pypi/simple"
+]
 
 [scie.platforms.linux-aarch64]
 [scie.platforms.linux-armv7l]
+[scie.platforms.linux-riscv64]
 [scie.platforms.linux-x86_64]
 [scie.platforms.macos-aarch64]
 [scie.platforms.macos-x86_64]
