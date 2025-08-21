@@ -56,6 +56,12 @@ jobs:
           pip install uv dev-cmd[old-pythons] .
           python -V
 
+          if ! uv python find 3.11; then
+            uv python install 3.11
+          fi
+          py311="$(uv python find 3.11)"
+          export PATH="${PATH}:$(dirname ${py311})"
+
           dev-cmd --py 311 gen-scie-platform -- \
             -d "${dest_dir}" \
             --no-sync-lock \
