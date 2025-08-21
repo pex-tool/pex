@@ -58,7 +58,12 @@ jobs:
           if [[ "arm/v7" == "${{ matrix.docker-arch }}" ]]; then
             export PIP_EXTRA_INDEX_URL=https://www.piwheels.org/simple
           elif [[ "riscv64" == "${{ matrix.docker-arch }}" ]]; then
-            export PIP_EXTRA_INDEX_URL=https://gitlab.com/api/v4/projects/56254198/packages/pypi/simple
+            export PIP_EXTRA_INDEX_URL=https://gitlab.com/api/v4/projects/riseproject%2Fpython%2Fwheel_builder/packages/pypi/simple
+            cat << EOF > ~/.netrc
+          machine gitlab.com
+            login ${{ secrets.GITLAB_READ_USER }}
+            password ${{ secrets.GITLAB_READ_PASS }}
+          EOF
           fi
           pip install uv dev-cmd[old-pythons] .
 
@@ -100,6 +105,7 @@ jobs:
               apt update && \
               apt install -y \
                 build-essential \
+                cargo \
                 gcc \
                 git \
                 libffi-dev \
