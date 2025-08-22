@@ -424,8 +424,9 @@ when = "platform_machine == 'armv7l'"
 3rdparty-export-command = [
   "uv", "export", "-q",
   "--no-emit-project",
-  # We get some wheels from https://www.piwheels.org/simple but uv does not have hashes for those;
-  # so we just accept the pins.
+  # We get some wheels from https://www.piwheels.org/simple and
+  # https://gitlab.com/api/v4/projects/riseproject%2Fpython%2Fwheel_builder/packages/pypi/simple
+  # but uv does not have hashes for those; so we just accept the pins.
   "--no-hashes",
   "--only-group", "{dependency-group:dev}",
   "-o", "{requirements.txt}"

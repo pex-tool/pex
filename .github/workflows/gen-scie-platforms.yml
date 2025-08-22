@@ -58,7 +58,7 @@ jobs:
           if [[ "arm/v7" == "${{ matrix.docker-arch }}" ]]; then
             export PIP_EXTRA_INDEX_URL=https://www.piwheels.org/simple
           elif [[ "riscv64" == "${{ matrix.docker-arch }}" ]]; then
-            export PIP_EXTRA_INDEX_URL=https://${{ secrets.GITLAB_READ_USER }}:${{ secrets.GITLAB_READ_PASS }}@gitlab.com/api/v4/projects/riseproject%2Fpython%2Fwheel_builder/packages/pypi/simple
+            export PIP_EXTRA_INDEX_URL=https://__pat_na__:${{ secrets.GITLAB_READ_PASS }}@gitlab.com/api/v4/projects/riseproject%2Fpython%2Fwheel_builder/packages/pypi/simple
           fi
           # N.B.: We install and run dev-cmd directly in order to be able to resolve from the
           # custom indexes above and avoid wheel builds.
