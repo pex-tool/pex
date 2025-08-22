@@ -52,7 +52,7 @@ def build_pex_pex(
         "--no-strip-pex-env",
         "--include-tools",
         "--pip-version",
-        PipVersion.LATEST_COMPATIBLE.value,
+        "latest-compatible",
         "-o",
         str(output_file),
         "-c",
