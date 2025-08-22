@@ -58,10 +58,7 @@ jobs:
           if [[ "arm/v7" == "${{ matrix.docker-arch }}" ]]; then
             export PIP_EXTRA_INDEX_URL=https://www.piwheels.org/simple
           elif [[ "riscv64" == "${{ matrix.docker-arch }}" ]]; then
-            export PIP_EXTRA_INDEX_URL=https://gitlab.com/api/v4/projects/riseproject%2Fpython%2Fwheel_builder/packages/pypi/simple
-            echo "machine gitlab.com" >> ~/.netrc
-            echo "  login ${{ secrets.GITLAB_READ_USER }}" >> ~/.netrc
-            echo "  password ${{ secrets.GITLAB_READ_PASS }}" >> ~/.netrc
+            export PIP_EXTRA_INDEX_URL=https://${{ secrets.GITLAB_READ_USER }}:${{ secrets.GITLAB_READ_PASS }}@gitlab.com/api/v4/projects/riseproject%2Fpython%2Fwheel_builder/packages/pypi/simple
           fi
           # N.B.: We install and run dev-cmd directly in order to be able to resolve from the
           # custom indexes above and avoid wheel builds.
@@ -103,7 +100,7 @@ jobs:
             --platform linux/${{ matrix.docker-arch }} \
             debian:trixie bash -c "
               apt update && \
-              apt install -y python3-venv python-is-python3 && \
+              apt install -y git python3-dev python3-venv python-is-python3 && \
               ./gen-scie-platform.sh
             "
       - name: Setup Python 3.11
