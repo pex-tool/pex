@@ -272,6 +272,11 @@ dependency-group = "gen-scie-platform"
 hidden = true
 [tool.dev-cmd.commands.gen-scie-platform.env]
 PYTHONPATH = "."
+# Used to get wheels for armv7l and riscv64.
+PIP_EXTRA_INDEX_URL = """\
+    https://www.piwheels.org/simple \
+    https://gitlab.com/api/v4/projects/riseproject%2Fpython%2Fwheel_builder/packages/pypi/simple \
+"""
 
 [tool.dev-cmd.commands.lint]
 description = "Currently removes unused imports and code."

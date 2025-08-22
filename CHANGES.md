@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.54.0
+
+This release adds a Pex PEX scie for riscv64.
+
+* Add a Pex PEX scie for riscv64. (#2883)
+
 ## 2.53.0
 
 This release adds support to `pex3 run` for `--with-requirements` to complement `--with` for
