@@ -86,13 +86,13 @@ def create_all_complete_platforms(
 
     print(f"Monitoring workflow run at {run.html_url}.", file=out)
 
-    # The long pole job currently takes ~9 minutes; so 30 minutes should cover things.
-    max_time = time.time() + timedelta(minutes=30).total_seconds()
-    print(f"Waiting up to 30 minutes for run to complete.", file=out)
+    # The long pole job currently takes ~35 minutes; so 1 hour should cover things.
+    max_time = time.time() + timedelta(hours=1).total_seconds()
+    print(f"Waiting up to 1 hour for run to complete.", file=out)
     while time.time() < max_time:
         run = repo.get_workflow_run(run.id)
         if not run.conclusion:
-            time.sleep(10)
+            time.sleep(30)
             print(".", end="", flush=True, file=out)
             continue
         if "success" != run.conclusion:
