@@ -131,6 +131,7 @@ def test_platform_marker_environment_issue_1488():
     assert_platform_machine("aarch64", "manylinux_2_77-aarch64-cp-37-cp37m")
     assert_platform_machine("armv7l", "linux-armv7l-cp-311-cp311")
     assert_platform_machine("ppc64le", "linux-ppc64le-cp-312-cp312")
+    assert_platform_machine("riscv64", "linux-riscv64-cp-313-cp313")
     assert_platform_machine("s390x", "linux-s390x-cp-313-cp313")
 
     assert_platform_machine("x86_64", "macosx-10.15-x86_64-cp-38-m")

@@ -370,9 +370,10 @@ class ScieConfiguration(object):
             is_aarch64 = "arm64" in platform_str or "aarch64" in platform_str
             is_armv7l = "armv7l" in platform_str or "armv8l" in platform_str
             is_ppc64le = "ppc64le" in platform_str
+            is_riscv64 = "riscv64" in platform_str
             is_s390x = "s390x" in platform_str
             is_x86_64 = "amd64" in platform_str or "x86_64" in platform_str
-            if not is_aarch64 ^ is_armv7l ^ is_ppc64le ^ is_s390x ^ is_x86_64:
+            if not is_aarch64 ^ is_armv7l ^ is_ppc64le ^ is_riscv64 ^ is_s390x ^ is_x86_64:
                 continue
 
             if "linux" in platform_str:
@@ -382,6 +383,8 @@ class ScieConfiguration(object):
                     scie_platform = SysPlatform.LINUX_ARMV7L
                 elif is_ppc64le:
                     scie_platform = SysPlatform.LINUX_PPC64LE
+                elif is_riscv64:
+                    scie_platform = SysPlatform.LINUX_RISCV64
                 elif is_s390x:
                     scie_platform = SysPlatform.LINUX_S390X
                 else:

@@ -182,6 +182,8 @@ def test_multiple_platforms(tmpdir):
                 "--platform",
                 "linux-ppc64le-cp-312-cp312",
                 "--platform",
+                "linux-riscv64-cp-313-cp313",
+                "--platform",
                 "linux-s390x-cp-313-cp313",
                 "--platform",
                 "linux-x86_64-cp-310-cp310",
@@ -197,6 +199,7 @@ def test_multiple_platforms(tmpdir):
         SysPlatform.LINUX_AARCH64: "3.9",
         SysPlatform.LINUX_ARMV7L: "3.11",
         SysPlatform.LINUX_PPC64LE: "3.12",
+        SysPlatform.LINUX_RISCV64: "3.13",
         SysPlatform.LINUX_S390X: "3.13",
         SysPlatform.LINUX_X86_64: "3.10",
         SysPlatform.MACOS_AARCH64: "3.11",
@@ -256,6 +259,7 @@ def test_multiple_platforms(tmpdir):
             SysPlatform.LINUX_AARCH64,
             SysPlatform.LINUX_ARMV7L,
             SysPlatform.LINUX_PPC64LE,
+            SysPlatform.LINUX_RISCV64,
             SysPlatform.LINUX_S390X,
             SysPlatform.LINUX_X86_64,
             SysPlatform.MACOS_AARCH64,
@@ -327,7 +331,7 @@ def test_specified_science_binary(tmpdir):
 
     local_science_binary = os.path.join(str(tmpdir), "science")
     with open(local_science_binary, "wb") as write_fp, URLFetcher().get_body_stream(
-        "https://github.com/a-scie/lift/releases/download/v0.12.9/{binary}".format(
+        "https://github.com/a-scie/lift/releases/download/v0.13.0/{binary}".format(
             binary=SysPlatform.CURRENT.qualified_binary_name("science")
         )
     ) as read_fp:
@@ -371,7 +375,7 @@ def test_specified_science_binary(tmpdir):
         cached_science_binaries
     ), "Expected the local science binary to be used but not cached."
     assert (
-        "0.12.9"
+        "0.13.0"
         == subprocess.check_output(args=[local_science_binary, "--version"]).decode("utf-8").strip()
     )
 
@@ -388,38 +392,39 @@ def test_custom_lazy_urls(tmpdir):
             "--scie",
             "lazy",
             "--scie-pbs-release",
-            "20221002",
+            "20250529",
             "--scie-python-version",
-            "3.10.7",
+            "3.10.17",
         ],
     ).assert_success()
 
-    assert b"3.10.7\n" == subprocess.check_output(args=[scie, "-c", PRINT_VERSION_SCRIPT])
+    assert b"3.10.17\n" == subprocess.check_output(args=[scie, "-c", PRINT_VERSION_SCRIPT])
 
     pex_bootstrap_urls = os.path.join(str(tmpdir), "pex_bootstrap_urls.json")
 
-    def make_20221002_3_10_7_file(platform):
+    def make_20250529_3_10_17_file(platform):
         # type: (str) -> str
-        return "cpython-3.10.7+20221002-{platform}-install_only.tar.gz".format(platform=platform)
+        return "cpython-3.10.17+20250529-{platform}-install_only.tar.gz".format(platform=platform)
 
-    def make_20240415_3_10_14_url(platform):
+    def make_20250818_3_10_18_url(platform):
         # type: (str) -> str
         return (
-            "https://github.com/astral-sh/python-build-standalone/releases/download/20240415/"
-            "cpython-3.10.14+20240415-{platform}-install_only.tar.gz".format(platform=platform)
+            "https://github.com/astral-sh/python-build-standalone/releases/download/20250818/"
+            "cpython-3.10.18+20250818-{platform}-install_only.tar.gz".format(platform=platform)
         )
 
     with open(pex_bootstrap_urls, "w") as fp:
         json.dump(
             {
                 "ptex": {
-                    make_20221002_3_10_7_file(platform): make_20240415_3_10_14_url(platform)
+                    make_20250529_3_10_17_file(platform): make_20250818_3_10_18_url(platform)
                     for platform in (
                         "aarch64-apple-darwin",
                         "x86_64-apple-darwin",
                         "aarch64-unknown-linux-gnu",
                         "armv7-unknown-linux-gnueabihf",
                         "ppc64le-unknown-linux-gnu",
+                        "riscv64-unknown-linux-gnu",
                         "s390x-unknown-linux-gnu",
                         "x86_64-unknown-linux-gnu",
                     )
@@ -448,6 +453,8 @@ def test_custom_lazy_urls(tmpdir):
         expected_platform = "armv7-unknown-linux-gnueabihf"
     elif SysPlatform.CURRENT is SysPlatform.LINUX_PPC64LE:
         expected_platform = "ppc64le-unknown-linux-gnu"
+    elif SysPlatform.CURRENT is SysPlatform.LINUX_RISCV64:
+        expected_platform = "riscv64-unknown-linux-gnu"
     elif SysPlatform.CURRENT is SysPlatform.LINUX_S390X:
         expected_platform = "s390x-unknown-linux-gnu"
     elif SysPlatform.CURRENT is SysPlatform.LINUX_X86_64:
@@ -461,7 +468,7 @@ def test_custom_lazy_urls(tmpdir):
     assert re.match(
         r"^.*Population of work directory failed: The tar\.gz destination .*{expected_file_name} "
         r"of size \d+ had unexpected hash: [a-f0-9]{{64}}$.*".format(
-            expected_file_name=re.escape(make_20221002_3_10_7_file(expected_platform))
+            expected_file_name=re.escape(make_20250529_3_10_17_file(expected_platform))
         ),
         stderr.decode("utf-8"),
         flags=re.DOTALL | re.MULTILINE,
