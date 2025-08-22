@@ -2,7 +2,7 @@
 # N.B.: We use `setup.cfg` for declarative metadata instead of `[project]` here since support for
 # pyproject.toml projects was introduced in setuptools 61.0.0 which only supports Python>=3.7. We
 # need to also support 2.7, 3.5 and 3.6.
-requires = ["setuptools"]
+requires = ["setuptools", "uv"]
 backend-path = ["build-backend", ""]
 build-backend = "pex_build.setuptools.build"
 
