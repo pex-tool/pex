@@ -419,7 +419,7 @@ extra-requirements = [
 finalize-command = ["{venv-python}", "scripts/dev-cmd-fix-egg-link.py", "{venv-site-packages}"]
 
 [[tool.dev-cmd.python]]
-when = "platform_machine == 'armv7l'"
+when = "platform_machine == 'armv7l' or platform_machine == 'riscv64'"
 
 3rdparty-export-command = [
   "uv", "export", "-q",
