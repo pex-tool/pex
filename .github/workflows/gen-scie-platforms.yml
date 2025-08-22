@@ -63,13 +63,13 @@ jobs:
             echo "  login ${{ secrets.GITLAB_READ_USER }}" >> ~/.netrc
             echo "  password ${{ secrets.GITLAB_READ_PASS }}" >> ~/.netrc
           fi
-          pip install uv dev-cmd[old-pythons] .
+          pip install uv
 
           if ! uv python find 3.11; then
             uv python install 3.11
           fi
 
-          dev-cmd --py "\$(uv python find 3.11)" gen-scie-platform -- \
+          uv run dev-cmd --py "\$(uv python find 3.11)" gen-scie-platform -- \
             -d "${dest_dir}" \
             --no-sync-lock \
             --encoded-scie-config ${{ github.event.inputs.encoded-scie-config }}
