@@ -83,6 +83,8 @@ class ScieConfig:
             plat = f"{system}-aarch64"
         elif machine in ("armv7l", "armv8l"):
             plat = f"{system}-armv7l"
+        elif machine == "riscv64":
+            plat = f"{system}-riscv64"
         elif machine in ("amd64", "x86_64"):
             plat = f"{system}-x86_64"
         else:
