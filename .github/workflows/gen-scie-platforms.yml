@@ -60,13 +60,18 @@ jobs:
           elif [[ "riscv64" == "${{ matrix.docker-arch }}" ]]; then
             export PIP_EXTRA_INDEX_URL=https://__pat_na__:${{ secrets.GITLAB_READ_PASS }}@gitlab.com/api/v4/projects/riseproject%2Fpython%2Fwheel_builder/packages/pypi/simple
           fi
-          # N.B.: We install and run dev-cmd directly in order to be able to resolve from the
-          # custom indexes above and avoid wheel builds.
-          pip install uv dev-cmd[old-pythons] .
-
+          pip install uv
           if ! uv python find 3.11; then
             uv python install 3.11
           fi
+
+          # N.B.: We install Pex 1st from sources to ensure the current local Pex code powers
+          # dev-cmd[old-pythons].
+          pip install .
+
+          # N.B.: We install and run dev-cmd directly in order to be able to resolve from the
+          # custom indexes above and avoid wheel builds.
+          pip install dev-cmd[old-pythons]
 
           dev-cmd --py "\$(uv python find 3.11)" gen-scie-platform -- \
             -d "${dest_dir}" \
