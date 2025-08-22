@@ -388,7 +388,7 @@ default = "checks"
 exit-style = "immediate"
 
 [[tool.dev-cmd.python]]
-when = "python_version >= '3.7' and python_version < '3.15' and platform_machine != 'armv7l'"
+when = "python_version >= '3.7' and python_version < '3.15' and platform_machine != 'armv7l' and platform_machine != 'riscv64'"
 
 # Suppress pyproject cache keys since uv.lock is enough to uniquely determine venv content.
 pyproject-cache-keys = []
@@ -409,7 +409,7 @@ extra-requirements = [
 ]
 
 [[tool.dev-cmd.python]]
-when = "python_version < '3.7' and platform_machine != 'armv7l'"
+when = "python_version < '3.7' and platform_machine != 'armv7l' and platform_machine != 'riscv64'"
 
 extra-requirements = [
   "attrs @ git+https://github.com/python-attrs/attrs@947bfb542104209a587280701d8cb389c813459d",
