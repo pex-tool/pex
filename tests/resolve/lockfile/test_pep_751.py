@@ -836,3 +836,39 @@ def test_pylock_parse_cyclic_dependencies():
     # The cyclic dependencies should be preserved
     assert tuple([package_b.as_dependency()]) == package_a.dependencies
     assert tuple([package_a.as_dependency()]) == package_b.dependencies
+
+
+def test_spec_matches_marker():
+    # type: () -> None
+    from pex.resolve.lockfile.pep_751 import spec_matches
+
+    # Case 1: Both spec and package have same marker
+    assert spec_matches(
+        {"marker": "python_version >= '3.8'"}, {"marker": "python_version >= '3.8'"}
+    )
+
+    # Case 2: spec has no marker (None)
+    assert spec_matches({"marker": None}, {"marker": "python_version >= '3.8'"})
+
+    # Case 3: package has no marker (None)
+    assert spec_matches({"marker": "python_version >= '3.8'"}, {"marker": None})
+
+    # Case 4: Both have None markers
+    assert spec_matches({"marker": None}, {"marker": None})
+
+    # Case 5: spec has no marker key at all
+    assert spec_matches({}, {"marker": "python_version >= '3.8'"})
+
+    # Case 6: package has no marker key at all
+    assert spec_matches({"marker": "python_version >= '3.8'"}, {})
+
+    # Case 7: Different markers - should combine with AND and evaluate
+    # This will return True if both conditions can be satisfied
+    assert spec_matches(
+        {"marker": "python_version >= '3.8'"}, {"marker": "sys_platform == 'linux'"}
+    )
+
+    # Case 8: Conflicting markers - should return False
+    assert not spec_matches(
+        {"marker": "python_version < '3.8'"}, {"marker": "python_version >= '3.9'"}
+    )

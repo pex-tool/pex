@@ -805,6 +805,16 @@ def spec_matches(
 
     if isinstance(spec, dict) and isinstance(package_data, dict):
         for key, value in spec.items():
+            if key == "marker":
+                spec_marker = spec.get("marker")
+                package_data_marker = package_data.get("marker")
+                if (
+                    spec_marker == package_data_marker
+                    or spec_marker is None
+                    or package_data_marker is None
+                ):
+                    return True
+                return Marker(f"({spec_marker}) and ({package_data_marker})").evaluate()
             if not spec_matches(value, package_data.get(key)):
                 return False
         return True
