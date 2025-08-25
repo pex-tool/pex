@@ -814,7 +814,10 @@ def spec_matches(
                     or package_data_marker is None
                 ):
                     return True
-                return cast(bool, Marker(f"({spec_marker}) and ({package_data_marker})").evaluate())
+                return cast(
+                    bool,
+                    Marker("({}) and ({})".format(spec_marker, package_data_marker)).evaluate(),
+                )
             if not spec_matches(value, package_data.get(key)):
                 return False
         return True
