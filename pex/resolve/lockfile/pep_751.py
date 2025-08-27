@@ -7,7 +7,7 @@ import os
 import sys
 from collections import OrderedDict, defaultdict, deque
 
-from pex import toml
+from pex import pex_warnings, toml
 from pex.artifact_url import RANKED_ALGORITHMS, VCS, ArtifactURL, Fingerprint, VCSScheme
 from pex.common import pluralize
 from pex.compatibility import text, urlparse
@@ -863,7 +863,7 @@ class PackageParser(object):
         return ArtifactURL.parse(url)
 
     def parse(self, indexed_package):
-        # type: (IndexedPackage) -> Union[Package, Error]
+        # type: (IndexedPackage) -> Union[Optional[Package], Error]
 
         index = indexed_package.index
         package = self.parsed_packages_by_index.get(index)
@@ -1106,7 +1106,12 @@ class PackageParser(object):
                         artifact = wheel_artifact
 
         if artifact is None:
-            return parse_context.error("Package must define an artifact.")
+            pex_warnings.warn(
+                "Skipping package at {path} in {lock} since it defines no artifacts.".format(
+                    path=parse_context.path, lock=parse_context.source
+                )
+            )
+            return None
 
         package = Package(
             index=index,
@@ -1371,6 +1376,8 @@ class Pylock(object):
         packages = []  # type: List[Package]
         for indexed_package in package_index.iter_packages():
             package = try_(package_parser.parse(indexed_package))
+            if not package:
+                continue
             if isinstance(package.artifact, UnFingerprintedLocalProjectArtifact):
                 directory = package.artifact.directory
                 if not os.path.isabs(directory):
