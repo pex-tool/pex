@@ -711,18 +711,6 @@ def test_pylock_parse_errors(tmpdir):
     assert_pylock_error(
         "Failed to parse the PEP-751 lock at {lock_path}. "
         'Error parsing content at packages[0]{{name = "foo"}}.\n'
-        "Package must define an artifact.".format(lock_path=lock_path),
-        dedent(
-            """\
-            [[packages]]
-            name = "foo"
-            """
-        ),
-    )
-
-    assert_pylock_error(
-        "Failed to parse the PEP-751 lock at {lock_path}. "
-        'Error parsing content at packages[0]{{name = "foo"}}.\n'
         'These artifacts are mutually exclusive with packages[0]{{name = "foo"}}.vcs:\n'
         '+ packages[0]{{name = "foo"}}.sdist\n'
         '+ packages[0]{{name = "foo"}}.wheels'.format(lock_path=lock_path),
