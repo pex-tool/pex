@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.54.1
+
+This release fixes `--pylock` handling to tolerate locked packages with no artifacts and just warn
+(if PEX warnings are enabled) that the package is being skipped for lack of artifacts.
+
+* Handle `pylock.toml` packages with no artifacts. (#2888)
+
 ## 2.54.0
 
 This release adds a Pex PEX scie for riscv64.
