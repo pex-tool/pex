@@ -8,7 +8,6 @@ import os.path
 import shutil
 from contextlib import contextmanager
 from textwrap import dedent
-from typing import Any, Iterator, Mapping
 
 import pytest
 
@@ -31,6 +30,8 @@ from testing.cli import run_pex3
 from testing.pytest_utils.tmp import Tempdir
 
 if TYPE_CHECKING:
+    from typing import Any, Iterator, Mapping
+
     import attr  # vendor:skip
 else:
     from pex.third_party import attr
