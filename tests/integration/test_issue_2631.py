@@ -25,8 +25,9 @@ from pex.targets import LocalInterpreter, Targets
 from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper
 from pex.wheel import Wheel
-from testing import PY311, ensure_python_interpreter
+from testing import IS_MAC, PY311, ensure_python_interpreter
 from testing.cli import run_pex3
+from testing.pytest_utils import IS_CI
 from testing.pytest_utils.tmp import Tempdir
 
 if TYPE_CHECKING:
@@ -197,6 +198,14 @@ def devpi_clean_env():
     )
 
 
+@pytest.mark.xfail(
+    IS_CI and IS_MAC,
+    reason=(
+        "The index servers fail to start, at least on the macos-15 CI runners, and since this "
+        "is not a multi-platform test (a universal lock can be created from any platform host), "
+        "just checking on Linux is not ideal but good enough."
+    ),
+)
 def test_multiple_wheels_with_same_name_and_different_hash(
     tmpdir,  # type: Tempdir
     interpreter,  # type: PythonInterpreter
