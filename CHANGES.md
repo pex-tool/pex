@@ -1,5 +1,15 @@
 # Release Notes
 
+## 2.54.2
+
+This release fixes `pex3 lock create` when multiple `--index` are configured and they provide the
+same wheel file name, but with different contents. This is a reality in the PyTorch ecosystem, for
+example, prior to any fixes the [WheelNext][WheelNext] project may bring.
+
+* Fix `pex3 lock create` for dup wheels with different hashes. (#2890)
+
+[WheelNext]: https://wheelnext.dev/
+
 ## 2.54.1
 
 This release fixes `--pylock` handling to tolerate locked packages with no artifacts and just warn

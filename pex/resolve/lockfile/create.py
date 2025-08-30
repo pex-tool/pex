@@ -8,23 +8,29 @@ import shutil
 from collections import OrderedDict, defaultdict
 from multiprocessing.pool import ThreadPool
 
-from pex import hashing, resolver
-from pex.auth import PasswordDatabase
+from pex import hashing
+from pex.auth import PasswordDatabase, PasswordEntry
 from pex.build_system import pep_517
 from pex.common import pluralize, safe_mkdtemp
 from pex.dependency_configuration import DependencyConfiguration
-from pex.dist_metadata import DistMetadata, ProjectNameAndVersion
+from pex.dist_metadata import DistMetadata, ProjectNameAndVersion, Requirement
+from pex.exceptions import production_assert
 from pex.fetcher import URLFetcher
 from pex.jobs import Job, Retain, SpawnedJob, execute_parallel
+from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
+from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pip.download_observer import DownloadObserver
 from pex.pip.tool import PackageIndexConfiguration
+from pex.pip.version import PipVersionValue
 from pex.resolve import lock_resolver, locker, resolvers
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.downloads import ArtifactDownloader
+from pex.resolve.lock_downloader import LockDownloader
 from pex.resolve.locked_resolve import (
     Artifact,
+    DownloadableArtifact,
     FileArtifact,
     LocalProjectArtifact,
     LockConfiguration,
@@ -38,18 +44,19 @@ from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.pep_691.fingerprint_service import FingerprintService
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolved_requirement import Pin, ResolvedRequirement
-from pex.resolve.resolver_configuration import PipConfiguration
+from pex.resolve.resolver_configuration import BuildConfiguration, PipConfiguration, ResolverVersion
 from pex.resolve.resolvers import Resolver
 from pex.resolver import BuildRequest, Downloaded, ResolveObserver, WheelBuilder
+from pex.resolver import download as pip_download
 from pex.result import Error, try_
 from pex.targets import Target, Targets
 from pex.tracer import TRACER
-from pex.typing import TYPE_CHECKING
+from pex.typing import TYPE_CHECKING, cast
 from pex.variables import ENV, Variables
 from pex.version import __version__
 
 if TYPE_CHECKING:
-    from typing import DefaultDict, Dict, Iterable, List, Mapping, Optional, Tuple, Union
+    from typing import DefaultDict, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple, Union
 
     import attr  # vendor:skip
 
@@ -71,7 +78,9 @@ class CreateLockDownloadManager(DownloadManager[Artifact]):
     ):
         # type: (...) -> CreateLockDownloadManager
 
-        file_artifacts_by_filename = {}  # type: Dict[str, Tuple[FileArtifact, ProjectName]]
+        file_artifacts_by_filename = defaultdict(
+            list
+        )  # type: DefaultDict[str, List[Tuple[FileArtifact, ProjectName, Version]]]
         source_artifacts_by_pin = (
             {}
         )  # type: Dict[Pin, Tuple[Union[LocalProjectArtifact, VCSArtifact], ProjectName]]
@@ -81,41 +90,137 @@ class CreateLockDownloadManager(DownloadManager[Artifact]):
                 project_name = pin.project_name
                 for artifact in locked_requirement.iter_artifacts():
                     if isinstance(artifact, FileArtifact):
-                        file_artifacts_by_filename[artifact.filename] = (artifact, project_name)
+                        file_artifacts_by_filename[artifact.filename].append(
+                            (artifact, project_name, pin.version)
+                        )
                     else:
                         # N.B.: We know there is only ever one local project artifact for a given
                         # locked local project requirement and likewise only one VCS artifact for a
                         # given locked VCS requirement.
                         source_artifacts_by_pin[locked_requirement.pin] = (artifact, project_name)
 
-        path_by_artifact_and_project_name = {}  # type: Dict[Tuple[Artifact, ProjectName], str]
+        path_and_version_by_artifact_and_project_name = (
+            {}
+        )  # type: Dict[Tuple[AnyArtifact, ProjectName], Tuple[Optional[str], Version]]
         for root, _, files in os.walk(download_dir):
             for f in files:
-                artifact_and_project_name = file_artifacts_by_filename.get(
+                artifacts_project_names_and_versions = file_artifacts_by_filename[
                     f
-                )  # type: Optional[Tuple[AnyArtifact, ProjectName]]
-                if not artifact_and_project_name:
+                ]  # type: Sequence[Tuple[AnyArtifact, ProjectName, Version]]
+                if not artifacts_project_names_and_versions:
                     project_name_and_version = ProjectNameAndVersion.from_filename(f)
                     pin = Pin.canonicalize(project_name_and_version)
-                    artifact_and_project_name = source_artifacts_by_pin[pin]
-                path_by_artifact_and_project_name[artifact_and_project_name] = os.path.join(root, f)
+                    artifact, project_name = source_artifacts_by_pin[pin]
+                    artifacts_project_names_and_versions = [(artifact, project_name, pin.version)]
+                if len(artifacts_project_names_and_versions) > 1:
+                    # N.B.: When a universal lock is being created, there can be multiple versions
+                    # of the same artifact file when multiple indexes / find-links repos are being
+                    # used; e.g.: we can get a wheel like
+                    # triton-3.4.0-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl both
+                    # from PyPI and https://download.pytorch.org and the wheels will have different
+                    # contents. Although this very difference is really not OK, it is the current
+                    # state of affairs at least until / if WheelNext (https://wheelnext.dev/) rolls
+                    # out solutions. Since `pip download` will have deposited all files in a single
+                    # download directory, the last downloaded wheel of a given name will win, and we
+                    # won't have proper access to the correct bytes to hash for each wheel. As such
+                    # we "forget" the downloaded wheel paths here re-download them later in
+                    # `store_all` to individual download directories.
+                    #
+                    # See: https://github.com/pex-tool/pex/issues/2631
+                    for artifact_project_name_and_version in artifacts_project_names_and_versions:
+                        artifact, project_name, version = artifact_project_name_and_version
+                        path_and_version_by_artifact_and_project_name[(artifact, project_name)] = (
+                            None,
+                            version,
+                        )
+                else:
+                    artifact, project_name, version = artifacts_project_names_and_versions[0]
+                    path_and_version_by_artifact_and_project_name[(artifact, project_name)] = (
+                        os.path.join(root, f),
+                        version,
+                    )
 
         return cls(
-            path_by_artifact_and_project_name=path_by_artifact_and_project_name, pex_root=pex_root
+            path_and_version_by_artifact_and_project_name=path_and_version_by_artifact_and_project_name,
+            pex_root=pex_root,
         )
 
     def __init__(
         self,
-        path_by_artifact_and_project_name,  # type: Mapping[Tuple[Artifact, ProjectName], str]
+        path_and_version_by_artifact_and_project_name,  # type: Mapping[Tuple[AnyArtifact, ProjectName], Tuple[Optional[str], Version]]
         pex_root=ENV,  # type: Union[str, Variables]
     ):
         # type: (...) -> None
         super(CreateLockDownloadManager, self).__init__(pex_root=pex_root)
-        self._path_by_artifact_and_project_name = path_by_artifact_and_project_name
+        self._path_and_version_by_artifact_and_project_name = dict(
+            path_and_version_by_artifact_and_project_name
+        )
 
-    def store_all(self):
-        # type: () -> None
-        for artifact, project_name in self._path_by_artifact_and_project_name:
+    def store_all(
+        self,
+        targets,  # type: Iterable[Target]
+        lock_configuration,  # type: LockConfiguration
+        resolver,  # type: Resolver
+        indexes=None,  # type: Optional[Sequence[str]]
+        find_links=None,  # type: Optional[Sequence[str]]
+        max_parallel_jobs=None,  # type: Optional[int]
+        pip_version=None,  # type: Optional[PipVersionValue]
+        resolver_version=None,  # type: Optional[ResolverVersion.Value]
+        network_configuration=None,  # type: Optional[NetworkConfiguration]
+        password_entries=(),  # type: Iterable[PasswordEntry]
+        build_configuration=BuildConfiguration(),  # type: BuildConfiguration
+        use_pip_config=False,  # type: bool
+        extra_pip_requirements=(),  # type: Tuple[Requirement, ...]
+        keyring_provider=None,  # type: Optional[str]
+    ):
+        # type: (...) -> None
+
+        downloadable_artifacts = [
+            DownloadableArtifact(project_name=project_name, artifact=artifact, version=version)
+            for (artifact, project_name), (
+                path,
+                version,
+            ) in self._path_and_version_by_artifact_and_project_name.items()
+            if path is None
+        ]
+        downloader = LockDownloader.create(
+            targets=targets,
+            lock_configuration=lock_configuration,
+            resolver=resolver,
+            indexes=indexes,
+            find_links=find_links,
+            max_parallel_jobs=max_parallel_jobs,
+            pip_version=pip_version,
+            resolver_version=resolver_version,
+            network_configuration=network_configuration,
+            password_entries=password_entries,
+            build_configuration=build_configuration,
+            use_pip_config=use_pip_config,
+            extra_pip_requirements=extra_pip_requirements,
+            keyring_provider=keyring_provider,
+        )
+        downloaded_artifacts = try_(
+            downloader.download_artifacts(
+                tuple(
+                    (downloadable_artifact, target)
+                    for downloadable_artifact in downloadable_artifacts
+                    for target in targets
+                )
+            )
+        )
+        for downloadable_artifact, downloaded_artifact in downloaded_artifacts.items():
+            # N.B.: The input to download_artifacts above were entries from
+            # self._path_and_version_by_artifact_and_project_name which only contains AnyArtifacts.
+            artifact = cast("AnyArtifact", downloadable_artifact.artifact)
+            production_assert(
+                isinstance(artifact, (FileArtifact, LocalProjectArtifact, VCSArtifact))
+            )
+
+            self._path_and_version_by_artifact_and_project_name[
+                (artifact, downloadable_artifact.project_name)
+            ] = (downloaded_artifact.path, downloadable_artifact.version)
+
+        for artifact, project_name in self._path_and_version_by_artifact_and_project_name:
             self.store(artifact, project_name)
 
     def save(
@@ -126,7 +231,22 @@ class CreateLockDownloadManager(DownloadManager[Artifact]):
         digest,  # type: HintedDigest
     ):
         # type: (...) -> Union[str, Error]
-        src = self._path_by_artifact_and_project_name[(artifact, project_name)]
+
+        # N.B.: The input to save comes from self.store in self.store_all above and these inputs
+        # are all AnyArtifacts.
+        artifact_to_store = cast("AnyArtifact", artifact)
+        production_assert(
+            isinstance(artifact_to_store, (FileArtifact, LocalProjectArtifact, VCSArtifact))
+        )
+
+        path, _ = self._path_and_version_by_artifact_and_project_name[
+            (artifact_to_store, project_name)
+        ]
+        # N.B.: We filled out all None paths above in store_all or else failed if downloads failed
+        # there.
+        src = cast(str, path)
+        production_assert(isinstance(src, str))
+
         filename = os.path.basename(src)
         dest = os.path.join(dest_dir, filename)
         shutil.move(src, dest)
@@ -386,7 +506,7 @@ def create(
         download_targets = targets
 
     try:
-        downloaded = resolver.download(
+        downloaded = pip_download(
             targets=download_targets,
             requirements=requirement_configuration.requirements,
             requirement_files=requirement_configuration.requirement_files,
@@ -420,7 +540,22 @@ def create(
         create_lock_download_manager = CreateLockDownloadManager.create(
             download_dir=download_dir, locked_resolves=locked_resolves
         )
-        create_lock_download_manager.store_all()
+        create_lock_download_manager.store_all(
+            targets=download_targets.unique_targets(),
+            lock_configuration=lock_configuration,
+            resolver=configured_resolver,
+            indexes=pip_configuration.repos_configuration.indexes,
+            find_links=pip_configuration.repos_configuration.find_links,
+            max_parallel_jobs=pip_configuration.max_jobs,
+            pip_version=pip_configuration.version,
+            resolver_version=pip_configuration.resolver_version,
+            network_configuration=network_configuration,
+            password_entries=pip_configuration.repos_configuration.password_entries,
+            build_configuration=pip_configuration.build_configuration,
+            use_pip_config=pip_configuration.use_pip_config,
+            extra_pip_requirements=pip_configuration.extra_requirements,
+            keyring_provider=pip_configuration.keyring_provider,
+        )
 
     lock = Lockfile.create(
         pex_version=__version__,
