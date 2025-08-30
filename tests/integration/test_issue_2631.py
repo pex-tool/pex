@@ -18,8 +18,11 @@ from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import InterpreterConstraint
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
+from pex.pip.version import PipVersion
+from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.lockfile import json_codec
 from pex.resolve.resolved_requirement import Pin
+from pex.resolve.resolver_configuration import PipConfiguration, ResolverVersion
 from pex.resolver import LocalDistribution
 from pex.targets import LocalInterpreter, Targets
 from pex.typing import TYPE_CHECKING
@@ -70,9 +73,18 @@ def downloaded_wheel(
     requirement,  # type: str
 ):
     # type: (...) -> LocalDistribution
+
+    target = LocalInterpreter.create(interpreter)
+    pip_version = PipVersion.latest_compatible(target=target)
+
     downloaded = resolver.download(
-        targets=Targets.from_target(LocalInterpreter.create(interpreter)),
+        targets=Targets.from_target(target),
         requirements=[requirement],
+        resolver=ConfiguredResolver(
+            pip_configuration=PipConfiguration(
+                version=pip_version, resolver_version=ResolverVersion.default(pip_version)
+            )
+        ),
     )
     assert 1 == len(downloaded.local_distributions)
 
