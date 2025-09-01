@@ -34,7 +34,7 @@ from testing.pytest_utils import IS_CI
 from testing.pytest_utils.tmp import Tempdir
 
 if TYPE_CHECKING:
-    from typing import Any, Iterator, Mapping
+    from typing import Iterator
 
     import attr  # vendor:skip
 else:
@@ -197,19 +197,6 @@ def index2(
         yield index
 
 
-@pytest.fixture
-def devpi_clean_env():
-    # type: () -> Mapping[str, Any]
-
-    # These will be set when tests are run with --devpi, and we want to unset them to
-    # ensure our Pex command line config above is what is used.
-    return dict(
-        _PEX_USE_PIP_CONFIG=None,
-        PIP_INDEX_URL=None,
-        PIP_TRUSTED_HOST=None,
-    )
-
-
 @pytest.mark.xfail(
     IS_CI and IS_MAC,
     reason=(
@@ -225,7 +212,6 @@ def test_multiple_wheels_with_same_name_and_different_hash(
     index1,  # type: Index
     index2,  # type: Index
     requirement,  # type: str
-    devpi_clean_env,  # type: Mapping[str, Any]
 ):
     # type: (...) -> None
 
