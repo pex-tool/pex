@@ -52,7 +52,6 @@ from pex.resolve.locked_resolve import (
     LockedResolve,
     LockStyle,
     Resolved,
-    TargetSystem,
     VCSArtifact,
 )
 from pex.resolve.lockfile import json_codec, pep_751, requires_dist
@@ -77,6 +76,7 @@ from pex.resolve.resolver_options import parse_lockfile
 from pex.resolve.resolvers import Resolver
 from pex.resolve.script_metadata import ScriptMetadataApplication, apply_script_metadata
 from pex.resolve.target_configuration import InterpreterConstraintsNotSatisfied, TargetConfiguration
+from pex.resolve.target_system import TargetSystem
 from pex.result import Error, Ok, Result, try_
 from pex.sorted_tuple import SortedTuple
 from pex.targets import LocalInterpreter, Target, Targets
@@ -1036,13 +1036,12 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             requirement_configuration = script_metadata_application.requirement_configuration
             target_configuration = script_metadata_application.target_configuration
         if self.options.style == LockStyle.UNIVERSAL:
-            lock_configuration = LockConfiguration(
-                style=LockStyle.UNIVERSAL,
-                requires_python=tuple(
+            lock_configuration = LockConfiguration.universal(
+                requires_python=[
                     str(interpreter_constraint.requires_python)
                     for interpreter_constraint in target_configuration.interpreter_constraints
-                ),
-                target_systems=tuple(self.options.target_systems),
+                ],
+                systems=self.options.target_systems,
                 elide_unused_requires_dist=self.options.elide_unused_requires_dist,
             )
         elif self.options.target_systems:
@@ -2261,6 +2260,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 extra_pip_requirements=pip_configuration.extra_requirements,
                 keyring_provider=pip_configuration.keyring_provider,
                 result_type=InstallableType.INSTALLED_WHEEL_CHROOT,
+                dependency_configuration=dependency_config,
             )
         )
         return sync_target.sync(

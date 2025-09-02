@@ -19,7 +19,6 @@ from pex.resolve.locked_resolve import (
     DownloadableArtifact,
     LocalProjectArtifact,
     LockConfiguration,
-    LockStyle,
     UnFingerprintedLocalProjectArtifact,
 )
 from pex.resolve.lockfile.download_manager import DownloadedArtifact
@@ -157,9 +156,8 @@ def resolve_from_pylock(
         pylock_subset_result.subset_result,
         # This ensures artifact downloads via Pip will not be rejected by Pip for mismatched
         # target interpreters, etc.
-        lock_configuration=LockConfiguration(
-            style=LockStyle.UNIVERSAL,
-            requires_python=tuple([pylock.requires_python]) if pylock.requires_python else (),
+        lock_configuration=LockConfiguration.universal(
+            requires_python=[pylock.requires_python] if pylock.requires_python else []
         ),
         resolver=resolver,
         indexes=indexes,
@@ -242,9 +240,8 @@ def download_from_pylock(
         pylock_subset_result.subset_result,
         # This ensures artifact downloads via Pip will not be rejected by Pip for mismatched
         # target interpreters, etc.
-        lock_configuration=LockConfiguration(
-            style=LockStyle.UNIVERSAL,
-            requires_python=tuple([pylock.requires_python]) if pylock.requires_python else (),
+        lock_configuration=LockConfiguration.universal(
+            requires_python=[pylock.requires_python] if pylock.requires_python else [],
         ),
         resolver=resolver,
         indexes=indexes,

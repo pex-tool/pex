@@ -59,6 +59,7 @@ from pex.resolve.resolvers import (
     Untranslatable,
     check_resolve,
 )
+from pex.resolve.target_system import UniversalTarget
 from pex.targets import AbbreviatedPlatform, CompletePlatform, LocalInterpreter, Target, Targets
 from pex.third_party.packaging.tags import Tag
 from pex.tracer import TRACER
@@ -176,6 +177,7 @@ class DownloadRequest(object):
     dependency_configuration = attr.ib(
         default=DependencyConfiguration()
     )  # type: DependencyConfiguration
+    universal_target = attr.ib(default=None)  # type: Optional[UniversalTarget]
 
     def iter_local_projects(self):
         # type: () -> Iterator[BuildRequest]
@@ -279,6 +281,7 @@ class DownloadRequest(object):
             build_configuration=self.build_configuration,
             observer=observer,
             dependency_configuration=self.dependency_configuration,
+            universal_target=self.universal_target,
             log=log_manager.get_log(target),
         )
 
@@ -1341,6 +1344,7 @@ def _download_internal(
     pip_version=None,  # type: Optional[PipVersionValue]
     resolver=None,  # type: Optional[Resolver]
     dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
+    universal_target=None,  # type: Optional[UniversalTarget]
 ):
     # type: (...) -> Tuple[List[BuildRequest], List[DownloadResult]]
 
@@ -1360,6 +1364,7 @@ def _download_internal(
         pip_version=pip_version,
         resolver=resolver,
         dependency_configuration=dependency_configuration,
+        universal_target=universal_target,
     )
 
     local_projects = list(download_request.iter_local_projects())
@@ -1424,6 +1429,7 @@ def download(
     extra_pip_requirements=(),  # type: Tuple[Requirement, ...]
     keyring_provider=None,  # type: Optional[str]
     dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
+    universal_target=None,  # type: Optional[UniversalTarget]
 ):
     # type: (...) -> Downloaded
     """Downloads all distributions needed to meet requirements for multiple distribution targets.
@@ -1488,6 +1494,7 @@ def download(
         pip_version=pip_version,
         resolver=resolver,
         dependency_configuration=dependency_configuration,
+        universal_target=universal_target,
     )
 
     local_distributions = []

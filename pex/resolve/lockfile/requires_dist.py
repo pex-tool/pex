@@ -6,13 +6,15 @@ from __future__ import absolute_import
 import operator
 from collections import defaultdict, deque
 
+from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import Requirement
 from pex.exceptions import production_assert
 from pex.interpreter_constraints import iter_compatible_versions
 from pex.orderedset import OrderedSet
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
-from pex.resolve.locked_resolve import LockedRequirement, LockedResolve, TargetSystem
+from pex.resolve.locked_resolve import LockedRequirement, LockedResolve
+from pex.resolve.target_system import TargetSystem, UniversalTarget
 from pex.sorted_tuple import SortedTuple
 from pex.third_party.packaging.markers import Marker, Variable
 from pex.typing import TYPE_CHECKING, Generic, cast
@@ -28,6 +30,7 @@ if TYPE_CHECKING:
         Iterator,
         List,
         Optional,
+        Sequence,
         Tuple,
         Type,
         TypeVar,
@@ -263,6 +266,57 @@ def _parse_marker(marker):
     return eval_marker
 
 
+def are_exhaustive(
+    markers,  # type: Sequence[Marker]
+    universal_target,  # type: UniversalTarget
+):
+    # type: (...) -> bool
+
+    if len(markers) == 0:
+        return True
+
+    def is_python_full_version(term):
+        # type: (Any) -> bool
+        return isinstance(term, Variable) and "python_full_version" == str(item)
+
+    use_python_full_version = False
+    for marker in markers:
+        for item in marker._markers:
+            if isinstance(item, tuple):
+                lhs, _, rhs = item
+                if is_python_full_version(lhs) or is_python_full_version(rhs):
+                    use_python_full_version = True
+                    break
+        if not use_python_full_version:
+            break
+
+    python_full_versions = tuple(iter_compatible_versions(universal_target.requires_python))
+    versions = (
+        python_full_versions
+        if use_python_full_version
+        else tuple(
+            OrderedSet(python_full_version[:2] for python_full_version in python_full_versions)
+        )
+    )
+    target_systems = universal_target.systems or TargetSystem.values()
+    marker_envs = OrderedSet(
+        MarkerEnv.create(
+            extras=(),
+            requires_python=["=={version}".format(version=".".join(map(str, version)))],
+            target_systems=[target_system],
+        )
+        for version in versions
+        for target_system in target_systems
+    )
+
+    for marker in markers:
+        eval_marker = _parse_marker(marker)
+        for marker_env in tuple(marker_envs):
+            if eval_marker(marker_env):
+                marker_envs.remove(marker_env)
+    return not marker_envs
+
+
 def filter_dependencies(
     requirement,  # type: Requirement
     locked_requirement,  # type: LockedRequirement
@@ -288,6 +342,7 @@ def remove_unused_requires_dist(
     locked_resolve,  # type: LockedResolve
     requires_python=(),  # type: Iterable[str]
     target_systems=(),  # type: Iterable[TargetSystem.Value]
+    dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
 ):
     # type: (...) -> LockedResolve
 
@@ -312,7 +367,12 @@ def remove_unused_requires_dist(
         for dep in filter_dependencies(
             requirement, locked_req, requires_python=requires_python, target_systems=target_systems
         ):
-            if dep.project_name in locked_req_by_project_name:
+            if dependency_configuration.excluded_by(dep):
+                continue
+            if any(
+                d.project_name in locked_req_by_project_name
+                for d in dependency_configuration.overrides_for(dep) or [dep]
+            ):
                 requires_dist_by_locked_req[locked_req].add(dep)
                 requirements.append(dep)
 

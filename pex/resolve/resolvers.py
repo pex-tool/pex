@@ -16,7 +16,6 @@ from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.pep_427 import InstallableType
 from pex.pep_503 import ProjectName
 from pex.pip.version import PipVersionValue
-from pex.resolve.lockfile.model import Lockfile
 from pex.sorted_tuple import SortedTuple
 from pex.targets import AbbreviatedPlatform, Target, Targets
 from pex.typing import TYPE_CHECKING
@@ -245,17 +244,6 @@ class Resolver(object):
 
     def use_system_time(self):
         # type: () -> bool
-        raise NotImplementedError()
-
-    @abstractmethod
-    def resolve_lock(
-        self,
-        lock,  # type: Lockfile
-        targets=Targets(),  # type: Targets
-        pip_version=None,  # type: Optional[PipVersionValue]
-        result_type=InstallableType.INSTALLED_WHEEL_CHROOT,  # type: InstallableType.Value
-    ):
-        # type: (...) -> ResolveResult
         raise NotImplementedError()
 
     @abstractmethod

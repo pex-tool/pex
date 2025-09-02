@@ -9,10 +9,11 @@ import pytest
 from pex.interpreter import PythonInterpreter
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
-from pex.resolve.locked_resolve import Artifact, FileArtifact, LockStyle, TargetSystem
+from pex.resolve.locked_resolve import Artifact, FileArtifact, LockStyle
 from pex.resolve.lockfile import json_codec
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.resolved_requirement import Pin
+from pex.resolve.target_system import TargetSystem
 from pex.sorted_tuple import SortedTuple
 from pex.typing import TYPE_CHECKING
 from testing import IntegResults, run_pex_command
