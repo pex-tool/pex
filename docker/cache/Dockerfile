@@ -22,7 +22,8 @@ RUN git clone "${PEX_REPO}" /development/pex && \
 WORKDIR /development/pex
 COPY populate_cache.sh /root/
 COPY --from=seed ${SEED_PATH} ${CACHE_PATH}
-RUN /root/populate_cache.sh ${CACHE_PATH} "${TEST_CMDS}" && \
+RUN chown -R $(id -u):$(id -g) /development/pex_dev && \
+    /root/populate_cache.sh ${CACHE_PATH} "${TEST_CMDS}" && \
     touch "${CACHE_PATH}/.fingerprint-${FINGERPRINT}"
 
 # Grab just the ~/.pex_dev cache files for the final data-only image.
