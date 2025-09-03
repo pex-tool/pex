@@ -8,7 +8,7 @@ from collections import defaultdict, deque
 
 from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import Requirement
-from pex.exceptions import production_assert
+from pex.exceptions import production_assert, reportable_unexpected_error_msg
 from pex.interpreter_constraints import iter_compatible_versions
 from pex.orderedset import OrderedSet
 from pex.pep_440 import Version
@@ -244,10 +244,33 @@ def _parse_marker_item(
         raise ValueError("Marker is invalid: {marker}".format(marker=marker))
 
 
+def _marker_items(marker):
+    # type:(Marker) -> Iterable[Any]
+
+    marker_items = getattr(marker, "_markers", None)
+    if marker_items is None:
+        raise AssertionError(
+            reportable_unexpected_error_msg(
+                "Expected packaging.markers.Marker to have a _markers attribute; found none in "
+                "{marker} of type {type}",
+                marker=marker,
+                type=type(marker).__name__,
+            )
+        )
+    production_assert(
+        hasattr(marker_items, "__iter__"),
+        "Expected packaging.markers.Marker._markers to be iterable; found {marker_items} of type "
+        "{type}",
+        marker_items=marker_items,
+        type=type(marker_items).__name__,
+    )
+    return cast("Iterable[Any]", marker._markers)
+
+
 def _parse_marker_check(marker):
     # type: (Marker) -> EvalMarker
     checks = []  # type: List[EvalMarker]
-    for item in marker._markers:
+    for item in _marker_items(marker):
         _parse_marker_item(checks, item, marker)
     production_assert(len(checks) == 1)
     return checks[0]
@@ -266,6 +289,21 @@ def _parse_marker(marker):
     return eval_marker
 
 
+def _has_marker(
+    marker,  # type: Marker
+    name,  # type: str
+):
+    # type: (...) -> bool
+
+    for item in _marker_items(marker):
+        if isinstance(item, tuple):
+            lhs, _, rhs = item
+            for term in lhs, rhs:
+                if isinstance(term, Variable) and name == str(term):
+                    return True
+    return False
+
+
 def are_exhaustive(
     markers,  # type: Sequence[Marker]
     universal_target,  # type: UniversalTarget
@@ -275,21 +313,7 @@ def are_exhaustive(
     if len(markers) == 0:
         return True
 
-    def is_python_full_version(term):
-        # type: (Any) -> bool
-        return isinstance(term, Variable) and "python_full_version" == str(item)
-
-    use_python_full_version = False
-    for marker in markers:
-        for item in marker._markers:
-            if isinstance(item, tuple):
-                lhs, _, rhs = item
-                if is_python_full_version(lhs) or is_python_full_version(rhs):
-                    use_python_full_version = True
-                    break
-        if not use_python_full_version:
-            break
-
+    use_python_full_version = any(_has_marker(marker, "python_full_version") for marker in markers)
     python_full_versions = tuple(iter_compatible_versions(universal_target.requires_python))
     versions = (
         python_full_versions
