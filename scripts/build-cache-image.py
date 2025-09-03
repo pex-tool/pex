@@ -106,6 +106,7 @@ def build_cache_image(
             "buildx",
             "build",
             *seed_args,
+            "--build-arg",
             f"CACHE_PATH={_CACHE_PATH}",
             "--build-arg",
             f"FINGERPRINT={fingerprint_cache_inputs(image_id=image_id)}",
