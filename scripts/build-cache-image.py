@@ -90,13 +90,13 @@ def build_cache_image(
     image_tag: str,
     pex_repo: str,
     git_ref: str,
-    seed: bool,
+    seed_image: str | None,
 ) -> None:
 
     seed_args: list[str] = []
-    if seed:
+    if seed_image:
         seed_args.append("--build-arg")
-        seed_args.append(f"SEED_IMAGE={image_tag}")
+        seed_args.append(f"SEED_IMAGE={seed_image}")
         seed_args.append("--build-arg")
         seed_args.append(f"SEED_PATH={_CACHE_PATH}")
 
@@ -305,7 +305,7 @@ def main() -> Any:
             image_tag=image_tag,
             pex_repo=options.pex_repo,
             git_ref=options.git_ref,
-            seed=options.seed,
+            seed_image=create_image_tag("latest") if options.seed else None,
         )
 
     if options.post_build_action is PostBuildAction.EXPORT:
