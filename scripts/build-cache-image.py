@@ -47,6 +47,7 @@ _CACHE_INPUTS = (
     Path("testing") / "devpi.py",
     Path("uv.lock"),
 )
+_CACHE_PATH = "/development/pex_dev"
 
 
 def fingerprint_cache_inputs(image_id: str | None = None) -> str:
@@ -89,12 +90,23 @@ def build_cache_image(
     image_tag: str,
     pex_repo: str,
     git_ref: str,
+    seed: bool,
 ) -> None:
+
+    seed_args: list[str] = []
+    if seed:
+        seed_args.append("--build-arg")
+        seed_args.append(f"SEED_IMAGE={image_tag}")
+        seed_args.append("--build-arg")
+        seed_args.append(f"SEED_PATH={_CACHE_PATH}")
+
     subprocess.run(
         args=[
             "docker",
             "buildx",
             "build",
+            *seed_args,
+            f"CACHE_PATH={_CACHE_PATH}",
             "--build-arg",
             f"FINGERPRINT={fingerprint_cache_inputs(image_id=image_id)}",
             "--build-arg",
@@ -195,6 +207,13 @@ def main() -> Any:
             "names can be joined by commas."
         ),
     )
+    parser.add_argument(
+        "--no-seed",
+        dest="seed",
+        action="store_false",
+        default=True,
+        help="Instead of seeding the cache from the prior image, start from scratch.",
+    )
     options = parser.parse_args()
 
     if options.list_test_cmds:
@@ -285,6 +304,7 @@ def main() -> Any:
             image_tag=image_tag,
             pex_repo=options.pex_repo,
             git_ref=options.git_ref,
+            seed=options.seed,
         )
 
     if options.post_build_action is PostBuildAction.EXPORT:

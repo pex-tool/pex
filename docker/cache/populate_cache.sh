@@ -20,6 +20,9 @@ function run_dev_cmd() {
 }
 
 export _PEX_TEST_DEV_ROOT="$1"
+echo "Starting ${_PEX_TEST_DEV_ROOT} cache size:"
+du -sh "${_PEX_TEST_DEV_ROOT}"/* 2>/dev/null || echo "Empty."
+
 for cmd in $(echo "$2" | tr , ' '); do
   run_dev_cmd "${cmd}"
 
