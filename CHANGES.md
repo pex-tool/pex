@@ -1,5 +1,14 @@
 # Release Notes
 
+## 2.55.0
+
+This release adds support for `--override <project name>=<requirement>` wherever
+`--override <requirement>` is currently accepted. This can be useful when you need to supply a
+patch to an existing published project and would prefer to depend on wheels you pre-build instead
+of using a VCS source dependency `--override`, which can be slow to build.
+
+* Support dependency replacement with `--override`. (#2894)
+
 ## 2.54.2
 
 This release fixes `pex3 lock create` when multiple `--index` are configured and they provide the

@@ -142,7 +142,11 @@ class DownloadManager(Generic["_A"]):
             )  # type: str
             with atomic_directory(download_dir, lock_style=self._file_lock_style) as atomic_dir:
                 if atomic_dir.is_finalized():
-                    TRACER.log("Using cached artifact at {} for {}".format(download_dir, artifact))
+                    TRACER.log(
+                        "Using cached artifact at {} for {}".format(
+                            download_dir, artifact.url.raw_url
+                        )
+                    )
                 else:
                     self._download(artifact, project_name, atomic_dir.work_dir)
         else:

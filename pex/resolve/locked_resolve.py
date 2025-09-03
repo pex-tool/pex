@@ -21,6 +21,7 @@ from pex.pep_503 import ProjectName
 from pex.rank import Rank
 from pex.resolve.resolved_requirement import PartialArtifact, Pin, ResolvedRequirement
 from pex.resolve.resolver_configuration import BuildConfiguration
+from pex.resolve.target_system import TargetSystem, UniversalTarget
 from pex.result import Error
 from pex.sorted_tuple import SortedTuple
 from pex.targets import Target
@@ -67,27 +68,27 @@ class LockStyle(Enum["LockStyle.Value"]):
 LockStyle.seal()
 
 
-class TargetSystem(Enum["TargetSystem.Value"]):
-    class Value(Enum.Value):
-        pass
-
-    LINUX = Value("linux")
-    MAC = Value("mac")
-    WINDOWS = Value("windows")
-
-
-TargetSystem.seal()
-
-
 @attr.s(frozen=True)
 class LockConfiguration(object):
+    @classmethod
+    def universal(
+        cls,
+        requires_python=(),  # type: Iterable[str]
+        systems=(),  # type: Iterable[TargetSystem.Value]
+        elide_unused_requires_dist=False,  # type: bool
+    ):
+        # type: (...) -> LockConfiguration
+        return cls(
+            style=LockStyle.UNIVERSAL,
+            target=UniversalTarget(requires_python=tuple(requires_python), systems=tuple(systems)),
+            elide_unused_requires_dist=elide_unused_requires_dist,
+        )
+
     style = attr.ib()  # type: LockStyle.Value
-    requires_python = attr.ib(default=())  # type: Tuple[str, ...]
-    target_systems = attr.ib(default=())  # type: Tuple[TargetSystem.Value, ...]
+    target = attr.ib(default=None)  # type: Optional[UniversalTarget]
     elide_unused_requires_dist = attr.ib(default=False)  # type: bool
 
-    @requires_python.validator
-    @target_systems.validator
+    @target.validator
     def _validate_only_set_for_universal(
         self,
         attribute,  # type: Any
@@ -103,6 +104,16 @@ class LockConfiguration(object):
                     value=value,
                 )
             )
+
+    @property
+    def requires_python(self):
+        # type: () -> Tuple[str, ...]
+        return self.target.requires_python if self.target else ()
+
+    @property
+    def target_systems(self):
+        # type: () -> Tuple[TargetSystem.Value, ...]
+        return self.target.systems if self.target else ()
 
 
 @total_ordering

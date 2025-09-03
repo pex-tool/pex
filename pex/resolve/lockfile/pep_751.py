@@ -27,7 +27,6 @@ from pex.resolve.locked_resolve import (
     LockedRequirement,
     LockedResolve,
     Resolved,
-    TargetSystem,
     UnFingerprintedLocalProjectArtifact,
     UnFingerprintedVCSArtifact,
     VCSArtifact,
@@ -38,6 +37,7 @@ from pex.resolve.lockfile.subset import Subset, SubsetResult
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolved_requirement import Pin
 from pex.resolve.resolver_configuration import BuildConfiguration
+from pex.resolve.target_system import TargetSystem
 from pex.result import Error, ResultError, try_
 from pex.sorted_tuple import SortedTuple
 from pex.targets import Target, Targets

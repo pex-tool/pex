@@ -36,6 +36,7 @@ from pex.resolve.resolver_configuration import (
     ReposConfiguration,
     ResolverVersion,
 )
+from pex.resolve.target_system import UniversalTarget
 from pex.targets import Target
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
@@ -576,6 +577,7 @@ class Pip(object):
         build_configuration=BuildConfiguration(),  # type: BuildConfiguration
         observer=None,  # type: Optional[DownloadObserver]
         dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
+        universal_target=None,  # type: Optional[UniversalTarget]
         log=None,  # type: Optional[str]
     ):
         # type: (...) -> Job
@@ -623,7 +625,9 @@ class Pip(object):
         for obs in (
             foreign_platform_observer,
             observer,
-            dependencies.patch(dependency_configuration),
+            dependencies.patch(
+                dependency_configuration, extra_data=universal_target or target.marker_environment
+            ),
         ):
             if obs:
                 if obs.analyzer:

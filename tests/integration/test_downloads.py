@@ -8,7 +8,7 @@ import pytest
 from pex.artifact_url import Fingerprint
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.downloads import ArtifactDownloader
-from pex.resolve.locked_resolve import Artifact, FileArtifact, LockConfiguration, LockStyle
+from pex.resolve.locked_resolve import Artifact, FileArtifact, LockConfiguration
 from pex.resolve.resolved_requirement import PartialArtifact
 from pex.typing import TYPE_CHECKING
 from testing import IS_LINUX
@@ -57,7 +57,7 @@ def downloader():
     # type: () -> ArtifactDownloader
     return ArtifactDownloader(
         resolver=ConfiguredResolver.default(),
-        lock_configuration=LockConfiguration(style=LockStyle.UNIVERSAL),
+        lock_configuration=LockConfiguration.universal(),
     )
 
 

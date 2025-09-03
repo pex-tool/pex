@@ -5,7 +5,7 @@ from __future__ import absolute_import, print_function
 
 import os
 
-from pex.dependency_configuration import DependencyConfiguration
+from pex.dependency_configuration import DependencyConfiguration, Override
 from pex.dist_metadata import Constraint, Requirement
 from pex.orderedset import OrderedSet
 from pex.pep_503 import ProjectName
@@ -16,11 +16,11 @@ from pex.resolve.locked_resolve import (
     LockConfiguration,
     LockedResolve,
     LockStyle,
-    TargetSystem,
 )
 from pex.resolve.lockfile import requires_dist
 from pex.resolve.resolved_requirement import Pin
 from pex.resolve.resolver_configuration import BuildConfiguration, ResolverVersion
+from pex.resolve.target_system import TargetSystem, UniversalTarget
 from pex.sorted_tuple import SortedTuple
 from pex.typing import TYPE_CHECKING
 
@@ -49,7 +49,7 @@ class Lockfile(object):
         build_configuration,  # type: BuildConfiguration
         transitive,  # type: bool
         excluded,  # type: Iterable[Requirement]
-        overridden,  # type: Iterable[Requirement]
+        overridden,  # type: Iterable[Override]
         locked_resolves,  # type: Iterable[LockedResolve]
         source=None,  # type: Optional[str]
         pip_version=None,  # type: Optional[PipVersionValue]
@@ -127,6 +127,9 @@ class Lockfile(object):
                         locked_resolve,
                         requires_python=requires_python,
                         target_systems=target_systems,
+                        dependency_configuration=DependencyConfiguration.create(
+                            excluded=excluded, overridden=overridden
+                        ),
                     )
                     if elide_unused_requires_dist
                     else locked_resolve
@@ -157,7 +160,7 @@ class Lockfile(object):
     use_system_time = attr.ib()  # type: bool
     transitive = attr.ib()  # type: bool
     excluded = attr.ib()  # type: SortedTuple[Requirement]
-    overridden = attr.ib()  # type: SortedTuple[Requirement]
+    overridden = attr.ib()  # type: SortedTuple[Override]
     locked_resolves = attr.ib()  # type: SortedTuple[LockedResolve]
     local_project_requirement_mapping = attr.ib(eq=False)  # type: Mapping[str, Requirement]
     source = attr.ib(default=None, eq=False)  # type: Optional[str]
@@ -166,8 +169,11 @@ class Lockfile(object):
         # type: () -> LockConfiguration
         return LockConfiguration(
             style=self.style,
-            requires_python=self.requires_python,
-            target_systems=self.target_systems,
+            target=(
+                UniversalTarget(requires_python=self.requires_python, systems=self.target_systems)
+                if self.style is LockStyle.UNIVERSAL
+                else None
+            ),
             elide_unused_requires_dist=self.elide_unused_requires_dist,
         )
 

@@ -7,6 +7,7 @@ import json
 
 from pex import compatibility
 from pex.artifact_url import Fingerprint
+from pex.dependency_configuration import Override
 from pex.dist_metadata import Requirement, RequirementParseError
 from pex.enum import Enum
 from pex.pep_440 import Version
@@ -19,13 +20,13 @@ from pex.resolve.locked_resolve import (
     LockedRequirement,
     LockedResolve,
     LockStyle,
-    TargetSystem,
     VCSArtifact,
 )
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.path_mappings import PathMappings
 from pex.resolve.resolved_requirement import Pin
 from pex.resolve.resolver_configuration import BuildConfiguration, PipConfiguration, ResolverVersion
+from pex.resolve.target_system import TargetSystem
 from pex.sorted_tuple import SortedTuple
 from pex.third_party.packaging import tags
 from pex.third_party.packaging.specifiers import InvalidSpecifier, SpecifierSet
@@ -184,6 +185,18 @@ def loads(
                 "The requirement string at '{path}' is invalid: {err}".format(path=path, err=e)
             )
 
+    def parse_override(
+        raw_override,  # type: str
+        path,  # type: str
+    ):
+        # type: (...) -> Override
+        try:
+            return Override.parse(raw_override)
+        except Override.InvalidError as e:
+            raise ParseError(
+                "The override string at '{path}' is invalid: {err}".format(path=path, err=e)
+            )
+
     def parse_version_specifier(
         raw_version_specifier,  # type: str
         path,  # type: str
@@ -245,8 +258,8 @@ def loads(
     ]
 
     overridden = [
-        parse_requirement(req, path=".overridden[{index}]".format(index=index))
-        for index, req in enumerate(get("overridden", list, optional=True) or ())
+        parse_override(override, path=".overridden[{index}]".format(index=index))
+        for index, override in enumerate(get("overridden", list, optional=True) or ())
     ]
 
     def assemble_tag(

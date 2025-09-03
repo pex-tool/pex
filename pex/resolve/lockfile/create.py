@@ -529,6 +529,7 @@ def create(
             extra_pip_requirements=pip_configuration.extra_requirements,
             keyring_provider=pip_configuration.keyring_provider,
             dependency_configuration=dependency_configuration,
+            universal_target=lock_configuration.target,
         )
     except resolvers.ResolveError as e:
         return Error(str(e))
@@ -600,6 +601,7 @@ def create(
                     pip_version=pip_configuration.version,
                     use_pip_config=pip_configuration.use_pip_config,
                     extra_pip_requirements=pip_configuration.extra_requirements,
+                    dependency_configuration=dependency_configuration,
                 )
             )
 

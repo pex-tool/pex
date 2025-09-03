@@ -25,11 +25,11 @@ if TYPE_CHECKING:
     from typing import Collection  # type: ignore[attr-defined]
     from typing import Any, Dict, Iterable, Mapping, Optional, Text, Tuple, Union
 
-    from pex.cache.dirs import VenvDir
-    from pex.dist_metadata import Requirement
-
     # N.B.: These are expensive imports and PexInfo is used during PEX bootstrapping which we want
     # to be as fast as possible.
+    from pex.cache.dirs import VenvDir
+    from pex.dependency_configuration import Override
+    from pex.dist_metadata import Requirement
     from pex.interpreter import PythonInterpreter
     from pex.interpreter_constraints import InterpreterConstraints
 
@@ -491,9 +491,9 @@ class PexInfo(object):
         # type: () -> Iterable[str]
         return self._excluded
 
-    def add_override(self, requirement):
-        # type: (Requirement) -> None
-        self._overridden.add(str(requirement))
+    def add_override(self, override):
+        # type: (Override) -> None
+        self._overridden.add(str(override))
 
     @property
     def overridden(self):
