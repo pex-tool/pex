@@ -832,7 +832,9 @@ def test_pdm_dependency_groups_interop(
         if sys.version_info[:2] < (3, 14):
             assert (
                 "{version} from ".format(version=tox_version.raw)
-                in subprocess.check_output(args=[tox_pex, "--version"]).decode("utf-8").strip()
+                in subprocess.check_output(args=[tox_pex, "--version"], cwd=str(tmpdir))
+                .decode("utf-8")
+                .strip()
             )
         else:
             assert ProjectName("tox") in {
