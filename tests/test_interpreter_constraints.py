@@ -15,6 +15,7 @@ from pex.interpreter_constraints import (
     Lifecycle,
     UnsatisfiableError,
 )
+from pex.interpreter_implementation import InterpreterImplementation
 from pex.pex_warnings import PEXWarning
 from pex.typing import TYPE_CHECKING
 from testing import PY39, ensure_python_interpreter
@@ -28,8 +29,12 @@ def test_parse():
 
     assert py39 in InterpreterConstraint.parse("==3.9.*")
     assert py39 in InterpreterConstraint.parse("CPython==3.9.*")
-    assert py39 in InterpreterConstraint.parse("==3.9.*", default_interpreter="CPython")
-    assert py39 not in InterpreterConstraint.parse("==3.9.*", default_interpreter="PyPy")
+    assert py39 in InterpreterConstraint.parse(
+        "==3.9.*", default_interpreter=InterpreterImplementation.CPYTHON
+    )
+    assert py39 not in InterpreterConstraint.parse(
+        "==3.9.*", default_interpreter=InterpreterImplementation.PYPY
+    )
     assert py39 not in InterpreterConstraint.parse("PyPy==3.9.*")
 
     with pytest.raises(

@@ -6,7 +6,8 @@ from __future__ import absolute_import
 import os
 
 from pex.dist_metadata import Distribution, Requirement
-from pex.interpreter import PythonInterpreter, calculate_binary_name
+from pex.interpreter import PythonInterpreter
+from pex.interpreter_implementation import InterpreterImplementation
 from pex.orderedset import OrderedSet
 from pex.pep_425 import CompatibilityTags, RankedTag
 from pex.pep_508 import MarkerEnvironment
@@ -48,14 +49,25 @@ class Target(object):
     id = attr.ib()  # type: str
     platform = attr.ib()  # type: Platform
     marker_environment = attr.ib()  # type: MarkerEnvironment
+    implementation = attr.ib(init=False)  # type: Optional[InterpreterImplementation.Value]
+
+    def __attrs_post_init__(self):
+        interpreter_implementation = None  # type: Optional[InterpreterImplementation.Value]
+        for interpreter_impl in InterpreterImplementation.values():
+            if interpreter_impl.value == self.marker_environment.platform_python_implementation:
+                interpreter_implementation = interpreter_impl
+                break
+        object.__setattr__(self, "implementation", interpreter_implementation)
 
     def binary_name(self, version_components=2):
         # type: (int) -> str
-        return calculate_binary_name(
-            platform_python_implementation=self.marker_environment.platform_python_implementation,
-            python_version=self.python_version[:version_components]
-            if self.python_version and version_components > 0
-            else None,
+        interpreter_implementation = self.implementation or InterpreterImplementation.CPYTHON
+        return interpreter_implementation.calculate_binary_name(
+            version=(
+                self.python_version[:version_components]
+                if self.python_version and version_components > 0
+                else None
+            )
         )
 
     @property

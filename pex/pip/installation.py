@@ -384,7 +384,7 @@ class PipInstallation(object):
                 "{pip_version} requires Python {requires_python}.".format(
                     pip_requirement=self.version.requirement,
                     pip_version=self.version.value,
-                    python_impl=self.interpreter.identity.interpreter,
+                    python_impl=self.interpreter.identity.implementation,
                     python_version=self.interpreter.identity.version_str,
                     python_binary=self.interpreter.binary,
                     requires_python=self.version.requires_python,

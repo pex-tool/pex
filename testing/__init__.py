@@ -20,9 +20,9 @@ import pytest
 from pex.atomic_directory import atomic_directory
 from pex.common import open_zip, safe_mkdir, safe_mkdtemp, safe_rmtree, safe_sleep, temporary_dir
 from pex.dist_metadata import Distribution
-from pex.enum import Enum
 from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
+from pex.interpreter_implementation import InterpreterImplementation
 from pex.os import LINUX, MAC, WINDOWS
 from pex.pep_427 import install_wheel_chroot
 from pex.pex import PEX
@@ -702,20 +702,9 @@ def ensure_python_interpreter(version):
     return ensure_python_distribution(version).binary
 
 
-class InterpreterImplementation(Enum["InterpreterImplementation.Value"]):
-    class Value(Enum.Value):
-        pass
-
-    CPython = Value("CPython")
-    PyPy = Value("PyPy")
-
-
-InterpreterImplementation.seal()
-
-
 def find_python_interpreter(
     version=(),  # type: Tuple[int, ...]
-    implementation=InterpreterImplementation.CPython,  # type: InterpreterImplementation.Value
+    implementation=InterpreterImplementation.CPYTHON,  # type: InterpreterImplementation.Value
 ):
     # type: (...) -> Optional[str]
     for pyenv_version, penv_version_info in _ALL_PY_VERSIONS_TO_VERSION_INFO.items():
@@ -725,7 +714,7 @@ def find_python_interpreter(
     for interpreter in PythonInterpreter.iter():
         if version != interpreter.version[: len(version)]:
             continue
-        if implementation != InterpreterImplementation.for_value(interpreter.identity.interpreter):
+        if implementation is not interpreter.identity.implementation:
             continue
         return interpreter.binary
 

@@ -11,8 +11,9 @@ from textwrap import dedent
 from pex import dist_metadata, variables
 from pex.compatibility import shlex_quote
 from pex.dist_metadata import Distribution
-from pex.interpreter import PythonInterpreter, calculate_binary_name
+from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import InterpreterConstraints, iter_compatible_versions
+from pex.interpreter_implementation import InterpreterImplementation
 from pex.layout import Layout
 from pex.orderedset import OrderedSet
 from pex.os import WINDOWS
@@ -32,14 +33,12 @@ else:
 
 @attr.s(frozen=True)
 class PythonBinaryName(object):
-    name = attr.ib()  # type: str
+    implementation = attr.ib()  # type: InterpreterImplementation.Value
     version = attr.ib()  # type: Tuple[int, ...]
 
     def render(self, version_components=2):
         # type: (int) -> str
-        return "{name}{version}".format(
-            name=self.name, version=".".join(map(str, self.version[:version_components]))
-        )
+        return self.implementation.calculate_binary_name(self.version[:version_components])
 
 
 def _calculate_applicable_binary_names(
@@ -55,17 +54,15 @@ def _calculate_applicable_binary_names(
     ic_majors_minors = OrderedSet()  # type: OrderedSet[PythonBinaryName]
     if interpreter_constraints:
         ic_majors_minors.update(
-            PythonBinaryName(
-                name=calculate_binary_name(platform_python_implementation=name), version=version
-            )
+            PythonBinaryName(implementation=implementation, version=version)
             for interpreter_constraint in interpreter_constraints
             for version in iter_compatible_versions(
                 requires_python=[str(interpreter_constraint.requires_python)]
             )
-            for name in (
-                (interpreter_constraint.name,)
-                if interpreter_constraint.name
-                else ("CPython", "PyPy")
+            for implementation in (
+                (interpreter_constraint.implementation,)
+                if interpreter_constraint.implementation
+                else InterpreterImplementation.values()
             )
         )
     # If we get targets from ICs, we only want explicitly specified local interpreter targets;
@@ -75,10 +72,10 @@ def _calculate_applicable_binary_names(
     names = OrderedSet()  # type: OrderedSet[PythonBinaryName]
     # 1. Explicit targets 1st.
     for target in targets.unique_targets(only_explicit=only_explicit):
-        if target.python_version is not None:
+        if target.implementation and target.python_version is not None:
             names.add(
                 PythonBinaryName(
-                    name=target.binary_name(version_components=0), version=target.python_version
+                    implementation=target.implementation, version=target.python_version
                 )
             )
 
@@ -102,11 +99,12 @@ def _calculate_applicable_binary_names(
     # for CPython end targets and for PyPy it need not be quite as fast since it inherently asks you
     # to trade startup latency for longer term jit performance.
     names.update(
-        PythonBinaryName(name="python", version=version)
+        PythonBinaryName(implementation=InterpreterImplementation.CPYTHON, version=version)
         for version in pex_supported_python_versions
     )
     names.update(
-        PythonBinaryName(name="pypy", version=version) for version in pex_supported_python_versions
+        PythonBinaryName(implementation=InterpreterImplementation.PYPY, version=version)
+        for version in pex_supported_python_versions
     )
 
     # Favor more specific interpreter names since these should need re-direction less often.
