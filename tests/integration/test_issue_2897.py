@@ -5,8 +5,6 @@ from __future__ import absolute_import
 
 import re
 
-import attr
-
 from pex.dist_metadata import Requirement
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import InterpreterConstraint
@@ -15,9 +13,15 @@ from pex.pep_503 import ProjectName
 from pex.resolve.locked_resolve import LockedRequirement
 from pex.resolve.lockfile import json_codec
 from pex.resolve.lockfile.model import Lockfile
+from pex.typing import TYPE_CHECKING
 from testing import run_pex_command
 from testing.cli import run_pex3
 from testing.pytest_utils.tmp import Tempdir
+
+if TYPE_CHECKING:
+    import attr  # vendor:skip
+else:
+    from pex.third_party import attr
 
 
 def normalize_lock_configuration(lock_file):
