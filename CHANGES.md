@@ -1,5 +1,14 @@
 # Release Notes
 
+## 2.55.1
+
+This release fixes a bug present since the inception of `pex3 lock create --style universal`
+support. Previously, if the universal lock was created with `--interpreter-constraint`s, the
+Python implementation information was discarded; so, for example, even with
+`--interpreter-constraint CPython==3.13.*`, the lock resolve would consider PyPy in-play.
+
+* Respect `--interpreter-constraint` impl in locks. (#2898)
+
 ## 2.55.0
 
 This release adds support for `--override <project name>=<requirement>` wherever
