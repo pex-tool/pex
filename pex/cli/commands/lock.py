@@ -783,22 +783,6 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             ),
         )
 
-        update_parser.add_argument(
-            "--fingerprint-mismatch",
-            default=FingerprintMismatch.ERROR,
-            choices=FingerprintMismatch.values(),
-            type=FingerprintMismatch.for_value,
-            help=(
-                "What to do when a lock update would result in at least one artifact fingerprint "
-                "changing: {ignore!r} the mismatch and use the new fingerprint, {warn!r} about the "
-                "mismatch but use the new fingerprint anyway or {error!r} and refuse to use the "
-                "new mismatching fingerprint".format(
-                    ignore=FingerprintMismatch.IGNORE,
-                    warn=FingerprintMismatch.WARN,
-                    error=FingerprintMismatch.ERROR,
-                )
-            ),
-        )
         cls._add_lockfile_option(update_parser, verb="update")
         cls._add_lock_options(update_parser)
         cls.add_json_options(update_parser, entity="lock", include_switch=False)
@@ -842,6 +826,22 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 "the report is to STDOUT and the exit code is zero. If a value of {check!r} is "
                 "passed, the report is to STDERR and the exit code is non-zero.".format(
                     check=DryRunStyle.CHECK
+                )
+            ),
+        )
+        update_parser.add_argument(
+            "--fingerprint-mismatch",
+            default=FingerprintMismatch.ERROR,
+            choices=FingerprintMismatch.values(),
+            type=FingerprintMismatch.for_value,
+            help=(
+                "What to do when a lock update would result in at least one artifact fingerprint "
+                "changing: {ignore!r} the mismatch and use the new fingerprint, {warn!r} about the "
+                "mismatch but use the new fingerprint anyway or {error!r} and refuse to use the "
+                "new mismatching fingerprint".format(
+                    ignore=FingerprintMismatch.IGNORE,
+                    warn=FingerprintMismatch.WARN,
+                    error=FingerprintMismatch.ERROR,
                 )
             ),
         )

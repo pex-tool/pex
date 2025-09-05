@@ -123,7 +123,7 @@
           "artifacts": [
             {
               "algorithm": "sha256",
-              "hash": "b2c9f4ad6903854d6fcd24eb0868904f5d9223d6285da53163f352ca336e1854",
+              "hash": "15c71f5312cec4d55b23b529579eccbc58e9c36100a906d1de1c66301090f6a9",
               "url": "https://www.piwheels.org/simple/psutil/psutil-7.0.0-cp36-abi3-linux_armv7l.whl"
             }
           ],
@@ -144,7 +144,7 @@
   "only_wheels": [],
   "overridden": [],
   "path_mappings": {},
-  "pex_version": "2.54.0",
+  "pex_version": "2.55.0",
   "pip_version": "25.2",
   "prefer_older_binary": false,
   "requirements": [
