@@ -5,6 +5,8 @@ from __future__ import absolute_import
 
 import re
 
+import attr
+
 from pex.dist_metadata import Requirement
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import InterpreterConstraint
@@ -12,9 +14,25 @@ from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.resolve.locked_resolve import LockedRequirement
 from pex.resolve.lockfile import json_codec
+from pex.resolve.lockfile.model import Lockfile
 from testing import run_pex_command
 from testing.cli import run_pex3
 from testing.pytest_utils.tmp import Tempdir
+
+
+def normalize_lock_configuration(lock_file):
+    # type: (str) -> Lockfile
+
+    lock = json_codec.load(lock_file)
+    return attr.evolve(
+        lock,
+        configuration=attr.evolve(
+            lock.configuration,
+            universal_target=attr.evolve(
+                lock.configuration.universal_target, implementation=None, requires_python=()
+            ),
+        ),
+    )
 
 
 def test_ics_implementation_conflicting(tmpdir):
@@ -33,9 +51,83 @@ def test_ics_implementation_conflicting(tmpdir):
     ).assert_failure(
         expected_error_re=re.escape(
             "The interpreter constraints for a universal resolve cannot have mixed "
-            "implementations. Given: CPython<3.12,>=3.10 or PyPy<3.12,>=3.9"
+            "implementations with differing specifiers.\n"
+            "If you feel you need this support, please comment here: "
+            "https://github.com/pex-tool/pex/issues/2897#issuecomment-3256619591\n"
+            "Given: CPython<3.12,>=3.10 or PyPy<3.12,>=3.9"
         )
     )
+
+    run_pex3(
+        "lock",
+        "create",
+        "--style",
+        "universal",
+        "--interpreter-constraint",
+        ">=3.10,<3.12",
+        "--interpreter-constraint",
+        "PyPy>=3.10,<3.12",
+        "vcrpy==7.0.0",
+    ).assert_failure(
+        expected_error_re=re.escape(
+            "The interpreter constraints for a universal resolve cannot have mixed implementations "
+            "unless they are all explicit and span the full set of Pex supported implementations: "
+            "CPython and PyPy.\n"
+            "Given: <3.12,>=3.10 or PyPy<3.12,>=3.10"
+        )
+    )
+
+    lock1 = tmpdir.join("lock1.json")
+    run_pex3(
+        "lock",
+        "create",
+        "--style",
+        "universal",
+        "--interpreter-constraint",
+        "CPython>=3.10,<3.12",
+        "--interpreter-constraint",
+        "PyPy>=3.10,<3.12",
+        "vcrpy==7.0.0",
+        "--indent",
+        "2",
+        "-o",
+        lock1,
+    ).assert_success()
+
+    lock2 = tmpdir.join("lock2.json")
+    run_pex3(
+        "lock",
+        "create",
+        "--style",
+        "universal",
+        "--interpreter-constraint",
+        ">=3.10,<3.12",
+        "vcrpy==7.0.0",
+        "--indent",
+        "2",
+        "-o",
+        lock2,
+    ).assert_success()
+
+    assert normalize_lock_configuration(lock1) == normalize_lock_configuration(lock2)
+
+    lock3 = tmpdir.join("lock3.json")
+    run_pex3(
+        "lock",
+        "create",
+        "--style",
+        "universal",
+        "--interpreter-constraint",
+        "==3.10.*",
+        "--interpreter-constraint",
+        "==3.11.*",
+        "vcrpy==7.0.0",
+        "--indent",
+        "2",
+        "-o",
+        lock3,
+    ).assert_success()
+    assert normalize_lock_configuration(lock2) == normalize_lock_configuration(lock3)
 
 
 def test_ic_implementation_respected(
@@ -45,7 +137,6 @@ def test_ic_implementation_respected(
     # type: (...) -> None
 
     lock_file = tmpdir.join("lock.json")
-    pex_root = tmpdir.join("pex-root")
 
     def assert_vcr_lock(interpreter_constraint):
         # type: (str) -> LockedRequirement
@@ -53,8 +144,6 @@ def test_ic_implementation_respected(
         run_pex3(
             "lock",
             "create",
-            "--pex-root",
-            pex_root,
             "--style",
             "universal",
             "--interpreter-constraint",
@@ -94,10 +183,6 @@ def test_ic_implementation_respected(
     assert urllib3.pin.version >= pypy_version_ceiling
     run_pex_command(
         args=[
-            "--pex-root",
-            pex_root,
-            "--runtime-pex-root",
-            pex_root,
             "--lock",
             lock_file,
             "--",
@@ -107,5 +192,10 @@ def test_ic_implementation_respected(
         python=py311.binary,
     ).assert_success(expected_output_re=r"^7\.0\.0$")
 
-    urllib3 = assert_vcr_lock("PyPy>=3.10,<3.12")
-    assert urllib3.pin.version < pypy_version_ceiling
+    pypy_constraint = "PyPy>=3.10,<3.12"
+    if any(
+        InterpreterConstraint.matches(pypy_constraint, interpreter)
+        for interpreter in PythonInterpreter.iter()
+    ):
+        urllib3 = assert_vcr_lock(pypy_constraint)
+        assert urllib3.pin.version < pypy_version_ceiling

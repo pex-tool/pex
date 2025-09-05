@@ -5,7 +5,6 @@ import sys
 from textwrap import dedent
 
 import pytest
-from packaging.specifiers import SpecifierSet
 
 from pex import interpreter_constraints
 from pex.interpreter import PythonInterpreter
@@ -18,6 +17,7 @@ from pex.interpreter_constraints import (
 )
 from pex.interpreter_implementation import InterpreterImplementation
 from pex.pex_warnings import PEXWarning
+from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.typing import TYPE_CHECKING
 from testing import PY39, ensure_python_interpreter
 

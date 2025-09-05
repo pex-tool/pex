@@ -41,9 +41,9 @@ class PatchContext(object):
         if universal_target_data:
             implementation = universal_target_data["implementation"]
             universal_target = UniversalTarget(
-                implementation=InterpreterImplementation.for_value(implementation)
-                if implementation
-                else None,
+                implementation=(
+                    InterpreterImplementation.for_value(implementation) if implementation else None
+                ),
                 requires_python=tuple(
                     SpecifierSet(requires_python)
                     for requires_python in universal_target_data["requires_python"]

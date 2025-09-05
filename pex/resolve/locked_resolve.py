@@ -16,6 +16,7 @@ from pex.dist_metadata import DistMetadata, Requirement, is_sdist, is_wheel
 from pex.enum import Enum
 from pex.exceptions import production_assert
 from pex.interpreter_constraints import InterpreterConstraint
+from pex.interpreter_implementation import InterpreterImplementation
 from pex.orderedset import OrderedSet
 from pex.pep_425 import CompatibilityTags, TagRank
 from pex.pep_503 import ProjectName
@@ -80,14 +81,32 @@ class LockConfiguration(object):
     ):
         # type: (...) -> LockConfiguration
 
-        implementations = {
-            interpreter_constraint.implementation
-            for interpreter_constraint in interpreter_constraints
-        }
-        if len(implementations) > 1:
+        implementations = defaultdict(
+            set
+        )  # type: DefaultDict[Optional[InterpreterImplementation.Value], Set[SpecifierSet]]
+        for interpreter_constraint in interpreter_constraints:
+            implementations[interpreter_constraint.implementation].add(
+                interpreter_constraint.requires_python
+            )
+        if len(implementations) > 1 and frozenset(implementations) != frozenset(
+            InterpreterImplementation.values()
+        ):
             raise ValueError(
                 "The interpreter constraints for a universal resolve cannot have mixed "
-                "implementations. Given: {constraints}".format(
+                "implementations unless they are all explicit and span the full set of Pex "
+                "supported implementations: {implementations}.\n"
+                "Given: {constraints}".format(
+                    implementations=" and ".join(map(str, InterpreterImplementation.values())),
+                    constraints=" or ".join(map(str, interpreter_constraints)),
+                )
+            )
+        elif len(set(map(frozenset, implementations.values()))) > 1:
+            raise ValueError(
+                "The interpreter constraints for a universal resolve cannot have mixed "
+                "implementations with differing specifiers.\n"
+                "If you feel you need this support, please comment here: "
+                "https://github.com/pex-tool/pex/issues/2897#issuecomment-3256619591\n"
+                "Given: {constraints}".format(
                     constraints=" or ".join(map(str, interpreter_constraints))
                 )
             )
@@ -95,7 +114,7 @@ class LockConfiguration(object):
         return cls(
             style=LockStyle.UNIVERSAL,
             universal_target=UniversalTarget(
-                implementation=implementations.pop() if implementations else None,
+                implementation=next(iter(implementations)) if len(implementations) == 1 else None,
                 requires_python=tuple(
                     interpreter_constraint.requires_python
                     for interpreter_constraint in interpreter_constraints
