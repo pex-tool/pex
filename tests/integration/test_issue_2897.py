@@ -39,8 +39,8 @@ def normalize_lock_configuration(lock_file):
     )
 
 
-def test_ics_implementation_conflicting(tmpdir):
-    # type: (Tempdir) -> None
+def test_ics_implementation_conflicting():
+    # type: () -> None
 
     run_pex3(
         "lock",
@@ -81,56 +81,52 @@ def test_ics_implementation_conflicting(tmpdir):
         )
     )
 
+
+def test_ics_implementation_covering_specifiers_matching(tmpdir):
+    # type: (Tempdir) -> None
+
+    def lock_vcr(
+        lock_file,  # type: str
+        *extra_args  # type: str
+    ):
+        # type: (...) -> None
+        run_pex3(
+            "lock",
+            "create",
+            "--style",
+            "universal",
+            "vcrpy==7.0.0",
+            "--indent",
+            "2",
+            "-o",
+            lock_file,
+            *extra_args
+        ).assert_success()
+
     lock1 = tmpdir.join("lock1.json")
-    run_pex3(
-        "lock",
-        "create",
-        "--style",
-        "universal",
+    lock2 = tmpdir.join("lock2.json")
+    lock_vcr(
+        lock1,
         "--interpreter-constraint",
         "CPython>=3.10,<3.12",
         "--interpreter-constraint",
         "PyPy>=3.10,<3.12",
-        "vcrpy==7.0.0",
-        "--indent",
-        "2",
-        "-o",
-        lock1,
-    ).assert_success()
-
-    lock2 = tmpdir.join("lock2.json")
-    run_pex3(
-        "lock",
-        "create",
-        "--style",
-        "universal",
+    )
+    lock_vcr(
+        lock2,
         "--interpreter-constraint",
         ">=3.10,<3.12",
-        "vcrpy==7.0.0",
-        "--indent",
-        "2",
-        "-o",
-        lock2,
-    ).assert_success()
-
+    )
     assert normalize_lock_configuration(lock1) == normalize_lock_configuration(lock2)
 
     lock3 = tmpdir.join("lock3.json")
-    run_pex3(
-        "lock",
-        "create",
-        "--style",
-        "universal",
+    lock_vcr(
+        lock3,
         "--interpreter-constraint",
         "==3.10.*",
         "--interpreter-constraint",
         "==3.11.*",
-        "vcrpy==7.0.0",
-        "--indent",
-        "2",
-        "-o",
-        lock3,
-    ).assert_success()
+    )
     assert normalize_lock_configuration(lock2) == normalize_lock_configuration(lock3)
 
 
