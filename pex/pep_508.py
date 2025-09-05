@@ -3,6 +3,7 @@
 
 from __future__ import absolute_import
 
+from pex.interpreter_implementation import InterpreterImplementation
 from pex.platforms import Platform
 from pex.third_party.packaging import markers
 from pex.typing import TYPE_CHECKING
@@ -117,11 +118,9 @@ class MarkerEnvironment(object):
             sys_platform = "win32"
 
         platform_python_implementation = None
-
-        if platform.impl == "cp":
-            platform_python_implementation = "CPython"
-        elif platform.impl == "pp":
-            platform_python_implementation = "PyPy"
+        for implementation in InterpreterImplementation.values():
+            if implementation.abbr == platform.impl:
+                platform_python_implementation = implementation.value
 
         python_version = ".".join(map(str, platform.version_info[:2]))
 

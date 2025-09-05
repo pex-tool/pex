@@ -15,7 +15,9 @@ from pex.interpreter_constraints import (
     Lifecycle,
     UnsatisfiableError,
 )
+from pex.interpreter_implementation import InterpreterImplementation
 from pex.pex_warnings import PEXWarning
+from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.typing import TYPE_CHECKING
 from testing import PY39, ensure_python_interpreter
 
@@ -28,8 +30,12 @@ def test_parse():
 
     assert py39 in InterpreterConstraint.parse("==3.9.*")
     assert py39 in InterpreterConstraint.parse("CPython==3.9.*")
-    assert py39 in InterpreterConstraint.parse("==3.9.*", default_interpreter="CPython")
-    assert py39 not in InterpreterConstraint.parse("==3.9.*", default_interpreter="PyPy")
+    assert py39 in InterpreterConstraint.parse(
+        "==3.9.*", default_interpreter=InterpreterImplementation.CPYTHON
+    )
+    assert py39 not in InterpreterConstraint.parse(
+        "==3.9.*", default_interpreter=InterpreterImplementation.PYPY
+    )
     assert py39 not in InterpreterConstraint.parse("PyPy==3.9.*")
 
     with pytest.raises(
@@ -82,7 +88,9 @@ def test_parse():
 
 def iter_compatible_versions(*requires_python):
     # type: (*str) -> List[Tuple[int, int, int]]
-    return list(interpreter_constraints.iter_compatible_versions(list(requires_python)))
+    return list(
+        interpreter_constraints.iter_compatible_versions(map(SpecifierSet, requires_python))
+    )
 
 
 def test_iter_compatible_versions_none():
@@ -166,7 +174,11 @@ def test_iter_compatible_versions_non_eol():
     ) == list(
         interpreter_constraints.iter_compatible_versions(
             [
-                "=={major}.{minor}.*".format(major=python_version.major, minor=python_version.minor)
+                SpecifierSet(
+                    "=={major}.{minor}.*".format(
+                        major=python_version.major, minor=python_version.minor
+                    )
+                )
                 for python_version in (oldest_python_version, newest_python_version)
             ],
             max_patch=max_patch,

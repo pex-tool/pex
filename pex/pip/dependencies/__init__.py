@@ -9,9 +9,11 @@ import os
 from pex.common import safe_mkdtemp
 from pex.dependency_configuration import DependencyConfiguration
 from pex.exceptions import reportable_unexpected_error_msg
+from pex.interpreter_implementation import InterpreterImplementation
 from pex.pep_508 import MarkerEnvironment
 from pex.pip.download_observer import DownloadObserver, Patch, PatchSet
 from pex.resolve.target_system import TargetSystem, UniversalTarget
+from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
@@ -37,9 +39,14 @@ class PatchContext(object):
         universal_target = None  # type: Optional[UniversalTarget]
         universal_target_data = data["universal_target"]
         if universal_target_data:
+            implementation = universal_target_data["implementation"]
             universal_target = UniversalTarget(
+                implementation=(
+                    InterpreterImplementation.for_value(implementation) if implementation else None
+                ),
                 requires_python=tuple(
-                    requires_python for requires_python in universal_target_data["requires_python"]
+                    SpecifierSet(requires_python)
+                    for requires_python in universal_target_data["requires_python"]
                 ),
                 systems=tuple(
                     TargetSystem.for_value(system) for system in universal_target_data["systems"]
@@ -88,7 +95,14 @@ class PatchContext(object):
                     ],
                     "universal_target": (
                         {
-                            "requires_python": extra_data.requires_python,
+                            "implementation": (
+                                str(extra_data.implementation)
+                                if extra_data.implementation
+                                else None
+                            ),
+                            "requires_python": [
+                                str(specifier_set) for specifier_set in extra_data.requires_python
+                            ],
                             "systems": [str(system) for system in extra_data.systems],
                         }
                         if isinstance(extra_data, UniversalTarget)

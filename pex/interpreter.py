@@ -18,7 +18,9 @@ from textwrap import dedent
 from pex import third_party
 from pex.cache.dirs import InterpreterDir
 from pex.common import safe_mkdtemp, safe_rmtree
+from pex.exceptions import production_assert
 from pex.executor import Executor
+from pex.interpreter_implementation import InterpreterImplementation
 from pex.jobs import Job, Retain, SpawnedJob, execute_parallel
 from pex.orderedset import OrderedSet
 from pex.os import WINDOWS, is_exe
@@ -59,18 +61,6 @@ if TYPE_CHECKING:
     # identification jobs to these end-user InterpreterIdentificationErrors for display.
     InterpreterIdentificationError = Tuple[str, Text]
     InterpreterOrError = Union["PythonInterpreter", InterpreterIdentificationError]
-
-
-def calculate_binary_name(
-    platform_python_implementation, python_version=None  # type: Optional[Tuple[int, ...]]
-):
-    # type: (...) -> str
-    name = "python"
-    if platform_python_implementation == "PyPy":
-        name = "pypy"
-    if not python_version:
-        return name
-    return "{name}{version}".format(name=name, version=".".join(map(str, python_version)))
 
 
 class SitePackagesDir(object):
@@ -404,11 +394,11 @@ class PythonIdentity(object):
         )
 
     @classmethod
-    def _find_interpreter_name(cls, python_tag):
-        # type: (str) -> str
-        for abbr, interpreter in cls.ABBR_TO_INTERPRETER_NAME.items():
-            if python_tag.startswith(abbr):
-                return interpreter
+    def _find_implementation(cls, python_tag):
+        # type: (str) -> InterpreterImplementation.Value
+        for implementation in InterpreterImplementation.values():
+            if python_tag.startswith(implementation.abbr):
+                return implementation
         raise ValueError("Unknown interpreter: {}".format(python_tag))
 
     def __init__(
@@ -431,9 +421,12 @@ class PythonIdentity(object):
         configured_macosx_deployment_target,  # type: Optional[str]
     ):
         # type: (...) -> None
-        # N.B.: We keep this mapping to support historical values for `distribution` and
-        # `requirement` properties.
-        self._interpreter_name = self._find_interpreter_name(python_tag)
+
+        self._implementation = self._find_implementation(python_tag)
+        production_assert(
+            not pypy_version or self._implementation is InterpreterImplementation.PYPY
+        )
+        self._pypy_version = pypy_version
 
         self._binary = binary
         self._prefix = prefix
@@ -447,7 +440,6 @@ class PythonIdentity(object):
         self._abi_tag = abi_tag
         self._platform_tag = platform_tag
         self._version = version
-        self._pypy_version = pypy_version
         self._supported_tags = CompatibilityTags(tags=supported_tags)
         self._env_markers = env_markers
         self._configured_macosx_deployment_target = configured_macosx_deployment_target
@@ -570,7 +562,7 @@ class PythonIdentity(object):
     @property
     def is_pypy(self):
         # type: () -> bool
-        return bool(self._pypy_version)
+        return self._implementation is InterpreterImplementation.PYPY
 
     @property
     def version_str(self):
@@ -593,9 +585,9 @@ class PythonIdentity(object):
         return self._configured_macosx_deployment_target
 
     @property
-    def interpreter(self):
-        # type: () -> str
-        return self._interpreter_name
+    def implementation(self):
+        # type: () -> InterpreterImplementation.Value
+        return self._implementation
 
     def iter_supported_platforms(self):
         # type: () -> Iterator[Platform]
@@ -614,9 +606,8 @@ class PythonIdentity(object):
 
     def binary_name(self, version_components=2):
         # type: (int) -> str
-        return calculate_binary_name(
-            platform_python_implementation=self._interpreter_name,
-            python_version=self._version[:version_components] if version_components > 0 else None,
+        return self._implementation.calculate_binary_name(
+            version=self._version[:version_components] if version_components > 0 else None
         )
 
     def hashbang(self):
@@ -636,8 +627,8 @@ class PythonIdentity(object):
         # type: () -> str
         # N.B.: Kept as distinct from __repr__ to support legacy str(identity) used by Pants v1 when
         # forming cache locations.
-        return "{interpreter_name}-{major}.{minor}.{patch}".format(
-            interpreter_name=self._interpreter_name,
+        return "{implementation}-{major}.{minor}.{patch}".format(
+            implementation=self._implementation,
             major=self._version[0],
             minor=self._version[1],
             patch=self._version[2],
@@ -1438,13 +1429,13 @@ class PythonInterpreter(object):
         # python<major>.<minor> is present in any given <prefix>/bin/ directory; so the algorithm
         # gets a hit on 1st try for CPython binaries incurring ~no extra overhead.
 
+        implementation = self._identity.implementation
         version = self._identity.version
         abi_tag = self._identity.abi_tag
 
-        prefix = "pypy" if self.is_pypy else "python"
-        suffixes = ("{}.{}".format(version[0], version[1]), str(version[0]), "")
+        versions = version[:2], version[:1], None
         candidate_binaries = tuple(
-            script_name("{}{}".format(prefix, suffix)) for suffix in suffixes
+            script_name(implementation.calculate_binary_name(version)) for version in versions
         )
 
         def iter_base_candidate_binary_paths(interpreter):

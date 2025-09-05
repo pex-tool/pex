@@ -40,10 +40,20 @@ def patch_marker_evaluate():
     from pip._vendor.packaging import markers
 
     from pex.exceptions import production_assert
+    from pex.interpreter_implementation import InterpreterImplementation
     from pex.typing import TYPE_CHECKING
 
     if TYPE_CHECKING:
         from typing import Any, Callable, Dict, Iterable, List, Tuple, Type
+
+    interpreter_implementation = os.environ.get("_PEX_INTERPRETER_IMPLEMENTATION")
+    interpreter_implementations = []  # type: List[str]
+    if interpreter_implementation:
+        interpreter_implementations.append(str(interpreter_implementation))
+    else:
+        interpreter_implementations.extend(
+            str(implementation) for implementation in InterpreterImplementation.values()
+        )
 
     original_eval_op = markers._eval_op
 
@@ -118,6 +128,8 @@ def patch_marker_evaluate():
                         "'extra' does not exist in evaluation environment."
                     )
                 return original_extra
+            if name == "platform_python_implementation":
+                return interpreter_implementations
             if name == "python_version":
                 return python_versions_strings
             if name == "python_full_version":

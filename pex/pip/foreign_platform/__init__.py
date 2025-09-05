@@ -12,6 +12,7 @@ from pex.pep_425 import CompatibilityTags
 from pex.pip.download_observer import DownloadObserver, Patch, PatchSet
 from pex.platforms import PlatformSpec
 from pex.targets import AbbreviatedPlatform, CompletePlatform, Target
+from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 
@@ -156,7 +157,7 @@ def patch(target):
         "environment markers defined and an abbreviated platform should always have at least the"
         "`python_version` environment marker defined. Given: {target}".format(target=target)
     )
-    requires_python = (
+    requires_python = SpecifierSet(
         "=={full_version}".format(full_version=target.marker_environment.python_full_version)
         if target.marker_environment.python_full_version
         else "=={version}.*".format(version=target.marker_environment.python_version)
@@ -179,7 +180,7 @@ def patch_tags(
 
 
 def patch_requires_python(
-    requires_python,  # type: Iterable[str]
+    requires_python,  # type: Iterable[SpecifierSet]
     patches_dir=None,  # type: Optional[str]
 ):
     # type: (...) -> Patch
@@ -193,7 +194,7 @@ def patch_requires_python(
     """
     with TRACER.timed(
         "Calculating compatible python versions for {requires_python}".format(
-            requires_python=requires_python
+            requires_python=" or ".join(map(str, requires_python))
         )
     ):
         python_full_versions = list(iter_compatible_versions(requires_python))

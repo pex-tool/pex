@@ -265,16 +265,6 @@ class Locker(LogAnalyzer):
         self._local_projects = OrderedSet()  # type: OrderedSet[str]
         self._lock_result = None  # type: Optional[LockResult]
 
-    @property
-    def style(self):
-        # type: () -> LockStyle.Value
-        return self._lock_configuration.style
-
-    @property
-    def requires_python(self):
-        # type: () -> Tuple[str, ...]
-        return self._lock_configuration.requires_python
-
     def should_collect(self, returncode):
         # type: (int) -> bool
         return returncode == 0
@@ -524,7 +514,7 @@ class Locker(LogAnalyzer):
                 self._saved.add(build_result_pin)
             return self.Continue()
 
-        if self.style in (LockStyle.SOURCES, LockStyle.UNIVERSAL):
+        if self._lock_configuration.style in (LockStyle.SOURCES, LockStyle.UNIVERSAL):
             match = re.search(r"Found link (?P<url>\S+)(?: \(from .*\))?, version: ", line)
             if match:
                 url = self.parse_url_and_maybe_record_fingerprint(match.group("url"))
@@ -615,39 +605,37 @@ _PLATFORM_TAG_REGEXP = {
 def patch(lock_configuration):
     # type: (LockConfiguration) -> PatchSet
 
-    if lock_configuration.style != LockStyle.UNIVERSAL:
+    if not lock_configuration.universal_target:
         return PatchSet()
 
+    universal_target = lock_configuration.universal_target
     patches_dir = safe_mkdtemp()
     patches = []
-    if lock_configuration.requires_python:
+    if universal_target.requires_python:
         patches.append(
             foreign_platform.patch_requires_python(
-                requires_python=lock_configuration.requires_python, patches_dir=patches_dir
+                requires_python=universal_target.requires_python,
+                patches_dir=patches_dir,
             )
         )
 
     env = {}  # type: Dict[str, str]
-    if lock_configuration.target_systems and set(lock_configuration.target_systems) != set(
-        TargetSystem.values()
-    ):
+    if universal_target.implementation:
+        env.update(_PEX_INTERPRETER_IMPLEMENTATION=str(universal_target.implementation))
+
+    if universal_target.systems and set(universal_target.systems) != set(TargetSystem.values()):
         target_systems = {
-            "os_names": [
-                _OS_NAME[target_system] for target_system in lock_configuration.target_systems
-            ],
+            "os_names": [_OS_NAME[target_system] for target_system in universal_target.systems],
             "platform_systems": [
-                _PLATFORM_SYSTEM[target_system]
-                for target_system in lock_configuration.target_systems
+                _PLATFORM_SYSTEM[target_system] for target_system in universal_target.systems
             ],
             "sys_platforms": list(
                 itertools.chain.from_iterable(
-                    _SYS_PLATFORMS[target_system]
-                    for target_system in lock_configuration.target_systems
+                    _SYS_PLATFORMS[target_system] for target_system in universal_target.systems
                 )
             ),
             "platform_tag_regexps": [
-                _PLATFORM_TAG_REGEXP[target_system]
-                for target_system in lock_configuration.target_systems
+                _PLATFORM_TAG_REGEXP[target_system] for target_system in universal_target.systems
             ],
         }
         with open(os.path.join(patches_dir, "target_systems.json"), "w") as fp:

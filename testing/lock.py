@@ -3,7 +3,6 @@
 
 from __future__ import absolute_import
 
-from pex.interpreter_constraints import InterpreterConstraint
 from pex.pep_503 import ProjectName
 from pex.resolve.locked_resolve import LockedRequirement
 from pex.resolve.lockfile import json_codec
@@ -36,12 +35,14 @@ def extract_lock_option_args(lock_file):
         "--resolver-version",
         str(lock.resolver_version),
         "--style",
-        str(lock.style),
+        str(lock.configuration.style),
     ]
-    for requires_python in lock.requires_python:
-        lock_args.append("--interpreter-constraint")
-        lock_args.append(str(InterpreterConstraint.parse(requires_python)))
-    for target_system in lock.target_systems:
-        lock_args.append("--target-system")
-        lock_args.append(str(target_system))
+    if lock.configuration.universal_target:
+        universal_target = lock.configuration.universal_target
+        for interpreter_constraint in universal_target.iter_interpreter_constraints():
+            lock_args.append("--interpreter-constraint")
+            lock_args.append(str(interpreter_constraint))
+        for target_system in universal_target.systems:
+            lock_args.append("--target-system")
+            lock_args.append(str(target_system))
     return lock_args

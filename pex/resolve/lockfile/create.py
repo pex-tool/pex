@@ -529,7 +529,7 @@ def create(
             extra_pip_requirements=pip_configuration.extra_requirements,
             keyring_provider=pip_configuration.keyring_provider,
             dependency_configuration=dependency_configuration,
-            universal_target=lock_configuration.target,
+            universal_target=lock_configuration.universal_target,
         )
     except resolvers.ResolveError as e:
         return Error(str(e))
@@ -560,9 +560,7 @@ def create(
 
     lock = Lockfile.create(
         pex_version=__version__,
-        style=lock_configuration.style,
-        requires_python=lock_configuration.requires_python,
-        target_systems=lock_configuration.target_systems,
+        lock_configuration=lock_configuration,
         pip_version=pip_configuration.version,
         resolver_version=pip_configuration.resolver_version,
         requirements=parsed_requirements,
@@ -573,7 +571,6 @@ def create(
         excluded=dependency_configuration.excluded,
         overridden=dependency_configuration.all_overrides(),
         locked_resolves=locked_resolves,
-        elide_unused_requires_dist=lock_configuration.elide_unused_requires_dist,
     )
 
     if lock_configuration.style is LockStyle.UNIVERSAL and (

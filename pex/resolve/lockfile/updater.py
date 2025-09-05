@@ -707,7 +707,7 @@ class LockUpdater(object):
         )
         return cls(
             lock_file=lock_file,
-            lock_configuration=lock_file.lock_configuration(),
+            lock_configuration=lock_file.configuration,
             pip_configuration=pip_configuration,
             dependency_configuration=dependency_configuration,
         )

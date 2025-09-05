@@ -195,6 +195,8 @@ def create_lock(
         "2",
         "--lock",
         str(lock_file),
+        "--fingerprint-mismatch",
+        "warn",
     ]
     args.extend(scie_config.extra_lock_args)
     subprocess.run(args=args, check=True)

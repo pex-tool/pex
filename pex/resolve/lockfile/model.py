@@ -11,16 +11,10 @@ from pex.orderedset import OrderedSet
 from pex.pep_503 import ProjectName
 from pex.pip.version import PipVersion, PipVersionValue
 from pex.requirements import LocalProjectRequirement
-from pex.resolve.locked_resolve import (
-    LocalProjectArtifact,
-    LockConfiguration,
-    LockedResolve,
-    LockStyle,
-)
+from pex.resolve.locked_resolve import LocalProjectArtifact, LockConfiguration, LockedResolve
 from pex.resolve.lockfile import requires_dist
 from pex.resolve.resolved_requirement import Pin
 from pex.resolve.resolver_configuration import BuildConfiguration, ResolverVersion
-from pex.resolve.target_system import TargetSystem, UniversalTarget
 from pex.sorted_tuple import SortedTuple
 from pex.typing import TYPE_CHECKING
 
@@ -40,9 +34,7 @@ class Lockfile(object):
     def create(
         cls,
         pex_version,  # type: str
-        style,  # type: LockStyle.Value
-        requires_python,  # type: Iterable[str]
-        target_systems,  # type: Iterable[TargetSystem.Value]
+        lock_configuration,  # type: LockConfiguration
         requirements,  # type: Iterable[Union[Requirement, ParsedRequirement]]
         constraints,  # type: Iterable[Constraint]
         allow_prereleases,  # type: bool
@@ -54,7 +46,6 @@ class Lockfile(object):
         source=None,  # type: Optional[str]
         pip_version=None,  # type: Optional[PipVersionValue]
         resolver_version=None,  # type: Optional[ResolverVersion.Value]
-        elide_unused_requires_dist=False,  # type: bool
     ):
         # type: (...) -> Lockfile
 
@@ -96,14 +87,11 @@ class Lockfile(object):
             return req.requirement
 
         resolve_requirements = OrderedSet(extract_requirement(req) for req in requirements)
-
         pip_ver = pip_version or PipVersion.DEFAULT
+
         return cls(
             pex_version=pex_version,
-            style=style,
-            requires_python=SortedTuple(requires_python),
-            target_systems=SortedTuple(target_systems),
-            elide_unused_requires_dist=elide_unused_requires_dist,
+            configuration=lock_configuration,
             pip_version=pip_ver,
             resolver_version=resolver_version or ResolverVersion.default(pip_ver),
             requirements=SortedTuple(resolve_requirements, key=str),
@@ -125,13 +113,12 @@ class Lockfile(object):
                     requires_dist.remove_unused_requires_dist(
                         resolve_requirements,
                         locked_resolve,
-                        requires_python=requires_python,
-                        target_systems=target_systems,
+                        universal_target=lock_configuration.universal_target,
                         dependency_configuration=DependencyConfiguration.create(
                             excluded=excluded, overridden=overridden
                         ),
                     )
-                    if elide_unused_requires_dist
+                    if lock_configuration.elide_unused_requires_dist
                     else locked_resolve
                 )
                 for locked_resolve in locked_resolves
@@ -141,10 +128,7 @@ class Lockfile(object):
         )
 
     pex_version = attr.ib()  # type: str
-    style = attr.ib()  # type: LockStyle.Value
-    requires_python = attr.ib()  # type: SortedTuple[str]
-    target_systems = attr.ib()  # type: SortedTuple[TargetSystem.Value]
-    elide_unused_requires_dist = attr.ib()  # type: bool
+    configuration = attr.ib()  # type: LockConfiguration
     pip_version = attr.ib()  # type: PipVersionValue
     resolver_version = attr.ib()  # type: ResolverVersion.Value
     requirements = attr.ib()  # type: SortedTuple[Requirement]
@@ -164,18 +148,6 @@ class Lockfile(object):
     locked_resolves = attr.ib()  # type: SortedTuple[LockedResolve]
     local_project_requirement_mapping = attr.ib(eq=False)  # type: Mapping[str, Requirement]
     source = attr.ib(default=None, eq=False)  # type: Optional[str]
-
-    def lock_configuration(self):
-        # type: () -> LockConfiguration
-        return LockConfiguration(
-            style=self.style,
-            target=(
-                UniversalTarget(requires_python=self.requires_python, systems=self.target_systems)
-                if self.style is LockStyle.UNIVERSAL
-                else None
-            ),
-            elide_unused_requires_dist=self.elide_unused_requires_dist,
-        )
 
     def build_configuration(self):
         # type: () -> BuildConfiguration

@@ -9,6 +9,7 @@ from pex.auth import PasswordDatabase, PasswordEntry
 from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import Requirement, is_wheel
 from pex.exceptions import production_assert
+from pex.interpreter_constraints import InterpreterConstraint
 from pex.network_configuration import NetworkConfiguration
 from pex.pep_427 import InstallableType
 from pex.pep_503 import ProjectName
@@ -157,7 +158,11 @@ def resolve_from_pylock(
         # This ensures artifact downloads via Pip will not be rejected by Pip for mismatched
         # target interpreters, etc.
         lock_configuration=LockConfiguration.universal(
-            requires_python=[pylock.requires_python] if pylock.requires_python else []
+            interpreter_constraints=(
+                [InterpreterConstraint(specifier=pylock.requires_python)]
+                if pylock.requires_python
+                else []
+            )
         ),
         resolver=resolver,
         indexes=indexes,
@@ -241,7 +246,11 @@ def download_from_pylock(
         # This ensures artifact downloads via Pip will not be rejected by Pip for mismatched
         # target interpreters, etc.
         lock_configuration=LockConfiguration.universal(
-            requires_python=[pylock.requires_python] if pylock.requires_python else [],
+            interpreter_constraints=(
+                [InterpreterConstraint(specifier=pylock.requires_python)]
+                if pylock.requires_python
+                else []
+            ),
         ),
         resolver=resolver,
         indexes=indexes,
@@ -305,7 +314,7 @@ def resolve_from_pex_lock(
     )
     return _resolve_from_subset_result(
         subset_result,
-        lock_configuration=lock.lock_configuration(),
+        lock_configuration=lock.configuration,
         resolver=resolver,
         indexes=indexes,
         find_links=find_links,
@@ -366,7 +375,7 @@ def download_from_pex_lock(
     )
     downloaded_artifacts = _download_from_subset_result(
         subset_result,
-        lock_configuration=lock.lock_configuration(),
+        lock_configuration=lock.configuration,
         resolver=resolver,
         indexes=indexes,
         find_links=find_links,

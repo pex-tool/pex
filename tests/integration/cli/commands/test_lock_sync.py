@@ -15,6 +15,7 @@ import pytest
 from pex.atomic_directory import atomic_directory
 from pex.dist_metadata import find_distribution
 from pex.interpreter import PythonInterpreter
+from pex.interpreter_constraints import InterpreterConstraint
 from pex.pep_425 import CompatibilityTags
 from pex.pep_427 import InstallableType
 from pex.pep_440 import Version
@@ -542,7 +543,7 @@ def test_sync_configuration(
             pin("spam", "1"),
         ],
     )
-    assert lock_file.style is LockStyle.STRICT
+    assert lock_file.configuration.style is LockStyle.STRICT
 
     run_sync(
         "cowsay",
@@ -581,7 +582,7 @@ def test_sync_configuration(
             pin("spam", "1"),
         ],
     )
-    assert lock_file.style is LockStyle.SOURCES
+    assert lock_file.configuration.style is LockStyle.SOURCES
 
 
 @pytest.fixture
@@ -1242,7 +1243,7 @@ class LockAnalysis(object):
 def assert_p537_lock(
     lock,  # type: str
     expected_style,  # type: LockStyle.Value
-    expected_requires_python=None,  # type: Optional[str]
+    expected_interpreter_constraint=None,  # type: Optional[str]
     expected_python_tag=None,  # type: Optional[str]
     expected_abi_tag=None,  # type: Optional[str]
     expected_platform_tag=None,  # type: Optional[str]
@@ -1250,11 +1251,14 @@ def assert_p537_lock(
     # type: (...) -> LockAnalysis
 
     lock_file = json_codec.load(lock)
-    assert lock_file.style is expected_style
+    assert lock_file.configuration.style is expected_style
     assert (
-        SortedTuple([expected_requires_python])
-        if expected_requires_python
-        else SortedTuple() == lock_file.requires_python
+        SortedTuple([InterpreterConstraint.parse(expected_interpreter_constraint)])
+        if expected_interpreter_constraint
+        else (
+            not lock_file.configuration.universal_target
+            or SortedTuple() == lock_file.configuration.universal_target.requires_python
+        )
     )
     assert len(lock_file.locked_resolves) == 1
     locked_resolve = lock_file.locked_resolves[0]
@@ -1402,7 +1406,7 @@ def test_sync_universal_to_universal(
     p537_py39 = assert_p537_lock(
         lock,
         LockStyle.UNIVERSAL,
-        expected_requires_python="CPython==3.9.*",
+        expected_interpreter_constraint="CPython==3.9.*",
         expected_python_tag="cp39",
         expected_abi_tag="cp39",
     )
@@ -1429,7 +1433,7 @@ def test_sync_universal_to_universal(
     p537_py310 = assert_p537_lock(
         lock,
         LockStyle.UNIVERSAL,
-        expected_requires_python="CPython==3.10.*",
+        expected_interpreter_constraint="CPython==3.10.*",
         expected_python_tag="cp310",
         expected_abi_tag="cp310",
     )

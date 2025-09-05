@@ -783,22 +783,6 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             ),
         )
 
-        update_parser.add_argument(
-            "--fingerprint-mismatch",
-            default=FingerprintMismatch.ERROR,
-            choices=FingerprintMismatch.values(),
-            type=FingerprintMismatch.for_value,
-            help=(
-                "What to do when a lock update would result in at least one artifact fingerprint "
-                "changing: {ignore!r} the mismatch and use the new fingerprint, {warn!r} about the "
-                "mismatch but use the new fingerprint anyway or {error!r} and refuse to use the "
-                "new mismatching fingerprint".format(
-                    ignore=FingerprintMismatch.IGNORE,
-                    warn=FingerprintMismatch.WARN,
-                    error=FingerprintMismatch.ERROR,
-                )
-            ),
-        )
         cls._add_lockfile_option(update_parser, verb="update")
         cls._add_lock_options(update_parser)
         cls.add_json_options(update_parser, entity="lock", include_switch=False)
@@ -842,6 +826,22 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 "the report is to STDOUT and the exit code is zero. If a value of {check!r} is "
                 "passed, the report is to STDERR and the exit code is non-zero.".format(
                     check=DryRunStyle.CHECK
+                )
+            ),
+        )
+        update_parser.add_argument(
+            "--fingerprint-mismatch",
+            default=FingerprintMismatch.ERROR,
+            choices=FingerprintMismatch.values(),
+            type=FingerprintMismatch.for_value,
+            help=(
+                "What to do when a lock update would result in at least one artifact fingerprint "
+                "changing: {ignore!r} the mismatch and use the new fingerprint, {warn!r} about the "
+                "mismatch but use the new fingerprint anyway or {error!r} and refuse to use the "
+                "new mismatching fingerprint".format(
+                    ignore=FingerprintMismatch.IGNORE,
+                    warn=FingerprintMismatch.WARN,
+                    error=FingerprintMismatch.ERROR,
                 )
             ),
         )
@@ -1037,10 +1037,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             target_configuration = script_metadata_application.target_configuration
         if self.options.style == LockStyle.UNIVERSAL:
             lock_configuration = LockConfiguration.universal(
-                requires_python=[
-                    str(interpreter_constraint.requires_python)
-                    for interpreter_constraint in target_configuration.interpreter_constraints
-                ],
+                interpreter_constraints=target_configuration.interpreter_constraints,
                 systems=self.options.target_systems,
                 elide_unused_requires_dist=self.options.elide_unused_requires_dist,
             )
@@ -1157,7 +1154,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         # type: (RequirementConfiguration) -> Result
 
         lockfile_path, lock_file = self._load_lockfile()
-        if self.options.format is ExportFormat.PEP_751 and lock_file.style is LockStyle.UNIVERSAL:
+        if self.options.format is ExportFormat.PEP_751 and lock_file.configuration.universal_target:
             self._check_pylock_toml_output_name()
             production_assert(
                 len(lock_file.locked_resolves) == 1,
@@ -1180,18 +1177,11 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                     locked_resolves=lock_file.locked_resolves,
                 )
 
-            if len(lock_file.requires_python) > 1:
-                # TODO(John Sirois): Provide a better error message. We could guide on OR
-                #  to and AND paired with != to remove disjoint portions of the range.
-                raise ValueError(
-                    "Can only export a lock file with a single interpreter constraint."
-                )
             with self.output(self.options, binary=True) as toml_output:
                 pep_751.convert(
                     root_requirements=lock_subset.root_requirements,
                     locked_resolve=lock_subset.locked_resolves[0],
-                    requires_python=lock_file.requires_python[0],
-                    target_systems=lock_file.target_systems,
+                    universal_target=lock_file.configuration.universal_target,
                     output=toml_output,
                     include_dependency_info=self.options.include_dependency_info,
                 )
@@ -1460,13 +1450,13 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         locking_configuration = LockingConfiguration(
             requirement_configuration,
             target_configuration=target_configuration,
-            lock_configuration=lock_file.lock_configuration(),
+            lock_configuration=lock_file.configuration,
             script_metadata_application=script_metadata_application,
         )
         targets = try_(
             self._resolve_targets(
                 action="creating",
-                style=lock_file.style,
+                style=lock_file.configuration.style,
                 target_configuration=locking_configuration.target_configuration,
             )
         )
@@ -1585,8 +1575,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                         requires_dist.filter_dependencies(
                             req,
                             locked_req,
-                            requires_python=lock_file.requires_python,
-                            target_systems=lock_file.target_systems,
+                            universal_target=lock_file.configuration.universal_target,
                         )
                     )
 
@@ -1657,7 +1646,9 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         )
         targets = try_(
             self._resolve_targets(
-                action="updating", style=lock_file.style, target_configuration=target_configuration
+                action="updating",
+                style=lock_file.configuration.style,
+                target_configuration=target_configuration,
             )
         )
 
@@ -1675,7 +1666,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
 
         with TRACER.timed("Selecting locks to update"):
             locked_resolve_count = len(lock_file.locked_resolves)
-            if lock_file.style is LockStyle.UNIVERSAL and locked_resolve_count != 1:
+            if lock_file.configuration.style is LockStyle.UNIVERSAL and locked_resolve_count != 1:
                 return Error(
                     "The lock at {path} contains {count} locked resolves; so it "
                     "cannot be updated as a universal lock which requires exactly one locked "
@@ -1685,7 +1676,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 locked_resolve = lock_file.locked_resolves[0]
                 update_targets = (
                     [LocalInterpreter.create(targets.interpreter)]
-                    if lock_file.style is LockStyle.UNIVERSAL
+                    if lock_file.configuration.style is LockStyle.UNIVERSAL
                     else targets.unique_targets()
                 )
                 update_requests = [
@@ -1722,7 +1713,10 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                     )
                     for resolved_subset in subset_result.subsets
                 ]
-        if getattr(self.options, "strict", False) and lock_file.style is not LockStyle.UNIVERSAL:
+        if (
+            getattr(self.options, "strict", False)
+            and lock_file.configuration.style is not LockStyle.UNIVERSAL
+        ):
             missing_updates = set(lock_file.locked_resolves) - {
                 update_request.locked_resolve for update_request in update_requests
             }
@@ -2086,10 +2080,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             original_lock_file = try_(parse_lockfile(self.options, lock_file_path=lock_file_path))
             lock_file = attr.evolve(
                 original_lock_file,
-                style=lock_configuration.style,
-                requires_python=SortedTuple(lock_configuration.requires_python),
-                target_systems=SortedTuple(lock_configuration.target_systems),
-                elide_unused_requires_dist=lock_configuration.elide_unused_requires_dist,
+                configuration=lock_configuration,
                 pip_version=pip_configuration.version,
                 resolver_version=pip_configuration.resolver_version,
                 allow_prereleases=pip_configuration.allow_prereleases,

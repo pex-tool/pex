@@ -357,14 +357,14 @@ def test_boot_compatible_issue_1020_ic_min_compatible_build_time_hole(tmpdir):
             "--python-path",
             max_interpreter.binary,
             "--interpreter-constraint",
-            "{python}=={major}.{minor}.*".format(
-                python=max_interpreter.identity.interpreter,
+            "{implementation}=={major}.{minor}.*".format(
+                implementation=max_interpreter.identity.implementation,
                 major=min_interpreter.version[0],
                 minor=min_interpreter.version[1],
             ),
             "--interpreter-constraint",
-            "{python}=={major}.{minor}.*".format(
-                python=max_interpreter.identity.interpreter,
+            "{implementation}=={major}.{minor}.*".format(
+                implementation=max_interpreter.identity.implementation,
                 major=max_interpreter.version[0],
                 minor=max_interpreter.version[1],
             ),

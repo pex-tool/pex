@@ -768,10 +768,10 @@ class PEXEnvironment(object):
                 current_interpreter = PythonInterpreter.get()
                 pex_warnings.warn(
                     "The legacy `pkg_resources` package cannot be imported by the "
-                    "{interpreter} {version} interpreter at {path}.\n"
+                    "{implementation} {version} interpreter at {path}.\n"
                     "The following distributions need `pkg_resources` to load some legacy "
                     "namespace packages and may fail to work properly:\n{dists}".format(
-                        interpreter=current_interpreter.identity.interpreter,
+                        implementation=current_interpreter.identity.implementation,
                         version=current_interpreter.python,
                         path=current_interpreter.binary,
                         dists=dists,
