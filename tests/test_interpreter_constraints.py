@@ -5,6 +5,7 @@ import sys
 from textwrap import dedent
 
 import pytest
+from packaging.specifiers import SpecifierSet
 
 from pex import interpreter_constraints
 from pex.interpreter import PythonInterpreter
@@ -87,7 +88,9 @@ def test_parse():
 
 def iter_compatible_versions(*requires_python):
     # type: (*str) -> List[Tuple[int, int, int]]
-    return list(interpreter_constraints.iter_compatible_versions(list(requires_python)))
+    return list(
+        interpreter_constraints.iter_compatible_versions(map(SpecifierSet, requires_python))
+    )
 
 
 def test_iter_compatible_versions_none():
@@ -171,7 +174,11 @@ def test_iter_compatible_versions_non_eol():
     ) == list(
         interpreter_constraints.iter_compatible_versions(
             [
-                "=={major}.{minor}.*".format(major=python_version.major, minor=python_version.minor)
+                SpecifierSet(
+                    "=={major}.{minor}.*".format(
+                        major=python_version.major, minor=python_version.minor
+                    )
+                )
                 for python_version in (oldest_python_version, newest_python_version)
             ],
             max_patch=max_patch,

@@ -20,6 +20,7 @@ from pex.os import WINDOWS
 from pex.pep_440 import Version
 from pex.pex_info import PexInfo
 from pex.targets import Targets
+from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.typing import TYPE_CHECKING
 from pex.version import __version__
 
@@ -57,7 +58,7 @@ def _calculate_applicable_binary_names(
             PythonBinaryName(implementation=implementation, version=version)
             for interpreter_constraint in interpreter_constraints
             for version in iter_compatible_versions(
-                requires_python=[str(interpreter_constraint.requires_python)]
+                requires_python=[interpreter_constraint.specifier]
             )
             for implementation in (
                 (interpreter_constraint.implementation,)
@@ -86,10 +87,10 @@ def _calculate_applicable_binary_names(
     # more sophisticated detection and re-direction from these during its own bootstrap. When doing
     # so, select these interpreters from newest to oldest since it more likely any given machine
     # will have Python 3 at this point than it will Python 2.
-    pex_requires_python = ">=2.7"
+    pex_requires_python = SpecifierSet(">=2.7")
     dist = dist_metadata.find_distribution("pex")  # type: Optional[Distribution]
     if dist and dist.metadata.version == Version(__version__):
-        pex_requires_python = str(dist.metadata.requires_python)
+        pex_requires_python = dist.metadata.requires_python
     pex_supported_python_versions = tuple(
         reversed(list(iter_compatible_versions(requires_python=[pex_requires_python])))
     )

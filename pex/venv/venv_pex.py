@@ -179,8 +179,9 @@ def boot(
             "_PEX_USE_PIP_CONFIG",
             # This is used by Pex's Pip to inject runtime patches dynamically.
             "_PEX_PIP_RUNTIME_PATCHES_PACKAGE",
-            # These are used by Pex's Pip venv to provide foreign platform support and work
-            # around https://github.com/pypa/pip/issues/10050.
+            # These are used by Pex's Pip venv to provide foreign platform support, universal lock
+            # support and work around https://github.com/pypa/pip/issues/10050.
+            "_PEX_INTERPRETER_IMPLEMENTATION",
             "_PEX_PATCHED_MARKERS_FILE",
             "_PEX_PATCHED_TAGS_FILE",
             # These are used by Pex's Pip venv to implement universal locks.

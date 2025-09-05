@@ -15,6 +15,7 @@ from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import DistMetadata, Requirement, is_sdist, is_wheel
 from pex.enum import Enum
 from pex.exceptions import production_assert
+from pex.interpreter_constraints import InterpreterConstraint
 from pex.orderedset import OrderedSet
 from pex.pep_425 import CompatibilityTags, TagRank
 from pex.pep_503 import ProjectName
@@ -73,28 +74,48 @@ class LockConfiguration(object):
     @classmethod
     def universal(
         cls,
-        requires_python=(),  # type: Iterable[str]
+        interpreter_constraints=(),  # type: Iterable[InterpreterConstraint]
         systems=(),  # type: Iterable[TargetSystem.Value]
         elide_unused_requires_dist=False,  # type: bool
     ):
         # type: (...) -> LockConfiguration
+
+        implementations = {
+            interpreter_constraint.implementation
+            for interpreter_constraint in interpreter_constraints
+        }
+        if len(implementations) > 1:
+            raise ValueError(
+                "The interpreter constraints for a universal resolve cannot have mixed "
+                "implementations. Given: {constraints}".format(
+                    constraints=" or ".join(map(str, interpreter_constraints))
+                )
+            )
+
         return cls(
             style=LockStyle.UNIVERSAL,
-            target=UniversalTarget(requires_python=tuple(requires_python), systems=tuple(systems)),
+            universal_target=UniversalTarget(
+                implementation=implementations.pop() if implementations else None,
+                requires_python=tuple(
+                    interpreter_constraint.requires_python
+                    for interpreter_constraint in interpreter_constraints
+                ),
+                systems=tuple(systems),
+            ),
             elide_unused_requires_dist=elide_unused_requires_dist,
         )
 
     style = attr.ib()  # type: LockStyle.Value
-    target = attr.ib(default=None)  # type: Optional[UniversalTarget]
+    universal_target = attr.ib(default=None)  # type: Optional[UniversalTarget]
     elide_unused_requires_dist = attr.ib(default=False)  # type: bool
 
-    @target.validator
+    @universal_target.validator
     def _validate_only_set_for_universal(
         self,
         attribute,  # type: Any
         value,  # type: Any
     ):
-        if value and self.style != LockStyle.UNIVERSAL:
+        if value and self.style is not LockStyle.UNIVERSAL:
             raise ValueError(
                 "The {field_name} field should only be set for {universal} style locks; "
                 "this lock is {style} style and given {field_name} value of {value}".format(
@@ -104,16 +125,6 @@ class LockConfiguration(object):
                     value=value,
                 )
             )
-
-    @property
-    def requires_python(self):
-        # type: () -> Tuple[str, ...]
-        return self.target.requires_python if self.target else ()
-
-    @property
-    def target_systems(self):
-        # type: () -> Tuple[TargetSystem.Value, ...]
-        return self.target.systems if self.target else ()
 
 
 @total_ordering

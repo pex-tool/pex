@@ -19,9 +19,9 @@ from pex.pip.version import PipVersion
 from pex.resolve.locked_resolve import (
     Artifact,
     LocalProjectArtifact,
+    LockConfiguration,
     LockedRequirement,
     LockedResolve,
-    LockStyle,
     VCSArtifact,
 )
 from pex.resolve.lockfile import json_codec
@@ -43,10 +43,7 @@ else:
 
 UNIVERSAL_ANSICOLORS = Lockfile(
     pex_version="42",
-    style=LockStyle.UNIVERSAL,
-    requires_python=SortedTuple(),
-    target_systems=SortedTuple(),
-    elide_unused_requires_dist=False,
+    configuration=LockConfiguration.universal(),
     pip_version=PipVersion.DEFAULT,
     resolver_version=ResolverVersion.PIP_2020,
     requirements=SortedTuple([Requirement.parse("ansicolors")]),

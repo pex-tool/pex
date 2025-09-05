@@ -222,7 +222,11 @@ def test_issue_1821(
     ) in result.error
 
     lockfile = lock(tmpdir, args, TargetSystem.LINUX, TargetSystem.MAC)
-    assert SortedTuple((TargetSystem.LINUX, TargetSystem.MAC)) == lockfile.target_systems
+    assert lockfile.configuration.universal_target is not None
+    assert (
+        SortedTuple((TargetSystem.LINUX, TargetSystem.MAC))
+        == lockfile.configuration.universal_target.systems
+    )
     assert lockfile.source is not None
     run_pex_command(
         args=["--lock", lockfile.source, "--", "-c", "import docker"], python=py310.binary

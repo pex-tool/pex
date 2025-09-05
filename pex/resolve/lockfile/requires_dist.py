@@ -10,6 +10,7 @@ from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import Requirement
 from pex.exceptions import production_assert, reportable_unexpected_error_msg
 from pex.interpreter_constraints import iter_compatible_versions
+from pex.interpreter_implementation import InterpreterImplementation
 from pex.orderedset import OrderedSet
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
@@ -17,6 +18,7 @@ from pex.resolve.locked_resolve import LockedRequirement, LockedResolve
 from pex.resolve.target_system import TargetSystem, UniversalTarget
 from pex.sorted_tuple import SortedTuple
 from pex.third_party.packaging.markers import Marker, Variable
+from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.typing import TYPE_CHECKING, Generic, cast
 
 if TYPE_CHECKING:
@@ -32,7 +34,6 @@ if TYPE_CHECKING:
         Optional,
         Sequence,
         Tuple,
-        Type,
         TypeVar,
         Union,
     )
@@ -50,13 +51,20 @@ class MarkerEnv(object):
     def create(
         cls,
         extras,  # type: Iterable[str]
-        requires_python,  # type: Iterable[str]
-        target_systems,  # type: Iterable[TargetSystem.Value]
+        universal_target=None,  # type: Optional[UniversalTarget]
     ):
         # type: (...) -> MarkerEnv
 
+        implementations = []  # type: List[InterpreterImplementation.Value]
+        if universal_target and universal_target.implementation:
+            implementations.append(universal_target.implementation)
+        else:
+            implementations.extend(InterpreterImplementation.values())
+
         python_full_versions = (
-            list(iter_compatible_versions(requires_python)) if requires_python else []
+            list(iter_compatible_versions(universal_target.requires_python))
+            if universal_target
+            else []
         )
         python_versions = OrderedSet(
             python_full_version[:2] for python_full_version in python_full_versions
@@ -65,6 +73,7 @@ class MarkerEnv(object):
         os_names = []
         platform_systems = []
         sys_platforms = []
+        target_systems = universal_target.systems if universal_target else ()
         for target_system in target_systems:
             if target_system is TargetSystem.LINUX:
                 os_names.append("posix")
@@ -85,6 +94,7 @@ class MarkerEnv(object):
             os_names=frozenset(os_names),
             platform_systems=frozenset(platform_systems),
             sys_platforms=frozenset(sys_platforms),
+            implementations=frozenset(implementations),
             python_versions=frozenset(
                 Version(".".join(map(str, python_version))) for python_version in python_versions
             ),
@@ -98,6 +108,7 @@ class MarkerEnv(object):
     os_names = attr.ib()  # type: FrozenSet[str]
     platform_systems = attr.ib()  # type: FrozenSet[str]
     sys_platforms = attr.ib()  # type: FrozenSet[str]
+    implementations = attr.ib()  # type: FrozenSet[InterpreterImplementation.Value]
     python_versions = attr.ib()  # type: FrozenSet[Version]
     python_full_versions = attr.ib()  # type: FrozenSet[Version]
 
@@ -135,20 +146,25 @@ class _Or(_Op):
 
 
 def _get_values_func(marker):
-    # type: (str) -> Optional[Tuple[Callable[[MarkerEnv], FrozenSet], Type]]
+    # type: (str) -> Optional[Tuple[Callable[[MarkerEnv], FrozenSet], Callable[[str], Any]]]
 
     if marker == "extra":
-        return lambda marker_env: marker_env.extras, ProjectName
+        return lambda marker_env: marker_env.extras, lambda value: ProjectName(value)
     elif marker == "os_name":
-        return lambda marker_env: marker_env.os_names, str
+        return lambda marker_env: marker_env.os_names, lambda value: value
     elif marker == "platform_system":
-        return lambda marker_env: marker_env.platform_systems, str
+        return lambda marker_env: marker_env.platform_systems, lambda value: value
     elif marker == "sys_platform":
-        return lambda marker_env: marker_env.sys_platforms, str
+        return lambda marker_env: marker_env.sys_platforms, lambda value: value
+    elif marker == "platform_python_implementation":
+        return (
+            lambda marker_env: marker_env.implementations,
+            lambda value: InterpreterImplementation.for_value(value),
+        )
     elif marker == "python_version":
-        return lambda marker_env: marker_env.python_versions, Version
+        return lambda marker_env: marker_env.python_versions, lambda value: Version(value)
     elif marker == "python_full_version":
-        return lambda marker_env: marker_env.python_full_versions, Version
+        return lambda marker_env: marker_env.python_full_versions, lambda value: Version(value)
     return None
 
 
@@ -173,8 +189,7 @@ class EvalMarkerFunc(Generic["_T"]):
                 return cls(
                     get_values=get_values,
                     op=_OPERATORS[str(op)],
-                    operand_type=operand_type,
-                    rhs=operand_type(rhs),
+                    rhs=operand_type(str(rhs)),
                 )
 
         if isinstance(rhs, Variable):
@@ -184,8 +199,7 @@ class EvalMarkerFunc(Generic["_T"]):
                 return cls(
                     get_values=get_values,
                     op=_OPERATORS[str(op)],
-                    operand_type=operand_type,
-                    lhs=operand_type(lhs),
+                    lhs=operand_type(str(lhs)),
                 )
 
         return lambda _: True
@@ -194,7 +208,6 @@ class EvalMarkerFunc(Generic["_T"]):
         self,
         get_values,  # type: Callable[[MarkerEnv], Iterable[_T]]
         op,  # type: Callable[[_T, _T], bool]
-        operand_type,  # type: Callable[[Any], _T]
         lhs=None,  # type: Optional[_T]
         rhs=None,  # type: Optional[_T]
     ):
@@ -202,9 +215,9 @@ class EvalMarkerFunc(Generic["_T"]):
 
         self._get_values = get_values
         if lhs is not None:
-            self._func = lambda value: op(cast("_T", lhs), operand_type(value))
+            self._func = lambda value: op(cast("_T", lhs), value)
         elif rhs is not None:
-            self._func = lambda value: op(operand_type(value), cast("_T", rhs))
+            self._func = lambda value: op(value, cast("_T", rhs))
         else:
             raise ValueError(
                 "Must be called with exactly one of lhs or rhs but not both. "
@@ -326,8 +339,13 @@ def are_exhaustive(
     marker_envs = OrderedSet(
         MarkerEnv.create(
             extras=(),
-            requires_python=["=={version}".format(version=".".join(map(str, version)))],
-            target_systems=[target_system],
+            universal_target=UniversalTarget(
+                implementation=universal_target.implementation,
+                requires_python=tuple(
+                    [SpecifierSet("=={version}".format(version=".".join(map(str, version))))]
+                ),
+                systems=tuple([target_system]),
+            ),
         )
         for version in versions
         for target_system in target_systems
@@ -344,14 +362,11 @@ def are_exhaustive(
 def filter_dependencies(
     requirement,  # type: Requirement
     locked_requirement,  # type: LockedRequirement
-    requires_python=(),  # type: Iterable[str]
-    target_systems=(),  # type: Iterable[TargetSystem.Value]
+    universal_target=None,  # type: Optional[UniversalTarget]
 ):
     # type: (...) -> Iterator[Requirement]
 
-    marker_env = MarkerEnv.create(
-        extras=requirement.extras, requires_python=requires_python, target_systems=target_systems
-    )
+    marker_env = MarkerEnv.create(extras=requirement.extras, universal_target=universal_target)
     for dep in locked_requirement.requires_dists:
         if not dep.marker:
             yield dep
@@ -364,8 +379,7 @@ def filter_dependencies(
 def remove_unused_requires_dist(
     resolve_requirements,  # type: Iterable[Requirement]
     locked_resolve,  # type: LockedResolve
-    requires_python=(),  # type: Iterable[str]
-    target_systems=(),  # type: Iterable[TargetSystem.Value]
+    universal_target=None,  # type: Optional[UniversalTarget]
     dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
 ):
     # type: (...) -> LockedResolve
@@ -388,9 +402,7 @@ def remove_unused_requires_dist(
         if not locked_req:
             continue
 
-        for dep in filter_dependencies(
-            requirement, locked_req, requires_python=requires_python, target_systems=target_systems
-        ):
+        for dep in filter_dependencies(requirement, locked_req, universal_target=universal_target):
             if dependency_configuration.excluded_by(dep):
                 continue
             if any(

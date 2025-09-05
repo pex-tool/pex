@@ -16,6 +16,7 @@ from pex.pep_508 import MarkerEnvironment
 from pex.resolve import abbreviated_platforms
 from pex.sh_boot import PythonBinaryName
 from pex.targets import CompletePlatform, Targets
+from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
@@ -66,7 +67,7 @@ def expected(
         all_names.add(current_interpreter_identity.binary_name(version_components=2))
 
     supported_versions = sorted(
-        (version[:2] for version in set(iter_compatible_versions([requires_python]))),
+        (version[:2] for version in set(iter_compatible_versions([SpecifierSet(requires_python)]))),
         reverse=True,  # Newest (highest) version 1st.
     )
     for exe_name in "python", "pypy":

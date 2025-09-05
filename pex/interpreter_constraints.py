@@ -385,12 +385,12 @@ COMPATIBLE_PYTHON_VERSIONS = (
 
 
 def iter_compatible_versions(
-    requires_python,  # type: Iterable[str]
+    requires_python,  # type: Iterable[SpecifierSet]
     max_patch=DEFAULT_MAX_PATCH,  # type: int
 ):
     # type: (...) -> Iterator[Tuple[int, int, int]]
 
-    specifier_sets = OrderedSet(SpecifierSet(req) for req in requires_python)
+    specifier_sets = OrderedSet(requires_python)
     return itertools.chain.from_iterable(
         python_version.iter_compatible_versions(specifier_sets, max_patch=max_patch)
         for python_version in COMPATIBLE_PYTHON_VERSIONS

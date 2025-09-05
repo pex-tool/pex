@@ -14,7 +14,13 @@ from pex.dist_metadata import Constraint, Requirement
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pip.version import PipVersion
-from pex.resolve.locked_resolve import Artifact, LockedRequirement, LockedResolve, LockStyle
+from pex.resolve.locked_resolve import (
+    Artifact,
+    LockConfiguration,
+    LockedRequirement,
+    LockedResolve,
+    LockStyle,
+)
 from pex.resolve.lockfile import json_codec
 from pex.resolve.lockfile.json_codec import ParseError, PathMappingError
 from pex.resolve.lockfile.model import Lockfile
@@ -39,9 +45,7 @@ def test_roundtrip(tmpdir):
 
     lockfile = Lockfile.create(
         pex_version="1.2.3",
-        style=LockStyle.STRICT,
-        requires_python=(),
-        target_systems=(),
+        lock_configuration=LockConfiguration(style=LockStyle.STRICT),
         pip_version=PipVersion.VENDORED,
         resolver_version=ResolverVersion.PIP_2020,
         requirements=(

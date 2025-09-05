@@ -10,6 +10,7 @@ from pex.artifact_url import Fingerprint
 from pex.dependency_configuration import Override
 from pex.dist_metadata import Requirement, RequirementParseError
 from pex.enum import Enum
+from pex.interpreter_constraints import InterpreterConstraint
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pip.version import PipVersion
@@ -17,6 +18,7 @@ from pex.resolve.locked_resolve import (
     Artifact,
     FileArtifact,
     LocalProjectArtifact,
+    LockConfiguration,
     LockedRequirement,
     LockedResolve,
     LockStyle,
@@ -209,6 +211,18 @@ def loads(
                 "The version specifier at '{path}' is invalid: {err}".format(path=path, err=e)
             )
 
+    def parse_interpreter_constraint(
+        value,  # type: str
+        path,  # type: str
+    ):
+        # type: (...) -> InterpreterConstraint
+        try:
+            return InterpreterConstraint.parse(value)
+        except ValueError as e:
+            raise ParseError(
+                "The interpreter constraint at '{path}' is invalid: {err}".format(path=path, err=e)
+            )
+
     required_path_mappings = get("path_mappings", dict, optional=True) or {}
     given_mappings = set(mapping.name for mapping in path_mappings.mappings)
     unspecified_paths = set(required_path_mappings) - given_mappings
@@ -217,16 +231,33 @@ def loads(
             required_path_mappings=required_path_mappings, unspecified_paths=unspecified_paths
         )
 
-    target_systems = [
-        parse_enum_value(
-            enum_type=TargetSystem,
-            value=target_system,
-            path=".target_systems[{index}]".format(index=index),
-        )
-        for index, target_system in enumerate(get("target_systems", list, optional=True) or ())
-    ]
-
+    style = get_enum_value(LockStyle, "style")
     elide_unused_requires_dist = get("elide_unused_requires_dist", bool, optional=True) or False
+    if style is LockStyle.UNIVERSAL:
+        lock_configuration = LockConfiguration.universal(
+            interpreter_constraints=[
+                parse_interpreter_constraint(
+                    value=interpreter_constraint,
+                    path=".requires_python[{index}]".format(index=index),
+                )
+                for index, interpreter_constraint in enumerate(get("requires_python", list))
+            ],
+            systems=[
+                parse_enum_value(
+                    enum_type=TargetSystem,
+                    value=target_system,
+                    path=".target_systems[{index}]".format(index=index),
+                )
+                for index, target_system in enumerate(
+                    get("target_systems", list, optional=True) or ()
+                )
+            ],
+            elide_unused_requires_dist=elide_unused_requires_dist,
+        )
+    else:
+        lock_configuration = LockConfiguration(
+            style=style, elide_unused_requires_dist=elide_unused_requires_dist
+        )
 
     only_wheels = [
         parse_project_name(project_name, path=".only_wheels[{index}]".format(index=index))
@@ -355,10 +386,7 @@ def loads(
 
     return Lockfile.create(
         pex_version=get("pex_version"),
-        style=get_enum_value(LockStyle, "style"),
-        requires_python=get("requires_python", list),
-        target_systems=target_systems,
-        elide_unused_requires_dist=elide_unused_requires_dist,
+        lock_configuration=lock_configuration,
         pip_version=get_enum_value(
             PipVersion,
             "pip_version",
@@ -419,12 +447,22 @@ def as_json_data(
             data["editable"] = artifact.editable
         return data
 
+    requires_python = []  # type: List[str]
+    target_systems = []  # type: List[str]
+    if lockfile.configuration.universal_target:
+        universal_target = lockfile.configuration.universal_target
+        requires_python.extend(
+            str(interpreter_constraint)
+            for interpreter_constraint in universal_target.iter_interpreter_constraints()
+        )
+        target_systems.extend(str(target_system) for target_system in universal_target.systems)
+
     return {
         "pex_version": lockfile.pex_version,
-        "style": str(lockfile.style),
-        "requires_python": list(lockfile.requires_python),
-        "target_systems": [str(target_system) for target_system in lockfile.target_systems],
-        "elide_unused_requires_dist": lockfile.elide_unused_requires_dist,
+        "style": str(lockfile.configuration.style),
+        "requires_python": requires_python,
+        "target_systems": target_systems,
+        "elide_unused_requires_dist": lockfile.configuration.elide_unused_requires_dist,
         "pip_version": str(lockfile.pip_version),
         "resolver_version": str(lockfile.resolver_version),
         "requirements": [

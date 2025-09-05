@@ -14,6 +14,7 @@ from pex.compatibility import text, urlparse
 from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import Constraint, Requirement
 from pex.exceptions import production_assert
+from pex.interpreter_implementation import InterpreterImplementation
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.pep_425 import CompatibilityTags, RankedTag
@@ -37,7 +38,7 @@ from pex.resolve.lockfile.subset import Subset, SubsetResult
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolved_requirement import Pin
 from pex.resolve.resolver_configuration import BuildConfiguration
-from pex.resolve.target_system import TargetSystem
+from pex.resolve.target_system import TargetSystem, UniversalTarget
 from pex.result import Error, ResultError, try_
 from pex.sorted_tuple import SortedTuple
 from pex.targets import Target, Targets
@@ -175,53 +176,80 @@ def _elide_extras(marker):
     return marker
 
 
-def _to_environment(system):
-    # type: (TargetSystem.Value) -> str
+def _implementation_marker(implementation):
+    # type: (InterpreterImplementation.Value) -> str
+    return "platform_python_implementation == '{implementation}'".format(
+        implementation=implementation
+    )
+
+
+def _to_environment(
+    system,  # type: TargetSystem.Value
+    implementation=None,  # type: Optional[InterpreterImplementation.Value]
+):
+    # type: (...) -> str
+
     if system is TargetSystem.LINUX:
-        return "platform_system == 'Linux'"
+        platform_system = "platform_system == 'Linux'"
     elif system is TargetSystem.MAC:
-        return "platform_system == 'Darwin'"
+        platform_system = "platform_system == 'Darwin'"
     else:
         production_assert(system is TargetSystem.WINDOWS)
-        return "platform_system == 'Windows'"
+        platform_system = "platform_system == 'Windows'"
+
+    if not implementation:
+        return platform_system
+
+    return "{platform_system} and {platform_python_implementation}".format(
+        platform_system=platform_system,
+        platform_python_implementation=_implementation_marker(implementation),
+    )
 
 
 def convert(
     root_requirements,  # type: Iterable[Requirement]
     locked_resolve,  # type: LockedResolve
     output,  # type: IO[bytes]
-    requires_python=None,  # type: Optional[str]
-    target_systems=(),  # type: Iterable[TargetSystem.Value]
+    universal_target=None,  # type: Optional[UniversalTarget]
     subset=(),  # type: Iterable[DownloadableArtifact]
     include_dependency_info=True,  # type bool
 ):
     # type: (...) -> None
 
-    locked_resolve = remove_unused_requires_dist(
-        resolve_requirements=root_requirements,
-        locked_resolve=locked_resolve,
-        requires_python=[requires_python] if requires_python else [],
-        target_systems=target_systems,
-    )
-
     pylock = OrderedDict()  # type: OrderedDict[str, Any]
     pylock["lock-version"] = "1.0"  # https://peps.python.org/pep-0751/#lock-version
 
-    if target_systems:
+    if universal_target:
         # https://peps.python.org/pep-0751/#environments
         #
-        # TODO: We just stick to mapping `--target-system` into markers currently but this should
-        #  probably include the full marker needed to rule out invalid installs, like Python 2.7
-        #  attempting to install a lock with only Python 3 wheels.
-        pylock["environments"] = sorted(_to_environment(system) for system in target_systems)
-    if requires_python:
-        # https://peps.python.org/pep-0751/#requires-python
-        #
-        # TODO: This is currently just the `--interpreter-constraint` for `--style universal` locks
-        #  but it should probably be further refined (or purely calculated for non universal locks)
-        #  from locked project requires-python values and even more narrowly by locked projects with
-        #  only wheel artifacts by the wheel tags.
-        pylock["requires-python"] = requires_python
+        # TODO: We just stick to mapping `--target-system` and any `--interpreter-constraint` that
+        #  have an implementation specified into markers currently but this should probably include
+        #  the full marker needed to rule out invalid installs, like Python 2.7 attempting to
+        #  install a lock with only Python 3 wheels.
+        if universal_target.systems:
+            pylock["environments"] = sorted(
+                _to_environment(system, implementation=universal_target.implementation)
+                for system in universal_target.systems
+            )
+        elif universal_target.implementation:
+            pylock["environments"] = [_implementation_marker(universal_target.implementation)]
+
+        if universal_target.requires_python:
+            if len(universal_target.requires_python) > 1:
+                # TODO(John Sirois): Provide a better error message. We could guide on OR
+                #  to and AND paired with != to remove disjoint portions of the range.
+                raise ValueError(
+                    "Can only convert a lock file with a single interpreter constraint."
+                )
+            requires_python = universal_target.requires_python[0]
+
+            # https://peps.python.org/pep-0751/#requires-python
+            #
+            # TODO: This is currently just any `--interpreter-constraint` specifiers for
+            #  `--style universal` locks but it should probably be further refined (or purely
+            #  calculated for non universal locks) from locked project requires-python values and
+            #  even more narrowly by locked projects with only wheel artifacts by the wheel tags.
+            pylock["requires-python"] = str(requires_python)
 
     # TODO: These 3 assume a `pyproject.toml` is the input source for the lock. It almost never is
     #  for current Pex lock use cases. Figure out if there is anything better that can be done.
@@ -251,6 +279,11 @@ def convert(
         if req.url and isinstance(parse_requirement_string(str(req)), URLRequirement)
     }  # type: Dict[ProjectName, Requirement]
 
+    locked_resolve = remove_unused_requires_dist(
+        resolve_requirements=root_requirements,
+        locked_resolve=locked_resolve,
+        universal_target=universal_target,
+    )
     dependants_by_project_name = defaultdict(
         OrderedSet
     )  # type: DefaultDict[ProjectName, OrderedSet[Tuple[ProjectName, Optional[Marker]]]]
