@@ -38,15 +38,3 @@ class InterpreterImplementation(Enum["InterpreterImplementation.Value"]):
 
 
 InterpreterImplementation.seal()
-
-
-def calculate_binary_name(
-    platform_python_implementation,  # type: str
-    python_version=None,  # type: Optional[Tuple[int, ...]]
-):
-    # type: (...) -> str
-
-    implementation = InterpreterImplementation.CPYTHON
-    if InterpreterImplementation.PYPY.value == platform_python_implementation:
-        implementation = InterpreterImplementation.PYPY
-    return implementation.calculate_binary_name(version=python_version)
