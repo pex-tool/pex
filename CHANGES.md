@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.55.2
+
+This release improves Pex `--pylock` handling interoperability by accepting the minimum possible
+dependency information likely to be provided; namely, the dependency `name`.
+
+* More robust `pylock.toml` dependency handling. (#2901)
+
 ## 2.55.1
 
 This release fixes a bug present since the inception of `pex3 lock create --style universal`

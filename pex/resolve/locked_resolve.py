@@ -19,6 +19,7 @@ from pex.interpreter_constraints import InterpreterConstraint
 from pex.interpreter_implementation import InterpreterImplementation
 from pex.orderedset import OrderedSet
 from pex.pep_425 import CompatibilityTags, TagRank
+from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.rank import Rank
 from pex.resolve.resolved_requirement import PartialArtifact, Pin, ResolvedRequirement
@@ -582,7 +583,7 @@ class DownloadableArtifact(object):
         attr.ib()
     )  # type: Union[FileArtifact, LocalProjectArtifact, UnFingerprintedLocalProjectArtifact, UnFingerprintedVCSArtifact, VCSArtifact]
     satisfied_direct_requirements = attr.ib(default=SortedTuple())  # type: SortedTuple[Requirement]
-    version = attr.ib(default=None)
+    version = attr.ib(default=None)  # type: Optional[Version]
 
     def specifier(self):
         # type: () -> str

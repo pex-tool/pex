@@ -541,11 +541,12 @@ class ParseContext(object):
         self,
         key,  # type: str
         default=None,  # type: Optional[str]
+        footer_message=None,  # type: Optional[str]
     ):
         # type: (...) -> str
         # The cast is of Python 2. The return type will actually be `unicode` in that case, but it
         # doesn't matter since there will be no further runtime type checks above this call.
-        return cast(str, self.get(key, text, default=default))
+        return cast(str, self.get(key, text, default=default, footer_message=footer_message))
 
     def get_array_of_strings(
         self,
@@ -626,14 +627,16 @@ class ParseContext(object):
         key,  # type: str
         item_type,  # type: Type[_T]
         default=None,  # type: Optional[_T]
+        footer_message=None,  # type: Optional[str]
     ):
         # type: (...) -> _T
         value = self.table.get(key, None)
         if value is None:
             if default is None:
-                raise ResultError(
-                    self.error("A value for {key} is required.".format(key=self.subpath(key)))
-                )
+                msg_lines = ["A value for {key} is required.".format(key=self.subpath(key))]
+                if footer_message:
+                    msg_lines.append(footer_message)
+                raise ResultError(self.error(os.linesep.join(msg_lines)))
             return default
         if not isinstance(value, item_type):
             raise ResultError(
@@ -830,43 +833,11 @@ class PackageIndex(object):
         return self._indexed_packages_by_name.get(project_name)
 
 
-def spec_matches(
-    spec,  # type: Any
-    package_data,  # type: Any
-):
-    # type: (...) -> bool
-
-    if isinstance(spec, dict) and isinstance(package_data, dict):
-        for key, value in spec.items():
-            if not spec_matches(value, package_data.get(key)):
-                return False
-        return True
-
-    if isinstance(spec, list) and isinstance(package_data, list):
-        # All instances of lists in packages are currently array of tables:
-        # + dependencies
-        # + wheels
-        # + attestation-identities
-        #
-        # As such, we consider the list matches if any of its contained tables matches each of the
-        # spec tables. This allows a dependency spec like so to match the torch cpu wheel in a lock
-        # that also includes torch-2.7.0-cp311-none-macosx_11_0_arm64.whl (cuda 12.8):
-        # {name = "torch", wheels = [{ name = "torch-2.7.0+xpu-cp39-cp39-win_amd64.whl" }]}
-        for spec_item in spec:
-            if not any(
-                spec_matches(spec_item, package_data_item) for package_data_item in package_data
-            ):
-                return False
-        return True
-
-    # I have no clue why MyPy can't track this as bool.
-    return cast(bool, spec == package_data)
-
-
 @attr.s
 class PackageParser(object):
     package_index = attr.ib()  # type: PackageIndex
     source = attr.ib()  # type: str
+    created_by = attr.ib()  # type: str
 
     parsed_packages_by_index = attr.ib(factory=dict)  # type: Dict[int, Package]
 
@@ -938,7 +909,22 @@ class PackageParser(object):
             "dependencies", default=[], diagnostic_key="name"
         )
         for dep_idx, dep_parse_context in enumerate(dep_parse_contexts):
-            dep_name = ProjectName(dep_parse_context.get_string("name"))
+            dep_name = ProjectName(
+                dep_parse_context.get_string(
+                    "name",
+                    footer_message=os.linesep.join(
+                        (
+                            "Pex requires dependency tables specify at least a `name`.",
+                            "The pylock.toml spec does not require this however.",
+                            "To subset locks created by {creator}, either they will need to add "
+                            "names for their dependencies or Pex will need to support more "
+                            "sophisticated dependency parsing.".format(creator=self.created_by),
+                            "For more information, see the comments starting here: "
+                            "https://github.com/pex-tool/pex/issues/2885#issuecomment-3263138568",
+                        )
+                    ),
+                )
+            )
 
             package_deps = self.package_index.packages(dep_name)
             if not package_deps:
@@ -948,31 +934,9 @@ class PackageParser(object):
                         project_name=project_name.raw, dep_name=dep_name.raw
                     )
                 )
-
-            deps = [
-                indexed_package
-                for indexed_package in package_deps
-                if spec_matches(dep_parse_context.table, indexed_package.package_data)
-            ]  # type: List[IndexedPackage]
-            if not deps:
-                return dep_parse_context.error(
-                    "No matching {dep_name} package could be found for {project_name} "
-                    "dependencies[{dep_idx}].".format(
-                        dep_name=dep_name.raw, project_name=project_name.raw, dep_idx=dep_idx
-                    )
-                )
-            elif len(deps) > 1:
-                return dep_parse_context.error(
-                    "More than one package matches {project_name} dependencies[{dep_idx}]:\n"
-                    "{matches}".format(
-                        project_name=project_name.raw,
-                        dep_idx=dep_idx,
-                        matches="\n".join(
-                            "+ packages[{index}]".format(index=dep.index) for dep in deps
-                        ),
-                    )
-                )
-            dependencies.append(Dependency(index=deps[0].index, project_name=dep_name))
+            dependencies.extend(
+                Dependency(index=dep.index, project_name=dep_name) for dep in package_deps
+            )
 
         vcs_parse_context = parse_context.get_table("vcs", default={})
         directory_parse_context = parse_context.get_table("directory", default={})
@@ -1375,12 +1339,7 @@ class Pylock(object):
         except TomlDecodeError as e:
             return parse_context.error("Failed to parse TOML", e)
 
-        lock_version = Version(
-            parse_context.get_string(
-                "lock-version",
-                "Pex only supports lock version 1.0 and refuses to guess compatibility.",
-            )
-        )
+        lock_version = Version(parse_context.get_string("lock-version"))
         if lock_version != Version("1.0"):
             return parse_context.error(
                 "Found `lock-version` {version}, but Pex only supports version 1.0.".format(
@@ -1403,7 +1362,9 @@ class Pylock(object):
             "packages", default=[], diagnostic_key="name"
         )
         package_index = PackageIndex.create(packages_data)
-        package_parser = PackageParser(package_index=package_index, source=pylock_toml_path)
+        package_parser = PackageParser(
+            package_index=package_index, source=pylock_toml_path, created_by=created_by
+        )
 
         local_project_requirement_mapping = {}  # type: Dict[str, Requirement]
         packages = []  # type: List[Package]
