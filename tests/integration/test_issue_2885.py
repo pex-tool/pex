@@ -67,7 +67,7 @@ def create_lock_file(
         toml.dump(
             data={
                 "lock-version": "1.0",
-                "requires-python": ">=3.8",
+                "requires-python": ">=2.7",
                 "created-by": __name__,
                 "packages": [create_package(wheel) for wheel in wheels],
             },
