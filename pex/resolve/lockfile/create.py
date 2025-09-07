@@ -147,7 +147,7 @@ class CreateLockDownloadManager(DownloadManager[Artifact]):
 
     def __init__(
         self,
-        path_and_version_by_artifact_and_project_name,  # type: Mapping[Tuple[AnyArtifact, ProjectName], Tuple[Optional[str], Version]]
+        path_and_version_by_artifact_and_project_name,  # type: Mapping[Tuple[AnyArtifact, ProjectName], Tuple[Optional[str], Optional[Version]]]
         pex_root=ENV,  # type: Union[str, Variables]
     ):
         # type: (...) -> None
