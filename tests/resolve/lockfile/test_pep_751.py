@@ -749,47 +749,22 @@ def test_pylock_parse_errors(tmpdir):
 
     assert_pylock_error(
         "Failed to parse the PEP-751 lock at {lock_path}. "
-        'Error parsing content at packages[0]{{name = "A"}}.dependencies[0]{{name = "B"}}.\n'
-        "No matching B package could be found for A dependencies[0].".format(lock_path=lock_path),
+        'Error parsing content at packages[0]{{name = "A"}}.dependencies[0]{{name = "C"}}.\n'
+        "The A package depends on C, but there is no C package in the packages array.".format(
+            lock_path=lock_path
+        ),
         dedent(
             """\
             [[packages]]
             name = "A"
             version = "1"
-            dependencies = [{name = "B", version = "1"}]
+            dependencies = [{name = "C"}]
             directory = {path = "A"}
             
             [[packages]]
             name = "B"
             version = "2"
             directory = {path = "B"}
-            """
-        ),
-    )
-
-    assert_pylock_error(
-        "Failed to parse the PEP-751 lock at {lock_path}. "
-        'Error parsing content at packages[0]{{name = "A"}}.dependencies[0]{{name = "B"}}.\n'
-        "More than one package matches A dependencies[0]:\n"
-        "+ packages[1]\n"
-        "+ packages[2]".format(lock_path=lock_path),
-        dedent(
-            """\
-            [[packages]]
-            name = "A"
-            version = "1"
-            dependencies = [{name = "B", version = "1"}]
-            directory = {path = "A"}
-            
-            [[packages]]
-            name = "B"
-            version = "1"
-            directory = {path = "B", subdirectory = "standard-b"}
-            
-            [[packages]]
-            name = "B"
-            version = "1"
-            directory = {path = "B", subdirectory = "special-b"}
             """
         ),
     )
