@@ -25,17 +25,15 @@ from pex.interpreter import PythonInterpreter
 from pex.jobs import Job
 from pex.network_configuration import NetworkConfiguration
 from pex.pep_427 import install_wheel_interpreter
+from pex.pep_508 import MarkerEnvironment
 from pex.pip import dependencies, foreign_platform
 from pex.pip.download_observer import DownloadObserver, PatchSet
 from pex.pip.log_analyzer import ErrorAnalyzer, ErrorMessage, LogAnalyzer, LogScrapeJob
 from pex.pip.tailer import Tailer
 from pex.pip.version import PipVersion, PipVersionValue
 from pex.platforms import PlatformSpec
-from pex.resolve.resolver_configuration import (
-    BuildConfiguration,
-    ReposConfiguration,
-    ResolverVersion,
-)
+from pex.resolve.package_repository import ReposConfiguration
+from pex.resolve.resolver_configuration import BuildConfiguration, ResolverVersion
 from pex.resolve.target_system import UniversalTarget
 from pex.targets import Target
 from pex.tracer import TRACER
@@ -56,6 +54,7 @@ if TYPE_CHECKING:
         Optional,
         Sequence,
         Tuple,
+        Union,
     )
 
     import attr  # vendor:skip
@@ -210,6 +209,12 @@ class PackageIndexConfiguration(object):
         self.pip_version = pip_version  # type: Optional[PipVersionValue]
         self.extra_pip_requirements = extra_pip_requirements  # type: Tuple[Requirement, ...]
         self.keyring_provider = keyring_provider  # type: Optional[str]
+
+    def patch(self, target):
+        # type: (Union[UniversalTarget, MarkerEnvironment]) -> Optional[DownloadObserver]
+        # TODO: XXX: Support patching Pip's collector.py to customize links / find-links per
+        #  project name
+        return None
 
 
 if TYPE_CHECKING:
@@ -456,7 +461,7 @@ class Pip(object):
 
         command = pip_args + list(args)
 
-        # N.B.: Package index options in Pep always have the same option names, but they are
+        # N.B.: Package index options in Pip always have the same option names, but they are
         # registered as subcommand-specific, so we must append them here _after_ the pip subcommand
         # specified in `args`.
         if package_index_configuration:
@@ -627,6 +632,11 @@ class Pip(object):
             observer,
             dependencies.patch(
                 dependency_configuration, extra_data=universal_target or target.marker_environment
+            ),
+            (
+                package_index_configuration.patch(universal_target or target.marker_environment)
+                if package_index_configuration
+                else None
             ),
         ):
             if obs:

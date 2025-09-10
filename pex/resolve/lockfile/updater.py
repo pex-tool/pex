@@ -26,8 +26,9 @@ from pex.resolve.locked_resolve import (
 )
 from pex.resolve.lockfile.create import create
 from pex.resolve.lockfile.model import Lockfile
+from pex.resolve.package_repository import ReposConfiguration
 from pex.resolve.requirement_configuration import RequirementConfiguration
-from pex.resolve.resolver_configuration import PipConfiguration, PipLog, ReposConfiguration
+from pex.resolve.resolver_configuration import PipConfiguration, PipLog
 from pex.result import Error, ResultError, catch, try_
 from pex.sorted_tuple import SortedTuple
 from pex.targets import Target, Targets

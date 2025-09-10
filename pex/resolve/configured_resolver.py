@@ -7,7 +7,8 @@ from pex import resolver
 from pex.dist_metadata import Requirement
 from pex.pep_427 import InstallableType
 from pex.pip.version import PipVersion, PipVersionValue
-from pex.resolve.resolver_configuration import PipConfiguration, ReposConfiguration, ResolverVersion
+from pex.resolve.package_repository import ReposConfiguration
+from pex.resolve.resolver_configuration import PipConfiguration, ResolverVersion
 from pex.resolve.resolvers import Resolver, ResolveResult
 from pex.targets import Targets
 from pex.typing import TYPE_CHECKING

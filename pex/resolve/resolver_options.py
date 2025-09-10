@@ -18,9 +18,9 @@ from pex.pep_503 import ProjectName
 from pex.pip.version import PipVersion, PipVersionValue
 from pex.resolve.lockfile import json_codec
 from pex.resolve.lockfile.model import Lockfile
+from pex.resolve.package_repository import PYPI, ReposConfiguration
 from pex.resolve.path_mappings import PathMapping, PathMappings
 from pex.resolve.resolver_configuration import (
-    PYPI,
     BuildConfiguration,
     LockRepositoryConfiguration,
     PexRepositoryConfiguration,
@@ -28,7 +28,6 @@ from pex.resolve.resolver_configuration import (
     PipLog,
     PreResolvedConfiguration,
     PylockRepositoryConfiguration,
-    ReposConfiguration,
     ResolverVersion,
 )
 from pex.result import Error

@@ -10,7 +10,8 @@ import pytest
 from pex.build_system.pep_518 import BuildSystem, load_build_system
 from pex.pip.version import PipVersion
 from pex.resolve.configured_resolver import ConfiguredResolver
-from pex.resolve.resolver_configuration import PipConfiguration, ReposConfiguration
+from pex.resolve.package_repository import ReposConfiguration
+from pex.resolve.resolver_configuration import PipConfiguration
 from pex.targets import LocalInterpreter
 from pex.toml import TOMLI_SUPPORTED
 from pex.typing import TYPE_CHECKING

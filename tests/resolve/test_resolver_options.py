@@ -10,13 +10,13 @@ import pytest
 from pex.common import touch
 from pex.pex_warnings import PEXWarning
 from pex.pip.version import PipVersion
-from pex.resolve import resolver_configuration, resolver_options
+from pex.resolve import resolver_options
+from pex.resolve.package_repository import PYPI, ReposConfiguration
 from pex.resolve.resolver_configuration import (
     BuildConfiguration,
     PexRepositoryConfiguration,
     PipConfiguration,
     PreResolvedConfiguration,
-    ReposConfiguration,
 )
 from pex.typing import TYPE_CHECKING
 
@@ -124,7 +124,7 @@ def test_clp_index_option_render(parser):
     repos_configuration = compute_repos_configuration(
         parser, args=["--index", "http://www.example.com"]
     )
-    assert (resolver_configuration.PYPI, "http://www.example.com") == repos_configuration.indexes
+    assert (PYPI, "http://www.example.com") == repos_configuration.indexes
     assert () == repos_configuration.find_links
 
 
