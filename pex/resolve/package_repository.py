@@ -4,12 +4,14 @@
 from __future__ import absolute_import
 
 import itertools
+import os
 
 from pex.auth import PasswordEntry
+from pex.dist_metadata import Requirement, RequirementParseError
 from pex.pep_503 import ProjectName
 from pex.pep_508 import MarkerEnvironment
 from pex.resolve.target_system import MarkerEnv, UniversalTarget
-from pex.third_party.packaging.markers import Marker
+from pex.third_party.packaging.markers import InvalidMarker, Marker
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -23,6 +25,45 @@ else:
 
 @attr.s(frozen=True)
 class Scope(object):
+    @classmethod
+    def parse(cls, value):
+        # type: (str) -> Scope
+
+        def create_invalid_error(footer=None):
+            # type: (Optional[str]) -> Exception
+            error_msg_lines = [
+                "The given scope is invalid: {scope}".format(scope=value),
+                "Expected a bare project name, a bare marker or a project name and marker; "
+                "e.g.: `torch; sys_platform != 'darwin'`.",
+            ]
+            if footer:
+                error_msg_lines.append(footer)
+            return ValueError(os.linesep.join(error_msg_lines))
+
+        try:
+            return cls(marker=Marker(value))
+        except InvalidMarker:
+            try:
+                requirement = Requirement.parse(value)
+            except RequirementParseError:
+                raise create_invalid_error()
+            if requirement.extras:
+                raise create_invalid_error(
+                    "The specified project name {project_name} has extras that should be removed: "
+                    "{extras}".format(
+                        project_name=requirement.project_name.raw,
+                        extras=", ".join(sorted(requirement.extras)),
+                    )
+                )
+            if requirement.specifier:
+                raise create_invalid_error(
+                    "The specified project name {project_name} has a version specifier that should "
+                    "be removed: {specifier}".format(
+                        project_name=requirement.project_name.raw, specifier=requirement.specifier
+                    )
+                )
+            return cls(project=requirement.project_name, marker=requirement.marker)
+
     project = attr.ib(default=None)  # type: Optional[ProjectName]
     marker = attr.ib(default=None)  # type: Optional[Marker]
 
@@ -88,19 +129,19 @@ class ReposConfiguration(object):
     @classmethod
     def create(
         cls,
-        indexes=(),  # type: Iterable[str]
-        find_links=(),  # type: Iterable[str]
+        indexes=(),  # type: Iterable[Repo]
+        find_links=(),  # type: Iterable[Repo]
     ):
         # type: (...) -> ReposConfiguration
         password_entries = []
-        for url in itertools.chain(indexes, find_links):
-            password_entry = PasswordEntry.maybe_extract_from_url(url)
+        for repo in itertools.chain(indexes, find_links):
+            password_entry = PasswordEntry.maybe_extract_from_url(repo.location)
             if password_entry:
                 password_entries.append(password_entry)
 
         return cls(
-            indexes=tuple(Repo(index) for index in indexes),
-            find_links=tuple(Repo(find_links_repo) for find_links_repo in find_links),
+            indexes=tuple(indexes),
+            find_links=tuple(find_links),
             password_entries=tuple(password_entries),
         )
 
@@ -111,9 +152,9 @@ class ReposConfiguration(object):
     @property
     def indexes(self):
         # type: () -> Tuple[str, ...]
-        return tuple(repo.location for repo in self._indexes)
+        return tuple(repo.location for repo in self._indexes if not repo.scopes)
 
     @property
     def find_links(self):
         # type: () -> Tuple[str, ...]
-        return tuple(repo.location for repo in self._find_links)
+        return tuple(repo.location for repo in self._find_links if not repo.scopes)
