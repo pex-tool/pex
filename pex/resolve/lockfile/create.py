@@ -9,7 +9,7 @@ from collections import OrderedDict, defaultdict
 from multiprocessing.pool import ThreadPool
 
 from pex import hashing
-from pex.auth import PasswordDatabase, PasswordEntry
+from pex.auth import PasswordDatabase
 from pex.build_system import pep_517
 from pex.common import pluralize, safe_mkdtemp
 from pex.dependency_configuration import DependencyConfiguration
@@ -41,6 +41,7 @@ from pex.resolve.locked_resolve import (
 from pex.resolve.locker import Locker
 from pex.resolve.lockfile.download_manager import DownloadManager
 from pex.resolve.lockfile.model import Lockfile
+from pex.resolve.package_repository import ReposConfiguration
 from pex.resolve.pep_691.fingerprint_service import FingerprintService
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolved_requirement import Pin, ResolvedRequirement
@@ -161,13 +162,11 @@ class CreateLockDownloadManager(DownloadManager[Artifact]):
         targets,  # type: Iterable[Target]
         lock_configuration,  # type: LockConfiguration
         resolver,  # type: Resolver
-        indexes=None,  # type: Optional[Sequence[str]]
-        find_links=None,  # type: Optional[Sequence[str]]
+        repos_configuration=ReposConfiguration(),  # type: ReposConfiguration
         max_parallel_jobs=None,  # type: Optional[int]
         pip_version=None,  # type: Optional[PipVersionValue]
         resolver_version=None,  # type: Optional[ResolverVersion.Value]
         network_configuration=None,  # type: Optional[NetworkConfiguration]
-        password_entries=(),  # type: Iterable[PasswordEntry]
         build_configuration=BuildConfiguration(),  # type: BuildConfiguration
         use_pip_config=False,  # type: bool
         extra_pip_requirements=(),  # type: Tuple[Requirement, ...]
@@ -187,13 +186,11 @@ class CreateLockDownloadManager(DownloadManager[Artifact]):
             targets=targets,
             lock_configuration=lock_configuration,
             resolver=resolver,
-            indexes=indexes,
-            find_links=find_links,
+            repos_configuration=repos_configuration,
             max_parallel_jobs=max_parallel_jobs,
             pip_version=pip_version,
             resolver_version=resolver_version,
             network_configuration=network_configuration,
-            password_entries=password_entries,
             build_configuration=build_configuration,
             use_pip_config=use_pip_config,
             extra_pip_requirements=extra_pip_requirements,
@@ -465,16 +462,15 @@ def create(
         for parsed_constraint in requirement_configuration.parse_constraints(network_configuration)
     )
 
+    password_database = PasswordDatabase.from_netrc().append(
+        pip_configuration.repos_configuration.password_entries
+    )
     package_index_configuration = PackageIndexConfiguration.create(
         pip_version=pip_configuration.version,
         resolver_version=pip_configuration.resolver_version,
         network_configuration=network_configuration,
-        find_links=pip_configuration.repos_configuration.find_links,
-        indexes=pip_configuration.repos_configuration.indexes,
-        password_entries=(
-            PasswordDatabase.from_netrc()
-            .append(pip_configuration.repos_configuration.password_entries)
-            .entries
+        repos_configuration=attr.evolve(
+            pip_configuration.repos_configuration, password_entries=password_database.entries
         ),
         use_pip_config=pip_configuration.use_pip_config,
         extra_pip_requirements=pip_configuration.extra_requirements,
@@ -513,11 +509,9 @@ def create(
             constraint_files=requirement_configuration.constraint_files,
             allow_prereleases=pip_configuration.allow_prereleases,
             transitive=pip_configuration.transitive,
-            indexes=pip_configuration.repos_configuration.indexes,
-            find_links=pip_configuration.repos_configuration.find_links,
+            repos_configuration=pip_configuration.repos_configuration,
             resolver_version=pip_configuration.resolver_version,
             network_configuration=network_configuration,
-            password_entries=pip_configuration.repos_configuration.password_entries,
             build_configuration=pip_configuration.build_configuration,
             max_parallel_jobs=pip_configuration.max_jobs,
             observer=lock_observer,
@@ -545,13 +539,11 @@ def create(
             targets=download_targets.unique_targets(),
             lock_configuration=lock_configuration,
             resolver=configured_resolver,
-            indexes=pip_configuration.repos_configuration.indexes,
-            find_links=pip_configuration.repos_configuration.find_links,
+            repos_configuration=pip_configuration.repos_configuration,
             max_parallel_jobs=pip_configuration.max_jobs,
             pip_version=pip_configuration.version,
             resolver_version=pip_configuration.resolver_version,
             network_configuration=network_configuration,
-            password_entries=pip_configuration.repos_configuration.password_entries,
             build_configuration=pip_configuration.build_configuration,
             use_pip_config=pip_configuration.use_pip_config,
             extra_pip_requirements=pip_configuration.extra_requirements,
@@ -587,11 +579,9 @@ def create(
                     targets=check_targets,
                     lock=lock,
                     resolver=configured_resolver,
-                    indexes=pip_configuration.repos_configuration.indexes,
-                    find_links=pip_configuration.repos_configuration.find_links,
+                    repos_configuration=pip_configuration.repos_configuration,
                     resolver_version=pip_configuration.resolver_version,
                     network_configuration=network_configuration,
-                    password_entries=pip_configuration.repos_configuration.password_entries,
                     build_configuration=pip_configuration.build_configuration,
                     transitive=pip_configuration.transitive,
                     max_parallel_jobs=pip_configuration.max_jobs,

@@ -152,10 +152,8 @@ class PackageIndexConfiguration(object):
         cls,
         pip_version=None,  # type: Optional[PipVersionValue]
         resolver_version=None,  # type: Optional[ResolverVersion.Value]
-        indexes=None,  # type: Optional[Sequence[str]]
-        find_links=None,  # type: Optional[Iterable[str]]
+        repos_configuration=ReposConfiguration(),  # type: ReposConfiguration
         network_configuration=None,  # type: Optional[NetworkConfiguration]
-        password_entries=(),  # type: Iterable[PasswordEntry]
         use_pip_config=False,  # type: bool
         extra_pip_requirements=(),  # type: Tuple[Requirement, ...]
         keyring_provider=None,  # type: Optional[str]
@@ -174,8 +172,8 @@ class PackageIndexConfiguration(object):
             resolver_version=resolver_version,
             network_configuration=network_configuration,
             args=PipArgs(
-                indexes=indexes,
-                find_links=find_links,
+                indexes=repos_configuration.indexes,
+                find_links=repos_configuration.find_links,
                 network_configuration=network_configuration,
             ),
             env=cls._calculate_env(
@@ -183,7 +181,7 @@ class PackageIndexConfiguration(object):
             ),
             use_pip_config=use_pip_config,
             extra_pip_requirements=extra_pip_requirements,
-            password_entries=password_entries,
+            password_entries=repos_configuration.password_entries,
             keyring_provider=keyring_provider,
         )
 

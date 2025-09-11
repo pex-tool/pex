@@ -16,7 +16,6 @@ from collections import OrderedDict, defaultdict
 
 from pex import targets
 from pex.atomic_directory import AtomicDirectory, atomic_directory
-from pex.auth import PasswordEntry
 from pex.cache.dirs import BuiltWheelDir, CacheDir
 from pex.common import (
     open_zip,
@@ -49,6 +48,7 @@ from pex.pip.installation import get_pip
 from pex.pip.tool import PackageIndexConfiguration
 from pex.pip.version import PipVersionValue
 from pex.requirements import LocalProjectRequirement, URLRequirement
+from pex.resolve.package_repository import ReposConfiguration
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import BuildConfiguration, PipLog, ResolverVersion
 from pex.resolve.resolvers import (
@@ -1154,11 +1154,9 @@ def resolve(
     constraint_files=None,  # type: Optional[Iterable[str]]
     allow_prereleases=False,  # type: bool
     transitive=True,  # type: bool
-    indexes=None,  # type: Optional[Sequence[str]]
-    find_links=None,  # type: Optional[Sequence[str]]
+    repos_configuration=ReposConfiguration(),  # type: ReposConfiguration
     resolver_version=None,  # type: Optional[ResolverVersion.Value]
     network_configuration=None,  # type: Optional[NetworkConfiguration]
-    password_entries=(),  # type: Iterable[PasswordEntry]
     build_configuration=BuildConfiguration(),  # type: BuildConfiguration
     compile=False,  # type: bool
     max_parallel_jobs=None,  # type: Optional[int]
@@ -1185,19 +1183,13 @@ def resolve(
     :keyword constraint_files: A sequence of constraint file paths.
     :keyword allow_prereleases: Whether to include pre-release and development versions when
       resolving requirements. Defaults to ``False``, but any requirements that explicitly request
-      prerelease or development versions will override this setting.
+      pre-release or development versions will override this setting.
     :keyword transitive: Whether to resolve transitive dependencies of requirements.
       Defaults to ``True``.
-    :keyword indexes: A list of urls or paths pointing to PEP 503 compliant repositories to search for
-      distributions. Defaults to ``None`` which indicates to use the default pypi index. To turn off
-      use of all indexes, pass an empty list.
-    :keyword find_links: A list or URLs, paths to local html files or directory paths. If URLs or
-      local html file paths, these are parsed for links to distributions. If a local directory path,
-      its listing is used to discover distributions.
+    :keyword repos_configuration: Configuration for package repositories to resolve packages from.
     :keyword resolver_version: The resolver version to use.
     :keyword network_configuration: Configuration for network requests made downloading and building
       distributions.
-    :keyword password_entries: Any known authentication information needed for resolving.
     :keyword build_configuration: The configuration for building resolved projects.
     :keyword compile: Whether to pre-compile resolved distribution python sources.
       Defaults to ``False``.
@@ -1249,10 +1241,8 @@ def resolve(
     package_index_configuration = PackageIndexConfiguration.create(
         pip_version=pip_version,
         resolver_version=resolver_version,
-        indexes=indexes,
-        find_links=find_links,
+        repos_configuration=repos_configuration,
         network_configuration=network_configuration,
-        password_entries=password_entries,
         use_pip_config=use_pip_config,
         extra_pip_requirements=extra_pip_requirements,
         keyring_provider=keyring_provider,
@@ -1413,11 +1403,9 @@ def download(
     constraint_files=None,  # type: Optional[Iterable[str]]
     allow_prereleases=False,  # type: bool
     transitive=True,  # type: bool
-    indexes=None,  # type: Optional[Sequence[str]]
-    find_links=None,  # type: Optional[Sequence[str]]
+    repos_configuration=ReposConfiguration(),  # type: ReposConfiguration
     resolver_version=None,  # type: Optional[ResolverVersion.Value]
     network_configuration=None,  # type: Optional[NetworkConfiguration]
-    password_entries=(),  # type: Iterable[PasswordEntry]
     build_configuration=BuildConfiguration(),  # type: BuildConfiguration
     dest=None,  # type: Optional[str]
     max_parallel_jobs=None,  # type: Optional[int]
@@ -1440,19 +1428,13 @@ def download(
     :keyword constraint_files: A sequence of constraint file paths.
     :keyword allow_prereleases: Whether to include pre-release and development versions when
       resolving requirements. Defaults to ``False``, but any requirements that explicitly request
-      prerelease or development versions will override this setting.
+      pre-release or development versions will override this setting.
     :keyword transitive: Whether to resolve transitive dependencies of requirements.
       Defaults to ``True``.
-    :keyword indexes: A list of urls or paths pointing to PEP 503 compliant repositories to search
-      for distributions. Defaults to ``None`` which indicates to use the default pypi index. To turn
-      off use of all indexes, pass an empty list.
-    :keyword find_links: A list of URLs, paths to local html files or directory paths. If URLs or
-      local html file paths, these are parsed for links to distributions. If a local directory path,
-      its listing is used to discover distributions.
+    :keyword repos_configuration: Configuration for package repositories to resolve packages from.
     :keyword resolver_version: The resolver version to use.
     :keyword network_configuration: Configuration for network requests made downloading and building
       distributions.
-    :keyword password_entries: Any known authentication information needed for downloading.
     :keyword build_configuration: The configuration for building resolved projects.
     :keyword dest: A directory path to download distributions to.
     :keyword max_parallel_jobs: The maximum number of parallel jobs to use when resolving,
@@ -1469,10 +1451,8 @@ def download(
     package_index_configuration = PackageIndexConfiguration.create(
         pip_version=pip_version,
         resolver_version=resolver_version,
-        indexes=indexes,
-        find_links=find_links,
+        repos_configuration=repos_configuration,
         network_configuration=network_configuration,
-        password_entries=password_entries,
         use_pip_config=use_pip_config,
         extra_pip_requirements=extra_pip_requirements,
         keyring_provider=keyring_provider,

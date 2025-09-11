@@ -12,6 +12,7 @@ from pex.pip.tool import PackageIndexConfiguration
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.locked_resolve import LockConfiguration, LockedResolve, LockStyle
 from pex.resolve.lockfile.create import LockObserver
+from pex.resolve.package_repository import Repo, ReposConfiguration
 from pex.resolve.resolved_requirement import Pin
 from pex.resolve.resolver_configuration import PipConfiguration
 from pex.resolver import Downloaded, LocalDistribution, WheelBuilder
@@ -46,8 +47,7 @@ def create_lock_observer(lock_configuration):
     pip_configuration = PipConfiguration()
     package_index_configuration = PackageIndexConfiguration.create(
         resolver_version=pip_configuration.resolver_version,
-        indexes=pip_configuration.repos_configuration.indexes,
-        find_links=pip_configuration.repos_configuration.find_links,
+        repos_configuration=pip_configuration.repos_configuration,
         network_configuration=pip_configuration.network_configuration,
     )
     return LockObserver(
@@ -141,8 +141,10 @@ def test_lock_single_target(
     _, find_links_locked_resolves = create_lock(
         lock_configuration,
         requirements=requirements,
-        indexes=[],
-        find_links=[find_links_repo],
+        repos_configuration=ReposConfiguration.create(
+            indexes=[],
+            find_links=[Repo(find_links_repo)],
+        ),
     )
     assert normalize(
         locked_resolves, skip_additional_artifacts=True, skip_urls=True, skip_verified=True
