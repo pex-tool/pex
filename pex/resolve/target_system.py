@@ -260,6 +260,23 @@ class EvalMarkerFunc(Generic["_T"]):
 @attr.s(frozen=True)
 class MarkerEnv(object):
     @classmethod
+    def from_dict(cls, data):
+        # type: (Dict[str, Any]) -> MarkerEnv
+        return cls(
+            extras=frozenset(ProjectName(extra) for extra in data["extras"]),
+            os_names=frozenset(data["os_names"]),
+            platform_systems=frozenset(data["platform_systems"]),
+            sys_platforms=frozenset(data["sys_platforms"]),
+            implementations=frozenset(
+                InterpreterImplementation.for_value(impl) for impl in data["implementations"]
+            ),
+            python_versions=frozenset(Version(version) for version in data["python_versions"]),
+            python_full_versions=frozenset(
+                Version(version) for version in data["python_full_versions"]
+            ),
+        )
+
+    @classmethod
     def create(
         cls,
         extras,  # type: Iterable[str]
@@ -316,13 +333,25 @@ class MarkerEnv(object):
             ),
         )
 
-    extras = attr.ib()  # type: FrozenSet[ProjectName]
-    os_names = attr.ib()  # type: FrozenSet[str]
-    platform_systems = attr.ib()  # type: FrozenSet[str]
-    sys_platforms = attr.ib()  # type: FrozenSet[str]
-    implementations = attr.ib()  # type: FrozenSet[InterpreterImplementation.Value]
-    python_versions = attr.ib()  # type: FrozenSet[Version]
-    python_full_versions = attr.ib()  # type: FrozenSet[Version]
+    extras = attr.ib(factory=frozenset)  # type: FrozenSet[ProjectName]
+    os_names = attr.ib(factory=frozenset)  # type: FrozenSet[str]
+    platform_systems = attr.ib(factory=frozenset)  # type: FrozenSet[str]
+    sys_platforms = attr.ib(factory=frozenset)  # type: FrozenSet[str]
+    implementations = attr.ib(factory=frozenset)  # type: FrozenSet[InterpreterImplementation.Value]
+    python_versions = attr.ib(factory=frozenset)  # type: FrozenSet[Version]
+    python_full_versions = attr.ib(factory=frozenset)  # type: FrozenSet[Version]
+
+    def as_dict(self):
+        # type: () -> Dict[str, Any]
+        return {
+            "extras": sorted(str(extra) for extra in self.extras),
+            "os_names": sorted(self.os_names),
+            "platform_systems": sorted(self.platform_systems),
+            "sys_platforms": sorted(self.sys_platforms),
+            "implementations": sorted(str(impl) for impl in self.implementations),
+            "python_versions": sorted(str(version) for version in self.python_versions),
+            "python_full_versions": sorted(str(version) for version in self.python_full_versions),
+        }
 
     def evaluate(self, marker):
         # type: (Marker) -> bool

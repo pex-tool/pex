@@ -9,7 +9,6 @@ from collections import defaultdict
 from contextlib import contextmanager
 from textwrap import dedent
 
-import attr
 import pytest
 
 from pex import dist_metadata, targets
@@ -45,6 +44,10 @@ from testing import (
 
 if TYPE_CHECKING:
     from typing import Any, DefaultDict, Iterable, Iterator, List, Union
+
+    import attr  # vendor:skip
+else:
+    from pex.third_party import attr
 
 
 def create_sdist(**kwargs):

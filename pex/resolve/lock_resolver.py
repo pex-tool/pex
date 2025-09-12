@@ -5,8 +5,6 @@ from __future__ import absolute_import
 
 from collections import defaultdict
 
-import attr
-
 from pex.auth import PasswordDatabase
 from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import Requirement, is_wheel
@@ -53,6 +51,10 @@ if TYPE_CHECKING:
         Tuple,
         Union,
     )
+
+    import attr  # vendor:skip
+else:
+    from pex.third_party import attr
 
 
 def _check_subset(

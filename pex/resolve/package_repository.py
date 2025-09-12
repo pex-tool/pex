@@ -7,15 +7,16 @@ import itertools
 import os
 
 from pex.auth import PasswordEntry
+from pex.compatibility import string
 from pex.dist_metadata import Requirement, RequirementParseError
+from pex.exceptions import production_assert, reportable_unexpected_error_msg
 from pex.pep_503 import ProjectName
-from pex.pep_508 import MarkerEnvironment
-from pex.resolve.target_system import MarkerEnv, UniversalTarget
+from pex.resolve.target_system import MarkerEnv
 from pex.third_party.packaging.markers import InvalidMarker, Marker
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Any, Dict, Iterable, Optional, Tuple, Union
+    from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
     import attr  # vendor:skip
 
@@ -72,26 +73,18 @@ class Scope(object):
 
     def in_scope(
         self,
-        target,  # type: Union[Dict[str, str], MarkerEnv, MarkerEnvironment, UniversalTarget]
-        project_name=None,  # type: Optional[str]
+        target_env,  # type: Union[Dict[str, str], MarkerEnv]
+        project_name=None,  # type: Optional[ProjectName]
     ):
         # type: (...) -> bool
 
         if self.marker:
-            if isinstance(target, dict) and not self.marker.evaluate(target):
+            if isinstance(target_env, dict) and not self.marker.evaluate(target_env):
                 return False
-            elif isinstance(target, MarkerEnv) and not target.evaluate(self.marker):
-                return False
-            elif isinstance(target, MarkerEnvironment) and not self.marker.evaluate(
-                target.as_dict()
-            ):
-                return False
-            elif isinstance(target, UniversalTarget) and not target.marker_env().evaluate(
-                self.marker
-            ):
+            elif isinstance(target_env, MarkerEnv) and not target_env.evaluate(self.marker):
                 return False
 
-        if project_name and self.project and self.project != ProjectName(project_name):
+        if self.project and project_name and self.project != project_name:
             return False
 
         return True
@@ -123,8 +116,6 @@ class Repo(object):
     @classmethod
     def from_dict(cls, data):
         # type: (Dict[str, Any]) -> Repo
-
-        # TODO: XXX: Error handling
         return cls(
             location=data["location"], scopes=tuple(Scope.parse(scope) for scope in data["scopes"])
         )
@@ -138,16 +129,101 @@ class Repo(object):
 
     def in_scope(
         self,
-        target,  # type: Union[Dict[str, str], MarkerEnv, MarkerEnvironment, UniversalTarget]
-        project_name=None,  # type: Optional[str]
+        target_env,  # type: Union[Dict[str, str], MarkerEnv]
+        project_name=None,  # type: Optional[ProjectName]
     ):
         # type: (...) -> bool
         if not self.scopes:
             return True
-        return any(scope.in_scope(target, project_name=project_name) for scope in self.scopes)
+        return any(scope.in_scope(target_env, project_name=project_name) for scope in self.scopes)
 
 
 PYPI = "https://pypi.org/simple"
+
+
+@attr.s(frozen=True)
+class PackageRepositories(object):
+    @classmethod
+    def from_dict(cls, data):
+        # type: (Dict[str, Any]) -> PackageRepositories
+
+        markers = data.get("markers")
+        universal_markers_data = data.get("universal_markers")
+        production_assert(bool(markers) ^ bool(universal_markers_data))
+        if markers:
+            if not isinstance(markers, dict) or not all(
+                isinstance(key, string) and isinstance(value, string)
+                for key, value in markers.items()
+            ):
+                raise AssertionError(reportable_unexpected_error_msg())
+            target_env = markers  # type: Union[Dict[str, str], MarkerEnv]
+        else:
+            if not isinstance(universal_markers_data, dict) or not all(
+                isinstance(key, string) for key in universal_markers_data
+            ):
+                raise AssertionError(reportable_unexpected_error_msg())
+            target_env = MarkerEnv.from_dict(universal_markers_data)
+
+        return cls(
+            target_env=target_env,
+            global_indexes=tuple(data["global_indexes"]),
+            global_find_links=tuple(data["global_find_links"]),
+            scoped_indexes=tuple(Repo.from_dict(index) for index in data["scoped_indexes"]),
+            scoped_find_links=tuple(
+                Repo.from_dict(find_links) for find_links in data["scoped_find_links"]
+            ),
+        )
+
+    target_env = attr.ib()  # type: Union[Dict[str, str], MarkerEnv]
+    global_indexes = attr.ib(default=(Repo(PYPI),))  # type: Tuple[str, ...]
+    global_find_links = attr.ib(default=())  # type: Tuple[str, ...]
+    scoped_indexes = attr.ib(default=())  # type: Tuple[Repo, ...]
+    scoped_find_links = attr.ib(default=())  # type: Tuple[Repo, ...]
+
+    def as_dict(self):
+        # type: () -> Dict[str, Any]
+        return {
+            "markers": self.target_env if isinstance(self.target_env, dict) else None,
+            "universal_markers": (
+                self.target_env.as_dict() if isinstance(self.target_env, MarkerEnv) else None
+            ),
+            "global_indexes": list(self.global_indexes),
+            "global_find_links": list(self.global_find_links),
+            "scoped_indexes": [index.as_dict() for index in self.scoped_indexes],
+            "scoped_find_links": [find_links.as_dict() for find_links in self.scoped_find_links],
+        }
+
+    def _in_scope_repos(
+        self,
+        scoped_repos,  # type: Iterable[Repo]
+        global_repos,  # type: Iterable[str]
+        project_name,  # type: ProjectName
+    ):
+        # type: (...) -> List[str]
+
+        repos = []  # type: List[str]
+        for repo in scoped_repos:
+            if repo.in_scope(target_env=self.target_env, project_name=project_name):
+                repos.append(repo.location)
+        if not repos:
+            repos.extend(global_repos)
+        return repos
+
+    def in_scope_indexes(self, project_name):
+        # type: (ProjectName) -> List[str]
+        return self._in_scope_repos(
+            scoped_repos=self.scoped_indexes,
+            global_repos=self.global_indexes,
+            project_name=project_name,
+        )
+
+    def in_scope_find_links(self, project_name):
+        # type: (ProjectName) -> List[str]
+        return self._in_scope_repos(
+            scoped_repos=self.scoped_find_links,
+            global_repos=self.global_find_links,
+            project_name=project_name,
+        )
 
 
 @attr.s(frozen=True)
@@ -185,11 +261,20 @@ class ReposConfiguration(object):
         # type: () -> Tuple[str, ...]
         return tuple(repo.location for repo in self.find_links_repos if not repo.scopes)
 
-    def scoped(self, target):
-        # type: (Union[Dict[str, str], MarkerEnv, MarkerEnvironment, UniversalTarget]) -> ReposConfiguration
-        return ReposConfiguration.create(
-            indexes=[index for index in self.index_repos if index.in_scope(target)],
-            find_links=[
-                find_links for find_links in self.find_links_repos if find_links.in_scope(target)
-            ],
+    def scoped(self, target_env):
+        # type: (Union[Dict[str, str], MarkerEnv]) -> PackageRepositories
+        return PackageRepositories(
+            target_env=target_env,
+            global_indexes=self.indexes,
+            global_find_links=self.find_links,
+            scoped_indexes=tuple(
+                index
+                for index in self.index_repos
+                if index.scopes and index.in_scope(target_env=target_env)
+            ),
+            scoped_find_links=tuple(
+                find_links
+                for find_links in self.find_links_repos
+                if find_links.scopes and find_links.in_scope(target_env=target_env)
+            ),
         )

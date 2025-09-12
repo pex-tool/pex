@@ -213,9 +213,13 @@ class PackageIndexConfiguration(object):
         # type: () -> Iterable[PasswordEntry]
         return self.repos_configuration.password_entries
 
-    def patch(self, target):
-        # type: (Union[UniversalTarget, MarkerEnvironment]) -> Optional[DownloadObserver]
-        return package_repositories.patch(self.repos_configuration, target)
+    def patch(
+        self,
+        pip_version,  # type: PipVersionValue
+        target,  # type:  Union[UniversalTarget, MarkerEnvironment]
+    ):
+        # type: (...) -> Optional[DownloadObserver]
+        return package_repositories.patch(self.repos_configuration, pip_version, target)
 
 
 if TYPE_CHECKING:
@@ -636,7 +640,7 @@ class Pip(object):
             ),
             (
                 package_index_configuration.patch(
-                    target=universal_target or target.marker_environment
+                    pip_version=self.version, target=universal_target or target.marker_environment
                 )
                 if package_index_configuration
                 else None
