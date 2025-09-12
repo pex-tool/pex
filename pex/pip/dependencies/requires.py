@@ -24,11 +24,11 @@ def patch():
 
     patch_context = PatchContext.load()
     dependency_configuration = patch_context.dependency_configuration
-    extra_data = patch_context.extra_data
+    target = patch_context.target
 
     marker_environment = None  # type: Optional[Dict[str, str]]
-    if isinstance(extra_data, MarkerEnvironment):
-        marker_environment = extra_data.as_dict()
+    if isinstance(target, MarkerEnvironment):
+        marker_environment = target.as_dict()
 
     def are_exhaustive(
         universal_target,  # type: UniversalTarget
@@ -70,7 +70,7 @@ def patch():
                         for override in overrides
                         if not override.marker or override.marker.evaluate(marker_environment)
                     ]
-                elif overrides and not are_exhaustive(patch_context.extra_data, overrides):
+                elif overrides and not are_exhaustive(patch_context.target, overrides):
                     overrides.append(req)
 
                 if overrides:

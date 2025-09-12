@@ -15,7 +15,7 @@ from pex.third_party.packaging.markers import InvalidMarker, Marker
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Dict, Iterable, Optional, Tuple, Union
+    from typing import Any, Dict, Iterable, Optional, Tuple, Union
 
     import attr  # vendor:skip
 
@@ -28,6 +28,9 @@ class Scope(object):
     @classmethod
     def parse(cls, value):
         # type: (str) -> Scope
+
+        if not value:
+            return Scope()
 
         def create_invalid_error(footer=None):
             # type: (Optional[str]) -> Exception
@@ -69,13 +72,10 @@ class Scope(object):
 
     def in_scope(
         self,
-        project_name,  # type: str
         target,  # type: Union[Dict[str, str], MarkerEnv, MarkerEnvironment, UniversalTarget]
+        project_name=None,  # type: Optional[str]
     ):
         # type: (...) -> bool
-
-        if self.project and self.project != ProjectName(project_name):
-            return False
 
         if self.marker:
             if isinstance(target, dict) and not self.marker.evaluate(target):
@@ -91,7 +91,20 @@ class Scope(object):
             ):
                 return False
 
+        if project_name and self.project and self.project != ProjectName(project_name):
+            return False
+
         return True
+
+    def __str__(self):
+        # type: () -> str
+        if self.project and self.marker:
+            return "{project}; {marker}".format(project=self.project, marker=self.marker)
+        if self.project:
+            return str(self.project)
+        if self.marker:
+            return str(self.marker)
+        return ""
 
 
 # Indexes that only contain certain non-public projects or else projects you wish to override:
@@ -107,18 +120,31 @@ class Scope(object):
 
 @attr.s(frozen=True)
 class Repo(object):
+    @classmethod
+    def from_dict(cls, data):
+        # type: (Dict[str, Any]) -> Repo
+
+        # TODO: XXX: Error handling
+        return cls(
+            location=data["location"], scopes=tuple(Scope.parse(scope) for scope in data["scopes"])
+        )
+
     location = attr.ib()  # type: str
     scopes = attr.ib(default=())  # type: Tuple[Scope, ...]
 
+    def as_dict(self):
+        # type: () -> Dict[str, Any]
+        return {"location": self.location, "scopes": [str(scope) for scope in self.scopes]}
+
     def in_scope(
         self,
-        project_name,  # type: str
         target,  # type: Union[Dict[str, str], MarkerEnv, MarkerEnvironment, UniversalTarget]
+        project_name=None,  # type: Optional[str]
     ):
         # type: (...) -> bool
         if not self.scopes:
             return True
-        return any(scope.in_scope(project_name, target) for scope in self.scopes)
+        return any(scope.in_scope(target, project_name=project_name) for scope in self.scopes)
 
 
 PYPI = "https://pypi.org/simple"
@@ -140,21 +166,30 @@ class ReposConfiguration(object):
                 password_entries.append(password_entry)
 
         return cls(
-            indexes=tuple(indexes),
-            find_links=tuple(find_links),
+            index_repos=tuple(indexes),
+            find_links_repos=tuple(find_links),
             password_entries=tuple(password_entries),
         )
 
-    _indexes = attr.ib(default=(Repo(PYPI),))  # type: Tuple[Repo, ...]
-    _find_links = attr.ib(default=())  # type: Tuple[Repo, ...]
+    index_repos = attr.ib(default=(Repo(PYPI),))  # type: Tuple[Repo, ...]
+    find_links_repos = attr.ib(default=())  # type: Tuple[Repo, ...]
     password_entries = attr.ib(default=())  # type: Tuple[PasswordEntry, ...]
 
     @property
     def indexes(self):
         # type: () -> Tuple[str, ...]
-        return tuple(repo.location for repo in self._indexes if not repo.scopes)
+        return tuple(repo.location for repo in self.index_repos if not repo.scopes)
 
     @property
     def find_links(self):
         # type: () -> Tuple[str, ...]
-        return tuple(repo.location for repo in self._find_links if not repo.scopes)
+        return tuple(repo.location for repo in self.find_links_repos if not repo.scopes)
+
+    def scoped(self, target):
+        # type: (Union[Dict[str, str], MarkerEnv, MarkerEnvironment, UniversalTarget]) -> ReposConfiguration
+        return ReposConfiguration.create(
+            indexes=[index for index in self.index_repos if index.in_scope(target)],
+            find_links=[
+                find_links for find_links in self.find_links_repos if find_links.in_scope(target)
+            ],
+        )

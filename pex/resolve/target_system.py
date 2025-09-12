@@ -332,9 +332,18 @@ class MarkerEnv(object):
 
 @attr.s(frozen=True)
 class UniversalTarget(object):
+    @classmethod
+    def from_json(cls, data):
+        # type: (Any) -> UniversalTarget
+        return cls()
+
     implementation = attr.ib(default=None)  # type: Optional[InterpreterImplementation.Value]
     requires_python = attr.ib(default=())  # type: Tuple[SpecifierSet, ...]
     systems = attr.ib(default=())  # type: Tuple[TargetSystem.Value, ...]
+
+    def as_json(self):
+        # type: () -> Any
+        return {}
 
     def iter_interpreter_constraints(self):
         # type: () -> Iterator[InterpreterConstraint]

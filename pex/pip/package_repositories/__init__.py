@@ -1,4 +1,4 @@
-# Copyright 2024 Pex project contributors.
+# Copyright 2025 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 from __future__ import absolute_import
@@ -7,17 +7,17 @@ import json
 import os
 
 from pex.common import safe_mkdtemp
-from pex.dependency_configuration import DependencyConfiguration
 from pex.exceptions import reportable_unexpected_error_msg
 from pex.interpreter_implementation import InterpreterImplementation
 from pex.pep_508 import MarkerEnvironment
 from pex.pip.download_observer import DownloadObserver, Patch, PatchSet
-from pex.resolve.target_system import TargetSystem, UniversalTarget
+from pex.resolve.package_repository import Repo, ReposConfiguration
+from pex.resolve.target_system import MarkerEnv, TargetSystem, UniversalTarget
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from typing import Mapping, Optional, Union
+    from typing import Dict, Mapping, Optional, Union
 
     import attr  # vendor:skip
 else:
@@ -26,13 +26,13 @@ else:
 
 @attr.s(frozen=True)
 class PatchContext(object):
-    _PEX_DEP_CONFIG_FILE_ENV_VAR_NAME = "_PEX_DEP_CONFIG_FILE"
+    _PEX_REPOS_CONFIG_FILE_ENV_VAR_NAME = "_PEX_REPOS_CONFIG_FILE"
 
     @classmethod
     def load(cls):
         # type: () -> PatchContext
 
-        dep_config_file = os.environ.pop(cls._PEX_DEP_CONFIG_FILE_ENV_VAR_NAME)
+        dep_config_file = os.environ.pop(cls._PEX_REPOS_CONFIG_FILE_ENV_VAR_NAME)
         with open(dep_config_file) as fp:
             data = json.load(fp)
 
@@ -68,8 +68,9 @@ class PatchContext(object):
             )
 
         return cls(
-            dependency_configuration=DependencyConfiguration.create(
-                excluded=data["excluded"], overridden=data["overridden"]
+            repos_configuration=ReposConfiguration.create(
+                indexes=[Repo.from_dict(index) for index in data["indexes"]],
+                find_links=[Repo.from_dict(find_links) for find_links in data["find_links"]],
             ),
             target=cast(
                 "Union[UniversalTarget, MarkerEnvironment]",
@@ -80,58 +81,62 @@ class PatchContext(object):
     @classmethod
     def dump(
         cls,
-        dependency_configuration,  # type: DependencyConfiguration
-        target,  # type: Union[UniversalTarget, MarkerEnvironment]
+        repos_configuration,  # type: ReposConfiguration
+        extra_data,  # type: Union[UniversalTarget, MarkerEnvironment]
     ):
         # type: (...) -> Mapping[str, str]
 
-        dep_config_file = os.path.join(safe_mkdtemp(), "dep_config.json")
-        with open(dep_config_file, "w") as fp:
+        repos_config_file = os.path.join(safe_mkdtemp(), "repos_config.json")
+        with open(repos_config_file, "w") as fp:
             json.dump(
                 {
-                    "excluded": [str(exclude) for exclude in dependency_configuration.excluded],
-                    "overridden": [
-                        str(override) for override in dependency_configuration.all_overrides()
+                    "indexes": [index.as_dict() for index in repos_configuration.index_repos],
+                    "find_links": [
+                        find_links.as_dict() for find_links in repos_configuration.find_links_repos
                     ],
                     "universal_target": (
                         {
                             "implementation": (
-                                str(target.implementation) if target.implementation else None
+                                str(extra_data.implementation)
+                                if extra_data.implementation
+                                else None
                             ),
                             "requires_python": [
-                                str(specifier_set) for specifier_set in target.requires_python
+                                str(specifier_set) for specifier_set in extra_data.requires_python
                             ],
-                            "systems": [str(system) for system in target.systems],
+                            "systems": [str(system) for system in extra_data.systems],
                         }
-                        if isinstance(target, UniversalTarget)
+                        if isinstance(extra_data, UniversalTarget)
                         else None
                     ),
                     "marker_environment": (
-                        target.as_dict() if isinstance(target, MarkerEnvironment) else None
+                        extra_data.as_dict() if isinstance(extra_data, MarkerEnvironment) else None
                     ),
                 },
                 fp,
             )
-        return {cls._PEX_DEP_CONFIG_FILE_ENV_VAR_NAME: dep_config_file}
+        return {cls._PEX_REPOS_CONFIG_FILE_ENV_VAR_NAME: repos_config_file}
 
-    dependency_configuration = attr.ib()  # type: DependencyConfiguration
+    repos_configuration = attr.ib()  # type: ReposConfiguration
     target = attr.ib()  # type: Union[UniversalTarget, MarkerEnvironment]
 
 
 def patch(
-    dependency_configuration,  # type: DependencyConfiguration
+    repos_configuration,  # type: ReposConfiguration
     target,  # type: Union[UniversalTarget, MarkerEnvironment]
 ):
     # type: (...) -> Optional[DownloadObserver]
 
-    if not dependency_configuration:
+    env = (
+        target.marker_env() if isinstance(target, UniversalTarget) else target.as_dict()
+    )  # type: Union[MarkerEnv, Dict[str, str]]
+    repos_configuration = repos_configuration.scoped(env)
+    if not repos_configuration.find_links and not repos_configuration.indexes:
         return None
 
-    return DownloadObserver(
-        analyzer=None,
-        patch_set=PatchSet.create(
-            Patch.from_code_resource(
-                __name__, "requires.py", **PatchContext.dump(dependency_configuration, target)
-            )
-        ),
-    )
+    patches = [
+        Patch.from_code_resource(
+            __name__, "link_collector.py", **PatchContext.dump(repos_configuration, target)
+        )
+    ]
+    return DownloadObserver(analyzer=None, patch_set=PatchSet(patches=tuple(patches)))

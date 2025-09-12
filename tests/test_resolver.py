@@ -80,7 +80,7 @@ def local_resolve(*args, **kwargs):
     # type: (*Any, **Any) -> List[ResolvedDistribution]
     # Skip remote lookups.
     repos_configuration = kwargs.pop("repos_configuration", ReposConfiguration())
-    kwargs["repos_configuration"] = attr.evolve(repos_configuration, indexes=())
+    kwargs["repos_configuration"] = attr.evolve(repos_configuration, index_repos=())
     return list(resolve(*args, **kwargs).distributions)
 
 

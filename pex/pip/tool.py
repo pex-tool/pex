@@ -26,7 +26,7 @@ from pex.jobs import Job
 from pex.network_configuration import NetworkConfiguration
 from pex.pep_427 import install_wheel_interpreter
 from pex.pep_508 import MarkerEnvironment
-from pex.pip import dependencies, foreign_platform
+from pex.pip import dependencies, foreign_platform, package_repositories
 from pex.pip.download_observer import DownloadObserver, PatchSet
 from pex.pip.log_analyzer import ErrorAnalyzer, ErrorMessage, LogAnalyzer, LogScrapeJob
 from pex.pip.tailer import Tailer
@@ -181,7 +181,7 @@ class PackageIndexConfiguration(object):
             ),
             use_pip_config=use_pip_config,
             extra_pip_requirements=extra_pip_requirements,
-            password_entries=repos_configuration.password_entries,
+            repos_configuration=repos_configuration,
             keyring_provider=keyring_provider,
         )
 
@@ -192,7 +192,7 @@ class PackageIndexConfiguration(object):
         args,  # type: PipArgs
         env,  # type: Iterable[Tuple[str, str]]
         use_pip_config,  # type: bool
-        password_entries=(),  # type: Iterable[PasswordEntry]
+        repos_configuration=ReposConfiguration(),  # type: ReposConfiguration
         pip_version=None,  # type: Optional[PipVersionValue]
         extra_pip_requirements=(),  # type: Tuple[Requirement, ...]
         keyring_provider=None,  # type: Optional[str]
@@ -203,16 +203,19 @@ class PackageIndexConfiguration(object):
         self.args = args  # type: PipArgs
         self.env = dict(env)  # type: Mapping[str, str]
         self.use_pip_config = use_pip_config  # type: bool
-        self.password_entries = password_entries  # type: Iterable[PasswordEntry]
+        self.repos_configuration = repos_configuration
         self.pip_version = pip_version  # type: Optional[PipVersionValue]
         self.extra_pip_requirements = extra_pip_requirements  # type: Tuple[Requirement, ...]
         self.keyring_provider = keyring_provider  # type: Optional[str]
 
+    @property
+    def password_entries(self):
+        # type: () -> Iterable[PasswordEntry]
+        return self.repos_configuration.password_entries
+
     def patch(self, target):
         # type: (Union[UniversalTarget, MarkerEnvironment]) -> Optional[DownloadObserver]
-        # TODO: XXX: Support patching Pip's collector.py to customize links / find-links per
-        #  project name
-        return None
+        return package_repositories.patch(self.repos_configuration, target)
 
 
 if TYPE_CHECKING:
@@ -629,10 +632,12 @@ class Pip(object):
             foreign_platform_observer,
             observer,
             dependencies.patch(
-                dependency_configuration, extra_data=universal_target or target.marker_environment
+                dependency_configuration, target=universal_target or target.marker_environment
             ),
             (
-                package_index_configuration.patch(universal_target or target.marker_environment)
+                package_index_configuration.patch(
+                    target=universal_target or target.marker_environment
+                )
                 if package_index_configuration
                 else None
             ),
