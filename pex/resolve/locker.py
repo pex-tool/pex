@@ -24,12 +24,12 @@ from pex.pip.log_analyzer import LogAnalyzer
 from pex.pip.vcs import fingerprint_downloaded_vcs_archive
 from pex.pip.version import PipVersionValue
 from pex.requirements import LocalProjectRequirement, VCSRequirement
-from pex.resolve.locked_resolve import LockConfiguration, LockStyle
+from pex.resolve.locked_resolve import LockStyle
 from pex.resolve.pep_691.fingerprint_service import FingerprintService
 from pex.resolve.pep_691.model import Endpoint
 from pex.resolve.resolved_requirement import PartialArtifact, Pin, ResolvedRequirement
 from pex.resolve.resolvers import Resolver
-from pex.resolve.target_system import TargetSystem
+from pex.resolve.target_system import TargetSystem, UniversalTarget
 from pex.targets import Target
 from pex.typing import TYPE_CHECKING
 
@@ -231,7 +231,7 @@ class Locker(LogAnalyzer):
         target,  # type: Target
         root_requirements,  # type: Iterable[ParsedRequirement]
         resolver,  # type: Resolver
-        lock_configuration,  # type: LockConfiguration
+        lock_style,  # type: LockStyle.Value
         download_dir,  # type: str
         fingerprint_service=None,  # type: Optional[FingerprintService]
         pip_version=None,  # type: Optional[PipVersionValue]
@@ -242,7 +242,7 @@ class Locker(LogAnalyzer):
         self._vcs_url_manager = VCSURLManager.create(root_requirements)
         self._pip_version = pip_version
         self._resolver = resolver
-        self._lock_configuration = lock_configuration
+        self._lock_style = lock_style
         self._download_dir = download_dir
         self._fingerprint_service = fingerprint_service or FingerprintService()
 
@@ -514,7 +514,7 @@ class Locker(LogAnalyzer):
                 self._saved.add(build_result_pin)
             return self.Continue()
 
-        if self._lock_configuration.style in (LockStyle.SOURCES, LockStyle.UNIVERSAL):
+        if self._lock_style in (LockStyle.SOURCES, LockStyle.UNIVERSAL):
             match = re.search(r"Found link (?P<url>\S+)(?: \(from .*\))?, version: ", line)
             if match:
                 url = self.parse_url_and_maybe_record_fingerprint(match.group("url"))
@@ -602,13 +602,12 @@ _PLATFORM_TAG_REGEXP = {
 }
 
 
-def patch(lock_configuration):
-    # type: (LockConfiguration) -> PatchSet
+def patch(universal_target):
+    # type: (Optional[UniversalTarget]) -> PatchSet
 
-    if not lock_configuration.universal_target:
+    if not universal_target:
         return PatchSet()
 
-    universal_target = lock_configuration.universal_target
     patches_dir = safe_mkdtemp()
     patches = []
     if universal_target.requires_python:

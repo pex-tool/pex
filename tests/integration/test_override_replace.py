@@ -204,7 +204,12 @@ def assert_multi_override_pex(
     # type: (...) -> None
 
     pex = tmpdir.join("pex")
+    pex_root = tmpdir.join("pex-root")
     args = [
+        "--pex-root",
+        pex_root,
+        "--runtime-pex-root",
+        pex_root,
         "--python",
         ASTERISKS_PYTHON.binary,
         "--python",
@@ -308,10 +313,13 @@ def test_replace_lock_partial(
 ):
     # type: (...) -> None
 
+    pex_root = tmpdir.join("pex-root")
     lock = tmpdir.join("lock.json")
     lock_args = [
         "lock",
         "create",
+        "--pex-root",
+        pex_root,
         "--style",
         "universal",
         "--interpreter-constraint",
@@ -355,10 +363,13 @@ def test_replace_lock_full(
 ):
     # type: (...) -> None
 
+    pex_root = tmpdir.join("pex-root")
     lock = tmpdir.join("lock.json")
     lock_args = [
         "lock",
         "create",
+        "--pex-root",
+        pex_root,
         "--style",
         "universal",
         "--indent",

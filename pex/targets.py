@@ -205,6 +205,7 @@ class Target(object):
         return str(self.platform.tag)
 
     def render_description(self):
+        # type: () -> str
         raise NotImplementedError()
 
     def __repr__(self):
@@ -259,6 +260,7 @@ class LocalInterpreter(Target):
         return self.interpreter.binary
 
     def render_description(self):
+        # type: () -> str
         return "{platform} interpreter at {path}".format(
             platform=self.interpreter.platform.tag, path=self.interpreter.binary
         )
@@ -281,6 +283,7 @@ class AbbreviatedPlatform(Target):
         return self.platform.supported_tags
 
     def render_description(self):
+        # type: () -> str
         return "abbreviated platform {platform}".format(platform=self.platform.tag)
 
 
@@ -323,6 +326,7 @@ class CompletePlatform(Target):
         return self._supported_tags
 
     def render_description(self):
+        # type: () -> str
         return "complete platform {platform}".format(platform=self.platform.tag)
 
 

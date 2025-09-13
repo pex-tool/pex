@@ -238,7 +238,7 @@ class LockDownloader(object):
                 file_lock_style=file_lock_style,
                 downloader=ArtifactDownloader(
                     resolver=resolver,
-                    lock_configuration=lock_configuration,
+                    universal_target=lock_configuration.universal_target,
                     target=target,
                     package_index_configuration=PackageIndexConfiguration.create(
                         pip_version=pip_version,

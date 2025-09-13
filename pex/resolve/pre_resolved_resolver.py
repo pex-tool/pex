@@ -112,7 +112,9 @@ def resolve_from_dists(
                 ],
                 install_requests=[
                     InstallRequest(
-                        target=target, wheel_path=wheel.location, fingerprint=wheel.fingerprint
+                        download_target=target,
+                        wheel_path=wheel.location,
+                        fingerprint=wheel.fingerprint,
                     )
                     for wheel in fingerprinted_wheels
                     for target in unique_targets

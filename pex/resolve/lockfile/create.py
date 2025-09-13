@@ -3,6 +3,7 @@
 
 from __future__ import absolute_import
 
+import itertools
 import os
 import shutil
 from collections import OrderedDict, defaultdict
@@ -16,6 +17,7 @@ from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import DistMetadata, ProjectNameAndVersion, Requirement
 from pex.exceptions import production_assert
 from pex.fetcher import URLFetcher
+from pex.interpreter_implementation import InterpreterImplementation
 from pex.jobs import Job, Retain, SpawnedJob, execute_parallel
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
@@ -47,17 +49,30 @@ from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolved_requirement import Pin, ResolvedRequirement
 from pex.resolve.resolver_configuration import BuildConfiguration, PipConfiguration, ResolverVersion
 from pex.resolve.resolvers import Resolver
-from pex.resolver import BuildRequest, Downloaded, ResolveObserver, WheelBuilder
+from pex.resolve.target_system import MarkerEnv, TargetSystem, UniversalTarget
+from pex.resolver import BuildRequest, Downloaded, DownloadTarget, ResolveObserver, WheelBuilder
 from pex.resolver import download as pip_download
 from pex.result import Error, try_
 from pex.targets import Target, Targets
+from pex.third_party.packaging.markers import Marker
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
 from pex.variables import ENV, Variables
 from pex.version import __version__
 
 if TYPE_CHECKING:
-    from typing import DefaultDict, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple, Union
+    from typing import (
+        DefaultDict,
+        Dict,
+        FrozenSet,
+        Iterable,
+        List,
+        Mapping,
+        Optional,
+        Sequence,
+        Tuple,
+        Union,
+    )
 
     import attr  # vendor:skip
 
@@ -254,7 +269,7 @@ class CreateLockDownloadManager(DownloadManager[Artifact]):
 
 @attr.s(frozen=True)
 class _LockAnalysis(object):
-    target = attr.ib()  # type: Target
+    download_target = attr.ib()  # type: DownloadTarget
     analyzer = attr.ib()  # type: Locker
     download_dir = attr.ib()  # type: str
 
@@ -271,7 +286,7 @@ def _prepare_project_directory(build_request):
 @attr.s(frozen=True)
 class LockObserver(ResolveObserver):
     root_requirements = attr.ib()  # type: Tuple[ParsedRequirement, ...]
-    lock_configuration = attr.ib()  # type: LockConfiguration
+    lock_style = attr.ib()  # type: LockStyle.Value
     resolver = attr.ib()  # type: Resolver
     wheel_builder = attr.ib()  # type: WheelBuilder
     package_index_configuration = attr.ib()  # type: PackageIndexConfiguration
@@ -280,16 +295,16 @@ class LockObserver(ResolveObserver):
 
     def observe_download(
         self,
-        target,  # type: Target
+        download_target,  # type: DownloadTarget
         download_dir,  # type: str
     ):
         # type: (...) -> DownloadObserver
         analyzer = Locker(
-            target=target,
+            target=download_target.target,
             root_requirements=self.root_requirements,
             pip_version=self.package_index_configuration.pip_version,
             resolver=self.resolver,
-            lock_configuration=self.lock_configuration,
+            lock_style=self.lock_style,
             download_dir=download_dir,
             fingerprint_service=FingerprintService.create(
                 url_fetcher=URLFetcher(
@@ -299,10 +314,12 @@ class LockObserver(ResolveObserver):
                 max_parallel_jobs=self.max_parallel_jobs,
             ),
         )
-        patch_set = locker.patch(lock_configuration=self.lock_configuration)
+        patch_set = locker.patch(universal_target=download_target.universal_target)
         observer = DownloadObserver(analyzer=analyzer, patch_set=patch_set)
         self._analysis.add(
-            _LockAnalysis(target=target, analyzer=analyzer, download_dir=download_dir)
+            _LockAnalysis(
+                download_target=download_target, analyzer=analyzer, download_dir=download_dir
+            )
         )
         return observer
 
@@ -320,35 +337,37 @@ class LockObserver(ResolveObserver):
     def lock(self, downloaded):
         # type: (Downloaded) -> Tuple[LockedResolve, ...]
 
-        dist_metadatas_by_target = defaultdict(
+        dist_metadatas_by_download_target = defaultdict(
             OrderedSet
-        )  # type: DefaultDict[Target, OrderedSet[DistMetadata]]
+        )  # type: DefaultDict[DownloadTarget, OrderedSet[DistMetadata]]
         build_requests = OrderedSet()  # type: OrderedSet[BuildRequest]
 
         for local_distribution in downloaded.local_distributions:
             if local_distribution.is_wheel:
-                dist_metadatas_by_target[local_distribution.target].add(
+                dist_metadatas_by_download_target[local_distribution.download_target].add(
                     DistMetadata.load(local_distribution.path)
                 )
             else:
                 build_requests.add(
                     BuildRequest.create(
-                        target=local_distribution.target,
+                        target=local_distribution.download_target,
                         source_path=local_distribution.path,
                         subdirectory=local_distribution.subdirectory,
                     )
                 )
 
-        resolved_requirements_by_target = (
+        resolved_requirements_by_download_target = (
             OrderedDict()
-        )  # type: OrderedDict[Target, Tuple[ResolvedRequirement, ...]]
+        )  # type: OrderedDict[DownloadTarget, Tuple[ResolvedRequirement, ...]]
         for analysis in self._analysis:
             lock_result = analysis.analyzer.lock_result
             build_requests.update(
-                BuildRequest.create(target=analysis.target, source_path=local_project)
+                BuildRequest.create(target=analysis.download_target, source_path=local_project)
                 for local_project in lock_result.local_projects
             )
-            resolved_requirements_by_target[analysis.target] = lock_result.resolved_requirements
+            resolved_requirements_by_download_target[
+                analysis.download_target
+            ] = lock_result.resolved_requirements
 
         with TRACER.timed(
             "Building {count} source {distributions} to gather metadata for lock.".format(
@@ -378,7 +397,9 @@ class LockObserver(ResolveObserver):
                 ),
             ):
                 if isinstance(dist_metadata_result, DistMetadata):
-                    dist_metadatas_by_target[build_request.target].add(dist_metadata_result)
+                    dist_metadatas_by_download_target[build_request.download_target].add(
+                        dist_metadata_result
+                    )
                 else:
                     _item, error = dist_metadata_result
                     if isinstance(error, Job.Error) and pep_517.is_hook_unavailable_error(error):
@@ -420,28 +441,29 @@ class LockObserver(ResolveObserver):
                 )
                 for install_requests in build_wheel_results.values():
                     for install_request in install_requests:
-                        dist_metadatas_by_target[install_request.target].add(
+                        dist_metadatas_by_download_target[install_request.download_target].add(
                             DistMetadata.load(install_request.wheel_path)
                         )
 
         return tuple(
             LockedResolve.create(
                 resolved_requirements=resolved_requirements,
-                dist_metadatas=dist_metadatas_by_target[target],
+                dist_metadatas=dist_metadatas_by_download_target[download_target],
                 fingerprinter=ArtifactDownloader(
                     resolver=self.resolver,
-                    lock_configuration=self.lock_configuration,
-                    target=target,
+                    universal_target=download_target.universal_target,
+                    target=download_target.target,
                     package_index_configuration=self.package_index_configuration,
                     max_parallel_jobs=self.max_parallel_jobs,
                 ),
                 platform_tag=(
+                    # TODO: XXX: marker?
                     None
-                    if self.lock_configuration.style == LockStyle.UNIVERSAL
-                    else target.platform.tag
+                    if self.lock_style == LockStyle.UNIVERSAL
+                    else download_target.target.platform.tag
                 ),
             )
-            for target, resolved_requirements in resolved_requirements_by_target.items()
+            for download_target, resolved_requirements in resolved_requirements_by_download_target.items()
         )
 
 
@@ -480,7 +502,7 @@ def create(
     configured_resolver = ConfiguredResolver(pip_configuration=pip_configuration)
     lock_observer = LockObserver(
         root_requirements=parsed_requirements,
-        lock_configuration=lock_configuration,
+        lock_style=lock_configuration.style,
         resolver=configured_resolver,
         wheel_builder=WheelBuilder(
             package_index_configuration=package_index_configuration,
@@ -494,10 +516,57 @@ def create(
 
     download_dir = safe_mkdtemp()
 
-    if lock_configuration.style is LockStyle.UNIVERSAL:
+    universal_targets = []  # type: List[UniversalTarget]
+    universal_target = lock_configuration.universal_target
+    if universal_target:
         download_targets = (
             Targets(interpreters=(targets.interpreter,)) if targets.interpreter else Targets()
         )
+        repo_markers = frozenset(
+            str(scope.marker)
+            for repo in itertools.chain(
+                pip_configuration.repos_configuration.index_repos,
+                pip_configuration.repos_configuration.find_links_repos,
+            )
+            for scope in repo.scopes
+            if scope.marker
+        )
+        if repo_markers:
+            target_systems = universal_target.systems or TargetSystem.values()
+            interpreter_implementations = (
+                (universal_target.implementation,)
+                if universal_target.implementation
+                else InterpreterImplementation.values()
+            )
+
+            systems_by_repo_markers = defaultdict(
+                list
+            )  # type: DefaultDict[FrozenSet[str], List[Tuple[TargetSystem.Value, InterpreterImplementation.Value]]]
+            for system in target_systems:
+                for implementation in interpreter_implementations:
+                    marker_env = MarkerEnv.create(
+                        extras=(),
+                        universal_target=attr.evolve(
+                            universal_target, implementation=implementation, systems=tuple([system])
+                        ),
+                    )
+                    system_repo_markers = frozenset(
+                        marker for marker in repo_markers if marker_env.evaluate(Marker(marker))
+                    )
+                    systems_by_repo_markers[system_repo_markers].append((system, implementation))
+
+            for index, (markers, value) in enumerate(systems_by_repo_markers.items(), start=1):
+                systems = []  # type: List[TargetSystem.Value]
+                implementations = []  # type: List[InterpreterImplementation.Value]
+                for system, implementation in value:
+                    systems.append(system)
+                    implementations.append(implementation)
+                impl = implementations[0] if len(implementations) == 1 else None
+                universal_targets.append(
+                    attr.evolve(universal_target, implementation=impl, systems=tuple(systems))
+                )
+        if not universal_targets:
+            universal_targets.append(universal_target)
     else:
         download_targets = targets
 
@@ -523,7 +592,7 @@ def create(
             extra_pip_requirements=pip_configuration.extra_requirements,
             keyring_provider=pip_configuration.keyring_provider,
             dependency_configuration=dependency_configuration,
-            universal_target=lock_configuration.universal_target,
+            universal_targets=universal_targets,
         )
     except resolvers.ResolveError as e:
         return Error(str(e))

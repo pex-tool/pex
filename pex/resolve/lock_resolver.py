@@ -473,7 +473,7 @@ def _resolve_from_subset_result(
                 if is_wheel(downloaded_artifact.path):
                     install_requests.append(
                         InstallRequest(
-                            target=resolved_subset.target,
+                            download_target=resolved_subset.target,
                             wheel_path=downloaded_artifact.path,
                             fingerprint=downloaded_artifact.fingerprint,
                         )
@@ -481,7 +481,7 @@ def _resolve_from_subset_result(
                 else:
                     build_requests.append(
                         BuildRequest(
-                            target=resolved_subset.target,
+                            download_target=resolved_subset.target,
                             source_path=downloaded_artifact.path,
                             fingerprint=downloaded_artifact.fingerprint,
                             subdirectory=downloaded_artifact.subdirectory,

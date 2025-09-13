@@ -8,8 +8,9 @@ import pytest
 from pex.artifact_url import Fingerprint
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.downloads import ArtifactDownloader
-from pex.resolve.locked_resolve import Artifact, FileArtifact, LockConfiguration
+from pex.resolve.locked_resolve import Artifact, FileArtifact
 from pex.resolve.resolved_requirement import PartialArtifact
+from pex.resolve.target_system import UniversalTarget
 from pex.typing import TYPE_CHECKING
 from testing import IS_LINUX
 
@@ -56,8 +57,7 @@ MAC_ARTIFACT = file_artifact(
 def downloader():
     # type: () -> ArtifactDownloader
     return ArtifactDownloader(
-        resolver=ConfiguredResolver.default(),
-        lock_configuration=LockConfiguration.universal(),
+        resolver=ConfiguredResolver.default(), universal_target=UniversalTarget()
     )
 
 
