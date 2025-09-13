@@ -53,7 +53,7 @@ from pex.resolve.target_system import MarkerEnv, TargetSystem, UniversalTarget
 from pex.resolver import BuildRequest, Downloaded, DownloadTarget, ResolveObserver, WheelBuilder
 from pex.resolver import download as pip_download
 from pex.result import Error, try_
-from pex.targets import Target, Targets
+from pex.targets import LocalInterpreter, Target, Targets
 from pex.third_party.packaging.markers import Marker
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
@@ -467,6 +467,79 @@ class LockObserver(ResolveObserver):
         )
 
 
+@attr.s(frozen=True)
+class _DownloadTargets(object):
+    @classmethod
+    def calculate(
+        cls,
+        targets,  # type: Targets
+        repos_configuration,  # type: ReposConfiguration
+        universal_target,  # type: Optional[UniversalTarget]
+    ):
+        # type: (...) -> _DownloadTargets
+
+        universal_targets = []  # type: List[UniversalTarget]
+        if universal_target:
+            targets = (
+                Targets.from_target(LocalInterpreter.create(targets.interpreter))
+                if targets.interpreter
+                else Targets()
+            )
+            repo_markers = frozenset(
+                str(scope.marker)
+                for repo in itertools.chain(
+                    repos_configuration.index_repos, repos_configuration.find_links_repos
+                )
+                for scope in repo.scopes
+                if scope.marker
+            )
+            if repo_markers:
+                target_systems = universal_target.systems or TargetSystem.values()
+                interpreter_implementations = (
+                    (universal_target.implementation,)
+                    if universal_target.implementation
+                    else InterpreterImplementation.values()
+                )
+
+                systems_by_repo_markers = defaultdict(
+                    list
+                )  # type: DefaultDict[FrozenSet[str], List[Tuple[TargetSystem.Value, InterpreterImplementation.Value]]]
+                for system in target_systems:
+                    for implementation in interpreter_implementations:
+                        marker_env = MarkerEnv.create(
+                            extras=(),
+                            universal_target=attr.evolve(
+                                universal_target,
+                                implementation=implementation,
+                                systems=tuple([system]),
+                            ),
+                        )
+                        system_repo_markers = frozenset(
+                            marker for marker in repo_markers if marker_env.evaluate(Marker(marker))
+                        )
+                        systems_by_repo_markers[system_repo_markers].append(
+                            (system, implementation)
+                        )
+
+                for index, (markers, value) in enumerate(systems_by_repo_markers.items(), start=1):
+                    systems = []  # type: List[TargetSystem.Value]
+                    implementations = []  # type: List[InterpreterImplementation.Value]
+                    for system, implementation in value:
+                        systems.append(system)
+                        implementations.append(implementation)
+                    impl = implementations[0] if len(implementations) == 1 else None
+                    universal_targets.append(
+                        attr.evolve(universal_target, implementation=impl, systems=tuple(systems))
+                    )
+            if not universal_targets:
+                universal_targets.append(universal_target)
+
+        return cls(targets=targets, universal_targets=tuple(universal_targets))
+
+    targets = attr.ib()  # type: Targets
+    universal_targets = attr.ib(default=())  # type: Tuple[UniversalTarget, ...]
+
+
 def create(
     lock_configuration,  # type: LockConfiguration
     requirement_configuration,  # type: RequirementConfiguration
@@ -515,64 +588,14 @@ def create(
     )
 
     download_dir = safe_mkdtemp()
-
-    universal_targets = []  # type: List[UniversalTarget]
-    universal_target = lock_configuration.universal_target
-    if universal_target:
-        download_targets = (
-            Targets(interpreters=(targets.interpreter,)) if targets.interpreter else Targets()
-        )
-        repo_markers = frozenset(
-            str(scope.marker)
-            for repo in itertools.chain(
-                pip_configuration.repos_configuration.index_repos,
-                pip_configuration.repos_configuration.find_links_repos,
-            )
-            for scope in repo.scopes
-            if scope.marker
-        )
-        if repo_markers:
-            target_systems = universal_target.systems or TargetSystem.values()
-            interpreter_implementations = (
-                (universal_target.implementation,)
-                if universal_target.implementation
-                else InterpreterImplementation.values()
-            )
-
-            systems_by_repo_markers = defaultdict(
-                list
-            )  # type: DefaultDict[FrozenSet[str], List[Tuple[TargetSystem.Value, InterpreterImplementation.Value]]]
-            for system in target_systems:
-                for implementation in interpreter_implementations:
-                    marker_env = MarkerEnv.create(
-                        extras=(),
-                        universal_target=attr.evolve(
-                            universal_target, implementation=implementation, systems=tuple([system])
-                        ),
-                    )
-                    system_repo_markers = frozenset(
-                        marker for marker in repo_markers if marker_env.evaluate(Marker(marker))
-                    )
-                    systems_by_repo_markers[system_repo_markers].append((system, implementation))
-
-            for index, (markers, value) in enumerate(systems_by_repo_markers.items(), start=1):
-                systems = []  # type: List[TargetSystem.Value]
-                implementations = []  # type: List[InterpreterImplementation.Value]
-                for system, implementation in value:
-                    systems.append(system)
-                    implementations.append(implementation)
-                impl = implementations[0] if len(implementations) == 1 else None
-                universal_targets.append(
-                    attr.evolve(universal_target, implementation=impl, systems=tuple(systems))
-                )
-        if not universal_targets:
-            universal_targets.append(universal_target)
-    else:
-        download_targets = targets
-
+    download_targets = _DownloadTargets.calculate(
+        targets=targets,
+        repos_configuration=pip_configuration.repos_configuration,
+        universal_target=lock_configuration.universal_target,
+    )
     try:
         downloaded = pip_download(
-            targets=download_targets,
+            targets=download_targets.targets,
             requirements=requirement_configuration.requirements,
             requirement_files=requirement_configuration.requirement_files,
             constraint_files=requirement_configuration.constraint_files,
@@ -592,7 +615,7 @@ def create(
             extra_pip_requirements=pip_configuration.extra_requirements,
             keyring_provider=pip_configuration.keyring_provider,
             dependency_configuration=dependency_configuration,
-            universal_targets=universal_targets,
+            universal_targets=download_targets.universal_targets,
         )
     except resolvers.ResolveError as e:
         return Error(str(e))
@@ -605,7 +628,7 @@ def create(
             download_dir=download_dir, locked_resolves=locked_resolves
         )
         create_lock_download_manager.store_all(
-            targets=download_targets.unique_targets(),
+            targets=download_targets.targets.unique_targets(),
             lock_configuration=lock_configuration,
             resolver=configured_resolver,
             repos_configuration=pip_configuration.repos_configuration,
