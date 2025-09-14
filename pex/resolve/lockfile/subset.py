@@ -147,6 +147,8 @@ def subset(
                     errors.append(resolve_result)
 
             if len(resolveds) > 1:
+                # We may have a split universal resolve; in which case we want to apply split
+                # markers to winnow down to the appropriate locked resolves.
                 marker_environment = target.marker_environment.as_dict()
                 resolveds = [
                     resolved

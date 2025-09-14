@@ -3,7 +3,6 @@
 
 from __future__ import absolute_import
 
-import itertools
 import os
 import shutil
 from collections import OrderedDict, defaultdict
@@ -17,8 +16,6 @@ from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import DistMetadata, ProjectNameAndVersion, Requirement
 from pex.exceptions import production_assert
 from pex.fetcher import URLFetcher
-from pex.interpreter_constraints import iter_compatible_versions
-from pex.interpreter_implementation import InterpreterImplementation
 from pex.jobs import Job, Retain, SpawnedJob, execute_parallel
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
@@ -27,7 +24,6 @@ from pex.pep_503 import ProjectName
 from pex.pip.download_observer import DownloadObserver
 from pex.pip.tool import PackageIndexConfiguration
 from pex.pip.version import PipVersionValue
-from pex.requirements import LocalProjectRequirement
 from pex.resolve import lock_resolver, locker, resolvers
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.downloads import ArtifactDownloader
@@ -45,42 +41,29 @@ from pex.resolve.locked_resolve import (
 from pex.resolve.locker import Locker
 from pex.resolve.lockfile.download_manager import DownloadManager
 from pex.resolve.lockfile.model import Lockfile
+from pex.resolve.lockfile.targets import LockTargets
 from pex.resolve.package_repository import ReposConfiguration
 from pex.resolve.pep_691.fingerprint_service import FingerprintService
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolved_requirement import Pin, ResolvedRequirement
 from pex.resolve.resolver_configuration import BuildConfiguration, PipConfiguration, ResolverVersion
 from pex.resolve.resolvers import Resolver
-from pex.resolve.target_system import MarkerEnv, TargetSystem, UniversalTarget, has_marker
 from pex.resolver import BuildRequest, Downloaded, DownloadTarget, ResolveObserver, WheelBuilder
 from pex.resolver import download as pip_download
 from pex.result import Error, try_
-from pex.targets import LocalInterpreter, Target, Targets
-from pex.third_party.packaging.markers import Marker
-from pex.third_party.packaging.specifiers import SpecifierSet
+from pex.targets import Target, Targets
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
 from pex.variables import ENV, Variables
 from pex.version import __version__
 
 if TYPE_CHECKING:
-    from typing import (
-        DefaultDict,
-        Dict,
-        FrozenSet,
-        Iterable,
-        List,
-        Mapping,
-        Optional,
-        Sequence,
-        Tuple,
-        Union,
-    )
+    from typing import DefaultDict, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple, Union
 
     import attr  # vendor:skip
 
     from pex.hashing import HintedDigest
-    from pex.requirements import LocalProjectRequirement, ParsedRequirement
+    from pex.requirements import ParsedRequirement
 
     AnyArtifact = Union[FileArtifact, LocalProjectArtifact, VCSArtifact]
 else:
@@ -479,150 +462,6 @@ class LockObserver(ResolveObserver):
         )
 
 
-@attr.s(frozen=True)
-class _DownloadTargets(object):
-    @classmethod
-    def calculate(
-        cls,
-        targets,  # type: Targets
-        requirement_configuration,  # type: RequirementConfiguration
-        network_configuration,  # type: NetworkConfiguration
-        repos_configuration,  # type: ReposConfiguration
-        universal_target,  # type: Optional[UniversalTarget]
-    ):
-        # type: (...) -> _DownloadTargets
-
-        universal_targets = []  # type: List[UniversalTarget]
-        if universal_target:
-            targets = (
-                Targets.from_target(LocalInterpreter.create(targets.interpreter))
-                if targets.interpreter
-                else Targets()
-            )
-            all_markers = {
-                str(scope.marker): scope.marker
-                for repo in itertools.chain(
-                    repos_configuration.index_repos, repos_configuration.find_links_repos
-                )
-                for scope in repo.scopes
-                if scope.marker
-            }
-
-            projects_with_markers = defaultdict(
-                dict
-            )  # type: DefaultDict[ProjectName, Dict[str, Marker]]
-            for requirement in requirement_configuration.parse_requirements(network_configuration):
-                if not isinstance(requirement, LocalProjectRequirement) and requirement.marker:
-                    projects_with_markers[requirement.project_name][
-                        str(requirement.marker)
-                    ] = requirement.marker
-            for constraint in requirement_configuration.parse_constraints(network_configuration):
-                if constraint.marker:
-                    projects_with_markers[constraint.project_name][
-                        str(constraint.marker)
-                    ] = constraint.marker
-            all_markers.update(
-                (marker_str, marker)
-                for markers in projects_with_markers.values()
-                for marker_str, marker in markers.items()
-                # N.B.: We only split the universal resolve for root requirements that have two or
-                # more marker variants. If there is just one, that represents a conditional
-                # dependency which can be included in a single resolve without splitting.
-                if len(markers) > 1
-            )
-
-            if all_markers:
-                target_systems = universal_target.systems or TargetSystem.values()
-
-                interpreter_implementations = (
-                    (universal_target.implementation,)
-                    if universal_target.implementation
-                    else InterpreterImplementation.values()
-                )
-
-                requires_pythons = OrderedSet()  # type: OrderedSet[SpecifierSet]
-                has_python_version = any(
-                    has_marker(marker, "python_version") for marker in all_markers.values()
-                )
-                has_python_full_version = any(
-                    has_marker(marker, "python_full_version") for marker in all_markers.values()
-                )
-                if has_python_full_version:
-                    requires_pythons.update(
-                        SpecifierSet(
-                            "=={major}.{minor}.{patch}".format(
-                                major=version[0], minor=version[1], patch=version[2]
-                            )
-                        )
-                        for version in iter_compatible_versions(universal_target.requires_python)
-                    )
-                elif has_python_version:
-                    requires_pythons.update(
-                        SpecifierSet(
-                            "=={major}.{minor}.*".format(major=version[0], minor=version[1])
-                        )
-                        for version in OrderedSet(
-                            version[:2]
-                            for version in iter_compatible_versions(
-                                universal_target.requires_python
-                            )
-                        )
-                    )
-                else:
-                    requires_pythons.update(universal_target.requires_python)
-                if not requires_pythons:
-                    requires_pythons.add(SpecifierSet())
-
-                systems_by_markers = defaultdict(
-                    list
-                )  # type: DefaultDict[FrozenSet[str], List[Tuple[TargetSystem.Value, InterpreterImplementation.Value, SpecifierSet]]]
-                for system in target_systems:
-                    for implementation in interpreter_implementations:
-                        for python_specifier in requires_pythons:
-                            marker_env = MarkerEnv.create(
-                                extras=(),
-                                universal_target=UniversalTarget(
-                                    implementation=implementation,
-                                    systems=(system,),
-                                    requires_python=(python_specifier,),
-                                ),
-                            )
-                            system_repo_markers = frozenset(
-                                marker_str
-                                for marker_str, marker in all_markers.items()
-                                if marker_env.evaluate(marker)
-                            )
-                            systems_by_markers[system_repo_markers].append(
-                                (system, implementation, python_specifier)
-                            )
-
-                for index, (markers, value) in enumerate(systems_by_markers.items(), start=1):
-                    systems = OrderedSet()  # type: OrderedSet[TargetSystem.Value]
-                    implementations = (
-                        OrderedSet()
-                    )  # type: OrderedSet[InterpreterImplementation.Value]
-                    requires_python = OrderedSet()  # type: OrderedSet[SpecifierSet]
-                    for system, implementation, python_specifier in value:
-                        systems.add(system)
-                        implementations.add(implementation)
-                        requires_python.add(python_specifier)
-                    impl = implementations.pop() if len(implementations) == 1 else None
-                    universal_targets.append(
-                        UniversalTarget(
-                            implementation=impl,
-                            systems=tuple(systems),
-                            requires_python=tuple(requires_python),
-                        )
-                    )
-            if not universal_targets:
-                universal_targets.append(universal_target)
-
-        return cls(targets=targets, universal_targets=tuple(universal_targets))
-
-    targets = attr.ib()  # type: Targets
-    universal_targets = attr.ib(default=())  # type: Tuple[UniversalTarget, ...]
-
-
 def create(
     lock_configuration,  # type: LockConfiguration
     requirement_configuration,  # type: RequirementConfiguration
@@ -671,8 +510,8 @@ def create(
     )
 
     download_dir = safe_mkdtemp()
-    with TRACER.timed("Calculating download targets"):
-        download_targets = _DownloadTargets.calculate(
+    with TRACER.timed("Calculating lock targets"):
+        lock_targets = LockTargets.calculate(
             targets=targets,
             requirement_configuration=requirement_configuration,
             network_configuration=network_configuration,
@@ -681,7 +520,7 @@ def create(
         )
     try:
         downloaded = pip_download(
-            targets=download_targets.targets,
+            targets=lock_targets.targets,
             requirements=requirement_configuration.requirements,
             requirement_files=requirement_configuration.requirement_files,
             constraint_files=requirement_configuration.constraint_files,
@@ -701,7 +540,7 @@ def create(
             extra_pip_requirements=pip_configuration.extra_requirements,
             keyring_provider=pip_configuration.keyring_provider,
             dependency_configuration=dependency_configuration,
-            universal_targets=download_targets.universal_targets,
+            universal_targets=lock_targets.universal_targets,
         )
     except resolvers.ResolveError as e:
         return Error(str(e))
@@ -714,7 +553,7 @@ def create(
             download_dir=download_dir, locked_resolves=locked_resolves
         )
         create_lock_download_manager.store_all(
-            targets=download_targets.targets.unique_targets(),
+            targets=lock_targets.targets.unique_targets(),
             lock_configuration=lock_configuration,
             resolver=configured_resolver,
             repos_configuration=pip_configuration.repos_configuration,
