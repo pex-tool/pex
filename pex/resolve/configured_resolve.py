@@ -61,7 +61,7 @@ def resolve(
                     build_configuration=pip_configuration.build_configuration,
                     compile=compile_pyc,
                     max_parallel_jobs=pip_configuration.max_jobs,
-                    pip_version=lock.pip_version,
+                    pip_version=pip_configuration.version or lock.pip_version,
                     use_pip_config=pip_configuration.use_pip_config,
                     extra_pip_requirements=pip_configuration.extra_requirements,
                     keyring_provider=pip_configuration.keyring_provider,

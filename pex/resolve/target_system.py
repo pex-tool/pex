@@ -72,7 +72,7 @@ def _marker_items(marker):
     return cast("Iterable[Any]", marker._markers)
 
 
-def _has_marker(
+def has_marker(
     marker,  # type: Marker
     name,  # type: str
 ):
@@ -359,6 +359,37 @@ class MarkerEnv(object):
         return eval_marker(self)
 
 
+def _as_platform_system_marker(system):
+    # type: (TargetSystem.Value) -> str
+
+    if system is TargetSystem.LINUX:
+        platform_system = "Linux"
+    elif system is TargetSystem.MAC:
+        platform_system = "Darwin"
+    else:
+        platform_system = "Windows"
+
+    return "platform_system == '{platform_system}'".format(platform_system=platform_system)
+
+
+def _as_python_version_marker(specifier):
+    # type: (SpecifierSet) -> str
+
+    clauses = [
+        "python_full_version {operator} '{version}'".format(
+            operator=spec.operator, version=spec.version
+        )
+        for spec in specifier
+    ]
+    if not clauses:
+        return ""
+
+    if len(clauses) == 1:
+        return clauses[0]
+
+    return "({clauses})".format(clauses=" and ".join(clauses))
+
+
 @attr.s(frozen=True)
 class UniversalTarget(object):
     @classmethod
@@ -386,7 +417,7 @@ class UniversalTarget(object):
             return True
 
         use_python_full_version = any(
-            _has_marker(marker, "python_full_version") for marker in markers
+            has_marker(marker, "python_full_version") for marker in markers
         )
         python_full_versions = tuple(iter_compatible_versions(self.requires_python))
         versions = (
@@ -422,3 +453,36 @@ class UniversalTarget(object):
     def marker_env(self, *extras):
         # type: (*str) -> MarkerEnv
         return MarkerEnv.create(extras=extras, universal_target=self)
+
+    def marker(self):
+        # type: () -> Optional[Marker]
+        clauses = []  # type: List[str]
+        if self.systems and frozenset(self.systems) != frozenset(TargetSystem.values()):
+            if len(self.systems) == 1:
+                clauses.append(_as_platform_system_marker(self.systems[0]))
+            else:
+                clauses.append(
+                    "({clauses})".format(
+                        clauses=" or ".join(
+                            _as_platform_system_marker(system) for system in self.systems
+                        )
+                    )
+                )
+        if self.implementation:
+            clauses.append(
+                "platform_python_implementation == '{implementation}'".format(
+                    implementation=self.implementation
+                )
+            )
+        if len(self.requires_python) == 1:
+            clauses.append(_as_python_version_marker(self.requires_python[0]))
+        elif self.requires_python:
+            clauses.append(
+                "({requires_pythons})".format(
+                    requires_pythons=" or ".join(
+                        _as_python_version_marker(requires_python)
+                        for requires_python in self.requires_python
+                    )
+                )
+            )
+        return Marker(" and ".join(clauses)) if clauses else None

@@ -28,6 +28,7 @@ from pex.resolve.target_system import TargetSystem, UniversalTarget
 from pex.result import Error
 from pex.sorted_tuple import SortedTuple
 from pex.targets import Target
+from pex.third_party.packaging.markers import Marker
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, Generic
 
@@ -658,6 +659,7 @@ class LockedResolve(object):
         dist_metadatas,  # type: Iterable[DistMetadata]
         fingerprinter,  # type: Fingerprinter
         platform_tag=None,  # type: Optional[tags.Tag]
+        marker=None,  # type: Optional[Marker]
     ):
         # type: (...) -> LockedResolve
 
@@ -727,15 +729,24 @@ class LockedResolve(object):
                     ),
                 )
             )
-        return cls(locked_requirements=SortedTuple(locked_requirements), platform_tag=platform_tag)
+        return cls(
+            locked_requirements=SortedTuple(locked_requirements),
+            platform_tag=platform_tag,
+            marker=marker,
+        )
 
     locked_requirements = attr.ib()  # type: SortedTuple[LockedRequirement]
     platform_tag = attr.ib(order=str, default=None)  # type: Optional[tags.Tag]
+    marker = attr.ib(order=str, default=None)  # type: Optional[Marker]
 
     @property
     def target_platform(self):
         # type: () -> str
-        return str(self.platform_tag) if self.platform_tag else "universal"
+        if self.platform_tag:
+            return str(self.platform_tag)
+        if self.marker:
+            return "universal {marker}".format(marker=self.marker)
+        return "universal"
 
     def create_resolved_artifacts(
         self,

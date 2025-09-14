@@ -31,6 +31,7 @@ from pex.resolve.resolver_configuration import BuildConfiguration, PipConfigurat
 from pex.resolve.target_system import TargetSystem
 from pex.sorted_tuple import SortedTuple
 from pex.third_party.packaging import tags
+from pex.third_party.packaging.markers import InvalidMarker, Marker
 from pex.third_party.packaging.specifiers import InvalidSpecifier, SpecifierSet
 from pex.typing import TYPE_CHECKING, cast
 
@@ -223,6 +224,16 @@ def loads(
                 "The interpreter constraint at '{path}' is invalid: {err}".format(path=path, err=e)
             )
 
+    def parse_marker(
+        raw_marker,  # type: str
+        path,  # type: str
+    ):
+        # type: (...) -> Marker
+        try:
+            return Marker(raw_marker)
+        except InvalidMarker as e:
+            raise ParseError("The marker at '{path}' is invalid: {err}".format(path=path, err=e))
+
     required_path_mappings = get("path_mappings", dict, optional=True) or {}
     given_mappings = set(mapping.name for mapping in path_mappings.mappings)
     unspecified_paths = set(required_path_mappings) - given_mappings
@@ -324,6 +335,12 @@ def loads(
             if platform_tag_components
             else None
         )
+        marker_str = get("marker", str, data=locked_resolve, path=lock_path, optional=True)
+        marker = (
+            parse_marker(marker_str, path='{lock_path}["marker"]'.format(lock_path=lock_path))
+            if marker_str
+            else None
+        )
         locked_reqs = []
         for req_index, req in enumerate(
             get("locked_requirements", list, data=locked_resolve, path=lock_path)
@@ -381,7 +398,11 @@ def loads(
             )
 
         locked_resolves.append(
-            LockedResolve(locked_requirements=SortedTuple(locked_reqs), platform_tag=platform_tag)
+            LockedResolve(
+                locked_requirements=SortedTuple(locked_reqs),
+                platform_tag=platform_tag,
+                marker=marker,
+            )
         )
 
     return Lockfile.create(
@@ -483,13 +504,16 @@ def as_json_data(
         "overridden": [str(override) for override in lockfile.overridden],
         "locked_resolves": [
             {
-                "platform_tag": [
-                    locked_resolve.platform_tag.interpreter,
-                    locked_resolve.platform_tag.abi,
-                    locked_resolve.platform_tag.platform,
-                ]
-                if locked_resolve.platform_tag
-                else None,
+                "platform_tag": (
+                    [
+                        locked_resolve.platform_tag.interpreter,
+                        locked_resolve.platform_tag.abi,
+                        locked_resolve.platform_tag.platform,
+                    ]
+                    if locked_resolve.platform_tag
+                    else None
+                ),
+                "marker": str(locked_resolve.marker) if locked_resolve.marker else None,
                 "locked_requirements": [
                     {
                         "project_name": str(req.pin.project_name),

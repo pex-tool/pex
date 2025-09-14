@@ -154,9 +154,18 @@ class PyPIRequirement(_ParsedRequirement):
     requirement = attr.ib()  # type: Requirement
 
     @property
+    def project_name(self):
+        return self.requirement.project_name
+
+    @property
     def extras(self):
         # type: () -> FrozenSet[str]
         return self.requirement.extras
+
+    @property
+    def marker(self):
+        # type: () -> Optional[Marker]
+        return self.requirement.marker
 
 
 @attr.s(frozen=True)
@@ -167,18 +176,23 @@ class URLRequirement(_ParsedRequirement):
     requirement = attr.ib()  # type: Requirement
 
     @property
+    def project_name(self):
+        return self.requirement.project_name
+
+    @property
     def extras(self):
         # type: () -> FrozenSet[str]
         return self.requirement.extras
 
     @property
+    def marker(self):
+        # type: () -> Optional[Marker]
+        return self.requirement.marker
+
+    @property
     def filename(self):
         # type: () -> str
         return os.path.basename(self.url.path)
-
-    @property
-    def project_name(self):
-        return self.requirement.project_name
 
     @property
     def subdirectory(self):
@@ -196,9 +210,18 @@ class VCSRequirement(_ParsedRequirement):
     requirement = attr.ib()  # type: Requirement
 
     @property
+    def project_name(self):
+        return self.requirement.project_name
+
+    @property
     def extras(self):
         # type: () -> FrozenSet[str]
         return self.requirement.extras
+
+    @property
+    def marker(self):
+        # type: () -> Optional[Marker]
+        return self.requirement.marker
 
 
 def parse_requirement_from_project_name_and_specifier(
@@ -285,6 +308,15 @@ if TYPE_CHECKING:
 @attr.s(frozen=True)
 class Constraint(_ParsedRequirement):
     requirement = attr.ib()  # type: Requirement
+
+    @property
+    def project_name(self):
+        return self.requirement.project_name
+
+    @property
+    def marker(self):
+        # type: () -> Optional[Marker]
+        return self.requirement.marker
 
 
 class ParseError(Exception):
