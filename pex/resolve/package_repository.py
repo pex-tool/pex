@@ -174,56 +174,49 @@ class PackageRepositories(object):
             ),
         )
 
-    target_env = attr.ib()  # type: Union[Dict[str, str], MarkerEnv]
+    _target_env = attr.ib()  # type: Union[Dict[str, str], MarkerEnv]
+    _scoped_indexes = attr.ib(default=())  # type: Tuple[Repo, ...]
+    _scoped_find_links = attr.ib(default=())  # type: Tuple[Repo, ...]
     global_indexes = attr.ib(default=(Repo(PYPI),))  # type: Tuple[str, ...]
     global_find_links = attr.ib(default=())  # type: Tuple[str, ...]
-    scoped_indexes = attr.ib(default=())  # type: Tuple[Repo, ...]
-    scoped_find_links = attr.ib(default=())  # type: Tuple[Repo, ...]
+
+    @property
+    def has_scoped_repositories(self):
+        # type: () -> bool
+        return len(self._scoped_indexes) > 0 or len(self._scoped_find_links) > 0
 
     def as_dict(self):
         # type: () -> Dict[str, Any]
         return {
-            "markers": self.target_env if isinstance(self.target_env, dict) else None,
+            "markers": self._target_env if isinstance(self._target_env, dict) else None,
             "universal_markers": (
-                self.target_env.as_dict() if isinstance(self.target_env, MarkerEnv) else None
+                self._target_env.as_dict() if isinstance(self._target_env, MarkerEnv) else None
             ),
             "global_indexes": list(self.global_indexes),
             "global_find_links": list(self.global_find_links),
-            "scoped_indexes": [index.as_dict() for index in self.scoped_indexes],
-            "scoped_find_links": [find_links.as_dict() for find_links in self.scoped_find_links],
+            "scoped_indexes": [index.as_dict() for index in self._scoped_indexes],
+            "scoped_find_links": [find_links.as_dict() for find_links in self._scoped_find_links],
         }
 
     def _in_scope_repos(
         self,
         scoped_repos,  # type: Iterable[Repo]
-        global_repos,  # type: Iterable[str]
         project_name,  # type: ProjectName
     ):
         # type: (...) -> List[str]
-
-        repos = []  # type: List[str]
-        for repo in scoped_repos:
-            if repo.in_scope(target_env=self.target_env, project_name=project_name):
-                repos.append(repo.location)
-        if not repos:
-            repos.extend(global_repos)
-        return repos
+        return [
+            repo.location
+            for repo in scoped_repos
+            if repo.in_scope(target_env=self._target_env, project_name=project_name)
+        ]
 
     def in_scope_indexes(self, project_name):
         # type: (ProjectName) -> List[str]
-        return self._in_scope_repos(
-            scoped_repos=self.scoped_indexes,
-            global_repos=self.global_indexes,
-            project_name=project_name,
-        )
+        return self._in_scope_repos(scoped_repos=self._scoped_indexes, project_name=project_name)
 
     def in_scope_find_links(self, project_name):
         # type: (ProjectName) -> List[str]
-        return self._in_scope_repos(
-            scoped_repos=self.scoped_find_links,
-            global_repos=self.global_find_links,
-            project_name=project_name,
-        )
+        return self._in_scope_repos(scoped_repos=self._scoped_find_links, project_name=project_name)
 
 
 @attr.s(frozen=True)

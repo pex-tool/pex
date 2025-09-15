@@ -51,6 +51,9 @@ def patch():
                     locations=" and ".join(index_urls),
                 )
             )
+        if not find_links and not index_urls:
+            find_links = list(patch_context.package_repositories.global_find_links)
+            index_urls = list(patch_context.package_repositories.global_indexes)
 
         kwargs = {}
         if patch_context.pip_version >= PipVersion.v22_3:

@@ -67,7 +67,7 @@ def patch(
         target.marker_env() if isinstance(target, UniversalTarget) else target.as_dict()
     )  # type: Union[MarkerEnv, Dict[str, str]]
     package_repositories = repos_configuration.scoped(target_env)
-    if not package_repositories.scoped_indexes and not package_repositories.scoped_find_links:
+    if not package_repositories.has_scoped_repositories:
         return None
 
     patches = [
