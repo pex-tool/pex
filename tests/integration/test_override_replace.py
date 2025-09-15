@@ -93,10 +93,13 @@ def project_with_ansicolors_dep(tmpdir):
                 [options.entry_points]
                 console_scripts =
                     script = module:print_green
+
+                [bdist_wheel]
+                python_tag=py2.py3
                 """
             )
         )
-    return project_dir
+    return WheelBuilder(project_dir).bdist()
 
 
 def create_custom_ansicolors(
