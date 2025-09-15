@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from typing import Dict, Iterable, Iterator, List, Optional, Text
 
     import attr  # vendor:skip
-    import colors  # vendor: skip
+    import colors  # vendor:skip
 else:
     from pex.third_party import attr, colors
 
