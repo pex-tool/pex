@@ -694,7 +694,7 @@ def test_warn_unused_pex_env_vars():
         stdout, stderr = process.communicate()
         assert 0 == process.returncode
         assert not stdout
-        expected = expected_stderr.strip()
+        expected = os.linesep.join(expected_stderr.strip().splitlines())
         error = stderr.decode("utf-8").strip()
         if expected:
             assert error.endswith(expected), error
