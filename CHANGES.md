@@ -58,7 +58,7 @@ pex3 lock create \
     torchvision
 ```
 
-* Support scopes for --index and --find-links. (#2903)
+* Support scopes for `--index` and `--find-links`. (#2903)
 
 ## 2.55.2
 
