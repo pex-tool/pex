@@ -329,6 +329,51 @@ def test_split_repos_lock(
     assert_split_resolve(PYTHON2, expected_message=colors.green("Tom Bombadil"))
 
 
+def pin(
+    project_name,  # type: str
+    version,  # type: str
+):
+    # type: (...) -> Pin
+    return Pin(ProjectName(project_name), Version(version))
+
+
+def assert_expected_split_repos_and_requirements_lock(lock_file):
+    # type: (str) -> None
+
+    if sys.version_info.releaselevel == "final":
+        # This test is complicated by Python development releases and is covered by several
+        # production releases in CI; so we skip.
+        return
+
+    lock = json_codec.load(lock_file)
+    # N.B.: We should have 4 locked resolves:
+    foreign_os_no_find_links_in_play = frozenset([pin("ansicolors", "1.1.8")])
+    expected_locks = {
+        # 1. Find links for ansicolors in play.
+        frozenset([pin("ansicolors", "0.1.0"), pin("cowsay", "6")]),
+        # 2. No find links for ansicolors in play old cowsay
+        frozenset([pin("ansicolors", "1.1.8"), pin("cowsay", "5")]),
+        # 3. Foreign OS no cowsay no find links in play.
+        foreign_os_no_find_links_in_play,
+        # 4. Current OS no find links in play.
+        frozenset([pin("ansicolors", "1.1.8"), pin("cowsay", "6")]),
+    }
+    current_system = MarkerEnv.create(
+        extras=(), universal_target=UniversalTarget(systems=(TargetSystem.current(),))
+    )
+    for locked_resolve in lock.locked_resolves:
+        pins = frozenset(
+            locked_requirement.pin for locked_requirement in locked_resolve.locked_requirements
+        )
+        assert locked_resolve.marker
+        if pins == foreign_os_no_find_links_in_play:
+            assert not current_system.evaluate(locked_resolve.marker)
+        else:
+            assert current_system.evaluate(locked_resolve.marker)
+        expected_locks.discard(pins)
+    assert not expected_locks
+
+
 def test_split_repos_and_requirements_lock(
     tmpdir,  # type: Tempdir
     find_links,  # type: str
@@ -362,41 +407,7 @@ def test_split_repos_and_requirements_lock(
         "--pip-log",
         tmpdir.join("pip.log"),
     ).assert_success()
-
-    def pin(
-        project_name,  # type: str
-        version,  # type: str
-    ):
-        # type: (...) -> Pin
-        return Pin(ProjectName(project_name), Version(version))
-
-    lock = json_codec.load(lock_file)
-    # N.B.: We should have 4 locked resolves:
-    foreign_os_no_find_links_in_play = frozenset([pin("ansicolors", "1.1.8")])
-    expected_locks = {
-        # 1. Find links for ansicolors in play.
-        frozenset([pin("ansicolors", "0.1.0"), pin("cowsay", "6")]),
-        # 2. No find links for ansicolors in play old cowsay
-        frozenset([pin("ansicolors", "1.1.8"), pin("cowsay", "5")]),
-        # 3. Foreign OS no cowsay no find links in play.
-        foreign_os_no_find_links_in_play,
-        # 4. Current OS no find links in play.
-        frozenset([pin("ansicolors", "1.1.8"), pin("cowsay", "6")]),
-    }
-    current_system = MarkerEnv.create(
-        extras=(), universal_target=UniversalTarget(systems=(TargetSystem.current(),))
-    )
-    for locked_resolve in lock.locked_resolves:
-        pins = frozenset(
-            locked_requirement.pin for locked_requirement in locked_resolve.locked_requirements
-        )
-        assert locked_resolve.marker
-        if pins == foreign_os_no_find_links_in_play:
-            assert not current_system.evaluate(locked_resolve.marker)
-        else:
-            assert current_system.evaluate(locked_resolve.marker)
-        expected_locks.discard(pins)
-    assert not expected_locks
+    assert_expected_split_repos_and_requirements_lock(lock_file)
 
     pex = tmpdir.join("pex")
 
