@@ -28,6 +28,15 @@ def assert_project_re(value):
     return scope
 
 
+def assert_marker(
+    expected,  # type: str
+    actual,  # type: Marker
+):
+    # type: (...) -> None
+    # N.B.: Older versions of Marker do not implement __eq__; so we use str(...) as a proxy.
+    assert str(Marker(expected)) == str(actual)
+
+
 def test_parse():
     # type: () -> None
 
@@ -35,17 +44,17 @@ def test_parse():
     assert scope.marker is None
 
     scope = assert_project_name("foo; python_version == '3.9'")
-    assert Marker("python_version == '3.9'") == scope.marker
+    assert_marker("python_version == '3.9'", scope.marker)
 
     scope = assert_project_re("^(foo|bar|baz)$")
     assert scope.marker is None
 
     scope = assert_project_re("^(foo|bar|baz)$; python_version == '3.9'")
-    assert Marker("python_version == '3.9'") == scope.marker
+    assert_marker("python_version == '3.9'", scope.marker)
 
     scope = Scope.parse("python_version == '3.9'")
     assert scope.project is None
-    assert Marker("python_version == '3.9'") == scope.marker
+    assert_marker("python_version == '3.9'", scope.marker)
 
 
 @pytest.mark.parametrize(

@@ -99,7 +99,8 @@ class Scope(object):
             return cls(project=requirement.project_name, marker=requirement.marker)
 
     project = attr.ib(default=None)  # type: Optional[Union[ProjectName, Pattern[str]]]
-    marker = attr.ib(default=None)  # type: Optional[Marker]
+    # N.B.: Older versions of Marker do not implement __eq__; so we use str(...) as a proxy.
+    marker = attr.ib(eq=str, default=None)  # type: Optional[Marker]
 
     def in_scope(
         self,
