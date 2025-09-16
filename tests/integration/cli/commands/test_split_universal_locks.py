@@ -340,7 +340,7 @@ def pin(
 def assert_expected_split_repos_and_requirements_lock(lock_file):
     # type: (str) -> None
 
-    if sys.version_info.releaselevel == "final":
+    if sys.version_info.releaselevel != "final":
         # This test is complicated by Python development releases and is covered by several
         # production releases in CI; so we skip.
         return
