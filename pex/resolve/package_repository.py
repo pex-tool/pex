@@ -27,7 +27,7 @@ else:
     from pex.third_party import attr
 
 
-@attr.s(frozen=True)
+@attr.s(frozen=True, eq=False, hash=False)
 class Scope(object):
     @classmethod
     def _parse_regex_forms(cls, value):
@@ -99,8 +99,7 @@ class Scope(object):
             return cls(project=requirement.project_name, marker=requirement.marker)
 
     project = attr.ib(default=None)  # type: Optional[Union[ProjectName, Pattern[str]]]
-    # N.B.: Older versions of Marker do not implement __eq__; so we use str(...) as a proxy.
-    marker = attr.ib(eq=str, default=None)  # type: Optional[Marker]
+    marker = attr.ib(default=None)  # type: Optional[Marker]
 
     def in_scope(
         self,
@@ -122,6 +121,40 @@ class Scope(object):
             return self.project == project_name
 
         return cast("Pattern", self.project).match(project_name.normalized) is not None
+
+    def _tup(self):
+        # type: () -> Tuple[Optional[str], Optional[str]]
+
+        project = None  # type: Optional[str]
+        if isinstance(self.project, ProjectName):
+            project = self.project.normalized
+        elif self.project:
+            # N.B.: The object returned from older versions of Python's `re.compile` do not
+            # implement __eq__; so we use the input pattern string as a proxy.
+            project = self.project.pattern
+
+        marker = None  # type: Optional[str]
+        if self.marker:
+            # N.B.: Older versions of `Marker` do not implement __eq__; so we use str(...) as a
+            # proxy.
+            marker = str(self.marker)
+
+        return project, marker
+
+    def __hash__(self):
+        # type: () -> int
+        return hash(self._tup())
+
+    def __eq__(self, other):
+        # type: (Any) -> bool
+
+        if not isinstance(other, Scope):
+            return NotImplemented
+
+        return self._tup() == other._tup()
+
+    def __ne__(self, other):
+        return not self == other
 
     def __str__(self):
         # type: () -> str
