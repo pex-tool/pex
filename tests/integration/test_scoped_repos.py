@@ -321,9 +321,7 @@ class Expectations(object):
                     "--index",
                     "index={index}",
                     "--source",
-                    "index=cowsay",
-                    "--source",
-                    "index=ansicolors",
+                    "index=^(cowsay|ansicolors)$",
                 ],
             ),
             Expectations(
@@ -341,9 +339,7 @@ class Expectations(object):
                     "--find-links",
                     "fl={find_links}",
                     "--source",
-                    "fl=cowsay",
-                    "--source",
-                    "fl=ansicolors",
+                    "fl=.*co[lw].*",
                 ],
             ),
             Expectations(
@@ -496,11 +492,20 @@ def test_scoped_marker(
     )
 
 
-SCOPED_PROJECT_AND_MARKER_ARGS = [
+SCOPED_PROJECT_NAME_AND_MARKER_ARGS = [
     "--find-links",
     "fl={find_links}",
     "--source",
     "fl=cowsay; python_version == '{major}.{minor}'".format(
+        major=sys.version_info[0], minor=sys.version_info[1]
+    ),
+]
+
+SCOPED_PROJECT_RE_AND_MARKER_ARGS = [
+    "--find-links",
+    "fl={find_links}",
+    "--source",
+    "fl=^cow.*; python_version == '{major}.{minor}'".format(
         major=sys.version_info[0], minor=sys.version_info[1]
     ),
 ]
@@ -511,15 +516,27 @@ SCOPED_PROJECT_AND_MARKER_ARGS = [
     [
         pytest.param(
             Expectations(
-                cowsay_source=Source.FIND_LINKS, extra_args=SCOPED_PROJECT_AND_MARKER_ARGS
+                cowsay_source=Source.FIND_LINKS, extra_args=SCOPED_PROJECT_NAME_AND_MARKER_ARGS
             ),
             sys.executable,
-            id="marker-match",
+            id="name-marker-match",
         ),
         pytest.param(
-            Expectations(extra_args=SCOPED_PROJECT_AND_MARKER_ARGS),
+            Expectations(extra_args=SCOPED_PROJECT_NAME_AND_MARKER_ARGS),
             OTHER_INTERPRETER,
-            id="marker-miss",
+            id="name-marker-miss",
+        ),
+        pytest.param(
+            Expectations(
+                cowsay_source=Source.FIND_LINKS, extra_args=SCOPED_PROJECT_RE_AND_MARKER_ARGS
+            ),
+            sys.executable,
+            id="re-marker-match",
+        ),
+        pytest.param(
+            Expectations(extra_args=SCOPED_PROJECT_RE_AND_MARKER_ARGS),
+            OTHER_INTERPRETER,
+            id="re-marker-miss",
         ),
     ],
 )

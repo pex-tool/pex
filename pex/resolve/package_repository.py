@@ -5,6 +5,7 @@ from __future__ import absolute_import
 
 import itertools
 import os
+import re
 
 from pex.auth import PasswordEntry
 from pex.compatibility import string
@@ -13,9 +14,11 @@ from pex.exceptions import production_assert, reportable_unexpected_error_msg
 from pex.pep_503 import ProjectName
 from pex.resolve.target_system import MarkerEnv
 from pex.third_party.packaging.markers import InvalidMarker, Marker
-from pex.typing import TYPE_CHECKING
+from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
+    # N.B.: The `re.Pattern` type is not available in all Python versions Pex supports.
+    from re import Pattern  # type: ignore[attr-defined]
     from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
     import attr  # vendor:skip
@@ -24,8 +27,31 @@ else:
     from pex.third_party import attr
 
 
-@attr.s(frozen=True)
+@attr.s(frozen=True, eq=False, hash=False)
 class Scope(object):
+    @classmethod
+    def _parse_regex_forms(cls, value):
+        # type: (str) -> Optional[Scope]
+
+        project_spec, sep, marker_value = value.partition(";")
+        try:
+            project = ProjectName(
+                project_spec, validated=True
+            )  # type: Union[ProjectName, Pattern[str]]
+        except ProjectName.InvalidError:
+            try:
+                project = re.compile(project_spec)
+            except re.error:
+                return None
+
+        marker = None  # type: Optional[Marker]
+        if marker_value:
+            try:
+                marker = Marker(marker_value)
+            except InvalidMarker:
+                return None
+        return cls(project=project, marker=marker)
+
     @classmethod
     def parse(cls, value):
         # type: (str) -> Scope
@@ -37,8 +63,8 @@ class Scope(object):
             # type: (Optional[str]) -> Exception
             error_msg_lines = [
                 "The given scope is invalid: {scope}".format(scope=value),
-                "Expected a bare project name, a bare marker or a project name and marker; "
-                "e.g.: `torch; sys_platform != 'darwin'`.",
+                "Expected a bare project name-or-regex, a bare marker or a project name-or-regex "
+                "and marker; e.g.: `torch; sys_platform != 'darwin'`.",
             ]
             if footer:
                 error_msg_lines.append(footer)
@@ -47,6 +73,10 @@ class Scope(object):
         try:
             return cls(marker=Marker(value))
         except InvalidMarker:
+            scope = cls._parse_regex_forms(value)
+            if scope:
+                return scope
+
             try:
                 requirement = Requirement.parse(value)
             except RequirementParseError:
@@ -68,7 +98,7 @@ class Scope(object):
                 )
             return cls(project=requirement.project_name, marker=requirement.marker)
 
-    project = attr.ib(default=None)  # type: Optional[ProjectName]
+    project = attr.ib(default=None)  # type: Optional[Union[ProjectName, Pattern[str]]]
     marker = attr.ib(default=None)  # type: Optional[Marker]
 
     def in_scope(
@@ -84,31 +114,64 @@ class Scope(object):
             elif isinstance(target_env, MarkerEnv) and not target_env.evaluate(self.marker):
                 return False
 
-        if self.project and project_name and self.project != project_name:
-            return False
+        if not self.project or not project_name:
+            return True
 
-        return True
+        if isinstance(self.project, ProjectName):
+            return self.project == project_name
+
+        return cast("Pattern", self.project).match(project_name.normalized) is not None
+
+    def _tup(self):
+        # type: () -> Tuple[Optional[str], Optional[str]]
+
+        project = None  # type: Optional[str]
+        if isinstance(self.project, ProjectName):
+            project = self.project.normalized
+        elif self.project:
+            # N.B.: The object returned from older versions of Python's `re.compile` do not
+            # implement __eq__; so we use the input pattern string as a proxy.
+            project = self.project.pattern
+
+        marker = None  # type: Optional[str]
+        if self.marker:
+            # N.B.: Older versions of `Marker` do not implement __eq__; so we use str(...) as a
+            # proxy.
+            marker = str(self.marker)
+
+        return project, marker
+
+    def __hash__(self):
+        # type: () -> int
+        return hash(self._tup())
+
+    def __eq__(self, other):
+        # type: (Any) -> bool
+
+        if not isinstance(other, Scope):
+            return NotImplemented
+
+        return self._tup() == other._tup()
+
+    def __ne__(self, other):
+        return not self == other
 
     def __str__(self):
         # type: () -> str
-        if self.project and self.marker:
-            return "{project}; {marker}".format(project=self.project, marker=self.marker)
-        if self.project:
-            return str(self.project)
+
+        project_as_str = None  # type: Optional[str]
+        if isinstance(self.project, ProjectName):
+            project_as_str = self.project.raw
+        elif self.project:
+            project_as_str = self.project.pattern
+
+        if project_as_str and self.marker:
+            return "{project}; {marker}".format(project=project_as_str, marker=self.marker)
+        if project_as_str:
+            return project_as_str
         if self.marker:
             return str(self.marker)
         return ""
-
-
-# Indexes that only contain certain non-public projects or else projects you wish to override:
-# Scope(project=ProjectName("my-company-project1")) for https://my.company/simple
-
-# Platform-specific indexes that have native wheels built for just that platform:
-# Scope(marker=Marker("platform_machine == 'armv7l'")) for https://www.piwheels.org/simple
-
-# Complex cases, like PyTorch:
-# Scope(project=ProjectName("torch"), marker=Marker("sys_platform != 'darwin'")) for
-# https://download.pytorch.org/whl/cu129
 
 
 @attr.s(frozen=True)

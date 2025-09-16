@@ -1,5 +1,27 @@
 # Release Notes
 
+## 2.57.0
+
+This release adds support for project name regexes to `--source` scopes for repos. For example, the
+PyTorch example given in the 2.56.0 release notes can now be shortened to:
+```console
+pex3 lock create \
+    --style universal \
+    --target-system linux \
+    --target-system mac \
+    --elide-unused-requires-dist \
+    --interpreter-constraint "CPython==3.13.*" \
+    --index pytorch=https://download.pytorch.org/whl/cu129 \
+    --source "pytorch=^torch(vision)?$; sys_platform != 'darwin'" \
+    --source "pytorch=^nvidia-.*; sys_platform != 'darwin'" \
+    --indent 2 \
+    -o lock.json \
+    torch \
+    torchvision
+```
+
+* Support regexes for `--source` project matching. (#2906)
+
 ## 2.56.0
 
 This release adds support for scoping `--index` and `--find-links` repos to only be used to resolve

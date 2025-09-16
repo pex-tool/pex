@@ -570,7 +570,8 @@ def register_repos_options(parser):
             "name and marker; e.g.: `internal=torch; sys_platform != 'darwin'` to resolve the "
             "`torch` project from the `internal` repo unless targeting macOS, or just a marker; "
             "e.g.: `piwheels=platform_machine == 'armv7l' to resolve from the `piwheels` repo "
-            "whenever 32bit arm machines are being targeted."
+            "whenever 32bit arm machines are being targeted. N.B. wherever you use a project name "
+            "in a scope, you can use a regex instead."
         ),
     )
 
