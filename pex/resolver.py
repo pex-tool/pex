@@ -122,8 +122,8 @@ class DownloadTarget(object):
             return " ".join(description_components)
         return target_description
 
-    def id(self):
-        # type: () -> str
+    def id(self, complete=False):
+        # type: (bool) -> str
 
         if self.universal_target:
             id_components = ["universal"]
@@ -132,6 +132,10 @@ class DownloadTarget(object):
             id_components.append(
                 "-and-".join(map(str, self.universal_target.systems or TargetSystem.values()))
             )
+            if complete:
+                id_components.append(
+                    hashlib.sha1(str(self.universal_target.marker()).encode("utf-8")).hexdigest()
+                )
             return "-".join(id_components)
 
         if isinstance(self.target, LocalInterpreter):
@@ -189,7 +193,10 @@ class PipLogManager(object):
             log_by_download_target.update(
                 (
                     download_target,
-                    os.path.join(log_dir, "pip.{target}.log".format(target=download_target.id())),
+                    os.path.join(
+                        log_dir,
+                        "pip.{target}.log".format(target=download_target.id(complete=True)),
+                    ),
                 )
                 for download_target in download_targets
             )
@@ -324,8 +331,8 @@ class DownloadRequest(object):
         subdirectory_by_filename,  # type: Mapping[str, str]
     ):
         # type: (...) -> SpawnedJob[DownloadResult]
-        target = download_target.target
-        download_dir = os.path.join(resolved_dists_dir, target.id)
+
+        download_dir = os.path.join(resolved_dists_dir, download_target.id(complete=True))
         observer = (
             self.observer.observe_download(
                 download_target=download_target, download_dir=download_dir
@@ -335,6 +342,7 @@ class DownloadRequest(object):
         )
 
         download_result = DownloadResult(download_target, download_dir, subdirectory_by_filename)
+        target = download_target.target
         download_job = get_pip(
             interpreter=target.get_interpreter(),
             version=self.pip_version,

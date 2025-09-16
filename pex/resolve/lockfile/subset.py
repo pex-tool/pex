@@ -154,7 +154,7 @@ def subset(
                     resolved
                     for resolved in resolveds
                     if not resolved.source.marker
-                    or resolved.source.marker.evauate(marker_environment)
+                    or resolved.source.marker.evaluate(marker_environment)
                 ]
 
             if resolveds:

@@ -4,31 +4,32 @@
 from __future__ import absolute_import
 
 import operator
+import sys
 
 from pex.enum import Enum
 from pex.exceptions import production_assert, reportable_unexpected_error_msg
 from pex.interpreter_constraints import InterpreterConstraint, iter_compatible_versions
 from pex.interpreter_implementation import InterpreterImplementation
 from pex.orderedset import OrderedSet
-from pex.pep_440 import Version
+from pex.os import LINUX, MAC, WINDOWS
 from pex.pep_503 import ProjectName
+from pex.sorted_tuple import SortedTuple
 from pex.third_party.packaging.markers import Marker, Variable
-from pex.third_party.packaging.specifiers import SpecifierSet
-from pex.typing import TYPE_CHECKING, Generic, cast
+from pex.third_party.packaging.specifiers import Specifier, SpecifierSet
+from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     from typing import (
         Any,
         Callable,
         Dict,
-        FrozenSet,
         Iterable,
         Iterator,
         List,
+        Mapping,
         Optional,
         Sequence,
         Tuple,
-        TypeVar,
         Union,
     )
 
@@ -44,6 +45,17 @@ class TargetSystem(Enum["TargetSystem.Value"]):
     LINUX = Value("linux")
     MAC = Value("mac")
     WINDOWS = Value("windows")
+
+    @classmethod
+    def current(cls):
+        # type: () -> TargetSystem.Value
+        if LINUX:
+            return TargetSystem.LINUX
+        elif MAC:
+            return TargetSystem.MAC
+        elif WINDOWS:
+            return TargetSystem.WINDOWS
+        raise AssertionError(reportable_unexpected_error_msg("Unexpected os {os}", os=sys.platform))
 
 
 TargetSystem.seal()
@@ -100,6 +112,14 @@ _OPERATORS = {
     "!=": operator.ne,
     ">=": operator.ge,
     ">": operator.gt,
+}  # type: Mapping[str, Callable[[Any, Any], bool]]
+
+
+_VERSION_MARKER_OP_FLIPPED = {
+    "<": ">",
+    "<=": ">=",
+    ">=": "<=",
+    ">": "<",
 }
 
 
@@ -124,30 +144,23 @@ class _Or(_Op):
 
 
 def _get_values_func(marker):
-    # type: (str) -> Optional[Tuple[Callable[[MarkerEnv], FrozenSet], Callable[[str], Any]]]
+    # type: (str) -> Optional[Callable[[MarkerEnv], Iterable[str]]]
 
     if marker == "extra":
-        return lambda marker_env: marker_env.extras, lambda value: ProjectName(value)
+        return lambda marker_env: marker_env.extras
     elif marker == "os_name":
-        return lambda marker_env: marker_env.os_names, lambda value: value
+        return lambda marker_env: marker_env.os_names
     elif marker == "platform_system":
-        return lambda marker_env: marker_env.platform_systems, lambda value: value
+        return lambda marker_env: marker_env.platform_systems
     elif marker == "sys_platform":
-        return lambda marker_env: marker_env.sys_platforms, lambda value: value
+        return lambda marker_env: marker_env.sys_platforms
     elif marker == "platform_python_implementation":
-        return (
-            lambda marker_env: marker_env.implementations,
-            lambda value: InterpreterImplementation.for_value(value),
-        )
+        return lambda marker_env: marker_env.platform_python_implementations
     elif marker == "python_version":
-        return lambda marker_env: marker_env.python_versions, lambda value: Version(value)
+        return lambda marker_env: marker_env.python_versions
     elif marker == "python_full_version":
-        return lambda marker_env: marker_env.python_full_versions, lambda value: Version(value)
+        return lambda marker_env: marker_env.python_full_versions
     return None
-
-
-if TYPE_CHECKING:
-    _T = TypeVar("_T")
 
 
 def _parse_marker_item(
@@ -162,8 +175,15 @@ def _parse_marker_item(
     elif item == "or":
         stack.append(_Or(stack.pop()))
     elif isinstance(item, list):
+        group = []  # type: List[EvalMarker]
         for element in item:
-            _parse_marker_item(stack, element, marker)
+            _parse_marker_item(group, element, marker)
+        production_assert(len(group) == 1)
+        if stack:
+            production_assert(isinstance(stack[-1], _Op))
+            cast(_Op, stack[-1]).rhs = group[0]
+        else:
+            stack.extend(group)
     elif isinstance(item, tuple):
         lhs, op, rhs = item
         check = EvalMarkerFunc.create(lhs, op, rhs)
@@ -198,7 +218,7 @@ def _parse_marker(marker):
     return eval_marker
 
 
-class EvalMarkerFunc(Generic["_T"]):
+class EvalMarkerFunc(object):
     @classmethod
     def create(
         cls,
@@ -209,46 +229,72 @@ class EvalMarkerFunc(Generic["_T"]):
         # type: (...) -> Callable[[MarkerEnv], bool]
 
         if isinstance(lhs, Variable):
-            value = _get_values_func(str(lhs))
-            if value:
-                get_values, operand_type = value
+            marker_name = str(lhs)
+            get_values = _get_values_func(marker_name)
+            if get_values:
+                value = str(rhs)
+                if marker_name == "extra":
+                    value = ProjectName(value).normalized
                 return cls(
                     get_values=get_values,
-                    op=_OPERATORS[str(op)],
-                    rhs=operand_type(str(rhs)),
+                    op=str(op),
+                    rhs=value,
+                    is_version_comparison=marker_name in ("python_version", "python_full_version"),
                 )
 
         if isinstance(rhs, Variable):
-            value = _get_values_func(str(rhs))
-            if value:
-                get_values, operand_type = value
+            marker_name = str(rhs)
+            get_values = _get_values_func(marker_name)
+            if get_values:
+                value = str(lhs)
+                if marker_name == "extra":
+                    value = ProjectName(value).normalized
                 return cls(
                     get_values=get_values,
-                    op=_OPERATORS[str(op)],
-                    lhs=operand_type(str(lhs)),
+                    op=str(op),
+                    lhs=value,
+                    is_version_comparison=marker_name in ("python_version", "python_full_version"),
                 )
 
         return lambda _: True
 
     def __init__(
         self,
-        get_values,  # type: Callable[[MarkerEnv], Iterable[_T]]
-        op,  # type: Callable[[_T, _T], bool]
-        lhs=None,  # type: Optional[_T]
-        rhs=None,  # type: Optional[_T]
+        get_values,  # type: Callable[[MarkerEnv], Iterable[str]]
+        op,  # type: str
+        lhs=None,  # type: Optional[str]
+        rhs=None,  # type: Optional[str]
+        is_version_comparison=False,  # type: bool
     ):
         # type: (...) -> None
 
-        self._get_values = get_values
         if lhs is not None:
-            self._func = lambda value: op(cast("_T", lhs), value)
+            if is_version_comparison:
+                flipped_op = _VERSION_MARKER_OP_FLIPPED.get(op, op)
+                version_specifier = Specifier(
+                    "{flipped_op}{lhs}".format(lhs=lhs, flipped_op=flipped_op)
+                )
+                self._func = lambda value: cast(
+                    bool, version_specifier.contains(value, prereleases=True)
+                )
+            else:
+                oper = _OPERATORS[op]
+                self._func = lambda value: oper(lhs, value)
         elif rhs is not None:
-            self._func = lambda value: op(value, cast("_T", rhs))
+            if is_version_comparison:
+                version_specifier = Specifier("{op}{rhs}".format(op=op, rhs=rhs))
+                self._func = lambda value: cast(
+                    bool, version_specifier.contains(value, prereleases=True)
+                )
+            else:
+                oper = _OPERATORS[op]
+                self._func = lambda value: oper(value, rhs)
         else:
             raise ValueError(
                 "Must be called with exactly one of lhs or rhs but not both. "
                 "Given lhs={lhs} and rhs={rhs}".format(lhs=lhs, rhs=rhs)
             )
+        self._get_values = get_values
 
     def __call__(self, marker_env):
         # type: (MarkerEnv) -> bool
@@ -262,19 +308,7 @@ class MarkerEnv(object):
     @classmethod
     def from_dict(cls, data):
         # type: (Dict[str, Any]) -> MarkerEnv
-        return cls(
-            extras=frozenset(ProjectName(extra) for extra in data["extras"]),
-            os_names=frozenset(data["os_names"]),
-            platform_systems=frozenset(data["platform_systems"]),
-            sys_platforms=frozenset(data["sys_platforms"]),
-            implementations=frozenset(
-                InterpreterImplementation.for_value(impl) for impl in data["implementations"]
-            ),
-            python_versions=frozenset(Version(version) for version in data["python_versions"]),
-            python_full_versions=frozenset(
-                Version(version) for version in data["python_full_versions"]
-            ),
-        )
+        return cls(**data)
 
     @classmethod
     def create(
@@ -319,39 +353,39 @@ class MarkerEnv(object):
                 sys_platforms.append("win32")
 
         return cls(
-            extras=frozenset(ProjectName(extra) for extra in (extras or [""])),
-            os_names=frozenset(os_names),
-            platform_systems=frozenset(platform_systems),
-            sys_platforms=frozenset(sys_platforms),
-            implementations=frozenset(implementations),
-            python_versions=frozenset(
-                Version(".".join(map(str, python_version))) for python_version in python_versions
+            extras=SortedTuple(ProjectName(extra).normalized for extra in (extras or [""])),
+            os_names=SortedTuple(os_names),
+            platform_systems=SortedTuple(platform_systems),
+            sys_platforms=SortedTuple(sys_platforms),
+            platform_python_implementations=SortedTuple(map(str, implementations)),
+            python_versions=SortedTuple(
+                ".".join(map(str, python_version)) for python_version in python_versions
             ),
-            python_full_versions=frozenset(
-                Version(".".join(map(str, python_full_version)))
+            python_full_versions=SortedTuple(
+                ".".join(map(str, python_full_version))
                 for python_full_version in python_full_versions
             ),
         )
 
-    extras = attr.ib(factory=frozenset)  # type: FrozenSet[ProjectName]
-    os_names = attr.ib(factory=frozenset)  # type: FrozenSet[str]
-    platform_systems = attr.ib(factory=frozenset)  # type: FrozenSet[str]
-    sys_platforms = attr.ib(factory=frozenset)  # type: FrozenSet[str]
-    implementations = attr.ib(factory=frozenset)  # type: FrozenSet[InterpreterImplementation.Value]
-    python_versions = attr.ib(factory=frozenset)  # type: FrozenSet[Version]
-    python_full_versions = attr.ib(factory=frozenset)  # type: FrozenSet[Version]
+    extras = attr.ib(converter=SortedTuple, default=SortedTuple())  # type: SortedTuple[str]
+    os_names = attr.ib(converter=SortedTuple, default=SortedTuple())  # type: SortedTuple[str]
+    platform_systems = attr.ib(
+        converter=SortedTuple, default=SortedTuple()
+    )  # type: SortedTuple[str]
+    sys_platforms = attr.ib(converter=SortedTuple, default=SortedTuple())  # type: SortedTuple[str]
+    platform_python_implementations = attr.ib(
+        converter=SortedTuple, default=SortedTuple()
+    )  # type: SortedTuple[str]
+    python_versions = attr.ib(
+        converter=SortedTuple, default=SortedTuple()
+    )  # type: SortedTuple[str]
+    python_full_versions = attr.ib(
+        converter=SortedTuple, default=SortedTuple()
+    )  # type: SortedTuple[str]
 
     def as_dict(self):
         # type: () -> Dict[str, Any]
-        return {
-            "extras": sorted(str(extra) for extra in self.extras),
-            "os_names": sorted(self.os_names),
-            "platform_systems": sorted(self.platform_systems),
-            "sys_platforms": sorted(self.sys_platforms),
-            "implementations": sorted(str(impl) for impl in self.implementations),
-            "python_versions": sorted(str(version) for version in self.python_versions),
-            "python_full_versions": sorted(str(version) for version in self.python_full_versions),
-        }
+        return attr.asdict(self)
 
     def evaluate(self, marker):
         # type: (Marker) -> bool
