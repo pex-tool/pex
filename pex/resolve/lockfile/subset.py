@@ -146,6 +146,17 @@ def subset(
                 else:
                     errors.append(resolve_result)
 
+            if len(resolveds) > 1:
+                # We may have a split universal resolve; in which case we want to apply split
+                # markers to winnow down to the appropriate locked resolves.
+                marker_environment = target.marker_environment.as_dict()
+                resolveds = [
+                    resolved
+                    for resolved in resolveds
+                    if not resolved.source.marker
+                    or resolved.source.marker.evaluate(marker_environment)
+                ]
+
             if resolveds:
                 resolved_by_target[target] = Resolved.most_specific(resolveds)
             elif errors:

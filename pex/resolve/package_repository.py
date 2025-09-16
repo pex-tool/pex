@@ -1,0 +1,273 @@
+# Copyright 2025 Pex project contributors.
+# Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+from __future__ import absolute_import
+
+import itertools
+import os
+
+from pex.auth import PasswordEntry
+from pex.compatibility import string
+from pex.dist_metadata import Requirement, RequirementParseError
+from pex.exceptions import production_assert, reportable_unexpected_error_msg
+from pex.pep_503 import ProjectName
+from pex.resolve.target_system import MarkerEnv
+from pex.third_party.packaging.markers import InvalidMarker, Marker
+from pex.typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
+
+    import attr  # vendor:skip
+
+else:
+    from pex.third_party import attr
+
+
+@attr.s(frozen=True)
+class Scope(object):
+    @classmethod
+    def parse(cls, value):
+        # type: (str) -> Scope
+
+        if not value:
+            return Scope()
+
+        def create_invalid_error(footer=None):
+            # type: (Optional[str]) -> Exception
+            error_msg_lines = [
+                "The given scope is invalid: {scope}".format(scope=value),
+                "Expected a bare project name, a bare marker or a project name and marker; "
+                "e.g.: `torch; sys_platform != 'darwin'`.",
+            ]
+            if footer:
+                error_msg_lines.append(footer)
+            return ValueError(os.linesep.join(error_msg_lines))
+
+        try:
+            return cls(marker=Marker(value))
+        except InvalidMarker:
+            try:
+                requirement = Requirement.parse(value)
+            except RequirementParseError:
+                raise create_invalid_error()
+            if requirement.extras:
+                raise create_invalid_error(
+                    "The specified project name {project_name} has extras that should be removed: "
+                    "{extras}".format(
+                        project_name=requirement.project_name.raw,
+                        extras=", ".join(sorted(requirement.extras)),
+                    )
+                )
+            if requirement.specifier:
+                raise create_invalid_error(
+                    "The specified project name {project_name} has a version specifier that should "
+                    "be removed: {specifier}".format(
+                        project_name=requirement.project_name.raw, specifier=requirement.specifier
+                    )
+                )
+            return cls(project=requirement.project_name, marker=requirement.marker)
+
+    project = attr.ib(default=None)  # type: Optional[ProjectName]
+    marker = attr.ib(default=None)  # type: Optional[Marker]
+
+    def in_scope(
+        self,
+        target_env,  # type: Union[Dict[str, str], MarkerEnv]
+        project_name=None,  # type: Optional[ProjectName]
+    ):
+        # type: (...) -> bool
+
+        if self.marker:
+            if isinstance(target_env, dict) and not self.marker.evaluate(target_env):
+                return False
+            elif isinstance(target_env, MarkerEnv) and not target_env.evaluate(self.marker):
+                return False
+
+        if self.project and project_name and self.project != project_name:
+            return False
+
+        return True
+
+    def __str__(self):
+        # type: () -> str
+        if self.project and self.marker:
+            return "{project}; {marker}".format(project=self.project, marker=self.marker)
+        if self.project:
+            return str(self.project)
+        if self.marker:
+            return str(self.marker)
+        return ""
+
+
+# Indexes that only contain certain non-public projects or else projects you wish to override:
+# Scope(project=ProjectName("my-company-project1")) for https://my.company/simple
+
+# Platform-specific indexes that have native wheels built for just that platform:
+# Scope(marker=Marker("platform_machine == 'armv7l'")) for https://www.piwheels.org/simple
+
+# Complex cases, like PyTorch:
+# Scope(project=ProjectName("torch"), marker=Marker("sys_platform != 'darwin'")) for
+# https://download.pytorch.org/whl/cu129
+
+
+@attr.s(frozen=True)
+class Repo(object):
+    @classmethod
+    def from_dict(cls, data):
+        # type: (Dict[str, Any]) -> Repo
+        return cls(
+            location=data["location"], scopes=tuple(Scope.parse(scope) for scope in data["scopes"])
+        )
+
+    location = attr.ib()  # type: str
+    scopes = attr.ib(default=())  # type: Tuple[Scope, ...]
+
+    def as_dict(self):
+        # type: () -> Dict[str, Any]
+        return {"location": self.location, "scopes": [str(scope) for scope in self.scopes]}
+
+    def in_scope(
+        self,
+        target_env,  # type: Union[Dict[str, str], MarkerEnv]
+        project_name=None,  # type: Optional[ProjectName]
+    ):
+        # type: (...) -> bool
+        if not self.scopes:
+            return True
+        return any(scope.in_scope(target_env, project_name=project_name) for scope in self.scopes)
+
+
+PYPI = "https://pypi.org/simple"
+
+
+@attr.s(frozen=True)
+class PackageRepositories(object):
+    @classmethod
+    def from_dict(cls, data):
+        # type: (Dict[str, Any]) -> PackageRepositories
+
+        markers = data.get("markers")
+        universal_markers_data = data.get("universal_markers")
+        production_assert(bool(markers) ^ bool(universal_markers_data))
+        if markers:
+            if not isinstance(markers, dict) or not all(
+                isinstance(key, string) and isinstance(value, string)
+                for key, value in markers.items()
+            ):
+                raise AssertionError(reportable_unexpected_error_msg())
+            target_env = markers  # type: Union[Dict[str, str], MarkerEnv]
+        else:
+            if not isinstance(universal_markers_data, dict) or not all(
+                isinstance(key, string) for key in universal_markers_data
+            ):
+                raise AssertionError(reportable_unexpected_error_msg())
+            target_env = MarkerEnv.from_dict(universal_markers_data)
+
+        return cls(
+            target_env=target_env,
+            global_indexes=tuple(data["global_indexes"]),
+            global_find_links=tuple(data["global_find_links"]),
+            scoped_indexes=tuple(Repo.from_dict(index) for index in data["scoped_indexes"]),
+            scoped_find_links=tuple(
+                Repo.from_dict(find_links) for find_links in data["scoped_find_links"]
+            ),
+        )
+
+    _target_env = attr.ib()  # type: Union[Dict[str, str], MarkerEnv]
+    _scoped_indexes = attr.ib(default=())  # type: Tuple[Repo, ...]
+    _scoped_find_links = attr.ib(default=())  # type: Tuple[Repo, ...]
+    global_indexes = attr.ib(default=(Repo(PYPI),))  # type: Tuple[str, ...]
+    global_find_links = attr.ib(default=())  # type: Tuple[str, ...]
+
+    @property
+    def has_scoped_repositories(self):
+        # type: () -> bool
+        return len(self._scoped_indexes) > 0 or len(self._scoped_find_links) > 0
+
+    def as_dict(self):
+        # type: () -> Dict[str, Any]
+        return {
+            "markers": self._target_env if isinstance(self._target_env, dict) else None,
+            "universal_markers": (
+                self._target_env.as_dict() if isinstance(self._target_env, MarkerEnv) else None
+            ),
+            "global_indexes": list(self.global_indexes),
+            "global_find_links": list(self.global_find_links),
+            "scoped_indexes": [index.as_dict() for index in self._scoped_indexes],
+            "scoped_find_links": [find_links.as_dict() for find_links in self._scoped_find_links],
+        }
+
+    def _in_scope_repos(
+        self,
+        scoped_repos,  # type: Iterable[Repo]
+        project_name,  # type: ProjectName
+    ):
+        # type: (...) -> List[str]
+        return [
+            repo.location
+            for repo in scoped_repos
+            if repo.in_scope(target_env=self._target_env, project_name=project_name)
+        ]
+
+    def in_scope_indexes(self, project_name):
+        # type: (ProjectName) -> List[str]
+        return self._in_scope_repos(scoped_repos=self._scoped_indexes, project_name=project_name)
+
+    def in_scope_find_links(self, project_name):
+        # type: (ProjectName) -> List[str]
+        return self._in_scope_repos(scoped_repos=self._scoped_find_links, project_name=project_name)
+
+
+@attr.s(frozen=True)
+class ReposConfiguration(object):
+    @classmethod
+    def create(
+        cls,
+        indexes=(),  # type: Iterable[Repo]
+        find_links=(),  # type: Iterable[Repo]
+    ):
+        # type: (...) -> ReposConfiguration
+        password_entries = []
+        for repo in itertools.chain(indexes, find_links):
+            password_entry = PasswordEntry.maybe_extract_from_url(repo.location)
+            if password_entry:
+                password_entries.append(password_entry)
+
+        return cls(
+            index_repos=tuple(indexes),
+            find_links_repos=tuple(find_links),
+            password_entries=tuple(password_entries),
+        )
+
+    index_repos = attr.ib(default=(Repo(PYPI),))  # type: Tuple[Repo, ...]
+    find_links_repos = attr.ib(default=())  # type: Tuple[Repo, ...]
+    password_entries = attr.ib(default=())  # type: Tuple[PasswordEntry, ...]
+
+    @property
+    def indexes(self):
+        # type: () -> Tuple[str, ...]
+        return tuple(repo.location for repo in self.index_repos if not repo.scopes)
+
+    @property
+    def find_links(self):
+        # type: () -> Tuple[str, ...]
+        return tuple(repo.location for repo in self.find_links_repos if not repo.scopes)
+
+    def scoped(self, target_env):
+        # type: (Union[Dict[str, str], MarkerEnv]) -> PackageRepositories
+        return PackageRepositories(
+            target_env=target_env,
+            global_indexes=self.indexes,
+            global_find_links=self.find_links,
+            scoped_indexes=tuple(
+                index
+                for index in self.index_repos
+                if index.scopes and index.in_scope(target_env=target_env)
+            ),
+            scoped_find_links=tuple(
+                find_links
+                for find_links in self.find_links_repos
+                if find_links.scopes and find_links.in_scope(target_env=target_env)
+            ),
+        )

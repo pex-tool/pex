@@ -88,8 +88,10 @@ from pex.version import __version__
 if TYPE_CHECKING:
     from typing import (
         IO,
+        Deque,
         Dict,
         Iterable,
+        Iterator,
         List,
         Mapping,
         Optional,
@@ -418,7 +420,7 @@ class LockUpdateRequest(object):
                 lock_file=self._lock_file_path,
                 missing_platforms="\n".join(
                     sorted(
-                        "+ {platform}".format(platform=locked_resolve.platform_tag)
+                        "+ {platform}".format(platform=locked_resolve.target_platform)
                         for locked_resolve in self._lock_updater.lock_file.locked_resolves
                     )
                 ),
@@ -479,6 +481,58 @@ class LockfileSubset(object):
     root_requirements = attr.ib()  # type: Iterable[Requirement]
     constraints = attr.ib()  # type: Iterable[Constraint]
     locked_resolves = attr.ib()  # type: Sequence[LockedResolve]
+
+
+@attr.s(frozen=True)
+class RootRequirement(object):
+    project_name = attr.ib()  # type: ProjectName
+    requirements = attr.ib()  # type: Tuple[Requirement, ...]
+
+    def select(self, project_name_and_version):
+        # type: (ProjectNameAndVersion) -> Tuple[Requirement, ...]
+        return tuple(
+            requirement
+            for requirement in self.requirements
+            if project_name_and_version in requirement
+        )
+
+    def __str__(self):
+        # type: () -> str
+        return " or ".join("'{req}'".format(req=requirement) for requirement in self.requirements)
+
+
+@attr.s(frozen=True)
+class RootRequirements(object):
+    @classmethod
+    def create(cls, requirements):
+        # type: (Iterable[Requirement]) -> RootRequirements
+
+        requirements_by_project_name = (
+            OrderedDict()
+        )  # type: OrderedDict[ProjectName, OrderedSet[Requirement]]
+        for requirement in requirements:
+            requirements_by_project_name.setdefault(requirement.project_name, OrderedSet()).add(
+                requirement
+            )
+
+        return cls(
+            root_requirements=tuple(
+                RootRequirement(project_name=project_name, requirements=tuple(reqs))
+                for project_name, reqs in requirements_by_project_name.items()
+            )
+        )
+
+    _root_requirements = attr.ib()  # type: Tuple[RootRequirement, ...]
+
+    def iter_requirements(self):
+        # type: () -> Iterator[Requirement]
+        for root_requirement in self._root_requirements:
+            for requirement in root_requirement.requirements:
+                yield requirement
+
+    def __iter__(self):
+        # type: () -> Iterator[RootRequirement]
+        return iter(self._root_requirements)
 
 
 class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
@@ -1154,27 +1208,62 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         # type: (RequirementConfiguration) -> Result
 
         lockfile_path, lock_file = self._load_lockfile()
+
+        pip_configuration = resolver_options.create_pip_configuration(
+            self.options, use_system_time=False
+        )
+        targets = target_options.configure(
+            self.options, pip_configuration=pip_configuration
+        ).resolve_targets()
+        target = try_(
+            targets.require_unique_target(
+                purpose="exporting a lock in the {format!r} format".format(
+                    format=self.options.format
+                )
+            )
+        )
+
         if self.options.format is ExportFormat.PEP_751 and lock_file.configuration.universal_target:
             self._check_pylock_toml_output_name()
-            production_assert(
-                len(lock_file.locked_resolves) == 1,
-                "A --style universal lock should have just one locked resolve, found {count}.",
-                count=len(lock_file.locked_resolves),
-            )
 
-            if requirement_configuration.has_requirements:
+            if len(lock_file.locked_resolves) > 1 or requirement_configuration.has_requirements:
                 lock_subset = try_(
                     self._create_subset(
                         lockfile_path,
                         lock_file,
-                        requirement_configuration=requirement_configuration,
+                        requirement_configuration=(
+                            requirement_configuration
+                            if requirement_configuration.has_requirements
+                            else RequirementConfiguration(
+                                requirements=map(str, lock_file.requirements)
+                            )
+                        ),
                     )
                 )
+                marker_environment = target.marker_environment.as_dict()
+                locked_resolves = [
+                    locked_resolve
+                    for locked_resolve in lock_subset.locked_resolves
+                    if not locked_resolve.marker
+                    or locked_resolve.marker.evaluate(marker_environment)
+                ]
+                count = len(locked_resolves)
+                production_assert(
+                    count == 1,
+                    msg=(
+                        "Expected {target} to select one subset from {lock}, but found {count} "
+                        "locked resolve that applies."
+                    ),
+                    target=target.render_description(),
+                    lock=lockfile_path,
+                    count=count,
+                )
+                lock_subset = attr.evolve(lock_subset, locked_resolves=[locked_resolves[0]])
             else:
                 lock_subset = LockfileSubset(
                     root_requirements=lock_file.requirements,
                     constraints=lock_file.constraints,
-                    locked_resolves=lock_file.locked_resolves,
+                    locked_resolves=[lock_file.locked_resolves[0]],
                 )
 
             with self.output(self.options, binary=True) as toml_output:
@@ -1186,16 +1275,6 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                     include_dependency_info=self.options.include_dependency_info,
                 )
             return Ok()
-
-        pip_configuration = resolver_options.create_pip_configuration(
-            self.options, use_system_time=False
-        )
-        targets = target_options.configure(
-            self.options, pip_configuration=pip_configuration
-        ).resolve_targets()
-        target = targets.require_unique_target(
-            purpose="exporting a lock in the {format!r} format".format(format=self.options.format)
-        )
 
         with TRACER.timed("Selecting locks for {target}".format(target=target)):
             subset_result = try_(
@@ -1223,7 +1302,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                     lockfile=lock_file.source,
                     pip=ExportFormat.PIP,
                     target=target,
-                    platform=resolved.source.platform_tag,
+                    platform=resolved.source.target_platform,
                 )
             )
         else:
@@ -1491,14 +1570,14 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 ],
             )
         )
-        root_requirements = {
+        root_requirements = RootRequirements.create(
             (
                 local_project_requirements[req]
                 if isinstance(req, LocalProjectRequirement)
                 else req.requirement
             )
             for req in parsed_requirements
-        }
+        )
 
         constraint_by_project_name = OrderedDict(
             (constraint.requirement.project_name, constraint.requirement.as_constraint())
@@ -1508,7 +1587,14 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         )
 
         resolve_subsets = []  # type: List[LockedResolve]
-        for locked_resolve in lock_file.locked_resolves:
+        for index, locked_resolve in enumerate(lock_file.locked_resolves, start=0):
+            if len(lock_file.locked_resolves) == 1:
+                lock_file_description = lockfile_path
+            else:
+                lock_file_description = "locked resolve {index} (0-based) of {lock_file}".format(
+                    index=index, lock_file=lockfile_path
+                )
+
             available = {
                 locked_req.pin.project_name: (
                     ProjectNameAndVersion(
@@ -1519,58 +1605,81 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 for locked_req in locked_resolve.locked_requirements
             }
             retain = set()
-            to_resolve = deque(root_requirements)
+            to_resolve = deque(
+                root_requirements
+            )  # type: Deque[Union[RootRequirement, Requirement]]
             while to_resolve:
                 req = to_resolve.popleft()
                 if req.project_name in retain:
                     continue
                 retain.add(req.project_name)
+
                 dep = available.get(req.project_name)
                 if not dep:
                     return Error(
                         "There is no lock entry for {project} in {lock_file} to satisfy the "
-                        "{transitive}'{req}' requirement.".format(
+                        "{transitive}{req} requirement.".format(
                             project=req.project_name,
-                            lock_file=lockfile_path,
-                            transitive="" if req in root_requirements else "transitive ",
-                            req=req,
+                            lock_file=lock_file_description,
+                            transitive="" if isinstance(req, RootRequirement) else "transitive ",
+                            req=(
+                                req
+                                if isinstance(req, RootRequirement)
+                                else "'{req}'".format(req=req)
+                            ),
                         )
                     )
-                elif dep:
-                    pnav, locked_req = dep
-                    if pnav not in req:
-                        production_assert(
-                            req in root_requirements,
-                            "Transitive requirements in a lock should always match existing lock "
-                            "entries. Found {project} {version} in {lock_file}, which does not "
-                            "satisfy transitive requirement '{req}' found in the same lock.",
-                            project=pnav.project_name,
-                            version=pnav.version,
-                            lock_file=lockfile_path,
-                            req=req,
-                        )
+
+                pnav, locked_req = dep
+                if isinstance(req, RootRequirement):
+                    reqs = req.select(pnav)
+                    if not reqs:
                         return Error(
                             "The locked version of {project} in {lock_file} is {version} which "
-                            "does not satisfy the '{req}' requirement.".format(
+                            "does not satisfy the {req} requirement.".format(
                                 project=pnav.project_name,
-                                lock_file=lockfile_path,
+                                lock_file=lock_file_description,
                                 version=pnav.version,
                                 req=req,
                             )
                         )
-                    elif (
-                        req.project_name in constraint_by_project_name
-                        and pnav not in constraint_by_project_name[req.project_name]
-                    ):
-                        return Error(
-                            "The locked version of {project} in {lock_file} is {version} which "
-                            "does not satisfy the '{constraint}' constraint.".format(
-                                project=pnav.project_name,
-                                lock_file=lockfile_path,
-                                version=pnav.version,
-                                constraint=constraint_by_project_name[req.project_name],
-                            )
+                elif pnav not in req:
+                    production_assert(
+                        isinstance(req, RootRequirement),
+                        "Transitive requirements in a lock should always match existing lock "
+                        "entries. Found {project} {version} in {lock_file}, which does not satisfy "
+                        "transitive requirement '{req}' found in the same lock.",
+                        project=pnav.project_name,
+                        version=pnav.version,
+                        lock_file=lock_file_description,
+                        req=req,
+                    )
+                    return Error(
+                        "The locked version of {project} in {lock_file} is {version} which does "
+                        "not satisfy the '{req}' requirement.".format(
+                            project=pnav.project_name,
+                            lock_file=lock_file_description,
+                            version=pnav.version,
+                            req=req,
                         )
+                    )
+                elif (
+                    req.project_name in constraint_by_project_name
+                    and pnav not in constraint_by_project_name[req.project_name]
+                ):
+                    return Error(
+                        "The locked version of {project} in {lock_file} is {version} which does "
+                        "not satisfy the '{constraint}' constraint.".format(
+                            project=pnav.project_name,
+                            lock_file=lock_file_description,
+                            version=pnav.version,
+                            constraint=constraint_by_project_name[req.project_name],
+                        )
+                    )
+                else:
+                    reqs = (req,)
+
+                for req in reqs:
                     to_resolve.extend(
                         requires_dist.filter_dependencies(
                             req,
@@ -1591,7 +1700,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             )
 
         return LockfileSubset(
-            root_requirements=root_requirements,
+            root_requirements=tuple(root_requirements.iter_requirements()),
             constraints=constraint_by_project_name.values(),
             locked_resolves=resolve_subsets,
         )
@@ -1665,23 +1774,17 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         )
 
         with TRACER.timed("Selecting locks to update"):
+            update_targets = (
+                Targets.from_target(LocalInterpreter.create(targets.interpreter))
+                if lock_file.configuration.style is LockStyle.UNIVERSAL
+                else targets
+            )
             locked_resolve_count = len(lock_file.locked_resolves)
-            if lock_file.configuration.style is LockStyle.UNIVERSAL and locked_resolve_count != 1:
-                return Error(
-                    "The lock at {path} contains {count} locked resolves; so it "
-                    "cannot be updated as a universal lock which requires exactly one locked "
-                    "resolve.".format(path=lock_file_path, count=locked_resolve_count)
-                )
             if locked_resolve_count == 1:
                 locked_resolve = lock_file.locked_resolves[0]
-                update_targets = (
-                    [LocalInterpreter.create(targets.interpreter)]
-                    if lock_file.configuration.style is LockStyle.UNIVERSAL
-                    else targets.unique_targets()
-                )
                 update_requests = [
                     ResolveUpdateRequest(target=target, locked_resolve=locked_resolve)
-                    for target in update_targets
+                    for target in update_targets.unique_targets()
                 ]
             else:
                 # N.B.: With 1 locked resolve in the lock file we're updating, there is no ambiguity
@@ -1699,7 +1802,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
 
                 subset_result = try_(
                     subset(
-                        targets=targets,
+                        targets=update_targets,
                         lock=lock_file,
                         network_configuration=pip_configuration.network_configuration,
                         build_configuration=lock_file.build_configuration(),
@@ -1730,7 +1833,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                         lock_file=lock_file_path,
                         missing_platforms="\n".join(
                             sorted(
-                                "+ {platform}".format(platform=locked_resolve.platform_tag)
+                                "+ {platform}".format(platform=locked_resolve.target_platform)
                                 for locked_resolve in missing_updates
                             )
                         ),
@@ -2238,11 +2341,9 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 requirements=requirement_configuration.requirements,
                 requirement_files=requirement_configuration.requirement_files,
                 constraint_files=requirement_configuration.constraint_files,
-                indexes=pip_configuration.repos_configuration.indexes,
-                find_links=pip_configuration.repos_configuration.find_links,
+                repos_configuration=pip_configuration.repos_configuration,
                 resolver_version=pip_configuration.resolver_version,
                 network_configuration=pip_configuration.network_configuration,
-                password_entries=pip_configuration.repos_configuration.password_entries,
                 build_configuration=pip_configuration.build_configuration,
                 transitive=pip_configuration.transitive,
                 max_parallel_jobs=pip_configuration.max_jobs,

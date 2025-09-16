@@ -87,7 +87,11 @@ def finalize(
                 resolver_configuration.pip_configuration,
                 targets,
                 context,
-                pip_version=pip_version or lock_file.pip_version,
+                pip_version=(
+                    pip_version
+                    or resolver_configuration.pip_configuration.version
+                    or lock_file.pip_version
+                ),
             )
         )
         return cast(

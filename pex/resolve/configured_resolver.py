@@ -7,7 +7,8 @@ from pex import resolver
 from pex.dist_metadata import Requirement
 from pex.pep_427 import InstallableType
 from pex.pip.version import PipVersion, PipVersionValue
-from pex.resolve.resolver_configuration import PipConfiguration, ReposConfiguration, ResolverVersion
+from pex.resolve.package_repository import ReposConfiguration
+from pex.resolve.resolver_configuration import PipConfiguration, ResolverVersion
 from pex.resolve.resolvers import Resolver, ResolveResult
 from pex.targets import Targets
 from pex.typing import TYPE_CHECKING
@@ -64,8 +65,7 @@ class ConfiguredResolver(Resolver):
             requirements=requirements,
             allow_prereleases=False,
             transitive=transitive if transitive is not None else self.pip_configuration.transitive,
-            indexes=self.pip_configuration.repos_configuration.indexes,
-            find_links=self.pip_configuration.repos_configuration.find_links,
+            repos_configuration=self.pip_configuration.repos_configuration,
             resolver_version=self.pip_configuration.resolver_version,
             network_configuration=self.pip_configuration.network_configuration,
             build_configuration=self.pip_configuration.build_configuration,

@@ -9,7 +9,7 @@ from collections import OrderedDict
 from multiprocessing.pool import ThreadPool
 
 from pex import resolver
-from pex.auth import PasswordDatabase, PasswordEntry
+from pex.auth import PasswordDatabase
 from pex.common import pluralize
 from pex.compatibility import cpu_count
 from pex.dist_metadata import Requirement
@@ -31,6 +31,7 @@ from pex.resolve.locked_resolve import (
     VCSArtifact,
 )
 from pex.resolve.lockfile.download_manager import DownloadedArtifact, DownloadManager
+from pex.resolve.package_repository import ReposConfiguration
 from pex.resolve.resolver_configuration import BuildConfiguration, ResolverVersion
 from pex.resolve.resolvers import MAX_PARALLEL_DOWNLOADS, Resolver
 from pex.result import Error, catch
@@ -76,11 +77,9 @@ class VCSArtifactDownloadManager(DownloadManager[VCSArtifact]):
         self,
         target,  # type: Target
         file_lock_style,  # type: FileLockStyle.Value
-        indexes=None,  # type: Optional[Sequence[str]]
-        find_links=None,  # type: Optional[Sequence[str]]
+        repos_configuration=ReposConfiguration(),  # type: ReposConfiguration
         resolver_version=None,  # type: Optional[ResolverVersion.Value]
         network_configuration=None,  # type: Optional[NetworkConfiguration]
-        password_entries=(),  # type: Iterable[PasswordEntry]
         cache=None,  # type: Optional[str]
         build_configuration=BuildConfiguration(),  # type: BuildConfiguration
         pex_root=ENV,  # type: Union[str, Variables]
@@ -94,11 +93,9 @@ class VCSArtifactDownloadManager(DownloadManager[VCSArtifact]):
             pex_root=pex_root, file_lock_style=file_lock_style
         )
         self._target = target
-        self._indexes = indexes
-        self._find_links = find_links
+        self._repos_configuration = repos_configuration
         self._resolver_version = resolver_version
         self._network_configuration = network_configuration
-        self._password_entries = password_entries
         self._cache = cache
 
         # Since a VCSArtifactDownloadManager is only used for VCS requirements, a build is both
@@ -127,11 +124,9 @@ class VCSArtifactDownloadManager(DownloadManager[VCSArtifact]):
             targets=Targets.from_target(self._target),
             requirements=[requirement],
             transitive=False,
-            indexes=self._indexes,
-            find_links=self._find_links,
+            repos_configuration=self._repos_configuration,
             resolver_version=self._resolver_version,
             network_configuration=self._network_configuration,
-            password_entries=self._password_entries,
             build_configuration=self._build_configuration,
             max_parallel_jobs=1,
             pip_version=self._pip_version,
@@ -213,13 +208,11 @@ class LockDownloader(object):
         targets,  # type: Iterable[Target]
         lock_configuration,  # type: LockConfiguration
         resolver,  # type: Resolver
-        indexes=None,  # type: Optional[Sequence[str]]
-        find_links=None,  # type: Optional[Sequence[str]]
+        repos_configuration=ReposConfiguration(),  # type: ReposConfiguration
         max_parallel_jobs=None,  # type: Optional[int]
         pip_version=None,  # type: Optional[PipVersionValue]
         resolver_version=None,  # type: Optional[ResolverVersion.Value]
         network_configuration=None,  # type: Optional[NetworkConfiguration]
-        password_entries=(),  # type: Iterable[PasswordEntry]
         build_configuration=BuildConfiguration(),  # type: BuildConfiguration
         use_pip_config=False,  # type: bool
         extra_pip_requirements=(),  # type: Tuple[Requirement, ...]
@@ -234,22 +227,24 @@ class LockDownloader(object):
         # errors under the right interleaving of processes and threads and download artifact targets.
         file_lock_style = FileLockStyle.BSD
 
+        password_database = PasswordDatabase.from_netrc().append(
+            repos_configuration.password_entries
+        )
+        repos_configuration = attr.evolve(
+            repos_configuration, password_entries=password_database.entries
+        )
         file_download_managers_by_target = {
             target: FileArtifactDownloadManager(
                 file_lock_style=file_lock_style,
                 downloader=ArtifactDownloader(
                     resolver=resolver,
-                    lock_configuration=lock_configuration,
+                    universal_target=lock_configuration.universal_target,
                     target=target,
                     package_index_configuration=PackageIndexConfiguration.create(
                         pip_version=pip_version,
                         resolver_version=resolver_version,
-                        indexes=indexes,
-                        find_links=find_links,
+                        repos_configuration=repos_configuration,
                         network_configuration=network_configuration,
-                        password_entries=(
-                            PasswordDatabase.from_netrc().append(password_entries).entries
-                        ),
                         use_pip_config=use_pip_config,
                         extra_pip_requirements=extra_pip_requirements,
                         keyring_provider=keyring_provider,
@@ -264,11 +259,9 @@ class LockDownloader(object):
             target: VCSArtifactDownloadManager(
                 target=target,
                 file_lock_style=file_lock_style,
-                indexes=indexes,
-                find_links=find_links,
+                repos_configuration=repos_configuration,
                 resolver_version=resolver_version,
                 network_configuration=network_configuration,
-                password_entries=password_entries,
                 build_configuration=build_configuration,
                 pip_version=pip_version,
                 resolver=resolver,

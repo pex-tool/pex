@@ -25,17 +25,15 @@ from pex.interpreter import PythonInterpreter
 from pex.jobs import Job
 from pex.network_configuration import NetworkConfiguration
 from pex.pep_427 import install_wheel_interpreter
-from pex.pip import dependencies, foreign_platform
+from pex.pep_508 import MarkerEnvironment
+from pex.pip import dependencies, foreign_platform, package_repositories
 from pex.pip.download_observer import DownloadObserver, PatchSet
 from pex.pip.log_analyzer import ErrorAnalyzer, ErrorMessage, LogAnalyzer, LogScrapeJob
 from pex.pip.tailer import Tailer
 from pex.pip.version import PipVersion, PipVersionValue
 from pex.platforms import PlatformSpec
-from pex.resolve.resolver_configuration import (
-    BuildConfiguration,
-    ReposConfiguration,
-    ResolverVersion,
-)
+from pex.resolve.package_repository import ReposConfiguration
+from pex.resolve.resolver_configuration import BuildConfiguration, ResolverVersion
 from pex.resolve.target_system import UniversalTarget
 from pex.targets import Target
 from pex.tracer import TRACER
@@ -56,6 +54,7 @@ if TYPE_CHECKING:
         Optional,
         Sequence,
         Tuple,
+        Union,
     )
 
     import attr  # vendor:skip
@@ -153,10 +152,8 @@ class PackageIndexConfiguration(object):
         cls,
         pip_version=None,  # type: Optional[PipVersionValue]
         resolver_version=None,  # type: Optional[ResolverVersion.Value]
-        indexes=None,  # type: Optional[Sequence[str]]
-        find_links=None,  # type: Optional[Iterable[str]]
+        repos_configuration=ReposConfiguration(),  # type: ReposConfiguration
         network_configuration=None,  # type: Optional[NetworkConfiguration]
-        password_entries=(),  # type: Iterable[PasswordEntry]
         use_pip_config=False,  # type: bool
         extra_pip_requirements=(),  # type: Tuple[Requirement, ...]
         keyring_provider=None,  # type: Optional[str]
@@ -175,8 +172,8 @@ class PackageIndexConfiguration(object):
             resolver_version=resolver_version,
             network_configuration=network_configuration,
             args=PipArgs(
-                indexes=indexes,
-                find_links=find_links,
+                indexes=repos_configuration.indexes,
+                find_links=repos_configuration.find_links,
                 network_configuration=network_configuration,
             ),
             env=cls._calculate_env(
@@ -184,7 +181,7 @@ class PackageIndexConfiguration(object):
             ),
             use_pip_config=use_pip_config,
             extra_pip_requirements=extra_pip_requirements,
-            password_entries=password_entries,
+            repos_configuration=repos_configuration,
             keyring_provider=keyring_provider,
         )
 
@@ -195,7 +192,7 @@ class PackageIndexConfiguration(object):
         args,  # type: PipArgs
         env,  # type: Iterable[Tuple[str, str]]
         use_pip_config,  # type: bool
-        password_entries=(),  # type: Iterable[PasswordEntry]
+        repos_configuration=ReposConfiguration(),  # type: ReposConfiguration
         pip_version=None,  # type: Optional[PipVersionValue]
         extra_pip_requirements=(),  # type: Tuple[Requirement, ...]
         keyring_provider=None,  # type: Optional[str]
@@ -206,10 +203,23 @@ class PackageIndexConfiguration(object):
         self.args = args  # type: PipArgs
         self.env = dict(env)  # type: Mapping[str, str]
         self.use_pip_config = use_pip_config  # type: bool
-        self.password_entries = password_entries  # type: Iterable[PasswordEntry]
+        self.repos_configuration = repos_configuration
         self.pip_version = pip_version  # type: Optional[PipVersionValue]
         self.extra_pip_requirements = extra_pip_requirements  # type: Tuple[Requirement, ...]
         self.keyring_provider = keyring_provider  # type: Optional[str]
+
+    @property
+    def password_entries(self):
+        # type: () -> Iterable[PasswordEntry]
+        return self.repos_configuration.password_entries
+
+    def patch(
+        self,
+        pip_version,  # type: PipVersionValue
+        target,  # type:  Union[UniversalTarget, MarkerEnvironment]
+    ):
+        # type: (...) -> Optional[DownloadObserver]
+        return package_repositories.patch(self.repos_configuration, pip_version, target)
 
 
 if TYPE_CHECKING:
@@ -456,7 +466,7 @@ class Pip(object):
 
         command = pip_args + list(args)
 
-        # N.B.: Package index options in Pep always have the same option names, but they are
+        # N.B.: Package index options in Pip always have the same option names, but they are
         # registered as subcommand-specific, so we must append them here _after_ the pip subcommand
         # specified in `args`.
         if package_index_configuration:
@@ -626,7 +636,14 @@ class Pip(object):
             foreign_platform_observer,
             observer,
             dependencies.patch(
-                dependency_configuration, extra_data=universal_target or target.marker_environment
+                dependency_configuration, target=universal_target or target.marker_environment
+            ),
+            (
+                package_index_configuration.patch(
+                    pip_version=self.version, target=universal_target or target.marker_environment
+                )
+                if package_index_configuration
+                else None
             ),
         ):
             if obs:

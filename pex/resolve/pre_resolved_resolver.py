@@ -98,10 +98,8 @@ def resolve_from_dists(
             package_index_configuration = PackageIndexConfiguration.create(
                 pip_version=pip_configuration.version,
                 resolver_version=pip_configuration.resolver_version,
-                indexes=pip_configuration.repos_configuration.indexes,
-                find_links=pip_configuration.repos_configuration.find_links,
+                repos_configuration=pip_configuration.repos_configuration,
                 network_configuration=pip_configuration.network_configuration,
-                password_entries=pip_configuration.repos_configuration.password_entries,
                 use_pip_config=pip_configuration.use_pip_config,
                 extra_pip_requirements=pip_configuration.extra_requirements,
                 keyring_provider=pip_configuration.keyring_provider,
@@ -114,7 +112,9 @@ def resolve_from_dists(
                 ],
                 install_requests=[
                     InstallRequest(
-                        target=target, wheel_path=wheel.location, fingerprint=wheel.fingerprint
+                        download_target=target,
+                        wheel_path=wheel.location,
+                        fingerprint=wheel.fingerprint,
                     )
                     for wheel in fingerprinted_wheels
                     for target in unique_targets

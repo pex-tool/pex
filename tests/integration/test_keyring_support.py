@@ -18,8 +18,8 @@ from pex.dist_metadata import DistMetadata
 from pex.pep_503 import ProjectName
 from pex.pip.installation import get_pip
 from pex.pip.version import PipVersion, PipVersionValue
-from pex.resolve import resolver_configuration
 from pex.resolve.configured_resolver import ConfiguredResolver
+from pex.resolve.package_repository import PYPI
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import InstallationChoice, Virtualenv
 from testing import PY_VER, WheelBuilder, make_env, run_pex_command
@@ -157,7 +157,7 @@ def keyring_venv(
 @pytest.fixture
 def index_url_info():
     # type: () -> urlparse.ParseResult
-    index = os.environ.get("PIP_INDEX_URL", resolver_configuration.PYPI)
+    index = os.environ.get("PIP_INDEX_URL", PYPI)
     return urlparse.urlparse(index)
 
 

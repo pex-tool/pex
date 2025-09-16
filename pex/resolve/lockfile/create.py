@@ -9,7 +9,7 @@ from collections import OrderedDict, defaultdict
 from multiprocessing.pool import ThreadPool
 
 from pex import hashing
-from pex.auth import PasswordDatabase, PasswordEntry
+from pex.auth import PasswordDatabase
 from pex.build_system import pep_517
 from pex.common import pluralize, safe_mkdtemp
 from pex.dependency_configuration import DependencyConfiguration
@@ -41,12 +41,14 @@ from pex.resolve.locked_resolve import (
 from pex.resolve.locker import Locker
 from pex.resolve.lockfile.download_manager import DownloadManager
 from pex.resolve.lockfile.model import Lockfile
+from pex.resolve.lockfile.targets import LockTargets
+from pex.resolve.package_repository import ReposConfiguration
 from pex.resolve.pep_691.fingerprint_service import FingerprintService
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolved_requirement import Pin, ResolvedRequirement
 from pex.resolve.resolver_configuration import BuildConfiguration, PipConfiguration, ResolverVersion
 from pex.resolve.resolvers import Resolver
-from pex.resolver import BuildRequest, Downloaded, ResolveObserver, WheelBuilder
+from pex.resolver import BuildRequest, Downloaded, DownloadTarget, ResolveObserver, WheelBuilder
 from pex.resolver import download as pip_download
 from pex.result import Error, try_
 from pex.targets import Target, Targets
@@ -161,13 +163,11 @@ class CreateLockDownloadManager(DownloadManager[Artifact]):
         targets,  # type: Iterable[Target]
         lock_configuration,  # type: LockConfiguration
         resolver,  # type: Resolver
-        indexes=None,  # type: Optional[Sequence[str]]
-        find_links=None,  # type: Optional[Sequence[str]]
+        repos_configuration=ReposConfiguration(),  # type: ReposConfiguration
         max_parallel_jobs=None,  # type: Optional[int]
         pip_version=None,  # type: Optional[PipVersionValue]
         resolver_version=None,  # type: Optional[ResolverVersion.Value]
         network_configuration=None,  # type: Optional[NetworkConfiguration]
-        password_entries=(),  # type: Iterable[PasswordEntry]
         build_configuration=BuildConfiguration(),  # type: BuildConfiguration
         use_pip_config=False,  # type: bool
         extra_pip_requirements=(),  # type: Tuple[Requirement, ...]
@@ -187,13 +187,11 @@ class CreateLockDownloadManager(DownloadManager[Artifact]):
             targets=targets,
             lock_configuration=lock_configuration,
             resolver=resolver,
-            indexes=indexes,
-            find_links=find_links,
+            repos_configuration=repos_configuration,
             max_parallel_jobs=max_parallel_jobs,
             pip_version=pip_version,
             resolver_version=resolver_version,
             network_configuration=network_configuration,
-            password_entries=password_entries,
             build_configuration=build_configuration,
             use_pip_config=use_pip_config,
             extra_pip_requirements=extra_pip_requirements,
@@ -257,7 +255,7 @@ class CreateLockDownloadManager(DownloadManager[Artifact]):
 
 @attr.s(frozen=True)
 class _LockAnalysis(object):
-    target = attr.ib()  # type: Target
+    download_target = attr.ib()  # type: DownloadTarget
     analyzer = attr.ib()  # type: Locker
     download_dir = attr.ib()  # type: str
 
@@ -274,7 +272,7 @@ def _prepare_project_directory(build_request):
 @attr.s(frozen=True)
 class LockObserver(ResolveObserver):
     root_requirements = attr.ib()  # type: Tuple[ParsedRequirement, ...]
-    lock_configuration = attr.ib()  # type: LockConfiguration
+    lock_style = attr.ib()  # type: LockStyle.Value
     resolver = attr.ib()  # type: Resolver
     wheel_builder = attr.ib()  # type: WheelBuilder
     package_index_configuration = attr.ib()  # type: PackageIndexConfiguration
@@ -283,16 +281,16 @@ class LockObserver(ResolveObserver):
 
     def observe_download(
         self,
-        target,  # type: Target
+        download_target,  # type: DownloadTarget
         download_dir,  # type: str
     ):
         # type: (...) -> DownloadObserver
         analyzer = Locker(
-            target=target,
+            target=download_target.target,
             root_requirements=self.root_requirements,
             pip_version=self.package_index_configuration.pip_version,
             resolver=self.resolver,
-            lock_configuration=self.lock_configuration,
+            lock_style=self.lock_style,
             download_dir=download_dir,
             fingerprint_service=FingerprintService.create(
                 url_fetcher=URLFetcher(
@@ -302,10 +300,12 @@ class LockObserver(ResolveObserver):
                 max_parallel_jobs=self.max_parallel_jobs,
             ),
         )
-        patch_set = locker.patch(lock_configuration=self.lock_configuration)
+        patch_set = locker.patch(universal_target=download_target.universal_target)
         observer = DownloadObserver(analyzer=analyzer, patch_set=patch_set)
         self._analysis.add(
-            _LockAnalysis(target=target, analyzer=analyzer, download_dir=download_dir)
+            _LockAnalysis(
+                download_target=download_target, analyzer=analyzer, download_dir=download_dir
+            )
         )
         return observer
 
@@ -323,35 +323,37 @@ class LockObserver(ResolveObserver):
     def lock(self, downloaded):
         # type: (Downloaded) -> Tuple[LockedResolve, ...]
 
-        dist_metadatas_by_target = defaultdict(
+        dist_metadatas_by_download_target = defaultdict(
             OrderedSet
-        )  # type: DefaultDict[Target, OrderedSet[DistMetadata]]
+        )  # type: DefaultDict[DownloadTarget, OrderedSet[DistMetadata]]
         build_requests = OrderedSet()  # type: OrderedSet[BuildRequest]
 
         for local_distribution in downloaded.local_distributions:
             if local_distribution.is_wheel:
-                dist_metadatas_by_target[local_distribution.target].add(
+                dist_metadatas_by_download_target[local_distribution.download_target].add(
                     DistMetadata.load(local_distribution.path)
                 )
             else:
                 build_requests.add(
                     BuildRequest.create(
-                        target=local_distribution.target,
+                        target=local_distribution.download_target,
                         source_path=local_distribution.path,
                         subdirectory=local_distribution.subdirectory,
                     )
                 )
 
-        resolved_requirements_by_target = (
+        resolved_requirements_by_download_target = (
             OrderedDict()
-        )  # type: OrderedDict[Target, Tuple[ResolvedRequirement, ...]]
+        )  # type: OrderedDict[DownloadTarget, Tuple[ResolvedRequirement, ...]]
         for analysis in self._analysis:
             lock_result = analysis.analyzer.lock_result
             build_requests.update(
-                BuildRequest.create(target=analysis.target, source_path=local_project)
+                BuildRequest.create(target=analysis.download_target, source_path=local_project)
                 for local_project in lock_result.local_projects
             )
-            resolved_requirements_by_target[analysis.target] = lock_result.resolved_requirements
+            resolved_requirements_by_download_target[
+                analysis.download_target
+            ] = lock_result.resolved_requirements
 
         with TRACER.timed(
             "Building {count} source {distributions} to gather metadata for lock.".format(
@@ -381,7 +383,9 @@ class LockObserver(ResolveObserver):
                 ),
             ):
                 if isinstance(dist_metadata_result, DistMetadata):
-                    dist_metadatas_by_target[build_request.target].add(dist_metadata_result)
+                    dist_metadatas_by_download_target[build_request.download_target].add(
+                        dist_metadata_result
+                    )
                 else:
                     _item, error = dist_metadata_result
                     if isinstance(error, Job.Error) and pep_517.is_hook_unavailable_error(error):
@@ -423,28 +427,38 @@ class LockObserver(ResolveObserver):
                 )
                 for install_requests in build_wheel_results.values():
                     for install_request in install_requests:
-                        dist_metadatas_by_target[install_request.target].add(
+                        dist_metadatas_by_download_target[install_request.download_target].add(
                             DistMetadata.load(install_request.wheel_path)
                         )
 
+        universal_targets = tuple(
+            download_target.universal_target
+            for download_target in resolved_requirements_by_download_target
+            if download_target.universal_target
+        )
         return tuple(
             LockedResolve.create(
                 resolved_requirements=resolved_requirements,
-                dist_metadatas=dist_metadatas_by_target[target],
+                dist_metadatas=dist_metadatas_by_download_target[download_target],
                 fingerprinter=ArtifactDownloader(
                     resolver=self.resolver,
-                    lock_configuration=self.lock_configuration,
-                    target=target,
+                    universal_target=download_target.universal_target,
+                    target=download_target.target,
                     package_index_configuration=self.package_index_configuration,
                     max_parallel_jobs=self.max_parallel_jobs,
                 ),
                 platform_tag=(
                     None
-                    if self.lock_configuration.style == LockStyle.UNIVERSAL
-                    else target.platform.tag
+                    if self.lock_style == LockStyle.UNIVERSAL
+                    else download_target.target.platform.tag
+                ),
+                marker=(
+                    download_target.universal_target.marker()
+                    if download_target.universal_target and len(universal_targets) > 1
+                    else None
                 ),
             )
-            for target, resolved_requirements in resolved_requirements_by_target.items()
+            for download_target, resolved_requirements in resolved_requirements_by_download_target.items()
         )
 
 
@@ -465,16 +479,15 @@ def create(
         for parsed_constraint in requirement_configuration.parse_constraints(network_configuration)
     )
 
+    password_database = PasswordDatabase.from_netrc().append(
+        pip_configuration.repos_configuration.password_entries
+    )
     package_index_configuration = PackageIndexConfiguration.create(
         pip_version=pip_configuration.version,
         resolver_version=pip_configuration.resolver_version,
         network_configuration=network_configuration,
-        find_links=pip_configuration.repos_configuration.find_links,
-        indexes=pip_configuration.repos_configuration.indexes,
-        password_entries=(
-            PasswordDatabase.from_netrc()
-            .append(pip_configuration.repos_configuration.password_entries)
-            .entries
+        repos_configuration=attr.evolve(
+            pip_configuration.repos_configuration, password_entries=password_database.entries
         ),
         use_pip_config=pip_configuration.use_pip_config,
         extra_pip_requirements=pip_configuration.extra_requirements,
@@ -484,7 +497,7 @@ def create(
     configured_resolver = ConfiguredResolver(pip_configuration=pip_configuration)
     lock_observer = LockObserver(
         root_requirements=parsed_requirements,
-        lock_configuration=lock_configuration,
+        lock_style=lock_configuration.style,
         resolver=configured_resolver,
         wheel_builder=WheelBuilder(
             package_index_configuration=package_index_configuration,
@@ -497,27 +510,25 @@ def create(
     )
 
     download_dir = safe_mkdtemp()
-
-    if lock_configuration.style is LockStyle.UNIVERSAL:
-        download_targets = (
-            Targets(interpreters=(targets.interpreter,)) if targets.interpreter else Targets()
+    with TRACER.timed("Calculating lock targets"):
+        lock_targets = LockTargets.calculate(
+            targets=targets,
+            requirement_configuration=requirement_configuration,
+            network_configuration=network_configuration,
+            repos_configuration=pip_configuration.repos_configuration,
+            universal_target=lock_configuration.universal_target,
         )
-    else:
-        download_targets = targets
-
     try:
         downloaded = pip_download(
-            targets=download_targets,
+            targets=lock_targets.targets,
             requirements=requirement_configuration.requirements,
             requirement_files=requirement_configuration.requirement_files,
             constraint_files=requirement_configuration.constraint_files,
             allow_prereleases=pip_configuration.allow_prereleases,
             transitive=pip_configuration.transitive,
-            indexes=pip_configuration.repos_configuration.indexes,
-            find_links=pip_configuration.repos_configuration.find_links,
+            repos_configuration=pip_configuration.repos_configuration,
             resolver_version=pip_configuration.resolver_version,
             network_configuration=network_configuration,
-            password_entries=pip_configuration.repos_configuration.password_entries,
             build_configuration=pip_configuration.build_configuration,
             max_parallel_jobs=pip_configuration.max_jobs,
             observer=lock_observer,
@@ -529,7 +540,7 @@ def create(
             extra_pip_requirements=pip_configuration.extra_requirements,
             keyring_provider=pip_configuration.keyring_provider,
             dependency_configuration=dependency_configuration,
-            universal_target=lock_configuration.universal_target,
+            universal_targets=lock_targets.universal_targets,
         )
     except resolvers.ResolveError as e:
         return Error(str(e))
@@ -542,16 +553,14 @@ def create(
             download_dir=download_dir, locked_resolves=locked_resolves
         )
         create_lock_download_manager.store_all(
-            targets=download_targets.unique_targets(),
+            targets=lock_targets.targets.unique_targets(),
             lock_configuration=lock_configuration,
             resolver=configured_resolver,
-            indexes=pip_configuration.repos_configuration.indexes,
-            find_links=pip_configuration.repos_configuration.find_links,
+            repos_configuration=pip_configuration.repos_configuration,
             max_parallel_jobs=pip_configuration.max_jobs,
             pip_version=pip_configuration.version,
             resolver_version=pip_configuration.resolver_version,
             network_configuration=network_configuration,
-            password_entries=pip_configuration.repos_configuration.password_entries,
             build_configuration=pip_configuration.build_configuration,
             use_pip_config=pip_configuration.use_pip_config,
             extra_pip_requirements=pip_configuration.extra_requirements,
@@ -587,11 +596,9 @@ def create(
                     targets=check_targets,
                     lock=lock,
                     resolver=configured_resolver,
-                    indexes=pip_configuration.repos_configuration.indexes,
-                    find_links=pip_configuration.repos_configuration.find_links,
+                    repos_configuration=pip_configuration.repos_configuration,
                     resolver_version=pip_configuration.resolver_version,
                     network_configuration=network_configuration,
-                    password_entries=pip_configuration.repos_configuration.password_entries,
                     build_configuration=pip_configuration.build_configuration,
                     transitive=pip_configuration.transitive,
                     max_parallel_jobs=pip_configuration.max_jobs,

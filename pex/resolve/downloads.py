@@ -18,9 +18,10 @@ from pex.pip.download_observer import DownloadObserver
 from pex.pip.installation import get_pip
 from pex.pip.tool import PackageIndexConfiguration, Pip
 from pex.resolve import locker
-from pex.resolve.locked_resolve import Artifact, FileArtifact, LockConfiguration
+from pex.resolve.locked_resolve import Artifact, FileArtifact
 from pex.resolve.resolved_requirement import PartialArtifact
 from pex.resolve.resolvers import Resolver
+from pex.resolve.target_system import UniversalTarget
 from pex.result import Error
 from pex.targets import LocalInterpreter, Target
 from pex.typing import TYPE_CHECKING
@@ -38,7 +39,7 @@ else:
 @attr.s(frozen=True)
 class ArtifactDownloader(object):
     resolver = attr.ib()  # type: Resolver
-    lock_configuration = attr.ib()  # type: LockConfiguration
+    universal_target = attr.ib(default=None)  # type: Optional[UniversalTarget]
     target = attr.ib(factory=LocalInterpreter.create)  # type: Target
     package_index_configuration = attr.ib(
         factory=PackageIndexConfiguration.create
@@ -103,7 +104,7 @@ class ArtifactDownloader(object):
         # generates no patches if the lock is not universal.
         download_observer = foreign_platform.patch(self.target) or DownloadObserver(
             analyzer=None,
-            patch_set=locker.patch(lock_configuration=self.lock_configuration),
+            patch_set=locker.patch(universal_target=self.universal_target),
         )
         return self.pip.spawn_download_distributions(
             download_dir=download_dir,

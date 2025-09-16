@@ -10,7 +10,8 @@ import pytest
 from pex.build_system.pep_518 import BuildSystem, load_build_system
 from pex.pip.version import PipVersion
 from pex.resolve.configured_resolver import ConfiguredResolver
-from pex.resolve.resolver_configuration import PipConfiguration, ReposConfiguration
+from pex.resolve.package_repository import Repo, ReposConfiguration
+from pex.resolve.resolver_configuration import PipConfiguration
 from pex.targets import LocalInterpreter
 from pex.toml import TOMLI_SUPPORTED
 from pex.typing import TYPE_CHECKING
@@ -54,7 +55,7 @@ def test_load_build_system_pyproject_custom_repos(
         env=make_env(PEX_TOOLS=1),
     )
 
-    repos_configuration = ReposConfiguration.create(find_links=[find_links])
+    repos_configuration = ReposConfiguration.create(find_links=[Repo(find_links)])
     assert not repos_configuration.indexes
     custom_resolver = ConfiguredResolver(
         PipConfiguration(repos_configuration=repos_configuration, version=pip_version)

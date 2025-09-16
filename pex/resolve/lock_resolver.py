@@ -5,7 +5,7 @@ from __future__ import absolute_import
 
 from collections import defaultdict
 
-from pex.auth import PasswordDatabase, PasswordEntry
+from pex.auth import PasswordDatabase
 from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import Requirement, is_wheel
 from pex.exceptions import production_assert
@@ -28,6 +28,7 @@ from pex.resolve.lockfile.pep_751 import Package, Pylock
 from pex.resolve.lockfile.pep_751 import subset as subset_pylock
 from pex.resolve.lockfile.subset import SubsetResult
 from pex.resolve.lockfile.subset import subset as subset_pex_lock
+from pex.resolve.package_repository import ReposConfiguration
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import BuildConfiguration, ResolverVersion
 from pex.resolve.resolvers import ResolvedDistribution, Resolver, ResolveResult
@@ -50,6 +51,10 @@ if TYPE_CHECKING:
         Tuple,
         Union,
     )
+
+    import attr  # vendor:skip
+else:
+    from pex.third_party import attr
 
 
 def _check_subset(
@@ -116,11 +121,9 @@ def resolve_from_pylock(
     extras=frozenset(),  # type: FrozenSet[str]
     dependency_groups=frozenset(),  # type: FrozenSet[str]
     constraint_files=None,  # type: Optional[Iterable[str]]
-    indexes=None,  # type: Optional[Sequence[str]]
-    find_links=None,  # type: Optional[Sequence[str]]
+    repos_configuration=ReposConfiguration(),  # type: ReposConfiguration
     resolver_version=None,  # type: Optional[ResolverVersion.Value]
     network_configuration=None,  # type: Optional[NetworkConfiguration]
-    password_entries=(),  # type: Iterable[PasswordEntry]
     build_configuration=BuildConfiguration(),  # type: BuildConfiguration
     compile=False,  # type: bool
     transitive=True,  # type: bool
@@ -165,11 +168,9 @@ def resolve_from_pylock(
             )
         ),
         resolver=resolver,
-        indexes=indexes,
-        find_links=find_links,
+        repos_configuration=repos_configuration,
         resolver_version=resolver_version,
         network_configuration=network_configuration,
-        password_entries=password_entries,
         build_configuration=build_configuration,
         compile=compile,
         verify_wheels=verify_wheels,
@@ -207,11 +208,9 @@ def download_from_pylock(
     extras=frozenset(),  # type: FrozenSet[str]
     dependency_groups=frozenset(),  # type: FrozenSet[str]
     constraint_files=None,  # type: Optional[Iterable[str]]
-    indexes=None,  # type: Optional[Sequence[str]]
-    find_links=None,  # type: Optional[Sequence[str]]
+    repos_configuration=ReposConfiguration(),  # type: ReposConfiguration
     resolver_version=None,  # type: Optional[ResolverVersion.Value]
     network_configuration=None,  # type: Optional[NetworkConfiguration]
-    password_entries=(),  # type: Iterable[PasswordEntry]
     build_configuration=BuildConfiguration(),  # type: BuildConfiguration
     transitive=True,  # type: bool
     max_parallel_jobs=None,  # type: Optional[int]
@@ -253,11 +252,9 @@ def download_from_pylock(
             ),
         ),
         resolver=resolver,
-        indexes=indexes,
-        find_links=find_links,
+        repos_configuration=repos_configuration,
         resolver_version=resolver_version,
         network_configuration=network_configuration,
-        password_entries=password_entries,
         build_configuration=build_configuration,
         max_parallel_jobs=max_parallel_jobs,
         pip_version=pip_version,
@@ -277,11 +274,9 @@ def resolve_from_pex_lock(
     requirements=None,  # type: Optional[Iterable[str]]
     requirement_files=None,  # type: Optional[Iterable[str]]
     constraint_files=None,  # type: Optional[Iterable[str]]
-    indexes=None,  # type: Optional[Sequence[str]]
-    find_links=None,  # type: Optional[Sequence[str]]
+    repos_configuration=ReposConfiguration(),  # type: ReposConfiguration
     resolver_version=None,  # type: Optional[ResolverVersion.Value]
     network_configuration=None,  # type: Optional[NetworkConfiguration]
-    password_entries=(),  # type: Iterable[PasswordEntry]
     build_configuration=BuildConfiguration(),  # type: BuildConfiguration
     compile=False,  # type: bool
     transitive=True,  # type: bool
@@ -316,11 +311,9 @@ def resolve_from_pex_lock(
         subset_result,
         lock_configuration=lock.configuration,
         resolver=resolver,
-        indexes=indexes,
-        find_links=find_links,
+        repos_configuration=repos_configuration,
         resolver_version=resolver_version,
         network_configuration=network_configuration,
-        password_entries=password_entries,
         build_configuration=build_configuration,
         compile=compile,
         verify_wheels=verify_wheels,
@@ -341,11 +334,9 @@ def download_from_pex_lock(
     requirements=None,  # type: Optional[Iterable[str]]
     requirement_files=None,  # type: Optional[Iterable[str]]
     constraint_files=None,  # type: Optional[Iterable[str]]
-    indexes=None,  # type: Optional[Sequence[str]]
-    find_links=None,  # type: Optional[Sequence[str]]
+    repos_configuration=ReposConfiguration(),  # type: ReposConfiguration
     resolver_version=None,  # type: Optional[ResolverVersion.Value]
     network_configuration=None,  # type: Optional[NetworkConfiguration]
-    password_entries=(),  # type: Iterable[PasswordEntry]
     build_configuration=BuildConfiguration(),  # type: BuildConfiguration
     transitive=True,  # type: bool
     max_parallel_jobs=None,  # type: Optional[int]
@@ -377,11 +368,9 @@ def download_from_pex_lock(
         subset_result,
         lock_configuration=lock.configuration,
         resolver=resolver,
-        indexes=indexes,
-        find_links=find_links,
+        repos_configuration=repos_configuration,
         resolver_version=resolver_version,
         network_configuration=network_configuration,
-        password_entries=password_entries,
         build_configuration=build_configuration,
         max_parallel_jobs=max_parallel_jobs,
         pip_version=pip_version,
@@ -398,11 +387,9 @@ def _download_from_subset_result(
     subset_result,  # type: SubsetResult
     lock_configuration,  # type: LockConfiguration
     resolver,  # type: Resolver
-    indexes=None,  # type: Optional[Sequence[str]]
-    find_links=None,  # type: Optional[Sequence[str]]
+    repos_configuration=ReposConfiguration(),  # type: ReposConfiguration
     resolver_version=None,  # type: Optional[ResolverVersion.Value]
     network_configuration=None,  # type: Optional[NetworkConfiguration]
-    password_entries=(),  # type: Iterable[PasswordEntry]
     build_configuration=BuildConfiguration(),  # type: BuildConfiguration
     max_parallel_jobs=None,  # type: Optional[int]
     pip_version=None,  # type: Optional[PipVersionValue]
@@ -421,13 +408,11 @@ def _download_from_subset_result(
         targets=tuple(resolved_subset.target for resolved_subset in subset_result.subsets),
         lock_configuration=lock_configuration,
         resolver=resolver,
-        indexes=indexes,
-        find_links=find_links,
+        repos_configuration=repos_configuration,
         max_parallel_jobs=max_parallel_jobs,
         pip_version=pip_version,
         resolver_version=resolver_version,
         network_configuration=network_configuration,
-        password_entries=password_entries,
         build_configuration=build_configuration,
         use_pip_config=use_pip_config,
         extra_pip_requirements=extra_pip_requirements,
@@ -446,11 +431,9 @@ def _resolve_from_subset_result(
     subset_result,  # type: SubsetResult
     lock_configuration,  # type: LockConfiguration
     resolver,  # type: Resolver
-    indexes=None,  # type: Optional[Sequence[str]]
-    find_links=None,  # type: Optional[Sequence[str]]
+    repos_configuration=ReposConfiguration(),  # type: ReposConfiguration
     resolver_version=None,  # type: Optional[ResolverVersion.Value]
     network_configuration=None,  # type: Optional[NetworkConfiguration]
-    password_entries=(),  # type: Iterable[PasswordEntry]
     build_configuration=BuildConfiguration(),  # type: BuildConfiguration
     compile=False,  # type: bool
     verify_wheels=True,  # type: bool
@@ -468,11 +451,9 @@ def _resolve_from_subset_result(
         subset_result,
         lock_configuration=lock_configuration,
         resolver=resolver,
-        indexes=indexes,
-        find_links=find_links,
+        repos_configuration=repos_configuration,
         resolver_version=resolver_version,
         network_configuration=network_configuration,
-        password_entries=password_entries,
         build_configuration=build_configuration,
         max_parallel_jobs=max_parallel_jobs,
         pip_version=pip_version,
@@ -492,7 +473,7 @@ def _resolve_from_subset_result(
                 if is_wheel(downloaded_artifact.path):
                     install_requests.append(
                         InstallRequest(
-                            target=resolved_subset.target,
+                            download_target=resolved_subset.target,
                             wheel_path=downloaded_artifact.path,
                             fingerprint=downloaded_artifact.fingerprint,
                         )
@@ -500,7 +481,7 @@ def _resolve_from_subset_result(
                 else:
                     build_requests.append(
                         BuildRequest(
-                            target=resolved_subset.target,
+                            download_target=resolved_subset.target,
                             source_path=downloaded_artifact.path,
                             fingerprint=downloaded_artifact.fingerprint,
                             subdirectory=downloaded_artifact.subdirectory,
@@ -511,6 +492,9 @@ def _resolve_from_subset_result(
             len(build_requests), len(build_requests) + len(install_requests)
         )
     ):
+        password_database = PasswordDatabase.from_netrc().append(
+            repos_configuration.password_entries
+        )
         build_and_install_request = BuildAndInstallRequest(
             build_requests=build_requests,
             install_requests=install_requests,
@@ -518,10 +502,10 @@ def _resolve_from_subset_result(
             package_index_configuration=PackageIndexConfiguration.create(
                 pip_version=pip_version,
                 resolver_version=resolver_version,
-                indexes=indexes,
-                find_links=find_links,
+                repos_configuration=attr.evolve(
+                    repos_configuration, password_entries=password_database.entries
+                ),
                 network_configuration=network_configuration,
-                password_entries=PasswordDatabase.from_netrc().append(password_entries).entries,
                 use_pip_config=use_pip_config,
                 extra_pip_requirements=extra_pip_requirements,
                 keyring_provider=keyring_provider,

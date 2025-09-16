@@ -8,9 +8,11 @@ pex-extras = [
 
 extra-lock-args = [
     # This customization gets us a lockable psutil wheel for armv7l.
-    "--index", "https://www.piwheels.org/simple",
+    "--index", "armv7l=https://www.piwheels.org/simple",
+    "--source", "armv7l=platform_machine == 'armv7l'",
     # This customization gets us a lockable psutil wheel for riscv64.
-    "--index", "https://gitlab.com/api/v4/projects/56254198/packages/pypi/simple"
+    "--index", "riscv64=https://gitlab.com/api/v4/projects/56254198/packages/pypi/simple",
+    "--source", "riscv64=platform_machine == 'riscv64'",
 ]
 
 [scie.platforms.linux-aarch64]

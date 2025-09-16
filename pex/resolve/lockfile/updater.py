@@ -26,8 +26,9 @@ from pex.resolve.locked_resolve import (
 )
 from pex.resolve.lockfile.create import create
 from pex.resolve.lockfile.model import Lockfile
+from pex.resolve.package_repository import ReposConfiguration
 from pex.resolve.requirement_configuration import RequirementConfiguration
-from pex.resolve.resolver_configuration import PipConfiguration, PipLog, ReposConfiguration
+from pex.resolve.resolver_configuration import PipConfiguration, PipLog
 from pex.result import Error, ResultError, catch, try_
 from pex.sorted_tuple import SortedTuple
 from pex.targets import Target, Targets
@@ -788,11 +789,11 @@ class LockUpdater(object):
         # type: (...) -> Union[LockUpdate, Error]
 
         error_by_target = OrderedDict()  # type: OrderedDict[Target, Error]
-        locked_resolve_by_platform_tag = OrderedDict(
-            (locked_resolve.platform_tag, locked_resolve)
+        locked_resolve_by_target_platform = OrderedDict(
+            (locked_resolve.target_platform, locked_resolve)
             for locked_resolve in self.lock_file.locked_resolves
         )  # type: OrderedDict[Optional[tags.Tag], LockedResolve]
-        resolve_updates_by_platform_tag = (
+        resolve_updates_by_target_platform = (
             {}
         )  # type: Dict[Optional[tags.Tag], Mapping[ProjectName, Optional[Update]]]
 
@@ -808,9 +809,9 @@ class LockUpdater(object):
             if isinstance(result, Error):
                 error_by_target[update_request.target] = result
             else:
-                platform_tag = update_request.locked_resolve.platform_tag
-                locked_resolve_by_platform_tag[platform_tag] = result.updated_resolve
-                resolve_updates_by_platform_tag[platform_tag] = result.updates
+                target_platform = update_request.locked_resolve.target_platform
+                locked_resolve_by_target_platform[target_platform] = result.updated_resolve
+                resolve_updates_by_target_platform[target_platform] = result.updates
 
         if error_by_target:
             return Error(
@@ -833,8 +834,8 @@ class LockUpdater(object):
             resolves=tuple(
                 ResolveUpdate(
                     updated_resolve=updated_resolve,
-                    updates=resolve_updates_by_platform_tag.get(platform_tag, {}),
+                    updates=resolve_updates_by_target_platform.get(target_platform, {}),
                 )
-                for platform_tag, updated_resolve in locked_resolve_by_platform_tag.items()
+                for target_platform, updated_resolve in locked_resolve_by_target_platform.items()
             ),
         )

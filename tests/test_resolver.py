@@ -19,6 +19,7 @@ from pex.interpreter import PythonInterpreter
 from pex.pip.version import PipVersion
 from pex.resolve import abbreviated_platforms
 from pex.resolve.configured_resolver import ConfiguredResolver
+from pex.resolve.package_repository import PYPI, Repo, ReposConfiguration
 from pex.resolve.resolver_configuration import BuildConfiguration, ResolverVersion
 from pex.resolve.resolvers import ResolvedDistribution, ResolveResult, Unsatisfiable
 from pex.resolver import download
@@ -43,6 +44,10 @@ from testing import (
 
 if TYPE_CHECKING:
     from typing import Any, DefaultDict, Iterable, Iterator, List, Union
+
+    import attr  # vendor:skip
+else:
+    from pex.third_party import attr
 
 
 def create_sdist(**kwargs):
@@ -77,7 +82,8 @@ def resolve(**kwargs):
 def local_resolve(*args, **kwargs):
     # type: (*Any, **Any) -> List[ResolvedDistribution]
     # Skip remote lookups.
-    kwargs["indexes"] = []
+    repos_configuration = kwargs.pop("repos_configuration", ReposConfiguration())
+    kwargs["repos_configuration"] = attr.evolve(repos_configuration, index_repos=())
     return list(resolve(*args, **kwargs).distributions)
 
 
@@ -114,7 +120,10 @@ def test_simple_local_resolve():
 
     with temporary_dir() as td:
         safe_copy(project_wheel, os.path.join(td, os.path.basename(project_wheel)))
-        resolved_dists = local_resolve(requirements=["project"], find_links=[td])
+        resolved_dists = local_resolve(
+            requirements=["project"],
+            repos_configuration=ReposConfiguration.create(find_links=[Repo(td)]),
+        )
         assert len(resolved_dists) == 1
 
 
@@ -127,9 +136,15 @@ def test_resolve_cache():
 
         # Without a cache, each resolve should be isolated, but otherwise identical.
         with disabled_cache():
-            resolved_dists1 = local_resolve(requirements=["project"], find_links=[td])
+            resolved_dists1 = local_resolve(
+                requirements=["project"],
+                repos_configuration=ReposConfiguration.create(find_links=[Repo(td)]),
+            )
         with disabled_cache():
-            resolved_dists2 = local_resolve(requirements=["project"], find_links=[td])
+            resolved_dists2 = local_resolve(
+                requirements=["project"],
+                repos_configuration=ReposConfiguration.create(find_links=[Repo(td)]),
+            )
         assert resolved_dists1 != resolved_dists2
         assert len(resolved_dists1) == 1
         assert len(resolved_dists2) == 1
@@ -138,8 +153,14 @@ def test_resolve_cache():
 
         # With a cache, each resolve should be identical.
         with cache(cache_dir):
-            resolved_dists3 = local_resolve(requirements=["project"], find_links=[td])
-            resolved_dists4 = local_resolve(requirements=["project"], find_links=[td])
+            resolved_dists3 = local_resolve(
+                requirements=["project"],
+                repos_configuration=ReposConfiguration.create(find_links=[Repo(td)]),
+            )
+            resolved_dists4 = local_resolve(
+                requirements=["project"],
+                repos_configuration=ReposConfiguration.create(find_links=[Repo(td)]),
+            )
         assert resolved_dists1 != resolved_dists3
         assert resolved_dists2 != resolved_dists3
         assert resolved_dists3 == resolved_dists4
@@ -155,7 +176,10 @@ def test_diamond_local_resolve_cached():
         for wheel in (project1_wheel, project2_wheel):
             safe_copy(wheel, os.path.join(dd, os.path.basename(wheel)))
         with temporary_dir() as cd, cache(cd):
-            resolved_dists = local_resolve(requirements=["project1", "project2"], find_links=[dd])
+            resolved_dists = local_resolve(
+                requirements=["project1", "project2"],
+                repos_configuration=ReposConfiguration.create(find_links=[Repo(dd)]),
+            )
             assert len(resolved_dists) == 2
 
 
@@ -170,13 +194,19 @@ def test_cached_dependency_pinned_unpinned_resolution_multi_run():
             safe_copy(wheel, os.path.join(td, os.path.basename(wheel)))
         with temporary_dir() as cd, cache(cd):
             # First run, pinning 1.0.0 in the cache
-            resolved_dists = local_resolve(requirements=["project==1.0.0"], find_links=[td])
+            resolved_dists = local_resolve(
+                requirements=["project==1.0.0"],
+                repos_configuration=ReposConfiguration.create(find_links=[Repo(td)]),
+            )
             assert len(resolved_dists) == 1
             assert resolved_dists[0].distribution.version == "1.0.0"
 
             # Second, run, the unbounded 'project' req will find the 1.0.0 in the cache. But should
             # also return SourcePackages found in td
-            resolved_dists = local_resolve(requirements=["project"], find_links=[td])
+            resolved_dists = local_resolve(
+                requirements=["project"],
+                repos_configuration=ReposConfiguration.create(find_links=[Repo(td)]),
+            )
             assert len(resolved_dists) == 1
             assert resolved_dists[0].distribution.version == "1.1.0"
 
@@ -191,7 +221,9 @@ def test_intransitive():
             safe_copy(wheel, os.path.join(td, os.path.basename(wheel)))
         with temporary_dir() as cd, cache(cd):
             resolved_dists = local_resolve(
-                requirements=["foo", "bar"], find_links=[td], transitive=False
+                requirements=["foo", "bar"],
+                repos_configuration=ReposConfiguration.create(find_links=[Repo(td)]),
+                transitive=False,
             )
             assert len(resolved_dists) == 2
 
@@ -207,7 +239,9 @@ def test_resolve_prereleases():
 
         def assert_resolve(expected_version, **resolve_kwargs):
             resolved_dists = local_resolve(
-                requirements=["dep>=1,<4"], find_links=[td], **resolve_kwargs
+                requirements=["dep>=1,<4"],
+                repos_configuration=ReposConfiguration.create(find_links=[Repo(td)]),
+                **resolve_kwargs
             )
             assert 1 == len(resolved_dists)
             resolved_dist = resolved_dists[0]
@@ -235,7 +269,8 @@ def test_resolve_extra_setup_py():
             safe_copy(project2_wheel, os.path.join(td, os.path.basename(project2_wheel)))
 
             resolved_dists = local_resolve(
-                requirements=["{}[foo]".format(project1_dir)], find_links=[td]
+                requirements=["{}[foo]".format(project1_dir)],
+                repos_configuration=ReposConfiguration.create(find_links=[Repo(td)]),
             )
             assert {_parse_requirement(req) for req in ("project1==1.0.0", "project2==2.0.0")} == {
                 _parse_requirement(resolved_dist.distribution.as_requirement())
@@ -253,7 +288,10 @@ def test_resolve_extra_wheel():
         for wheel in (project1_wheel, project2_wheel):
             safe_copy(wheel, os.path.join(td, os.path.basename(wheel)))
 
-        resolved_dists = local_resolve(requirements=["project1[foo]"], find_links=[td])
+        resolved_dists = local_resolve(
+            requirements=["project1[foo]"],
+            repos_configuration=ReposConfiguration.create(find_links=[Repo(td)]),
+        )
         assert {_parse_requirement(req) for req in ("project1==1.0.0", "project2==2.0.0")} == {
             _parse_requirement(resolved_dist.distribution.as_requirement())
             for resolved_dist in resolved_dists
@@ -502,7 +540,9 @@ def test_download2():
     downloaded_by_target = defaultdict(list)  # type: DefaultDict[Target, List[Distribution]]
     result = download(
         requirements=["{}[foo]".format(project1_sdist)],
-        find_links=[os.path.dirname(project2_wheel)],
+        repos_configuration=ReposConfiguration.create(
+            indexes=[Repo(PYPI)], find_links=[Repo(os.path.dirname(project2_wheel))]
+        ),
         resolver=ConfiguredResolver.default(),
     )
     for local_distribution in result.local_distributions:
@@ -668,7 +708,6 @@ def test_check_resolve_prerelease_transitive_dependencies_issue_1730(tmpdir):
         requirements=["direct==2.12.dev3"],
         allow_prereleases=False,
         ignore_errors=False,
-        indexes=[],
-        find_links=[find_links],
+        repos_configuration=ReposConfiguration.create(indexes=[], find_links=[Repo(find_links)]),
     )
     assert 2 == len(resolved.distributions)

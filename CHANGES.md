@@ -1,5 +1,65 @@
 # Release Notes
 
+## 2.56.0
+
+This release adds support for scoping `--index` and `--find-links` repos to only be used to resolve
+certain projects, environments or a combination of the two. For example, to use the piwheels index
+but restrict its use to resolves targeting armv7l machines, you can now say:
+`--index piwheels=https://www.piwheels.org/simple --source piwheels=platform_machine == 'armv7l'`.
+See the `--help` output for `--index` and `--find-links` for more syntax details.
+
+Additionally, `--style universal` locks have been made aware of top-level inputs that can split the
+lock resolve and such resolves are pre-split and performed in parallel to allow locking for multiple
+non-overlapping universes at once. Splits can be caused by some scoped repos setups as well locks
+with multiple differing top-level requirements for the same project. For example, the following will
+create a universal lock with two locked resolves, one locking cowsay 5.0 for Python 2 and one
+locking cowsay 6.0 for Python 3:
+```console
+pex3 lock create \
+  --style universal \
+  --indent 2 \
+  -o lock.json
+  "cowsay<6; python_version < '3'" \
+  "cowsay==6; python_version >= '3'"
+```
+
+An important use case for this new set of features is creating a universal lock for PyTorch for
+CUDA enabled Linux and Mac by adding the appropriate pytorch index appropriately scoped.
+For example, this lock will contain two locked resolves, one for Mac sourced purely from PyPI and
+one for CUDA 12.9 enabled Linux partially sourced from the PyTorch index for CUDA 12.9:
+```console
+pex3 lock create \
+    --style universal \
+    --target-system linux \
+    --target-system mac \
+    --elide-unused-requires-dist \
+    --interpreter-constraint "CPython==3.13.*" \
+    --index pytorch=https://download.pytorch.org/whl/cu129 \
+    --source "pytorch=torch; sys_platform != 'darwin'" \
+    --source "pytorch=torchvision; sys_platform != 'darwin'" \
+    --source "pytorch=nvidia-cublas-cu12; sys_platform != 'darwin'" \
+    --source "pytorch=nvidia-cuda-cupti-cu12; sys_platform != 'darwin'" \
+    --source "pytorch=nvidia-cuda-nvrtc-cu12; sys_platform != 'darwin'" \
+    --source "pytorch=nvidia-cuda-runtime-cu12; sys_platform != 'darwin'" \
+    --source "pytorch=nvidia-cudnn-cu11; sys_platform != 'darwin'" \
+    --source "pytorch=nvidia-cudnn-cu12; sys_platform != 'darwin'" \
+    --source "pytorch=nvidia-cufft-cu12; sys_platform != 'darwin'" \
+    --source "pytorch=nvidia-cufile-cu12; sys_platform != 'darwin'" \
+    --source "pytorch=nvidia-curand-cu12; sys_platform != 'darwin'" \
+    --source "pytorch=nvidia-cusolver-cu12; sys_platform != 'darwin'" \
+    --source "pytorch=nvidia-cusparse-cu12; sys_platform != 'darwin'" \
+    --source "pytorch=nvidia-cusparselt-cu12; sys_platform != 'darwin'" \
+    --source "pytorch=nvidia-nccl-cu12; sys_platform != 'darwin'" \
+    --source "pytorch=nvidia-nvjitlink-cu12; sys_platform != 'darwin'" \
+    --source "pytorch=nvidia-nvtx-cu12; sys_platform != 'darwin'" \
+    --indent 2 \
+    -o lock.json \
+    torch \
+    torchvision
+```
+
+* Support scopes for `--index` and `--find-links`. (#2903)
+
 ## 2.55.2
 
 This release improves Pex `--pylock` handling interoperability by accepting the minimum possible

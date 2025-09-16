@@ -7,9 +7,11 @@ import glob
 import os
 import tempfile
 from argparse import Action, ArgumentError, ArgumentTypeError, Namespace, _ActionsContainer
+from collections import OrderedDict, defaultdict
 
 from pex import pex_warnings
 from pex.argparse import HandleBoolAction
+from pex.common import pluralize
 from pex.dist_metadata import Requirement, is_sdist, is_wheel
 from pex.fetcher import initialize_ssl_context
 from pex.network_configuration import NetworkConfiguration
@@ -18,9 +20,9 @@ from pex.pep_503 import ProjectName
 from pex.pip.version import PipVersion, PipVersionValue
 from pex.resolve.lockfile import json_codec
 from pex.resolve.lockfile.model import Lockfile
+from pex.resolve.package_repository import PYPI, Repo, ReposConfiguration, Scope
 from pex.resolve.path_mappings import PathMapping, PathMappings
 from pex.resolve.resolver_configuration import (
-    PYPI,
     BuildConfiguration,
     LockRepositoryConfiguration,
     PexRepositoryConfiguration,
@@ -28,7 +30,6 @@ from pex.resolve.resolver_configuration import (
     PipLog,
     PreResolvedConfiguration,
     PylockRepositoryConfiguration,
-    ReposConfiguration,
     ResolverVersion,
 )
 from pex.result import Error
@@ -36,7 +37,7 @@ from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from typing import List, Optional, Union
+    from typing import DefaultDict, Iterable, List, Mapping, Optional, Tuple, Union
 
 
 class _ManylinuxAction(Action):
@@ -525,21 +526,52 @@ def register_repos_options(parser):
         "-f",
         "--find-links",
         "--repo",
-        metavar="PATH/URL",
+        metavar="(NAME=)PATH/URL",
         action="append",
         dest="find_links",
         type=str,
-        help="Additional repository path (directory or URL) to look for requirements.",
+        default=[],
+        help=(
+            "Additional repository path (directory or URL) to look for requirements. If the "
+            "repository should only be used as a source for a subset of distributions, you can "
+            "associate a name to refer to it by in `--source` mappings by using "
+            "`<name>=<path or url>` syntax, where the name cannot itself contain `=`. For example; "
+            "`local=/mnt/share/py/find-links` or `internal=https://dev.corp.internal/py-repo`."
+        ),
     )
     parser.add_argument(
         "-i",
         "--index",
         "--index-url",
-        metavar="URL",
+        metavar="(NAME=)URL",
         action="append",
         dest="indexes",
         type=str,
-        help="Additional cheeseshop indices to use to satisfy requirements.",
+        default=[],
+        help=(
+            "Additional cheeseshop indices to use to satisfy requirements. If the index should "
+            "only be used as a source for a subset of distributions, you can associate a name to "
+            "refer to it by in `--source` mappings by using `<name>=<url>` syntax, where the name "
+            "itself cannot contain `=`. For example; internal=https://dev.corp.internal/py-simple`."
+        ),
+    )
+    parser.add_argument(
+        "--source",
+        metavar="NAME=SCOPE",
+        action="append",
+        dest="repo_scopes",
+        type=str,
+        default=[],
+        help=(
+            "Defines a limited scope to use a named find links repo or index in. A source takes "
+            "the form `<name>=<scope>` where name is as defined for `--find-links` and `--index`; "
+            "namely a string not containing `=`. The scope can be a project name; e.g.: "
+            "`internal=torch` to resolve the `torch` project from the `internal` repo, a project "
+            "name and marker; e.g.: `internal=torch; sys_platform != 'darwin'` to resolve the "
+            "`torch` project from the `internal` repo unless targeting macOS, or just a marker; "
+            "e.g.: `piwheels=platform_machine == 'armv7l' to resolve from the `piwheels` repo "
+            "whenever 32bit arm machines are being targeted."
+        ),
     )
 
 
@@ -766,17 +798,99 @@ def create_pip_configuration(
     )
 
 
+def _parse_repo_scope(repo_scope):
+    # type: (str) -> Tuple[str, Scope]
+
+    def create_invalid_error(footer=None):
+        # type: (Optional[str]) -> Exception
+        error_msg_lines = ["Invalid --source value: {source}".format(source=repo_scope)]
+        if footer:
+            error_msg_lines.append(footer)
+        return InvalidConfigurationError(os.linesep.join(error_msg_lines))
+
+    name, _, scope = repo_scope.partition("=")
+    if not scope:
+        raise create_invalid_error("A source must be of the form `<name>=<scope>`.")
+    try:
+        return name, Scope.parse(scope)
+    except ValueError as e:
+        raise create_invalid_error(str(e))
+
+
+def _parse_package_repositories(
+    package_repository_type,  # type: str
+    scopes_by_name,  # type: Mapping[str, Iterable[Scope]]
+    repositories,  # type: Iterable[str]
+):
+    # type: (...) -> OrderedDict[str, Repo]
+
+    parsed = OrderedDict()  # type: OrderedDict[str, List[str]]
+    for repository in repositories:
+        name, _, location = repository.partition("=")
+        if name in scopes_by_name:
+            parsed.setdefault(name, []).append(location)
+        else:
+            parsed.setdefault("", []).append(repository)
+
+    duplicate_names = [name for name, repos in parsed.items() if len(repos) > 1]
+    if duplicate_names:
+        raise InvalidConfigurationError(
+            "The following names are being re-used across multiple {package_repositories}: "
+            "{duplicate_names}\n"
+            "{package_repository} names must be unique.".format(
+                package_repositories=pluralize(2, package_repository_type),
+                duplicate_names=" ".join(sorted(duplicate_names)),
+                package_repository=package_repository_type.capitalize(),
+            )
+        )
+
+    package_repositories = OrderedDict()  # type: OrderedDict[str, Repo]
+    for name, locations in parsed.items():
+        if name:
+            package_repositories[name] = Repo(locations[0], scopes=tuple(scopes_by_name[name]))
+        else:
+            package_repositories[""] = Repo(locations[0])
+    return package_repositories
+
+
 def create_repos_configuration(options):
     # type: (Namespace) -> ReposConfiguration
     """Creates a repos configuration from options registered by `register_repos_options`.
 
     :param options: The Pip resolver configuration options.
     """
-    indexes = OrderedSet(
-        ([PYPI] if options.pypi else []) + (options.indexes or [])
-    )  # type: OrderedSet[str]
-    find_links = OrderedSet(options.find_links or ())  # type: OrderedSet[str]
-    return ReposConfiguration.create(indexes=tuple(indexes), find_links=tuple(find_links))
+    indexes = OrderedSet(([Repo(PYPI)] if options.pypi else []))  # type: OrderedSet[Repo]
+    scopes_by_name = defaultdict(OrderedSet)  # type: DefaultDict[str, OrderedSet[Scope]]
+    for repo_scope in options.repo_scopes:
+        name, scope = _parse_repo_scope(repo_scope)
+        scopes_by_name[name].add(scope)
+
+    if not scopes_by_name:
+        indexes.update(Repo(index) for index in options.indexes)
+        return ReposConfiguration.create(
+            indexes=tuple(indexes),
+            find_links=tuple(Repo(find_links_repo) for find_links_repo in options.find_links),
+        )
+
+    parsed_indexes = _parse_package_repositories("index", scopes_by_name, options.indexes)
+    parsed_find_links = _parse_package_repositories(
+        "find links repository", scopes_by_name, options.find_links
+    )
+
+    duplicate_names = set(parsed_indexes).intersection(parsed_find_links)
+    if duplicate_names:
+        raise InvalidConfigurationError(
+            "The following names are being re-used across indexes and find links repos: "
+            "{duplicate_names}\n"
+            "Package repository names must be unique.".format(
+                duplicate_names=" ".join(sorted(duplicate_names))
+            )
+        )
+
+    indexes.update(parsed_indexes.values())
+    return ReposConfiguration.create(
+        indexes=tuple(indexes), find_links=tuple(parsed_find_links.values())
+    )
 
 
 def create_network_configuration(options):

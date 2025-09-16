@@ -71,7 +71,7 @@ class PatchContext(object):
             dependency_configuration=DependencyConfiguration.create(
                 excluded=data["excluded"], overridden=data["overridden"]
             ),
-            extra_data=cast(
+            target=cast(
                 "Union[UniversalTarget, MarkerEnvironment]",
                 universal_target or marker_environment,
             ),
@@ -81,7 +81,7 @@ class PatchContext(object):
     def dump(
         cls,
         dependency_configuration,  # type: DependencyConfiguration
-        extra_data,  # type: Union[UniversalTarget, MarkerEnvironment]
+        target,  # type: Union[UniversalTarget, MarkerEnvironment]
     ):
         # type: (...) -> Mapping[str, str]
 
@@ -96,20 +96,18 @@ class PatchContext(object):
                     "universal_target": (
                         {
                             "implementation": (
-                                str(extra_data.implementation)
-                                if extra_data.implementation
-                                else None
+                                str(target.implementation) if target.implementation else None
                             ),
                             "requires_python": [
-                                str(specifier_set) for specifier_set in extra_data.requires_python
+                                str(specifier_set) for specifier_set in target.requires_python
                             ],
-                            "systems": [str(system) for system in extra_data.systems],
+                            "systems": [str(system) for system in target.systems],
                         }
-                        if isinstance(extra_data, UniversalTarget)
+                        if isinstance(target, UniversalTarget)
                         else None
                     ),
                     "marker_environment": (
-                        extra_data.as_dict() if isinstance(extra_data, MarkerEnvironment) else None
+                        target.as_dict() if isinstance(target, MarkerEnvironment) else None
                     ),
                 },
                 fp,
@@ -117,12 +115,12 @@ class PatchContext(object):
         return {cls._PEX_DEP_CONFIG_FILE_ENV_VAR_NAME: dep_config_file}
 
     dependency_configuration = attr.ib()  # type: DependencyConfiguration
-    extra_data = attr.ib()  # type: Union[UniversalTarget, MarkerEnvironment]
+    target = attr.ib()  # type: Union[UniversalTarget, MarkerEnvironment]
 
 
 def patch(
     dependency_configuration,  # type: DependencyConfiguration
-    extra_data,  # type: Union[UniversalTarget, MarkerEnvironment]
+    target,  # type: Union[UniversalTarget, MarkerEnvironment]
 ):
     # type: (...) -> Optional[DownloadObserver]
 
@@ -133,7 +131,7 @@ def patch(
         analyzer=None,
         patch_set=PatchSet.create(
             Patch.from_code_resource(
-                __name__, "requires.py", **PatchContext.dump(dependency_configuration, extra_data)
+                __name__, "requires.py", **PatchContext.dump(dependency_configuration, target)
             )
         ),
     )

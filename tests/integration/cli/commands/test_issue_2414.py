@@ -11,7 +11,7 @@ from pex.pep_503 import ProjectName
 from pex.pip.log_analyzer import ErrorMessage
 from pex.requirements import parse_requirement_string
 from pex.resolve.configured_resolver import ConfiguredResolver
-from pex.resolve.locked_resolve import LockConfiguration, LockStyle
+from pex.resolve.locked_resolve import LockStyle
 from pex.resolve.locker import Locker, LockResult
 from pex.resolve.resolved_requirement import PartialArtifact, Pin, ResolvedRequirement
 from pex.targets import LocalInterpreter
@@ -30,7 +30,7 @@ def locker(tmpdir):
         target=LocalInterpreter.create(),
         root_requirements=[parse_requirement_string("wheel")],
         resolver=ConfiguredResolver.default(),
-        lock_configuration=LockConfiguration(style=LockStyle.SOURCES),
+        lock_style=LockStyle.SOURCES,
         download_dir=download_dir,
     )
 

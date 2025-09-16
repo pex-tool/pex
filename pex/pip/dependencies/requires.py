@@ -1,7 +1,7 @@
 # Copyright 2024 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-from __future__ import absolute_import, print_function
+from __future__ import absolute_import
 
 import logging
 import sys
@@ -16,7 +16,6 @@ def patch():
     from pex.dist_metadata import Requirement as PexRequirement
     from pex.pep_508 import MarkerEnvironment
     from pex.pip.dependencies import PatchContext
-    from pex.resolve.lockfile import requires_dist
     from pex.resolve.target_system import UniversalTarget
     from pex.typing import TYPE_CHECKING
 
@@ -25,11 +24,11 @@ def patch():
 
     patch_context = PatchContext.load()
     dependency_configuration = patch_context.dependency_configuration
-    extra_data = patch_context.extra_data
+    target = patch_context.target
 
     marker_environment = None  # type: Optional[Dict[str, str]]
-    if isinstance(extra_data, MarkerEnvironment):
-        marker_environment = extra_data.as_dict()
+    if isinstance(target, MarkerEnvironment):
+        marker_environment = target.as_dict()
 
     def are_exhaustive(
         universal_target,  # type: UniversalTarget
@@ -42,7 +41,7 @@ def patch():
             # We have at least one override without a marker; i.e.: the override always applies.
             return True
 
-        return requires_dist.are_exhaustive(markers=markers, universal_target=universal_target)
+        return universal_target.are_exhaustive(markers=markers)
 
     def create_requires(orig_requires):
         def requires(self, *args, **kwargs):
@@ -71,7 +70,7 @@ def patch():
                         for override in overrides
                         if not override.marker or override.marker.evaluate(marker_environment)
                     ]
-                elif overrides and not are_exhaustive(patch_context.extra_data, overrides):
+                elif overrides and not are_exhaustive(patch_context.target, overrides):
                     overrides.append(req)
 
                 if overrides:

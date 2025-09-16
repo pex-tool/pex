@@ -176,16 +176,25 @@ def _elide_extras(marker):
     return marker
 
 
-def _implementation_marker(implementation):
-    # type: (InterpreterImplementation.Value) -> str
-    return "platform_python_implementation == '{implementation}'".format(
+def _implementation_marker(
+    implementation,  # type: InterpreterImplementation.Value
+    extra_marker=None,  # type: Optional[Marker]
+):
+    # type: (...) -> str
+    platform_python_implementation = "platform_python_implementation == '{implementation}'".format(
         implementation=implementation
+    )
+    if not extra_marker:
+        return platform_python_implementation
+    return "{platform_python_implementation} and {extra_marker}".format(
+        platform_python_implementation=platform_python_implementation, extra_marker=extra_marker
     )
 
 
 def _to_environment(
     system,  # type: TargetSystem.Value
     implementation=None,  # type: Optional[InterpreterImplementation.Value]
+    extra_marker=None,  # type: Optional[Marker]
 ):
     # type: (...) -> str
 
@@ -198,11 +207,17 @@ def _to_environment(
         platform_system = "platform_system == 'Windows'"
 
     if not implementation:
-        return platform_system
+        if not extra_marker:
+            return platform_system
+        return "{platform_system} and {extra_marker}".format(
+            platform_system=platform_system, extra_marker=extra_marker
+        )
 
     return "{platform_system} and {platform_python_implementation}".format(
         platform_system=platform_system,
-        platform_python_implementation=_implementation_marker(implementation),
+        platform_python_implementation=_implementation_marker(
+            implementation, extra_marker=extra_marker
+        ),
     )
 
 
@@ -228,11 +243,21 @@ def convert(
         #  install a lock with only Python 3 wheels.
         if universal_target.systems:
             pylock["environments"] = sorted(
-                _to_environment(system, implementation=universal_target.implementation)
+                _to_environment(
+                    system,
+                    implementation=universal_target.implementation,
+                    extra_marker=locked_resolve.marker,
+                )
                 for system in universal_target.systems
             )
         elif universal_target.implementation:
-            pylock["environments"] = [_implementation_marker(universal_target.implementation)]
+            pylock["environments"] = [
+                _implementation_marker(
+                    universal_target.implementation, extra_marker=locked_resolve.marker
+                )
+            ]
+        elif locked_resolve.marker:
+            pylock["environments"] = [str(locked_resolve.marker)]
 
         if universal_target.requires_python:
             if len(universal_target.requires_python) > 1:

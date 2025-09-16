@@ -189,6 +189,8 @@ def boot(
             "_PEX_TARGET_SYSTEMS_FILE",
             # This is used to implement Pex --exclude and --override support.
             "_PEX_DEP_CONFIG_FILE",
+            # This is used to implement --source support.
+            "_PEX_REPOS_CONFIG_FILE",
             # This is used as an experiment knob for atomic_directory locking.
             "_PEX_FILE_LOCK_STYLE",
             # This is used in the scie binding command for ZIPAPP PEXes.
