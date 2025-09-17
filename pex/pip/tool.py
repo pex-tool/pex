@@ -53,6 +53,7 @@ if TYPE_CHECKING:
         Match,
         Optional,
         Sequence,
+        Text,
         Tuple,
         Union,
     )
@@ -64,8 +65,8 @@ else:
 
 @attr.s(frozen=True)
 class PipArgs(object):
-    indexes = attr.ib(default=None)  # type: Optional[Sequence[str]]
-    find_links = attr.ib(default=None)  # type: Optional[Iterable[str]]
+    indexes = attr.ib(default=None)  # type: Optional[Sequence[Text]]
+    find_links = attr.ib(default=None)  # type: Optional[Iterable[Text]]
     network_configuration = attr.ib(default=None)  # type: Optional[NetworkConfiguration]
 
     def iter(self, version):
@@ -217,9 +218,14 @@ class PackageIndexConfiguration(object):
         self,
         pip_version,  # type: PipVersionValue
         target,  # type:  Union[UniversalTarget, MarkerEnvironment]
+        requirement_files=None,  # type: Optional[Iterable[str]]
     ):
         # type: (...) -> Optional[DownloadObserver]
-        return package_repositories.patch(self.repos_configuration, pip_version, target)
+        return package_repositories.patch(
+            repos_configuration=self.repos_configuration.with_contained_repos(requirement_files),
+            pip_version=pip_version,
+            target=target,
+        )
 
 
 if TYPE_CHECKING:
@@ -640,7 +646,9 @@ class Pip(object):
             ),
             (
                 package_index_configuration.patch(
-                    pip_version=self.version, target=universal_target or target.marker_environment
+                    pip_version=self.version,
+                    target=universal_target or target.marker_environment,
+                    requirement_files=requirement_files,
                 )
                 if package_index_configuration
                 else None

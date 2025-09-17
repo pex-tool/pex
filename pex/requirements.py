@@ -5,6 +5,9 @@ from __future__ import absolute_import
 
 import os
 import re
+import shlex
+import sys
+from argparse import ArgumentParser
 from contextlib import contextmanager
 
 from pex import attrs, dist_metadata, pex_warnings
@@ -17,6 +20,7 @@ from pex.dist_metadata import (
     RequirementParseError,
 )
 from pex.fetcher import URLFetcher
+from pex.orderedset import OrderedSet
 from pex.pep_503 import ProjectName
 from pex.third_party.packaging.markers import Marker
 from pex.third_party.packaging.specifiers import SpecifierSet
@@ -139,7 +143,7 @@ class Source(object):
 
 
 @attr.s(frozen=True)
-class _ParsedRequirement(object):
+class _ParsedItem(object):
     line = attr.ib()  # type: LogicalLine
 
     def __str__(self):
@@ -148,7 +152,22 @@ class _ParsedRequirement(object):
 
 
 @attr.s(frozen=True)
-class PyPIRequirement(_ParsedRequirement):
+class _Repo(_ParsedItem):
+    location = attr.ib()  # Text
+
+
+@attr.s(frozen=True)
+class FindLinks(_Repo):
+    pass
+
+
+@attr.s(frozen=True)
+class Index(_Repo):
+    pass
+
+
+@attr.s(frozen=True)
+class PyPIRequirement(_ParsedItem):
     """A requirement realized through a package index or find links repository."""
 
     requirement = attr.ib()  # type: Requirement
@@ -169,7 +188,7 @@ class PyPIRequirement(_ParsedRequirement):
 
 
 @attr.s(frozen=True)
-class URLRequirement(_ParsedRequirement):
+class URLRequirement(_ParsedItem):
     """A requirement realized through a distribution archive at a fixed URL."""
 
     url = attr.ib()  # type: ArtifactURL
@@ -202,7 +221,7 @@ class URLRequirement(_ParsedRequirement):
 
 
 @attr.s(frozen=True)
-class VCSRequirement(_ParsedRequirement):
+class VCSRequirement(_ParsedItem):
     """A requirement realized by building a distribution from sources retrieved from a VCS."""
 
     vcs = attr.ib()  # type: VCS.Value
@@ -269,7 +288,7 @@ def parse_requirement_from_dist(
 
 
 @attr.s(frozen=True)
-class LocalProjectRequirement(_ParsedRequirement):
+class LocalProjectRequirement(_ParsedItem):
     """A requirement realized by building a distribution from local sources."""
 
     path = attr.ib()  # type: str
@@ -306,7 +325,7 @@ if TYPE_CHECKING:
 
 
 @attr.s(frozen=True)
-class Constraint(_ParsedRequirement):
+class Constraint(_ParsedItem):
     requirement = attr.ib()  # type: Requirement
 
     @property
@@ -630,11 +649,59 @@ def _get_parameter(line):
     return split_line[1]
 
 
+_REPOS_PARSER = None  # type: Optional[ArgumentParser]
+
+
+def _parse_repos(line):
+    # type: (LogicalLine) -> Iterator[Union[FindLinks, Index]]
+
+    try:
+        # The arg-type type ignore is due to Python 2.7 shlex.split not being able to parse unicode
+        # strings; but we handle that with a useful error message.
+        args = shlex.split(line.processed_text)  # type: ignore[arg-type]
+    except UnicodeEncodeError as e:
+        raise ParseError(
+            line,
+            "Options line has unicode characters which are not supported under Python {version}: "
+            "{err}".format(version=".".join(map(str, sys.version[:2])), err=e),
+        )
+
+    global _REPOS_PARSER
+    if _REPOS_PARSER is not None:
+        parser = _REPOS_PARSER
+    else:
+        parser = ArgumentParser()
+        # See:
+        # + https://pip.pypa.io/en/stable/reference/requirements-file-format/#global-options
+        # + https://pip.pypa.io/en/stable/cli/pip_install/#cmdoption-f
+        # + https://pip.pypa.io/en/stable/cli/pip_install/#cmdoption-i
+        # + https://pip.pypa.io/en/stable/cli/pip_install/#cmdoption-extra-index-url
+        parser.add_argument("-f", "--find-links", dest="find_links", action="append", default=[])
+        parser.add_argument("-i", "--index-url", dest="index_url")
+        parser.add_argument(
+            "--extra-index-url", dest="extra_index_urls", action="append", default=[]
+        )
+        _REPOS_PARSER = parser
+
+    options, _ = parser.parse_known_args(args)
+
+    for find_links in OrderedSet(options.find_links):  # type: OrderedSet[str]
+        yield FindLinks(line, location=find_links)
+
+    index_locations = OrderedSet()  # type: OrderedSet[str]
+    if options.index_url:
+        index_locations.add(options.index_url)
+    index_locations.update(options.extra_index_urls)
+
+    for index in index_locations:
+        yield Index(line, location=index)
+
+
 def parse_requirements(
     source,  # type: Source
     fetcher=None,  # type: Optional[URLFetcher]
 ):
-    # type: (...) -> Iterator[Union[ParsedRequirement, Constraint]]
+    # type: (...) -> Iterator[Union[ParsedRequirement, Constraint, FindLinks, Index]]
 
     # For the format specification, see:
     #   https://pip.pypa.io/en/stable/reference/pip_install/#requirements-file-format
@@ -686,11 +753,17 @@ def parse_requirements(
                         yield requirement
                 continue
 
-            # Skip empty lines, comment lines and all Pip global options.
-            if not processed_text or (
-                processed_text.startswith("-")
-                and not re.match(r"^(?:-e|--editable)\s.*", processed_text)
+            # Skip empty lines and comment lines.
+            if not processed_text:
+                continue
+
+            if processed_text.startswith("-") and not re.match(
+                # N.B.: We deal with editable when parsing requirement lines below.
+                r"^(?:-e|--editable)\s.*",
+                processed_text,
             ):
+                for repo in _parse_repos(logical_line):
+                    yield repo
                 continue
 
             # Only requirement lines remain.
@@ -721,7 +794,7 @@ def parse_requirement_file(
     is_constraints=False,  # type: bool
     fetcher=None,  # type: Optional[URLFetcher]
 ):
-    # type: (...) -> Iterator[Union[ParsedRequirement, Constraint]]
+    # type: (...) -> Iterator[Union[ParsedRequirement, Constraint, FindLinks, Index]]
     def open_source():
         url = urlparse.urlparse(location)
         if url.scheme and url.netloc:

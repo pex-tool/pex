@@ -5,7 +5,15 @@ from __future__ import absolute_import
 
 from pex.fetcher import URLFetcher
 from pex.network_configuration import NetworkConfiguration
-from pex.requirements import Constraint, parse_requirement_file, parse_requirement_strings
+from pex.requirements import (
+    Constraint,
+    LocalProjectRequirement,
+    PyPIRequirement,
+    URLRequirement,
+    VCSRequirement,
+    parse_requirement_file,
+    parse_requirement_strings,
+)
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -37,7 +45,10 @@ class RequirementConfiguration(object):
                     for requirement_or_constraint in parse_requirement_file(
                         requirement_file, is_constraints=False, fetcher=fetcher
                     )
-                    if not isinstance(requirement_or_constraint, Constraint)
+                    if isinstance(
+                        requirement_or_constraint,
+                        (PyPIRequirement, URLRequirement, VCSRequirement, LocalProjectRequirement),
+                    )
                 )
         return parsed_requirements
 
