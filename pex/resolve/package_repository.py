@@ -12,6 +12,7 @@ from pex.auth import PasswordEntry
 from pex.compatibility import string
 from pex.dist_metadata import Requirement, RequirementParseError
 from pex.exceptions import production_assert, reportable_unexpected_error_msg
+from pex.fetcher import URLFetcher
 from pex.orderedset import OrderedSet
 from pex.pep_503 import ProjectName
 from pex.requirements import (
@@ -320,8 +321,12 @@ class ReposConfiguration(object):
     password_entries = attr.ib(default=())  # type: Tuple[PasswordEntry, ...]
     derive_scopes_from_requirements_files = attr.ib(default=False)  # type: bool
 
-    def with_contained_repos(self, requirement_files=None):
-        # type: (Optional[Iterable[Text]]) -> ReposConfiguration
+    def with_contained_repos(
+        self,
+        requirement_files=None,  # type: Optional[Iterable[Text]]
+        fetcher=None,  # type: Optional[URLFetcher]
+    ):
+        # type: (...) -> ReposConfiguration
 
         if not requirement_files:
             return self
@@ -330,7 +335,8 @@ class ReposConfiguration(object):
         find_links_by_source = OrderedDict()  # type: OrderedDict[Text, OrderedSet[Text]]
         scopes_by_source = defaultdict(OrderedSet)  # type: DefaultDict[Text, OrderedSet[Scope]]
         for item in itertools.chain.from_iterable(
-            parse_requirement_file(requirement_file) for requirement_file in requirement_files
+            parse_requirement_file(requirement_file, fetcher=fetcher)
+            for requirement_file in requirement_files
         ):
             if self.derive_scopes_from_requirements_files and isinstance(
                 item, (PyPIRequirement, URLRequirement, VCSRequirement)

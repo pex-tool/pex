@@ -21,6 +21,7 @@ from pex.common import safe_mkdir, safe_mkdtemp
 from pex.compatibility import get_stderr_bytes_buffer, shlex_quote, urlparse
 from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import Requirement
+from pex.fetcher import URLFetcher
 from pex.interpreter import PythonInterpreter
 from pex.jobs import Job
 from pex.network_configuration import NetworkConfiguration
@@ -222,7 +223,10 @@ class PackageIndexConfiguration(object):
     ):
         # type: (...) -> Optional[DownloadObserver]
         return package_repositories.patch(
-            repos_configuration=self.repos_configuration.with_contained_repos(requirement_files),
+            repos_configuration=self.repos_configuration.with_contained_repos(
+                requirement_files,
+                fetcher=URLFetcher(network_configuration=self.network_configuration),
+            ),
             pip_version=pip_version,
             target=target,
         )
