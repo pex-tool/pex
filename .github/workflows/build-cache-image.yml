@@ -48,6 +48,18 @@ jobs:
       matrix:
         test-cmd: ${{ fromJson(needs.setup-matrix.outputs.test-cmds) }}
     steps:
+      - name: Free Up Disk Space
+        uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          android: true # ~14GB
+          dotnet: true # ~2GB
+          tool-cache: true # ~12GB
+
+          # Too little space savings or too slow.
+          haskell: false
+          large-packages: false
+          docker-images: false
+          swap-storage: false
       - name: Checkout Pex
         uses: actions/checkout@v4
       - name: Setup Python 3.11
@@ -75,6 +87,18 @@ jobs:
     runs-on: ubuntu-24.04
     needs: build-cache-images
     steps:
+      - name: Free Up Disk Space
+        uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          android: true # ~14GB
+          dotnet: true # ~2GB
+          tool-cache: true # ~12GB
+
+          # Too little space savings or too slow.
+          haskell: false
+          large-packages: false
+          docker-images: false
+          swap-storage: false
       - name: Checkout Pex
         uses: actions/checkout@v4
       - name: Setup Python 3.11
