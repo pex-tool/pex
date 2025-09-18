@@ -1,5 +1,15 @@
 # Release Notes
 
+## 2.58.0
+
+This release adds `--derive-sources-from-requirements-files` to allow for scoping requirement
+sources via the structure of requirements files. If any requirements files are specified that 
+contain `-f` / `--find-links`, `-i` / `--index-url`, or `--extra-index-url` options,
+`--derive-sources-from-requirements-files` will automatically map these repos as the `--source` for
+the requirements (if any) declared in the same requirements file.
+
+* Introduce `--derive-sources-from-requirements-files`. (#2909)
+
 ## 2.57.0
 
 This release adds support for project name regexes to `--source` scopes for repos. For example, the

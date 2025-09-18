@@ -10,7 +10,7 @@ import pytest
 from pex import requirements
 from pex.compatibility import to_unicode
 from pex.dist_metadata import Requirement
-from pex.requirements import LocalProjectRequirement, Source
+from pex.requirements import FindLinks, Index, LocalProjectRequirement, Source
 from pex.typing import TYPE_CHECKING
 from testing.cli import run_pex3
 
@@ -44,7 +44,7 @@ def test_full(
 
     actual_requirements = []
     for parsed_requirement in requirements.parse_requirements(Source.from_text(export_subset)):
-        assert not isinstance(parsed_requirement, LocalProjectRequirement)
+        assert not isinstance(parsed_requirement, (LocalProjectRequirement, FindLinks, Index))
         actual_requirements.append(parsed_requirement.requirement)
 
     expected_requirements = [

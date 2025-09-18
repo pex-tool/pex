@@ -15,6 +15,8 @@ from pex.dist_metadata import Requirement
 from pex.fetcher import URLFetcher
 from pex.requirements import (
     Constraint,
+    FindLinks,
+    Index,
     LocalProjectRequirement,
     LogicalLine,
     ParseError,
@@ -37,7 +39,7 @@ if TYPE_CHECKING:
 
     from pex.requirements import ParsedRequirement
 
-    ParsedRequirementOrConstraint = Union[ParsedRequirement, Constraint]
+    ParsedItem = Union[ParsedRequirement, Constraint, FindLinks, Index]
 else:
     from pex.third_party import attr
 
@@ -217,7 +219,7 @@ def local_req(
 
 
 def normalize_results(parsed_requirements):
-    # type: (Iterable[ParsedRequirementOrConstraint]) -> List[ParsedRequirementOrConstraint]
+    # type: (Iterable[ParsedItem]) -> List[ParsedItem]
     return [
         attr.evolve(
             parsed_requirement, line=DUMMY_LINE, marker=MarkerWithEq.wrap(parsed_requirement.marker)
@@ -328,6 +330,12 @@ def test_parse_requirements_stress(tmpdir):
             dedent(
                 """\
                 AnotherProject
+                
+                -f https://a.find-links/url
+                --find-links file:///a/find/links/file.url
+                -f /a/find-links/path --index-url https://a.simple/index
+                -i https://another.simple/index
+                --extra-index-url https://a.simple/extra-index
                 """
             )
         )
@@ -410,6 +418,12 @@ def test_parse_requirements_stress(tmpdir):
             url="file:///home/user/projects/MyProject#subdirectory=pkg_dir",
         ),
         Constraint(DUMMY_LINE, Requirement.parse("AnotherProject")),
+        FindLinks(DUMMY_LINE, "https://a.find-links/url"),
+        FindLinks(DUMMY_LINE, "file:///a/find/links/file.url"),
+        FindLinks(DUMMY_LINE, "/a/find-links/path"),
+        Index(DUMMY_LINE, "https://a.simple/index"),
+        Index(DUMMY_LINE, "https://another.simple/index"),
+        Index(DUMMY_LINE, "https://a.simple/extra-index"),
         local_req(
             path=tmpdir.join("extra", "a", "local", "project"),
             extras=["foo"],

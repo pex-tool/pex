@@ -574,6 +574,17 @@ def register_repos_options(parser):
             "in a scope, you can use a regex instead."
         ),
     )
+    parser.add_argument(
+        "--derive-sources-from-requirements-files",
+        dest="derive_scopes_from_requirements_files",
+        action=HandleBoolAction,
+        default=False,
+        help=(
+            "If any requirements files are specified that contain `-f` / `--find-links`, `-i` / "
+            "`--index-url`, or `--extra-index-url` options, automatically map these repos as the "
+            "`--source` for the requirements (if any) declared in that same requirements file."
+        ),
+    )
 
 
 def register_network_options(parser):
@@ -871,6 +882,7 @@ def create_repos_configuration(options):
         return ReposConfiguration.create(
             indexes=tuple(indexes),
             find_links=tuple(Repo(find_links_repo) for find_links_repo in options.find_links),
+            derive_scopes_from_requirements_files=options.derive_scopes_from_requirements_files,
         )
 
     parsed_indexes = _parse_package_repositories("index", scopes_by_name, options.indexes)
@@ -890,7 +902,9 @@ def create_repos_configuration(options):
 
     indexes.update(parsed_indexes.values())
     return ReposConfiguration.create(
-        indexes=tuple(indexes), find_links=tuple(parsed_find_links.values())
+        indexes=tuple(indexes),
+        find_links=tuple(parsed_find_links.values()),
+        derive_scopes_from_requirements_files=options.derive_scopes_from_requirements_files,
     )
 
 

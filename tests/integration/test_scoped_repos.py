@@ -18,12 +18,20 @@ from pex.enum import Enum
 from pex.http.server import Server
 from pex.pip.version import PipVersion
 from pex.typing import TYPE_CHECKING
-from testing import IS_MAC, PY310, PY311, WheelBuilder, ensure_python_interpreter, run_pex_command
+from testing import (
+    IS_MAC,
+    PY310,
+    PY311,
+    WheelBuilder,
+    ensure_python_interpreter,
+    make_env,
+    run_pex_command,
+)
 from testing.pytest_utils import IS_CI
 from testing.pytest_utils.tmp import Tempdir
 
 if TYPE_CHECKING:
-    from typing import Dict, Iterable, Iterator, List, Optional, Text
+    from typing import Callable, Dict, Iterable, Iterator, List, Optional, Text, Union
 
     import attr  # vendor:skip
     import colors  # vendor:skip
@@ -275,12 +283,14 @@ skip_index_for_mac_ci = pytest.mark.xfail(
 class Expectations(object):
     cowsay_source = attr.ib(default=Source.PYPI)  # type: Source.Value
     ansicolors_source = attr.ib(default=Source.PYPI)  # type: Source.Value
-    _extra_args = attr.ib(default=())  # type: Iterable[str]
+    _extra_args = attr.ib(default=())  # type: Iterable[Union[str, Callable[[Tempdir], str]]]
+    id_suffix = attr.ib(default="")  # type: str
 
     def extra_args(
         self,
         index=None,  # type: Optional[str]
         find_links=None,  # type: Optional[str]
+        tmpdir=None,  # type: Optional[Tempdir]
     ):
         # type: (...) -> List[str]
 
@@ -290,13 +300,69 @@ class Expectations(object):
         if find_links:
             format_args["find_links"] = find_links
 
-        return [arg.format(**format_args) for arg in self._extra_args]
+        extra_args = []  # type: List[str]
+        for arg in self._extra_args:
+            if isinstance(arg, str):
+                extra_args.append(arg.format(**format_args))
+            else:
+                assert tmpdir is not None, "tmpdir must be passed to extra_args(...)"
+                extra_args.append(arg(tmpdir))
+        return extra_args
 
     def __str__(self):
         # type: () -> str
-        return "cowsay:{cowsay_source}-ansicolors:{ansicolors_source}".format(
-            cowsay_source=self.cowsay_source, ansicolors_source=self.ansicolors_source
+        return "cowsay:{cowsay_source}-ansicolors:{ansicolors_source}{suffix}".format(
+            cowsay_source=self.cowsay_source,
+            ansicolors_source=self.ansicolors_source,
+            suffix="-{suffix}".format(suffix=self.id_suffix) if self.id_suffix else "",
         )
+
+
+def ansicolors_and_cowsay_index_requirements_txt(tmpdir):
+    # type: (Tempdir) -> str
+    with open(tmpdir.join("requirements.txt"), "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                --extra-index-url ${INDEX}
+                
+                ansicolors
+                cowsay
+                """
+            )
+        )
+    return fp.name
+
+
+def ansicolors_and_cowsay_find_links_requirements_txt(tmpdir):
+    # type: (Tempdir) -> str
+    with open(tmpdir.join("requirements.txt"), "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                --find-links ${FIND_LINKS}
+                
+                ansicolors
+                cowsay
+                """
+            )
+        )
+    return fp.name
+
+
+def ansicolors_find_links_requirements_txt(tmpdir):
+    # type: (Tempdir) -> str
+    with open(tmpdir.join("requirements.txt"), "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                -f ${FIND_LINKS}
+                
+                ansicolors
+                """
+            )
+        )
+    return fp.name
 
 
 @skip_index_for_mac_ci
@@ -317,12 +383,17 @@ class Expectations(object):
             Expectations(
                 cowsay_source=Source.INDEX,
                 ansicolors_source=Source.INDEX,
+                extra_args=["--index", "index={index}", "--source", "index=^(cowsay|ansicolors)$"],
+            ),
+            Expectations(
+                cowsay_source=Source.INDEX,
+                ansicolors_source=Source.INDEX,
                 extra_args=[
-                    "--index",
-                    "index={index}",
-                    "--source",
-                    "index=^(cowsay|ansicolors)$",
+                    "--derive-sources-from-requirements-files",
+                    "-r",
+                    ansicolors_and_cowsay_index_requirements_txt,
                 ],
+                id_suffix="requirements.txt",
             ),
             Expectations(
                 cowsay_source=Source.FIND_LINKS,
@@ -333,14 +404,28 @@ class Expectations(object):
                 extra_args=["--find-links", "fl={find_links}", "--source", "fl=ansicolors"],
             ),
             Expectations(
+                ansicolors_source=Source.FIND_LINKS,
+                extra_args=[
+                    "--derive-sources-from-requirements-files",
+                    "-r",
+                    ansicolors_find_links_requirements_txt,
+                ],
+                id_suffix="requirements.txt",
+            ),
+            Expectations(
+                cowsay_source=Source.FIND_LINKS,
+                ansicolors_source=Source.FIND_LINKS,
+                extra_args=["--find-links", "fl={find_links}", "--source", "fl=.*co[lw].*"],
+            ),
+            Expectations(
                 cowsay_source=Source.FIND_LINKS,
                 ansicolors_source=Source.FIND_LINKS,
                 extra_args=[
-                    "--find-links",
-                    "fl={find_links}",
-                    "--source",
-                    "fl=.*co[lw].*",
+                    "--derive-sources-from-requirements-files",
+                    "-r",
+                    ansicolors_and_cowsay_find_links_requirements_txt,
                 ],
+                id_suffix="requirements.txt",
             ),
             Expectations(
                 cowsay_source=Source.FIND_LINKS,
@@ -385,20 +470,23 @@ def test_scoped_project(
     pex = tmpdir.join("pex")
     pex_root = tmpdir.join("pex-root")
     run_pex_command(
-        args=[
-            "--pex-root",
-            pex_root,
-            "--runtime-pex-root",
-            pex_root,
-            app,
-            "-c",
-            "script",
-            "-o",
-            pex,
-            "--pip-log",
-            tmpdir.join("pip.log"),
-        ]
-        + expectations.extra_args(index=index, find_links=find_links)
+        args=(
+            [
+                "--pex-root",
+                pex_root,
+                "--runtime-pex-root",
+                pex_root,
+                app,
+                "-c",
+                "script",
+                "-o",
+                pex,
+                "--pip-log",
+                tmpdir.join("pip.log"),
+            ]
+            + expectations.extra_args(index=index, find_links=find_links, tmpdir=tmpdir)
+        ),
+        env=make_env(INDEX=index, FIND_LINKS=find_links),
     ).assert_success()
 
     assert_app_output(

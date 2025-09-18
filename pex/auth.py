@@ -64,7 +64,7 @@ class Machine(object):
 class PasswordEntry(object):
     @classmethod
     def maybe_extract_from_url(cls, url):
-        # type: (str) -> Optional[PasswordEntry]
+        # type: (Text) -> Optional[PasswordEntry]
         url_info = urlparse.urlparse(url)
         if not url_info.username or not url_info.password:
             return None
