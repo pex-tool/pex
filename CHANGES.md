@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.58.1
+
+This release fixes a bug building source distributions from locks of local project directories when
+the local project uses the `uv_build` backend.
+
+* Fix sdist build of local projects using `uv_build`. (#2914)
+
 ## 2.58.0
 
 This release adds `--derive-sources-from-requirements-files` to allow for scoping requirement
