@@ -11,7 +11,7 @@ from textwrap import dedent
 from pex import third_party
 from pex.build_system import DEFAULT_BUILD_BACKEND
 from pex.build_system.pep_518 import BuildSystem, load_build_system
-from pex.common import safe_mkdtemp
+from pex.common import safe_mkdir, safe_mkdtemp
 from pex.dist_metadata import DistMetadata, Distribution, MetadataType
 from pex.jobs import Job, SpawnedJob
 from pex.pip.version import PipVersion, PipVersionValue
@@ -227,6 +227,9 @@ def build_sdist(
                 "{stderr}".format(project_directory=project_directory, err=e, stderr=e.stderr)
             )
 
+    # N.B.: Although it's not clear the spec mandates this, ensure the dist dir exists before
+    # handing it to the back end. See: https://github.com/pex-tool/pex/issues/2913 for motivation.
+    safe_mkdir(dist_dir)
     spawned_job_or_error = _invoke_build_hook(
         project_directory,
         target,
