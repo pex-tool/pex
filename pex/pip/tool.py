@@ -750,7 +750,7 @@ class Pip(object):
                     build_configuration=BuildConfiguration.create(allow_builds=False),
                 ).wait()
                 for wheel in glob.glob(os.path.join(atomic_dir.work_dir, "*.whl")):
-                    install_wheel_interpreter(wheel_path=wheel, interpreter=pip_interpreter)
+                    install_wheel_interpreter(wheel=wheel, interpreter=pip_interpreter)
 
     def spawn_build_wheels(
         self,

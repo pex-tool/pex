@@ -987,9 +987,7 @@ def _perform_install(
 ):
     # type: (...) -> InstallResult
     install_result = install_request.result(installed_wheels_dir)
-    install_wheel_chroot(
-        wheel_path=install_request.wheel_path, destination=install_result.build_chroot
-    )
+    install_wheel_chroot(wheel=install_request.wheel_path, destination=install_result.build_chroot)
     return install_result
 
 

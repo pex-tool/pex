@@ -92,7 +92,7 @@ def test_wheel_files(fedora39_virtualenv_runner):
 
                 interpreter = PythonInterpreter.get()
                 for wheel_path in glob.glob("/wheels/*.whl"):
-                    install_wheel_interpreter(wheel_path=wheel_path, interpreter=interpreter)
+                    install_wheel_interpreter(wheel=wheel_path, interpreter=interpreter)
 
                 venv = Virtualenv("/virtualenv.venv")
                 json.dump(

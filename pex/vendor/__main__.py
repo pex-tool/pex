@@ -534,7 +534,7 @@ def vendorize(root_dir, vendor_specs, prefix, update):
                 count=len(wheel_files),
                 wheel_files="\n".join(os.path.basename(wheel_file) for wheel_file in wheel_files),
             )
-            install_wheel_chroot(wheel_path=wheel_files[0], destination=vendor_spec.target_dir)
+            install_wheel_chroot(wheel=wheel_files[0], destination=vendor_spec.target_dir)
 
 
 if __name__ == "__main__":

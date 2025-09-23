@@ -144,6 +144,7 @@ def configure_clp_pex_resolution(parser):
         include_pex_lock=True,
         include_pylock=True,
         include_pre_resolved=True,
+        include_venv_repository=True,
     )
 
     group.add_argument(

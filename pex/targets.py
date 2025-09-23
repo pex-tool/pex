@@ -407,7 +407,7 @@ class Targets(object):
 
     def require_at_most_one_target(self, purpose):
         # type: (str) -> Union[Optional[Target], Error]
-        resolved_targets = self.unique_targets(only_explicit=False)
+        resolved_targets = self.unique_targets(only_explicit=True)
         if len(resolved_targets) > 1:
             return Error(
                 "At most a single target is required for {purpose}.\n"

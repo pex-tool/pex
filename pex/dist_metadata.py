@@ -210,6 +210,15 @@ class MetadataKey(object):
     location = attr.ib()  # type: Text
 
 
+def _read_function(
+    location,  # type: Text
+    rel_path,  # type: Text
+):
+    # type: (...) -> bytes
+    with open(os.path.join(location, rel_path), "rb") as fp:
+        return fp.read()
+
+
 def _find_installed_metadata_files(
     location,  # type: Text
     metadata_type,  # type: MetadataType.Value
@@ -218,17 +227,13 @@ def _find_installed_metadata_files(
 ):
     # type: (...) -> Iterator[MetadataFiles]
     metadata_files = glob.glob(os.path.join(location, metadata_dir_glob, metadata_file_name))
+    read_function = functools.partial(_read_function, location)
     for path in metadata_files:
         with open(path, "rb") as fp:
             metadata = parse_message(fp.read())
             project_name_and_version = ProjectNameAndVersion.from_parsed_pkg_info(
                 source=path, pkg_info=metadata
             )
-
-            def read_function(rel_path):
-                # type: (Text) -> bytes
-                with open(os.path.join(location, rel_path), "rb") as fp:
-                    return fp.read()
 
             yield MetadataFiles(
                 metadata=DistMetadataFile(

@@ -324,7 +324,7 @@ def make_bdist(
 def install_wheel(wheel):
     # type: (str) -> Distribution
     install_dir = os.path.join(safe_mkdtemp(), os.path.basename(wheel))
-    install_wheel_chroot(wheel_path=wheel, destination=install_dir)
+    install_wheel_chroot(wheel=wheel, destination=install_dir)
     return Distribution.load(install_dir)
 
 

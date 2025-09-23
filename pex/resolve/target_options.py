@@ -6,7 +6,7 @@ from __future__ import absolute_import
 import json
 import os.path
 import sys
-from argparse import ArgumentTypeError, Namespace, _ActionsContainer
+from argparse import Action, ArgumentTypeError, Namespace, _ActionsContainer
 
 from pex.argparse import HandleBoolAction
 from pex.interpreter_constraints import InterpreterConstraints
@@ -16,13 +16,29 @@ from pex.pep_508 import MarkerEnvironment
 from pex.platforms import Platform, PlatformSpec
 from pex.resolve import abbreviated_platforms
 from pex.resolve.resolver_configuration import PipConfiguration
-from pex.resolve.resolver_options import _ManylinuxAction
 from pex.resolve.target_configuration import InterpreterConfiguration, TargetConfiguration
 from pex.targets import CompletePlatform
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from typing import Optional
+
+
+class _ManylinuxAction(Action):
+    def __init__(self, *args, **kwargs):
+        kwargs["nargs"] = "?"
+        super(_ManylinuxAction, self).__init__(*args, **kwargs)
+
+    def __call__(self, parser, namespace, value, option_str=None):
+        if option_str.startswith("--no"):
+            setattr(namespace, self.dest, None)
+        elif value.startswith("manylinux"):
+            setattr(namespace, self.dest, value)
+        else:
+            raise ArgumentTypeError(
+                "Please specify a manylinux standard; ie: --manylinux=manylinux1. "
+                "Given {}".format(value)
+            )
 
 
 def register(

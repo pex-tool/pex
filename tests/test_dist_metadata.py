@@ -46,7 +46,7 @@ if TYPE_CHECKING:
 def installed_wheel(wheel_path):
     # type: (str) -> Iterator[Distribution]
     with temporary_dir() as install_dir:
-        install_wheel_chroot(wheel_path=wheel_path, destination=install_dir)
+        install_wheel_chroot(wheel=wheel_path, destination=install_dir)
         yield Distribution.load(install_dir)
 
 

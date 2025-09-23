@@ -221,7 +221,7 @@ def _install_wheel(wheel_path):
     with atomic_directory(installed_wheel_dir) as atomic_dir:
         if not atomic_dir.is_finalized():
             installed_wheel = pep_427.install_wheel_chroot(
-                wheel_path=wheel_path, destination=atomic_dir.work_dir
+                wheel=wheel_path, destination=atomic_dir.work_dir
             )
             runtime_key_dir = InstalledWheelDir.create(
                 wheel_name=wheel_name,
