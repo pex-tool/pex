@@ -152,14 +152,23 @@ class DistMetadataFile(object):
     version = attr.ib()  # type: Version
     pkg_info = attr.ib(eq=False)  # type: Message
 
-    def render_description(self):
-        # type: () -> str
+    def render_metadata_file_description(self, metadata_file_rel_path):
+        # type: (Text) -> str
         return "{project_name} {version} metadata from {rel_path} at {location}".format(
             project_name=self.project_name,
             version=self.version,
-            rel_path=self.rel_path,
+            rel_path=metadata_file_rel_path,
             location=self.location,
         )
+
+    def render_description(self):
+        # type: () -> str
+        return self.render_metadata_file_description(self.rel_path)
+
+    @property
+    def path(self):
+        # type: () -> Text
+        return os.path.join(self.location, self.rel_path)
 
 
 @attr.s(frozen=True)
@@ -181,6 +190,14 @@ class MetadataFiles(object):
         if rel_path is None or self._read_function is None:
             return None
         return self._read_function(rel_path)
+
+    def render_description(self, metadata_file_name):
+        # type: (Text) -> str
+        rel_path = self.metadata_file_rel_path(metadata_file_name)
+        return self.metadata.render_metadata_file_description(
+            rel_path
+            or "{metadata_file_name} not found".format(metadata_file_name=metadata_file_name)
+        )
 
 
 class MetadataType(Enum["MetadataType.Value"]):

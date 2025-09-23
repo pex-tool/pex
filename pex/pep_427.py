@@ -73,6 +73,7 @@ InstallableType.seal()
 class InstallPaths(object):
 
     CHROOT_STASH = ".prefix"
+    PATHS = "purelib", "platlib", "headers", "scripts", "data"
 
     @classmethod
     def chroot(
@@ -122,6 +123,12 @@ class InstallPaths(object):
             return self.data
         raise KeyError("Not a known install path: {item}".format(item=item))
 
+    def __str__(self):
+        # type: () -> str
+        return "\n".join(
+            "{path}={value}".format(path=item, value=self[item]) for item in InstallPaths.PATHS
+        )
+
 
 @attr.s(frozen=True)
 class InstallableWheel(object):
@@ -150,12 +157,20 @@ class InstallableWheel(object):
         is_whl = zipfile.is_zipfile(self.wheel.location)
 
         if is_whl and self.install_paths:
-            # TODO: XXX
-            raise ValueError("TODO: XXX")
+            raise ValueError(
+                "A wheel file should have no installed paths but given the following paths for "
+                "{wheel}:\n"
+                "{install_paths}".format(
+                    wheel=self.wheel.location, install_paths=self.install_paths
+                )
+            )
 
         if not is_whl and not self.install_paths:
-            # TODO: XXX
-            raise ValueError("TODO: XXX")
+            raise ValueError(
+                "The wheel for {source} is installed but not given its install paths".format(
+                    source=self.source
+                )
+            )
 
         object.__setattr__(self, "is_whl", is_whl)
 
@@ -356,8 +371,11 @@ def install_wheel(
     elif wheel.install_paths:
         record_data = wheel.metadata_files.read("RECORD")
         if not record_data:
-            # TODO: XXX
-            raise WheelInstallError("TODO: XXX")
+            raise WheelInstallError(
+                "Cannot re-install installed wheel for {source} because it has no installation "
+                "RECORD metadata.".format(source=wheel.source)
+            )
+
         for installed_file in Record.read(iter(record_data.decode("utf-8").splitlines())):
             if installed_file.path == record_relpath:
                 # We'll generate a new RECORD below as needed.
@@ -370,29 +388,18 @@ def install_wheel(
                 installed_files.append(installed_file)
                 continue
 
-            if wheel.install_paths.scripts == commonpath((wheel.install_paths.scripts, src_file)):
-                dst_file = os.path.join(
-                    install_paths.scripts, os.path.relpath(src_file, wheel.install_paths.scripts)
-                )
-            elif wheel.install_paths.platlib == commonpath((wheel.install_paths.platlib, src_file)):
-                dst_file = os.path.join(
-                    install_paths.platlib, os.path.relpath(src_file, wheel.install_paths.platlib)
-                )
-            elif wheel.install_paths.purelib == commonpath((wheel.install_paths.purelib, src_file)):
-                dst_file = os.path.join(
-                    install_paths.purelib, os.path.relpath(src_file, wheel.install_paths.purelib)
-                )
-            elif wheel.install_paths.headers == commonpath((wheel.install_paths.headers, src_file)):
-                dst_file = os.path.join(
-                    install_paths.headers, os.path.relpath(src_file, wheel.install_paths.headers)
-                )
-            elif wheel.install_paths.data == commonpath((wheel.install_paths.data, src_file)):
-                dst_file = os.path.join(
-                    install_paths.data, os.path.relpath(src_file, wheel.install_paths.data)
-                )
+            for path in InstallPaths.PATHS:
+                installed_path = wheel.install_paths[path]
+                if installed_path == commonpath((installed_path, src_file)):
+                    dst_file = os.path.join(
+                        install_paths[path], os.path.relpath(src_file, installed_path)
+                    )
+                    break
             else:
-                # TODO: XXX
-                raise WheelInstallError("TODO: XXX")
+                raise WheelInstallError(
+                    "Encountered a file from {source} with no identifiable target install path: "
+                    "{file}".format(source=wheel.source, file=installed_file.path)
+                )
 
             safe_mkdir(os.path.dirname(dst_file))
             shutil.copy(src_file, dst_file)

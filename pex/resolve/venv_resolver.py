@@ -15,6 +15,7 @@ from pex.cache.dirs import CacheDir, InstalledWheelDir
 from pex.common import safe_relative_symlink
 from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import (
+    Constraint,
     Distribution,
     DistributionType,
     MetadataType,
@@ -41,7 +42,7 @@ from pex.venv.virtualenv import Virtualenv
 from pex.wheel import Wheel
 
 if TYPE_CHECKING:
-    from typing import DefaultDict, Deque, Iterable, Iterator, List, Set, Tuple, Union
+    from typing import DefaultDict, Deque, FrozenSet, Iterable, Iterator, List, Mapping, Set, Union
 
     import attr  # vendor:skip
 else:
@@ -99,8 +100,6 @@ def _install_distribution(
 def _install_venv_distributions(
     venv,  # type: Virtualenv
     distributions,  # type: Iterable[Distribution]
-    compile=False,  # type: bool
-    ignore_errors=False,  # type: bool
     max_install_jobs=DEFAULT_MAX_JOBS,  # type: int
 ):
     # type: (...) -> Iterator[FingerprintedDistribution]
@@ -119,64 +118,174 @@ def _install_venv_distributions(
         )
 
 
+@attr.s(frozen=True)
+class ResolveRequirement(object):
+    requirement = attr.ib()  # type: Requirement
+    activated_extras = attr.ib(default=frozenset())  # type: FrozenSet[str]
+    required_by = attr.ib(default=None)  # type: ResolveRequirement
+
+    @property
+    def project_name(self):
+        # type: () -> ProjectName
+        return self.requirement.project_name
+
+    def applies(
+        self,
+        target,  # type: Target
+        dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
+    ):
+        # type: (...) -> bool
+
+        if dependency_configuration.excluded_by(self.requirement):
+            return False
+
+        return target.requirement_applies(
+            requirement=self.requirement, extras=self.activated_extras
+        )
+
+    def contains(
+        self,
+        distribution,  # type: Distribution
+        prereleases=False,  # type: bool
+    ):
+        # type: (...) -> bool
+        return self.requirement.contains(distribution, prereleases=prereleases)
+
+    def dependency(
+        self,
+        requirement,  # type: Requirement
+        target,  # type: Target
+        dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
+    ):
+        # type: (...) -> ResolveRequirement
+        return ResolveRequirement(
+            requirement=dependency_configuration.overridden_by(requirement, target) or requirement,
+            activated_extras=self.requirement.extras,
+            required_by=self,
+        )
+
+    def __str__(self):
+        # type: () -> str
+
+        if not self.required_by:
+            return "top level requirement {requirement}".format(requirement=self.requirement)
+
+        return "{required_by} -> {requirement}".format(
+            required_by=self.required_by, requirement=self.requirement
+        )
+
+
 def _resolve_distributions(
+    venv,  # type: Virtualenv
     resolver,  # type: Resolver
     target,  # type: Target
     search_path,  # type: Iterable[str]
     requirements,  # type: Iterable[Requirement]
+    constraints_by_project_name,  # type: Mapping[ProjectName, Iterable[Constraint]]
+    dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
     allow_prereleases=False,  # type: bool
     compile=False,  # type: bool
     ignore_errors=False,  # type: bool
 ):
     # type: (...) -> Iterator[Union[Distribution, FingerprintedDistribution, Error]]
 
+    def meets_requirement(
+        selected_distribution,  # type: Distribution
+        requirement,  # type: ResolveRequirement
+    ):
+        # type: (...) -> bool
+
+        if not requirement.contains(selected_distribution, prereleases=allow_prereleases):
+            return False
+
+        constraints = [
+            constraint
+            for constraint in constraints_by_project_name[
+                selected_distribution.metadata.project_name
+            ]
+            if target.requirement_applies(constraint, extras=requirement.activated_extras)
+        ]
+        if not constraints:
+            return True
+
+        return all(
+            constraint.contains(selected_distribution, prereleases=allow_prereleases)
+            for constraint in constraints
+        )
+
+    def error(message):
+        # type: (str) -> Error
+        return Error(
+            "Resolve from venv at {venv} failed: {message}".format(
+                venv=venv.venv_dir, message=message
+            )
+        )
+
     to_resolve = deque(
-        OrderedSet((requirement, ()) for requirement in requirements)
-    )  # type: Deque[Tuple[Requirement, Iterable[str]]]
+        OrderedSet(ResolveRequirement(requirement) for requirement in requirements)
+    )  # type: Deque[ResolveRequirement]
     resolved = set()  # type: Set[ProjectName]
     while to_resolve:
-        requirement, extras = to_resolve.popleft()
+        requirement = to_resolve.popleft()
         if requirement.project_name in resolved:
             continue
 
-        if not target.requirement_applies(requirement, extras=extras):
+        if not requirement.applies(target, dependency_configuration):
             continue
 
         distribution = find_distribution(requirement.project_name, search_path)
         if not distribution:
-            # TODO: XXX
-            yield Error("TODO: XXX")
-        elif requirement.contains(distribution, prereleases=allow_prereleases):
+            yield error(
+                "The virtual environment does not have {project_name} installed but it is required "
+                "by {requirement}".format(
+                    project_name=requirement.project_name, requirement=requirement
+                )
+            )
+        elif meets_requirement(distribution, requirement):
             production_assert(distribution.type is DistributionType.INSTALLED)
-            if distribution.metadata.files.metadata.type is not MetadataType.DIST_INFO:
+            resolved.add(requirement.project_name)
+            if distribution.metadata.files.metadata.type is MetadataType.DIST_INFO:
+                to_resolve.extend(
+                    requirement.dependency(
+                        requirement=dependency,
+                        target=target,
+                        dependency_configuration=dependency_configuration,
+                    )
+                    for dependency in distribution.metadata.requires_dists
+                )
+                yield distribution
+            else:
                 result = resolver.resolve_requirements(
                     requirements=[str(distribution.as_requirement())],
                     targets=Targets.from_target(target),
                     transitive=False,
+                    compile=compile,
+                    ignore_errors=ignore_errors,
                 )
-                resolved.add(requirement.project_name)
                 for dist in result.distributions:
-                    if not target.wheel_applies(dist.distribution):
-                        # TODO: XXX
-                        yield Error("TODO: XXX")
                     to_resolve.extend(
-                        (dep, requirement.extras)
-                        for dep in dist.distribution.metadata.requires_dists
+                        requirement.dependency(
+                            requirement=dependency,
+                            target=target,
+                            dependency_configuration=dependency_configuration,
+                        )
+                        for dependency in dist.distribution.metadata.requires_dists
                     )
                     yield dist.fingerprinted_distribution
-                continue
-            if not target.wheel_applies(distribution):
-                # TODO: XXX
-                yield Error("TODO: XXX")
-
-            resolved.add(requirement.project_name)
-            to_resolve.extend(
-                (dep, requirement.extras) for dep in distribution.metadata.requires_dists
-            )
-            yield distribution
         else:
-            # TODO: XXX
-            yield Error("TODO: XXX")
+            yield error(
+                "The virtual environment has {project_name} {version} installed but it does not "
+                "meet {requirement}{suffix}.".format(
+                    project_name=distribution.project_name,
+                    version=distribution.version,
+                    requirement=requirement,
+                    suffix=(
+                        " due to supplied constraints"
+                        if requirement.contains(distribution, prereleases=allow_prereleases)
+                        else ""
+                    ),
+                )
+            )
 
 
 def resolve_from_venv(
@@ -191,32 +300,47 @@ def resolve_from_venv(
 ):
     # type: (...) -> Union[ResolveResult, Error]
 
-    # TODO: XXX: How to handle targets?
-    target = LocalInterpreter.create(venv.interpreter)
-
-    # TODO: XXX: Mabe mix DEFAULT in here and che
-    compatible_pip_version = (
-        pip_configuration.version
-        if pip_configuration.version and pip_configuration.version.requires_python_applies(target)
-        else PipVersion.latest_compatible(target)
-    )
-    if pip_configuration.version and pip_configuration.version != compatible_pip_version:
-        # TODO: XXX: Or just warn we changed the version to match the venv?
-        pex_warnings.warn(
-            "Adjusted Pip version from {version} to {compatible_version} to work with the venv "
-            "interpreter.".format(
-                version=pip_configuration.version, compatible_version=compatible_pip_version
-            )
-        )
-
     if result_type is InstallableType.WHEEL_FILE:
-        # TODO: XXX: Reference an issue to chime in on?
         return Error(
-            "Cannot resolve .whl files from virtual environment at {venv_dir}; Pex does not "
-            "currently know how to turn an installed wheel back into a zipped wheel.".format(
-                venv_dir=venv.venv_dir
-            )
+            "Cannot resolve .whl files from virtual environment at {venv_dir}; its distributions "
+            "are all installed.".format(venv_dir=venv.venv_dir)
         )
+
+    target = LocalInterpreter.create(venv.interpreter)
+    if not targets.is_empty:
+        return Error(
+            "You configured custom targets via --python, --interpreter-constraint, --platform or "
+            "--complete-platform but custom targets are not allowed when resolving from a virtual "
+            "environment.\n"
+            "For such resolves, the supported target is implicitly the one matching the venv "
+            "interpreter; in this case: {target}.".format(target=target.render_description())
+        )
+
+    if pip_configuration.version:
+        compatible_pip_version = (
+            pip_configuration.version
+            if pip_configuration.version.requires_python_applies(target)
+            else PipVersion.latest_compatible(target)
+        )
+        if pip_configuration.version != compatible_pip_version:
+            if pip_configuration.allow_version_fallback:
+                pex_warnings.warn(
+                    "Adjusted Pip version from {version} to {compatible_version} to work with the "
+                    "venv interpreter.".format(
+                        version=pip_configuration.version, compatible_version=compatible_pip_version
+                    )
+                )
+            else:
+                return Error(
+                    "Pip version {version} is not compatible with the Python {python_version} "
+                    "venv interpreter.".format(
+                        version=pip_configuration.version, python_version=venv.interpreter.python
+                    )
+                )
+    elif PipVersion.DEFAULT.requires_python_applies(target):
+        compatible_pip_version = PipVersion.DEFAULT
+    else:
+        compatible_pip_version = PipVersion.latest_compatible(target)
 
     resolver = ConfiguredResolver(
         pip_configuration=attr.evolve(pip_configuration, version=compatible_pip_version)
@@ -242,20 +366,29 @@ def resolve_from_venv(
                 ].add(parsed_requirement.requirement)
 
         if local_project_requirements:
-            # TODO: XXX
-            return Error("TODO: XXX")
+            return Error(
+                "Local project directory requirements cannot be resolved from venvs.\n"
+                "Use the project name instead if it is installed in the venv."
+            )
 
-        if requirement_configuration.constraint_files:
-            # TODO: XXX
-            pex_warnings.warn("TODO: XXX")
+        constraints_by_project_name = defaultdict(
+            OrderedSet
+        )  # type: DefaultDict[ProjectName, OrderedSet[Constraint]]
+        for constraint in requirement_configuration.parse_constraints(
+            network_configuration=pip_configuration.network_configuration
+        ):
+            constraints_by_project_name[constraint.project_name].add(constraint.requirement)
 
         for distribution_or_error in _resolve_distributions(
+            venv=venv,
             resolver=resolver,
             target=target,
             search_path=tuple(
                 site_packages_dir.path for site_packages_dir in venv.interpreter.site_packages
             ),
             requirements=root_requirements,
+            constraints_by_project_name=constraints_by_project_name,
+            dependency_configuration=dependency_configuration,
             allow_prereleases=pip_configuration.allow_prereleases,
             compile=compile,
             ignore_errors=ignore_errors,
@@ -277,7 +410,12 @@ def resolve_from_venv(
                 venv_distribution.as_requirement()
             )
         result = resolver.resolve_requirements(
-            sdists_to_resolve, targets=Targets.from_target(target), transitive=False
+            sdists_to_resolve,
+            constraint_files=requirement_configuration.constraint_files,
+            targets=Targets.from_target(target),
+            transitive=False,
+            compile=compile,
+            ignore_errors=ignore_errors,
         )
         fingerprinted_distributions.extend(
             dist.fingerprinted_distribution for dist in result.distributions
@@ -298,8 +436,6 @@ def resolve_from_venv(
                     _install_venv_distributions(
                         venv=venv,
                         distributions=venv_distributions,
-                        compile=compile,
-                        ignore_errors=ignore_errors,
                         max_install_jobs=pip_configuration.max_jobs,
                     )
                 ),

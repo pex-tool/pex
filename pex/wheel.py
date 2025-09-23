@@ -28,7 +28,7 @@ else:
     from pex.third_party import attr
 
 
-class WheelMetadataLoadError(Exception):
+class WheelMetadataLoadError(ValueError):
     """Indicates an error loading WHEEL metadata."""
 
 
@@ -38,6 +38,20 @@ class WHEEL(object):
 
     See item 6 here for the WHEEL file contents: https://peps.python.org/pep-0427/#file-contents
     """
+
+    @classmethod
+    def _from_metadata_files(cls, metadata_files):
+        # type: (MetadataFiles) -> WHEEL
+
+        metadata_bytes = metadata_files.read("WHEEL")
+        if not metadata_bytes:
+            raise WheelMetadataLoadError(
+                "Could not find WHEEL metadata in {wheel}.".format(
+                    wheel=metadata_files.render_description(metadata_file_name="WHEEL")
+                )
+            )
+        metadata = parse_message(metadata_bytes)
+        return cls(files=metadata_files, metadata=metadata)
 
     _CACHE = {}  # type: Dict[Text, WHEEL]
 
@@ -51,14 +65,17 @@ class WHEEL(object):
                 raise WheelMetadataLoadError(
                     "Could not find any metadata in {wheel}.".format(wheel=location)
                 )
+            wheel = cls._from_metadata_files(metadata_files)
+            cls._CACHE[location] = wheel
+        return wheel
 
-            metadata_bytes = metadata_files.read("WHEEL")
-            if not metadata_bytes:
-                raise WheelMetadataLoadError(
-                    "Could not find WHEEL metadata in {wheel}.".format(wheel=location)
-                )
-            metadata = parse_message(metadata_bytes)
-            wheel = cls(files=metadata_files, metadata=metadata)
+    @classmethod
+    def from_distribution(cls, distribution):
+        # type: (Distribution) -> WHEEL
+        location = distribution.metadata.files.metadata.path
+        wheel = cls._CACHE.get(location)
+        if not wheel:
+            wheel = cls._from_metadata_files(distribution.metadata.files)
             cls._CACHE[location] = wheel
         return wheel
 

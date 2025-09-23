@@ -1,6 +1,8 @@
 # Copyright 2014 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+from __future__ import absolute_import, print_function
+
 import os
 import platform
 import sys
@@ -10,19 +12,21 @@ from textwrap import dedent
 import pytest
 
 from pex import resolver
-from pex.common import temporary_dir
+from pex.common import safe_mkdtemp, safe_open, temporary_dir
 from pex.compatibility import to_bytes
-from pex.dist_metadata import Distribution
+from pex.dist_metadata import Distribution, ProjectNameAndVersion
 from pex.environment import PEXEnvironment, _InvalidWheelName, _RankedDistribution
 from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.inherit_path import InheritPath
 from pex.interpreter import PythonInterpreter
+from pex.pep_425 import CompatibilityTags
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.targets import LocalInterpreter, Targets
 from pex.typing import TYPE_CHECKING
+from pex.version import __version__
 from testing import (
     IS_LINUX_X86_64,
     IS_PYPY3,
@@ -418,6 +422,35 @@ def create_dist(
     version="1.0.0",  # type: str
 ):
     # type: (...) -> FingerprintedDistribution
+
+    try:
+        tags = CompatibilityTags.from_wheel(location)
+    except ValueError:
+        # Some tests purposefully use bad wheel names; so we just construct in-memory metadata.
+        pass
+    else:
+        location = os.path.join(safe_mkdtemp(), location)
+        pnav = ProjectNameAndVersion.from_filename(location)
+        with safe_open(
+            os.path.join(
+                location,
+                "{project_name}-{version}.dist-info".format(
+                    project_name=pnav.project_name, version=pnav.version
+                ),
+                "WHEEL",
+            ),
+            "w",
+        ) as fp:
+            print("Wheel-Version: 1.0", file=fp)
+            print("Generator: pex testing", __version__, file=fp)
+            print(
+                "Root-Is-Purelib:",
+                "false" if any(tag.abi != "none" for tag in tags) else "true",
+                file=fp,
+            )
+            for tag in tags:
+                print("Tag:", tag, file=fp)
+
     return FingerprintedDistribution(
         distribution=Distribution(
             location=location,

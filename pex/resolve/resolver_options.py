@@ -38,7 +38,7 @@ from pex.resolve.resolver_configuration import (
 from pex.result import Error
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
-from pex.venv.virtualenv import Virtualenv
+from pex.venv.virtualenv import InvalidVirtualenvError, Virtualenv
 
 if TYPE_CHECKING:
     from typing import DefaultDict, Iterable, List, Mapping, Optional, Tuple, Union
@@ -69,7 +69,15 @@ class _ResolveVenvAction(Action):
                         )
                     ),
                 )
-            venv = Virtualenv.enclosing(value) if is_exe(value) else Virtualenv(value)
+
+            venv = None  # type: Optional[Virtualenv]
+            if is_exe(value):
+                venv = Virtualenv.enclosing(value)
+            else:
+                try:
+                    venv = Virtualenv(value)
+                except InvalidVirtualenvError:
+                    pass
             if not venv:
                 raise ArgumentError(
                     argument=self,
@@ -82,15 +90,21 @@ class _ResolveVenvAction(Action):
         else:
             current_venv = Virtualenv.enclosing(python=sys.executable)
             if not current_venv:
-                raise ArgumentError(
-                    argument=self,
-                    message=(
-                        "The {option} option was requested but Pex is not currently running from a "
-                        "venv to use as the implicit {option}. You'll need to specify the path to "
-                        "a virtual environment directory or virtual environment interpreter as an "
-                        "argument.".format(option=option_str)
-                    ),
-                )
+                try:
+                    current_venv = Virtualenv(venv_dir=".")
+                except InvalidVirtualenvError:
+                    raise ArgumentError(
+                        argument=self,
+                        message=(
+                            "The {option} option was requested but Pex is not currently running "
+                            "from a venv to use as the implicit {option} nor is the current "
+                            "directory a venv.\n"
+                            "You'll need to specify the path to a virtual environment directory or "
+                            "virtual environment interpreter as an argument.".format(
+                                option=option_str
+                            )
+                        ),
+                    )
             setattr(namespace, self.dest, current_venv)
 
 
@@ -308,8 +322,13 @@ def register(
             "--venv-repository",
             dest="venv_repository",
             action=_ResolveVenvAction,
-            # TODO: XXX
-            help="TODO: XXX",
+            type=str,
+            help=(
+                "Resolve requirements from the given virtual environment instead of from "
+                "--index servers, --find-links repos or a --lock file. The virtual environment to "
+                "resolve from can be specified as the path to the venv or the path of its"
+                "interpreter. If no value is specified, the current active venv is used."
+            ),
         )
 
     parser.add_argument(

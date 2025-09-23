@@ -583,7 +583,7 @@ class BuildResult(object):
                     return frozenset(platforms), is_linux
 
                 wheel_platform_tags, is_linux_wheel = collect_platforms(
-                    CompatibilityTags.from_wheel(wheel.location)
+                    CompatibilityTags.from_wheel(wheel)
                 )
                 abbreviated_target_platform_tags, is_linux_abbreviated_target = collect_platforms(
                     self.request.target.supported_tags

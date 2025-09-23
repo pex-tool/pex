@@ -5,7 +5,7 @@ from __future__ import absolute_import
 
 import os
 
-from pex.dist_metadata import Distribution, Requirement
+from pex.dist_metadata import Constraint, Distribution
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_implementation import InterpreterImplementation
 from pex.orderedset import OrderedSet
@@ -157,7 +157,7 @@ class Target(object):
 
     def requirement_applies(
         self,
-        requirement,  # type: Requirement
+        requirement,  # type: Constraint
         extras=(),  # type: Iterable[str]
     ):
         # type: (...) -> bool
@@ -183,7 +183,7 @@ class Target(object):
 
     def wheel_applies(self, wheel):
         # type: (Distribution) -> WheelEvaluation
-        wheel_tags = CompatibilityTags.from_wheel(wheel.location)
+        wheel_tags = CompatibilityTags.from_wheel(wheel)
         ranked_tag = self.supported_tags.best_match(wheel_tags)
         return WheelEvaluation(
             tags=tuple(wheel_tags),
@@ -345,6 +345,11 @@ class Targets(object):
     interpreters = attr.ib(default=())  # type: Tuple[PythonInterpreter, ...]
     complete_platforms = attr.ib(default=())  # type: Tuple[CompletePlatform, ...]
     platforms = attr.ib(default=())  # type: Tuple[Optional[Platform], ...]
+
+    @property
+    def is_empty(self):
+        # type: () -> bool
+        return not self.interpreters and not self.complete_platforms and not self.platforms
 
     @property
     def interpreter(self):

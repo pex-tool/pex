@@ -58,20 +58,24 @@ class ConfiguredResolver(Resolver):
         transitive=None,  # type: Optional[bool]
         extra_resolver_requirements=None,  # type: Optional[Tuple[Requirement, ...]]
         result_type=InstallableType.INSTALLED_WHEEL_CHROOT,  # type: InstallableType.Value
+        constraint_files=None,  # type: Optional[Iterable[str]]
+        compile=False,  # type: bool
+        ignore_errors=False,  # type: bool
     ):
         # type: (...) -> ResolveResult
         return resolver.resolve(
             targets=targets,
             requirements=requirements,
-            allow_prereleases=False,
+            constraint_files=constraint_files,
+            allow_prereleases=self.pip_configuration.allow_prereleases,
             transitive=transitive if transitive is not None else self.pip_configuration.transitive,
             repos_configuration=self.pip_configuration.repos_configuration,
             resolver_version=self.pip_configuration.resolver_version,
             network_configuration=self.pip_configuration.network_configuration,
             build_configuration=self.pip_configuration.build_configuration,
-            compile=False,
+            compile=compile,
             max_parallel_jobs=self.pip_configuration.max_jobs,
-            ignore_errors=False,
+            ignore_errors=ignore_errors,
             verify_wheels=True,
             pip_version=pip_version or self.pip_configuration.version,
             resolver=self,
