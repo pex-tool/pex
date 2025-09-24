@@ -1,5 +1,14 @@
 # Release Notes
 
+## 2.59.0
+
+This release adds support for a `--venv-repository` resolution source. This allows creating a PEX
+from a pre-existing venv. By default, all installed venv distributions are included in the PEX, but
+by specifying requirements, the venv can be subset. The `--venv-repository` source is also supported
+by `pex3 venv create` allowing subsetting an existing venv directly into a new venv as well.
+
+* Add support for `--venv-repository` resolver. (#2916)
+
 ## 2.58.1
 
 This release fixes a bug building source distributions from locks of local project directories when
