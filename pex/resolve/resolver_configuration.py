@@ -12,6 +12,7 @@ from pex.pep_503 import ProjectName
 from pex.pip.version import PipVersion, PipVersionValue
 from pex.resolve.package_repository import ReposConfiguration
 from pex.typing import TYPE_CHECKING
+from pex.venv.virtualenv import Virtualenv
 
 if TYPE_CHECKING:
     from typing import Callable, FrozenSet, Iterable, Optional, Tuple, Union
@@ -235,6 +236,22 @@ class PylockRepositoryConfiguration(object):
 class PreResolvedConfiguration(object):
     sdists = attr.ib()  # type: Tuple[str, ...]
     wheels = attr.ib()  # type: Tuple[str, ...]
+    pip_configuration = attr.ib()  # type: PipConfiguration
+
+    @property
+    def repos_configuration(self):
+        # type: () -> ReposConfiguration
+        return self.pip_configuration.repos_configuration
+
+    @property
+    def network_configuration(self):
+        # type: () -> NetworkConfiguration
+        return self.pip_configuration.network_configuration
+
+
+@attr.s(frozen=True)
+class VenvRepositoryConfiguration(object):
+    venv = attr.ib()  # type: Virtualenv
     pip_configuration = attr.ib()  # type: PipConfiguration
 
     @property

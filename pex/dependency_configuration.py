@@ -141,8 +141,12 @@ class DependencyConfiguration(object):
         # type: (Requirement) -> Tuple[Requirement, ...]
         return self.overridden.get(requirement.project_name, ())
 
-    def overridden_by(self, requirement, target):
-        # type: (Requirement, Target) -> Optional[Requirement]
+    def overridden_by(
+        self,
+        requirement,  # type: Requirement
+        target,  # type: Target
+    ):
+        # type: (...) -> Optional[Requirement]
         overrides = self.overrides_for(requirement)
         applicable_overrides = [
             override for override in overrides if target.requirement_applies(override)

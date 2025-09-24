@@ -49,7 +49,7 @@ def test_get_script_from_distributions(tmpdir):
     assert "aws_cfn_bootstrap-1.4.data/scripts/cfn-signal" == dist_script.path
 
     install_dir = os.path.join(str(tmpdir), os.path.basename(whl_path))
-    install_wheel_chroot(wheel_path=whl_path, destination=install_dir)
+    install_wheel_chroot(wheel=whl_path, destination=install_dir)
     installed_wheel_dist, dist_script = assert_script(Distribution.load(install_dir))
     assert InstalledWheel.load(install_dir).stashed_path("bin/cfn-signal") == dist_script.path
 

@@ -255,6 +255,9 @@ class Resolver(object):
         transitive=None,  # type: Optional[bool]
         extra_resolver_requirements=None,  # type: Optional[Tuple[Requirement, ...]]
         result_type=InstallableType.INSTALLED_WHEEL_CHROOT,  # type: InstallableType.Value
+        constraint_files=None,  # type: Optional[Iterable[str]]
+        compile=False,  # type: bool
+        ignore_errors=False,  # type: bool
     ):
         # type: (...) -> ResolveResult
         raise NotImplementedError()

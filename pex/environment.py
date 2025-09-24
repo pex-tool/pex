@@ -66,6 +66,22 @@ def _import_pkg_resources():
             return None, False
 
 
+def _fd_lt(
+    self,  # type: FingerprintedDistribution
+    other,  # type: FingerprintedDistribution
+):
+    # type: (...) -> bool
+    if self.project_name.normalized < other.project_name.normalized:
+        return True
+
+    # Since we want to rank higher versions higher (earlier) we need to reverse the natural
+    # ordering of Version in Distribution which is least to greatest.
+    if self.distribution.metadata.version >= other.distribution.metadata.version:
+        return True
+
+    return self.fingerprint < other.fingerprint
+
+
 @attr.s(frozen=True)
 class _RankedDistribution(object):
     # N.B.: A distribution implements rich comparison with the leading component being the
@@ -77,9 +93,7 @@ class _RankedDistribution(object):
     # The attr project type stub file simply misses this.
     _fd_cmp = attr.cmp_using(  # type: ignore[attr-defined]
         eq=FingerprintedDistribution.__eq__,
-        # Since we want to rank higher versions higher (earlier) we need to reverse the natural
-        # ordering of Version in Distribution which is least to greatest.
-        lt=FingerprintedDistribution.__ge__,
+        lt=_fd_lt,
     )
 
     @classmethod

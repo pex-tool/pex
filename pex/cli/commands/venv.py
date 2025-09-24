@@ -8,7 +8,7 @@ import logging
 import os.path
 from argparse import ArgumentParser, _ActionsContainer
 
-from pex import pex_warnings
+from pex import dependency_configuration, pex_warnings
 from pex.cli.command import BuildTimeCommand
 from pex.commands.command import JsonMixin, OutputMixin
 from pex.common import CopyMode, open_zip, pluralize
@@ -123,8 +123,10 @@ class Venv(OutputMixin, JsonMixin, BuildTimeCommand):
             include_pex_lock=True,
             include_pylock=True,
             include_pre_resolved=True,
+            include_venv_repository=True,
         )
         requirement_options.register(parser)
+        dependency_configuration.register(parser)
 
     @classmethod
     def add_extra_arguments(
@@ -285,11 +287,13 @@ class Venv(OutputMixin, JsonMixin, BuildTimeCommand):
                 )
 
         requirement_configuration = requirement_options.configure(self.options)
+        dependency_config = dependency_configuration.configure(self.options)
         with TRACER.timed("Resolving distributions"):
             resolved = configured_resolve.resolve(
                 targets=targets,
                 requirement_configuration=requirement_configuration,
                 resolver_configuration=resolver_configuration,
+                dependency_configuration=dependency_config,
             )
 
         pex = None  # type: Optional[PEX]

@@ -5,6 +5,7 @@ from __future__ import absolute_import
 
 import glob
 import os
+import sys
 import tempfile
 from argparse import Action, ArgumentError, ArgumentTypeError, Namespace, _ActionsContainer
 from collections import OrderedDict, defaultdict
@@ -16,6 +17,7 @@ from pex.dist_metadata import Requirement, is_sdist, is_wheel
 from pex.fetcher import initialize_ssl_context
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
+from pex.os import is_exe
 from pex.pep_503 import ProjectName
 from pex.pip.version import PipVersion, PipVersionValue
 from pex.resolve.lockfile import json_codec
@@ -31,30 +33,15 @@ from pex.resolve.resolver_configuration import (
     PreResolvedConfiguration,
     PylockRepositoryConfiguration,
     ResolverVersion,
+    VenvRepositoryConfiguration,
 )
 from pex.result import Error
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
+from pex.venv.virtualenv import InvalidVirtualenvError, Virtualenv
 
 if TYPE_CHECKING:
     from typing import DefaultDict, Iterable, List, Mapping, Optional, Tuple, Union
-
-
-class _ManylinuxAction(Action):
-    def __init__(self, *args, **kwargs):
-        kwargs["nargs"] = "?"
-        super(_ManylinuxAction, self).__init__(*args, **kwargs)
-
-    def __call__(self, parser, namespace, value, option_str=None):
-        if option_str.startswith("--no"):
-            setattr(namespace, self.dest, None)
-        elif value.startswith("manylinux"):
-            setattr(namespace, self.dest, value)
-        else:
-            raise ArgumentTypeError(
-                "Please specify a manylinux standard; ie: --manylinux=manylinux1. "
-                "Given {}".format(value)
-            )
 
 
 class _HandleTransitiveAction(Action):
@@ -66,12 +53,68 @@ class _HandleTransitiveAction(Action):
         setattr(namespace, self.dest, option_str == "--transitive")
 
 
+class _ResolveVenvAction(Action):
+    def __init__(self, *args, **kwargs):
+        kwargs["nargs"] = "?"
+        super(_ResolveVenvAction, self).__init__(*args, **kwargs)
+
+    def __call__(self, parser, namespace, value, option_str=None):
+        if value:
+            if not os.path.exists(value):
+                raise ArgumentError(
+                    argument=self,
+                    message=(
+                        "The {option} {value} does not point to an existing path.".format(
+                            option=option_str, value=value
+                        )
+                    ),
+                )
+
+            venv = None  # type: Optional[Virtualenv]
+            if is_exe(value):
+                venv = Virtualenv.enclosing(value)
+            else:
+                try:
+                    venv = Virtualenv(value)
+                except InvalidVirtualenvError:
+                    pass
+            if not venv:
+                raise ArgumentError(
+                    argument=self,
+                    message=(
+                        "The {option} {value} is not a valid virtual environment interpreter "
+                        "path.".format(option=option_str, value=value)
+                    ),
+                )
+            setattr(namespace, self.dest, venv)
+        else:
+            current_venv = Virtualenv.enclosing(python=sys.executable)
+            if not current_venv:
+                try:
+                    current_venv = Virtualenv(venv_dir=".")
+                except InvalidVirtualenvError:
+                    raise ArgumentError(
+                        argument=self,
+                        message=(
+                            "The {option} option was requested but Pex is not currently running "
+                            "from a venv to use as the implicit {option} nor is the current "
+                            "directory a venv.\n"
+                            "You'll need to specify the path to a virtual environment directory or "
+                            "virtual environment interpreter as an argument.".format(
+                                option=option_str
+                            )
+                        ),
+                    )
+            setattr(namespace, self.dest, current_venv)
+
+
 def register(
     parser,  # type: _ActionsContainer
     include_pex_repository=False,  # type: bool
     include_pex_lock=False,  # type: bool
     include_pylock=False,  # type: bool
     include_pre_resolved=False,  # type: bool
+    include_venv_repository=False,  # type: bool
 ):
     # type: (...) -> None
     """Register resolver configuration options with the given parser.
@@ -82,6 +125,7 @@ def register(
     :param include_pylock: Whether to include the `--pylock` / `--pep-751-lock` option.
     :param include_pre_resolved: Whether to include the `--pre-resolved-dist` and
                                  `--pre-resolved-dists` options.
+    :param include_venv_repository: Whether to include the `--venv-repository` option.
     """
 
     default_resolver_configuration = PipConfiguration()
@@ -192,6 +236,8 @@ def register(
         repository_types += 1
     if include_pre_resolved:
         repository_types += 1
+    if include_venv_repository:
+        repository_types += 1
 
     repository_choice = parser.add_mutually_exclusive_group() if repository_types > 1 else parser
     if include_pex_repository:
@@ -269,6 +315,19 @@ def register(
                 "found in the given directory to the PEX, building wheels from any sdists first. "
                 "This option can be used to add a pre-resolved dependency set to a PEX. By "
                 "default, Pex will ensure the dependencies added form a closure."
+            ),
+        )
+    if include_venv_repository:
+        repository_choice.add_argument(
+            "--venv-repository",
+            dest="venv_repository",
+            action=_ResolveVenvAction,
+            type=str,
+            help=(
+                "Resolve requirements from the given virtual environment instead of from "
+                "--index servers, --find-links repos or a --lock file. The virtual environment to "
+                "resolve from can be specified as the path to the venv or the path of its"
+                "interpreter. If no value is specified, the current active venv is used."
             ),
         )
 
@@ -676,6 +735,7 @@ if TYPE_CHECKING:
         PipConfiguration,
         PreResolvedConfiguration,
         PylockRepositoryConfiguration,
+        VenvRepositoryConfiguration,
     ]
 
 
@@ -741,6 +801,18 @@ def configure(
                     sdists.append(dist)
         return PreResolvedConfiguration(
             sdists=tuple(sdists), wheels=tuple(wheels), pip_configuration=pip_configuration
+        )
+
+    venv = getattr(options, "venv_repository", None)
+    if venv:
+        return VenvRepositoryConfiguration(venv=venv, pip_configuration=pip_configuration)
+
+    if pylock:
+        return PylockRepositoryConfiguration(
+            lock_file_path=pylock,
+            extras=frozenset(options.pylock_extras),
+            dependency_groups=frozenset(options.pylock_dependency_groups),
+            pip_configuration=pip_configuration,
         )
 
     return pip_configuration

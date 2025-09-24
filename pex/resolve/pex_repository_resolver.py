@@ -80,7 +80,7 @@ def resolve_from_pex(
     distributions = OrderedSet()  # type: OrderedSet[ResolvedDistribution]
     for target in targets.unique_targets():
         # TODO(John Sirois): Handling of result type should be centralized. As it stands, it's
-        #  currently critical to _not_ PEXEnvironment.mount(...) if you want to resolve whell files
+        #  currently critical to _not_ PEXEnvironment.mount(...) if you want to resolve wheel files
         #  instead of installed wheel chroots.
         pex_env = (
             PEXEnvironment(pex, target=target)

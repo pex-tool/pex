@@ -17,8 +17,10 @@ from pex.resolve.resolver_configuration import (
     PexRepositoryConfiguration,
     PreResolvedConfiguration,
     PylockRepositoryConfiguration,
+    VenvRepositoryConfiguration,
 )
 from pex.resolve.resolvers import ResolveResult
+from pex.resolve.venv_resolver import resolve_from_venv
 from pex.resolver import resolve as resolve_via_pip
 from pex.result import try_
 from pex.targets import Targets
@@ -138,6 +140,24 @@ def resolve(
                 ignore_errors=ignore_errors,
                 result_type=result_type,
                 dependency_configuration=dependency_configuration,
+            )
+    elif isinstance(resolver_configuration, VenvRepositoryConfiguration):
+        with TRACER.timed(
+            "Resolving requirements from venv at {venv}.".format(
+                venv=resolver_configuration.venv.venv_dir
+            )
+        ):
+            return try_(
+                resolve_from_venv(
+                    targets=targets,
+                    venv=resolver_configuration.venv,
+                    requirement_configuration=requirement_configuration,
+                    pip_configuration=resolver_configuration.pip_configuration,
+                    compile=compile_pyc,
+                    ignore_errors=ignore_errors,
+                    result_type=result_type,
+                    dependency_configuration=dependency_configuration,
+                )
             )
     else:
         with TRACER.timed("Resolving requirements."):
