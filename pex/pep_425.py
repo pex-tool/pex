@@ -70,9 +70,11 @@ class CompatibilityTags(object):
         # type: (Union[Text, Distribution]) -> CompatibilityTags
 
         if isinstance(wheel, Distribution):
-            return cls(tags=WHEEL.from_distribution(wheel).tags)
+            if not is_wheel(wheel.location):
+                return cls(tags=WHEEL.from_distribution(wheel).tags)
+            wheel = wheel.location
 
-        elif not is_wheel(wheel):
+        if not is_wheel(wheel):
             raise ValueError(
                 "Can only calculate wheel tags from a filename that ends in .whl per "
                 "https://peps.python.org/pep-0427/#file-name-convention, given: {wheel!r}".format(
