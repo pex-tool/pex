@@ -429,7 +429,15 @@ def create_dist(
         # Some tests purposefully use bad wheel names; so we just construct in-memory metadata.
         pass
     else:
-        location = os.path.join(safe_mkdtemp(), location)
+        location = os.path.join(
+            safe_mkdtemp(
+                prefix="{location}.".format(location=location),
+                suffix=".{project_name}-{version}".format(
+                    project_name=project_name, version=version
+                ),
+            ),
+            location,
+        )
         pnav = ProjectNameAndVersion.from_filename(location)
         with safe_open(
             os.path.join(
