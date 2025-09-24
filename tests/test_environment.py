@@ -12,7 +12,7 @@ from textwrap import dedent
 import pytest
 
 from pex import resolver
-from pex.common import safe_mkdtemp, safe_open, temporary_dir
+from pex.common import safe_open, temporary_dir
 from pex.compatibility import to_bytes
 from pex.dist_metadata import Distribution, ProjectNameAndVersion
 from pex.environment import PEXEnvironment, _InvalidWheelName, _RankedDistribution
@@ -40,6 +40,7 @@ from testing import (
     temporary_filename,
 )
 from testing.dist_metadata import create_dist_metadata
+from testing.pytest_utils.tmp import Tempdir
 
 if TYPE_CHECKING:
     from typing import Any, Callable, Dict, Iterable, Iterator, Optional, Tuple
@@ -417,31 +418,24 @@ def test_present_but_empty_namespace_packages_metadata_does_not_warn():
 
 
 def create_dist(
-    location,  # type: str
+    tmpdir,  # type: Tempdir
+    wheel_file_name,  # type: str
     project_name="foo",  # type: str
     version="1.0.0",  # type: str
 ):
     # type: (...) -> FingerprintedDistribution
 
     try:
-        tags = CompatibilityTags.from_wheel(location)
+        tags = CompatibilityTags.from_wheel(wheel_file_name)
     except ValueError:
         # Some tests purposefully use bad wheel names; so we just construct in-memory metadata.
         pass
     else:
-        location = os.path.join(
-            safe_mkdtemp(
-                prefix="{location}.".format(location=location),
-                suffix=".{project_name}-{version}".format(
-                    project_name=project_name, version=version
-                ),
-            ),
-            location,
-        )
-        pnav = ProjectNameAndVersion.from_filename(location)
+        wheel_file_name = tmpdir.join(wheel_file_name)
+        pnav = ProjectNameAndVersion.from_filename(wheel_file_name)
         with safe_open(
             os.path.join(
-                location,
+                wheel_file_name,
                 "{project_name}-{version}.dist-info".format(
                     project_name=pnav.project_name, version=pnav.version
                 ),
@@ -461,17 +455,18 @@ def create_dist(
 
     return FingerprintedDistribution(
         distribution=Distribution(
-            location=location,
+            location=wheel_file_name,
             metadata=create_dist_metadata(
-                project_name=project_name, version=version, location=location
+                project_name=project_name, version=version, location=wheel_file_name
             ),
         ),
-        fingerprint=location,
+        fingerprint=wheel_file_name,
     )
 
 
 @pytest.fixture
 def cpython_39_environment(python_39_interpreter):
+    # type: (PythonInterpreter) -> PEXEnvironment
     return PEXEnvironment(
         pex="",
         pex_info=PexInfo.default(),
@@ -480,48 +475,68 @@ def cpython_39_environment(python_39_interpreter):
 
 
 @pytest.mark.parametrize(
-    ("wheel_distribution", "wheel_is_linux_x86_64"),
+    ("wheel_name", "project_name", "version", "wheel_is_linux_x86_64"),
     [
         pytest.param(
-            create_dist("llvmlite-0.29.0-cp39-cp39-linux_x86_64.whl", "llvmlite", "0.29.0"),
+            "llvmlite-0.29.0-cp39-cp39-linux_x86_64.whl",
+            "llvmlite",
+            "0.29.0",
             True,
             id="without_build_tag_linux",
         ),
         pytest.param(
-            create_dist("llvmlite-0.29.0-1-cp39-cp39-linux_x86_64.whl", "llvmlite", "0.29.0"),
+            "llvmlite-0.29.0-1-cp39-cp39-linux_x86_64.whl",
+            "llvmlite",
+            "0.29.0",
             True,
             id="with_build_tag_linux",
         ),
         pytest.param(
-            create_dist("llvmlite-0.29.0-cp39-cp39-macosx_10.9_x86_64.whl", "llvmlite", "0.29.0"),
+            "llvmlite-0.29.0-cp39-cp39-macosx_10.9_x86_64.whl",
+            "llvmlite",
+            "0.29.0",
             False,
             id="without_build_tag_osx",
         ),
         pytest.param(
-            create_dist("llvmlite-0.29.0-1-cp39-cp39-macosx_10.9_x86_64.whl", "llvmlite", "0.29.0"),
+            "llvmlite-0.29.0-1-cp39-cp39-macosx_10.9_x86_64.whl",
+            "llvmlite",
+            "0.29.0",
             False,
             id="with_build_tag_osx",
         ),
     ],
 )
 def test_can_add_handles_optional_build_tag_in_wheel(
-    cpython_39_environment, wheel_distribution, wheel_is_linux_x86_64
+    tmpdir,  # type: Tempdir
+    cpython_39_environment,  # type: PEXEnvironment
+    wheel_name,  # type: str
+    project_name,  # type: str
+    version,  # type: str
+    wheel_is_linux_x86_64,  # type: bool
 ):
-    # type: (PEXEnvironment, FingerprintedDistribution, bool) -> None
+    # type: (...) -> None
+
+    wheel_distribution = create_dist(tmpdir, wheel_name, project_name, version)
     native_wheel = IS_LINUX_X86_64 and wheel_is_linux_x86_64
     added = isinstance(cpython_39_environment._can_add(wheel_distribution), _RankedDistribution)
     assert added is native_wheel
 
 
-def test_can_add_handles_invalid_wheel_filename(cpython_39_environment):
-    # type: (PEXEnvironment) -> None
-    dist = create_dist("pep427-invalid.whl")
+def test_can_add_handles_invalid_wheel_filename(
+    tmpdir,  # type: Tempdir
+    cpython_39_environment,  # type: PEXEnvironment
+):
+    # type: (...) -> None
+
+    dist = create_dist(tmpdir, "pep427-invalid.whl")
     assert _InvalidWheelName(dist, "pep427-invalid.whl") == cpython_39_environment._can_add(dist)
 
 
 @pytest.fixture
 def assert_cpython_39_environment_can_add(cpython_39_environment):
     # type: (PEXEnvironment) -> Callable[[FingerprintedDistribution], _RankedDistribution]
+
     def assert_can_add(fingerprinted_dist):
         # type: (FingerprintedDistribution) -> _RankedDistribution
         rank = cpython_39_environment._can_add(fingerprinted_dist)
@@ -535,18 +550,22 @@ def assert_cpython_39_environment_can_add(cpython_39_environment):
 _wheel_tags = "macosx_10_9_x86_64.macosx_11_0_arm64.linux_x86_64.linux_aarch64"
 
 
-def test_can_add_ranking_platform_tag_more_specific(assert_cpython_39_environment_can_add):
-    # type: (Callable[[FingerprintedDistribution], _RankedDistribution]) -> None
+def test_can_add_ranking_platform_tag_more_specific(
+    tmpdir,  # type: Tempdir
+    assert_cpython_39_environment_can_add,  # type: Callable[[FingerprintedDistribution], _RankedDistribution]
+):
+    # type: (...) -> None
+
     ranked_specific = assert_cpython_39_environment_can_add(
-        create_dist("foo-1.0.0-cp39-cp39-{}.whl".format(_wheel_tags), "foo", "1.0.0")
+        create_dist(tmpdir, "foo-1.0.0-cp39-cp39-{}.whl".format(_wheel_tags), "foo", "1.0.0")
     )
     ranked_universal = assert_cpython_39_environment_can_add(
-        create_dist("foo-2.0.0-py2.py3-none-any.whl", "foo", "2.0.0")
+        create_dist(tmpdir, "foo-2.0.0-py2.py3-none-any.whl", "foo", "2.0.0")
     )
     assert ranked_specific < ranked_universal
 
     ranked_almost_py3universal = assert_cpython_39_environment_can_add(
-        create_dist("foo-2.0.0-py3-none-any.whl", "foo", "2.0.0")
+        create_dist(tmpdir, "foo-2.0.0-py3-none-any.whl", "foo", "2.0.0")
     )
     assert ranked_universal.rank == ranked_almost_py3universal.rank, (
         "Expected the 'universal' compressed tag set to be expanded into two tags and the more "
@@ -554,12 +573,16 @@ def test_can_add_ranking_platform_tag_more_specific(assert_cpython_39_environmen
     )
 
 
-def test_can_add_ranking_version_newer_tie_break(assert_cpython_39_environment_can_add):
-    # type: (Callable[[FingerprintedDistribution], _RankedDistribution]) -> None
+def test_can_add_ranking_version_newer_tie_break(
+    tmpdir,  # type: Tempdir
+    assert_cpython_39_environment_can_add,  # type: Callable[[FingerprintedDistribution], _RankedDistribution]
+):
+    # type: (...) -> None
+
     ranked_v1 = assert_cpython_39_environment_can_add(
-        create_dist("foo-1.0.0-cp39-cp39-{}.whl".format(_wheel_tags), "foo", "1.0.0")
+        create_dist(tmpdir, "foo-1.0.0-cp39-cp39-{}.whl".format(_wheel_tags), "foo", "1.0.0")
     )
     ranked_v2 = assert_cpython_39_environment_can_add(
-        create_dist("foo-2.0.0-cp39-cp39-{}.whl".format(_wheel_tags), "foo", "2.0.0")
+        create_dist(tmpdir, "foo-2.0.0-cp39-cp39-{}.whl".format(_wheel_tags), "foo", "2.0.0")
     )
     assert ranked_v2 < ranked_v1
