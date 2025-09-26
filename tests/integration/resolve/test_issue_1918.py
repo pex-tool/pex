@@ -2,7 +2,6 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os.path
-import sys
 
 import pytest
 
@@ -119,7 +118,7 @@ def test_redacted_requirement_handling(
         "--indent",
         "2",
         "--pip-log",
-        os.path.join(str(tmpdir), "pip.log")
+        os.path.join(str(tmpdir), "pip.log"),
     ).assert_success()
     lockfile = json_codec.load(lock)
     assert (
