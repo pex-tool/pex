@@ -379,8 +379,9 @@ class Locker(LogAnalyzer):
                     )
                     self._selected_path_to_pin[selected_path] = build_result.pin
 
-                    vcs, _, vcs_url = artifact_url.normalized_url.partition("+")
-                    vcs_url, _, _ = vcs_url.partition("@")
+                    vcs, _, vcs_url = build_result.url.raw_url.partition("+")
+                    if "@" in build_result.url.path:
+                        vcs_url, _, _ = vcs_url.rpartition("@")
                     commit_id = self._commit_ids.pop(vcs_url, None)
                 elif isinstance(artifact_url.scheme, ArchiveScheme.Value):
                     selected_path = os.path.basename(artifact_url.path)

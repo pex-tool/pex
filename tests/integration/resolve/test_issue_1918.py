@@ -117,6 +117,8 @@ def test_redacted_requirement_handling(
         lock,
         "--indent",
         "2",
+        "--pip-log",
+        os.path.join(str(tmpdir), "pip.log"),
     ).assert_success()
     lockfile = json_codec.load(lock)
     assert (
@@ -137,6 +139,10 @@ def test_redacted_requirement_handling(
     assert isinstance(artifact, VCSArtifact)
     assert VCS.Git is artifact.vcs
     assert ArtifactURL.parse(expected_url) == artifact.url
+    if pip_parameters.pip_version is not PipVersion.VENDORED:
+        assert "c965f5b9103c5bd32a1572adb8024ebe83278fb0" == artifact.commit_id
+    else:
+        assert artifact.commit_id is None, "Vendored Pip does not log resolution of commit ids."
 
     pex_root = os.path.join(str(tmpdir), "pex_root")
     result = run_pex_command(

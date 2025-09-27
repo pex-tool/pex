@@ -281,7 +281,11 @@ class VCSArtifact(Artifact):
     def split_requested_revision(artifact_url):
         # type: (ArtifactURL) -> Tuple[ArtifactURL, Optional[str]]
 
-        vcs_url, _, requested_revision = artifact_url.normalized_url.partition("@")
+        vcs_url = artifact_url.normalized_url
+        if "@" in artifact_url.path:
+            vcs_url, _, requested_revision = vcs_url.rpartition("@")
+        else:
+            requested_revision = None
         return ArtifactURL.parse(vcs_url), requested_revision or None
 
     @classmethod

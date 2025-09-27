@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.59.1
+
+This release fixes a regression in VCS URL handling introduced by Pex 2.38.0 when VCS URLs included
+user info in the authority.
+
+* Fix `pex3 lock create/export` for VCS URLs with userinfo (#2918)
+
 ## 2.59.0
 
 This release adds support for a `--venv-repository` resolution source. This allows creating a PEX
