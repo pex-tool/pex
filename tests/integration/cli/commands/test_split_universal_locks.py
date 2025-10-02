@@ -15,6 +15,7 @@ import pytest
 from pex import resolver, targets
 from pex.common import safe_mkdir, safe_open
 from pex.interpreter import PythonInterpreter
+from pex.os import LINUX
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pex import PEX
@@ -35,25 +36,8 @@ else:
     from pex.third_party import colors
 
 
-@pytest.fixture
-def split_requirements_lock(tmpdir):
-    # type: (Tempdir) -> str
-    pex_root = tmpdir.join("pex-root")
-    lock_file = tmpdir.join("lock.json")
-    run_pex3(
-        "lock",
-        "create",
-        "--pex-root",
-        pex_root,
-        "--style",
-        "universal",
-        "cowsay<6; python_version < '3'",
-        "cowsay==6; python_version >= '3'",
-        "--indent",
-        "2",
-        "-o",
-        lock_file,
-    ).assert_success()
+def assert_split_cowsay_lock(lock_file):
+    # type: (str) -> str
 
     lock = json_codec.load(lock_file)
     assert len(lock.locked_resolves) == 2
@@ -73,6 +57,29 @@ def split_requirements_lock(tmpdir):
     return lock_file
 
 
+@pytest.fixture
+def split_requirements_by_python_version_lock(tmpdir):
+    # type: (Tempdir) -> str
+
+    pex_root = tmpdir.join("pex-root")
+    lock_file = tmpdir.join("lock.json")
+    run_pex3(
+        "lock",
+        "create",
+        "--pex-root",
+        pex_root,
+        "--style",
+        "universal",
+        "cowsay<6; python_version < '3'",
+        "cowsay==6; python_version >= '3'",
+        "--indent",
+        "2",
+        "-o",
+        lock_file,
+    ).assert_success()
+    return assert_split_cowsay_lock(lock_file)
+
+
 PYTHON2 = sys.executable if sys.version_info[0] == 2 else ensure_python_interpreter(PY27)
 PYTHON3 = sys.executable if sys.version_info[0] == 3 else ensure_python_interpreter(PY311)
 PYTHON3_VERSION_STR = PythonInterpreter.from_binary(PYTHON3).python
@@ -81,7 +88,7 @@ PLATFORM_SYSTEM = targets.current().marker_environment.platform_system
 
 def test_resolve_from_split_lock(
     tmpdir,  # type: Tempdir
-    split_requirements_lock,  # type: str
+    split_requirements_by_python_version_lock,  # type: str
 ):
     # type: (...) -> None
 
@@ -97,7 +104,7 @@ def test_resolve_from_split_lock(
                 "--runtime-pex-root",
                 pex_root,
                 "--lock",
-                split_requirements_lock,
+                split_requirements_by_python_version_lock,
                 "-c",
                 "cowsay",
                 "-o",
@@ -115,7 +122,7 @@ def test_resolve_from_split_lock(
 
 def test_export_from_split_lock(
     tmpdir,  # type: Tempdir
-    split_requirements_lock,  # type: str
+    split_requirements_by_python_version_lock,  # type: str
 ):
     # type: (...) -> None
 
@@ -130,7 +137,7 @@ def test_export_from_split_lock(
             "pip",
             "-o",
             requirements,
-            split_requirements_lock,
+            split_requirements_by_python_version_lock,
             python=python,
         ).assert_success()
 
@@ -145,7 +152,7 @@ def test_export_from_split_lock(
             "pep-751",
             "-o",
             pylock,
-            split_requirements_lock,
+            split_requirements_by_python_version_lock,
             python=python,
         ).assert_success()
 
@@ -377,7 +384,7 @@ def assert_expected_split_repos_and_requirements_lock(lock_file):
 def test_split_repos_and_requirements_lock(
     tmpdir,  # type: Tempdir
     find_links,  # type: str
-    split_requirements_lock,  # type: str
+    split_requirements_by_python_version_lock,  # type: str
 ):
     # type: (...) -> None
 
@@ -466,3 +473,48 @@ def test_split_repos_and_requirements_lock(
         expected_ansicolors_version="1.1.8",
         expected_cowsay_version="5",
     )
+
+
+def test_split_requirements_by_platform(tmpdir):
+    # type: (Tempdir) -> None
+
+    pex_root = tmpdir.join("pex-root")
+    lock_file = tmpdir.join("lock.json")
+    run_pex3(
+        "lock",
+        "create",
+        "--pex-root",
+        pex_root,
+        "--style",
+        "universal",
+        "cowsay<6; platform_system == 'Linux'",
+        "cowsay==6; platform_system != 'Linux'",
+        "--indent",
+        "2",
+        "-o",
+        lock_file,
+    ).assert_success()
+    assert_split_cowsay_lock(lock_file)
+
+    pex = tmpdir.join("pex")
+    run_pex_command(
+        args=[
+            "--pex-root",
+            pex_root,
+            "--runtime-pex-root",
+            pex_root,
+            "--lock",
+            lock_file,
+            "-c",
+            "cowsay",
+            "-o",
+            pex,
+        ]
+    ).assert_success()
+
+    args = [pex]
+    if not LINUX:
+        # N.B.: For cowsay>=6 you must pass `-t <text>` instead of just `<text>` like older cowsay.
+        args.append("-t")
+    args.append("Moo!")
+    assert b"| Moo! |" in subprocess.check_output(args=args)
