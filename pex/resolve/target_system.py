@@ -407,7 +407,7 @@ def _as_platform_system_marker(system):
 
 
 def _as_python_version_marker(specifier):
-    # type: (SpecifierSet) -> str
+    # type: (SpecifierSet) -> Optional[str]
 
     clauses = [
         "python_full_version {operator} '{version}'".format(
@@ -416,7 +416,7 @@ def _as_python_version_marker(specifier):
         for spec in specifier
     ]
     if not clauses:
-        return ""
+        return None
 
     if len(clauses) == 1:
         return clauses[0]
@@ -426,18 +426,9 @@ def _as_python_version_marker(specifier):
 
 @attr.s(frozen=True)
 class UniversalTarget(object):
-    @classmethod
-    def from_json(cls, data):
-        # type: (Any) -> UniversalTarget
-        return cls()
-
     implementation = attr.ib(default=None)  # type: Optional[InterpreterImplementation.Value]
     requires_python = attr.ib(default=())  # type: Tuple[SpecifierSet, ...]
     systems = attr.ib(default=())  # type: Tuple[TargetSystem.Value, ...]
-
-    def as_json(self):
-        # type: () -> Any
-        return {}
 
     def iter_interpreter_constraints(self):
         # type: () -> Iterator[InterpreterConstraint]
@@ -509,14 +500,16 @@ class UniversalTarget(object):
                 )
             )
         if len(self.requires_python) == 1:
-            clauses.append(_as_python_version_marker(self.requires_python[0]))
+            python_version_marker = _as_python_version_marker(self.requires_python[0])
+            if python_version_marker:
+                clauses.append(python_version_marker)
         elif self.requires_python:
+            python_version_markers = []  # type: List[str]
+            for requires_python in self.requires_python:
+                python_version_marker = _as_python_version_marker(requires_python)
+                if python_version_marker:
+                    python_version_markers.append(python_version_marker)
             clauses.append(
-                "({requires_pythons})".format(
-                    requires_pythons=" or ".join(
-                        _as_python_version_marker(requires_python)
-                        for requires_python in self.requires_python
-                    )
-                )
+                "({requires_pythons})".format(requires_pythons=" or ".join(python_version_markers))
             )
         return Marker(" and ".join(clauses)) if clauses else None
