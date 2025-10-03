@@ -12,6 +12,7 @@ DEADSNAKES_VERSIONS=(
   "3.9 {dev,venv,distutils}=3.9.23"
   "3.10 {dev,venv,distutils}=3.10.18"
   "3.13 {dev,venv}=3.13.7"
+  "3.14 {dev,venv}=3.14.0~rc3"
 )
 
 add-apt-repository --yes --ppa deadsnakes
@@ -36,7 +37,6 @@ PYENV_VERSIONS=(
   3.5.10
   3.6.15
   3.12.11
-  3.14.0rc3
   pypy2.7-7.3.20
   pypy3.5-7.0.0
   pypy3.6-7.3.3
