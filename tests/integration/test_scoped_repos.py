@@ -729,10 +729,12 @@ def create_app_whl(
                     speak = app:speak
                 """.format(
                     project_name=project_name,
-                    ansicolors="ansicolors"
-                    if require_ansicolors
-                    else "ansicolors; platform_system == '{current}'".format(
-                        current=current_platform_system
+                    ansicolors=(
+                        "ansicolors"
+                        if require_ansicolors
+                        else "ansicolors; platform_system == '{current}'".format(
+                            current=current_platform_system
+                        )
                     ),
                 )
             )

@@ -5,7 +5,7 @@
 This release fixes two bugs handling split universal resolves. Previously, when a universal resolve
 was split by markers other than `python_version` and `python_full_version` and no interpreter
 constraints were specified, locking would fail. Additionally, when a split lock had differing
-transitive dependencies in splits, lock subsetting would fail. Both issues are now corrected.
+transitive dependencies in splits, lock sub-setting would fail. Both issues are now corrected.
 
 * Fix split universal lock corner cases. (#2922)
 
