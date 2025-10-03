@@ -7,6 +7,7 @@ import os.path
 import shutil
 import subprocess
 import sys
+import uuid
 from textwrap import dedent
 
 import pytest
@@ -16,6 +17,7 @@ from pex.common import safe_mkdir, safe_open
 from pex.dist_metadata import DistMetadata
 from pex.enum import Enum
 from pex.http.server import Server
+from pex.os import LINUX, MAC, WINDOWS
 from pex.pip.version import PipVersion
 from pex.typing import TYPE_CHECKING
 from testing import (
@@ -27,6 +29,7 @@ from testing import (
     make_env,
     run_pex_command,
 )
+from testing.cli import run_pex3
 from testing.pytest_utils import IS_CI
 from testing.pytest_utils.tmp import Tempdir
 
@@ -663,3 +666,159 @@ def test_scoped_project_and_marker(
         expected_ansicolors_source=expectations.ansicolors_source,
         output=subprocess.check_output(args=[python, pex, "Moo?!"]).decode("utf-8"),
     )
+
+
+def create_app_whl(
+    tmpdir,  # type: Tempdir
+    project_name,  # type: str
+    require_ansicolors,  # type: bool
+    current_platform_system,  # type: str
+):
+    # type: (...) -> str
+
+    project_dir = tmpdir.join(
+        "project-{suffix}".format(suffix="ansicolors" if require_ansicolors else "no-ansicolors")
+    )
+    with safe_open(os.path.join(project_dir, "app.py"), "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                import sys
+
+                from cowsay import tux
+
+
+                try:
+                    from colors import green
+                except ImportError:
+                    def green(message):
+                        return message
+
+
+                def speak():
+                    tux(green(" ".join(sys.argv[1:])))
+                """
+            )
+        )
+    with safe_open(os.path.join(project_dir, "pyproject.toml"), "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                [build-system]
+                requires = ["setuptools"]
+                backend = ["setuptools.build_meta"]
+                """
+            )
+        )
+    with safe_open(os.path.join(project_dir, "setup.cfg"), "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                [metadata]
+                name = {project_name}
+                version = 0.1.0
+
+                [options]
+                py_modules = app
+                install_requires =
+                    cowsay
+                    {ansicolors}
+
+                [options.entry_points]
+                console_scripts =
+                    speak = app:speak
+                """.format(
+                    project_name=project_name,
+                    ansicolors=(
+                        "ansicolors"
+                        if require_ansicolors
+                        else "ansicolors; platform_system == '{current}'".format(
+                            current=current_platform_system
+                        )
+                    ),
+                )
+            )
+        )
+    with safe_open(os.path.join(project_dir, "setup.py"), "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                from setuptools import setup
+
+
+                setup()
+                """
+            )
+        )
+    return WheelBuilder(source_dir=project_dir).bdist()
+
+
+@pytest.fixture
+def current_platform_system():
+    # type: () -> str
+    if LINUX:
+        return "Linux"
+    if MAC:
+        return "Darwin"
+
+    assert WINDOWS
+    return "Windows"
+
+
+def test_different_requirements_per_scope(
+    tmpdir,  # type: Tempdir
+    current_platform_system,  # type: str
+):
+    # type: (...) -> None
+
+    project_name = "app-{uuid}".format(uuid=uuid.uuid4().hex)
+
+    current_fl = safe_mkdir(tmpdir.join("current-fl"))
+    shutil.move(
+        create_app_whl(
+            tmpdir,
+            project_name=project_name,
+            require_ansicolors=True,
+            current_platform_system=current_platform_system,
+        ),
+        current_fl,
+    )
+
+    other_fl = safe_mkdir(tmpdir.join("other-fl"))
+    shutil.move(
+        create_app_whl(
+            tmpdir,
+            project_name=project_name,
+            require_ansicolors=False,
+            current_platform_system=current_platform_system,
+        ),
+        other_fl,
+    )
+
+    pex_root = tmpdir.join("pex-root")
+    lock_file = tmpdir.join("lock.json")
+    run_pex3(
+        "lock",
+        "create",
+        "--pex-root",
+        pex_root,
+        "--style",
+        "universal",
+        "--find-links",
+        "current_fl={current_fl}".format(current_fl=current_fl),
+        "--source",
+        "current_fl=app-.*; platform_system == '{current}'".format(current=current_platform_system),
+        "--find-links",
+        "other_fl={other_fl}".format(other_fl=other_fl),
+        "--source",
+        "other_fl=app-.*; platform_system != '{current}'".format(current=current_platform_system),
+        project_name,
+        "--indent",
+        "2",
+        "-o",
+        lock_file,
+        "--pip-log",
+        tmpdir.join("pip.log"),
+    ).assert_success()
+
+    run_pex3("lock", "export", "--format", "pep-751", lock_file).assert_success()

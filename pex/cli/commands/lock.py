@@ -76,7 +76,7 @@ from pex.resolve.resolver_options import parse_lockfile
 from pex.resolve.resolvers import Resolver
 from pex.resolve.script_metadata import ScriptMetadataApplication, apply_script_metadata
 from pex.resolve.target_configuration import InterpreterConstraintsNotSatisfied, TargetConfiguration
-from pex.resolve.target_system import TargetSystem
+from pex.resolve.target_system import TargetSystem, UniversalTarget
 from pex.result import Error, Ok, Result, try_
 from pex.sorted_tuple import SortedTuple
 from pex.targets import LocalInterpreter, Target, Targets
@@ -533,6 +533,110 @@ class RootRequirements(object):
     def __iter__(self):
         # type: () -> Iterator[RootRequirement]
         return iter(self._root_requirements)
+
+
+def subset_locked_resolve(
+    locked_resolve,  # type: LockedResolve
+    root_requirements,  # type: RootRequirements
+    constraint_by_project_name,  # type: Mapping[ProjectName, Constraint]
+    lock_file_description,  # type: str
+    universal_target=None,  # type: Optional[UniversalTarget]
+):
+    # type: (...) -> Union[LockedResolve, Error]
+
+    available = {
+        locked_req.pin.project_name: (
+            ProjectNameAndVersion(locked_req.pin.project_name.raw, locked_req.pin.version.raw),
+            locked_req,
+        )
+        for locked_req in locked_resolve.locked_requirements
+    }
+    retain = set()
+    to_resolve = deque(root_requirements)  # type: Deque[Union[RootRequirement, Requirement]]
+    while to_resolve:
+        req = to_resolve.popleft()
+        if req.project_name in retain:
+            continue
+        retain.add(req.project_name)
+
+        dep = available.get(req.project_name)
+        if not dep:
+            return Error(
+                "There is no lock entry for {project} in {lock_file} to satisfy the "
+                "{transitive}{req} requirement.".format(
+                    project=req.project_name,
+                    lock_file=lock_file_description,
+                    transitive="" if isinstance(req, RootRequirement) else "transitive ",
+                    req=(req if isinstance(req, RootRequirement) else "'{req}'".format(req=req)),
+                )
+            )
+
+        pnav, locked_req = dep
+        if isinstance(req, RootRequirement):
+            reqs = req.select(pnav)
+            if not reqs:
+                return Error(
+                    "The locked version of {project} in {lock_file} is {version} which "
+                    "does not satisfy the {req} requirement.".format(
+                        project=pnav.project_name,
+                        lock_file=lock_file_description,
+                        version=pnav.version,
+                        req=req,
+                    )
+                )
+        elif pnav not in req:
+            production_assert(
+                isinstance(req, RootRequirement),
+                "Transitive requirements in a lock should always match existing lock "
+                "entries. Found {project} {version} in {lock_file}, which does not satisfy "
+                "transitive requirement '{req}' found in the same lock.",
+                project=pnav.project_name,
+                version=pnav.version,
+                lock_file=lock_file_description,
+                req=req,
+            )
+            return Error(
+                "The locked version of {project} in {lock_file} is {version} which does "
+                "not satisfy the '{req}' requirement.".format(
+                    project=pnav.project_name,
+                    lock_file=lock_file_description,
+                    version=pnav.version,
+                    req=req,
+                )
+            )
+        elif (
+            req.project_name in constraint_by_project_name
+            and pnav not in constraint_by_project_name[req.project_name]
+        ):
+            return Error(
+                "The locked version of {project} in {lock_file} is {version} which does "
+                "not satisfy the '{constraint}' constraint.".format(
+                    project=pnav.project_name,
+                    lock_file=lock_file_description,
+                    version=pnav.version,
+                    constraint=constraint_by_project_name[req.project_name],
+                )
+            )
+        else:
+            reqs = (req,)
+
+        for req in reqs:
+            to_resolve.extend(
+                requires_dist.filter_dependencies(
+                    req,
+                    locked_req,
+                    universal_target=universal_target,
+                )
+            )
+
+    return attr.evolve(
+        locked_resolve,
+        locked_requirements=SortedTuple(
+            locked_requirement
+            for locked_requirement in locked_resolve.locked_requirements
+            if locked_requirement.pin.project_name in retain
+        ),
+    )
 
 
 class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
@@ -1587,6 +1691,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         )
 
         resolve_subsets = []  # type: List[LockedResolve]
+        errors = []  # type: List[Error]
         for index, locked_resolve in enumerate(lock_file.locked_resolves, start=0):
             if len(lock_file.locked_resolves) == 1:
                 lock_file_description = lockfile_path
@@ -1595,107 +1700,27 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                     index=index, lock_file=lockfile_path
                 )
 
-            available = {
-                locked_req.pin.project_name: (
-                    ProjectNameAndVersion(
-                        locked_req.pin.project_name.raw, locked_req.pin.version.raw
-                    ),
-                    locked_req,
-                )
-                for locked_req in locked_resolve.locked_requirements
-            }
-            retain = set()
-            to_resolve = deque(
-                root_requirements
-            )  # type: Deque[Union[RootRequirement, Requirement]]
-            while to_resolve:
-                req = to_resolve.popleft()
-                if req.project_name in retain:
-                    continue
-                retain.add(req.project_name)
+            result = subset_locked_resolve(
+                locked_resolve,
+                root_requirements,
+                constraint_by_project_name,
+                lock_file_description=lock_file_description,
+                universal_target=lock_file.configuration.universal_target,
+            )
+            if isinstance(result, LockedResolve):
+                resolve_subsets.append(result)
+            else:
+                errors.append(result)
 
-                dep = available.get(req.project_name)
-                if not dep:
-                    return Error(
-                        "There is no lock entry for {project} in {lock_file} to satisfy the "
-                        "{transitive}{req} requirement.".format(
-                            project=req.project_name,
-                            lock_file=lock_file_description,
-                            transitive="" if isinstance(req, RootRequirement) else "transitive ",
-                            req=(
-                                req
-                                if isinstance(req, RootRequirement)
-                                else "'{req}'".format(req=req)
-                            ),
-                        )
-                    )
-
-                pnav, locked_req = dep
-                if isinstance(req, RootRequirement):
-                    reqs = req.select(pnav)
-                    if not reqs:
-                        return Error(
-                            "The locked version of {project} in {lock_file} is {version} which "
-                            "does not satisfy the {req} requirement.".format(
-                                project=pnav.project_name,
-                                lock_file=lock_file_description,
-                                version=pnav.version,
-                                req=req,
-                            )
-                        )
-                elif pnav not in req:
-                    production_assert(
-                        isinstance(req, RootRequirement),
-                        "Transitive requirements in a lock should always match existing lock "
-                        "entries. Found {project} {version} in {lock_file}, which does not satisfy "
-                        "transitive requirement '{req}' found in the same lock.",
-                        project=pnav.project_name,
-                        version=pnav.version,
-                        lock_file=lock_file_description,
-                        req=req,
-                    )
-                    return Error(
-                        "The locked version of {project} in {lock_file} is {version} which does "
-                        "not satisfy the '{req}' requirement.".format(
-                            project=pnav.project_name,
-                            lock_file=lock_file_description,
-                            version=pnav.version,
-                            req=req,
-                        )
-                    )
-                elif (
-                    req.project_name in constraint_by_project_name
-                    and pnav not in constraint_by_project_name[req.project_name]
-                ):
-                    return Error(
-                        "The locked version of {project} in {lock_file} is {version} which does "
-                        "not satisfy the '{constraint}' constraint.".format(
-                            project=pnav.project_name,
-                            lock_file=lock_file_description,
-                            version=pnav.version,
-                            constraint=constraint_by_project_name[req.project_name],
-                        )
-                    )
-                else:
-                    reqs = (req,)
-
-                for req in reqs:
-                    to_resolve.extend(
-                        requires_dist.filter_dependencies(
-                            req,
-                            locked_req,
-                            universal_target=lock_file.configuration.universal_target,
-                        )
-                    )
-
-            resolve_subsets.append(
-                attr.evolve(
-                    locked_resolve,
-                    locked_requirements=SortedTuple(
-                        locked_requirement
-                        for locked_requirement in locked_resolve.locked_requirements
-                        if locked_requirement.pin.project_name in retain
-                    ),
+        if not resolve_subsets:
+            if len(errors) == 1:
+                return errors[0]
+            return Error(
+                "Failed to subset any of the {count} locked resolves contained in {lock_file}:\n"
+                "{errors}".format(
+                    count=len(lock_file.locked_resolves),
+                    lock_file=lockfile_path,
+                    errors="\n".join(str(error) for error in errors),
                 )
             )
 

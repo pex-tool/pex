@@ -1,5 +1,14 @@
 # Release Notes
 
+## 2.59.2
+
+This release fixes two bugs handling split universal resolves. Previously, when a universal resolve
+was split by markers other than `python_version` and `python_full_version` and no interpreter
+constraints were specified, locking would fail. Additionally, when a split lock had differing
+transitive dependencies in splits, lock sub-setting would fail. Both issues are now corrected.
+
+* Fix split universal lock corner cases. (#2922)
+
 ## 2.59.1
 
 This release fixes a regression in VCS URL handling introduced by Pex 2.38.0 when VCS URLs included
