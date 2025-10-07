@@ -87,7 +87,16 @@ class WHEEL(object):
         # type: () -> Tuple[tags.Tag, ...]
         return tuple(
             itertools.chain.from_iterable(
-                tags.parse_tag(tag) for tag in self.metadata.get_all("Tag", ())
+                # N.B.: There should be just 1 tag per Tag entry per items 7 and 11 in
+                # https://packaging.python.org/en/latest/specifications/binary-distribution-format/#file-contents
+                # There are wheels in the wild though with WHEEL metadata Tag entries that contain
+                # compressed tags instead of having the tags expanded to 1 per Tag. Although
+                # `tags.parse_tag` handles expansion of the compressed tags, it collects them in
+                # a frozenset with unstable order which can cause issues when attempting to
+                # construct stable wheel names from these tags; as such, we do the sort here as a
+                # defense against this style of bad WHEEL Tag metadata.
+                sorted(tags.parse_tag(tag), key=lambda tag: str(tag))
+                for tag in self.metadata.get_all("Tag", ())
             )
         )
 
