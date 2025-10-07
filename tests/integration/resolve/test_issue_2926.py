@@ -11,13 +11,16 @@ import pytest
 
 from pex.compatibility import commonpath
 from pex.venv.virtualenv import InstallationChoice, Virtualenv
-from testing import IS_PYPY, run_pex_command
+from testing import IS_LINUX, IS_PYPY, run_pex_command
 from testing.pytest_utils.tmp import Tempdir
 
 
 @pytest.mark.skipif(
-    IS_PYPY or sys.version_info[:2] < (3, 7),
-    reason="The hf-xet 1.1.10 distribution only has wheels available for CPython >= 3.7.",
+    IS_PYPY or sys.version_info[:2] < (3, 7) or not IS_LINUX,
+    reason=(
+        "The hf-xet 1.1.10 distribution only has wheels available for CPython >= 3.7 and this test "
+        "needs wheels with compressed tag sets which are only available for Linux."
+    ),
 )
 def test_bad_wheel_tag_metadata(tmpdir):
     # type: (Tempdir) -> None
