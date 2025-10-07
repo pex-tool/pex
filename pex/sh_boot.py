@@ -87,7 +87,7 @@ def _calculate_applicable_binary_names(
     # more sophisticated detection and re-direction from these during its own bootstrap. When doing
     # so, select these interpreters from newest to oldest since it more likely any given machine
     # will have Python 3 at this point than it will Python 2.
-    pex_requires_python = SpecifierSet(">=2.7")
+    pex_requires_python = SpecifierSet(os.environ.get("_PEX_REQUIRES_PYTHON", ">=2.7"))
     dist = dist_metadata.find_distribution("pex")  # type: Optional[Distribution]
     if dist and dist.metadata.version == Version(__version__):
         pex_requires_python = dist.metadata.requires_python

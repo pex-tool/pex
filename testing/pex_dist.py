@@ -9,7 +9,9 @@ import os
 
 from pex import hashing
 from pex.atomic_directory import atomic_directory
+from pex.compatibility import ConfigParser
 from pex.pip.version import PipVersion
+from pex.typing import cast
 from pex.util import CacheHelper
 from pex.venv.virtualenv import InstallationChoice, Virtualenv
 from pex.version import __version__
@@ -73,3 +75,15 @@ def wheel():
     return os.path.join(
         pex_wheel_dir, "pex-{version}-py2.py3-none-any.whl".format(version=__version__)
     )
+
+
+def requires_python():
+    # type: () -> str
+
+    requires_python_override = os.environ.get("_PEX_REQUIRES_PYTHON")
+    if requires_python_override:
+        return requires_python_override
+
+    config_parser = ConfigParser()
+    config_parser.read(os.path.join(pex_project_dir(), "setup.cfg"))
+    return cast(str, config_parser.get("options", "python_requires"))
