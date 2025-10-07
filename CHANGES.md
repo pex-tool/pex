@@ -1,5 +1,13 @@
 # Release Notes
 
+## 2.59.3
+
+This release fixes `--venv-repository` to work with venvs that have installed wheels with
+non-conformant `WHEEL` metadata. Notably, from wheels built with maturin that have a compressed tag
+set; e.g.: `hf-xet-1.1.10-cp37-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl`.
+
+* Stabilize non-conformant WHEEL Tag metadata. (#2927)
+
 ## 2.59.2
 
 This release fixes two bugs handling split universal resolves. Previously, when a universal resolve
