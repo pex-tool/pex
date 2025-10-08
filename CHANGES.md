@@ -1,5 +1,13 @@
 # Release Notes
 
+## 2.59.4
+
+This release fixes a bug in `--venv-repository` resolution that would lead to resolution failure
+when the same wheel (that has console script entry points) is installed in multiple venvs and those
+venvs are used as `--venv-repository` resolve sources.
+
+* Fix `--venv-repository` wheel cache copy-pasta bug. (#2932)
+
 ## 2.59.3
 
 This release fixes `--venv-repository` to work with venvs that have installed wheels with
