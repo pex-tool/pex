@@ -269,18 +269,31 @@ def test_pip_pex_setuptools_conflict(
 
 
 def test_pip_pex_both_conflict(
-    tmpdir,  # type: Any
+    tmpdir,  # type: Tempdir
     baseline_venv_pip_version,  # type: Version
     baseline_venv_setuptools_version,  # type: Optional[Version]
 ):
     # type: (...) -> None
 
-    pex = os.path.join(str(tmpdir), "pex")
+    pex = tmpdir.join("pex")
+    pip_log = tmpdir.join("pip.log")
     args = ["-o", pex, "pip!={version}".format(version=baseline_venv_pip_version)]
     if baseline_venv_setuptools_version:
         args.append("setuptools!={version}".format(version=baseline_venv_setuptools_version))
     args.append("--include-tools")
-    run_pex_command(args, env=make_env(PEX_VERBOSE=9)).assert_success()
+    args.append("--pip-log")
+    args.append(pip_log)
+    result = run_pex_command(args)
+
+    def render_errors():
+        # type: () -> str
+        with open(pip_log) as fp:
+            return ("STDERR:\n" "{stderr}\n" "---\n" "Pip logs:\n" "{pip_logs}").format(
+                stderr=result.error, pip_logs=fp.read()
+            )
+
+    assert result.return_code == 0, render_errors()
+
     pex_pip_version = index_distributions(PEX(pex).resolve())[PIP_PROJECT_NAME]
     pex_setuptools_version = index_distributions(PEX(pex).resolve()).get(SETUPTOOLS_PROJECT_NAME)
 
