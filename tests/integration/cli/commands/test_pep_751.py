@@ -322,7 +322,7 @@ def iter_expected_devpi_server_deps(interpreter):
 
 @pytest.mark.skipif(
     sys.version_info[:2] < (3, 10) or sys.version_info[:2] >= (3, 14),
-    reason="The lock under test requires Python >=3.10,<3.14."
+    reason="The lock under test requires Python >=3.10,<3.14.",
 )
 def test_universal_export_interop(
     tmpdir,  # type: Tempdir

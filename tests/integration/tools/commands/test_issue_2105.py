@@ -280,7 +280,7 @@ def test_pip_pex_both_conflict(
     if baseline_venv_setuptools_version:
         args.append("setuptools!={version}".format(version=baseline_venv_setuptools_version))
     args.append("--include-tools")
-    run_pex_command(args).assert_success()
+    run_pex_command(args, env=make_env(PEX_VERBOSE=9)).assert_success()
     pex_pip_version = index_distributions(PEX(pex).resolve())[PIP_PROJECT_NAME]
     pex_setuptools_version = index_distributions(PEX(pex).resolve()).get(SETUPTOOLS_PROJECT_NAME)
 
