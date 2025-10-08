@@ -35,6 +35,12 @@ def pex_wheel():
 
 
 @pytest.fixture(scope="session")
+def pex_requires_python():
+    # type: () -> str
+    return pex_dist.requires_python()
+
+
+@pytest.fixture(scope="session")
 def tmpdir_factory(request):
     # type: (FixtureRequest) -> tmp.TempdirFactory
 

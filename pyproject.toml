@@ -256,11 +256,15 @@ hidden = true
 
 [tool.dev-cmd.commands.format]
 description = "Auto-format the source code."
-when = "python_version >= '3.9'"
+# N.B.: Our old version of black does not run under 3.14; so we pin to 3.11 for now to cover all
+# cases.
+python = "python3.11"
 args = ["scripts/format.py"]
 
 [tool.dev-cmd.commands.format-check]
-when = "python_version >= '3.9'"
+# N.B.: Our old version of black does not run under 3.14; so we pin to 3.11 for now to cover all
+# cases.
+python = "python3.11"
 args = ["scripts/format.py", "--check"]
 hidden = true
 
@@ -270,6 +274,7 @@ args = ["scripts/gen-scie-platform.py"]
 accepts-extra-args = true
 dependency-group = "gen-scie-platform"
 hidden = true
+
 [tool.dev-cmd.commands.gen-scie-platform.env]
 PYTHONPATH = "."
 # Used to get wheels for armv7l and riscv64.

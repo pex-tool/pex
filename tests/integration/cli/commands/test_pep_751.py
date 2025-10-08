@@ -321,7 +321,8 @@ def iter_expected_devpi_server_deps(interpreter):
 
 
 @pytest.mark.skipif(
-    sys.version_info[:2] < (3, 10), reason="The lock under test requires Python >= 3.10."
+    sys.version_info[:2] < (3, 10) or sys.version_info[:2] >= (3, 14),
+    reason="The lock under test requires Python >=3.10,<3.14.",
 )
 def test_universal_export_interop(
     tmpdir,  # type: Tempdir
@@ -348,8 +349,7 @@ def test_universal_export_interop(
 
     assert_valid_toml(result.output)
 
-    interpreter = PythonInterpreter.get() if sys.version_info[:2] < (3, 14) else py310
-
+    interpreter = PythonInterpreter.get()
     venv_dir = tmpdir.join("venv")
     venv = Virtualenv.create(venv_dir=venv_dir, interpreter=interpreter)
     assert [] == list(venv.iter_distributions())

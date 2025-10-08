@@ -152,13 +152,13 @@ jobs:
     strategy:
       matrix:
         include:
-          - python-version: "3.13"
-            test-cmd: test-py313-pip25.2
-          - python-version: "3.13"
-            test-cmd: test-py313-pip25.2-integration
+          - python-version: "3.14"
+            test-cmd: test-py314-pip25.2
+          - python-version: "3.14"
+            test-cmd: test-py314-pip25.2-integration
             pex-test-pos-args: --shard 1/2
-          - python-version: "3.13"
-            test-cmd: test-py313-pip25.2-integration
+          - python-version: "3.14"
+            test-cmd: test-py314-pip25.2-integration
             pex-test-pos-args: --shard 2/2
     steps:
       - name: Checkout Pex
@@ -243,32 +243,32 @@ jobs:
           # for the overall Windows bring-up project health report.
           - python-version: "3.11"
             test-cmd: typecheck package docs
-          - python-version: "3.13"
-            test-cmd: test-py313-pip25.2
+          - python-version: "3.14"
+            test-cmd: test-py314-pip25.2
             artifact-name: unit-1
             pex-test-pos-args: --shard 1/2 --junit-report ../dist/test-results/unit-1.xml
-          - python-version: "3.13"
-            test-cmd: test-py313-pip25.2
+          - python-version: "3.14"
+            test-cmd: test-py314-pip25.2
             artifact-name: unit-2
             pex-test-pos-args: --shard 2/2 --junit-report ../dist/test-results/unit-2.xml
-          - python-version: "3.13"
-            test-cmd: test-py313-pip25.2-integration
+          - python-version: "3.14"
+            test-cmd: test-py314-pip25.2-integration
             artifact-name: integration-1
             pex-test-pos-args: --shard 1/5 --junit-report ../dist/test-results/integration-1.xml
-          - python-version: "3.13"
-            test-cmd: test-py313-pip25.2-integration
+          - python-version: "3.14"
+            test-cmd: test-py314-pip25.2-integration
             artifact-name: integration-2
             pex-test-pos-args: --shard 2/5 --junit-report ../dist/test-results/integration-2.xml
-          - python-version: "3.13"
-            test-cmd: test-py313-pip25.2-integration
+          - python-version: "3.14"
+            test-cmd: test-py314-pip25.2-integration
             artifact-name: integration-3
             pex-test-pos-args: --shard 3/5 --junit-report ../dist/test-results/integration-3.xml
-          - python-version: "3.13"
-            test-cmd: test-py313-pip25.2-integration
+          - python-version: "3.14"
+            test-cmd: test-py314-pip25.2-integration
             artifact-name: integration-4
             pex-test-pos-args: --shard 4/5 --junit-report ../dist/test-results/integration-4.xml
-          - python-version: "3.13"
-            test-cmd: test-py313-pip25.2-integration
+          - python-version: "3.14"
+            test-cmd: test-py314-pip25.2-integration
             artifact-name: integration-5
             pex-test-pos-args: --shard 5/5 --junit-report ../dist/test-results/integration-5.xml
     steps:

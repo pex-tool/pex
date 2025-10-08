@@ -49,7 +49,7 @@ from pex.compatibility import urlparse
 from pex.fs import safe_rename
 from pex.typing import TYPE_CHECKING, cast
 from pex.util import named_temporary_file
-from testing import devpi, pex_project_dir
+from testing import devpi, pex_dist, pex_project_dir
 
 if TYPE_CHECKING:
     from typing import Iterator, Optional, Tuple
@@ -265,6 +265,8 @@ def main():
         logger.info("{var}={value}".format(var=var, value=value))
 
     args = [sys.executable, "-m", "pytest", "-n", "auto", "-p", "testing.pytest_utils.shard"]
+
+    os.environ["_PEX_REQUIRES_PYTHON"] = pex_dist.requires_python()
 
     # When run under dev-cmd, FORCE_COLOR=1 is set to propagate auto-detection of a color terminal.
     # This affects a handful of our tests; so we discard and let the --color option below control

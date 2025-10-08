@@ -1,12 +1,8 @@
 # Copyright 2022 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-import os
-
-import pytest
 
 from pex import sh_boot
-from pex.compatibility import ConfigParser
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import InterpreterConstraints, iter_compatible_versions
 from pex.interpreter_implementation import InterpreterImplementation
@@ -17,7 +13,7 @@ from pex.resolve import abbreviated_platforms
 from pex.sh_boot import PythonBinaryName
 from pex.targets import CompletePlatform, Targets
 from pex.third_party.packaging.specifiers import SpecifierSet
-from pex.typing import TYPE_CHECKING, cast
+from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from typing import Iterable, List
@@ -35,20 +31,8 @@ def calculate_binary_names(
     )
 
 
-@pytest.fixture
-def requires_python(pex_project_dir):
-    # type: (str) -> str
-    requires_python = os.environ.get("_PEX_REQUIRES_PYTHON")
-    if requires_python:
-        return requires_python
-
-    config_parser = ConfigParser()
-    config_parser.read(os.path.join(pex_project_dir, "setup.cfg"))
-    return cast(str, config_parser.get("options", "python_requires"))
-
-
 def expected(
-    requires_python,  # type: str
+    pex_requires_python,  # type: str
     *names  # type: PythonBinaryName
 ):
     # type: (...) -> List[str]
@@ -67,7 +51,10 @@ def expected(
         all_names.add(current_interpreter_identity.binary_name(version_components=2))
 
     supported_versions = sorted(
-        (version[:2] for version in set(iter_compatible_versions([SpecifierSet(requires_python)]))),
+        (
+            version[:2]
+            for version in set(iter_compatible_versions([SpecifierSet(pex_requires_python)]))
+        ),
         reverse=True,  # Newest (highest) version 1st.
     )
     for exe_name in "python", "pypy":
@@ -103,17 +90,17 @@ def expected(
     return list(all_names)
 
 
-def test_calculate_no_targets_no_ics(requires_python):
+def test_calculate_no_targets_no_ics(pex_requires_python):
     # type: (str) -> None
 
-    assert expected(requires_python) == calculate_binary_names()
+    assert expected(pex_requires_python) == calculate_binary_names()
 
 
-def test_calculate_platforms_no_ics(requires_python):
+def test_calculate_platforms_no_ics(pex_requires_python):
     # type: (str) -> None
 
     assert expected(
-        requires_python,
+        pex_requires_python,
         PythonBinaryName(implementation=InterpreterImplementation.CPYTHON, version=(3, 6)),
         PythonBinaryName(implementation=InterpreterImplementation.PYPY, version=(2, 7)),
     ) == calculate_binary_names(
@@ -127,7 +114,7 @@ def test_calculate_platforms_no_ics(requires_python):
 
 
 def test_calculate_interpreters_no_ics(
-    requires_python,  # type: str
+    pex_requires_python,  # type: str
     py27,  # type: PythonInterpreter
     py311,  # type: PythonInterpreter
     py310,  # type: PythonInterpreter
@@ -136,7 +123,7 @@ def test_calculate_interpreters_no_ics(
 
     assert (
         expected(
-            requires_python,
+            pex_requires_python,
             PythonBinaryName(implementation=InterpreterImplementation.CPYTHON, version=(2, 7)),
             PythonBinaryName(implementation=InterpreterImplementation.CPYTHON, version=(3, 11)),
             PythonBinaryName(implementation=InterpreterImplementation.CPYTHON, version=(3, 10)),
@@ -145,12 +132,12 @@ def test_calculate_interpreters_no_ics(
     )
 
 
-def test_calculate_no_targets_ics(requires_python):
+def test_calculate_no_targets_ics(pex_requires_python):
     # type: (str) -> None
 
     assert (
         expected(
-            requires_python,
+            pex_requires_python,
             PythonBinaryName(implementation=InterpreterImplementation.CPYTHON, version=(3, 7)),
             PythonBinaryName(implementation=InterpreterImplementation.PYPY, version=(3, 7)),
             PythonBinaryName(implementation=InterpreterImplementation.CPYTHON, version=(3, 8)),
@@ -164,13 +151,13 @@ def test_calculate_no_targets_ics(requires_python):
 
 
 def test_calculate_mixed(
-    requires_python,  # type: str
+    pex_requires_python,  # type: str
     py27,  # type: PythonInterpreter
 ):
     # type: (...) -> None
 
     assert expected(
-        requires_python,
+        pex_requires_python,
         PythonBinaryName(implementation=InterpreterImplementation.CPYTHON, version=(2, 7)),
         PythonBinaryName(implementation=InterpreterImplementation.PYPY, version=(3, 8)),
         PythonBinaryName(implementation=InterpreterImplementation.CPYTHON, version=(3, 6)),
