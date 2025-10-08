@@ -30,7 +30,7 @@ from pex.venv.virtualenv import Virtualenv
 from pex.wheel import WHEEL, Wheel, WheelMetadataLoadError
 
 if TYPE_CHECKING:
-    from typing import Callable, Iterable, Iterator, Optional, Protocol, Text, Tuple, Union
+    from typing import Callable, Iterable, Iterator, Optional, Protocol, Text, TextIO, Tuple, Union
 
     import attr  # vendor:skip
 
@@ -473,6 +473,20 @@ class Record(object):
     """
 
     @classmethod
+    def write_fp(
+        cls,
+        fp,  # type: TextIO
+        installed_files,  # type: Iterable[InstalledFile]
+    ):
+        # type: (...) -> None
+        csv_writer = cast(
+            "CSVWriter",
+            csv.writer(fp, delimiter=",", quotechar='"', lineterminator="\n"),
+        )
+        for installed_file in sorted(installed_files, key=lambda installed: installed.path):
+            csv_writer.writerow(attr.astuple(installed_file, recurse=False))
+
+    @classmethod
     def write(
         cls,
         dst,  # type: Text
@@ -483,12 +497,7 @@ class Record(object):
         # The RECORD is a csv file with the path to each installed file in the 1st column.
         # See: https://peps.python.org/pep-0376/#record
         with safe_open(dst, "w") as fp:
-            csv_writer = cast(
-                "CSVWriter",
-                csv.writer(fp, delimiter=",", quotechar='"', lineterminator="\n"),
-            )
-            for installed_file in sorted(installed_files, key=lambda installed: installed.path):
-                csv_writer.writerow(attr.astuple(installed_file, recurse=False))
+            cls.write_fp(fp, installed_files)
 
     @classmethod
     def read(
