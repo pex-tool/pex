@@ -86,7 +86,7 @@ def _install_distribution(
                 raise AssertionError(reportable_unexpected_error_msg())
             runtime_key_dir = CacheDir.INSTALLED_WHEELS.path(installed_wheel.fingerprint)
             with atomic_directory(runtime_key_dir) as symlink_atomic_dir:
-                if not atomic_dir.is_finalized():
+                if not symlink_atomic_dir.is_finalized():
                     # Note: Create a relative path symlink between the two directories so that the
                     # PEX_ROOT can be used within a chroot environment where the prefix of the path
                     # may change between programs running inside and outside the chroot.
