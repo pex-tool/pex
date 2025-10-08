@@ -3,6 +3,7 @@
 
 from __future__ import absolute_import
 
+import os.path
 import subprocess
 
 from pex.pep_440 import Version
@@ -63,7 +64,10 @@ def test_same_wheel_resolved_from_multiple_venvs(tmpdir):
                 pex,
             ]
         ).assert_success()
-        return (
+
+        # N.B.: We take the dirname since wheel.__file__ will report the .pyc instead of the
+        # .py after 1st use under Python 2.7.
+        return os.path.dirname(
             subprocess.check_output(args=[pex, "-c", "import wheel; print(wheel.__file__)"])
             .decode("utf-8")
             .strip()
