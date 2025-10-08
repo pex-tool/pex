@@ -1,5 +1,16 @@
 # Release Notes
 
+## 2.59.5
+
+This release optimizes `--venv-repository` installed wheel caching to only store one copy per
+unique wheel even when that wheel is resolved from multiple `--venv-repository`s.
+
+This release also updates vendored Pip's vendored certifi's cacert.pem to that from certifi
+2025.10.5.
+
+* Do not hash installed scripts from `--venv-repository`. (#2395)
+* Update vendored Pip's CA cert bundle. (#2934)
+
 ## 2.59.4
 
 This release fixes a bug in `--venv-repository` resolution that would lead to resolution failure
