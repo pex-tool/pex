@@ -22,6 +22,7 @@ from pex.common import (
     safe_open,
     safe_relative_symlink,
 )
+from pex.compatibility import PY2
 from pex.fs import safe_link
 from pex.interpreter import PythonInterpreter
 from pex.typing import TYPE_CHECKING, cast
@@ -30,7 +31,7 @@ from pex.venv.virtualenv import Virtualenv
 from pex.wheel import WHEEL, Wheel, WheelMetadataLoadError
 
 if TYPE_CHECKING:
-    from typing import Callable, Iterable, Iterator, Optional, Protocol, Text, Tuple, Union
+    from typing import IO, Callable, Iterable, Iterator, Optional, Protocol, Text, Tuple, Union
 
     import attr  # vendor:skip
 
@@ -66,7 +67,12 @@ class Hash(object):
         # + https://peps.python.org/pep-0376/#record
         # + https://peps.python.org/pep-0427/#appendix
         fingerprint = base64.urlsafe_b64encode(hasher.digest()).rstrip(b"=")
-        return cls(value="{alg}={hash}".format(alg=hasher.name, hash=fingerprint.decode("ascii")))
+
+        # N.B.: The algorithm is all caps under Python 2.7, but lower case under Python 3; so we
+        # normalize.
+        alg = hasher.name.lower()
+
+        return cls(value="{alg}={hash}".format(alg=alg, hash=fingerprint.decode("ascii")))
 
     value = attr.ib()  # type: str
 
@@ -473,6 +479,17 @@ class Record(object):
     """
 
     @classmethod
+    def write_fp(
+        cls,
+        fp,  # type: IO
+        installed_files,  # type: Iterable[InstalledFile]
+    ):
+        # type: (...) -> None
+        csv_writer = csv.writer(fp, delimiter=",", quotechar='"', lineterminator="\n")
+        for installed_file in sorted(installed_files, key=lambda installed: installed.path):
+            csv_writer.writerow(attr.astuple(installed_file, recurse=False))
+
+    @classmethod
     def write(
         cls,
         dst,  # type: Text
@@ -482,13 +499,8 @@ class Record(object):
 
         # The RECORD is a csv file with the path to each installed file in the 1st column.
         # See: https://peps.python.org/pep-0376/#record
-        with safe_open(dst, "w") as fp:
-            csv_writer = cast(
-                "CSVWriter",
-                csv.writer(fp, delimiter=",", quotechar='"', lineterminator="\n"),
-            )
-            for installed_file in sorted(installed_files, key=lambda installed: installed.path):
-                csv_writer.writerow(attr.astuple(installed_file, recurse=False))
+        with safe_open(dst, "wb" if PY2 else "w") as fp:
+            cls.write_fp(fp, installed_files)
 
     @classmethod
     def read(

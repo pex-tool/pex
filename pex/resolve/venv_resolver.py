@@ -5,6 +5,7 @@ from __future__ import absolute_import
 
 import functools
 import hashlib
+import io
 import itertools
 import os
 from collections import defaultdict, deque
@@ -13,6 +14,7 @@ from pex import pex_warnings
 from pex.atomic_directory import atomic_directory
 from pex.cache.dirs import CacheDir, InstalledWheelDir
 from pex.common import safe_relative_symlink
+from pex.compatibility import PY2, commonpath
 from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import (
     Constraint,
@@ -26,7 +28,7 @@ from pex.exceptions import production_assert, reportable_unexpected_error_msg
 from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.jobs import DEFAULT_MAX_JOBS, iter_map_parallel
 from pex.orderedset import OrderedSet
-from pex.pep_376 import InstalledWheel
+from pex.pep_376 import InstalledWheel, Record
 from pex.pep_427 import InstallableType, InstallableWheel, InstallPaths, install_wheel_chroot
 from pex.pep_503 import ProjectName
 from pex.pip.version import PipVersion
@@ -36,6 +38,7 @@ from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import PipConfiguration
 from pex.resolve.resolvers import ResolvedDistribution, Resolver, ResolveResult
 from pex.result import Error
+from pex.sysconfig import script_name
 from pex.targets import LocalInterpreter, Target, Targets
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import Virtualenv
@@ -47,6 +50,50 @@ if TYPE_CHECKING:
     import attr  # vendor:skip
 else:
     import pex.third_party.attr as attr
+
+
+def _normalize_record(
+    distribution,  # type: Distribution
+    install_paths,  # type: InstallPaths
+    record_data,  # type: bytes
+):
+    # type: (...) -> bytes
+
+    entry_map = distribution.get_entry_map()
+    entry_point_scripts = {
+        script_name(entry_point)
+        for key in ("console_scripts", "gui_scripts")
+        for entry_point in entry_map.get(key, {})
+    }
+    if not entry_point_scripts:
+        return record_data
+
+    scripts_dir = os.path.realpath(install_paths.scripts)
+    installed_files = [
+        installed_file
+        for installed_file in Record.read(lines=iter(record_data.decode("utf-8").splitlines()))
+        if (
+            (os.path.basename(installed_file.path) not in entry_point_scripts)
+            or (
+                scripts_dir
+                != commonpath(
+                    (
+                        scripts_dir,
+                        os.path.realpath(os.path.join(distribution.location, installed_file.path)),
+                    )
+                )
+            )
+        )
+    ]
+
+    if PY2:
+        record_fp = io.BytesIO()
+        Record.write_fp(fp=record_fp, installed_files=installed_files)
+        return record_fp.getvalue()
+    else:
+        record_fp = io.StringIO()
+        Record.write_fp(fp=record_fp, installed_files=installed_files)
+        return record_fp.getvalue().encode("utf-8")
 
 
 def _install_distribution(
@@ -74,7 +121,14 @@ def _install_distribution(
         )
 
     installed_wheel_dir = InstalledWheelDir.create(
-        wheel_name=wheel.wheel_file_name, install_hash=hashlib.sha256(record_data).hexdigest()
+        wheel_name=wheel.wheel_file_name,
+        install_hash=hashlib.sha256(
+            _normalize_record(
+                distribution=Distribution(location=wheel.location, metadata=wheel.dist_metadata()),
+                install_paths=venv_install_paths,
+                record_data=record_data,
+            )
+        ).hexdigest(),
     )
     with atomic_directory(target_dir=installed_wheel_dir) as atomic_dir:
         if not atomic_dir.is_finalized():

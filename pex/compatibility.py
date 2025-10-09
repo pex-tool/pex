@@ -62,7 +62,7 @@ if PY2:
         # type: (AnyStr, Text) -> bytes
         if isinstance(st, unicode):
             return st.encode(encoding)
-        elif isinstance(st, bytes):
+        elif isinstance(st, (str, bytes)):
             return st
         else:
             raise ValueError("Cannot convert %s to bytes" % type(st))
