@@ -5,16 +5,16 @@ from __future__ import absolute_import
 
 import functools
 import hashlib
+import io
 import itertools
 import os
 from collections import defaultdict, deque
-from io import StringIO
 
 from pex import pex_warnings
 from pex.atomic_directory import atomic_directory
 from pex.cache.dirs import CacheDir, InstalledWheelDir
 from pex.common import safe_relative_symlink
-from pex.compatibility import commonpath
+from pex.compatibility import PY2, commonpath
 from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import (
     Constraint,
@@ -59,8 +59,6 @@ def _normalize_record(
 ):
     # type: (...) -> bytes
 
-    scripts_dir = os.path.realpath(install_paths.scripts)
-
     entry_map = distribution.get_entry_map()
     entry_point_scripts = {
         script_name(entry_point)
@@ -70,6 +68,7 @@ def _normalize_record(
     if not entry_point_scripts:
         return record_data
 
+    scripts_dir = os.path.realpath(install_paths.scripts)
     installed_files = [
         installed_file
         for installed_file in Record.read(lines=iter(record_data.decode("utf-8").splitlines()))
@@ -87,9 +86,14 @@ def _normalize_record(
         )
     ]
 
-    record_fp = StringIO()
-    Record.write_fp(fp=record_fp, installed_files=installed_files)
-    return record_fp.getvalue().encode("utf-8")
+    if PY2:
+        record_fp = io.BytesIO()
+        Record.write_fp(fp=record_fp, installed_files=installed_files)
+        return record_fp.getvalue()
+    else:
+        record_fp = io.StringIO()
+        Record.write_fp(fp=record_fp, installed_files=installed_files)
+        return record_fp.getvalue().encode("utf-8")
 
 
 def _install_distribution(
