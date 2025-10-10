@@ -6,11 +6,8 @@ set -xeuo pipefail
 # not matter.
 # See: https://launchpad.net/~deadsnakes/+archive/ubuntu/ppa
 DEADSNAKES_VERSIONS=(
-  "3.11 {dev,venv,distutils}=3.11.13"
   "3.7 {dev,venv,distutils}=3.7.17"
   "3.8 {dev,venv,distutils}=3.8.20"
-  "3.9 {dev,venv,distutils}=3.9.23"
-  "3.10 {dev,venv,distutils}=3.10.18"
   "3.13 {dev,venv}=3.13.8"
   "3.14 {dev,venv}=3.14.0"
 )
@@ -36,7 +33,10 @@ PYENV_VERSIONS=(
   2.7.18
   3.5.10
   3.6.15
-  3.12.11
+  3.9.24
+  3.10.19
+  3.11.14
+  3.12.12
   pypy2.7-7.3.20
   pypy3.5-7.0.0
   pypy3.6-7.3.3
