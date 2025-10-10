@@ -284,11 +284,17 @@ PIP_EXTRA_INDEX_URL = """\
 """
 
 [tool.dev-cmd.commands.lint]
+# N.B.: Our old version of autoflake does not run correctly under 3.14 (fails to remove unused
+# imports); so we pin to 3.11 for now to cover all cases.
+python = "python3.11"
 description = "Currently removes unused imports and code."
 when = "python_version >= '3.9'"
 args = ["scripts/lint.py"]
 
 [tool.dev-cmd.commands.lint-check]
+# N.B.: Our old version of autoflake does not run correctly under 3.14 (fails to remove unused
+# imports); so we pin to 3.11 for now to cover all cases.
+python = "python3.11"
 when = "python_version >= '3.9'"
 args = ["scripts/lint.py", "--check"]
 hidden = true
