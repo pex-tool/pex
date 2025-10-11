@@ -24,6 +24,7 @@ from pex import pex_warnings, specifier_sets
 from pex.common import open_zip, pluralize
 from pex.compatibility import PY2, to_unicode
 from pex.enum import Enum
+from pex.exceptions import reportable_unexpected_error_msg
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.third_party.packaging.markers import Marker
@@ -42,6 +43,7 @@ if TYPE_CHECKING:
         Iterable,
         Iterator,
         List,
+        Mapping,
         Optional,
         Text,
         Tuple,
@@ -1016,6 +1018,34 @@ DistributionType.seal()
 
 
 @attr.s(frozen=True)
+class EntryPoints(object):
+    _values = attr.ib(
+        factory=lambda: defaultdict(dict)
+    )  # type: Mapping[str, Mapping[str, NamedEntryPoint]]
+    source = attr.ib(default=None)  # type: Optional[Text]
+
+    def __attrs_post_init__(self):
+        if len(self._values) > 0 and not self.source:
+            raise ValueError("A source must be supplied when there are entry points values.")
+
+    def __getitem__(self, item):
+        # type: (str) -> Mapping[str, NamedEntryPoint]
+        return self._values[item]
+
+    def get(
+        self,
+        item,  # type: str
+        default,  # type: Mapping[str, NamedEntryPoint]
+    ):
+        # type: (...) -> Mapping[str, NamedEntryPoint]
+        return self._values.get(item, default)
+
+    def __len__(self):
+        # type: () -> int
+        return len(self._values)
+
+
+@attr.s(frozen=True)
 class Distribution(object):
     @staticmethod
     def _read_metadata_lines(metadata_bytes):
@@ -1031,8 +1061,12 @@ class Distribution(object):
                 yield normalized
 
     @classmethod
-    def parse_entry_map(cls, entry_points_contents):
-        # type: (bytes) -> Dict[str, Dict[str, NamedEntryPoint]]
+    def parse_entry_map(
+        cls,
+        entry_points_contents,  # type: bytes
+        source,  # type: Text
+    ):
+        # type: (...) -> EntryPoints
 
         # This file format is defined here:
         #   https://packaging.python.org/en/latest/specifications/entry-points/#file-format
@@ -1050,7 +1084,7 @@ class Distribution(object):
             else:
                 entry_point = NamedEntryPoint.parse(line)
                 entry_map[group][entry_point.name] = entry_point
-        return entry_map
+        return EntryPoints(values=entry_map, source=source)
 
     @classmethod
     def load(cls, location):
@@ -1118,11 +1152,19 @@ class Distribution(object):
                 yield line
 
     def get_entry_map(self):
-        # type: () -> Dict[str, Dict[str, NamedEntryPoint]]
+        # type: () -> EntryPoints
         entry_points_metadata_file = self._read_metadata_file("entry_points.txt")
         if entry_points_metadata_file is None:
-            return defaultdict(dict)
-        return self.parse_entry_map(entry_points_metadata_file)
+            return EntryPoints(values=defaultdict(dict))
+
+        entry_points_txt_relpath = self.metadata.files.metadata_file_rel_path("entry_points.txt")
+        if entry_points_txt_relpath is None:
+            raise AssertionError(reportable_unexpected_error_msg())
+
+        return self.parse_entry_map(
+            entry_points_metadata_file,
+            source=os.path.join(self.metadata.files.metadata.location, entry_points_txt_relpath),
+        )
 
     def __str__(self):
         # type: () -> str

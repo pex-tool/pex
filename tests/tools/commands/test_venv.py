@@ -8,13 +8,12 @@ import multiprocessing
 import os
 import shutil
 import sys
-import tempfile
 from subprocess import CalledProcessError
 from textwrap import dedent
 
 import pytest
 
-from pex.common import CopyMode, safe_mkdtemp, safe_open, temporary_dir, touch
+from pex.common import CopyMode, safe_mkdtemp, safe_open, touch
 from pex.compatibility import PY2
 from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
@@ -24,6 +23,7 @@ from pex.typing import TYPE_CHECKING, cast
 from pex.util import named_temporary_file
 from pex.venv.virtualenv import Virtualenv
 from testing import IS_PYPY, PY310, PY_VER, ensure_python_interpreter, run_pex_command, subprocess
+from testing.pytest_utils.tmp import Tempdir
 
 if TYPE_CHECKING:
     from typing import Any, Dict, Iterable, Iterator, List, Optional, Protocol, Set, Text, Tuple
@@ -37,40 +37,40 @@ if TYPE_CHECKING:
 FABRIC_VERSION = "2.5.0"
 
 
-@pytest.fixture(scope="module")
-def pex():
-    # type: () -> Iterator[str]
-    with temporary_dir() as tmpdir:
-        pex_path = os.path.join(tmpdir, "fabric.pex")
+@pytest.fixture
+def pex(tmpdir):
+    # type: (Tempdir) -> Iterator[str]
 
-        src_dir = os.path.join(tmpdir, "src")
-        touch(os.path.join(src_dir, "user/__init__.py"))
-        touch(os.path.join(src_dir, "user/package/__init__.py"))
+    pex_path = tmpdir.join("fabric.pex")
 
-        # Fabric dips into Invoke vendored code. It depends on "invoke<2.0,>=1.3", but in version
-        # 1.7.0, the vendored `decorator` module Fabric depends on inside Invoke no longer is
-        # importable under Python 2.7; so we pin low.
-        constraints = os.path.join(tmpdir, "constraints.txt")
-        with open(constraints, "w") as fp:
-            fp.write("Invoke==1.6.0")
+    src_dir = tmpdir.join("src")
+    touch(os.path.join(src_dir, "user/__init__.py"))
+    touch(os.path.join(src_dir, "user/package/__init__.py"))
 
-        # N.B.: --unzip just speeds up runs 2+ of the pex file and is otherwise not relevant to
-        # these tests.
-        run_pex_command(
-            args=[
-                "fabric=={}".format(FABRIC_VERSION),
-                "--constraints",
-                constraints,
-                "-c",
-                "fab",
-                "--sources-directory",
-                src_dir,
-                "-o",
-                pex_path,
-                "--include-tools",
-            ]
-        ).assert_success()
-        yield os.path.realpath(pex_path)
+    # Fabric dips into Invoke vendored code. It depends on "invoke<2.0,>=1.3", but in version
+    # 1.7.0, the vendored `decorator` module Fabric depends on inside Invoke no longer is
+    # importable under Python 2.7; so we pin low.
+    constraints = tmpdir.join("constraints.txt")
+    with open(constraints, "w") as fp:
+        fp.write("Invoke==1.6.0")
+
+    # N.B.: --unzip just speeds up runs 2+ of the pex file and is otherwise not relevant to
+    # these tests.
+    run_pex_command(
+        args=[
+            "fabric=={}".format(FABRIC_VERSION),
+            "--constraints",
+            constraints,
+            "-c",
+            "fab",
+            "--sources-directory",
+            src_dir,
+            "-o",
+            pex_path,
+            "--include-tools",
+        ]
+    ).assert_success()
+    yield os.path.realpath(pex_path)
 
 
 def make_env(**kwargs):
@@ -85,19 +85,22 @@ def make_env(**kwargs):
 
 
 @pytest.fixture
-def create_pex_venv(pex):
-    # type: (str) -> Iterator[CreatePexVenv]
-    with temporary_dir() as tmpdir:
-        venv_dir = os.path.join(tmpdir, "venv")
+def create_pex_venv(
+    tmpdir,  # type: Tempdir
+    pex,  # type: str
+):
+    # type: (...) -> Iterator[CreatePexVenv]
 
-        def _create_pex_venv(*options):
-            # type: (*str) -> Virtualenv
-            subprocess.check_call(
-                args=[pex, "venv", venv_dir] + list(options or ()), env=make_env(PEX_TOOLS="1")
-            )
-            return Virtualenv(venv_dir)
+    venv_dir = tmpdir.join("venv")
 
-        yield _create_pex_venv
+    def _create_pex_venv(*options):
+        # type: (*str) -> Virtualenv
+        subprocess.check_call(
+            args=[pex, "venv", venv_dir] + list(options or ()), env=make_env(PEX_TOOLS="1")
+        )
+        return Virtualenv(venv_dir)
+
+    yield _create_pex_venv
 
 
 def test_force(create_pex_venv):
@@ -228,8 +231,12 @@ def test_venv_pex(create_pex_venv):
     assert 0 == returncode, stderr
 
 
-def test_binary_path(create_pex_venv):
-    # type: (CreatePexVenv) -> None
+def test_binary_path(
+    tmpdir,  # type: Tempdir
+    create_pex_venv,  # type: CreatePexVenv
+):
+    # type: (...) -> None
+
     code = dedent(
         """\
         import errno
@@ -258,15 +265,11 @@ def test_binary_path(create_pex_venv):
     )
 
     venv = create_pex_venv()
-    returncode, stdout, stderr = execute_venv_pex_interpreter(
-        venv, code=code, PATH=tempfile.gettempdir()
-    )
+    returncode, stdout, stderr = execute_venv_pex_interpreter(venv, code=code, PATH=str(tmpdir))
     assert 111 == returncode, stdout + stderr
 
     venv_bin_path = create_pex_venv("-f", "--bin-path", "prepend")
-    returncode, _, _ = execute_venv_pex_interpreter(
-        venv_bin_path, code=code, PATH=tempfile.gettempdir()
-    )
+    returncode, _, _ = execute_venv_pex_interpreter(venv_bin_path, code=code, PATH=str(tmpdir))
     assert 0 == returncode
 
 

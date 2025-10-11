@@ -6,11 +6,12 @@ from __future__ import absolute_import, print_function
 import glob
 import os
 import pkgutil
-import re
 import subprocess
 import sys
+import zipfile
 from argparse import ArgumentParser
 from collections import OrderedDict, defaultdict
+from contextlib import closing
 from typing import FrozenSet, Iterator, List
 
 import libcst
@@ -36,7 +37,15 @@ from libcst import (
     SimpleString,
 )
 
-from pex.common import safe_delete, safe_mkdir, safe_mkdtemp, safe_open, safe_rmtree
+from pex.common import (
+    REPRODUCIBLE_BUILDS_ENV,
+    safe_delete,
+    safe_mkdir,
+    safe_mkdtemp,
+    safe_open,
+    safe_rmtree,
+)
+from pex.pep_427 import ZipMetadata
 from pex.typing import TYPE_CHECKING
 from pex.vendor import VendorSpec, iter_vendor_specs
 
@@ -362,10 +371,10 @@ def vendorize(root_dir, vendor_specs, prefix, update):
     # importable code must lie at the top of its vendored chroot. Although
     # `pex.pep_472.install_wheel_chroot` encodes the logic to achieve this layout, we can't run
     # that without 1st approximating that layout!. We take the tack of performing an importable
-    # installation using `pip wheel ...` + `wheel unpack ...`. Although simply un-packing a wheel
+    # installation using `pip wheel ...` + `unzip ...`. Although simply unzipping a wheel
     # does not make it importable in general, it works for our pure-python vendored code.
 
-    unpacked_wheel_chroots_by_vendor_spec = defaultdict(list)
+    unzipped_wheel_chroots_by_vendor_spec = defaultdict(list)
     for vendor_spec in vendor_specs:
         # NB: We set --no-build-isolation to prevent pip from installing the requirements listed in
         # its [build-system] config in its pyproject.toml.
@@ -387,6 +396,7 @@ def vendorize(root_dir, vendor_specs, prefix, update):
         cmd = [
             "pip",
             "wheel",
+            "--prefer-binary",
             "--no-build-isolation",
             "--no-cache-dir",
             "--wheel-dir",
@@ -408,7 +418,9 @@ def vendorize(root_dir, vendor_specs, prefix, update):
             if os.path.isfile(constraints_file):
                 cmd.extend(["--constraint", constraints_file])
 
-        result = subprocess.call(cmd)
+        env = os.environ.copy()
+        env.update(REPRODUCIBLE_BUILDS_ENV)
+        result = subprocess.call(cmd, env=env)
         if result != 0:
             raise VendorizeError("Failed to vendor {!r}".format(vendor_spec))
 
@@ -416,22 +428,17 @@ def vendorize(root_dir, vendor_specs, prefix, update):
         # later.
         safe_mkdir(vendor_spec.target_dir)
         for wheel_file in glob.glob(os.path.join(wheels_dir, "*.whl")):
-            extract_dir = os.path.join(wheels_dir, ".extracted")
-            output = subprocess.check_output(
-                ["wheel", "unpack", "--dest", extract_dir, wheel_file]
-            ).decode("utf-8")
-            match = re.match(r"^Unpacking to: (?P<unpack_dir>.+)\.\.\.OK$", output)
-            assert match is not None, (
-                "Failed to determine {wheel_file} unpack dir from wheel unpack output:\n"
-                "{output}".format(wheel_file=wheel_file, output=output)
+            unzipped_wheel_dir = os.path.join(
+                wheels_dir, ".extracted", os.path.basename(wheel_file)
             )
-            unpacked_to_dir = os.path.join(extract_dir, match["unpack_dir"])
-            unpacked_wheel_dir = os.path.join(extract_dir, os.path.basename(wheel_file))
-            os.rename(unpacked_to_dir, unpacked_wheel_dir)
-            unpacked_wheel_chroots_by_vendor_spec[vendor_spec].append(unpacked_wheel_dir)
-            for path in os.listdir(unpacked_wheel_dir):
+            with closing(zipfile.ZipFile(wheel_file)) as zf:
+                zf.extractall(unzipped_wheel_dir)
+            unzipped_wheel_chroots_by_vendor_spec[vendor_spec].append(
+                (unzipped_wheel_dir, wheel_file)
+            )
+            for path in os.listdir(unzipped_wheel_dir):
                 os.symlink(
-                    os.path.join(unpacked_wheel_dir, path),
+                    os.path.join(unzipped_wheel_dir, path),
                     os.path.join(vendor_spec.target_dir, path),
                 )
 
@@ -484,7 +491,8 @@ def vendorize(root_dir, vendor_specs, prefix, update):
     # Import all code needed below now before we move any vendored bits it depends on temporarily
     # back to the prefix site-packages dir.
     from pex.dist_metadata import ProjectNameAndVersion, Requirement
-    from pex.pep_427 import install_wheel_chroot
+    from pex.pep_427 import InstallableWheel, InstallPaths, install_wheel_chroot
+    from pex.wheel import Wheel
 
     for vendor_spec in vendor_specs:
         print(
@@ -512,29 +520,40 @@ def vendorize(root_dir, vendor_specs, prefix, update):
         # We want the primary artifact to own any special Pex wheel chroot metadata; so we arrange
         # a list of installs that place it last.
         primary_project = Requirement.parse(vendor_spec.requirement).project_name
-        wheel_chroots_by_project_name = {
-            ProjectNameAndVersion.from_filename(
-                wheel_chroot
-            ).canonicalized_project_name: wheel_chroot
-            for wheel_chroot in unpacked_wheel_chroots_by_vendor_spec[vendor_spec]
-        }
-        primary_wheel_chroot = wheel_chroots_by_project_name.pop(primary_project)
-        wheels_chroots_to_install = list(wheel_chroots_by_project_name.values())
-        wheels_chroots_to_install.append(primary_wheel_chroot)
-
-        for wheel_chroot in wheels_chroots_to_install:
-            dest_dir = safe_mkdtemp()
-            subprocess.check_call(["wheel", "pack", "--dest-dir", dest_dir, wheel_chroot])
-            wheel_files = glob.glob(os.path.join(dest_dir, "*.whl"))
-            assert len(wheel_files) == 1, (
-                "Expected re-packing {wheel_chroot} to produce one `.whl` file but found {count}:\n"
-                "{wheel_files}"
-            ).format(
-                wheel_chroot=wheel_chroot,
-                count=len(wheel_files),
-                wheel_files="\n".join(os.path.basename(wheel_file) for wheel_file in wheel_files),
+        wheel_chroots_by_project_name = OrderedDict()
+        for wheel_chroot, wheel_file in unzipped_wheel_chroots_by_vendor_spec[vendor_spec]:
+            pnav = ProjectNameAndVersion.from_filename(wheel_chroot)
+            wheel_chroots_by_project_name[pnav.canonicalized_project_name] = (
+                pnav.canonicalized_project_name,
+                pnav.canonicalized_version,
+                wheel_chroot,
+                wheel_file,
             )
-            install_wheel_chroot(wheel=wheel_files[0], destination=vendor_spec.target_dir)
+
+        (
+            project_name,
+            version,
+            primary_wheel_chroot,
+            primary_wheel_file,
+        ) = wheel_chroots_by_project_name.pop(primary_project)
+        wheels_chroots_to_install = list(wheel_chroots_by_project_name.values())
+        wheels_chroots_to_install.append(
+            (project_name, version, primary_wheel_chroot, primary_wheel_file)
+        )
+
+        for project_name, version, wheel_chroot, wheel_file in wheels_chroots_to_install:
+            with closing(zipfile.ZipFile(wheel_file)) as zf:
+                zip_metadata = ZipMetadata.from_zip(filename=wheel_file, info_list=zf.infolist())
+            install_wheel_chroot(
+                wheel=InstallableWheel(
+                    wheel=Wheel.load(wheel_chroot),
+                    install_paths=InstallPaths.wheel(
+                        destination=wheel_chroot, project_name=project_name, version=version
+                    ),
+                    zip_metadata=zip_metadata,
+                ),
+                destination=vendor_spec.target_dir,
+            )
 
 
 if __name__ == "__main__":
@@ -551,6 +570,8 @@ if __name__ == "__main__":
     root_directory = VendorSpec.ROOT
     try:
         safe_rmtree(VendorSpec.vendor_root())
+        # Stabilize our umask to get the same file perms on any run.
+        os.umask(0o022)
         vendorize(
             root_dir=root_directory,
             vendor_specs=list(iter_vendor_specs()),

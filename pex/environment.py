@@ -26,6 +26,7 @@ from pex.third_party.packaging import specifiers
 from pex.third_party.packaging.tags import Tag
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
+from pex.whl import repacked_whl
 
 if TYPE_CHECKING:
     from typing import (
@@ -305,12 +306,7 @@ class PEXEnvironment(object):
 
     def iter_distributions(self, result_type_wheel_file=False):
         # type: (bool) -> Iterator[FingerprintedDistribution]
-        if result_type_wheel_file:
-            if not self._pex_info.deps_are_wheel_files:
-                raise ResolveError(
-                    "Cannot resolve .whl files from PEX at {pex}; its dependencies are in the "
-                    "form of pre-installed wheel chroots.".format(pex=self.source_pex)
-                )
+        if result_type_wheel_file and self._pex_info.deps_are_wheel_files:
             with TRACER.timed(
                 "Searching dependency cache: {cache}".format(
                     cache=os.path.join(self.source_pex, self._pex_info.internal_cache)
@@ -334,10 +330,17 @@ class PEXEnvironment(object):
             ):
                 for distribution_name, fingerprint in self._pex_info.distributions.items():
                     dist_path = os.path.join(internal_cache, distribution_name)
-                    yield FingerprintedDistribution(
-                        distribution=Distribution.load(dist_path),
-                        fingerprint=fingerprint,
-                    )
+                    if result_type_wheel_file:
+                        yield repacked_whl(
+                            installed_wheel=dist_path,
+                            distribution_name=distribution_name,
+                            fingerprint=fingerprint,
+                            use_system_time=True,
+                        )
+                    else:
+                        yield FingerprintedDistribution(
+                            distribution=Distribution.load(dist_path), fingerprint=fingerprint
+                        )
 
     def _update_candidate_distributions(self, distribution_iter):
         # type: (Iterable[FingerprintedDistribution]) -> None

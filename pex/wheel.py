@@ -17,11 +17,13 @@ from pex.dist_metadata import (
     parse_message,
 )
 from pex.orderedset import OrderedSet
+from pex.pep_440 import Version
+from pex.pep_503 import ProjectName
 from pex.third_party.packaging import tags
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from typing import Dict, Optional, Text, Tuple
+    from typing import Dict, Iterator, List, Optional, Text, Tuple
 
     import attr  # vendor:skip
 else:
@@ -53,30 +55,37 @@ class WHEEL(object):
         metadata = parse_message(metadata_bytes)
         return cls(files=metadata_files, metadata=metadata)
 
-    _CACHE = {}  # type: Dict[Text, WHEEL]
+    _CACHE = {}  # type: Dict[Tuple[Text, Optional[ProjectName]], WHEEL]
 
     @classmethod
-    def load(cls, location):
-        # type: (Text) -> WHEEL
-        wheel = cls._CACHE.get(location)
+    def load(
+        cls,
+        location,  # type: Text
+        project_name=None,  # type: Optional[ProjectName]
+    ):
+        # type: (...) -> WHEEL
+        wheel = cls._CACHE.get((location, project_name))
         if not wheel:
-            metadata_files = load_metadata(location, restrict_types_to=(MetadataType.DIST_INFO,))
+            metadata_files = load_metadata(
+                location, project_name=project_name, restrict_types_to=(MetadataType.DIST_INFO,)
+            )
             if not metadata_files:
                 raise WheelMetadataLoadError(
                     "Could not find any metadata in {wheel}.".format(wheel=location)
                 )
             wheel = cls._from_metadata_files(metadata_files)
-            cls._CACHE[location] = wheel
+            cls._CACHE[(location, project_name)] = wheel
         return wheel
 
     @classmethod
     def from_distribution(cls, distribution):
         # type: (Distribution) -> WHEEL
         location = distribution.metadata.files.metadata.path
-        wheel = cls._CACHE.get(location)
+        project_name = distribution.metadata.project_name
+        wheel = cls._CACHE.get((location, project_name))
         if not wheel:
             wheel = cls._from_metadata_files(distribution.metadata.files)
-            cls._CACHE[location] = wheel
+            cls._CACHE[(location, project_name)] = wheel
         return wheel
 
     files = attr.ib()  # type: MetadataFiles
@@ -163,6 +172,7 @@ class Wheel(object):
         metadata_dir = str(wheel_metadata_dir)
 
         data_dir = re.sub(r"\.dist-info$", ".data", metadata_dir)
+        pex_metadata_dir = re.sub(r"\.dist-info$", ".pex-info", metadata_dir)
 
         return cls(
             location=location,
@@ -170,13 +180,18 @@ class Wheel(object):
             metadata_files=metadata_files,
             metadata=metadata,
             data_dir=data_dir,
+            pex_metadata_dir=pex_metadata_dir,
         )
 
     @classmethod
-    def load(cls, wheel_path):
-        # type: (str) -> Wheel
+    def load(
+        cls,
+        wheel_path,  # type: str
+        project_name=None,  # type: Optional[ProjectName]
+    ):
+        # type: (...) -> Wheel
 
-        wheel = WHEEL.load(wheel_path)
+        wheel = WHEEL.load(wheel_path, project_name=project_name)
         return cls._from_metadata_files(
             location=wheel_path, metadata_files=wheel.files, wheel=wheel
         )
@@ -193,11 +208,22 @@ class Wheel(object):
     metadata_files = attr.ib()  # type: MetadataFiles
     metadata = attr.ib()  # type: WHEEL
     data_dir = attr.ib()  # type: str
+    pex_metadata_dir = attr.ib()  # type: str
 
     @property
     def source(self):
         # type: () -> str
         return self._source(self.location, self.metadata_files)
+
+    @property
+    def project_name(self):
+        # type: () -> ProjectName
+        return self.metadata_files.metadata.project_name
+
+    @property
+    def version(self):
+        # type: () -> Version
+        return self.metadata_files.metadata.version
 
     @property
     def wheel_file_name(self):
@@ -215,10 +241,30 @@ class Wheel(object):
         )
 
         return "{project_name}-{version}-{tag}.whl".format(
-            project_name=self.metadata_files.metadata.project_name.raw,
-            version=self.metadata_files.metadata.version.raw,
-            tag=tag,
+            project_name=self.project_name.raw, version=self.version.raw, tag=tag
         )
+
+    def iter_compatible_python_versions(self):
+        # type: () -> Iterator[Tuple[int, ...]]
+
+        for tag in self.metadata.tags:
+            match = re.search(r"\d+(?:_\d+)*", tag.interpreter)
+            if not match:
+                raise WheelMetadataLoadError(
+                    "Invalid interpreter tag for wheel {whl} at {location}: {tag}".format(
+                        whl=self.wheel_file_name, location=self.location, tag=tag.interpreter
+                    )
+                )
+            components = match.group().split("_")
+            version = []  # type: List[int]
+            if len(components) == 1:
+                py_version_nodot = components[0]
+                version.append(int(py_version_nodot[0]))
+                if len(py_version_nodot) > 1:
+                    version.append(int(py_version_nodot[1:]))
+            else:
+                version.extend(int(component) for component in components)
+            yield tuple(version)
 
     @property
     def root_is_purelib(self):
@@ -231,8 +277,26 @@ class Wheel(object):
 
     def metadata_path(self, *components):
         # type: (*str) -> str
+        if not components:
+            return self.metadata_dir
         return os.path.join(self.metadata_dir, *components)
 
     def data_path(self, *components):
         # type: (*str) -> str
         return os.path.join(self.data_dir, *components)
+
+    def pex_metadata_path(self, *components):
+        # type: (*str) -> str
+        if not components:
+            return self.pex_metadata_dir
+        return os.path.join(self.pex_metadata_dir, *components)
+
+    def read_pex_metadata(self, *components):
+        # type: (*str) -> Optional[bytes]
+
+        location = os.path.join(self.location, self.pex_metadata_path(*components))
+        if not os.path.exists(location):
+            return None
+
+        with open(location, "rb") as fp:
+            return fp.read()

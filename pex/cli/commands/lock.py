@@ -32,11 +32,12 @@ from pex.dist_metadata import (
 )
 from pex.enum import Enum
 from pex.exceptions import production_assert
+from pex.installed_wheel import InstalledWheel
 from pex.interpreter import PythonInterpreter
 from pex.orderedset import OrderedSet
 from pex.os import is_exe, safe_execv
-from pex.pep_376 import InstalledWheel, Record
-from pex.pep_427 import InstallableType
+from pex.pep_376 import Record
+from pex.pep_427 import InstallableType, reinstall_venv
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pip.version import PipVersionValue
@@ -302,7 +303,9 @@ class SyncTarget(object):
             if distribution.metadata.type is MetadataType.DIST_INFO:
                 to_unlink.extend(
                     os.path.realpath(os.path.join(distribution.location, installed_file.path))
-                    for installed_file in Record.read(distribution.iter_metadata_lines("RECORD"))
+                    for installed_file in Record.read(
+                        lines=distribution.iter_metadata_lines("RECORD")
+                    )
                 )
             elif distribution.metadata.type is MetadataType.EGG_INFO:
                 installed_files = distribution.metadata.files.metadata_file_rel_path(
@@ -356,8 +359,8 @@ class SyncTarget(object):
 
         if to_install:
             for distribution in to_install:
-                for src, dst in InstalledWheel.load(distribution.location).reinstall_venv(
-                    self.venv
+                for src, dst in reinstall_venv(
+                    installed_wheel=InstalledWheel.load(distribution.location), venv=self.venv
                 ):
                     TRACER.log("Installed {src} -> {dst}".format(src=src, dst=dst))
             for script in self.venv.rewrite_scripts():

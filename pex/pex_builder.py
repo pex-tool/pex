@@ -33,11 +33,11 @@ from pex.enum import Enum
 from pex.executables import chmod_plus_x, create_sh_python_redirector_shebang
 from pex.finders import get_entry_point_from_console_script, get_script_from_distributions
 from pex.fs import safe_rename, safe_symlink
+from pex.installed_wheel import InstalledWheel
 from pex.interpreter import PythonInterpreter
 from pex.layout import Layout
 from pex.orderedset import OrderedSet
 from pex.os import WINDOWS
-from pex.pep_376 import InstalledWheel
 from pex.pex import PEX
 from pex.pex_info import PexInfo
 from pex.sh_boot import create_sh_boot_script
@@ -790,9 +790,9 @@ class PEXBuilder(object):
                                 self._chroot.zip(
                                     os.path.join(atomic_zip_dir.work_dir, location),
                                     deterministic=deterministic,
-                                    exclude_file=is_pyc_temporary_file
-                                    if bytecode_compile
-                                    else is_pyc_file,
+                                    exclude_file=(
+                                        is_pyc_temporary_file if bytecode_compile else is_pyc_file
+                                    ),
                                     strip_prefix=os.path.join(pex_info.internal_cache, location),
                                     labels=(location,),
                                     compress=compress,

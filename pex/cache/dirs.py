@@ -144,7 +144,7 @@ class CacheDir(Enum["CacheDir.Value"]):
 
     INSTALLED_WHEELS = Value(
         "installed_wheels",
-        version=0,
+        version=1,
         name="Pre-installed Wheels",
         description=(
             "Pre-installed wheel chroots used to both build PEXes and serve as runtime `sys.path` "
@@ -178,7 +178,7 @@ class CacheDir(Enum["CacheDir.Value"]):
 
     PIP = Value(
         "pip",
-        version=1,
+        version=2,
         name="Pip Versions",
         description="Isolated Pip caches and Pip PEXes Pex uses to resolve distributions.",
         dependencies=[INSTALLED_WHEELS],
@@ -190,6 +190,16 @@ class CacheDir(Enum["CacheDir.Value"]):
         name="Abbreviated Platforms",
         description=(
             "Information calculated about abbreviated platforms specified via `--platform`."
+        ),
+    )
+
+    REPACKED_WHEELS = Value(
+        "repacked_wheels",
+        version=0,
+        name="Reconstituted Wheels",
+        description=(
+            "Wheels that have been reconstituted from {installed_wheels!r}, as well as from wheels "
+            "installed in venvs.".format(installed_wheels=INSTALLED_WHEELS.rel_path())
         ),
     )
 
@@ -226,7 +236,7 @@ class CacheDir(Enum["CacheDir.Value"]):
 
     UNZIPPED_PEXES = Value(
         "unzipped_pexes",
-        version=1,
+        version=2,
         name="Unzipped PEXes",
         description="The unzipped PEX files executed on this machine.",
         dependencies=[BOOTSTRAPS, USER_CODE, INSTALLED_WHEELS],
@@ -234,7 +244,7 @@ class CacheDir(Enum["CacheDir.Value"]):
 
     VENVS = Value(
         "venvs",
-        version=1,
+        version=2,
         name="Virtual Environments",
         description="Virtual environments generated at runtime for `--venv` mode PEXes.",
         dependencies=[INSTALLED_WHEELS],

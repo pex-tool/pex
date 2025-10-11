@@ -2,7 +2,6 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os.path
-import re
 import sys
 
 import pytest
@@ -84,16 +83,12 @@ def test_requirements_pex_wheel_type_mismatch(
     ).assert_success()
     assert_pex()
 
-    # N.B.: We cannot currently re-materialize wheel files from pre-installed wheel chroots.
-    # See: https://github.com/pex-tool/pex/issues/2299
+    # Here we re-materialize wheel files from pre-installed wheel chroots.
     run_pex_command(
         args=["--no-pre-install-wheels", "--requirements-pex", pre_installed_reqs_pex], quiet=True
-    ).assert_failure(
-        expected_error_re=re.escape(
-            "Cannot resolve .whl files from PEX at {reqs_pex}; its dependencies are in the form of "
-            "pre-installed wheel chroots.".format(reqs_pex=pre_installed_reqs_pex)
-        )
-    )
+    ).assert_success()
+    assert_pex()
 
-    # But we can go the other way around and turn wheel files into pre-installed wheel chroots.
+    # And we can go the other way around and turn wheel files into pre-installed wheel chroots.
     run_pex_command(args=["--requirements-pex", wheel_file_reqs_pex], quiet=True).assert_success()
+    assert_pex()

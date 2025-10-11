@@ -204,6 +204,56 @@ _MKDTEMP_SINGLETON = MktempTeardownRegistry()
 setattr(zipfile, "ZIP64_LIMIT", (1 << 32) - 1)
 
 
+class _ZipFileTypeValue(Enum.Value):
+    def __init__(
+        self,
+        value,  # type: str
+        deterministic_mode,  # type: int
+    ):
+        # type: (...) -> None
+        super(_ZipFileTypeValue, self).__init__(value)
+        self.deterministic_mode = deterministic_mode
+
+    @property
+    def deterministic_external_attr(self):
+        # type: () -> int
+        return self.deterministic_mode << 16
+
+
+class ZipFileType(Enum["ZipFileType.Value"]):
+    @classmethod
+    def from_zip_info(cls, zip_info):
+        # type: (ZipInfo) -> ZipFileType.Value
+
+        if zip_info.filename.endswith("/"):
+            return ZipFileType.DIRECTORY
+
+        mode = zip_info.external_attr >> 16
+        if stat.S_IXUSR & mode:
+            return ZipFileType.EXECUTABLE
+
+        return ZipFileType.FILE
+
+    @classmethod
+    def from_path(cls, path):
+        # type: (Text) -> ZipFileType.Value
+        if os.path.isdir(path):
+            return ZipFileType.DIRECTORY
+        elif is_exe(path):
+            return ZipFileType.EXECUTABLE
+        return ZipFileType.FILE
+
+    class Value(_ZipFileTypeValue):
+        pass
+
+    DIRECTORY = Value("directory", 0o755)
+    EXECUTABLE = Value("executable", 0o755)
+    FILE = Value("file", 0o644)
+
+
+ZipFileType.seal()
+
+
 class ZipFileEx(ZipFile):
     """A ZipFile that works around several issues in the stdlib.
 
@@ -218,8 +268,8 @@ class ZipFileEx(ZipFile):
     @classmethod
     def zip_info_from_file(
         cls,
-        filename,  # type: str
-        arcname=None,  # type: Optional[str]
+        filename,  # type: Text
+        arcname=None,  # type: Optional[Text]
         date_time=None,  # type: Optional[time.struct_time]
         file_mode=None,  # type: Optional[int]
         compress=True,  # type: bool
@@ -259,8 +309,8 @@ class ZipFileEx(ZipFile):
 
     def write_deterministic(
         self,
-        filename,  # type: str
-        arcname=None,  # type: Optional[str]
+        filename,  # type: Text
+        arcname=None,  # type: Optional[Text]
         digest=None,  # type: Optional[Digest]
         deterministic=True,  # type: bool
         compress=True,  # type: bool
@@ -270,7 +320,7 @@ class ZipFileEx(ZipFile):
                 filename,
                 arcname=arcname,
                 date_time=DETERMINISTIC_DATETIME.timetuple(),
-                file_mode=0o755 if (is_exe(filename) or os.path.isdir(filename)) else 0o644,
+                file_mode=ZipFileType.from_path(filename).deterministic_mode,
                 digest=digest,
                 compress=compress,
             )
@@ -278,8 +328,8 @@ class ZipFileEx(ZipFile):
 
     def write_ex(
         self,
-        filename,  # type: str
-        arcname=None,  # type: Optional[str]
+        filename,  # type: Text
+        arcname=None,  # type: Optional[Text]
         date_time=None,  # type: Optional[time.struct_time]
         file_mode=None,  # type: Optional[int]
         digest=None,  # type: Optional[Digest]

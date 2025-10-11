@@ -82,7 +82,7 @@ class _PlatformValue(Enum.Value):
         self.arch = arch
 
     @property
-    def extension(self):
+    def exe_extension(self):
         # type: () -> str
         return ".exe" if self.os is Os.WINDOWS else ""
 
@@ -93,12 +93,14 @@ class _PlatformValue(Enum.Value):
 
     def binary_name(self, binary_name):
         # type: (_Text) -> _Text
-        return "{binary_name}{extension}".format(binary_name=binary_name, extension=self.extension)
+        return "{binary_name}{extension}".format(
+            binary_name=binary_name, extension=self.exe_extension
+        )
 
     def qualified_binary_name(self, binary_name):
         # type: (_Text) -> _Text
         return "{binary_name}-{platform}{extension}".format(
-            binary_name=binary_name, platform=self, extension=self.extension
+            binary_name=binary_name, platform=self, extension=self.exe_extension
         )
 
     def qualified_file_name(self, file_name):

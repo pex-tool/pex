@@ -5,19 +5,19 @@ import os
 
 import pytest
 
-from pex.dist_metadata import CallableEntryPoint, Distribution, NamedEntryPoint
+from pex.dist_metadata import CallableEntryPoint, Distribution, EntryPoints, NamedEntryPoint
 from pex.finders import (
     DistributionScript,
     get_entry_point_from_console_script,
     get_script_from_distributions,
 )
-from pex.pep_376 import InstalledWheel
+from pex.installed_wheel import InstalledWheel
 from pex.pep_427 import install_wheel_chroot
 from pex.typing import TYPE_CHECKING
 from testing.dist_metadata import create_dist_metadata
 
 if TYPE_CHECKING:
-    from typing import Any, Dict, Tuple
+    from typing import Any, Tuple
 
     import attr  # vendor:skip
 else:
@@ -64,8 +64,10 @@ def create_dist(
     @attr.s(frozen=True)
     class FakeDist(Distribution):
         def get_entry_map(self):
-            # type: () -> Dict[str, Dict[str, NamedEntryPoint]]
-            return {"console_scripts": {entry_point.name: entry_point}}
+            # type: () -> EntryPoints
+            return EntryPoints(
+                values={"console_scripts": {entry_point.name: entry_point}}, source="<test>"
+            )
 
     location = os.getcwd()
     return FakeDist(

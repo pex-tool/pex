@@ -9,9 +9,11 @@ from pex import hashing
 from pex.common import safe_delete
 from pex.compatibility import ConfigParser
 from pex.dist_metadata import Distribution
+from pex.entry_points_txt import install_scripts
 from pex.interpreter import PythonInterpreter
 from pex.pep_376 import Hash, InstalledFile, Record
-from pex.pep_427 import InstallPaths, install_scripts
+from pex.pep_427 import InstallPaths
+from pex.pep_503 import ProjectName
 from pex.version import __version__
 
 TYPE_CHECKING = False
@@ -71,9 +73,13 @@ def main():
 
     with open(entry_points_write_fp.name, "rb") as entry_points_read_fp:
         current_interpreter = PythonInterpreter.get()
-        for script_abspath in install_scripts(
-            install_paths=InstallPaths.interpreter(current_interpreter),
-            entry_points=Distribution.parse_entry_map(entry_points_read_fp.read()),
+        for _, script_abspath in install_scripts(
+            dest_dir=InstallPaths.interpreter(
+                current_interpreter, project_name=ProjectName("pex")
+            ).scripts,
+            entry_points=Distribution.parse_entry_map(
+                entry_points_read_fp.read(), source=entry_points_read_fp.name
+            ),
             interpreter=current_interpreter,
         ):
             record_installed_file(script_abspath)

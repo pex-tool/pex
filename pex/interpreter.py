@@ -483,7 +483,7 @@ class PythonIdentity(object):
             env_markers=self._env_markers.as_dict(),
             configured_macosx_deployment_target=self._configured_macosx_deployment_target,
         )
-        return json.dumps(values, sort_keys=True)
+        return json.dumps(values, sort_keys=True, separators=(",", ":"))
 
     @property
     def binary(self):
@@ -1525,13 +1525,19 @@ class PythonInterpreter(object):
             self._supported_platforms = frozenset(self._identity.iter_supported_platforms())
         return self._supported_platforms
 
-    def shebang(self, args=None):
-        # type: (Optional[Text]) -> Text
+    def shebang(
+        self,
+        args=None,  # type: Optional[Text]
+        encoding_line="",  # type: str
+    ):
+        # type: (...) -> Text
         """Return the contents of an appropriate shebang for this interpreter and args.
 
         The shebang will include the leading `#!` but will not include a trailing new line character.
         """
-        return create_shebang(self._binary, python_args=args)
+        return create_shebang(
+            adjust_to_final_path(self._binary), python_args=args, encoding_line=encoding_line
+        )
 
     def create_isolated_cmd(
         self,
@@ -1637,6 +1643,7 @@ def create_shebang(
     python_exe,  # type: Text
     python_args=None,  # type: Optional[Text]
     max_shebang_length=MAX_SHEBANG_LENGTH,  # type: int
+    encoding_line="",  # type: str
 ):
     # type: (...) -> Text
     """Return the contents of an appropriate shebang for the given Python interpreter and args.
@@ -1662,6 +1669,7 @@ def create_shebang(
         dedent(
             """\
             #!/bin/sh
+            {encoding_line}
             # N.B.: This python script executes via a /bin/sh re-exec as a hack to work around a
             # potential maximum shebang length of {max_shebang_length} bytes on this system which
             # the python interpreter `exec`ed below would violate.
@@ -1669,6 +1677,10 @@ def create_shebang(
             '''
             """
         )
-        .format(max_shebang_length=max_shebang_length, python=python)
+        .format(
+            encoding_line=encoding_line.rstrip(),
+            max_shebang_length=max_shebang_length,
+            python=python,
+        )
         .strip()
     )

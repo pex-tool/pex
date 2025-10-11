@@ -639,7 +639,7 @@ def expose_installed_wheels(
 
     from pex.atomic_directory import atomic_directory
     from pex.cache.dirs import InstalledWheelDir
-    from pex.pep_376 import InstalledWheel
+    from pex.installed_wheel import InstalledWheel
 
     for path in expose(dists, interpreter=interpreter):
         # TODO(John Sirois): Maybe consolidate with pex.resolver.BuildAndInstallRequest.

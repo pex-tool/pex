@@ -18,12 +18,14 @@ from pex import dist_metadata
 from pex.atomic_directory import atomic_directory
 from pex.cache.dirs import CacheDir
 from pex.commands.command import JsonMixin, OutputMixin
-from pex.common import REPRODUCIBLE_BUILDS_ENV, pluralize, safe_mkdir, safe_mkdtemp, safe_open
+from pex.common import pluralize, safe_mkdir, safe_mkdtemp, safe_open
 from pex.compatibility import Queue
 from pex.dist_metadata import Distribution
 from pex.environment import PEXEnvironment
+from pex.installed_wheel import InstalledWheel
 from pex.interpreter import PythonInterpreter
-from pex.jobs import Job, Retain, SpawnedJob, execute_parallel
+from pex.jobs import Job, iter_map_parallel
+from pex.pep_427 import WheelInstallError, repack
 from pex.pex import PEX
 from pex.result import Error, Ok, Result
 from pex.tools.command import PEXCommand
@@ -31,7 +33,7 @@ from pex.typing import TYPE_CHECKING, cast
 from pex.venv.virtualenv import InstallationChoice, Virtualenv
 
 if TYPE_CHECKING:
-    from typing import IO, Any, Callable, Iterable, Iterator, List, Text, Tuple
+    from typing import IO, Any, Callable, Iterable, Iterator, List, Tuple
 
     import attr  # vendor:skip
 
@@ -119,6 +121,29 @@ class FindLinksRepo(object):
     def kill(self):
         # type: () -> None
         self._server_process.kill()
+
+
+def _extract_wheel(
+    distribution,  # type: Distribution
+    dest_dir,  # type: str
+    use_system_time=False,  # type: bool
+):
+    # type: (...) -> Tuple[Distribution, Result]
+
+    try:
+        whl = repack(
+            installed_wheel=InstalledWheel.load(distribution.location),
+            dest_dir=dest_dir,
+            use_system_time=use_system_time,
+        )
+    except (InstalledWheel.LoadError, WheelInstallError) as e:
+        result = Error(str(e))  # type: Result
+    else:
+        result = Ok(
+            "{distribution}: Repacked wheel as {whl}".format(distribution=distribution, whl=whl)
+        )
+
+    return distribution, result
 
 
 class Repository(JsonMixin, OutputMixin, PEXCommand):
@@ -270,36 +295,23 @@ class Repository(JsonMixin, OutputMixin, PEXCommand):
         if self.options.sources:
             self._extract_sdist(pex, dest_dir)
 
-        def spawn_extract(distribution):
-            # type: (Distribution) -> SpawnedJob[Text]
-            env = os.environ.copy()
-            if not self.options.use_system_time:
-                env.update(REPRODUCIBLE_BUILDS_ENV)
-            job = spawn_python_job_with_setuptools_and_wheel(
-                args=["-m", "wheel", "pack", "--dest-dir", dest_dir, distribution.location],
-                interpreter=pex.interpreter,
-                stdout=subprocess.PIPE,
-                env=env,
-            )
-            return SpawnedJob.stdout(
-                job, result_func=lambda out: "{}: {}".format(distribution, out.decode())
-            )
-
         with self._distributions_output(pex) as (distributions, output):
             errors = []  # type: List[Distribution]
-            for result in execute_parallel(
-                distributions, spawn_extract, error_handler=Retain[Distribution]()
+            for distribution, result in iter_map_parallel(
+                distributions,
+                functools.partial(
+                    _extract_wheel, dest_dir=dest_dir, use_system_time=self.options.use_system_time
+                ),
             ):
-                if isinstance(result, tuple):
-                    distribution, error = result
+                if isinstance(result, Error):
                     errors.append(distribution)
                     output.write(
                         "Failed to build a wheel for {distribution}: {error}\n".format(
-                            distribution=distribution, error=error
+                            distribution=distribution, error=result
                         )
                     )
                 else:
-                    output.write(result)
+                    output.write(str(result))
             if errors:
                 return Error(
                     "Failed to build wheels for {count} {distributions}.".format(
@@ -434,6 +446,17 @@ class Repository(JsonMixin, OutputMixin, PEXCommand):
 
         with open(os.path.join(chroot, "setup.py"), "w") as fp:
             fp.write("import setuptools; setuptools.setup()")
+
+        with open(os.path.join(chroot, "pyproject.toml"), "w") as fp:
+            fp.write(
+                dedent(
+                    """\
+                    [build-system]
+                    requires = ["setuptools"]
+                    backend = "setuptools.build_meta"
+                    """
+                )
+            )
 
         spawn_python_job_with_setuptools_and_wheel(
             args=["setup.py", "sdist", "--dist-dir", dest_dir],
