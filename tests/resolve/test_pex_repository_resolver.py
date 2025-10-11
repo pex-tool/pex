@@ -4,7 +4,6 @@
 from __future__ import absolute_import, print_function
 
 import os
-import re
 from collections import defaultdict
 
 import pytest
@@ -209,30 +208,15 @@ def test_resolve_from_pex(
         expected_result_type=InstallableType.INSTALLED_WHEEL_CHROOT,
     )
 
-    if pex_info.deps_are_wheel_files:
-        assert_resolve_result(
-            resolve_from_pex(
-                pex=pex_repository,
-                requirements=direct_requirements,
-                targets=Targets(interpreters=(py27, py310), platforms=(foreign_platform,)),
-                result_type=InstallableType.WHEEL_FILE,
-            ),
-            expected_result_type=InstallableType.WHEEL_FILE,
-        )
-    else:
-        with pytest.raises(
-            Unsatisfiable,
-            match=(
-                r"Cannot resolve \.whl files from PEX at {pex}; its dependencies are in the form "
-                r"of pre-installed wheel chroots\.".format(pex=re.escape(pex_repository))
-            ),
-        ):
-            resolve_from_pex(
-                pex=pex_repository,
-                requirements=direct_requirements,
-                targets=Targets(interpreters=(py27, py310), platforms=(foreign_platform,)),
-                result_type=InstallableType.WHEEL_FILE,
-            )
+    assert_resolve_result(
+        resolve_from_pex(
+            pex=pex_repository,
+            requirements=direct_requirements,
+            targets=Targets(interpreters=(py27, py310), platforms=(foreign_platform,)),
+            result_type=InstallableType.WHEEL_FILE,
+        ),
+        expected_result_type=InstallableType.WHEEL_FILE,
+    )
 
 
 def test_resolve_from_pex_subset(

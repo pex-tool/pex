@@ -37,10 +37,10 @@ from pex.dist_metadata import (
 )
 from pex.exceptions import production_assert
 from pex.fingerprinted_distribution import FingerprintedDistribution
+from pex.installed_wheel import InstalledWheel
 from pex.jobs import Raise, SpawnedJob, execute_parallel, iter_map_parallel
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
-from pex.pep_376 import InstalledWheel
 from pex.pep_425 import CompatibilityTags
 from pex.pep_427 import InstallableType, WheelError, install_wheel_chroot
 from pex.pep_503 import ProjectName
@@ -622,7 +622,7 @@ class BuildResult(object):
                         target=self.request.target.render_description(),
                     )
                 )
-        return InstallRequest.create(self.request.target, wheel_path)
+        return InstallRequest.create(self.request.target, wheel_path, was_built_locally=True)
 
 
 @attr.s(frozen=True)
@@ -632,6 +632,7 @@ class InstallRequest(object):
         cls,
         target,  # type: Union[DownloadTarget, Target]
         wheel_path,  # type: str
+        was_built_locally=False,  # type: bool
     ):
         # type: (...) -> InstallRequest
         fingerprint = fingerprint_path(wheel_path)
@@ -639,11 +640,13 @@ class InstallRequest(object):
             download_target=_as_download_target(target),
             wheel_path=wheel_path,
             fingerprint=fingerprint,
+            was_built_locally=was_built_locally,
         )
 
     download_target = attr.ib(converter=_as_download_target)  # type: DownloadTarget
     wheel_path = attr.ib()  # type: str
     fingerprint = attr.ib()  # type: str
+    was_built_locally = attr.ib(default=False)  # type: bool
 
     @property
     def target(self):
@@ -987,7 +990,11 @@ def _perform_install(
 ):
     # type: (...) -> InstallResult
     install_result = install_request.result(installed_wheels_dir)
-    install_wheel_chroot(wheel=install_request.wheel_path, destination=install_result.build_chroot)
+    install_wheel_chroot(
+        wheel=install_request.wheel_path,
+        destination=install_result.build_chroot,
+        normalize_file_stat=install_request.was_built_locally,
+    )
     return install_result
 
 

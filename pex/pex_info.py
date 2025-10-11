@@ -604,9 +604,14 @@ class PexInfo(object):
         data["distributions"] = self._distributions.copy()
         return data
 
-    def dump(self, **extra_json_dumps_kwargs):
-        # type: (**Any) -> str
-        return json.dumps(self.as_json_dict(), sort_keys=True, **extra_json_dumps_kwargs)
+    def dump(self, indent=None):
+        # type: (Optional[int]) -> str
+        return json.dumps(
+            self.as_json_dict(),
+            sort_keys=True,
+            indent=indent,
+            separators=None if indent else (",", ":"),
+        )
 
     def copy(self):
         # type: () -> PexInfo

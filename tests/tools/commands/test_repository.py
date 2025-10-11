@@ -12,7 +12,7 @@ from textwrap import dedent
 
 import pytest
 
-from pex.common import DETERMINISTIC_DATETIME, open_zip, safe_open, temporary_dir
+from pex.common import DETERMINISTIC_DATETIME, open_zip, safe_open
 from pex.dist_metadata import Distribution, Requirement
 from pex.os import kill
 from pex.pip.installation import get_pip
@@ -29,62 +29,66 @@ from testing import (
     run_pex_command,
     subprocess,
 )
+from testing.pytest_utils.tmp import Tempdir
 
 if TYPE_CHECKING:
-    from typing import Any, Dict, Iterator
+    from typing import Any, Dict
 
 
-@pytest.fixture(scope="module")
-def pex():
-    # type: () -> Iterator[str]
-    with temporary_dir() as tmpdir:
-        pex_path = os.path.join(tmpdir, "example.pex")
+@pytest.fixture
+def pex(tmpdir):
+    # type: (Tempdir) -> str
+    pex_path = tmpdir.join("example.pex")
 
-        src = os.path.join(tmpdir, "src")
-        with safe_open(os.path.join(src, "data", "url.txt"), "w") as fp:
-            fp.write("https://example.com")
-        with safe_open(os.path.join(src, "main.py"), "w") as fp:
-            fp.write(
-                dedent(
-                    """\
-                    from __future__ import print_function
+    src = tmpdir.join("src")
+    with safe_open(os.path.join(src, "data", "url.txt"), "w") as fp:
+        fp.write("https://example.com")
+    with safe_open(os.path.join(src, "main.py"), "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                from __future__ import print_function
 
-                    import os
-                    import sys
+                import os
+                import sys
 
-                    import requests
+                import requests
 
 
-                    def do():
-                        with open(os.path.join(os.path.dirname(__file__), "data", "url.txt")) as fp:
-                            url = fp.read().strip()
-                        print("Fetching from {} ...".format(url))
-                        print(requests.get(url).text, file=sys.stderr)
-                    """
-                )
+                def do():
+                    with open(os.path.join(os.path.dirname(__file__), "data", "url.txt")) as fp:
+                        url = fp.read().strip()
+                    print("Fetching from {} ...".format(url))
+                    print(requests.get(url).text, file=sys.stderr)
+                """
             )
-
-        constraints = os.path.join(str(tmpdir), "constraints.txt")
-        with open(constraints, "w") as fp:
-            # N.B.: urllib3 1.26.10 dropped support for Python 3.5 which we test against.
-            fp.write("urllib3<1.26.10")
-
-        result = run_pex_command(
-            args=[
-                "-D",
-                src,
-                "requests==2.25.1",
-                "--constraints",
-                constraints,
-                "-e",
-                "main:do",
-                "-o",
-                pex_path,
-                "--include-tools",
-            ],
         )
-        result.assert_success()
-        yield os.path.realpath(pex_path)
+
+    constraints = tmpdir.join("constraints.txt")
+    with open(constraints, "w") as fp:
+        # N.B.: urllib3 1.26.10 dropped support for Python 3.5 which we test against.
+        fp.write("urllib3<1.26.10")
+
+    pex_root = tmpdir.join("pex-root")
+    run_pex_command(
+        args=[
+            "--pex-root",
+            pex_root,
+            "--runtime-pex-root",
+            pex_root,
+            "-D",
+            src,
+            "requests==2.25.1",
+            "--constraints",
+            constraints,
+            "-e",
+            "main:do",
+            "-o",
+            pex_path,
+            "--include-tools",
+        ],
+    ).assert_success()
+    return pex_path
 
 
 @pytest.fixture(scope="module")
@@ -180,7 +184,7 @@ def test_extract_deterministic_timestamp(pex, pex_tools_env, tmpdir):
             assert deterministic_date_time != info.date_time
 
 
-def test_extract_non_deterministic_wheels(pex, pex_tools_env):
+def test_extract_original_timestamp_wheels(pex, pex_tools_env):
     dist_dirs = run_command_with_jitter(
         args=[pex, "repository", "extract", "--use-system-time"],
         path_argument="-f",
@@ -195,12 +199,12 @@ def test_extract_non_deterministic_wheels(pex, pex_tools_env):
         same, different, non_reg = filecmp.cmpfiles(
             dists_dir1, dists_dir2, common=dists1, shallow=False
         )
-        assert not same
+        assert not different
         assert not non_reg
-        assert sorted(dists1) == sorted(different)
+        assert sorted(dists1) == sorted(same)
 
 
-def test_extract_deterministic_wheels(pex, pex_tools_env):
+def test_extract_deterministic_timestamp_wheels(pex, pex_tools_env):
     # We already have tests that ensure PEX file creation is deterministic; so here we just test
     # that extracting wheels from a fixed PEX file is also deterministic.
 

@@ -26,9 +26,11 @@ from pex.dist_metadata import (
 )
 from pex.exceptions import production_assert, reportable_unexpected_error_msg
 from pex.fingerprinted_distribution import FingerprintedDistribution
+from pex.installed_wheel import InstalledWheel
+from pex.interpreter import PythonInterpreter
 from pex.jobs import DEFAULT_MAX_JOBS, iter_map_parallel
 from pex.orderedset import OrderedSet
-from pex.pep_376 import InstalledWheel, Record
+from pex.pep_376 import Record
 from pex.pep_427 import InstallableType, InstallableWheel, InstallPaths, install_wheel_chroot
 from pex.pep_503 import ProjectName
 from pex.pip.version import PipVersion
@@ -43,6 +45,7 @@ from pex.targets import LocalInterpreter, Target, Targets
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import Virtualenv
 from pex.wheel import Wheel
+from pex.whl import repacked_whl
 
 if TYPE_CHECKING:
     from typing import DefaultDict, Deque, FrozenSet, Iterable, Iterator, List, Mapping, Set, Union
@@ -69,9 +72,14 @@ def _normalize_record(
         return record_data
 
     scripts_dir = os.path.realpath(install_paths.scripts)
+    record_lines = record_data.decode("utf-8").splitlines(True)  # N.B. no kw in 2.7: keepends=True
+    eol = os.sep
+    if record_lines:
+        eol = "\r\n" if record_lines[0].endswith("\r\n") else "\n"
+
     installed_files = [
         installed_file
-        for installed_file in Record.read(lines=iter(record_data.decode("utf-8").splitlines()))
+        for installed_file in Record.read(lines=iter(record_lines))
         if (
             (os.path.basename(installed_file.path) not in entry_point_scripts)
             or (
@@ -88,25 +96,30 @@ def _normalize_record(
 
     if PY2:
         record_fp = io.BytesIO()
-        Record.write_fp(fp=record_fp, installed_files=installed_files)
+        Record.write_fp(fp=record_fp, installed_files=installed_files, eol=eol)
         return record_fp.getvalue()
     else:
         record_fp = io.StringIO()
-        Record.write_fp(fp=record_fp, installed_files=installed_files)
+        Record.write_fp(fp=record_fp, installed_files=installed_files, eol=eol)
         return record_fp.getvalue().encode("utf-8")
 
 
 def _install_distribution(
-    venv_install_paths,  # type: InstallPaths
+    interpreter,  # type: PythonInterpreter
+    result_type,  # type: InstallableType.Value
+    use_system_time,  # type: bool
     distribution,  # type: Distribution
 ):
-    # type: (...) -> InstalledWheel
+    # type: (...) -> FingerprintedDistribution
 
     production_assert(distribution.type is DistributionType.INSTALLED)
     production_assert(distribution.metadata.files.metadata.type is MetadataType.DIST_INFO)
 
-    wheel = InstallableWheel(
-        wheel=Wheel.from_distribution(distribution), install_paths=venv_install_paths
+    venv_install_paths = InstallPaths.interpreter(
+        interpreter, project_name=distribution.metadata.project_name
+    )
+    wheel = InstallableWheel.from_whl(
+        whl=Wheel.from_distribution(distribution), install_paths=venv_install_paths
     )
     record_data = wheel.metadata_files.read("RECORD")
     if not record_data:
@@ -148,28 +161,37 @@ def _install_distribution(
                         installed_wheel_dir,
                         os.path.join(symlink_atomic_dir.work_dir, wheel.wheel_file_name),
                     )
-    return InstalledWheel.load(installed_wheel_dir)
+
+    installed_wheel = InstalledWheel.load(installed_wheel_dir)
+    if not installed_wheel.fingerprint:
+        raise AssertionError(reportable_unexpected_error_msg())
+
+    if result_type is InstallableType.INSTALLED_WHEEL_CHROOT:
+        return FingerprintedDistribution(
+            distribution=Distribution.load(installed_wheel.prefix_dir),
+            fingerprint=installed_wheel.fingerprint,
+        )
+    return repacked_whl(
+        installed_wheel, fingerprint=installed_wheel.fingerprint, use_system_time=use_system_time
+    )
 
 
 def _install_venv_distributions(
     venv,  # type: Virtualenv
     distributions,  # type: Iterable[Distribution]
     max_install_jobs=DEFAULT_MAX_JOBS,  # type: int
+    result_type=InstallableType.INSTALLED_WHEEL_CHROOT,  # type: InstallableType.Value
+    use_system_time=False,  # type: bool
 ):
     # type: (...) -> Iterator[FingerprintedDistribution]
 
-    venv_install_paths = InstallPaths.interpreter(venv.interpreter)
-    for installed_wheel in iter_map_parallel(
+    return iter_map_parallel(
         inputs=distributions,
-        function=functools.partial(_install_distribution, venv_install_paths),
+        function=functools.partial(
+            _install_distribution, venv.interpreter, result_type, use_system_time
+        ),
         max_jobs=max_install_jobs,
-    ):
-        if not installed_wheel.fingerprint:
-            raise AssertionError(reportable_unexpected_error_msg())
-        yield FingerprintedDistribution(
-            distribution=Distribution.load(installed_wheel.prefix_dir),
-            fingerprint=installed_wheel.fingerprint,
-        )
+    )
 
 
 @attr.s(frozen=True)
@@ -240,6 +262,7 @@ def _resolve_distributions(
     allow_prereleases=False,  # type: bool
     compile=False,  # type: bool
     ignore_errors=False,  # type: bool
+    result_type=InstallableType.INSTALLED_WHEEL_CHROOT,  # type: InstallableType.Value
 ):
     # type: (...) -> Iterator[Union[Distribution, FingerprintedDistribution, Error]]
 
@@ -315,6 +338,7 @@ def _resolve_distributions(
                     transitive=False,
                     compile=compile,
                     ignore_errors=ignore_errors,
+                    result_type=result_type,
                 )
                 for dist in result.distributions:
                     to_resolve.extend(
@@ -353,12 +377,6 @@ def resolve_from_venv(
     dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
 ):
     # type: (...) -> Union[ResolveResult, Error]
-
-    if result_type is InstallableType.WHEEL_FILE:
-        return Error(
-            "Cannot resolve .whl files from virtual environment at {venv_dir}; its distributions "
-            "are all installed.".format(venv_dir=venv.venv_dir)
-        )
 
     target = LocalInterpreter.create(venv.interpreter)
     if not targets.is_empty:
@@ -446,6 +464,7 @@ def resolve_from_venv(
             allow_prereleases=pip_configuration.allow_prereleases,
             compile=compile,
             ignore_errors=ignore_errors,
+            result_type=result_type,
         ):
             if isinstance(distribution_or_error, Error):
                 return distribution_or_error
@@ -491,6 +510,8 @@ def resolve_from_venv(
                         venv=venv,
                         distributions=venv_distributions,
                         max_install_jobs=pip_configuration.max_jobs,
+                        result_type=result_type,
+                        use_system_time=True,
                     )
                 ),
                 fingerprinted_distributions,

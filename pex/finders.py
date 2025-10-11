@@ -15,7 +15,7 @@ from pex.dist_metadata import (
     NamedEntryPoint,
 )
 from pex.executables import is_python_script
-from pex.pep_376 import InstalledWheel
+from pex.installed_wheel import InstalledWheel
 from pex.pep_503 import ProjectName
 from pex.sysconfig import SCRIPT_DIR, script_name
 from pex.typing import TYPE_CHECKING, cast

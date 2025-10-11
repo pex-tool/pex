@@ -1,5 +1,18 @@
 # Release Notes
 
+## 2.60.0
+
+This release adds support for `--no-pre-install-wheels` to both the `--pex-repository` and
+`--venv-repository` resolvers, meaning all forms of Pex resolution (including Pip, `--lock`,
+`--pylock` and `--pre-resolved-dists`) now support this option.
+
+In addition, adding this support improved the fidelity of `pex-tools repository extract` such that
+extracted wheels are bytewise identical to the original wheel the PEX was built with. This fidelity
+also extends to wheels extracted from `--pex-repository` PEXes and wheels extracted from venvs
+created from PEXes.
+
+* Implement `.whl` packing from chroots and venvs. (#2925)
+
 ## 2.59.5
 
 This release optimizes `--venv-repository` installed wheel caching to only store one copy per
@@ -8,7 +21,7 @@ unique wheel even when that wheel is resolved from multiple `--venv-repository`s
 This release also updates vendored Pip's vendored certifi's cacert.pem to that from certifi
 2025.10.5.
 
-* Do not hash installed scripts from `--venv-repository`. (#2395)
+* Do not hash installed scripts from `--venv-repository`. (#2935)
 * Update vendored Pip's CA cert bundle. (#2934)
 
 ## 2.59.4

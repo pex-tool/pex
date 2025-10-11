@@ -17,9 +17,10 @@ from pex.dist_metadata import Distribution
 from pex.environment import PEXEnvironment
 from pex.executables import chmod_plus_x
 from pex.fs import safe_symlink
+from pex.installed_wheel import InstalledWheel
 from pex.orderedset import OrderedSet
 from pex.os import WINDOWS
-from pex.pep_376 import InstalledWheel
+from pex.pep_427 import reinstall_flat, reinstall_venv
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pex import PEX
@@ -268,8 +269,8 @@ def _populate_flat_deps(
     for dist in distributions:
         try:
             installed_wheel = InstalledWheel.load(dist.location)
-            for src, dst in installed_wheel.reinstall_flat(
-                target_dir=dest_dir, copy_mode=copy_mode
+            for src, dst in reinstall_flat(
+                installed_wheel=installed_wheel, target_dir=dest_dir, copy_mode=copy_mode
             ):
                 yield src, dst
         except InstalledWheel.LoadError:
@@ -482,8 +483,11 @@ def _populate_venv_deps(
 
         try:
             installed_wheel = InstalledWheel.load(dist.location)
-            for src, dst in installed_wheel.reinstall_venv(
-                venv, copy_mode=copy_mode, rel_extra_path=rel_extra_path
+            for src, dst in reinstall_venv(
+                installed_wheel=installed_wheel,
+                venv=venv,
+                copy_mode=copy_mode,
+                rel_extra_path=rel_extra_path,
             ):
                 yield src, dst
         except InstalledWheel.LoadError:

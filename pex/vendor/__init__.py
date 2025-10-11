@@ -318,7 +318,6 @@ def vendor_runtime(
     dest_basedir,  # type: str
     label,  # type: str
     root_module_names,  # type: Iterable[str]
-    include_dist_info=(),  # type: Iterable[str]
 ):
     # type: (...) -> Set[str]
     """Includes portions of vendored distributions in a chroot.
@@ -331,7 +330,6 @@ def vendor_runtime(
     :param dest_basedir: The prefix to store the vendored code under in the ``chroot``.
     :param label: The chroot label for the vendored code fileset.
     :param root_module_names: The names of the root vendored modules to include in the chroot.
-    :param include_dist_info: Include the .dist-info dirs associated with these root module names.
     :returns: The set of absolute paths of the source files that were vendored.
     :raise: :class:`ValueError` if any of the given ``root_module_names`` could not be found amongst
             the vendored code and added to the chroot.
@@ -370,12 +368,7 @@ def vendor_runtime(
                     vendor_module_names[name] = True
                     TRACER.log("Vendoring {} from {} @ {}".format(name, spec, spec.target_dir), V=3)
 
-                dirs[:] = packages + [
-                    d
-                    for project in include_dist_info
-                    for d in dirs
-                    if d.startswith(project) and d.endswith(".dist-info")
-                ]
+                dirs[:] = packages
                 files[:] = modules
 
             # We copy over sources and data only; no pyc files.

@@ -1,0 +1,11 @@
+ansicolors-1.1.8.dist-info/DESCRIPTION.rst,sha256=hgL3qWOqDdnS5m7OGbUJvvZ_gOnggqyKN0LzedMq3o4,7900
+ansicolors-1.1.8.dist-info/METADATA,sha256=91m-dxXKkt0Fg_Zv_HA7Zlxx2f1bGDFRn0cMD-6YkvI,9006
+ansicolors-1.1.8.dist-info/RECORD,,
+ansicolors-1.1.8.dist-info/WHEEL,sha256=o2k-Qa-RMNIJmUdIc7KU6VWR_ErNRbWNlxDIpl7lm34,110
+ansicolors-1.1.8.dist-info/metadata.json,sha256=jEvYWhL1nvf1IOuhZN76kIr3cS4QQN9_aql483E8Sd8,1181
+ansicolors-1.1.8.dist-info/top_level.txt,sha256=igtcW1b_UlN1_x_2Ooi1-5-0ZZzr7UbkgT0OyOkOz1A,7
+colors/__init__.py,sha256=7UV3RlAaU9ihmC33l1KnlJ19mV79q9knPrayzG0LA4g,119
+colors/colors.py,sha256=VNM8dhjwb51Q3rbNFLhAfl-Xi3vd88NLnLT8BavVpXg,5603
+colors/csscolors.py,sha256=pYW3Yisj3bGz-ocg23jxmqQ7YjNFoaZuLW38Lrqd8pg,6584
+colors/version.py,sha256=1AmxhanHVlK7-ylUJmxvVmAhH674NXaZPyMgOYTXThQ,22
+ansicolors-1.1.8.pex-info/original-whl-info.json,sha256=HbV2rpplaYIBPX3BXgmvHbJ3jE4Kai_UN1AI0iFOiAg,717

@@ -39,6 +39,7 @@ from pex.venv.virtualenv import InstallationChoice, Virtualenv
 # Explicitly re-export subprocess to enable a transparent substitution in tests that supports
 # executing PEX files directly on Windows.
 from testing import subprocess as subprocess
+from testing.pytest_utils.tmp import Tempdir
 
 try:
     from unittest import mock
@@ -676,10 +677,11 @@ def ensure_python_venv(
     version,  # type: str
     latest_pip=True,  # type: bool
     system_site_packages=False,  # type: bool
+    tmpdir=None,  # type: Optional[Tempdir]
 ):
     # type: (...) -> Virtualenv
     pyenv_distribution = ensure_python_distribution(version)
-    venv = safe_mkdtemp()
+    venv = tmpdir.join("{version}.venv".format(version=version)) if tmpdir else safe_mkdtemp()
     if _ALL_PY_VERSIONS_TO_VERSION_INFO[version][0] == 3:
         args = [pyenv_distribution.binary, "-m", "venv", venv]
         if system_site_packages:

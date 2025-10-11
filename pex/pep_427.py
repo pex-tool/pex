@@ -3,53 +3,66 @@
 
 from __future__ import absolute_import, print_function
 
+import errno
 import itertools
+import json
 import os.path
 import re
 import shutil
 import subprocess
 import sys
+import time
 import zipfile
-from contextlib import closing
-from fileinput import FileInput
-from textwrap import dedent
 
-from pex import pex_warnings, windows
-from pex.common import is_pyc_file, iter_copytree, open_zip, safe_mkdir, safe_open, touch
-from pex.compatibility import commonpath, get_stdout_bytes_buffer, safe_commonpath
-from pex.dist_metadata import (
-    CallableEntryPoint,
-    DistMetadata,
-    Distribution,
-    MetadataFiles,
-    NamedEntryPoint,
+from pex import pex_warnings
+from pex.common import (
+    CopyMode,
+    ZipFileType,
+    deterministic_walk,
+    open_zip,
+    safe_copy,
+    safe_mkdir,
+    safe_mkdtemp,
+    safe_open,
+    safe_relative_symlink,
+    touch,
 )
+from pex.compatibility import commonpath, string
+from pex.dist_metadata import DistMetadata, Distribution, MetadataFiles
+from pex.entry_points_txt import install_scripts
 from pex.enum import Enum
-from pex.exceptions import reportable_unexpected_error_msg
-from pex.executables import chmod_plus_x
+from pex.exceptions import production_assert, reportable_unexpected_error_msg
+from pex.executables import chmod_plus_x, is_python_script
+from pex.installed_wheel import InstalledWheel
 from pex.interpreter import PythonInterpreter
-from pex.os import WINDOWS
-from pex.pep_376 import InstalledFile, InstalledWheel, Record
+from pex.pep_376 import InstalledFile, Record, create_installed_file
+from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
-from pex.sysconfig import SCRIPT_DIR
+from pex.sysconfig import SCRIPT_DIR, SysPlatform
 from pex.typing import TYPE_CHECKING, cast
+from pex.venv.virtualenv import Virtualenv
 from pex.wheel import Wheel
 
 if TYPE_CHECKING:
     from typing import (  # noqa
+        Any,
         Callable,
         DefaultDict,
+        Dict,
         Iterable,
         Iterator,
         List,
         Mapping,
         Optional,
+        Set,
         Text,
         Tuple,
         Union,
     )
 
     import attr  # vendor:skip
+
+    from pex.installed_wheel import InstalledWheel  # noqa
 else:
     from pex.third_party import attr
 
@@ -69,38 +82,131 @@ class InstallableType(Enum["InstallableType.Value"]):
 InstallableType.seal()
 
 
+def _headers_install_path_for_wheel(
+    base,  # type: str
+    wheel,  # type: Wheel
+):
+    # type: (...) -> str
+
+    major = "X"  # type: Any
+    minor = "Y"  # type: Any
+    compatible_python_versions = tuple(frozenset(wheel.iter_compatible_python_versions()))
+    if len(compatible_python_versions) == 1 and len(compatible_python_versions[0]) >= 2:
+        major, minor = compatible_python_versions[0][:2]
+
+    return _headers_install_path(base, version=(major, minor), project_name=wheel.project_name)
+
+
+def _headers_install_path(
+    base,  # type: str
+    version,  # type: Tuple[Any, Any]
+    project_name,  # type: ProjectName
+):
+    # type: (...) -> str
+
+    # N.B.: You'd think sysconfig_paths["include"] would be the right answer here but both
+    # `pip`, and by emulation, `uv pip`, use `<venv>/include/site/pythonX.Y/<project name>`.
+    #
+    # The "mess" is admitted and described at length here:
+    # + https://discuss.python.org/t/clarification-on-a-wheels-header-data/9305
+    # + https://discuss.python.org/t/deprecating-the-headers-wheel-data-key/23712
+    #
+    # Both discussions died out with no path resolved to clean up the mess.
+
+    return os.path.join(
+        base,
+        "include",
+        "site",
+        "python{major}.{minor}".format(major=version[0], minor=version[1]),
+        project_name.raw,
+    )
+
+
 @attr.s(frozen=True)
 class InstallPaths(object):
 
     CHROOT_STASH = ".prefix"
-    PATHS = "purelib", "platlib", "headers", "scripts", "data"
 
     @classmethod
     def chroot(
         cls,
         destination,  # type: str
-        project_name,  # type: ProjectName
+        wheel,  # type: Wheel
     ):
         # type: (...) -> InstallPaths
         base = os.path.join(destination, cls.CHROOT_STASH)
+
         return cls(
             purelib=destination,
             platlib=destination,
-            headers=os.path.join(base, "include", "site", "pythonX.Y", project_name.raw),
+            headers=_headers_install_path_for_wheel(base, wheel),
             scripts=os.path.join(base, SCRIPT_DIR),
             data=base,
+            path_names=("headers", "scripts", "data", "purelib", "platlib"),
         )
 
     @classmethod
-    def interpreter(cls, interpreter):
-        # type: (PythonInterpreter) -> InstallPaths
+    def interpreter(
+        cls,
+        interpreter,  # type: PythonInterpreter
+        project_name,  # type: ProjectName
+    ):
+        # type: (...) -> InstallPaths
         sysconfig_paths = interpreter.identity.paths
         return cls(
             purelib=sysconfig_paths["purelib"],
             platlib=sysconfig_paths["platlib"],
-            headers=sysconfig_paths["include"],
+            headers=_headers_install_path(
+                interpreter.prefix,
+                version=(interpreter.version[0], interpreter.version[1]),
+                project_name=project_name,
+            ),
             scripts=sysconfig_paths["scripts"],
             data=sysconfig_paths["data"],
+            path_names=("purelib", "platlib", "headers", "scripts", "data"),
+        )
+
+    @classmethod
+    def flat(
+        cls,
+        destination,  # type: str
+        wheel,  # type: Wheel
+    ):
+        # type: (...) -> InstallPaths
+        return cls(
+            purelib=destination,
+            platlib=destination,
+            headers=_headers_install_path_for_wheel(destination, wheel),
+            scripts=os.path.join(destination, SCRIPT_DIR),
+            data=destination,
+            path_names=("headers", "scripts", "data", "purelib", "platlib"),
+        )
+
+    @classmethod
+    def wheel(
+        cls,
+        destination,  # type: str
+        project_name,  # type: ProjectName
+        version,  # type: Version
+    ):
+        # type: (...) -> InstallPaths
+
+        data = os.path.join(
+            destination,
+            "{project_name}-{version}.data".format(
+                # N.B.: We don't use the canonical form since it goes to lowercase.
+                project_name=re.sub(r"[-_.]+", "_", project_name.raw),
+                # N.B.: We don't use the canonical form since it drop trailing zero segments.
+                version=version.raw.replace("-", "_"),
+            ),
+        )
+        return cls(
+            purelib=destination,
+            platlib=destination,
+            headers=os.path.join(data, "headers"),
+            scripts=os.path.join(data, "scripts"),
+            data=os.path.join(data, "data"),
+            path_names=("headers", "scripts", "data", "purelib", "platlib"),
         )
 
     purelib = attr.ib()  # type: str
@@ -108,6 +214,7 @@ class InstallPaths(object):
     headers = attr.ib()  # type: str
     scripts = attr.ib()  # type: str
     data = attr.ib()  # type: str
+    _path_names = attr.ib()  # type: Tuple[str, ...]
 
     def __getitem__(self, item):
         # type: (Text) -> str
@@ -123,37 +230,237 @@ class InstallPaths(object):
             return self.data
         raise KeyError("Not a known install path: {item}".format(item=item))
 
+    def __iter__(self):
+        # type: () -> Iterator[Tuple[str, str]]
+        for path_name in self._path_names:
+            yield path_name, self[path_name]
+
     def __str__(self):
         # type: () -> str
         return "\n".join(
-            "{path}={value}".format(path=item, value=self[item]) for item in InstallPaths.PATHS
+            "{path}={value}".format(path=path_name, value=value) for path_name, value in self
         )
+
+
+@attr.s(frozen=True)
+class ZipEntryInfo(object):
+    @classmethod
+    def from_zip_info(
+        cls,
+        zip_info,  # type: zipfile.ZipInfo
+        normalize_file_stat=False,  # type: bool
+    ):
+        # type: (...) -> ZipEntryInfo
+        return cls(
+            filename=zip_info.filename,
+            date_time=zip_info.date_time,
+            external_attr=(
+                ZipFileType.from_zip_info(zip_info).deterministic_external_attr
+                if normalize_file_stat
+                else zip_info.external_attr
+            ),
+        )
+
+    @classmethod
+    def from_json(cls, data):
+        # type: (Any) -> ZipEntryInfo
+
+        if not isinstance(data, list) or not len(data) == 3:
+            raise ValueError(
+                "Invalid ZipEntryInfo JSON data. Expected a 3-item list, given {value} of type "
+                "{type}.".format(value=data, type=type(data))
+            )
+
+        filename, date_time, external_attr = data
+        if not isinstance(filename, string):
+            raise ValueError(
+                "Invalid ZipEntryInfo JSON data. Expected a `filename` string property; found "
+                "{value} of type {type}.".format(value=filename, type=type(filename))
+            )
+
+        if (
+            not isinstance(date_time, list)
+            or not len(date_time) == 6
+            or not all(isinstance(component, int) for component in date_time)
+        ):
+            raise ValueError(
+                "Invalid ZipEntryInfo JSON data. Expected a `date_time` list of six integers "
+                "property; found {value} of type {type}.".format(
+                    value=date_time, type=type(date_time)
+                )
+            )
+
+        if not isinstance(external_attr, int):
+            raise ValueError(
+                "Invalid ZipEntryInfo JSON data. Expected an `external_attr` integer property; "
+                "found {value} of type {type}.".format(
+                    value=external_attr, type=type(external_attr)
+                )
+            )
+
+        return cls(
+            filename=filename,
+            date_time=cast("Tuple[int, int, int, int, int, int]", tuple(date_time)),
+            external_attr=external_attr,
+        )
+
+    filename = attr.ib()  # type: Text
+    date_time = attr.ib()  # type: Tuple[int, int, int, int, int, int]
+    external_attr = attr.ib()  # type: int
+
+    @property
+    def is_dir(self):
+        # type: () -> bool
+        return self.filename.endswith("/")
+
+    def date_time_as_struct_time(self):
+        # type: () -> time.struct_time
+        return time.struct_time(self.date_time + (0, 0, -1))
+
+    def external_attr_as_stat_mode(self):
+        # type: () -> int
+        return self.external_attr >> 16
+
+    def to_json(self):
+        # type: () -> Any
+        return self.filename, self.date_time, self.external_attr
+
+
+@attr.s(frozen=True)
+class ZipMetadata(object):
+    FILENAME = "original-whl-info.json"
+
+    @classmethod
+    def from_zip(
+        cls,
+        filename,  # type: str
+        info_list,  # type: Iterable[zipfile.ZipInfo]
+        normalize_file_stat=False,  # type: bool
+    ):
+        # type: (...) -> ZipMetadata
+        return cls(
+            filename=os.path.basename(filename),
+            entry_info=tuple(
+                ZipEntryInfo.from_zip_info(zip_info, normalize_file_stat=normalize_file_stat)
+                for zip_info in info_list
+            ),
+        )
+
+    @classmethod
+    def read(cls, wheel):
+        # type: (Wheel) -> Optional[ZipMetadata]
+
+        data = wheel.read_pex_metadata(cls.FILENAME)
+        if not data:
+            return None
+        zip_metadata = json.loads(data)
+        if not isinstance(zip_metadata, dict):
+            raise ValueError(
+                "Invalid ZipMetadata JSON data. Expected an object; found "
+                "{value} of type {type}.".format(value=zip_metadata, type=type(zip_metadata))
+            )
+
+        filename = zip_metadata.pop("filename", None)
+        if not isinstance(filename, string):
+            raise ValueError(
+                "Invalid ZipMetadata JSON data. Expected an object with a string-valued 'filename' "
+                "property; instead found {value} of type {type}.".format(
+                    value=zip_metadata, type=type(zip_metadata)
+                )
+            )
+
+        entries = zip_metadata.pop("entries", None)
+        if not isinstance(entries, list):
+            raise ValueError(
+                "Invalid ZipMetadata JSON data. Expected an object with a list-valued 'entries' "
+                "property; instead found {value} of type {type}.".format(
+                    value=zip_metadata, type=type(zip_metadata)
+                )
+            )
+
+        if zip_metadata:
+            raise ValueError(
+                "Invalid ZipMetadata JSON data. Unrecognized object keys: {keys}".format(
+                    keys=", ".join(zip_metadata)
+                )
+            )
+
+        return cls(
+            filename=filename,
+            entry_info=tuple(ZipEntryInfo.from_json(zip_entry_info) for zip_entry_info in entries),
+        )
+
+    filename = attr.ib()  # type: str
+    entry_info = attr.ib()  # type: Tuple[ZipEntryInfo, ...]
+
+    def __iter__(self):
+        # type: () -> Iterator[ZipEntryInfo]
+        return iter(self.entry_info)
+
+    def write(
+        self,
+        dest,  # type: str
+        wheel,  # type: Wheel
+    ):
+        # type: (...) -> str
+        path = os.path.join(dest, wheel.pex_metadata_path(self.FILENAME))
+        with safe_open(path, "w") as fp:
+            json.dump(
+                {
+                    "filename": self.filename,
+                    "entries": [entry_info.to_json() for entry_info in self.entry_info],
+                },
+                fp,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+        return path
 
 
 @attr.s(frozen=True)
 class InstallableWheel(object):
     @classmethod
-    def from_installation(
+    def from_whl(
         cls,
-        interpreter,  # type: PythonInterpreter
-        distribution,  # type: Distribution
+        whl,  # type: Union[str, Wheel]
+        install_paths=None,  # type: Optional[InstallPaths]
     ):
         # type: (...) -> InstallableWheel
-        return cls(
-            wheel=Wheel.from_distribution(distribution),
-            install_paths=InstallPaths.interpreter(interpreter),
-        )
+        wheel = whl if isinstance(whl, Wheel) else Wheel.load(whl)
+        zip_metadata = ZipMetadata.read(wheel)
+        return cls(wheel=wheel, install_paths=install_paths, zip_metadata=zip_metadata)
 
     @classmethod
-    def from_whl(cls, whl):
-        # type: (str) -> InstallableWheel
-        return cls(wheel=Wheel.load(whl))
+    def from_installed_wheel(cls, installed_wheel):
+        # type: (InstalledWheel) -> InstallableWheel
+        wheel = Wheel.load(installed_wheel.prefix_dir)
+        return cls.from_whl(
+            whl=wheel, install_paths=InstallPaths.chroot(installed_wheel.prefix_dir, wheel=wheel)
+        )
 
     wheel = attr.ib()  # type: Wheel
     is_whl = attr.ib(init=False)  # type: bool
     install_paths = attr.ib(default=None)  # type: Optional[InstallPaths]
+    zip_metadata = attr.ib(default=None)  # type: Optional[ZipMetadata]
+
+    def record_zip_metadata(self, dest):
+        # type: (str) -> Optional[str]
+        if self.zip_metadata:
+            return self.zip_metadata.write(dest, self.wheel)
+        return None
+
+    @property
+    def project_name(self):
+        # type: () -> ProjectName
+        return self.wheel.project_name
+
+    @property
+    def version(self):
+        # type: () -> Version
+        return self.wheel.version
 
     def __attrs_post_init__(self):
+        # type: () -> None
         is_whl = zipfile.is_zipfile(self.wheel.location)
 
         if is_whl and self.install_paths:
@@ -173,6 +480,18 @@ class InstallableWheel(object):
             )
 
         object.__setattr__(self, "is_whl", is_whl)
+
+    def iter_applicable_install_paths(self):
+        # type: () -> Iterator[Tuple[str, str]]
+        if self.install_paths:
+            for path_name, path in self.install_paths:
+                if path_name == "purelib":
+                    if not self.root_is_purelib:
+                        continue
+                elif path_name == "platlib":
+                    if self.root_is_purelib:
+                        continue
+                yield path_name, path
 
     @property
     def location(self):
@@ -202,7 +521,7 @@ class InstallableWheel(object):
     @property
     def wheel_file_name(self):
         # type: () -> str
-        return self.wheel.wheel_file_name
+        return self.zip_metadata.filename if self.zip_metadata else self.wheel.wheel_file_name
 
     def dist_metadata(self):
         # type: () -> DistMetadata
@@ -212,16 +531,92 @@ class InstallableWheel(object):
         # type: (*str) -> str
         return self.wheel.metadata_path(*components)
 
+    def distribution(self):
+        # type: () -> Distribution
+        return Distribution(location=self.location, metadata=self.dist_metadata())
+
+    def pex_metadata_path(self, *components):
+        # type: (*str) -> str
+        return self.wheel.pex_metadata_path(*components)
+
 
 class WheelInstallError(WheelError):
     """Indicates an error installing a `.whl` file."""
 
 
+def reinstall_flat(
+    installed_wheel,  # type: InstalledWheel
+    target_dir,  # type: str
+    copy_mode=CopyMode.LINK,  # type: CopyMode.Value
+):
+    # type: (...) -> Iterator[Tuple[Text, Text]]
+    """Re-installs the installed wheel in a flat target directory.
+
+    N.B.: A record of reinstalled files is returned in the form of an iterator that must be
+    consumed to drive the installation to completion.
+
+    If there is an error re-installing a file due to it already existing in the target
+    directory, the error is suppressed, and it's expected that the caller detects this by
+    comparing the record of installed files against those installed previously.
+
+    :return: An iterator over src -> dst pairs.
+    """
+    for src, dst in install_wheel_flat(
+        wheel=InstallableWheel.from_installed_wheel(installed_wheel),
+        destination=target_dir,
+        copy_mode=copy_mode,
+    ):
+        yield src, dst
+
+
+def reinstall_venv(
+    installed_wheel,  # type: InstalledWheel
+    venv,  # type: Virtualenv
+    copy_mode=CopyMode.LINK,  # type: CopyMode.Value
+    rel_extra_path=None,  # type: Optional[str]
+):
+    # type: (...) -> Iterator[Tuple[Text, Text]]
+    """Re-installs the installed wheel in a venv.
+
+    N.B.: A record of reinstalled files is returned in the form of an iterator that must be
+    consumed to drive the installation to completion.
+
+    If there is an error re-installing a file due to it already existing in the destination
+    venv, the error is suppressed, and it's expected that the caller detects this by comparing
+    the record of installed files against those installed previously.
+
+    :return: An iterator over src -> dst pairs.
+    """
+
+    for src, dst in install_wheel_interpreter(
+        wheel=InstallableWheel.from_installed_wheel(installed_wheel),
+        interpreter=venv.interpreter,
+        copy_mode=copy_mode,
+        rel_extra_path=rel_extra_path,
+        compile=False,
+    ):
+        yield src, dst
+
+
+def repack(
+    installed_wheel,  # type: InstalledWheel
+    dest_dir,  # type: str
+    use_system_time=False,  # type: bool
+    override_wheel_file_name=None,  # type: Optional[str]
+):
+    # type: (...) -> str
+    return create_whl(
+        wheel=InstallableWheel.from_installed_wheel(installed_wheel),
+        destination=dest_dir,
+        use_system_time=use_system_time,
+        override_wheel_file_name=override_wheel_file_name,
+    )
+
+
 def install_wheel_chroot(
     wheel,  # type: Union[str, InstallableWheel]
     destination,  # type: str
-    compile=False,  # type: bool
-    requested=True,  # type: bool
+    normalize_file_stat=False,  # type: bool
 ):
     # type: (...) -> InstalledWheel
 
@@ -230,17 +625,16 @@ def install_wheel_chroot(
     )
     install_wheel(
         wheel_to_install,
-        InstallPaths.chroot(
-            destination, project_name=wheel_to_install.metadata_files.metadata.project_name
-        ),
-        compile=compile,
-        requested=requested,
+        InstallPaths.chroot(destination, wheel=wheel_to_install.wheel),
+        record_entry_info=True,
+        normalize_file_stat=normalize_file_stat,
     )
 
     record_relpath = wheel_to_install.metadata_files.metadata_file_rel_path("RECORD")
     assert (
         record_relpath is not None
     ), "The {module}.install_wheel function should always create a RECORD.".format(module=__name__)
+
     return InstalledWheel.save(
         prefix_dir=destination,
         stash_dir=InstallPaths.CHROOT_STASH,
@@ -252,166 +646,323 @@ def install_wheel_chroot(
 def install_wheel_interpreter(
     wheel,  # type: Union[str, InstallableWheel]
     interpreter,  # type: PythonInterpreter
+    copy_mode=CopyMode.LINK,  # type: CopyMode.Value
+    rel_extra_path=None,  # type: Optional[str]
     compile=True,  # type: bool
     requested=True,  # type: bool
 ):
-    # type: (...) -> None
+    # type: (...) -> Tuple[Tuple[Text, Text], ...]
 
     wheel_to_install = (
         wheel if isinstance(wheel, InstallableWheel) else InstallableWheel.from_whl(wheel)
     )
-    install_wheel(
+    return install_wheel(
         wheel_to_install,
-        InstallPaths.interpreter(interpreter),
+        InstallPaths.interpreter(
+            interpreter, project_name=wheel_to_install.metadata_files.metadata.project_name
+        ),
+        copy_mode=copy_mode,
         interpreter=interpreter,
+        rel_extra_path=rel_extra_path,
         compile=compile,
         requested=requested,
+        record_entry_info=True,
     )
+
+
+def install_wheel_flat(
+    wheel,  # type: Union[str, InstallableWheel]
+    destination,  # type: str
+    copy_mode=CopyMode.LINK,  # type: CopyMode.Value
+    compile=False,  # type: bool
+):
+    # type: (...) -> Tuple[Tuple[Text, Text], ...]
+
+    wheel_to_install = (
+        wheel if isinstance(wheel, InstallableWheel) else InstallableWheel.from_whl(wheel)
+    )
+    return install_wheel(
+        wheel_to_install,
+        InstallPaths.flat(destination, wheel=wheel_to_install.wheel),
+        copy_mode=copy_mode,
+        compile=compile,
+    )
+
+
+def create_whl(
+    wheel,  # type: Union[str, InstallableWheel]
+    destination,  # type: str
+    compile=False,  # type: bool
+    use_system_time=False,  # type: bool
+    override_wheel_file_name=None,  # type: Optional[str]
+):
+    # type: (...) -> str
+
+    if not isinstance(wheel, InstallableWheel) and zipfile.is_zipfile(wheel):
+        wheel_dst = os.path.join(destination, os.path.basename(wheel))
+        safe_copy(wheel, wheel_dst)
+        return wheel_dst
+
+    wheel_to_create = (
+        wheel if isinstance(wheel, InstallableWheel) else InstallableWheel.from_whl(wheel)
+    )
+    whl_file_name = override_wheel_file_name or wheel_to_create.wheel_file_name
+    whl_chroot = os.path.join(safe_mkdtemp(prefix="pex_create_whl."), whl_file_name)
+    install_wheel(
+        wheel_to_create,
+        InstallPaths.wheel(
+            destination=whl_chroot,
+            project_name=wheel_to_create.project_name,
+            version=wheel_to_create.version,
+        ),
+        compile=compile,
+        install_entry_point_scripts=False,
+    )
+    record_data = Wheel.load(whl_chroot).metadata_files.read("RECORD")
+    if record_data is None:
+        raise AssertionError(reportable_unexpected_error_msg())
+
+    wheel_path = os.path.join(destination, whl_file_name)
+    with open_zip(wheel_path, "w") as zip_fp:
+        if use_system_time and wheel_to_create.zip_metadata:
+            for zip_entry_info in wheel_to_create.zip_metadata:
+                src = os.path.join(whl_chroot, zip_entry_info.filename)
+                if not os.path.exists(src):
+                    production_assert(
+                        zip_entry_info.is_dir,
+                        "The wheel entry {filename} is unexpectedly missing from {source}.",
+                        filename=zip_entry_info.filename,
+                        source=wheel_to_create.source,
+                    )
+                    safe_mkdir(src)
+                zip_fp.write_ex(
+                    src,
+                    zip_entry_info.filename,
+                    date_time=zip_entry_info.date_time_as_struct_time(),
+                    file_mode=zip_entry_info.external_attr_as_stat_mode(),
+                )
+        else:
+            for installed_file in Record.read(lines=iter(record_data.decode("utf-8").splitlines())):
+                src = os.path.join(whl_chroot, installed_file.path)
+                if use_system_time:
+                    zip_fp.write(src, installed_file.path)
+                else:
+                    zip_fp.write_deterministic(src, installed_file.path)
+    return wheel_path
+
+
+def _detect_record_eol(path):
+    # type: (Text) -> str
+
+    with open(path, "rb") as fp:
+        line = fp.readline()
+    return "\r\n" if line.endswith(b"\r\n") else "\n"
 
 
 def install_wheel(
     wheel,  # type: InstallableWheel
     install_paths,  # type: InstallPaths
+    copy_mode=CopyMode.LINK,  # type: CopyMode.Value
     interpreter=None,  # type: Optional[PythonInterpreter]
+    rel_extra_path=None,  # type: Optional[str]
     compile=False,  # type: bool
     requested=True,  # type: bool
+    install_entry_point_scripts=True,  # type: bool
+    record_entry_info=False,  # type: bool
+    normalize_file_stat=False,  # type: bool
 ):
-    # type: (...) -> None
+    # type: (...) -> Tuple[Tuple[Text, Text], ...]
 
     # See: https://packaging.python.org/en/latest/specifications/binary-distribution-format/#installing-a-wheel-distribution-1-0-py32-none-any-whl
+
     dest = install_paths.purelib if wheel.root_is_purelib else install_paths.platlib
-
-    record_relpath = wheel.metadata_path("RECORD")
-    record_abspath = os.path.join(dest, record_relpath)
-
-    data_rel_path = wheel.data_dir
-    data_path = os.path.join(dest, data_rel_path)
-
-    installed_files = []  # type: List[InstalledFile]
-
-    def record_files(
-        root_dir,  # type: Text
-        names,  # type: Iterable[Text]
-    ):
-        # type: (...) -> None
-        for name in sorted(names):
-            if is_pyc_file(name):
-                # These files are both optional to RECORD and should never be present in wheels
-                # anyway per the spec.
-                continue
-            file_abspath = os.path.join(root_dir, name)
-            if record_relpath == name:
-                # We'll generate a new RECORD below as needed.
-                os.unlink(file_abspath)
-                continue
-            installed_files.append(
-                InstalledWheel.create_installed_file(path=file_abspath, dest_dir=dest)
-            )
+    if rel_extra_path:
+        dest = os.path.join(dest, rel_extra_path)
+        if wheel.root_is_purelib:
+            install_paths = attr.evolve(install_paths, purelib=dest)
+        else:
+            install_paths = attr.evolve(install_paths, platlib=dest)
 
     if wheel.is_whl:
-        with open_zip(wheel.location) as zf:
+        whl = wheel.location
+        zip_metadata = None  # type: Optional[ZipMetadata]
+        with open_zip(whl) as zf:
             # 1. Unpack
             zf.extractall(dest)
+            if record_entry_info:
+                zip_metadata = ZipMetadata.from_zip(
+                    filename=whl, info_list=zf.infolist(), normalize_file_stat=normalize_file_stat
+                )
+
             # TODO(John Sirois): Consider verifying signatures.
             # N.B.: Pip does not and its also not clear what good this does. A zip can be easily
             # poked on a per-entry basis allowing forging a RECORD entry and its associated file.
             # Only an outer fingerprint of the whole wheel really solves this sort of tampering.
-            record_files(
-                root_dir=dest,
-                names=[
-                    name
-                    for name in zf.namelist()
-                    if not name.endswith("/")
-                    and data_rel_path != safe_commonpath((data_rel_path, name))
-                ],
-            )
-            if os.path.isdir(data_path):
-                # 2. Spread
-                for entry in sorted(os.listdir(data_path)):
-                    try:
-                        dest_dir = install_paths[entry]
-                    except KeyError as e:
-                        raise WheelInstallError(
-                            "The wheel at {wheel_path} is invalid and cannot be installed: "
-                            "{err}".format(wheel_path=wheel.source, err=e)
-                        )
-                    entry_path = os.path.join(data_path, entry)
-                    copied = [dst for _, dst in iter_copytree(entry_path, dest_dir)]
-                    if copied and "scripts" == entry:
-                        for script in copied:
-                            chmod_plus_x(script)
-                        if interpreter:
-                            with closing(
-                                FileInput(files=copied, inplace=True, mode="rb")
-                            ) as script_fi:
-                                for line in cast("Iterator[bytes]", script_fi):
-                                    buffer = get_stdout_bytes_buffer()
-                                    if script_fi.isfirstline() and re.match(br"^#!pythonw?", line):
-                                        _, _, shebang_args = line.partition(b" ")
-                                        buffer.write(
-                                            "{shebang}\n".format(
-                                                shebang=interpreter.shebang(
-                                                    args=shebang_args.decode("utf-8")
-                                                )
-                                            ).encode("utf-8")
-                                        )
-                                    else:
-                                        # N.B.: These lines include the newline already.
-                                        buffer.write(cast(bytes, line))
 
-                    record_files(
-                        root_dir=dest_dir,
-                        names=[
-                            os.path.relpath(os.path.join(root, f), entry_path)
-                            for root, _, files in os.walk(entry_path)
-                            for f in files
-                        ],
-                    )
-                shutil.rmtree(data_path)
-    elif wheel.install_paths:
+        wheel = InstallableWheel(
+            wheel=Wheel.load(dest, project_name=wheel.project_name),
+            install_paths=InstallPaths.wheel(
+                dest, project_name=wheel.project_name, version=wheel.version
+            ),
+            zip_metadata=zip_metadata,
+        )
+
+        # Deal with bad whl `RECORD`s. We happen to hit one from selenium-4.1.2-py3-none-any.whl
+        # in our tests. The selenium >=4,<4.1.3 wheels are all published with absolute paths for
+        # all the .py file RECORD entries. The .dist-info and .data entries are fine though.
         record_data = wheel.metadata_files.read("RECORD")
-        if not record_data:
-            raise WheelInstallError(
-                "Cannot re-install installed wheel for {source} because it has no installation "
-                "RECORD metadata.".format(source=wheel.source)
+
+        record_lines = []  # type: List[Text]
+        eol = os.sep
+        if record_data:
+            record_lines = record_data.decode("utf-8").splitlines(
+                True  #  N.B. no kw in 2.7: keepends=True
             )
+            eol = "\r\n" if record_lines[0].endswith("\r\n") else "\n"
 
-        for installed_file in Record.read(iter(record_data.decode("utf-8").splitlines())):
-            if installed_file.path == record_relpath:
-                # We'll generate a new RECORD below as needed.
-                continue
-            src_file = os.path.realpath(os.path.join(wheel.location, installed_file.path))
-            dst_file = os.path.realpath(os.path.join(dest, installed_file.path))
-            if dest == commonpath((dest, dst_file)):
-                safe_mkdir(os.path.dirname(dst_file))
-                shutil.copy(src_file, dst_file)
-                installed_files.append(installed_file)
-                continue
-
-            for path in InstallPaths.PATHS:
-                installed_path = wheel.install_paths[path]
-                if installed_path == commonpath((installed_path, src_file)):
-                    dst_file = os.path.join(
-                        install_paths[path], os.path.relpath(src_file, installed_path)
-                    )
-                    break
+        if not record_data or any(
+            os.path.isabs(installed_file.path)
+            for installed_file in Record.read(lines=iter(record_lines))
+        ):
+            prefix = "The RECORD in {whl}".format(whl=os.path.basename(whl))
+            suffix = "so wheel re-packing will not be round-trippable."
+            if not record_data:
+                pex_warnings.warn(
+                    "{the_record} is missing; {and_so}.".format(the_record=prefix, and_so=suffix)
+                )
             else:
-                raise WheelInstallError(
-                    "Encountered a file from {source} with no identifiable target install path: "
-                    "{file}".format(source=wheel.source, file=installed_file.path)
+                pex_warnings.warn(
+                    "{the_record} has at least some invalid entries with absolute paths; "
+                    "{and_so}.".format(the_record=prefix, and_so=suffix)
                 )
-
-            safe_mkdir(os.path.dirname(dst_file))
-            shutil.copy(src_file, dst_file)
-            installed_files.append(
-                InstalledFile(
-                    path=os.path.relpath(dst_file, dest),
-                    hash=installed_file.hash,
-                    size=installed_file.size,
-                )
+            # Write a minimal repaired record to drive the spread operation below.
+            Record.write(
+                dst=os.path.join(dest, wheel.metadata_path("RECORD")),
+                installed_files=[
+                    InstalledFile(os.path.relpath(os.path.join(root, path), dest))
+                    for root, _, files in deterministic_walk(dest)
+                    for path in files
+                ],
+                eol=eol,
             )
-    else:
+
+    if not wheel.install_paths:
         raise AssertionError(reportable_unexpected_error_msg())
+
+    record_data = wheel.metadata_files.read("RECORD")
+    if not record_data:
+        raise WheelInstallError(
+            "Cannot re-install installed wheel for {source} because it has no installation "
+            "RECORD metadata.".format(source=wheel.source)
+        )
+
+    # 2. Spread
+    entry_points = wheel.distribution().get_entry_map()
+    script_names = frozenset(
+        SysPlatform.CURRENT.binary_name(script)
+        for script in itertools.chain.from_iterable(
+            entry_points.get(key, {}) for key in ("console_scripts", "gui_scripts")
+        )
+    )
+
+    def is_entry_point_script(script_path):
+        # type: (Text) -> bool
+        return os.path.basename(script_path) in script_names
+
+    record_relpath = wheel.metadata_path("RECORD")
+    record_eol = os.linesep
+
+    dist_info_dir_relpath = wheel.metadata_path()
+    pex_info_dir_relpath = wheel.pex_metadata_path()
+    installer_relpath = wheel.metadata_path("INSTALLER")
+    requested_relpath = wheel.metadata_path("REQUESTED")
+    zip_metadata_relpath = wheel.pex_metadata_path(ZipMetadata.FILENAME)
+
+    installed_files = []  # type: List[InstalledFile]
+    provenance = []  # type: List[Tuple[Text, Text]]
+    symlinked = set()  # type: Set[Text]
+    for installed_file in Record.read(lines=iter(record_data.decode("utf-8").splitlines())):
+        if installed_file.path == record_relpath:
+            record_eol = _detect_record_eol(os.path.join(wheel.location, installed_file.path))
+            installed_files.append(InstalledFile(path=record_relpath, hash=None, size=None))
+            # We'll generate these metadata files below as needed.
+            continue
+        if installed_file.path in (installer_relpath, requested_relpath, zip_metadata_relpath):
+            # We'll generate these metadata files below as needed.
+            continue
+
+        if not compile and installed_file.path.endswith(".pyc"):
+            continue
+
+        src_file = os.path.realpath(os.path.join(wheel.location, installed_file.path))
+        dst_components = None  # type: Optional[Tuple[Text, Text, bool]]
+        for path_name, installed_path in wheel.iter_applicable_install_paths():
+            installed_path = os.path.realpath(installed_path)
+            if installed_path == commonpath((installed_path, src_file)):
+                rewrite_script = False
+                if "scripts" == path_name:
+                    if is_entry_point_script(src_file):
+                        # This entry point script will be installed afresh below as needed.
+                        break
+                    rewrite_script = interpreter is not None and is_python_script(
+                        src_file, check_executable=False
+                    )
+
+                dst_rel_path = os.path.relpath(src_file, installed_path)
+                dst_components = path_name, dst_rel_path, rewrite_script
+                break
+        else:
+            raise WheelInstallError(
+                "Encountered a file from {source} with no identifiable target install path: "
+                "{file}".format(source=wheel.source, file=installed_file.path)
+            )
+        if dst_components:
+            dst_path_name, dst_rel_path, rewrite_script = dst_components
+            dst_file = os.path.join(install_paths[dst_path_name], dst_rel_path)
+            if rewrite_script and interpreter is not None:
+                with open(src_file, mode="rb") as in_fp, safe_open(dst_file, "wb") as out_fp:
+                    first_line = in_fp.readline()
+                    if first_line and re.match(br"^#!pythonw?", first_line):
+                        _, _, shebang_args = first_line.partition(b" ")
+                        encoding_line = ""
+                        next_line = in_fp.readline()
+                        # See: https://peps.python.org/pep-0263/
+                        if next_line and re.match(
+                            br"^[ \t\f]*#.*?coding[:=][ \t]*([-_.a-zA-Z0-9]+)", next_line
+                        ):
+                            encoding_line = str(next_line.decode("ascii"))
+                        out_fp.write(
+                            "{shebang}\n".format(
+                                shebang=interpreter.shebang(
+                                    args=shebang_args.decode("utf-8"), encoding_line=encoding_line
+                                )
+                            ).encode("utf-8")
+                        )
+                        if not encoding_line and next_line:
+                            out_fp.write(next_line)
+                    shutil.copyfileobj(in_fp, out_fp)
+                chmod_plus_x(out_fp.name)
+            elif copy_mode is CopyMode.SYMLINK:
+                top_level = dst_rel_path.split(os.sep)[0]
+                if top_level in (dist_info_dir_relpath, pex_info_dir_relpath):
+                    safe_relative_symlink(src_file, dst_file)
+                elif top_level not in symlinked:
+                    top_level_src = os.path.join(wheel.install_paths[dst_path_name], top_level)
+                    top_level_dst = os.path.join(install_paths[dst_path_name], top_level)
+                    try:
+                        safe_relative_symlink(top_level_src, top_level_dst)
+                        symlinked.add(top_level)
+                    except OSError as e:
+                        if e.errno != errno.EEXIST:
+                            raise
+            else:
+                safe_mkdir(os.path.dirname(dst_file))
+                if copy_mode is CopyMode.LINK:
+                    safe_copy(src_file, dst_file, overwrite=False)
+                if not os.path.exists(dst_file):
+                    shutil.copy(src_file, dst_file)
+            installed_files.append(create_installed_file(path=dst_file, dest_dir=dest))
+            provenance.append((src_file, dst_file))
 
     if compile:
         args = [
@@ -440,93 +991,30 @@ def install_wheel(
                     file = InstalledFile(path=os.path.relpath(os.path.join(root, f), dest))
                     installed_files.append(file)
 
-    dist = Distribution(location=dest, metadata=wheel.dist_metadata())
-    entry_points = dist.get_entry_map()
-    installed_files.extend(
-        InstalledWheel.create_installed_file(path=script_abspath, dest_dir=dest)
-        for script_abspath in install_scripts(install_paths, entry_points, interpreter)
-    )
-
-    with safe_open(os.path.join(dest, wheel.metadata_path("INSTALLER")), "w") as fp:
-        print("pex", file=fp)
-    installed_files.append(InstalledWheel.create_installed_file(path=fp.name, dest_dir=dest))
+    if install_entry_point_scripts:
+        for script_src, script_abspath in install_scripts(
+            install_paths.scripts, entry_points, interpreter, overwrite=False
+        ):
+            installed_files.append(create_installed_file(path=script_abspath, dest_dir=dest))
+            provenance.append((script_src, script_abspath))
 
     if interpreter:
-        # Finalize a proper venv install with REQUESTED and a RECORD to support uninstalling.
+        # Finalize a proper venv install with INSTALLER and REQUESTED (if it was).
+        with safe_open(os.path.join(dest, installer_relpath), "w") as fp:
+            print("pex", file=fp)
+        installed_files.append(create_installed_file(path=fp.name, dest_dir=dest))
         if requested:
-            requested_path = os.path.join(dest, wheel.metadata_path("REQUESTED"))
+            requested_path = os.path.join(dest, requested_relpath)
             touch(requested_path)
-            installed_files.append(
-                InstalledWheel.create_installed_file(path=requested_path, dest_dir=dest)
-            )
+            installed_files.append(create_installed_file(path=requested_path, dest_dir=dest))
 
-        installed_files.append(InstalledFile(path=record_relpath, hash=None, size=None))
-        Record.write(dst=record_abspath, installed_files=installed_files)
+    if record_entry_info:
+        zip_metadata_path = wheel.record_zip_metadata(dest)
+        if zip_metadata_path:
+            installed_files.append(create_installed_file(path=zip_metadata_path, dest_dir=dest))
 
+    Record.write(
+        dst=os.path.join(dest, record_relpath), installed_files=installed_files, eol=record_eol
+    )
 
-def install_scripts(
-    install_paths,  # type: InstallPaths
-    entry_points,  # type: Mapping[str, Mapping[str, NamedEntryPoint]]
-    interpreter=None,  # type: Optional[PythonInterpreter]
-):
-    # type: (...) -> Iterator[str]
-
-    shebang = interpreter.shebang() if interpreter else "#!python"
-    for named_entry_point, gui in itertools.chain.from_iterable(
-        ((value, gui) for value in entry_points.get(key, {}).values())
-        for key, gui in (("console_scripts", False), ("gui_scripts", True))
-    ):
-        entry_point = named_entry_point.entry_point
-        if isinstance(entry_point, CallableEntryPoint):
-            script = dedent(
-                """\
-                {shebang}
-                # -*- coding: utf-8 -*-
-                import importlib
-                import sys
-
-                entry_point = importlib.import_module({modname!r})
-                for attr in {attrs!r}:
-                    entry_point = getattr(entry_point, attr)
-
-                if __name__ == "__main__":
-                    import os
-                    pex_root_fallback = os.environ.get("_PEX_ROOT_FALLBACK")
-                    if pex_root_fallback:
-                        import atexit
-                        import shutil
-
-                        atexit.register(shutil.rmtree, pex_root_fallback, True)
-
-                    sys.exit(entry_point())
-                """
-            ).format(shebang=shebang, modname=entry_point.module, attrs=entry_point.attrs)
-        else:
-            script = dedent(
-                """\
-                {shebang}
-                # -*- coding: utf-8 -*-
-                import runpy
-                import sys
-
-                if __name__ == "__main__":
-                    import os
-                    pex_root_fallback = os.environ.get("_PEX_ROOT_FALLBACK")
-                    if pex_root_fallback:
-                        import atexit
-                        import shutil
-
-                        atexit.register(shutil.rmtree, pex_root_fallback, True)
-
-                    runpy.run_module({modname!r}, run_name="__main__", alter_sys=True)
-                    sys.exit(0)
-                """
-            ).format(shebang=shebang, modname=entry_point.module)
-        script_abspath = os.path.join(install_paths.scripts, named_entry_point.name)
-        if WINDOWS:
-            script_abspath = windows.create_script(script_abspath, script, gui=gui)
-        else:
-            with safe_open(script_abspath, "w") as fp:
-                fp.write(script)
-            chmod_plus_x(fp.name)
-        yield script_abspath
+    return tuple(provenance)

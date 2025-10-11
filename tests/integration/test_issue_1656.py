@@ -2,6 +2,7 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
+import re
 import sys
 
 import pytest
@@ -145,7 +146,16 @@ def test_mixed_pex_root(
     subprocess.check_call(args=create_pex_args(old_pex, "-o", pex_app_old))
 
     pex_app_new = os.path.join(str(tmpdir), "app.new.pex")
-    run_pex_command(args=create_pex_args("-o", pex_app_new, "--venv")).assert_success()
+    run_pex_command(args=create_pex_args("-o", pex_app_new, "--venv")).assert_success(
+        expected_error_re=r".*{message}.*".format(
+            message=re.escape(
+                "PEXWarning: The RECORD in selenium-4.1.2-py3-none-any.whl has at least some "
+                "invalid entries with absolute paths; so wheel re-packing will not be "
+                "round-trippable."
+            )
+        ),
+        re_flags=re.DOTALL,
+    )
 
     subprocess.check_call(
         args=[sys.executable, pex_app_old, "-c", "import greenlet"],

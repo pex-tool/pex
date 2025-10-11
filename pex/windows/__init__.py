@@ -142,21 +142,24 @@ def create_script(
     platform=SysPlatform.CURRENT,  # type: SysPlatform.Value
     gui=False,  # type: bool
     python_path=None,  # type: Optional[Text]
+    overwrite=True,  # type: bool
 ):
     # type: (...) -> _Text
 
-    with safe_open("{path}.{unique}".format(path=path, unique=uuid.uuid4().hex), "wb") as fp:
-        fp.write(_load_stub(platform=platform, gui=gui).read_data())
-        with contextlib.closing(zipfile.ZipFile(fp, "a")) as zip_fp:
-            zip_fp.writestr("__main__.py", contents.encode("utf-8"), zipfile.ZIP_STORED)
-        python_path_bytes = platform.binary_name(
-            python_path or ("pythonw" if gui else "python")
-        ).encode("utf-8")
-        fp.write(python_path_bytes)
-        fp.write(struct.pack("<I", len(python_path_bytes)))
-        fp.write(b"UVSC")
     script = platform.binary_name(path)
-    safe_rename(fp.name, script)
+    if overwrite or not os.path.exists(script):
+        with safe_open("{path}.{unique}".format(path=path, unique=uuid.uuid4().hex), "wb") as fp:
+            fp.write(_load_stub(platform=platform, gui=gui).read_data())
+            with contextlib.closing(zipfile.ZipFile(fp, "a")) as zip_fp:
+                zip_fp.writestr("__main__.py", contents.encode("utf-8"), zipfile.ZIP_STORED)
+            python_path_bytes = platform.binary_name(
+                python_path or ("pythonw" if gui else "python")
+            ).encode("utf-8")
+            fp.write(python_path_bytes)
+            fp.write(struct.pack("<I", len(python_path_bytes)))
+            fp.write(b"UVSC")
+
+        safe_rename(fp.name, script)
     return script
 
 
