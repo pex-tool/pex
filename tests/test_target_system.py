@@ -3,7 +3,7 @@
 
 from __future__ import absolute_import
 
-from pex.resolve.target_system import MarkerEnv, UniversalTarget
+from pex.resolve.target_system import MarkerEnv, UniversalTarget, has_marker
 from pex.third_party.packaging.markers import Marker
 from pex.third_party.packaging.specifiers import SpecifierSet
 
@@ -80,4 +80,18 @@ def test_marker_env_grouping():
             "   )"
             ")"
         )
+    )
+
+
+def test_has_marker():
+    # type: () -> None
+
+    assert has_marker(Marker("python_version >= '3.9'"), "python_version")
+    assert not has_marker(Marker("python_version >= '3.9'"), "python_full_version")
+
+    assert has_marker(
+        Marker(
+            "platform_machine == 'x86_64' and (sys_platform == 'darwin' or python_version >= '3.9')"
+        ),
+        "python_version",
     )

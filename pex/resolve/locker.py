@@ -3,7 +3,6 @@
 
 from __future__ import absolute_import
 
-import itertools
 import json
 import os
 import re
@@ -29,7 +28,7 @@ from pex.resolve.pep_691.fingerprint_service import FingerprintService
 from pex.resolve.pep_691.model import Endpoint
 from pex.resolve.resolved_requirement import PartialArtifact, Pin, ResolvedRequirement
 from pex.resolve.resolvers import Resolver
-from pex.resolve.target_system import TargetSystem, UniversalTarget
+from pex.resolve.target_system import UniversalTarget
 from pex.targets import Target
 from pex.typing import TYPE_CHECKING
 
@@ -578,31 +577,6 @@ class Locker(LogAnalyzer):
         return self._lock_result
 
 
-# See https://peps.python.org/pep-0508/#environment-markers for more about these values.
-_OS_NAME = {
-    TargetSystem.LINUX: "posix",
-    TargetSystem.MAC: "posix",
-    TargetSystem.WINDOWS: "nt",
-}
-_PLATFORM_SYSTEM = {
-    TargetSystem.LINUX: "Linux",
-    TargetSystem.MAC: "Darwin",
-    TargetSystem.WINDOWS: "Windows",
-}
-_SYS_PLATFORMS = {
-    TargetSystem.LINUX: ("linux", "linux2"),
-    TargetSystem.MAC: ("darwin",),
-    TargetSystem.WINDOWS: ("win32",),
-}
-
-# See: https://peps.python.org/pep-0425/#platform-tag for more about the wheel platform tag.
-_PLATFORM_TAG_REGEXP = {
-    TargetSystem.LINUX: r"linux",
-    TargetSystem.MAC: r"macosx",
-    TargetSystem.WINDOWS: r"win",
-}
-
-
 def patch(universal_target):
     # type: (Optional[UniversalTarget]) -> PatchSet
 
@@ -619,29 +593,10 @@ def patch(universal_target):
             )
         )
 
-    env = {}  # type: Dict[str, str]
-    if universal_target.implementation:
-        env.update(_PEX_INTERPRETER_IMPLEMENTATION=str(universal_target.implementation))
-
-    if universal_target.systems and set(universal_target.systems) != set(TargetSystem.values()):
-        target_systems = {
-            "os_names": [_OS_NAME[target_system] for target_system in universal_target.systems],
-            "platform_systems": [
-                _PLATFORM_SYSTEM[target_system] for target_system in universal_target.systems
-            ],
-            "sys_platforms": list(
-                itertools.chain.from_iterable(
-                    _SYS_PLATFORMS[target_system] for target_system in universal_target.systems
-                )
-            ),
-            "platform_tag_regexps": [
-                _PLATFORM_TAG_REGEXP[target_system] for target_system in universal_target.systems
-            ],
-        }
-        with open(os.path.join(patches_dir, "target_systems.json"), "w") as fp:
-            json.dump(target_systems, fp)
-        env.update(_PEX_TARGET_SYSTEMS_FILE=fp.name)
-
-    patches.append(Patch.from_code_resource(__name__, "locker_patches.py", **env))
+    with open(os.path.join(patches_dir, "universal_target.json"), "w") as fp:
+        json.dump(universal_target.to_dict(), fp)
+    patches.append(
+        Patch.from_code_resource(__name__, "locker_patches.py", _PEX_UNIVERSAL_TARGET_FILE=fp.name)
+    )
 
     return PatchSet(patches=tuple(patches))

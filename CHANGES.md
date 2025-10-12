@@ -1,5 +1,19 @@
 # Release Notes
 
+## 2.62.0
+
+This release brings full support for universal lock splitting. You can now declare conflicting
+top-level requirements for different (marker) environments and these will be isolated in separate
+lock resolves in the same universal lock file. These split resolves are performed in parallel and
+the appropriate split lock is later selected automatically when building a PEX or a venv from the
+lock.
+
+As part of this work, locks also filter wheels more faithfully. If you supply interpreter
+constraints that constraint to CPython, the resulting lock will now only contain `cp`
+platform-specific wheels (and, for example, not PyPy wheels).
+
+* Complete support for universal lock splitting. (#2940)
+
 ## 2.61.1
 
 This release fixes a long standing bug hashing local project directories when building PEXes. Pex
