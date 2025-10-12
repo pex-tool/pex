@@ -1,8 +1,9 @@
 from __future__ import absolute_import
 
 import itertools
-from collections import defaultdict
+from collections import OrderedDict, defaultdict
 
+from pex.common import pluralize
 from pex.interpreter_constraints import iter_compatible_versions
 from pex.interpreter_implementation import InterpreterImplementation
 from pex.network_configuration import NetworkConfiguration
@@ -12,13 +13,24 @@ from pex.requirements import LocalProjectRequirement
 from pex.resolve.package_repository import ReposConfiguration
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.target_system import MarkerEnv, TargetSystem, UniversalTarget, has_marker
+from pex.resolver import DownloadRequest
 from pex.targets import LocalInterpreter, Targets
 from pex.third_party.packaging.markers import Marker
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import DefaultDict, Dict, FrozenSet, Iterator, List, Mapping, Optional, Tuple
+    from typing import (
+        DefaultDict,
+        Dict,
+        FrozenSet,
+        Iterable,
+        Iterator,
+        List,
+        Mapping,
+        Optional,
+        Tuple,
+    )
 
     import attr  # vendor:skip
 else:
@@ -147,33 +159,156 @@ def _iter_universal_targets(
         )
 
 
+if TYPE_CHECKING:
+    from pex.requirements import ParsedRequirement
+
+
 @attr.s(frozen=True)
-class LockTargets(object):
-    @classmethod
-    def calculate(
-        cls,
-        targets,  # type: Targets
-        requirement_configuration,  # type: RequirementConfiguration
-        network_configuration,  # type: NetworkConfiguration
-        repos_configuration,  # type: ReposConfiguration
-        universal_target=None,  # type: Optional[UniversalTarget]
+class DownloadInput(object):
+    download_requests = attr.ib()  # type: Tuple[DownloadRequest, ...]
+    direct_requirements = attr.ib()  # type: Tuple[ParsedRequirement, ...]
+
+
+@attr.s
+class Split(object):
+    requirements_by_project_name = attr.ib(
+        factory=OrderedDict
+    )  # type: OrderedDict[ProjectName, ParsedRequirement]
+    provenance = attr.ib(factory=OrderedSet)  # type: OrderedSet[ParsedRequirement]
+
+    def add(
+        self,
+        project_name,  # type: ProjectName
+        requirement,  # type: ParsedRequirement
     ):
-        # type: (...) -> LockTargets
+        # type: (...) -> Optional[Split]
 
-        if not universal_target:
-            return cls(targets=targets)
-
-        targets = Targets.from_target(LocalInterpreter.create(targets.interpreter))
-        split_markers = _calculate_split_markers(
-            requirement_configuration, network_configuration, repos_configuration
+        existing_requirement = self.requirements_by_project_name.setdefault(
+            project_name, requirement
         )
-        if not split_markers:
-            return cls(targets=targets, universal_targets=(universal_target,))
+        if existing_requirement == requirement:
+            return None
 
-        return cls(
-            targets=targets,
-            universal_targets=tuple(_iter_universal_targets(universal_target, split_markers)),
+        self.provenance.add(existing_requirement)
+
+        provenance = OrderedSet(req for req in self.provenance if req != existing_requirement)
+        provenance.add(requirement)
+
+        requirements_by_project_name = self.requirements_by_project_name.copy()
+        requirements_by_project_name[project_name] = requirement
+
+        return Split(
+            requirements_by_project_name=self.requirements_by_project_name.copy(),
+            provenance=provenance,
         )
 
-    targets = attr.ib()  # type: Targets
-    universal_targets = attr.ib(default=())  # type: Tuple[UniversalTarget, ...]
+    def requirement_configuration(
+        self,
+        unnamed_requirements,  # type: Iterable[ParsedRequirement]
+        requirement_configuration,  # type: RequirementConfiguration
+    ):
+        # type: (...) -> RequirementConfiguration
+        requirements = list(str(req) for req in unnamed_requirements)
+        requirements.extend(str(req) for req in self.requirements_by_project_name.values())
+        return RequirementConfiguration(
+            requirements=tuple(requirements),
+            # TODO: XXX: Handle the case where a requirement file entry needs to be commented out due to
+            #  split.
+            constraint_files=requirement_configuration.constraint_files,
+        )
+
+
+def calculate_download_input(
+    targets,  # type: Targets
+    requirement_configuration,  # type: RequirementConfiguration
+    network_configuration,  # type: NetworkConfiguration
+    repos_configuration,  # type: ReposConfiguration
+    universal_target=None,  # type: Optional[UniversalTarget]
+):
+    # type: (...) -> DownloadInput
+
+    direct_requirements = requirement_configuration.parse_requirements(network_configuration)
+    if not universal_target:
+        return DownloadInput(
+            download_requests=tuple(
+                DownloadRequest.create(
+                    target=target, requirement_configuration=requirement_configuration
+                )
+                for target in targets.unique_targets()
+            ),
+            direct_requirements=direct_requirements,
+        )
+
+    target = LocalInterpreter.create(targets.interpreter)
+    split_markers = _calculate_split_markers(
+        requirement_configuration, network_configuration, repos_configuration
+    )
+    if not split_markers:
+        return DownloadInput(
+            download_requests=tuple(
+                [
+                    DownloadRequest.create(
+                        target=target,
+                        universal_target=universal_target,
+                        requirement_configuration=requirement_configuration,
+                    )
+                ]
+            ),
+            direct_requirements=direct_requirements,
+        )
+
+    named_requirements = OrderedSet()  # type: OrderedSet[Tuple[ProjectName, ParsedRequirement]]
+    unnamed_requirements = OrderedSet()  # type: OrderedSet[ParsedRequirement]
+    for direct_requirement in direct_requirements:
+        if direct_requirement.project_name:
+            named_requirements.add((direct_requirement.project_name, direct_requirement))
+        else:
+            unnamed_requirements.add(direct_requirement)
+
+    requirement_splits_by_universal_target = defaultdict(
+        lambda: [Split()]
+    )  # type: DefaultDict[UniversalTarget, List[Split]]
+    for universal_target in _iter_universal_targets(universal_target, split_markers):
+        marker_env = universal_target.marker_env()
+        requirement_splits = requirement_splits_by_universal_target[universal_target]
+        for project_name, remote_requirement in named_requirements:
+            if remote_requirement.marker and not marker_env.evaluate(remote_requirement.marker):
+                continue
+            for requirement_split in list(requirement_splits):
+                new_split = requirement_split.add(project_name, remote_requirement)
+                if new_split:
+                    requirement_splits.append(new_split)
+
+    download_requests = []
+    for universal_target, splits in requirement_splits_by_universal_target.items():
+        if len(splits) == 1:
+            download_requests.append(
+                DownloadRequest.create(
+                    target=target,
+                    universal_target=universal_target,
+                    requirement_configuration=requirement_configuration,
+                )
+            )
+            continue
+
+        for split in splits:
+            download_requests.append(
+                DownloadRequest.create(
+                    target=target,
+                    universal_target=attr.evolve(
+                        universal_target,
+                        extra_markers=tuple(req.marker for req in split.provenance if req.marker),
+                    ),
+                    requirement_configuration=split.requirement_configuration(
+                        unnamed_requirements, requirement_configuration
+                    ),
+                    provenance="split by {requirements} {reqs}".format(
+                        requirements=pluralize(split.provenance, "requirement"),
+                        reqs=", ".join("'{req}'".format(req=req) for req in split.provenance),
+                    ),
+                )
+            )
+
+    return DownloadInput(
+        download_requests=tuple(download_requests), direct_requirements=direct_requirements
+    )
