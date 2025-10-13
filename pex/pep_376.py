@@ -6,6 +6,7 @@ from __future__ import absolute_import
 import base64
 import csv
 import hashlib
+import io
 import os
 from fileinput import FileInput
 
@@ -127,6 +128,22 @@ class Record(object):
         csv_writer = csv.writer(fp, delimiter=",", quotechar='"', lineterminator=eol)
         for installed_file in installed_files:
             csv_writer.writerow(attr.astuple(installed_file, recurse=False))
+
+    @classmethod
+    def write_bytes(
+        cls,
+        installed_files,  # type: Iterable[InstalledFile]
+        eol="\n",  # type: str
+    ):
+        # type: (...) -> bytes
+        if PY2:
+            record_fp = io.BytesIO()
+            cls.write_fp(fp=record_fp, installed_files=installed_files, eol=eol)
+            return record_fp.getvalue()
+        else:
+            record_fp = io.StringIO()
+            cls.write_fp(fp=record_fp, installed_files=installed_files, eol=eol)
+            return record_fp.getvalue().encode("utf-8")
 
     @classmethod
     def write(
