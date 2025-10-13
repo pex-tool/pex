@@ -451,11 +451,12 @@ class IntegResults(object):
 def create_pex_command(
     args=None,  # type: Optional[Iterable[str]]
     python=None,  # type: Optional[str]
-    quiet=False,  # type: bool
+    quiet=None,  # type: Optional[bool]
+    pex_module="pex",  # type: str
 ):
     # type: (...) -> List[str]
-    cmd = [python or sys.executable, "-mpex"]
-    if not quiet:
+    cmd = [python or sys.executable, "-m", pex_module]
+    if pex_module == "pex" and not quiet:
         cmd.append("-v")
     if args:
         cmd.extend(args)
@@ -466,8 +467,9 @@ def run_pex_command(
     args,  # type: Iterable[str]
     env=None,  # type: Optional[Dict[str, str]]
     python=None,  # type: Optional[str]
-    quiet=False,  # type: bool
+    quiet=None,  # type: Optional[bool]
     cwd=None,  # type: Optional[str]
+    pex_module="pex",  # type: str
 ):
     # type: (...) -> IntegResults
     """Simulate running pex command for integration testing.
@@ -476,7 +478,7 @@ def run_pex_command(
     generated pex.  This is useful for testing end to end runs with specific command line arguments
     or env options.
     """
-    cmd = create_pex_command(args, python=python, quiet=quiet)
+    cmd = create_pex_command(args, python=python, quiet=quiet, pex_module=pex_module)
     process = Executor.open_process(
         cmd=cmd, env=env, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
     )
