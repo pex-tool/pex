@@ -177,19 +177,39 @@ class MarkerParser(Generic["_C"]):
             self._parse_marker_item(item, marker, context)
 
 
+class HasMarkerVisitor(MarkerVisitor[None]):
+    def __init__(self, name):
+        # type: (str) -> None
+        self._name = name
+        self.has_marker = False
+
+    def visit_op(
+        self,
+        lhs,  # type: Any
+        op,  # type: Any
+        rhs,  # type: Any
+        marker,  # type: Marker
+        context,  # type: None
+    ):
+        # type: (...) -> None
+        if self.has_marker:
+            return
+
+        for term in lhs, rhs:
+            if isinstance(term, Variable) and self._name == str(term):
+                self.has_marker = True
+                break
+
+
 def has_marker(
     marker,  # type: Marker
     name,  # type: str
 ):
     # type: (...) -> bool
 
-    for item in _marker_items(marker):
-        if isinstance(item, tuple):
-            lhs, _, rhs = item
-            for term in lhs, rhs:
-                if isinstance(term, Variable) and name == str(term):
-                    return True
-    return False
+    visitor = HasMarkerVisitor(name)
+    MarkerParser(visitor).parse(marker, None)
+    return visitor.has_marker
 
 
 if TYPE_CHECKING:
