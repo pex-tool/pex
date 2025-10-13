@@ -464,15 +464,16 @@ class ExtraMarkers(object):
     def extract(cls, markers):
         # type: (Iterable[Marker]) -> ExtraMarkers
         # TODO: XXX: Parse extra marker values.
-        return cls(marker_values={})
+        return cls(marker_values=())
 
-    marker_values = attr.ib(default=None)  # type: Optional[Mapping[str, Values]]
+    marker_values = attr.ib(default=())  # type: Tuple[Tuple[str, Values], ...]
 
     def get_values(self, marker_name):
         # type: (str) -> Values
-        if not self.marker_values:
-            return Values()
-        return self.marker_values.get(marker_name, Values())
+        for name, values in self.marker_values:
+            if marker_name == name:
+                return values
+        return Values()
 
 
 @attr.s(frozen=True)
