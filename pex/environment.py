@@ -15,6 +15,7 @@ from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import Distribution, Requirement, is_wheel
 from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.inherit_path import InheritPath
+from pex.installed_wheel import InstalledWheel
 from pex.interpreter import PythonInterpreter
 from pex.layout import ensure_installed, identify_layout
 from pex.orderedset import OrderedSet
@@ -820,22 +821,25 @@ class PEXEnvironment(object):
             if dist.location in sys.path:
                 continue
             with TRACER.timed("Activating %s" % dist, V=2):
-                if self._pex_info.inherit_path == InheritPath.FALLBACK:
-                    # Prepend location to sys.path.
-                    #
-                    # This ensures that bundled versions of libraries will be used before system-installed
-                    # versions, in case something is installed in both, helping to favor hermeticity in
-                    # the case of non-hermetic PEX files (i.e. those with inherit_path=True).
-                    #
-                    # If the path is not already in sys.path, site.addsitedir will append (not prepend)
-                    # the path to sys.path. But if the path is already in sys.path, site.addsitedir will
-                    # leave sys.path unmodified, but will do everything else it would do. This is not part
-                    # of its advertised contract (which is very vague), but has been verified to be the
-                    # case by inspecting its source for both cpython 2.7 and cpython 3.7.
-                    sys.path.insert(0, dist.location)
-                else:
-                    sys.path.append(dist.location)
+                for entry in InstalledWheel.load(dist.location).iter_sys_path_entries():
+                    if self._pex_info.inherit_path == InheritPath.FALLBACK:
+                        # Prepend location to sys.path.
+                        #
+                        # This ensures that bundled versions of libraries will be used before
+                        # system-installed versions, in case something is installed in both, helping
+                        # to favor hermeticity in the case of non-hermetic PEX files (i.e. those
+                        # with inherit_path=True).
+                        #
+                        # If the path is not already in sys.path, site.addsitedir will append (not
+                        # prepend) the path to sys.path. But if the path is already in sys.path,
+                        # site.addsitedir will leave sys.path unmodified, but will do everything
+                        # else it would do. This is not part of its advertised contract (which is
+                        # very vague), but has been verified to be the case by inspecting its source
+                        # for both cpython 2.7 and cpython 3.7.
+                        sys.path.insert(0, entry)
+                    else:
+                        sys.path.append(entry)
 
-                with TRACER.timed("Adding sitedir", V=2):
-                    site.addsitedir(dist.location)
+                    with TRACER.timed("Adding sitedir", V=2):
+                        site.addsitedir(entry)
         return resolved

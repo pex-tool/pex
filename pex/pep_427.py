@@ -25,6 +25,7 @@ from pex.common import (
     safe_mkdtemp,
     safe_open,
     safe_relative_symlink,
+    safe_rmtree,
     touch,
 )
 from pex.compatibility import commonpath, string
@@ -134,15 +135,25 @@ class InstallPaths(object):
         wheel,  # type: Wheel
     ):
         # type: (...) -> InstallPaths
+
         base = os.path.join(destination, cls.CHROOT_STASH)
 
+        if wheel.root_is_purelib:
+            purelib = destination
+            platlib = os.path.join(base, "platlib")
+            path_names = ("headers", "scripts", "platlib", "data", "purelib")
+        else:
+            purelib = os.path.join(base, "purelib")
+            platlib = destination
+            path_names = ("headers", "scripts", "purelib", "data", "platlib")
+
         return cls(
-            purelib=destination,
-            platlib=destination,
+            purelib=purelib,
+            platlib=platlib,
             headers=_headers_install_path_for_wheel(base, wheel),
             scripts=os.path.join(base, SCRIPT_DIR),
-            data=base,
-            path_names=("headers", "scripts", "data", "purelib", "platlib"),
+            data=os.path.join(base, "data"),
+            path_names=path_names,
         )
 
     @classmethod
@@ -150,9 +161,17 @@ class InstallPaths(object):
         cls,
         interpreter,  # type: PythonInterpreter
         project_name,  # type: ProjectName
+        root_is_purelib,  # type: bool
     ):
         # type: (...) -> InstallPaths
+
         sysconfig_paths = interpreter.identity.paths
+
+        if root_is_purelib:
+            path_names = ("purelib", "platlib", "headers", "scripts", "data")
+        else:
+            path_names = ("platlib", "purelib", "headers", "scripts", "data")
+
         return cls(
             purelib=sysconfig_paths["purelib"],
             platlib=sysconfig_paths["platlib"],
@@ -163,7 +182,7 @@ class InstallPaths(object):
             ),
             scripts=sysconfig_paths["scripts"],
             data=sysconfig_paths["data"],
-            path_names=("purelib", "platlib", "headers", "scripts", "data"),
+            path_names=path_names,
         )
 
     @classmethod
@@ -186,27 +205,30 @@ class InstallPaths(object):
     def wheel(
         cls,
         destination,  # type: str
-        project_name,  # type: ProjectName
-        version,  # type: Version
+        wheel,  # type: Union[Wheel, InstallableWheel]
     ):
         # type: (...) -> InstallPaths
 
         data = os.path.join(
-            destination,
-            "{project_name}-{version}.data".format(
-                # N.B.: We don't use the canonical form since it goes to lowercase.
-                project_name=re.sub(r"[-_.]+", "_", project_name.raw),
-                # N.B.: We don't use the canonical form since it drop trailing zero segments.
-                version=version.raw.replace("-", "_"),
-            ),
+            destination, "{wheel_prefix}.data".format(wheel_prefix=wheel.wheel_prefix)
         )
+
+        if wheel.root_is_purelib:
+            purelib = destination
+            platlib = os.path.join(data, "platlib")
+            path_names = ("headers", "scripts", "platlib", "data", "purelib")
+        else:
+            purelib = os.path.join(data, "purelib")
+            platlib = destination
+            path_names = ("headers", "scripts", "purelib", "data", "platlib")
+
         return cls(
-            purelib=destination,
-            platlib=destination,
+            purelib=purelib,
+            platlib=platlib,
             headers=os.path.join(data, "headers"),
             scripts=os.path.join(data, "scripts"),
             data=os.path.join(data, "data"),
-            path_names=("headers", "scripts", "data", "purelib", "platlib"),
+            path_names=path_names,
         )
 
     purelib = attr.ib()  # type: str
@@ -481,16 +503,10 @@ class InstallableWheel(object):
 
         object.__setattr__(self, "is_whl", is_whl)
 
-    def iter_applicable_install_paths(self):
+    def iter_install_paths_by_name(self):
         # type: () -> Iterator[Tuple[str, str]]
         if self.install_paths:
             for path_name, path in self.install_paths:
-                if path_name == "purelib":
-                    if not self.root_is_purelib:
-                        continue
-                elif path_name == "platlib":
-                    if self.root_is_purelib:
-                        continue
                 yield path_name, path
 
     @property
@@ -517,6 +533,11 @@ class InstallableWheel(object):
     def data_dir(self):
         # type: () -> str
         return self.wheel.data_dir
+
+    @property
+    def wheel_prefix(self):
+        # type: () -> str
+        return self.wheel.wheel_prefix
 
     @property
     def wheel_file_name(self):
@@ -623,9 +644,10 @@ def install_wheel_chroot(
     wheel_to_install = (
         wheel if isinstance(wheel, InstallableWheel) else InstallableWheel.from_whl(wheel)
     )
+    chroot_install_paths = InstallPaths.chroot(destination, wheel=wheel_to_install.wheel)
     install_wheel(
         wheel_to_install,
-        InstallPaths.chroot(destination, wheel=wheel_to_install.wheel),
+        chroot_install_paths,
         record_entry_info=True,
         normalize_file_stat=normalize_file_stat,
     )
@@ -635,11 +657,21 @@ def install_wheel_chroot(
         record_relpath is not None
     ), "The {module}.install_wheel function should always create a RECORD.".format(module=__name__)
 
+    root_is_purelib = wheel_to_install.root_is_purelib
+
+    entry_names = ("purelib", "platlib") if root_is_purelib else ("platlib", "purelib")
+    sys_path_entries = []  # type: List[str]
+    for entry_name in entry_names:
+        entry = chroot_install_paths[entry_name]
+        if os.path.isdir(entry):
+            sys_path_entries.append(os.path.relpath(entry, destination))
+
     return InstalledWheel.save(
         prefix_dir=destination,
         stash_dir=InstallPaths.CHROOT_STASH,
         record_relpath=record_relpath,
-        root_is_purelib=wheel_to_install.root_is_purelib,
+        root_is_purelib=root_is_purelib,
+        sys_path_entries=tuple(sys_path_entries),
     )
 
 
@@ -659,7 +691,9 @@ def install_wheel_interpreter(
     return install_wheel(
         wheel_to_install,
         InstallPaths.interpreter(
-            interpreter, project_name=wheel_to_install.metadata_files.metadata.project_name
+            interpreter,
+            project_name=wheel_to_install.project_name,
+            root_is_purelib=wheel_to_install.root_is_purelib,
         ),
         copy_mode=copy_mode,
         interpreter=interpreter,
@@ -710,11 +744,7 @@ def create_whl(
     whl_chroot = os.path.join(safe_mkdtemp(prefix="pex_create_whl."), whl_file_name)
     install_wheel(
         wheel_to_create,
-        InstallPaths.wheel(
-            destination=whl_chroot,
-            project_name=wheel_to_create.project_name,
-            version=wheel_to_create.version,
-        ),
+        InstallPaths.wheel(destination=whl_chroot, wheel=wheel_to_create),
         compile=compile,
         install_entry_point_scripts=False,
     )
@@ -797,12 +827,14 @@ def install_wheel(
         else:
             install_paths = attr.evolve(install_paths, platlib=dest)
 
+    data_dir = None  # type: Optional[str]
     if wheel.is_whl:
         whl = wheel.location
         zip_metadata = None  # type: Optional[ZipMetadata]
         with open_zip(whl) as zf:
             # 1. Unpack
             zf.extractall(dest)
+            data_dir = os.path.join(dest, wheel.data_dir)
             if record_entry_info:
                 zip_metadata = ZipMetadata.from_zip(
                     filename=whl, info_list=zf.infolist(), normalize_file_stat=normalize_file_stat
@@ -813,11 +845,10 @@ def install_wheel(
             # poked on a per-entry basis allowing forging a RECORD entry and its associated file.
             # Only an outer fingerprint of the whole wheel really solves this sort of tampering.
 
+        unpacked_wheel = Wheel.load(dest, project_name=wheel.project_name)
         wheel = InstallableWheel(
-            wheel=Wheel.load(dest, project_name=wheel.project_name),
-            install_paths=InstallPaths.wheel(
-                dest, project_name=wheel.project_name, version=wheel.version
-            ),
+            wheel=unpacked_wheel,
+            install_paths=InstallPaths.wheel(dest, wheel=unpacked_wheel),
             zip_metadata=zip_metadata,
         )
 
@@ -919,7 +950,7 @@ def install_wheel(
 
         src_file = os.path.realpath(os.path.join(wheel.location, installed_file.path))
         dst_components = None  # type: Optional[Tuple[Text, Text, bool]]
-        for path_name, installed_path in wheel.iter_applicable_install_paths():
+        for path_name, installed_path in wheel.iter_install_paths_by_name():
             installed_path = os.path.realpath(installed_path)
             if installed_path == commonpath((installed_path, src_file)):
                 rewrite_script = False
@@ -986,6 +1017,8 @@ def install_wheel(
                     shutil.copy(src_file, dst_file)
             installed_files.append(create_installed_file(path=dst_file, dest_dir=dest))
             provenance.append((src_file, dst_file))
+    if data_dir:
+        safe_rmtree(data_dir)
 
     if compile:
         args = [

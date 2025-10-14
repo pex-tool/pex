@@ -226,6 +226,18 @@ class Wheel(object):
         return self.metadata_files.metadata.version
 
     @property
+    def wheel_prefix(self):
+        # type: () -> str
+
+        # N.B.: We don't use the canonical form since it goes to lowercase.
+        project_name = re.sub(r"[-_.]+", "_", self.project_name.raw)
+
+        # N.B.: We don't use the canonical form since it drop trailing zero segments.
+        version = self.version.raw.replace("-", "_")
+
+        return "{project_name}-{version}".format(project_name=project_name, version=version)
+
+    @property
     def wheel_file_name(self):
         # type: () -> str
 
@@ -239,10 +251,7 @@ class Wheel(object):
         tag = "{interpreters}-{abis}-{platforms}".format(
             interpreters=".".join(interpreters), abis=".".join(abis), platforms=".".join(platforms)
         )
-
-        return "{project_name}-{version}-{tag}.whl".format(
-            project_name=self.project_name.raw, version=self.version.raw, tag=tag
-        )
+        return "{wheel_prefix}-{tag}.whl".format(wheel_prefix=self.wheel_prefix, tag=tag)
 
     def iter_compatible_python_versions(self):
         # type: () -> Iterator[Tuple[int, ...]]
