@@ -1,6 +1,13 @@
 # Release Notes
 
-## 2.61.1
+## 2.60.2
+
+This release fixes a regression in the Pex 2.60.0 release when installing wheels with
+`*.data/{purelib,platlib}` entries.
+
+* Fix handling of whl `*.data/` dirs. (#2946)
+
+## 2.60.1
 
 This release fixes a backwards compatiility break in 2.60.0 where modern `pex-tools` would fail to
 work on PEXes built with Pex prior to 2.60.
