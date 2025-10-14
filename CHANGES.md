@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.61.1
+
+This release fixes a backwards compatiility break in 2.60.0 where modern `pex-tools` would fail to
+work on PEXes built with Pex prior to 2.60.
+
+* Fix installed wheel re-installation for old PEXes. (#2943)
+
 ## 2.60.0
 
 This release adds support for `--no-pre-install-wheels` to both the `--pex-repository` and

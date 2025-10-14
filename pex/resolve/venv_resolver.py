@@ -5,7 +5,6 @@ from __future__ import absolute_import
 
 import functools
 import hashlib
-import io
 import itertools
 import os
 from collections import defaultdict, deque
@@ -14,7 +13,7 @@ from pex import pex_warnings
 from pex.atomic_directory import atomic_directory
 from pex.cache.dirs import CacheDir, InstalledWheelDir
 from pex.common import safe_relative_symlink
-from pex.compatibility import PY2, commonpath
+from pex.compatibility import commonpath
 from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import (
     Constraint,
@@ -93,15 +92,7 @@ def _normalize_record(
             )
         )
     ]
-
-    if PY2:
-        record_fp = io.BytesIO()
-        Record.write_fp(fp=record_fp, installed_files=installed_files, eol=eol)
-        return record_fp.getvalue()
-    else:
-        record_fp = io.StringIO()
-        Record.write_fp(fp=record_fp, installed_files=installed_files, eol=eol)
-        return record_fp.getvalue().encode("utf-8")
+    return Record.write_bytes(installed_files=installed_files, eol=eol)
 
 
 def _install_distribution(

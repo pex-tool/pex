@@ -759,6 +759,20 @@ def _detect_record_eol(path):
     return "\r\n" if line.endswith(b"\r\n") else "\n"
 
 
+def _iter_installed_files(
+    chroot,  # type: str
+    exclude_rel_paths=(),  # type: Iterable[str]
+):
+    # type: (...) -> Iterator[InstalledFile]
+    exclude = frozenset(exclude_rel_paths)
+    for root, _, files in deterministic_walk(chroot):
+        for path in files:
+            rel_path = os.path.relpath(os.path.join(root, path), chroot)
+            if rel_path in exclude:
+                continue
+            yield InstalledFile(rel_path)
+
+
 def install_wheel(
     wheel,  # type: InstallableWheel
     install_paths,  # type: InstallPaths
@@ -838,11 +852,7 @@ def install_wheel(
             # Write a minimal repaired record to drive the spread operation below.
             Record.write(
                 dst=os.path.join(dest, wheel.metadata_path("RECORD")),
-                installed_files=[
-                    InstalledFile(os.path.relpath(os.path.join(root, path), dest))
-                    for root, _, files in deterministic_walk(dest)
-                    for path in files
-                ],
+                installed_files=list(_iter_installed_files(dest)),
                 eol=eol,
             )
 
@@ -851,10 +861,23 @@ def install_wheel(
 
     record_data = wheel.metadata_files.read("RECORD")
     if not record_data:
-        raise WheelInstallError(
-            "Cannot re-install installed wheel for {source} because it has no installation "
-            "RECORD metadata.".format(source=wheel.source)
-        )
+        try:
+            installed_wheel = InstalledWheel.load(wheel.location)
+        except InstalledWheel.LoadError:
+            raise WheelInstallError(
+                "Cannot re-install wheel for {source} because it has no installation RECORD "
+                "metadata.".format(source=wheel.source)
+            )
+        else:
+            # This is a legacy installed wheel layout with no RECORD; so we concoct one
+            layout_file_rel_path = os.path.relpath(
+                installed_wheel.layout_file(wheel.location), wheel.location
+            )
+            record_data = Record.write_bytes(
+                installed_files=_iter_installed_files(
+                    chroot=wheel.location, exclude_rel_paths=[layout_file_rel_path]
+                )
+            )
 
     # 2. Spread
     entry_points = wheel.distribution().get_entry_map()
