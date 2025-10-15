@@ -43,7 +43,7 @@ from pex.sysconfig import script_name
 from pex.targets import LocalInterpreter, Target, Targets
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import Virtualenv
-from pex.wheel import Wheel
+from pex.wheel import WHEEL, Wheel
 from pex.whl import repacked_whl
 
 if TYPE_CHECKING:
@@ -107,7 +107,9 @@ def _install_distribution(
     production_assert(distribution.metadata.files.metadata.type is MetadataType.DIST_INFO)
 
     venv_install_paths = InstallPaths.interpreter(
-        interpreter, project_name=distribution.metadata.project_name
+        interpreter,
+        project_name=distribution.metadata.project_name,
+        root_is_purelib=WHEEL.from_distribution(distribution).root_is_purelib,
     )
     wheel = InstallableWheel.from_whl(
         whl=Wheel.from_distribution(distribution), install_paths=venv_install_paths

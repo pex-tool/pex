@@ -75,7 +75,7 @@ def main():
         current_interpreter = PythonInterpreter.get()
         for _, script_abspath in install_scripts(
             dest_dir=InstallPaths.interpreter(
-                current_interpreter, project_name=ProjectName("pex")
+                current_interpreter, project_name=ProjectName("pex"), root_is_purelib=True
             ).scripts,
             entry_points=Distribution.parse_entry_map(
                 entry_points_read_fp.read(), source=entry_points_read_fp.name

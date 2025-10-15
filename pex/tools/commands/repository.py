@@ -1,7 +1,7 @@
 # Copyright 2021 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-from __future__ import absolute_import
+from __future__ import absolute_import, print_function
 
 import functools
 import logging
@@ -311,7 +311,7 @@ class Repository(JsonMixin, OutputMixin, PEXCommand):
                         )
                     )
                 else:
-                    output.write(str(result))
+                    print(result, file=output)
             if errors:
                 return Error(
                     "Failed to build wheels for {count} {distributions}.".format(

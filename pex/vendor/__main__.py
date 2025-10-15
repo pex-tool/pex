@@ -544,11 +544,12 @@ def vendorize(root_dir, vendor_specs, prefix, update):
         for project_name, version, wheel_chroot, wheel_file in wheels_chroots_to_install:
             with closing(zipfile.ZipFile(wheel_file)) as zf:
                 zip_metadata = ZipMetadata.from_zip(filename=wheel_file, info_list=zf.infolist())
+            vendored_wheel = Wheel.load(wheel_chroot)
             install_wheel_chroot(
                 wheel=InstallableWheel(
-                    wheel=Wheel.load(wheel_chroot),
+                    wheel=vendored_wheel,
                     install_paths=InstallPaths.wheel(
-                        destination=wheel_chroot, project_name=project_name, version=version
+                        destination=wheel_chroot, wheel=vendored_wheel
                     ),
                     zip_metadata=zip_metadata,
                 ),

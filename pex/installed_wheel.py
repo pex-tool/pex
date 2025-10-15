@@ -12,7 +12,7 @@ from pex.util import CacheHelper
 from pex.wheel import WHEEL, Wheel, WheelMetadataLoadError
 
 if TYPE_CHECKING:
-    from typing import Optional, Text
+    from typing import Iterator, Optional, Text, Tuple
 
     import attr  # vendor:skip
 else:
@@ -38,6 +38,7 @@ class InstalledWheel(object):
         stash_dir,  # type: str
         record_relpath,  # type: Text
         root_is_purelib,  # type: bool
+        sys_path_entries,  # type: Tuple[str, ...]
     ):
         # type: (...) -> InstalledWheel
 
@@ -50,6 +51,7 @@ class InstalledWheel(object):
             "record_relpath": record_relpath,
             "fingerprint": fingerprint,
             "root_is_purelib": root_is_purelib,
+            "sys_path_entries": sys_path_entries,
         }
         with open(cls.layout_file(prefix_dir), "w") as fp:
             json.dump(layout, fp, sort_keys=True, separators=(",", ":"))
@@ -59,6 +61,7 @@ class InstalledWheel(object):
             record_relpath=record_relpath,
             fingerprint=fingerprint,
             root_is_purelib=root_is_purelib,
+            sys_path_entries=sys_path_entries,
         )
 
     @classmethod
@@ -104,12 +107,17 @@ class InstalledWheel(object):
                 )
             root_is_purelib = wheel.root_is_purelib
 
+        # N.B.: Older versions of Pex installed wheel chroots did not have this field since the
+        # `sys.path` entry was always just the prefix_dir for those.
+        sys_path_entries = layout.get("sys_path_entries", [""])
+
         return cls(
             prefix_dir=prefix_dir,
             stash_dir=cast(str, stash_dir),
             record_relpath=cast(str, record_relpath),
             fingerprint=cast("Optional[str]", fingerprint),
             root_is_purelib=root_is_purelib,
+            sys_path_entries=tuple(sys_path_entries),
         )
 
     prefix_dir = attr.ib()  # type: str
@@ -117,6 +125,7 @@ class InstalledWheel(object):
     record_relpath = attr.ib()  # type: Text
     fingerprint = attr.ib()  # type: Optional[str]
     root_is_purelib = attr.ib()  # type: bool
+    sys_path_entries = attr.ib()  # type: Tuple[str, ...]
 
     def wheel_file_name(self):
         # type: () -> str
@@ -125,3 +134,8 @@ class InstalledWheel(object):
     def stashed_path(self, *components):
         # type: (*str) -> str
         return os.path.join(self.prefix_dir, self.stash_dir, *components)
+
+    def iter_sys_path_entries(self):
+        # type: () -> Iterator[str]
+        for sys_path_entry in self.sys_path_entries:
+            yield os.path.normpath(os.path.join(self.prefix_dir, sys_path_entry))

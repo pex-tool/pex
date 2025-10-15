@@ -55,7 +55,7 @@ def test_bad_wheel_tag_metadata(tmpdir):
     assert pex_root == commonpath((pex_root, path))
 
     # N.B.: The original wheel on PyPI is
-    # hf-xet-1.1.10-cp37-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl and the WHEEL
+    # hf_xet-1.1.10-cp37-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl and the WHEEL
     # metadata is:
     # ---
     # Wheel-Version: 1.0
@@ -76,6 +76,6 @@ def test_bad_wheel_tag_metadata(tmpdir):
     # `cp37-abi3-manylinux_2_17_x86_64` and `cp37-abi3-manylinux2014_x86_64` which is right, but
     # only up to ordering, which is unstable. We sort the tags to stabilize which results in the
     # `manylinux2014_x86_64` platform tag now coming 1st unlike in the original wheel.
-    assert "hf-xet-1.1.10-cp37-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl" in path.split(
+    assert "hf_xet-1.1.10-cp37-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl" in path.split(
         os.sep
     )
