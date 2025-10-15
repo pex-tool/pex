@@ -6,6 +6,7 @@ from __future__ import absolute_import
 import operator
 import sys
 
+from pex.compatibility import string
 from pex.enum import Enum
 from pex.exceptions import production_assert, reportable_unexpected_error_msg
 from pex.interpreter_constraints import InterpreterConstraint, iter_compatible_versions
@@ -196,7 +197,7 @@ class HasMarkerVisitor(MarkerVisitor[None]):
             return
 
         for term in lhs, rhs:
-            if isinstance(term, Variable) and self._name == str(term):
+            if is_variable(term) and self._name == str(term):
                 self.has_marker = True
                 break
 
@@ -258,35 +259,44 @@ class _Or(_Op):
 
 @attr.s(frozen=True)
 class Values(object):
+    marker_name = attr.ib()  # type: str
     values = attr.ib(default=())  # type: Tuple[str, ...]
     inclusive = attr.ib(default=True)  # type: bool
 
     def apply(self, func):
         # type: (Callable[[str], bool]) -> bool
-        if not self.values:
-            return True
+        if len(self.values) == 0:
+            return self.marker_name != "extra"
         if self.inclusive:
             return any(map(func, self.values))
-        return all(not result for result in map(func, self.values))
+        return all((not result) for result in map(func, self.values))
+
+    def __len__(self):
+        # type: () -> int
+        return len(self.values)
+
+    def __iter__(self):
+        # type: () -> Iterator[str]
+        return iter(self.values)
 
 
 def _get_values_func(marker_name):
-    # type: (str) -> Optional[Callable[[MarkerEnv], Values]]
+    # type: (str) -> Callable[[MarkerEnv], Values]
 
     if marker_name == "extra":
-        return lambda marker_env: Values(marker_env.extras)
+        return lambda marker_env: Values(marker_name, marker_env.extras)
     elif marker_name == "os_name":
-        return lambda marker_env: Values(marker_env.os_names)
+        return lambda marker_env: Values(marker_name, marker_env.os_names)
     elif marker_name == "platform_system":
-        return lambda marker_env: Values(marker_env.platform_systems)
+        return lambda marker_env: Values(marker_name, marker_env.platform_systems)
     elif marker_name == "sys_platform":
-        return lambda marker_env: Values(marker_env.sys_platforms)
+        return lambda marker_env: Values(marker_name, marker_env.sys_platforms)
     elif marker_name == "platform_python_implementation":
-        return lambda marker_env: Values(marker_env.platform_python_implementations)
+        return lambda marker_env: Values(marker_name, marker_env.platform_python_implementations)
     elif marker_name == "python_version":
-        return lambda marker_env: Values(marker_env.python_versions)
+        return lambda marker_env: Values(marker_name, marker_env.python_versions)
     elif marker_name == "python_full_version":
-        return lambda marker_env: Values(marker_env.python_full_versions)
+        return lambda marker_env: Values(marker_name, marker_env.python_full_versions)
     return lambda marker_env: marker_env.extra_markers.get_values(marker_name)
 
 
@@ -361,17 +371,25 @@ class UniversalMarkerVisitor(MarkerVisitor["List[EvalMarker]"]):
             context.append(check)
 
 
-_MARKER_CHECKS = {}  # type: Dict[str, EvalMarker]
+_MARKER_CHECKS = {}  # type: Dict[Union[Marker, str], EvalMarker]
 
 
 def _parse_marker(marker):
     # type: (Marker) -> EvalMarker
-    maker_str = str(marker)
-    eval_marker = _MARKER_CHECKS.get(maker_str)
+    eval_marker = _MARKER_CHECKS.get(marker)
     if not eval_marker:
-        eval_marker = UniversalMarkerVisitor.parse_marker(marker)
-        _MARKER_CHECKS[maker_str] = eval_marker
+        marker_str = str(marker)
+        eval_marker = _MARKER_CHECKS.get(marker_str)
+        if not eval_marker:
+            eval_marker = UniversalMarkerVisitor.parse_marker(marker)
+            _MARKER_CHECKS[marker] = eval_marker
+            _MARKER_CHECKS[marker_str] = eval_marker
     return eval_marker
+
+
+def is_variable(value):
+    # type: (Any) -> bool
+    return isinstance(value, Variable) or type(value).__name__ == "Variable"
 
 
 class EvalMarkerFunc(object):
@@ -384,33 +402,31 @@ class EvalMarkerFunc(object):
     ):
         # type: (...) -> Callable[[MarkerEnv], bool]
 
-        if isinstance(lhs, Variable):
+        if is_variable(lhs):
             marker_name = str(lhs)
             get_values = _get_values_func(marker_name)
-            if get_values:
-                value = str(rhs)
-                if marker_name == "extra":
-                    value = ProjectName(value).normalized
-                return cls(
-                    get_values=get_values,
-                    op=str(op),
-                    rhs=value,
-                    is_version_comparison=marker_name in ("python_version", "python_full_version"),
-                )
+            value = str(rhs)
+            if marker_name == "extra":
+                value = ProjectName(value).normalized
+            return cls(
+                get_values=get_values,
+                op=str(op),
+                rhs=value,
+                is_version_comparison=marker_name in ("python_version", "python_full_version"),
+            )
 
-        if isinstance(rhs, Variable):
+        if is_variable(rhs):
             marker_name = str(rhs)
             get_values = _get_values_func(marker_name)
-            if get_values:
-                value = str(lhs)
-                if marker_name == "extra":
-                    value = ProjectName(value).normalized
-                return cls(
-                    get_values=get_values,
-                    op=str(op),
-                    lhs=value,
-                    is_version_comparison=marker_name in ("python_version", "python_full_version"),
-                )
+            value = str(lhs)
+            if marker_name == "extra":
+                value = ProjectName(value).normalized
+            return cls(
+                get_values=get_values,
+                op=str(op),
+                lhs=value,
+                is_version_comparison=marker_name in ("python_version", "python_full_version"),
+            )
 
         return lambda _: True
 
@@ -458,22 +474,96 @@ class EvalMarkerFunc(object):
         return self._get_values(marker_env).apply(self._func)
 
 
+class ExtraMarkersVisitor(MarkerVisitor[None]):
+    def __init__(self):
+        # type: () -> None
+        self.conflicts = OrderedSet()  # type: OrderedSet[str]
+        self._marker_values = {}  # type: Dict[str, Tuple[OrderedSet[str], bool]]
+
+    def visit_op(
+        self,
+        lhs,  # type: Any
+        op,  # type: Any
+        rhs,  # type: Any
+        marker,  # type: Marker
+        context,  # type: None
+    ):
+        # type: (...) -> None
+
+        op_symbol = str(op)
+        if is_variable(lhs):
+            name = str(lhs)
+            value = str(rhs)
+        elif is_variable(rhs):
+            name = str(rhs)
+            value = str(lhs)
+        else:
+            return
+
+        if name in (
+            "extra",
+            "os_name",
+            "platform_system",
+            "sys_platform",
+            "platform_python_implementation",
+            "python_version",
+            "python_full_version",
+        ):
+            return
+
+        if op_symbol == "==":
+            values, inclusive = self._marker_values.setdefault(name, (OrderedSet(), True))
+            if not inclusive:
+                self.conflicts.add(name)
+            else:
+                values.add(value)
+        elif op_symbol == "!=":
+            values, inclusive = self._marker_values.setdefault(name, (OrderedSet(), False))
+            if inclusive:
+                self.conflicts.add(name)
+            else:
+                values.add(value)
+        else:
+            # TODO: XXX: Maybe pex_warning?
+            pass
+
+    def marker_values(self):
+        # type: () -> Tuple[Values, ...]
+        return tuple(
+            Values(marker_name=name, values=tuple(values), inclusive=inclusive)
+            for name, (values, inclusive) in self._marker_values.items()
+        )
+
+
 @attr.s(frozen=True)
 class ExtraMarkers(object):
     @classmethod
     def extract(cls, markers):
-        # type: (Iterable[Marker]) -> ExtraMarkers
-        # TODO: XXX: Parse extra marker values.
-        return cls(marker_values=())
+        # type: (Iterable[Marker]) -> Optional[ExtraMarkers]
 
-    marker_values = attr.ib(default=())  # type: Tuple[Tuple[str, Values], ...]
+        visitor = ExtraMarkersVisitor()
+        marker_parser = MarkerParser(visitor)
+        for marker in markers:
+            marker_parser.parse(marker, None)
+
+        if visitor.conflicts:
+            # TODO: XXX: Make sure these is a good waring provenance.
+            raise ValueError(
+                "TODO: XXX: Conflicts for {}:\n  {}".format(
+                    " ".join(map(str, markers)), "\n  ".join(visitor.conflicts)
+                )
+            )
+
+        return cls(marker_values=visitor.marker_values())
+
+    marker_values = attr.ib(default=())  # type: Tuple[Values, ...]
 
     def get_values(self, marker_name):
         # type: (str) -> Values
-        for name, values in self.marker_values:
-            if marker_name == name:
+        for values in self.marker_values:
+            if marker_name == values.marker_name:
                 return values
-        return Values()
+        return Values(marker_name)
 
 
 @attr.s(frozen=True)
@@ -526,7 +616,7 @@ class MarkerEnv(object):
                 sys_platforms.append("win32")
 
         return cls(
-            extras=SortedTuple(ProjectName(extra).normalized for extra in (extras or [""])),
+            extras=SortedTuple(ProjectName(extra).normalized for extra in extras),
             os_names=SortedTuple(os_names),
             platform_systems=SortedTuple(platform_systems),
             sys_platforms=SortedTuple(sys_platforms),
@@ -538,11 +628,7 @@ class MarkerEnv(object):
                 ".".join(map(str, python_full_version))
                 for python_full_version in python_full_versions
             ),
-            extra_markers=(
-                ExtraMarkers.extract(universal_target.extra_markers)
-                if universal_target
-                else ExtraMarkers()
-            ),
+            extra_markers=universal_target.extra_markers if universal_target else ExtraMarkers(),
         )
 
     extras = attr.ib()  # type: SortedTuple[str]
@@ -597,10 +683,50 @@ def _as_python_version_marker(specifier):
 
 @attr.s(frozen=True)
 class UniversalTarget(object):
+    @classmethod
+    def from_dict(cls, data):
+        # type: (Dict[str, Any]) -> UniversalTarget
+
+        raw_implementation = data.pop("implementation", None)
+        implementation = None  # type: Optional[InterpreterImplementation.Value]
+        if raw_implementation:
+            if not isinstance(raw_implementation, string):
+                raise AssertionError(
+                    reportable_unexpected_error_msg(
+                        "Expected UniversalTarget `implementation` value to be a str, found "
+                        "{value} of type {type}.",
+                        value=raw_implementation,
+                        type=type(raw_implementation),
+                    )
+                )
+            implementation = InterpreterImplementation.for_value(raw_implementation)
+
+        return cls(
+            implementation=implementation,
+            requires_python=tuple(
+                SpecifierSet(specifier) for specifier in data.pop("requires_python", ())
+            ),
+            systems=tuple(TargetSystem.for_value(system) for system in data.pop("systems", ())),
+            markers=tuple(Marker(marker) for marker in data.pop("markers", ())),
+        )
+
     implementation = attr.ib(default=None)  # type: Optional[InterpreterImplementation.Value]
     requires_python = attr.ib(default=())  # type: Tuple[SpecifierSet, ...]
     systems = attr.ib(default=())  # type: Tuple[TargetSystem.Value, ...]
-    extra_markers = attr.ib(default=())  # type: Tuple[Marker, ...]
+    _markers = attr.ib(default=())  # type: Tuple[Marker, ...]
+    extra_markers = attr.ib(init=False, default=ExtraMarkers())  # type: ExtraMarkers
+
+    def __attrs_post_init__(self):
+        object.__setattr__(self, "extra_markers", ExtraMarkers.extract(self._markers))
+
+    def to_dict(self):
+        # type: () -> Dict[str, Any]
+        return {
+            "implementation": str(self.implementation) if self.implementation else None,
+            "requires_python": [str(specifier) for specifier in self.requires_python],
+            "systems": [str(system) for system in self.systems],
+            "markers": [str(marker) for marker in self._markers],
+        }
 
     def iter_interpreter_constraints(self):
         # type: () -> Iterator[InterpreterConstraint]
@@ -628,13 +754,12 @@ class UniversalTarget(object):
         marker_envs = OrderedSet(
             MarkerEnv.create(
                 extras=(),
-                universal_target=UniversalTarget(
-                    implementation=self.implementation,
+                universal_target=attr.evolve(
+                    self,
                     requires_python=tuple(
                         [SpecifierSet("=={version}".format(version=".".join(map(str, version))))]
                     ),
                     systems=tuple([target_system]),
-                    extra_markers=self.extra_markers,
                 ),
             )
             for version in versions
@@ -685,5 +810,5 @@ class UniversalTarget(object):
             clauses.append(
                 "({requires_pythons})".format(requires_pythons=" or ".join(python_version_markers))
             )
-        clauses.extend(str(marker) for marker in self.extra_markers)
+        clauses.extend(str(marker) for marker in self._markers)
         return Marker(" and ".join(clauses)) if clauses else None

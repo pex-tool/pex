@@ -3,204 +3,49 @@
 
 from __future__ import absolute_import
 
+import json
 import os
 
-try:
-    from . import requires_python  # type:ignore[attr-defined] # This file will be relocated.
-
-    python_full_versions = requires_python.PYTHON_FULL_VERSIONS
-    python_versions = requires_python.PYTHON_VERSIONS
-    python_majors = sorted(set(version[0] for version in python_full_versions))
-except ImportError:
-    python_full_versions = []
-    python_versions = []
-    python_majors = []
-
-os_names = []
-platform_systems = []
-sys_platforms = []
-platform_tag_regexps = []
+from pex.interpreter_implementation import InterpreterImplementation
+from pex.resolve.target_system import UniversalTarget
 
 # N.B.: The following environment variables are used by the Pex runtime to control Pip and must be
 # kept in-sync with `locker.py`.
-target_systems_file = os.environ.pop("_PEX_TARGET_SYSTEMS_FILE", None)
-
-if target_systems_file:
-    import json
-
-    with open(target_systems_file) as fp:
-        target_systems = json.load(fp)
-    os_names = target_systems["os_names"]
-    platform_systems = target_systems["platform_systems"]
-    sys_platforms = target_systems["sys_platforms"]
-    platform_tag_regexps = target_systems["platform_tag_regexps"]
+target_systems_file = os.environ.pop("_PEX_UNIVERSAL_TARGET_FILE")
+with open(target_systems_file) as fp:
+    universal_target = UniversalTarget.from_dict(json.load(fp))
 
 
 def patch_marker_evaluate():
     from pip._vendor.packaging import markers
 
-    from pex.exceptions import production_assert
-    from pex.interpreter_implementation import InterpreterImplementation
-    from pex.typing import TYPE_CHECKING
+    from pex.pep_503 import ProjectName
+    from pex.sorted_tuple import SortedTuple
+    from pex.third_party import attr
 
-    if TYPE_CHECKING:
-        from typing import Any, Callable, Dict, Iterable, List, Tuple, Type
+    no_extras_marker_env = universal_target.marker_env()
 
-    interpreter_implementation = os.environ.get("_PEX_INTERPRETER_IMPLEMENTATION")
-    interpreter_implementations = []  # type: List[str]
-    if interpreter_implementation:
-        interpreter_implementations.append(str(interpreter_implementation))
-    else:
-        interpreter_implementations.extend(
-            str(implementation) for implementation in InterpreterImplementation.values()
-        )
+    def evaluate(self, environment=None):
+        extra = environment.get("extra") if environment else None
+        if extra:
+            return attr.evolve(
+                no_extras_marker_env, extras=SortedTuple([ProjectName(extra).normalized])
+            ).evaluate(self)
+        return no_extras_marker_env.evaluate(self)
 
-    original_eval_op = markers._eval_op
-
-    # N.B.: The `packaging` distribution vendored with Pip>=24.1 has a patch that tests the
-    # `python_full_version` marker environment value to see if it ends with "+", in which case it
-    # appends "local" to it (see: https://github.com/pypa/packaging/pull/802). We support this test
-    # by ensuring our value for `python_full_version`, either a `skip` sentinel or a list value,
-    # both support the `endswith(value)` test and always return `False`.
-    class NeverEndsWithMixin(object):
-        def endswith(self, *args, **kwargs):
-            # type: (...) -> bool
-            return False
-
-    class NeverEndsWithStr(NeverEndsWithMixin, str):
-        pass
-
-    skip = NeverEndsWithStr()
-
-    class NeverEndsWithList(NeverEndsWithMixin, list):
-        pass
-
-    def versions_to_string(
-        versions,  # type: Iterable[Tuple[int, ...]]
-        version_modifier=lambda version: version,  # type: Callable[[str], str]
-        list_type=list,  # type: Type[List]
-    ):
-        # type: (...) -> List[str]
-        return list_type(version_modifier(".".join(map(str, version))) for version in versions)
-
-    original_extra = markers.default_environment().get("extra")
-    python_versions_strings = versions_to_string(python_versions) or skip
-    python_full_versions_strings = (
-        versions_to_string(
-            python_full_versions,
-            # N.B.: We replicate the logic `packaging` vendored with Pip>=24.1 has for dealing with
-            # non-tagged CPython builds, which is fine to apply across all versions of Pip and its
-            # vendored packaging that we support.
-            version_modifier=lambda version: (
-                version + "local" if version.endswith("+") else version
-            ),
-            list_type=NeverEndsWithList,
-        )
-        or skip
-    )
-    os_names_strings = os_names or skip
-    platform_systems_strings = platform_systems or skip
-    sys_platforms_strings = sys_platforms or skip
-
-    class EvaluationEnvironment(dict):
-        @classmethod
-        def get_env(
-            cls,
-            environment,  # type: Dict[Any, Any]
-            name,  # type: Any
-        ):
-            # type: (...) -> Any
-            production_assert(
-                isinstance(environment, cls),
-                "Expected environment to come from the {function} function, "
-                "which we patch to return {expected_type}, but was {actual_type}",
-                function=markers.default_environment,
-                expected_type=cls,
-                actual_type=type(environment),
-            )
-            return environment[name]
-
-        def __missing__(self, name):
-            # type: (Any) -> Any
-            if name == "extra":
-                if original_extra is None:
-                    raise markers.UndefinedEnvironmentName(
-                        "'extra' does not exist in evaluation environment."
-                    )
-                return original_extra
-            if name == "platform_python_implementation":
-                return interpreter_implementations
-            if name == "python_version":
-                return python_versions_strings
-            if name == "python_full_version":
-                return python_full_versions_strings
-            if name == "os_name":
-                return os_names_strings
-            if name == "platform_system":
-                return platform_systems_strings
-            if name == "sys_platform":
-                return sys_platforms_strings
-            return skip
-
-    def _eval_op(
-        lhs,  # type: Any
-        op,  # type: Any
-        rhs,  # type: Any
-    ):
-        # type: (...) -> bool
-        if lhs is skip or rhs is skip:
-            return True
-        return any(
-            original_eval_op(left, op, right)
-            for left in (lhs if isinstance(lhs, list) else [lhs])
-            for right in (rhs if isinstance(rhs, list) else [rhs])
-        )
-
-    def _evaluate_markers(
-        marker_values,  # type: List[Any]
-        environment,  # type: Dict[str, str]
-    ):
-        # type: (...) -> bool
-        groups = [[]]  # type: List[List[bool]]
-
-        for marker in marker_values:
-            if isinstance(marker, list):
-                groups[-1].append(_evaluate_markers(marker, environment))
-            elif isinstance(marker, tuple):
-                lhs, op, rhs = marker
-
-                if isinstance(lhs, markers.Variable):
-                    lhs_value = EvaluationEnvironment.get_env(environment, lhs.value)
-                    rhs_value = rhs.value
-                else:
-                    lhs_value = lhs.value
-                    rhs_value = EvaluationEnvironment.get_env(environment, rhs.value)
-
-                groups[-1].append(_eval_op(lhs_value, op, rhs_value))
-            else:
-                assert marker in ["and", "or"]
-                if marker == "or":
-                    groups.append([])
-
-        return any(all(item) for item in groups)
-
-    # Works with all Pip vendored packaging distributions.
-    markers.default_environment = EvaluationEnvironment
-
-    # Covers Pip<24.1 vendored packaging.
-    markers._get_env = EvaluationEnvironment.get_env
-
-    markers._eval_op = _eval_op
-
-    # Covers Pip>=25.1 vendored packaging where an assertion is added in the tuple case that lhs is
-    # a string, defeating our EvaluationEnvironment patching above which returns lists of strings
-    # for some environment markers. If it weren't for the assertion, we could use the existing
-    # function.
-    markers._evaluate_markers = _evaluate_markers
+    markers.Marker.evaluate = evaluate
 
 
 def patch_wheel_model():
     from pip._internal.models.wheel import Wheel
+
+    from pex.interpreter_constraints import iter_compatible_versions
+    from pex.resolve.target_system import TargetSystem
+
+    python_versions = sorted(
+        set(version[:2] for version in iter_compatible_versions(universal_target.requires_python))
+    )
+    python_majors = sorted(set(version[0] for version in python_versions))
 
     Wheel.support_index_min = lambda *args, **kwargs: 0
 
@@ -208,19 +53,32 @@ def patch_wheel_model():
     # these with a set of file-tags Tag objects. We unify with these helpers.
 
     def get_abi_info(self):
-        if hasattr(self, "abis"):
-            abis = set(self.abis)
-        else:
-            abis = {file_tag.abi for file_tag in self.file_tags}
+        if not hasattr(self, "is_abi3"):
+            abis = (
+                set(self.abis)
+                if hasattr(self, "abis")
+                else {file_tag.abi for file_tag in self.file_tags}
+            )
+            self.is_abi3 = {"abi3"} == abis
+            self.is_abi_none = {"none"} == abis
+        return self.is_abi3, self.is_abi_none
 
-        is_abi3 = {"abi3"} == abis
-        is_abi_none = {"none"} == abis
-        return is_abi3, is_abi_none
-
-    def get_py_versions(self):
-        if hasattr(self, "pyversions"):
-            return self.pyversions
-        return tuple(file_tag.interpreter for file_tag in self.file_tags)
+    def get_py_versions_info(self):
+        if not hasattr(self, "pyversions_info"):
+            pyversions_info = []
+            for file_tag in self.file_tags:
+                # For the format, see: https://peps.python.org/pep-0425/#python-tag
+                match = re.search(
+                    r"^(?P<impl>\D{2,})(?P<major>\d)(?P<minor>\d+)?", file_tag.interpreter
+                )
+                if not match:
+                    continue
+                impl = match.group("impl")
+                major = int(match.group("major"))
+                minor = match.group("minor")
+                pyversions_info.append((impl, major, minor))
+            self.pyversions_info = tuple(pyversions_info)
+        return self.pyversions_info
 
     def get_platforms(self):
         if hasattr(self, "plats"):
@@ -235,18 +93,10 @@ def patch_wheel_model():
             if not hasattr(self, "_versions"):
                 versions = set()
                 is_abi3, is_abi_none = get_abi_info(self)
-                for pyversion in get_py_versions(self):
-                    # For the format, see: https://peps.python.org/pep-0425/#python-tag
-                    match = re.search(r"^(?P<impl>\D{2,})(?P<major>\d)(?P<minor>\d+)?", pyversion)
-                    if not match:
+                for impl, major, minor in get_py_versions_info(self):
+                    if impl not in ("py", "cp", "cpython", "pp", "pypy"):
                         continue
 
-                    impl = match.group("impl")
-                    if impl not in ("cp", "pp", "py", "cpython", "pypy"):
-                        continue
-
-                    major = int(match.group("major"))
-                    minor = match.group("minor")
                     if is_abi_none or (is_abi3 and major == 3):
                         versions.add(major)
                     elif minor:
@@ -263,19 +113,83 @@ def patch_wheel_model():
 
         supported_checks.append(supported_version)
 
-    if platform_tag_regexps:
+    if universal_target.systems and set(universal_target.systems) != set(TargetSystem.values()):
         import re
 
-        def supported_platform_tag(self, *_args, **_kwargs):
+        # See: https://peps.python.org/pep-0425/#platform-tag for more about the wheel platform tag.
+        platform_tag_substrings = []
+        for system in universal_target.systems:
+            if system is TargetSystem.LINUX:
+                platform_tag_substrings.append("linux")
+            elif system is TargetSystem.MAC:
+                platform_tag_substrings.append("macosx")
+            elif system is TargetSystem.WINDOWS:
+                platform_tag_substrings.append("win")
+
+        def supported_os_tag(self, *_args, **_kwargs):
             platforms = get_platforms(self)
             if any(plat == "any" for plat in platforms):
                 return True
-            for platform_tag_regexp in platform_tag_regexps:
-                if any(re.search(platform_tag_regexp, plat) for plat in platforms):
+            for platform_tag_substring in platform_tag_substrings:
+                if any((platform_tag_substring in plat) for plat in platforms):
                     return True
             return False
 
-        supported_checks.append(supported_platform_tag)
+        supported_checks.append(supported_os_tag)
+
+    platform_machine_values = universal_target.extra_markers.get_values("platform_machine")
+    if platform_machine_values:
+        import re
+
+        # See: https://peps.python.org/pep-0425/#platform-tag for more about the wheel platform tag.
+        platform_machine_regexps = tuple(
+            re.compile(re.escape(machine), flags=re.IGNORECASE)
+            for machine in platform_machine_values
+        )
+
+        def supported_machine_tag(self, *_args, **_kwargs):
+            platforms = get_platforms(self)
+
+            if any(plat == "any" for plat in platforms):
+                return True
+
+            if platform_machine_values.inclusive:
+                for platform_machine_regexp in platform_machine_regexps:
+                    if any(platform_machine_regexp.search(plat) for plat in platforms):
+                        return True
+                return False
+
+            if all(
+                all(platform_machine_regexp.search(plat) for plat in platforms)
+                for platform_machine_regexp in platform_machine_regexps
+            ):
+                return False
+
+            return True
+
+        supported_checks.append(supported_machine_tag)
+
+    if universal_target.implementation:
+
+        def supported_impl(self, *_args, **_kwargs):
+            for impl, _, _ in get_py_versions_info(self):
+                if impl == "py":
+                    return True
+
+                if (
+                    universal_target.implementation is InterpreterImplementation.CPYTHON
+                    and impl in ("cp", "cpython")
+                ):
+                    return True
+
+                if universal_target.implementation is InterpreterImplementation.PYPY and impl in (
+                    "pp",
+                    "pypy",
+                ):
+                    return True
+            return False
+
+        supported_checks.append(supported_impl)
 
     Wheel.supported = lambda *args, **kwargs: all(
         check(*args, **kwargs) for check in supported_checks

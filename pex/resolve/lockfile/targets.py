@@ -9,7 +9,6 @@ from pex.interpreter_implementation import InterpreterImplementation
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.pep_503 import ProjectName
-from pex.requirements import LocalProjectRequirement
 from pex.resolve.package_repository import ReposConfiguration
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.target_system import MarkerEnv, TargetSystem, UniversalTarget, has_marker
@@ -55,7 +54,7 @@ def _calculate_split_markers(
 
     projects_with_markers = defaultdict(dict)  # type: DefaultDict[ProjectName, Dict[str, Marker]]
     for requirement in requirement_configuration.parse_requirements(network_configuration):
-        if not isinstance(requirement, LocalProjectRequirement) and requirement.marker:
+        if requirement.project_name and requirement.marker:
             projects_with_markers[requirement.project_name][
                 str(requirement.marker)
             ] = requirement.marker
@@ -198,8 +197,7 @@ class Split(object):
         requirements_by_project_name[project_name] = requirement
 
         return Split(
-            requirements_by_project_name=self.requirements_by_project_name.copy(),
-            provenance=provenance,
+            requirements_by_project_name=requirements_by_project_name, provenance=provenance
         )
 
     def requirement_configuration(
@@ -286,7 +284,9 @@ def calculate_download_input(
                 DownloadRequest.create(
                     target=target,
                     universal_target=universal_target,
-                    requirement_configuration=requirement_configuration,
+                    requirement_configuration=splits[0].requirement_configuration(
+                        unnamed_requirements, requirement_configuration
+                    ),
                 )
             )
             continue
@@ -297,7 +297,7 @@ def calculate_download_input(
                     target=target,
                     universal_target=attr.evolve(
                         universal_target,
-                        extra_markers=tuple(req.marker for req in split.provenance if req.marker),
+                        markers=tuple(req.marker for req in split.provenance if req.marker),
                     ),
                     requirement_configuration=split.requirement_configuration(
                         unnamed_requirements, requirement_configuration
