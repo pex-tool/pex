@@ -11,7 +11,7 @@ from typing import Text
 import pytest
 
 from pex.layout import Layout
-from pex.os import WINDOWS, is_exe
+from pex.os import LINUX, is_exe
 from pex.pep_427 import InstallableType
 from pex.venv.virtualenv import Virtualenv
 from testing import PY_VER, make_env, run_pex_command
@@ -84,7 +84,7 @@ def test_exotic_data_dirs_pex(
     assert os.path.join(venv.site_packages_dir, "tritonclient", "__init__.py") == path
 
     perf_analyzer = venv.bin_path("perf_analyzer")
-    assert not os.path.exists(perf_analyzer) if WINDOWS else is_exe(perf_analyzer)
+    assert is_exe(perf_analyzer) if LINUX else not os.path.exists(perf_analyzer)
 
     perf_client = venv.bin_path("perf_client")
-    assert not os.path.exists(perf_client) if WINDOWS else is_exe(perf_client)
+    assert is_exe(perf_client) if LINUX else not os.path.exists(perf_client)
