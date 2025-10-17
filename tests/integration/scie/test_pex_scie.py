@@ -100,7 +100,7 @@ def test_basic(
             re_flags=re.DOTALL | re.MULTILINE,
         )
         return
-    if PY_VER >= (3, 15):
+    if PY_VER >= (3, 16):
         result.assert_failure(
             expected_error_re=(
                 r".*"
@@ -331,7 +331,7 @@ def test_specified_science_binary(tmpdir):
 
     local_science_binary = os.path.join(str(tmpdir), "science")
     with open(local_science_binary, "wb") as write_fp, URLFetcher().get_body_stream(
-        "https://github.com/a-scie/lift/releases/download/v0.13.0/{binary}".format(
+        "https://github.com/a-scie/lift/releases/download/v0.14.0/{binary}".format(
             binary=SysPlatform.CURRENT.qualified_binary_name("science")
         )
     ) as read_fp:
@@ -375,7 +375,7 @@ def test_specified_science_binary(tmpdir):
         cached_science_binaries
     ), "Expected the local science binary to be used but not cached."
     assert (
-        "0.13.0"
+        "0.14.0"
         == subprocess.check_output(args=[local_science_binary, "--version"]).decode("utf-8").strip()
     )
 
