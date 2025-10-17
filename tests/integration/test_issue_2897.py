@@ -157,7 +157,7 @@ def test_ic_implementation_respected(
             lock_file,
             "--indent",
             "2",
-            *extra_args,
+            *extra_args
         ).assert_success()
 
         lock = json_codec.load(lock_file)
