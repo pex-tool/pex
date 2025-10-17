@@ -27,10 +27,11 @@ else:
     from pex.third_party import colors
 
 skip_if_locked_dev_cmd_not_compatible = pytest.mark.skipif(
-    sys.version_info[:2] < (3, 9),
+    PY_VER < (3, 9) or PY_VER >= (3, 15),
     reason=(
         "The dev-cmd project started shipping embedded locks when it moved to supporting "
-        "Python>=3.9."
+        "Python>=3.9. In addition, the dev-cmd project has a build dependency on Pex and there is "
+        "no Pex released yet that supports Python 3.15."
     ),
 )
 
