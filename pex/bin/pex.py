@@ -808,7 +808,7 @@ def configure_clp():
         entries = os.environ.get("PATH", os.defpath).split(os.pathsep)
         entries.append(os.getcwd())
         for entry in entries:
-            if entry == commonpath((entry, prog)):
+            if os.path.isabs(entry) and entry == commonpath((entry, prog)):
                 prog = os.path.relpath(prog, entry)
                 break
 
