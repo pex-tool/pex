@@ -6,10 +6,16 @@ from __future__ import absolute_import
 import os.path
 import subprocess
 
-from testing import run_pex_command
+import pytest
+
+from testing import PY_VER, run_pex_command
 from testing.pytest_utils.tmp import Tempdir
 
 
+@pytest.mark.skipif(
+    PY_VER >= (3, 15),
+    reason="This test requires installing Pex <2.60 of which none support Python >=3.15.",
+)
 def test_pex_tools_venv_backwards_compatibility(tmpdir):
     # type: (Tempdir) -> None
 
