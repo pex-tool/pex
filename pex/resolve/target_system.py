@@ -236,6 +236,17 @@ _VERSION_MARKER_OP_FLIPPED = {
     ">": "<",
 }
 
+_VERSION_CMP_OPS = {
+    "<",
+    "<=",
+    "==",
+    "!=",
+    ">=",
+    ">",
+    "~=",
+    "===",
+}
+
 
 class _Op(object):
     def __init__(self, lhs):
@@ -408,11 +419,16 @@ class EvalMarkerFunc(object):
             value = str(rhs)
             if marker_name == "extra":
                 value = ProjectName(value).normalized
+            op_string = str(op)
             return cls(
                 get_values=get_values,
-                op=str(op),
+                op=op_string,
                 rhs=value,
-                is_version_comparison=marker_name in ("python_version", "python_full_version"),
+                is_version_comparison=(
+                    marker_name
+                    in ("python_version", "python_full_version", "implementation_version")
+                    and op_string in _VERSION_CMP_OPS
+                ),
             )
 
         if is_variable(rhs):
@@ -421,11 +437,16 @@ class EvalMarkerFunc(object):
             value = str(lhs)
             if marker_name == "extra":
                 value = ProjectName(value).normalized
+            op_string = str(op)
             return cls(
                 get_values=get_values,
-                op=str(op),
+                op=op_string,
                 lhs=value,
-                is_version_comparison=marker_name in ("python_version", "python_full_version"),
+                is_version_comparison=(
+                    marker_name
+                    in ("python_version", "python_full_version", "implementation_version")
+                    and op_string in _VERSION_CMP_OPS
+                ),
             )
 
         return lambda _: True
@@ -447,7 +468,13 @@ class EvalMarkerFunc(object):
                     "{flipped_op}{lhs}".format(lhs=lhs, flipped_op=flipped_op)
                 )
                 self._func = lambda value: cast(
-                    bool, version_specifier.contains(value, prereleases=True)
+                    bool,
+                    version_specifier.contains(
+                        # N.B.: This handles `implementation_version` for Python dev releases in the
+                        # same way `packaging` does.
+                        (value + "local") if value.endswith("+") else value,
+                        prereleases=True,
+                    ),
                 )
             else:
                 oper = _OPERATORS[op]
@@ -456,7 +483,13 @@ class EvalMarkerFunc(object):
             if is_version_comparison:
                 version_specifier = Specifier("{op}{rhs}".format(op=op, rhs=rhs))
                 self._func = lambda value: cast(
-                    bool, version_specifier.contains(value, prereleases=True)
+                    bool,
+                    version_specifier.contains(
+                        # N.B.: This handles `implementation_version` for Python dev releases in the
+                        # same way `packaging` does.
+                        (value + "local") if value.endswith("+") else value,
+                        prereleases=True,
+                    ),
                 )
             else:
                 oper = _OPERATORS[op]
