@@ -114,10 +114,13 @@ jobs:
           - test-cmd: test-py315-pip25.2-integration
             pex-test-pos-args: --shard 2/2
 
+          # PyPy is slow enough to require extra sharding.
           - test-cmd: test-pypy311-pip24.3.1-integration
-            pex-test-pos-args: --shard 1/2
+            pex-test-pos-args: --shard 1/3
           - test-cmd: test-pypy311-pip24.3.1-integration
-            pex-test-pos-args: --shard 2/2
+            pex-test-pos-args: --shard 2/3
+          - test-cmd: test-pypy311-pip24.3.1-integration
+            pex-test-pos-args: --shard 3/3
     steps:
       - name: Free Up Disk Space
         uses: jlumbroso/free-disk-space@v1.3.1
