@@ -203,7 +203,7 @@ layouts = pytest.mark.parametrize(
 @skip_if_only_vendored_pip_supported
 def test_issue_1782(
     tmpdir,  # type: Tempdir
-    pex_project_dir,  # type: str
+    pex_wheel,  # type: str
     execution_mode_args,  # type: List[str]
     layout,  # type: Layout.Value
 ):
@@ -222,7 +222,7 @@ def test_issue_1782(
             pex_root,
             "--pip-version",
             PipVersion.LATEST_COMPATIBLE.value,
-            pex_project_dir,
+            pex_wheel,
             "-c",
             "pex",
             "-o",
@@ -235,15 +235,7 @@ def test_issue_1782(
         + execution_mode_args
     ).assert_success()
 
-    if (
-        sys.version_info[:2] >= (3, 14)
-        and "--venv" not in execution_mode_args
-        and layout is not Layout.LOOSE
-    ):
-        argv0 = r"python(?:3(?:\.\d{{2,}})?)? {pex}".format(pex=re.escape(pex_exe))
-    else:
-        argv0 = re.escape(os.path.basename(pex_exe))
-    usage_line_re = re.compile(r"^usage: {argv0}".format(argv0=argv0))
+    usage_line_re = re.compile(r"^usage: {argv0}".format(argv0=re.escape(pex_exe)))
     help_line1 = (
         subprocess.check_output(
             args=[pex_exe, "-h"], env=make_env(COLUMNS=max(80, len(usage_line_re.pattern) + 10))
