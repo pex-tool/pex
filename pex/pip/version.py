@@ -366,7 +366,7 @@ class PipVersion(Enum["PipVersionValue"]):
         version="25.2",
         setuptools_version="80.9.0",
         wheel_version="0.45.1",
-        requires_python=">=3.9,<3.15",
+        requires_python=">=3.9,<3.16",
     )
 
     VENDORED = v20_3_4_patched

@@ -18,15 +18,15 @@ from pex.pip.installation import get_pip
 from pex.resolve.resolver_configuration import BuildConfiguration
 from pex.util import CacheHelper
 from pex.wheel import Wheel
-from testing import IS_PYPY, make_env, run_pex_command
+from testing import IS_PYPY, PY_VER, make_env, run_pex_command
 from testing.pytest_utils.tmp import Tempdir
 
 
 @pytest.mark.skipif(
-    IS_PYPY,
+    IS_PYPY or PY_VER >= (3, 15),
     reason=(
         "This test requires a pre-built wheel to compare against an install, repack lifecycle and "
-        "there are no pre-built wheels for PyPy."
+        "there are no pre-built wheels for PyPy or Python >=3.15."
     ),
 )
 @pytest.mark.parametrize(

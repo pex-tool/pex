@@ -16,7 +16,7 @@ from pex.common import safe_copy, safe_open
 from pex.http.server import Server, ServerInfo
 from pex.typing import TYPE_CHECKING
 from pex.version import __version__
-from testing import IS_MAC, run_pex_command
+from testing import IS_MAC, PY_VER, run_pex_command
 from testing.cli import run_pex3
 from testing.pytest_utils import IS_CI
 from testing.pytest_utils.tmp import Tempdir
@@ -27,10 +27,11 @@ else:
     from pex.third_party import colors
 
 skip_if_locked_dev_cmd_not_compatible = pytest.mark.skipif(
-    sys.version_info[:2] < (3, 9),
+    PY_VER < (3, 9) or PY_VER >= (3, 15),
     reason=(
         "The dev-cmd project started shipping embedded locks when it moved to supporting "
-        "Python>=3.9."
+        "Python>=3.9. In addition, the dev-cmd project has a build dependency on Pex and there is "
+        "no Pex released yet that supports Python 3.15."
     ),
 )
 
@@ -142,8 +143,9 @@ def test_entry_point_with_extras():
     )
 
 
+@pytest.mark.skipif(PY_VER < (3, 8), reason="The Pex pyproject.toml uses heterogeneous arrays.")
 @pytest.mark.skipif(
-    sys.version_info[:2] < (3, 8), reason="The Pex pyproject.toml uses heterogeneous arrays."
+    PY_VER >= (3, 15), reason="The temp <3.16 bound during 3.15 testing is not understood by uv."
 )
 def test_locked_local_project(
     tmpdir,  # type: Tempdir

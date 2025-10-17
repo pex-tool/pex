@@ -339,12 +339,43 @@ args = ["testing/bin/run_tests.py", {discard_empty = "{-integration?--it:}"}]
 accepts-extra-args = true
 dependency-group = "test"
 
-[tool.dev-cmd.commands.test-gte39-lt314.factors]
+[tool.dev-cmd.commands.test-eq315.factors]
 py = "The Python version to run the tests under."
 pip = "The Pip version to default to in test runs."
 integration = "Run the integration tests (also available via `--it` pass through arg)."
 
-[tool.dev-cmd.commands.test-gte39-lt314]
+[tool.dev-cmd.commands.test-eq315.env]
+PYTHONHASHSEED = "{--hashseed}"
+_PEX_PIP_VERSION = "{-pip:}"
+_PEX_REQUIRES_PYTHON = ">=2.7,<3.16,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*"
+
+[tool.dev-cmd.commands.test-eq315]
+description = """
+Run tests using pytest.
+
+For example:
++ test: Run unit tests under the ambient Python interpreter.
++ test-py37: Run unit tests under Python 3.7 (A Python 3.7 must be somewhere on the `PATH`).
++ test-integration: Run integration tests under the ambient Python interpreter
++ test-py37-integration-pip22.3.1: Run integration tests under Python 3.7 using Pip 22.3.1.
+
+The factors mix and match and are useful for parallel run of many setups; e.g.:
+$ dev-cmd --parallel test-py3{9..13} -- -k test_compiler
+"""
+when = "python_version == '3.15'"
+python = "{-py:}"
+name = "test"
+args = ["testing/bin/run_tests.py", {discard_empty = "{-integration?--it:}"}]
+accepts-extra-args = true
+dependency-group = "test"
+
+[tool.dev-cmd.commands.test-gte39-lt315.factors]
+py = "The Python version to run the tests under."
+pip = "The Pip version to default to in test runs."
+integration = "Run the integration tests (also available via `--it` pass through arg)."
+
+
+[tool.dev-cmd.commands.test-gte39-lt315]
 description = """
 Run tests using pytest.
 
@@ -446,4 +477,19 @@ when = "platform_machine == 'armv7l' or platform_machine == 'riscv64'"
   "--no-hashes",
   "--only-group", "{dependency-group:dev}",
   "-o", "{requirements.txt}"
+]
+
+[[tool.dev-cmd.python]]
+when = "python_version == '3.15'"
+
+# We need to inject the altered Requires-Python here as an env var since dev-cmd doesn't support
+# that yet; so we use the finalize command to do the editable installation instead of relying on the
+# built-in mechanism.
+extra-requirements = [
+  "attrs @ git+https://github.com/python-attrs/attrs@947bfb542104209a587280701d8cb389c813459d",
+]
+finalize-command = [
+  "{venv-python}",
+  "scripts/dev-cmd-pip-install-pex-next.py",
+  ">=2.7,<3.16,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*",
 ]

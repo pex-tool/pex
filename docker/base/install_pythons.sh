@@ -16,6 +16,7 @@ DEADSNAKES_VERSIONS=(
   "3.10 {dev,venv,distutils}=3.10.19"
   "3.11 {dev,venv,distutils}=3.11.14"
   "3.14 {dev,venv}=3.14.0"
+  "3.15 {dev,venv}=3.15.0~a1"
 )
 
 add-apt-repository --yes --ppa deadsnakes
