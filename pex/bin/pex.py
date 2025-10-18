@@ -24,6 +24,7 @@ from pex.commands.command import (
     register_global_arguments,
 )
 from pex.common import CopyMode, die, is_pyc_dir, is_pyc_file
+from pex.compatibility import commonpath
 from pex.dependency_configuration import DependencyConfiguration
 from pex.dependency_manager import DependencyManager
 from pex.dist_metadata import Requirement
@@ -801,6 +802,16 @@ class PositionalArgumentFromFileParser(object):
 
 def configure_clp():
     # type: () -> PositionalArgumentFromFileParser
+
+    prog = sys.argv[0]
+    if os.path.isabs(prog):
+        entries = os.environ.get("PATH", os.defpath).split(os.pathsep)
+        entries.append(os.getcwd())
+        for entry in entries:
+            if os.path.isabs(entry) and entry == commonpath((entry, prog)):
+                prog = os.path.relpath(prog, entry)
+                break
+
     usage = (
         "%(prog)s [-o OUTPUT.PEX] [options] [-- arg1 arg2 ...]\n\n"
         "%(prog)s builds a PEX (Python Executable) file based on the given specifications: "
@@ -810,7 +821,7 @@ def configure_clp():
         "with an @ symbol. These files must contain one argument per line."
     )
 
-    parser = ArgumentParser(usage=usage, formatter_class=ArgumentDefaultsHelpFormatter)
+    parser = ArgumentParser(prog=prog, usage=usage, formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument("-V", "--version", action="version", version=__version__)
 
     configure_clp_pex_resolution(parser)

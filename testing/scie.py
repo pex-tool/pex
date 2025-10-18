@@ -28,7 +28,7 @@ def provider():
             return Provider.PyPy
         else:
             return None
-    elif (3, 9) <= PY_VER < (3, 14):
+    elif (3, 9) <= PY_VER < (3, 16):
         return Provider.PythonBuildStandalone
     else:
         return None

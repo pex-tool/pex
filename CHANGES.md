@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.61.0
+
+This release adds support for the Python 3.15 series early. Pex runs on 3.15.0a1, can produce scies
+for 3.15.0a1, etc.
+
+* Officially begin supporting Python 3.15. (#2952)
+
 ## 2.60.2
 
 This release fixes a regression in the Pex 2.60.0 release when installing wheels with

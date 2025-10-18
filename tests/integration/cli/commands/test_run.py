@@ -144,9 +144,6 @@ def test_entry_point_with_extras():
 
 
 @pytest.mark.skipif(PY_VER < (3, 8), reason="The Pex pyproject.toml uses heterogeneous arrays.")
-@pytest.mark.skipif(
-    PY_VER >= (3, 15), reason="The temp <3.16 bound during 3.15 testing is not understood by uv."
-)
 def test_locked_local_project(
     tmpdir,  # type: Tempdir
     pex_project_dir,  # type: str

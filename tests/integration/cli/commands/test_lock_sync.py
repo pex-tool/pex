@@ -38,7 +38,6 @@ from pex.typing import TYPE_CHECKING, cast
 from pex.venv.virtualenv import InstallationChoice, Virtualenv
 from testing import (
     IS_PYPY,
-    IS_X86_64,
     PY39,
     PY310,
     PY_VER,
@@ -1281,10 +1280,10 @@ def assert_p537_lock(
 
 
 skip_unless_p537_compatible = pytest.mark.skipif(
-    PY_VER < (3, 6) or PY_VER >= (3, 15) or IS_PYPY or not IS_X86_64,
+    PY_VER < (3, 6) or PY_VER >= (3, 16) or IS_PYPY,
     reason=(
-        "The p537 1.0.8 release only supports CPython >=3.6,<3.13 and only has published wheels "
-        "for Linux and Mac x86_64"
+        "The p537 1.0.10 release only supports CPython >=3.6,<3.16 and only has published wheels "
+        "for Linux and Mac."
     ),
 )
 

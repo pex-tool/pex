@@ -40,17 +40,16 @@ def test_scie_argv0(
         args=[pex_wheel, "-c", "pex", "-o", pex_pex, "--scie", "eager"] + execution_mode_args
     ).assert_success()
 
+    # N.B.: The Pex CLI uses argparse and sets prog to `sys.argv[0]`, or its relpath to CWD if a
+    # subpath or else just its basename if on the `PATH`; so this test indirectly tests
+    # the `sys.argv[0]` setup by the PEX boot process.
+
     def assert_argv0(
         exe,  # type: str
         cwd=None,  # type: Optional[str]
         env=None,  # type: Optional[Mapping[str, str]]
     ):
         # type: (...) -> None
-
-        # N.B.: The Pex CLI uses argparse and argparse defaults prog to
-        # `os.path.basename(sys.argv[0])`; so this test indirectly tests sys.argv[0] setup but the
-        # PEX boot process.
-        expected_argv0 = os.path.basename(exe)
         help_line1 = (
             subprocess.check_output(args=[exe, "-h"], cwd=cwd, env=env)
             .decode("utf-8")
@@ -58,7 +57,7 @@ def test_scie_argv0(
         )
         assert (
             "usage: {expected_argv0} [-o OUTPUT.PEX] [options] [-- arg1 arg2 ...]".format(
-                expected_argv0=expected_argv0
+                expected_argv0=exe
             )
             == help_line1
         )
