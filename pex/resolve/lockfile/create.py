@@ -333,12 +333,22 @@ class LockObserver(ResolveObserver):
                 dist_metadatas_by_download_target[local_distribution.download_target].add(
                     DistMetadata.load(local_distribution.path)
                 )
-            else:
+            elif os.path.isfile(local_distribution.path):
                 build_requests.add(
-                    BuildRequest.create(
+                    BuildRequest.for_file(
                         target=local_distribution.download_target,
                         source_path=local_distribution.path,
                         subdirectory=local_distribution.subdirectory,
+                    )
+                )
+            else:
+                build_requests.add(
+                    BuildRequest.for_directory(
+                        target=local_distribution.download_target,
+                        source_path=local_distribution.path,
+                        subdirectory=local_distribution.subdirectory,
+                        resolver=self.resolver,
+                        pip_version=self.package_index_configuration.pip_version,
                     )
                 )
 
@@ -348,7 +358,12 @@ class LockObserver(ResolveObserver):
         for analysis in self._analysis:
             lock_result = analysis.analyzer.lock_result
             build_requests.update(
-                BuildRequest.create(target=analysis.download_target, source_path=local_project)
+                BuildRequest.for_directory(
+                    target=analysis.download_target,
+                    source_path=local_project,
+                    resolver=self.resolver,
+                    pip_version=self.package_index_configuration.pip_version,
+                )
                 for local_project in lock_result.local_projects
             )
             resolved_requirements_by_download_target[

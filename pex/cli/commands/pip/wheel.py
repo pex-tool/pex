@@ -55,7 +55,7 @@ class Wheel(BuildTimeCommand):
                     core.build_wheels(
                         configuration,
                         tuple(
-                            BuildRequest.create(
+                            BuildRequest.for_file(
                                 target=target,
                                 source_path=sdist.path,
                                 subdirectory=sdist.subdirectory,
