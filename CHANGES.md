@@ -1,5 +1,13 @@
 # Release Notes
 
+## 2.61.1
+
+This release fixes a long standing bug hashing local project directories when building PEXes. Pex
+now hashes the content of an exploded sdist for the local project just like it does when hashing
+local projects for a lock.
+
+* Fix local project directory hashing. (#2954)
+
 ## 2.61.0
 
 This release adds support for the Python 3.15 series early. Pex runs on 3.15.0a1, can produce scies
