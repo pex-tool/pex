@@ -46,6 +46,7 @@ from pex.pep_427 import InstallableType, WheelError, install_wheel_chroot
 from pex.pep_503 import ProjectName
 from pex.pip.download_observer import DownloadObserver
 from pex.pip.installation import get_pip
+from pex.pip.local_project import digest_local_project
 from pex.pip.tool import PackageIndexConfiguration
 from pex.pip.version import PipVersionValue
 from pex.requirements import LocalProjectRequirement, URLRequirement
@@ -261,8 +262,11 @@ class DownloadRequest(object):
         for requirement in self.direct_requirements:
             if isinstance(requirement, LocalProjectRequirement):
                 for download_target in self.download_targets:
-                    yield BuildRequest.create(
-                        target=download_target.target, source_path=requirement.path
+                    yield BuildRequest.for_directory(
+                        target=download_target.target,
+                        source_path=requirement.path,
+                        resolver=self.resolver,
+                        pip_version=self.pip_version,
                     )
 
     def download_distributions(self, dest=None, max_parallel_jobs=None):
@@ -396,7 +400,14 @@ class DownloadResult(object):
                 subdirectory = self.subdirectory_by_filename.get(
                     os.path.basename(distribution_path)
                 )
-                yield BuildRequest.create(
+                production_assert(
+                    os.path.isfile(distribution_path),
+                    (
+                        "Pip download results should always be files and never local project "
+                        "directories."
+                    ),
+                )
+                yield BuildRequest.for_file(
                     target=self.download_target,
                     source_path=distribution_path,
                     subdirectory=subdirectory,
@@ -415,26 +426,46 @@ class IntegrityError(Exception):
     pass
 
 
-def fingerprint_path(path):
+if TYPE_CHECKING:
+    from pex.hashing import Hasher
+
+
+def _hasher():
+    # type: () -> Hasher
+
+    return hashlib.sha256()
+
+
+def _fingerprint_file(path):
     # type: (str) -> str
+    return CacheHelper.hash(path, digest=_hasher())
 
-    # We switched from sha1 to sha256 at the transition from using `pip install --target` to
-    # `pip install --prefix` to serve two purposes:
-    # 1. Insulate the new installation scheme from the old.
-    # 2. Move past sha1 which was shown to have practical collision attacks in 2019.
-    #
-    # The installation scheme switch was the primary purpose and switching hashes proved a pragmatic
-    # insulation. If the `pip install --prefix` re-arrangement scheme evolves, then some other
-    # option than switching hashing algorithms will be needed, like post-fixing a running version
-    # integer or just mixing one into the hashed content.
-    #
-    # See: https://github.com/pex-tool/pex/issues/1655 for a general overview of these cache
-    # structure concerns.
-    hasher = hashlib.sha256
 
-    if os.path.isdir(path):
-        return CacheHelper.dir_hash(path, hasher=hasher)
-    return CacheHelper.hash(path, hasher=hasher)
+def _fingerprint_directory(path):
+    # type: (str) -> str
+    return CacheHelper.dir_hash(path, digest=_hasher())
+
+
+def _fingerprint_local_project(
+    path,  # type: str
+    target,  # type: Target
+    resolver=None,  # type: Optional[Resolver]
+    pip_version=None,  # type: Optional[PipVersionValue]
+):
+    if resolver:
+        build_system_resolver = resolver
+    else:
+        from pex.resolve.configured_resolver import ConfiguredResolver
+
+        build_system_resolver = ConfiguredResolver.default()
+
+    return digest_local_project(
+        directory=path,
+        digest=_hasher(),
+        target=target,
+        resolver=build_system_resolver,
+        pip_version=pip_version,
+    )
 
 
 class BuildError(Exception):
@@ -449,16 +480,40 @@ def _as_download_target(target):
 @attr.s(frozen=True)
 class BuildRequest(object):
     @classmethod
-    def create(
+    def for_file(
         cls,
         target,  # type: Union[DownloadTarget, Target]
         source_path,  # type: str
         subdirectory=None,  # type: Optional[str]
     ):
         # type: (...) -> BuildRequest
-        fingerprint = fingerprint_path(source_path)
+        fingerprint = _fingerprint_file(source_path)
         return cls(
             download_target=_as_download_target(target),
+            source_path=source_path,
+            fingerprint=fingerprint,
+            subdirectory=subdirectory,
+        )
+
+    @classmethod
+    def for_directory(
+        cls,
+        target,  # type: Union[DownloadTarget, Target]
+        source_path,  # type: str
+        subdirectory=None,  # type: Optional[str]
+        resolver=None,  # type: Optional[Resolver]
+        pip_version=None,  # type: Optional[PipVersionValue]
+    ):
+        # type: (...) -> BuildRequest
+        download_target = _as_download_target(target)
+        fingerprint = _fingerprint_local_project(
+            path=source_path,
+            target=download_target.target,
+            resolver=resolver,
+            pip_version=pip_version,
+        )
+        return cls(
+            download_target=download_target,
             source_path=source_path,
             fingerprint=fingerprint,
             subdirectory=subdirectory,
@@ -635,7 +690,7 @@ class InstallRequest(object):
         was_built_locally=False,  # type: bool
     ):
         # type: (...) -> InstallRequest
-        fingerprint = fingerprint_path(wheel_path)
+        fingerprint = _fingerprint_file(wheel_path)
         return cls(
             download_target=_as_download_target(target),
             wheel_path=wheel_path,
@@ -768,7 +823,7 @@ class InstallResult(object):
         else:
             cached_fingerprint = installed_wheel.fingerprint
 
-        wheel_dir_hash = cached_fingerprint or fingerprint_path(self.install_chroot)
+        wheel_dir_hash = cached_fingerprint or _fingerprint_directory(self.install_chroot)
         runtime_key_dir = os.path.join(self._installation_root, wheel_dir_hash)
         with atomic_directory(runtime_key_dir) as atomic_dir:
             if not atomic_dir.is_finalized():
@@ -1086,8 +1141,17 @@ class BuildAndInstallRequest(object):
                     )
                 if is_wheel(dist_path):
                     to_install.add(InstallRequest.create(install_request.target, dist_path))
+                elif os.path.isdir(dist_path):
+                    to_build.add(
+                        BuildRequest.for_directory(
+                            install_request.target,
+                            dist_path,
+                            resolver=self._resolver,
+                            pip_version=self._pip_version,
+                        )
+                    )
                 else:
-                    to_build.add(BuildRequest.create(install_request.target, dist_path))
+                    to_build.add(BuildRequest.for_file(install_request.target, dist_path))
             already_analyzed.add(metadata.project_name)
 
         all_install_requests = OrderedSet(install_requests)
@@ -1495,10 +1559,6 @@ class LocalDistribution(object):
     def target(self):
         # type: () -> Target
         return self.download_target.target
-
-    @fingerprint.default
-    def _calculate_fingerprint(self):
-        return fingerprint_path(self.path)
 
     @property
     def is_wheel(self):

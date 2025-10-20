@@ -39,7 +39,7 @@ from pex.typing import TYPE_CHECKING, cast
 from pex.util import CacheHelper
 
 if TYPE_CHECKING:
-    from typing import DefaultDict, Dict, Iterable, List, Tuple
+    from typing import DefaultDict, Dict, List, Sequence, Tuple
 
 
 def _fingerprint_dist(dist_path):
@@ -49,8 +49,8 @@ def _fingerprint_dist(dist_path):
 
 def resolve_from_dists(
     targets,  # type: Targets
-    sdists,  # type: Iterable[str]
-    wheels,  # type: Iterable[str]
+    sdists,  # type: Sequence[str]
+    wheels,  # type: Sequence[str]
     requirement_configuration,  # type: RequirementConfiguration
     pip_configuration=PipConfiguration(),  # type: PipConfiguration
     compile=False,  # type: bool
@@ -70,9 +70,6 @@ def resolve_from_dists(
         if isinstance(direct_requirement, LocalProjectRequirement):
             local_projects.append(direct_requirement)
 
-    source_paths = [local_project.path for local_project in local_projects] + list(
-        sdists
-    )  # type: List[str]
     with TRACER.timed("Fingerprinting pre-resolved wheels"):
         fingerprinted_wheels = tuple(
             FingerprintedDistribution(
@@ -94,7 +91,7 @@ def resolve_from_dists(
         fingerprinted_wheels and InstallableType.INSTALLED_WHEEL_CHROOT is result_type
     )
     with TRACER.timed("Preparing pre-resolved distributions"):
-        if source_paths or resolve_installed_wheel_chroots:
+        if sdists or local_projects or resolve_installed_wheel_chroots:
             package_index_configuration = PackageIndexConfiguration.create(
                 pip_version=pip_configuration.version,
                 resolver_version=pip_configuration.resolver_version,
@@ -104,12 +101,24 @@ def resolve_from_dists(
                 extra_pip_requirements=pip_configuration.extra_requirements,
                 keyring_provider=pip_configuration.keyring_provider,
             )
+            resolver = ConfiguredResolver(pip_configuration=pip_configuration)
+            build_requests = [
+                BuildRequest.for_file(target=target, source_path=sdist)
+                for sdist in sdists
+                for target in unique_targets
+            ]
+            build_requests.extend(
+                BuildRequest.for_directory(
+                    target=target,
+                    source_path=local_project.path,
+                    resolver=resolver,
+                    pip_version=pip_configuration.version,
+                )
+                for local_project in local_projects
+                for target in unique_targets
+            )
             build_and_install = BuildAndInstallRequest(
-                build_requests=[
-                    BuildRequest.create(target=target, source_path=source_path)
-                    for source_path in source_paths
-                    for target in unique_targets
-                ],
+                build_requests=build_requests,
                 install_requests=[
                     InstallRequest(
                         download_target=target,

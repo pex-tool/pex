@@ -729,7 +729,7 @@ class BuiltWheelDir(AtomicCacheDir):
 
         from pex.dist_metadata import ProjectNameAndVersion, UnrecognizedDistributionFormat
 
-        for path in glob.glob(CacheDir.BUILT_WHEELS.path("sdists", "*", "*")):
+        for path in glob.glob(CacheDir.BUILT_WHEELS.path("sdists", "*", "*", pex_root=pex_root)):
             sdist, fingerprint = os.path.split(path)
             try:
                 pnav = ProjectNameAndVersion.from_filename(sdist)
@@ -745,7 +745,7 @@ class BuiltWheelDir(AtomicCacheDir):
                     yield BuiltWheelDir(path=dist_dir, dist_dir=dist_dir, file_name=file_name)
 
         for built_wheel in glob.glob(
-            CacheDir.BUILT_WHEELS.path("local_projects", "*", "*", "*", "*")
+            CacheDir.BUILT_WHEELS.path("local_projects", "*", "*", "*", "*", pex_root=pex_root)
         ):
             file_name = os.path.basename(built_wheel)
             dist_dir = os.path.dirname(built_wheel)
@@ -755,26 +755,21 @@ class BuiltWheelDir(AtomicCacheDir):
     def create(
         cls,
         sdist,  # type: str
-        fingerprint=None,  # type: Optional[str]
+        fingerprint,  # type: str
         pnav=None,  # type: Optional[ProjectNameAndVersion]
         target=None,  # type: Optional[Target]
         pex_root=ENV,  # type: Union[str, Variables]
     ):
         # type: (...) -> BuiltWheelDir
 
-        import hashlib
-
         from pex import targets
         from pex.dist_metadata import is_sdist
-        from pex.util import CacheHelper
 
         if is_sdist(sdist):
             dist_type = "sdists"
-            fingerprint = fingerprint or CacheHelper.hash(sdist, hasher=hashlib.sha256)
             file_name = os.path.basename(sdist)
         else:
             dist_type = "local_projects"
-            fingerprint = fingerprint or CacheHelper.dir_hash(sdist, hasher=hashlib.sha256)
             file_name = None
 
         # For the purposes of building a wheel from source, the product should be uniqued by the
