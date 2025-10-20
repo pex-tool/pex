@@ -1141,9 +1141,16 @@ class BuildAndInstallRequest(object):
                     )
                 if is_wheel(dist_path):
                     to_install.add(InstallRequest.create(install_request.target, dist_path))
+                elif os.path.isdir(dist_path):
+                    to_build.add(
+                        BuildRequest.for_directory(
+                            install_request.target,
+                            dist_path,
+                            resolver=self._resolver,
+                            pip_version=self._pip_version,
+                        )
+                    )
                 else:
-                    # N.B.: We know dist_path represents a file because Requires-Dist metadata can
-                    # never refer to directories.
                     to_build.add(BuildRequest.for_file(install_request.target, dist_path))
             already_analyzed.add(metadata.project_name)
 
