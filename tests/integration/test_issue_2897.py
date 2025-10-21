@@ -138,8 +138,11 @@ def test_ic_implementation_respected(
 
     lock_file = tmpdir.join("lock.json")
 
-    def assert_vcr_lock(interpreter_constraint):
-        # type: (str) -> LockedRequirement
+    def assert_vcr_lock(
+        interpreter_constraint,  # type: str
+        *extra_args  # type: str
+    ):
+        # type: (...) -> LockedRequirement
 
         run_pex3(
             "lock",
@@ -154,6 +157,7 @@ def test_ic_implementation_respected(
             lock_file,
             "--indent",
             "2",
+            *extra_args
         ).assert_success()
 
         lock = json_codec.load(lock_file)
@@ -197,5 +201,7 @@ def test_ic_implementation_respected(
         InterpreterConstraint.matches(pypy_constraint, interpreter)
         for interpreter in PythonInterpreter.iter()
     ):
-        urllib3 = assert_vcr_lock(pypy_constraint)
+        # N.B.: The lock is `--no-build` and there is no PyYAML .whl published for PyPy; so we
+        # exclude it.
+        urllib3 = assert_vcr_lock(pypy_constraint, "--exclude", "PyYAML")
         assert urllib3.pin.version < pypy_version_ceiling

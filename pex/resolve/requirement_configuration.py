@@ -17,7 +17,7 @@ from pex.requirements import (
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Iterable, List, Optional
+    from typing import Iterable, List, Optional, Tuple
 
     import attr  # vendor:skip
 
@@ -26,14 +26,21 @@ else:
     from pex.third_party import attr
 
 
+def _as_str_tuple(items):
+    # type: (Optional[Iterable[str]]) -> Tuple[str, ...]
+    if not items:
+        return ()
+    return items if isinstance(items, tuple) else tuple(items)
+
+
 @attr.s(frozen=True)
 class RequirementConfiguration(object):
-    requirements = attr.ib(default=None)  # type: Optional[Iterable[str]]
-    requirement_files = attr.ib(default=None)  # type: Optional[Iterable[str]]
-    constraint_files = attr.ib(default=None)  # type: Optional[Iterable[str]]
+    requirements = attr.ib(default=(), converter=_as_str_tuple)  # type: Tuple[str, ...]
+    requirement_files = attr.ib(default=(), converter=_as_str_tuple)  # type: Tuple[str, ...]
+    constraint_files = attr.ib(default=(), converter=_as_str_tuple)  # type: Tuple[str, ...]
 
     def parse_requirements(self, network_configuration=None):
-        # type: (Optional[NetworkConfiguration]) -> Iterable[ParsedRequirement]
+        # type: (Optional[NetworkConfiguration]) -> Tuple[ParsedRequirement, ...]
         parsed_requirements = []  # type: List[ParsedRequirement]
         if self.requirements:
             parsed_requirements.extend(parse_requirement_strings(self.requirements))
@@ -50,10 +57,10 @@ class RequirementConfiguration(object):
                         (PyPIRequirement, URLRequirement, VCSRequirement, LocalProjectRequirement),
                     )
                 )
-        return parsed_requirements
+        return tuple(parsed_requirements)
 
     def parse_constraints(self, network_configuration=None):
-        # type: (Optional[NetworkConfiguration]) -> Iterable[Constraint]
+        # type: (Optional[NetworkConfiguration]) -> Tuple[Constraint, ...]
         parsed_constraints = []  # type: List[Constraint]
         if self.constraint_files:
             fetcher = URLFetcher(network_configuration=network_configuration)
@@ -65,7 +72,7 @@ class RequirementConfiguration(object):
                     )
                     if isinstance(requirement_or_constraint, Constraint)
                 )
-        return parsed_constraints
+        return tuple(parsed_constraints)
 
     @property
     def has_requirements(self):

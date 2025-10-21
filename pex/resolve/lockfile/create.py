@@ -41,7 +41,7 @@ from pex.resolve.locked_resolve import (
 from pex.resolve.locker import Locker
 from pex.resolve.lockfile.download_manager import DownloadManager
 from pex.resolve.lockfile.model import Lockfile
-from pex.resolve.lockfile.targets import LockTargets
+from pex.resolve.lockfile.targets import calculate_download_input
 from pex.resolve.package_repository import ReposConfiguration
 from pex.resolve.pep_691.fingerprint_service import FingerprintService
 from pex.resolve.requirement_configuration import RequirementConfiguration
@@ -49,7 +49,7 @@ from pex.resolve.resolved_requirement import Pin, ResolvedRequirement
 from pex.resolve.resolver_configuration import BuildConfiguration, PipConfiguration, ResolverVersion
 from pex.resolve.resolvers import Resolver
 from pex.resolver import BuildRequest, Downloaded, DownloadTarget, ResolveObserver, WheelBuilder
-from pex.resolver import download as pip_download
+from pex.resolver import download_requests as pip_download_requests
 from pex.result import Error, try_
 from pex.targets import Target, Targets
 from pex.tracer import TRACER
@@ -526,7 +526,7 @@ def create(
 
     download_dir = safe_mkdtemp()
     with TRACER.timed("Calculating lock targets"):
-        lock_targets = LockTargets.calculate(
+        download_input = calculate_download_input(
             targets=targets,
             requirement_configuration=requirement_configuration,
             network_configuration=network_configuration,
@@ -534,11 +534,9 @@ def create(
             universal_target=lock_configuration.universal_target,
         )
     try:
-        downloaded = pip_download(
-            targets=lock_targets.targets,
-            requirements=requirement_configuration.requirements,
-            requirement_files=requirement_configuration.requirement_files,
-            constraint_files=requirement_configuration.constraint_files,
+        downloaded = pip_download_requests(
+            requests=download_input.download_requests,
+            direct_requirements=download_input.direct_requirements,
             allow_prereleases=pip_configuration.allow_prereleases,
             transitive=pip_configuration.transitive,
             repos_configuration=pip_configuration.repos_configuration,
@@ -555,7 +553,6 @@ def create(
             extra_pip_requirements=pip_configuration.extra_requirements,
             keyring_provider=pip_configuration.keyring_provider,
             dependency_configuration=dependency_configuration,
-            universal_targets=lock_targets.universal_targets,
         )
     except resolvers.ResolveError as e:
         return Error(str(e))
@@ -568,7 +565,9 @@ def create(
             download_dir=download_dir, locked_resolves=locked_resolves
         )
         create_lock_download_manager.store_all(
-            targets=lock_targets.targets.unique_targets(),
+            targets=OrderedSet(
+                download_request.target for download_request in download_input.download_requests
+            ),
             lock_configuration=lock_configuration,
             resolver=configured_resolver,
             repos_configuration=pip_configuration.repos_configuration,

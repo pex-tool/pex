@@ -150,9 +150,9 @@ class DownloadTarget(object):
         return self.target.id
 
 
-def _uniqued_targets(targets=None):
-    # type: (Optional[Iterable[DownloadTarget]]) -> Tuple[DownloadTarget, ...]
-    return tuple(OrderedSet(targets)) if targets is not None else ()
+def _uniqued_download_requests(requests=None):
+    # type: (Optional[Iterable[DownloadRequest]]) -> Tuple[DownloadRequest, ...]
+    return tuple(OrderedSet(requests)) if requests is not None else ()
 
 
 @attr.s(frozen=True)
@@ -239,12 +239,9 @@ class PipLogManager(object):
 
 
 @attr.s(frozen=True)
-class DownloadRequest(object):
-    download_targets = attr.ib(converter=_uniqued_targets)  # type: Tuple[DownloadTarget, ...]
+class _DownloadSession(object):
+    requests = attr.ib(converter=_uniqued_download_requests)  # type: Tuple[DownloadRequest, ...]
     direct_requirements = attr.ib()  # type: Iterable[ParsedRequirement]
-    requirements = attr.ib(default=None)  # type: Optional[Iterable[str]]
-    requirement_files = attr.ib(default=None)  # type: Optional[Iterable[str]]
-    constraint_files = attr.ib(default=None)  # type: Optional[Iterable[str]]
     allow_prereleases = attr.ib(default=False)  # type: bool
     transitive = attr.ib(default=True)  # type: bool
     package_index_configuration = attr.ib(default=None)  # type: Optional[PackageIndexConfiguration]
@@ -261,9 +258,9 @@ class DownloadRequest(object):
         # type: () -> Iterator[BuildRequest]
         for requirement in self.direct_requirements:
             if isinstance(requirement, LocalProjectRequirement):
-                for download_target in self.download_targets:
+                for request in self.requests:
                     yield BuildRequest.for_directory(
-                        target=download_target.target,
+                        target=request.target,
                         source_path=requirement.path,
                         resolver=self.resolver,
                         pip_version=self.pip_version,
@@ -271,7 +268,7 @@ class DownloadRequest(object):
 
     def download_distributions(self, dest=None, max_parallel_jobs=None):
         # type: (...) -> List[DownloadResult]
-        if not self.requirements and not self.requirement_files:
+        if not self.requests or not any(request.has_requirements for request in self.requests):
             # Nothing to resolve.
             return []
 
@@ -279,17 +276,50 @@ class DownloadRequest(object):
             prefix="resolver_download.", dir=safe_mkdir(CacheDir.DOWNLOADS.path(".tmp"))
         )
 
-        log_manager = PipLogManager.create(self.pip_log, self.download_targets)
+        log_manager = PipLogManager.create(
+            self.pip_log,
+            download_targets=tuple(request.download_target for request in self.requests),
+        )
         if self.pip_log and not self.pip_log.user_specified:
             TRACER.log(
                 "Preserving `pip download` log at {log_path}".format(log_path=self.pip_log.path),
                 V=ENV.PEX_VERBOSE,
             )
 
+        spawn_download = functools.partial(
+            self._spawn_download,
+            resolved_dists_dir=dest,
+            log_manager=log_manager,
+        )
+        with TRACER.timed(
+            "Resolving for:\n  {}".format(
+                "\n  ".join(request.render_description() for request in self.requests)
+            )
+        ):
+            try:
+                return list(
+                    execute_parallel(
+                        inputs=self.requests,
+                        spawn_func=spawn_download,
+                        error_handler=Raise[DownloadRequest, DownloadResult](Unsatisfiable),
+                        max_jobs=max_parallel_jobs,
+                    )
+                )
+            finally:
+                log_manager.finalize_log()
+
+    def _spawn_download(
+        self,
+        request,  # type: DownloadRequest
+        resolved_dists_dir,  # type: str
+        log_manager,  # type: PipLogManager
+    ):
+        # type: (...) -> SpawnedJob[DownloadResult]
+
         requirement_config = RequirementConfiguration(
-            requirements=self.requirements,
-            requirement_files=self.requirement_files,
-            constraint_files=self.constraint_files,
+            requirements=request.requirements,
+            requirement_files=request.requirement_files,
+            constraint_files=request.constraint_files,
         )
         network_configuration = (
             self.package_index_configuration.network_configuration
@@ -304,38 +334,7 @@ class DownloadRequest(object):
             if subdirectory:
                 subdirectory_by_filename[parsed_requirement.filename] = subdirectory
 
-        spawn_download = functools.partial(
-            self._spawn_download,
-            resolved_dists_dir=dest,
-            log_manager=log_manager,
-            subdirectory_by_filename=subdirectory_by_filename,
-        )
-        with TRACER.timed(
-            "Resolving for:\n  {}".format(
-                "\n  ".join(target.render_description() for target in self.download_targets)
-            )
-        ):
-            try:
-                return list(
-                    execute_parallel(
-                        inputs=self.download_targets,
-                        spawn_func=spawn_download,
-                        error_handler=Raise[DownloadTarget, DownloadResult](Unsatisfiable),
-                        max_jobs=max_parallel_jobs,
-                    )
-                )
-            finally:
-                log_manager.finalize_log()
-
-    def _spawn_download(
-        self,
-        download_target,  # type: DownloadTarget
-        resolved_dists_dir,  # type: str
-        log_manager,  # type: PipLogManager
-        subdirectory_by_filename,  # type: Mapping[str, str]
-    ):
-        # type: (...) -> SpawnedJob[DownloadResult]
-
+        download_target = request.download_target
         download_dir = os.path.join(resolved_dists_dir, download_target.id(complete=True))
         observer = (
             self.observer.observe_download(
@@ -358,9 +357,9 @@ class DownloadRequest(object):
             ),
         ).spawn_download_distributions(
             download_dir=download_dir,
-            requirements=self.requirements,
-            requirement_files=self.requirement_files,
-            constraint_files=self.constraint_files,
+            requirements=request.requirements,
+            requirement_files=request.requirement_files,
+            constraint_files=request.constraint_files,
             allow_prereleases=self.allow_prereleases,
             transitive=self.transitive,
             target=target,
@@ -1315,7 +1314,7 @@ def _parse_reqs(
     requirement_files=None,  # type: Optional[Iterable[str]]
     network_configuration=None,  # type: Optional[NetworkConfiguration]
 ):
-    # type: (...) -> Iterable[ParsedRequirement]
+    # type: (...) -> Tuple[ParsedRequirement, ...]
     requirement_configuration = RequirementConfiguration(
         requirements=requirements, requirement_files=requirement_files
     )
@@ -1382,6 +1381,23 @@ def resolve(
     :raises ValueError: If `build=False` and `use_wheel=False`.
     """
 
+    if not build_configuration.allow_wheels:
+        foreign_targets = [
+            target
+            for target in targets.unique_targets()
+            if not isinstance(target, LocalInterpreter)
+        ]
+        if foreign_targets:
+            raise ValueError(
+                "Cannot ignore wheels (use_wheel=False) when resolving for foreign {platforms}: "
+                "{foreign_platforms}".format(
+                    platforms=pluralize(foreign_targets, "platform"),
+                    foreign_platforms=", ".join(
+                        target.render_description() for target in foreign_targets
+                    ),
+                )
+            )
+
     # A resolve happens in four stages broken into two phases:
     # 1. Download phase: resolves sdists and wheels in a single operation per distribution target.
     # 2. Install phase:
@@ -1423,29 +1439,19 @@ def resolve(
         keyring_provider=keyring_provider,
     )
 
-    if not build_configuration.allow_wheels:
-        foreign_targets = [
-            target
-            for target in targets.unique_targets()
-            if not isinstance(target, LocalInterpreter)
-        ]
-        if foreign_targets:
-            raise ValueError(
-                "Cannot ignore wheels (use_wheel=False) when resolving for foreign {platforms}: "
-                "{foreign_platforms}".format(
-                    platforms=pluralize(foreign_targets, "platform"),
-                    foreign_platforms=", ".join(
-                        target.render_description() for target in foreign_targets
-                    ),
-                )
-            )
+    requests = tuple(
+        DownloadRequest(
+            download_target=DownloadTarget(target=target),
+            requirements=requirements,
+            requirement_files=requirement_files,
+            constraint_files=constraint_files,
+        )
+        for target in targets.unique_targets()
+    )
 
     build_requests, download_results = _download_internal(
-        targets=targets,
+        requests=requests,
         direct_requirements=direct_requirements,
-        requirements=requirements,
-        requirement_files=requirement_files,
-        constraint_files=constraint_files,
         allow_prereleases=allow_prereleases,
         transitive=transitive,
         package_index_configuration=package_index_configuration,
@@ -1493,11 +1499,8 @@ def resolve(
 
 
 def _download_internal(
-    targets,  # type: Targets
+    requests,  # type: Tuple[DownloadRequest, ...]
     direct_requirements,  # type: Iterable[ParsedRequirement]
-    requirements=None,  # type: Optional[Iterable[str]]
-    requirement_files=None,  # type: Optional[Iterable[str]]
-    constraint_files=None,  # type: Optional[Iterable[str]]
     allow_prereleases=False,  # type: bool
     transitive=True,  # type: bool
     package_index_configuration=None,  # type: Optional[PackageIndexConfiguration]
@@ -1509,27 +1512,12 @@ def _download_internal(
     pip_version=None,  # type: Optional[PipVersionValue]
     resolver=None,  # type: Optional[Resolver]
     dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
-    universal_targets=(),  # type: Iterable[UniversalTarget]
 ):
     # type: (...) -> Tuple[List[BuildRequest], List[DownloadResult]]
 
-    unique_targets = targets.unique_targets()
-    if universal_targets:
-        production_assert(len(unique_targets) == 1)
-        target = unique_targets.pop()
-        download_targets = tuple(
-            DownloadTarget(target, universal_target=universal_target)
-            for universal_target in universal_targets
-        )
-    else:
-        download_targets = tuple(DownloadTarget(target) for target in unique_targets)
-
-    download_request = DownloadRequest(
-        download_targets=download_targets,
+    download_session = _DownloadSession(
+        requests=requests,
         direct_requirements=direct_requirements,
-        requirements=requirements,
-        requirement_files=requirement_files,
-        constraint_files=constraint_files,
         allow_prereleases=allow_prereleases,
         transitive=transitive,
         package_index_configuration=package_index_configuration,
@@ -1541,8 +1529,8 @@ def _download_internal(
         dependency_configuration=dependency_configuration,
     )
 
-    local_projects = list(download_request.iter_local_projects())
-    download_results = download_request.download_distributions(
+    local_projects = list(download_session.iter_local_projects())
+    download_results = download_session.download_distributions(
         dest=dest, max_parallel_jobs=max_parallel_jobs
     )
     return local_projects, download_results
@@ -1602,7 +1590,6 @@ def download(
     extra_pip_requirements=(),  # type: Tuple[Requirement, ...]
     keyring_provider=None,  # type: Optional[str]
     dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
-    universal_targets=(),  # type: Iterable[UniversalTarget]
 ):
     # type: (...) -> Downloaded
     """Downloads all distributions needed to meet requirements for multiple distribution targets.
@@ -1632,7 +1619,114 @@ def download(
     :raises ValueError: If a foreign platform was provided in `platforms`, and `use_wheel=False`.
     :raises ValueError: If `build=False` and `use_wheel=False`.
     """
-    direct_requirements = _parse_reqs(requirements, requirement_files, network_configuration)
+    return download_requests(
+        requests=tuple(
+            DownloadRequest(
+                download_target=DownloadTarget(target),
+                requirements=requirements,
+                requirement_files=requirement_files,
+                constraint_files=constraint_files,
+            )
+            for target in targets.unique_targets()
+        ),
+        direct_requirements=_parse_reqs(requirements, requirement_files, network_configuration),
+        allow_prereleases=allow_prereleases,
+        transitive=transitive,
+        repos_configuration=repos_configuration,
+        resolver_version=resolver_version,
+        network_configuration=network_configuration,
+        build_configuration=build_configuration,
+        dest=dest,
+        max_parallel_jobs=max_parallel_jobs,
+        observer=observer,
+        pip_log=pip_log,
+        pip_version=pip_version,
+        resolver=resolver,
+        use_pip_config=use_pip_config,
+        extra_pip_requirements=extra_pip_requirements,
+        keyring_provider=keyring_provider,
+        dependency_configuration=dependency_configuration,
+    )
+
+
+def _as_str_tuple(items):
+    # type: (Optional[Iterable[str]]) -> Tuple[str, ...]
+    if not items:
+        return ()
+    return items if isinstance(items, tuple) else tuple(items)
+
+
+@attr.s(frozen=True)
+class DownloadRequest(object):
+    @classmethod
+    def create(
+        cls,
+        target,  # type: Target
+        universal_target=None,  # type: Optional[UniversalTarget]
+        requirement_configuration=RequirementConfiguration(),  # type: RequirementConfiguration
+        provenance=None,  # type: Optional[str]
+    ):
+        # type: (...) -> DownloadRequest
+        return cls(
+            download_target=DownloadTarget(target=target, universal_target=universal_target),
+            requirements=requirement_configuration.requirements,
+            requirement_files=requirement_configuration.requirement_files,
+            constraint_files=requirement_configuration.constraint_files,
+            provenance=provenance,
+        )
+
+    download_target = attr.ib()  # type: DownloadTarget
+    requirements = attr.ib(default=(), converter=_as_str_tuple)  # type: Tuple[str, ...]
+    requirement_files = attr.ib(default=(), converter=_as_str_tuple)  # type: Tuple[str, ...]
+    constraint_files = attr.ib(default=(), converter=_as_str_tuple)  # type: Tuple[str, ...]
+    provenance = attr.ib(default=None)  # type: Optional[str]
+
+    def render_description(self):
+        # type: () -> str
+        description = self.download_target.render_description()
+        if not self.provenance:
+            return description
+        return "{description} from {provenance}".format(
+            description=description, provenance=self.provenance
+        )
+
+    @property
+    def target(self):
+        # type: () -> Target
+        return self.download_target.target
+
+    @property
+    def universal_target(self):
+        # type: () -> Optional[UniversalTarget]
+        return self.download_target.universal_target
+
+    @property
+    def has_requirements(self):
+        return bool(self.requirements) or bool(self.requirement_files)
+
+
+def download_requests(
+    requests,  # type: Tuple[DownloadRequest, ...]
+    direct_requirements,  # type: Tuple[ParsedRequirement, ...]
+    allow_prereleases=False,  # type: bool
+    transitive=True,  # type: bool
+    repos_configuration=ReposConfiguration(),  # type: ReposConfiguration
+    resolver_version=None,  # type: Optional[ResolverVersion.Value]
+    network_configuration=None,  # type: Optional[NetworkConfiguration]
+    build_configuration=BuildConfiguration(),  # type: BuildConfiguration
+    dest=None,  # type: Optional[str]
+    max_parallel_jobs=None,  # type: Optional[int]
+    observer=None,  # type: Optional[ResolveObserver]
+    pip_log=None,  # type: Optional[PipLog]
+    pip_version=None,  # type: Optional[PipVersionValue]
+    resolver=None,  # type: Optional[Resolver]
+    use_pip_config=False,  # type: bool
+    extra_pip_requirements=(),  # type: Tuple[Requirement, ...]
+    keyring_provider=None,  # type: Optional[str]
+    dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
+):
+    # type: (...) -> Downloaded
+
     package_index_configuration = PackageIndexConfiguration.create(
         pip_version=pip_version,
         resolver_version=resolver_version,
@@ -1642,12 +1736,10 @@ def download(
         extra_pip_requirements=extra_pip_requirements,
         keyring_provider=keyring_provider,
     )
+
     build_requests, download_results = _download_internal(
-        targets=targets,
+        requests=requests,
         direct_requirements=direct_requirements,
-        requirements=requirements,
-        requirement_files=requirement_files,
-        constraint_files=constraint_files,
         allow_prereleases=allow_prereleases,
         transitive=transitive,
         package_index_configuration=package_index_configuration,
@@ -1659,7 +1751,6 @@ def download(
         pip_version=pip_version,
         resolver=resolver,
         dependency_configuration=dependency_configuration,
-        universal_targets=universal_targets,
     )
 
     local_distributions = []

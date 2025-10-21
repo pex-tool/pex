@@ -186,7 +186,7 @@ def boot(
             "_PEX_PATCHED_TAGS_FILE",
             # These are used by Pex's Pip venv to implement universal locks.
             "_PEX_PYTHON_VERSIONS_FILE",
-            "_PEX_TARGET_SYSTEMS_FILE",
+            "_PEX_UNIVERSAL_TARGET_FILE",
             # This is used to implement Pex --exclude and --override support.
             "_PEX_DEP_CONFIG_FILE",
             # This is used to implement --source support.
