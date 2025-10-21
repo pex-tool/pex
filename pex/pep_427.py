@@ -638,6 +638,7 @@ def install_wheel_chroot(
     wheel,  # type: Union[str, InstallableWheel]
     destination,  # type: str
     normalize_file_stat=False,  # type: bool
+    re_hash=False,  # type: bool
 ):
     # type: (...) -> InstalledWheel
 
@@ -650,6 +651,7 @@ def install_wheel_chroot(
         chroot_install_paths,
         record_entry_info=True,
         normalize_file_stat=normalize_file_stat,
+        re_hash=re_hash,
     )
 
     record_relpath = wheel_to_install.metadata_files.metadata_file_rel_path("RECORD")
@@ -814,6 +816,7 @@ def install_wheel(
     install_entry_point_scripts=True,  # type: bool
     record_entry_info=False,  # type: bool
     normalize_file_stat=False,  # type: bool
+    re_hash=False,  # type: bool
 ):
     # type: (...) -> Tuple[Tuple[Text, Text], ...]
 
@@ -973,6 +976,19 @@ def install_wheel(
         if dst_components:
             dst_path_name, dst_rel_path, rewrite_script = dst_components
             dst_file = os.path.join(install_paths[dst_path_name], dst_rel_path)
+
+            def create_dst_installed_file(regenerate_hash):
+                # type: (bool) -> InstalledFile
+                return (
+                    create_installed_file(path=dst_file, dest_dir=dest)
+                    if regenerate_hash
+                    else InstalledFile(
+                        path=os.path.relpath(dst_file, dest),
+                        hash=installed_file.hash,
+                        size=installed_file.size,
+                    )
+                )
+
             if rewrite_script and interpreter is not None:
                 with open(src_file, mode="rb") as in_fp, safe_open(dst_file, "wb") as out_fp:
                     first_line = in_fp.readline()
@@ -996,6 +1012,9 @@ def install_wheel(
                             out_fp.write(next_line)
                     shutil.copyfileobj(in_fp, out_fp)
                 chmod_plus_x(out_fp.name)
+
+                # We modified the script shebang; so we need to re-hash / re-size.
+                dst_installed_file = create_dst_installed_file(regenerate_hash=True)
             elif copy_mode is CopyMode.SYMLINK:
                 top_level = dst_rel_path.split(os.sep)[0]
                 if top_level in (dist_info_dir_relpath, pex_info_dir_relpath):
@@ -1009,13 +1028,15 @@ def install_wheel(
                     except OSError as e:
                         if e.errno != errno.EEXIST:
                             raise
+                dst_installed_file = create_dst_installed_file(regenerate_hash=re_hash)
             else:
                 safe_mkdir(os.path.dirname(dst_file))
                 if copy_mode is CopyMode.LINK:
                     safe_copy(src_file, dst_file, overwrite=False)
-                if not os.path.exists(dst_file):
+                elif not os.path.exists(dst_file):
                     shutil.copy(src_file, dst_file)
-            installed_files.append(create_installed_file(path=dst_file, dest_dir=dest))
+                dst_installed_file = create_dst_installed_file(regenerate_hash=re_hash)
+            installed_files.append(dst_installed_file)
             provenance.append((src_file, dst_file))
     if data_dir:
         safe_rmtree(data_dir)

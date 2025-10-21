@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.62.1
+
+This release improves performance when creating venvs by eliminating an un-necessary re-hash of
+wheel files already installed in the Pex cache.
+
+* Avoid re-hashing wheels when re-installing. (#2958)
+
 ## 2.62.0
 
 This release brings full support for universal lock splitting. You can now declare conflicting

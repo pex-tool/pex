@@ -554,6 +554,8 @@ def vendorize(root_dir, vendor_specs, prefix, update):
                     zip_metadata=zip_metadata,
                 ),
                 destination=vendor_spec.target_dir,
+                # N.B.: We potentially re-wrote imports; so the file needs to be re-hashed.
+                re_hash=True,
             )
 
 
