@@ -153,9 +153,9 @@ def test_venv(
     # type: (...) -> None
 
     assert_venv(tmpdir)
-    assert_venv(tmpdir, "--lock", lock)
-    assert_venv(tmpdir, "--pex-repository", cowsay_pex)
-    assert_venv(tmpdir, "--pre-resolved-dists", pre_resolved_dists)
+    assert_venv(tmpdir, "--lock", lock, "--force")
+    assert_venv(tmpdir, "--pex-repository", cowsay_pex, "--force")
+    assert_venv(tmpdir, "--pre-resolved-dists", pre_resolved_dists, "--force")
 
 
 def test_flat_empty(tmpdir):
@@ -285,7 +285,7 @@ def test_venv_pip(tmpdir):
     assert "pip" not in [os.path.basename(exe) for exe in venv.iter_executables()]
     assert [] == list(venv.iter_distributions())
 
-    run_pex3("venv", "create", "-d", dest, "--pip").assert_success()
+    run_pex3("venv", "create", "-d", dest, "--pip", "--force").assert_success()
     assert "pip" in [os.path.basename(exe) for exe in venv.iter_executables()]
     distributions = {
         dist.metadata.project_name: dist.metadata.version
@@ -556,7 +556,7 @@ def test_venv_update_target_mismatch(
 
     venv = Virtualenv(dest)
     assert [] == list(venv.iter_distributions())
-    run_pex3("venv", "create", "ansicolors==1.1.8", "-d", dest).assert_success()
+    run_pex3("venv", "create", "ansicolors==1.1.8", "-d", dest, "--force").assert_success()
     assert [(ProjectName("ansicolors"), Version("1.1.8"))] == [
         (dist.metadata.project_name, dist.metadata.version)
         for dist in venv.iter_distributions(rescan=True)
