@@ -12,10 +12,13 @@ from pex import dependency_configuration, pex_warnings
 from pex.cli.command import BuildTimeCommand
 from pex.commands.command import JsonMixin, OutputMixin
 from pex.common import CopyMode, open_zip, pluralize
-from pex.dist_metadata import Distribution
+from pex.dependency_configuration import DependencyConfiguration
+from pex.dist_metadata import Distribution, Requirement
 from pex.enum import Enum
 from pex.executables import is_python_script, is_script
 from pex.executor import Executor
+from pex.fingerprinted_distribution import FingerprintedDistribution
+from pex.orderedset import OrderedSet
 from pex.pex import PEX
 from pex.pex_info import PexInfo
 from pex.resolve import configured_resolve, requirement_options, resolver_options, target_options
@@ -23,6 +26,7 @@ from pex.resolve.resolver_configuration import (
     LockRepositoryConfiguration,
     PexRepositoryConfiguration,
     PipConfiguration,
+    PylockRepositoryConfiguration,
 )
 from pex.result import Error, Ok, Result, try_
 from pex.targets import LocalInterpreter, Target, Targets
@@ -35,7 +39,7 @@ from pex.venv.installer_configuration import InstallerConfiguration
 from pex.venv.virtualenv import Virtualenv
 
 if TYPE_CHECKING:
-    from typing import Any, Dict, Iterable, Optional
+    from typing import Any, Dict, Iterable, Optional, Sequence
 
 
 logger = logging.getLogger(__name__)
@@ -302,6 +306,8 @@ class Venv(OutputMixin, JsonMixin, BuildTimeCommand):
             pex = PEX(resolver_configuration.pex_repository, interpreter=target.get_interpreter())
         elif isinstance(resolver_configuration, LockRepositoryConfiguration):
             lock = resolver_configuration.lock_file_path
+        elif isinstance(resolver_configuration, PylockRepositoryConfiguration):
+            lock = resolver_configuration.lock_file_path
 
         with TRACER.timed(
             "Installing {count} {wheels} in {subject} at {dest_dir}".format(
@@ -312,10 +318,6 @@ class Venv(OutputMixin, JsonMixin, BuildTimeCommand):
             )
         ):
             hermetic_scripts = not update and installer_configuration.hermetic_scripts
-            distributions = tuple(
-                resolved_distribution.distribution
-                for resolved_distribution in resolved.distributions
-            )
             provenance = (
                 Provenance.create(venv=venv)
                 if venv
@@ -326,27 +328,41 @@ class Venv(OutputMixin, JsonMixin, BuildTimeCommand):
                     pex=pex,
                     installer_configuration=installer_configuration,
                     provenance=provenance,
-                    distributions=distributions,
+                    distributions=tuple(
+                        resolved_distribution.distribution
+                        for resolved_distribution in resolved.distributions
+                    ),
                     dest_dir=dest_dir,
                     hermetic_scripts=hermetic_scripts,
                     venv=venv,
                 )
             elif venv:
-                installer.populate_venv_distributions(
+                _install_from_resolve(
                     venv=venv,
-                    distributions=distributions,
                     provenance=provenance,
-                    copy_mode=(
-                        CopyMode.COPY
-                        if installer_configuration.site_packages_copies
-                        else CopyMode.LINK
+                    installer_configuration=installer_configuration,
+                    dependency_config=dependency_config,
+                    requirements=tuple(
+                        OrderedSet(
+                            itertools.chain.from_iterable(
+                                resolved_distribution.direct_requirements
+                                for resolved_distribution in resolved.distributions
+                            )
+                        )
+                    ),
+                    distributions=tuple(
+                        resolved_distribution.fingerprinted_distribution
+                        for resolved_distribution in resolved.distributions
                     ),
                     hermetic_scripts=hermetic_scripts,
                 )
             else:
                 installer.populate_flat_distributions(
                     dest_dir=dest_dir,
-                    distributions=distributions,
+                    distributions=tuple(
+                        resolved_distribution.distribution
+                        for resolved_distribution in resolved.distributions
+                    ),
                     provenance=provenance,
                     copy_mode=(
                         CopyMode.COPY
@@ -370,7 +386,10 @@ class Venv(OutputMixin, JsonMixin, BuildTimeCommand):
                 try_(
                     installer.ensure_pip_installed(
                         venv,
-                        distributions=distributions,
+                        distributions=tuple(
+                            resolved_distribution.distribution
+                            for resolved_distribution in resolved.distributions
+                        ),
                         scope=installer_configuration.scope,
                         collisions_ok=installer_configuration.collisions_ok,
                         source=source,
@@ -443,3 +462,49 @@ def _install_from_pex(
             )
         else:
             installer.populate_flat_sources(dst=dest_dir, pex=pex, provenance=provenance)
+
+
+def _install_from_resolve(
+    venv,  # type: Virtualenv
+    provenance,  # type: Provenance
+    installer_configuration,  # type: InstallerConfiguration
+    dependency_config,  # type: DependencyConfiguration
+    requirements,  # type: Sequence[Requirement]
+    distributions,  # type: Sequence[FingerprintedDistribution]
+    hermetic_scripts,  # type: bool
+):
+    # type: (...) -> None
+
+    activated_dists = tuple(dist.distribution for dist in distributions)
+    installer.populate_venv_distributions(
+        venv=venv,
+        distributions=activated_dists,
+        provenance=provenance,
+        copy_mode=(
+            CopyMode.COPY if installer_configuration.site_packages_copies else CopyMode.LINK
+        ),
+        hermetic_scripts=hermetic_scripts,
+    )
+
+    pex_info = PexInfo.default()
+    pex_info.includes_tools = False
+    pex_info.venv = True
+    pex_info.venv_copies = installer_configuration.copies
+    pex_info.venv_site_packages_copies = installer_configuration.site_packages_copies
+    pex_info.venv_system_site_packages = installer_configuration.system_site_packages
+    pex_info.venv_hermetic_scripts = installer_configuration.hermetic_scripts
+    dependency_config.configure(pex_info)
+    for requirement in requirements:
+        pex_info.add_requirement(requirement)
+    for distribution in distributions:
+        pex_info.add_distribution(os.path.basename(distribution.location), distribution.fingerprint)
+
+    installer.install_pex_main(
+        target_dir=provenance.target_dir,
+        venv=venv,
+        pex_info=pex_info,
+        activated_dists=activated_dists,
+        shebang=provenance.calculate_shebang(hermetic_scripts=hermetic_scripts),
+        venv_python=provenance.target_python,
+        bin_path=installer_configuration.bin_path,
+    )

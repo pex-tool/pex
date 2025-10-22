@@ -24,6 +24,7 @@ from pex.pep_427 import reinstall_flat, reinstall_venv
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pex import PEX
+from pex.pex_info import PexInfo
 from pex.result import Error
 from pex.sysconfig import SCRIPT_DIR
 from pex.tracer import TRACER
@@ -44,6 +45,7 @@ if TYPE_CHECKING:
         Iterator,
         List,
         Optional,
+        Sequence,
         Text,
         Tuple,
         Union,
@@ -574,24 +576,16 @@ def _populate_sources(
         yield src, dest
 
 
-def _populate_first_party(
+def install_pex_main(
     target_dir,  # type: str
     venv,  # type: Virtualenv
-    pex,  # type: PEX
+    pex_info,  # type: PexInfo
+    activated_dists,  # type: Sequence[Distribution]
     shebang,  # type: str
     venv_python,  # type: str
     bin_path,  # type: BinPath.Value
 ):
-    # type: (...) -> Iterator[Tuple[Text, Text]]
-
-    # We want the venv at rest to reflect the PEX it was created from at rest; as such we use the
-    # PEX's at-rest PEX-INFO to perform the layout. The venv can then be executed with various PEX
-    # environment variables in-play that it respects (e.g.: PEX_EXTRA_SYS_PATH, PEX_INTERPRETER,
-    # PEX_MODULE, etc.).
-    pex_info = pex.pex_info(include_env_overrides=False)
-
-    for src, dst in _populate_sources(pex=pex, dst=venv.site_packages_dir):
-        yield src, dst
+    # type: (...) -> None
 
     with open(os.path.join(venv.site_packages_dir, "PEX_EXTRA_SYS_PATH.pth"), "w") as fp:
         # N.B.: .pth import lines must be single lines: https://docs.python.org/3/library/site.html
@@ -607,7 +601,7 @@ def _populate_first_party(
     with open(os.path.join(venv.venv_dir, pex_info.PATH), "w") as fp:
         fp.write(pex_info.dump())
 
-    # 2. Add a __main__ to the root of the venv for running the venv dir like a loose PEX dir
+    # Add a __main__ to the root of the venv for running the venv dir like a loose PEX dir
     # and a main.py for running as a script.
     with open(venv.join_path("__main__.py"), "w") as fp:
         fp.write(
@@ -660,9 +654,38 @@ def _populate_first_party(
             repl.create_pex_repl_exe(
                 shebang=shebang,
                 pex_info=pex_info,
-                activated_dists=tuple(pex.resolve()),
+                activated_dists=activated_dists,
                 pex=os.path.join(target_dir, "pex"),
                 venv=True,
             )
         )
     chmod_plus_x(fp.name)
+
+
+def _populate_first_party(
+    target_dir,  # type: str
+    venv,  # type: Virtualenv
+    pex,  # type: PEX
+    shebang,  # type: str
+    venv_python,  # type: str
+    bin_path,  # type: BinPath.Value
+):
+    # type: (...) -> Iterator[Tuple[Text, Text]]
+
+    for src, dst in _populate_sources(pex=pex, dst=venv.site_packages_dir):
+        yield src, dst
+
+    # We want the venv at rest to reflect the PEX it was created from at rest; as such we use the
+    # PEX's at-rest PEX-INFO to perform the layout. The venv can then be executed with various PEX
+    # environment variables in-play that it respects (e.g.: PEX_EXTRA_SYS_PATH, PEX_INTERPRETER,
+    # PEX_MODULE, etc.).
+    pex_info = pex.pex_info(include_env_overrides=False)
+    install_pex_main(
+        target_dir=target_dir,
+        venv=venv,
+        pex_info=pex_info,
+        activated_dists=tuple(pex.resolve()),
+        shebang=shebang,
+        venv_python=venv_python,
+        bin_path=bin_path,
+    )
