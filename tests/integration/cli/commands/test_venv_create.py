@@ -7,7 +7,9 @@ import glob
 import os.path
 import shutil
 import sys
+from subprocess import CalledProcessError
 from textwrap import dedent
+from typing import Optional
 
 import colors  # vendor:skip
 import pytest
@@ -23,6 +25,7 @@ from pex.pep_503 import ProjectName
 from pex.pex import PEX
 from pex.resolve import abbreviated_platforms
 from pex.typing import TYPE_CHECKING
+from pex.venv.bin_path import BinPath
 from pex.venv.virtualenv import Virtualenv
 from testing import (
     IS_MAC,
@@ -558,3 +561,37 @@ def test_venv_update_target_mismatch(
         (dist.metadata.project_name, dist.metadata.version)
         for dist in venv.iter_distributions(rescan=True)
     ]
+
+
+def test_venv_bin_path(tmpdir):
+    # type: (Tempdir) -> None
+
+    venv_dir = tmpdir.join("venv")
+    pex = os.path.join(venv_dir, "pex")
+
+    def run_cowsay_via_venv_bin_path(
+        msg,  # type: str
+        bin_path,  # type: Optional[BinPath.Value]
+    ):
+        # type: (...) -> bytes
+
+        venv_create_args = ["venv", "create", "cowsay==5", "-d", venv_dir, "--force"]
+        if bin_path:
+            venv_create_args.append("--bin-path")
+            venv_create_args.append(str(bin_path))
+        run_pex3(*venv_create_args).assert_success()
+
+        return subprocess.check_output(
+            args=[
+                pex,
+                "-c",
+                "import subprocess; subprocess.check_call(['cowsay', '{msg}'])".format(msg=msg),
+            ],
+            env=make_env(PATH=None),
+        )
+
+    with pytest.raises(CalledProcessError):
+        run_cowsay_via_venv_bin_path("Moo!", bin_path=None)
+
+    assert b"| Moo! |" in run_cowsay_via_venv_bin_path("Moo!", bin_path=BinPath.APPEND)
+    assert b"| Moo! |" in run_cowsay_via_venv_bin_path("Moo!", bin_path=BinPath.PREPEND)

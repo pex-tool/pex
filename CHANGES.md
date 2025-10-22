@@ -1,5 +1,13 @@
 # Release Notes
 
+## 2.63.0
+
+This release adds population of a `pex` script to venvs created with `pex3 venv create`. This allows
+for executing Python in the activated venv via `/path/to/venv/pex ...` instead of 
+`source /path/to/venv/bin/activate && python ...`.
+
+* Include `pex` script in `pex3 venv create`. (#2960)
+
 ## 2.62.1
 
 This release improves performance when creating venvs by eliminating an un-necessary re-hash of
@@ -16,14 +24,14 @@ the appropriate split lock is later selected automatically when building a PEX o
 lock.
 
 As part of this work, locks also filter wheels more faithfully. If you supply interpreter
-constraints that constraint to CPython, the resulting lock will now only contain `cp`
+constraints that constrain to CPython, the resulting lock will now only contain `cp`
 platform-specific wheels (and, for example, not PyPy wheels).
 
 * Complete support for universal lock splitting. (#2940)
 
 ## 2.61.1
 
-This release fixes a long standing bug hashing local project directories when building PEXes. Pex
+This release fixes a long-standing bug hashing local project directories when building PEXes. Pex
 now hashes the content of an exploded sdist for the local project just like it does when hashing
 local projects for a lock.
 
