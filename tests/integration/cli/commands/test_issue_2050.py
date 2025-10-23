@@ -269,7 +269,7 @@ def test_pep_517_prepare_metadata_for_build_wheel_fallback(
         "-o",
         lock,
         "--pip-log",
-        os.path.join(str(tmpdir), "pip.log")
+        os.path.join(str(tmpdir), "pip.log"),
     )
     result.assert_success()
 
