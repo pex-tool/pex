@@ -3,6 +3,7 @@
 
 from __future__ import absolute_import
 
+import glob
 import os
 import re
 
@@ -60,7 +61,6 @@ def fingerprint_downloaded_vcs_archive(
     project_name,  # type: str
     version,  # type: str
     vcs,  # type: VCS.Value
-    subdirectory=None,  # type: Optional[str]
 ):
     # type: (...) -> Tuple[Fingerprint, str]
 
@@ -70,7 +70,7 @@ def fingerprint_downloaded_vcs_archive(
         )
     )
     digest = Sha256()
-    digest_vcs_archive(archive_path=archive_path, vcs=vcs, digest=digest, subdirectory=subdirectory)
+    digest_vcs_archive(archive_path=archive_path, vcs=vcs, digest=digest)
     return Fingerprint.from_digest(digest), archive_path
 
 
@@ -78,36 +78,53 @@ def digest_vcs_archive(
     archive_path,  # type: str
     vcs,  # type: VCS.Value
     digest,  # type: HintedDigest
-    subdirectory=None,  # type: Optional[str]
 ):
     # type: (...) -> None
 
     # All VCS requirements are prepared as zip archives as encoded in:
-    # `pip._internal.req.req_install.InstallRequirement.archive`.
+    # `pip._internal.req.req_install.InstallRequirement.archive` and the archive is already offset
+    # by a subdirectory (if any).
     with TRACER.timed(
         "Digesting {archive} {vcs} archive".format(archive=os.path.basename(archive_path), vcs=vcs)
     ), temporary_dir() as chroot, open_zip(archive_path) as archive:
+        # TODO(John Sirois): Consider implementing zip_hash to avoid the extractall.
         archive.extractall(chroot)
 
-        # Ignore VCS control directories for the purposes of fingerprinting the version controlled
-        # source tree. VCS control directories can contain non-reproducible content (Git at least
-        # has files that contain timestamps).
-        #
-        # We cannot prune these directories from the source archive directly unfortunately since
-        # some build processes use VCS version information to derive their version numbers (C.F.:
-        # https://pypi.org/project/setuptools-scm/). As such, we'll get a stable fingerprint, but be
-        # forced to re-build a wheel each time the VCS requirement is re-locked later, even when it
-        # hashes the same.
-        vcs_control_dir = ".{vcs}".format(vcs=vcs)
+        # The zip archives created by Pip have a single project name top-level directory housing
+        # the full clone. We look for that to get a consistent clone hash with a bare clone.
+        listing = glob.glob(os.path.join(chroot, "*"))
+        if len(listing) == 1 and os.path.isdir(listing[0]):
+            chroot = listing[0]
 
-        # TODO(John Sirois): Consider implementing zip_hash to avoid the extractall.
-        hashing.dir_hash(
-            directory=os.path.join(chroot, subdirectory) if subdirectory else chroot,
-            digest=digest,
-            dir_filter=(
-                lambda dir_path: (
-                    not is_pyc_dir(dir_path) and os.path.basename(dir_path) != vcs_control_dir
-                )
-            ),
-            file_filter=lambda f: not is_pyc_file(f),
-        )
+        digest_vcs_repo(repo_path=chroot, vcs=vcs, digest=digest)
+
+
+def digest_vcs_repo(
+    repo_path,  # type: str
+    vcs,  # type: VCS.Value
+    digest,  # type: HintedDigest
+    subdirectory=None,  # type: Optional[str]
+):
+    # type: (...) -> None
+
+    # Ignore VCS control directories for the purposes of fingerprinting the version controlled
+    # source tree. VCS control directories can contain non-reproducible content (Git at least
+    # has files that contain timestamps).
+    #
+    # We cannot prune these directories from the source archive directly unfortunately since
+    # some build processes use VCS version information to derive their version numbers (C.F.:
+    # https://pypi.org/project/setuptools-scm/). As such, we'll get a stable fingerprint, but be
+    # forced to re-build a wheel each time the VCS requirement is re-locked later, even when it
+    # hashes the same.
+    vcs_control_dir = ".{vcs}".format(vcs=vcs)
+
+    hashing.dir_hash(
+        directory=os.path.join(repo_path, subdirectory) if subdirectory else repo_path,
+        digest=digest,
+        dir_filter=(
+            lambda dir_path: (
+                not is_pyc_dir(dir_path) and os.path.basename(dir_path) != vcs_control_dir
+            )
+        ),
+        file_filter=lambda f: not is_pyc_file(f),
+    )

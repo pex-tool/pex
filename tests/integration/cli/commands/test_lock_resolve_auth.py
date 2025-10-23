@@ -160,6 +160,7 @@ def secured_ansicolors_lock(
             "--no-pypi",
             "--find-links",
             secured_lock.repo_url_with_credentials,
+            "--no-avoid-downloads",
             "ansicolors",
             "--indent",
             "2",

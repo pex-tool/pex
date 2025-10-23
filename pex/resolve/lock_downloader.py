@@ -157,7 +157,6 @@ class VCSArtifactDownloadManager(DownloadManager[VCSArtifact]):
             archive_path=local_distribution.path,
             vcs=artifact.vcs,
             digest=digest,
-            subdirectory=artifact.subdirectory,
         )
         shutil.move(local_distribution.path, os.path.join(dest_dir, filename))
         return filename
