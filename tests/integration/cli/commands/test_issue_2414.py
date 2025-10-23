@@ -32,6 +32,7 @@ def locker(tmpdir):
         resolver=ConfiguredResolver.default(),
         lock_style=LockStyle.SOURCES,
         download_dir=download_dir,
+        lock_is_via_pip_download=True,
     )
 
 
