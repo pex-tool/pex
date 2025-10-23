@@ -392,10 +392,10 @@ def test_lock_all_package_types(
                 # Stress extras handling, sdists and wheels.
                 requests[socks]
                 
-                # Stress archive handling.
+                # Stress VCS handling.
                 PySocks @ git+https://github.com/Anorov/PySocks@1.7.0
                 
-                # Stress VCS handling.
+                # Stress archive handling.
                 cowsay @ https://github.com/VaasuDevanS/cowsay-python/archive/dcf7236f0b5ece9ed56e91271486e560526049cf.zip
                 """.format(
                     pex_project_dir=pex_project_dir

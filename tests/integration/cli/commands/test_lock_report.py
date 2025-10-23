@@ -24,7 +24,7 @@ from testing.pytest_utils.tmp import Tempdir
         "The PyPy CI tests are slow generally; this test is slow in particular (due to a large "
         "parameter matrix), and we gain no new information from the PyPy tests over the CPython "
         "tests in this case."
-    )
+    ),
 )
 @pytest.mark.parametrize(
     ["pip_version", "resolver_version"],
@@ -37,7 +37,10 @@ from testing.pytest_utils.tmp import Tempdir
             ),
         )
         for pip_version in PipVersion.values()
-        if pip_version.requires_python_applies()
+        # N.B.: We skip vendored Pip since it does not support "--avoid-downloads" (i.e.:
+        # `pip install --dry-run --ignore-installed --report`); so no comparison between report and
+        # download mode can be done.
+        if not pip_version is PipVersion.VENDORED and pip_version.requires_python_applies()
         for resolver_version in ResolverVersion.values()
         if ResolverVersion.applies(resolver_version, pip_version)
     ],
