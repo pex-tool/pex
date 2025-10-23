@@ -1,5 +1,17 @@
 # Release Notes
 
+## 2.64.0
+
+This release adds support for `--avoid-downloads` / `--no-avoid-downloads` to `pex3 lock create`. By
+default, when available, Pex now locks in `--avoid-downloads` mode using
+`pip install --dry-run --ignore-installed --report` to power lock generation instead of
+`pip download`. This saves time generating the lock at the expense of having to spend time
+downloading distributions later when using the lock to create a PEX or venv. This new lock mode
+produces byte-wise identical locks and is available for all Pip versions Pex supports save for
+vendored Pip (`--pip-version {vendored,20.3.4-patched}`).
+
+* Use Pip `--report` to avoid `pex3 lock create` downloads. (#2962)
+
 ## 2.63.0
 
 This release adds population of a `pex` script to venvs created with `pex3 venv create`. This allows
