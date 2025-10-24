@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.64.1
+
+This release is a follow-up to 2.64.0 to fix a regression in locks for credentialed VCS
+requirements.
+
+* Fix redaction of VCS URL credentials in locks. (#2964)
+
 ## 2.64.0
 
 This release adds support for `--avoid-downloads` / `--no-avoid-downloads` to `pex3 lock create`. By

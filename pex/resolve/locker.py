@@ -377,13 +377,13 @@ class Locker(LogAnalyzer):
                     )
                     verified = True
                     selected_path = os.path.basename(archive_path)
-                    artifact_url = self.parse_url_and_maybe_record_fingerprint(
+                    artifact_url = ArtifactURL.parse(
                         self._vcs_url_manager.normalize_url(artifact_url.raw_url)
                     )
                     self._selected_path_to_pin[selected_path] = build_result.pin
 
-                    vcs, _, vcs_url = artifact_url.raw_url.partition("+")
-                    if "@" in artifact_url.path:
+                    vcs, _, vcs_url = build_result.url.raw_url.partition("+")
+                    if "@" in build_result.url.path:
                         vcs_url, _, _ = vcs_url.rpartition("@")
                     commit_id = self._commit_ids.pop(vcs_url, None)
                 elif isinstance(artifact_url.scheme, ArchiveScheme.Value):
@@ -452,8 +452,12 @@ class Locker(LogAnalyzer):
                     )
                     source_fingerprint = Fingerprint.from_digest(digest)
                     verified = True  # noqa
-                    vcs, _, vcs_url = artifact_url.raw_url.partition("+")
-                    if "@" in artifact_url.path:
+                    artifact_url = ArtifactURL.parse(
+                        self._vcs_url_manager.normalize_url(artifact_url.raw_url)
+                    )
+
+                    vcs, _, vcs_url = build_result.url.raw_url.partition("+")
+                    if "@" in build_result.url.path:
                         vcs_url, _, _ = vcs_url.rpartition("@")
                     commit_id = self._commit_ids.pop(vcs_url, None)
                 elif isinstance(artifact_url.scheme, ArchiveScheme.Value):
