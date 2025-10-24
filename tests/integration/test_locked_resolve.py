@@ -59,6 +59,7 @@ def create_lock_observer(lock_style):
             build_configuration=pip_configuration.build_configuration,
         ),
         package_index_configuration=package_index_configuration,
+        lock_is_via_pip_download=True,
     )
 
 

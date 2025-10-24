@@ -255,6 +255,7 @@ def test_pep_517_prepare_metadata_for_build_wheel_fallback(
     result = run_pex3(
         "lock",
         "create",
+        "--no-avoid-downloads",
         "-vvv",
         "--python",
         python,
@@ -267,6 +268,8 @@ def test_pep_517_prepare_metadata_for_build_wheel_fallback(
         "2",
         "-o",
         lock,
+        "--pip-log",
+        os.path.join(str(tmpdir), "pip.log"),
     )
     result.assert_success()
 

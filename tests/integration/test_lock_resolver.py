@@ -177,6 +177,7 @@ def requests_lock_findlinks(
         "create",
         "--style",
         "strict",
+        "--no-avoid-downloads",
         "--no-pypi",
         "-f",
         find_links_repo,

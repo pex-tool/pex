@@ -832,7 +832,7 @@ def test_resolved():
 
         locked_resolve = LockedResolve.create(
             resolved_requirements=(),
-            dist_metadatas=(),
+            project_metadatas=(),
             fingerprinter=DevNullFingerprinter(),
         )
         assert Resolved[LockedResolve](

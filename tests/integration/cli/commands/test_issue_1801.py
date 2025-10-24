@@ -15,7 +15,9 @@ def test_preserve_pip_download_log():
     result.assert_success()
 
     match = re.search(
-        r"^pex: Preserving `pip download` log at (?P<log_path>.*)$", result.error, re.MULTILINE
+        r"^pex: Preserving `pip (?:download|install --dry-run)` log at (?P<log_path>.*)$",
+        result.error,
+        re.MULTILINE,
     )
     assert match is not None
     log_path = match.group("log_path")

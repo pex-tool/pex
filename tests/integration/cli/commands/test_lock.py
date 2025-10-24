@@ -120,6 +120,7 @@ def test_create_style(
             style,
             "--pex-root",
             pex_root,
+            "--no-avoid-downloads",
         )
         run_pex3(*(args + additional_args)).assert_success()
         lock = json_codec.load(lock_file)

@@ -726,6 +726,18 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
     def _add_lock_options(cls, parser):
         # type: (_ActionsContainer) -> None
         resolver_options.register_pex_lock_options(parser)
+        parser.add_argument(
+            "--avoid-downloads",
+            "--no-avoid-downloads",
+            dest="avoid_downloads",
+            default=True,
+            action=HandleBoolAction,
+            help=(
+                "When locking, prefer not downloading distributions unless necessary. This can "
+                "save time locking, although the downloads will need to happen later when using "
+                "the lock."
+            ),
+        )
 
     @classmethod
     def _add_create_arguments(cls, create_parser):
@@ -1254,6 +1266,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                     targets=targets,
                     pip_configuration=pip_configuration,
                     dependency_configuration=dependency_config,
+                    avoid_downloads=self.options.avoid_downloads,
                 )
             )
         )
@@ -1776,6 +1789,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             use_pip_config=pip_configuration.use_pip_config,
             dependency_configuration=dependency_config,
             pip_log=resolver_options.get_pip_log(self.options),
+            avoid_downloads=self.options.avoid_downloads,
         )
 
         target_configuration = target_options.configure(
@@ -2279,6 +2293,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                     targets=targets,
                     pip_configuration=pip_configuration,
                     dependency_configuration=dependency_config,
+                    avoid_downloads=self.options.avoid_downloads,
                 )
             )
             if self.options.dry_run:

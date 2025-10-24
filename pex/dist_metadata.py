@@ -948,19 +948,29 @@ class Requirement(Constraint):
         return Constraint(name=self.name, specifier=self.specifier, marker=self.marker)
 
 
-# N.B.: DistributionMetadata can have an expensive hash when a distribution has many requirements;
+# N.B.: ProjectMetadata can have an expensive hash when a distribution has many requirements;
 # so we cache the hash. See: https://github.com/pex-tool/pex/issues/1928
 @attr.s(frozen=True, cache_hash=True)
+class ProjectMetadata(object):
+    project_name = attr.ib()  # type: ProjectName
+    version = attr.ib()  # type: Version
+    requires_dists = attr.ib(default=())  # type: Tuple[Requirement, ...]
+    requires_python = attr.ib(default=SpecifierSet())  # type: Optional[SpecifierSet]
+
+
+@attr.s(frozen=True)
 class DistMetadata(object):
     @classmethod
     def from_metadata_files(cls, metadata_files):
         # type: (MetadataFiles) -> DistMetadata
         return cls(
             files=metadata_files,
-            project_name=metadata_files.metadata.project_name,
-            version=metadata_files.metadata.version,
-            requires_dists=tuple(requires_dists(metadata_files)),
-            requires_python=requires_python(metadata_files),
+            project_metadata=ProjectMetadata(
+                project_name=metadata_files.metadata.project_name,
+                version=metadata_files.metadata.version,
+                requires_dists=tuple(requires_dists(metadata_files)),
+                requires_python=requires_python(metadata_files),
+            ),
         )
 
     @classmethod
@@ -980,10 +990,27 @@ class DistMetadata(object):
         return cls.from_metadata_files(metadata_files)
 
     files = attr.ib(eq=False)  # type: MetadataFiles
-    project_name = attr.ib()  # type: ProjectName
-    version = attr.ib()  # type: Version
-    requires_dists = attr.ib(default=())  # type: Tuple[Requirement, ...]
-    requires_python = attr.ib(default=SpecifierSet())  # type: Optional[SpecifierSet]
+    project_metadata = attr.ib()  # type: ProjectMetadata
+
+    @property
+    def project_name(self):
+        # type: () -> ProjectName
+        return self.project_metadata.project_name
+
+    @property
+    def version(self):
+        # type: () -> Version
+        return self.project_metadata.version
+
+    @property
+    def requires_dists(self):
+        # type: () -> Tuple[Requirement, ...]
+        return self.project_metadata.requires_dists
+
+    @property
+    def requires_python(self):
+        # type: () -> Optional[SpecifierSet]
+        return self.project_metadata.requires_python
 
     @property
     def type(self):

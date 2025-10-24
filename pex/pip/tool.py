@@ -491,9 +491,7 @@ class Pip(object):
         # since Pip relies upon `shutil.move` which is only atomic when `os.rename` can be used.
         # See https://github.com/pex-tool/pex/issues/1776 for an example of the issues non-atomic
         # moves lead to in the `pip wheel` case.
-        pip_tmpdir = os.path.join(self.cache_dir, ".tmp")
-        safe_mkdir(pip_tmpdir)
-        extra_env.update(TMPDIR=pip_tmpdir)
+        extra_env.update(TMPDIR=safe_mkdtemp(dir=safe_mkdir(self.cache_dir), prefix=".tmp."))
 
         with ENV.strip().patch(
             PEX_ROOT=ENV.PEX_ROOT,
@@ -584,6 +582,47 @@ class Pip(object):
         if not build_configuration.build_isolation:
             yield "--no-build-isolation"
 
+    def spawn_report(
+        self,
+        report_path,  # type: str
+        requirements=None,  # type: Optional[Iterable[str]]
+        requirement_files=None,  # type: Optional[Iterable[str]]
+        constraint_files=None,  # type: Optional[Iterable[str]]
+        allow_prereleases=False,  # type: bool
+        transitive=True,  # type: bool
+        target=None,  # type: Optional[Target]
+        package_index_configuration=None,  # type: Optional[PackageIndexConfiguration]
+        build_configuration=BuildConfiguration(),  # type: BuildConfiguration
+        observer=None,  # type: Optional[DownloadObserver]
+        dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
+        universal_target=None,  # type: Optional[UniversalTarget]
+        log=None,  # type: Optional[str]
+    ):
+        # type: (...) -> Job
+        report_cmd = [
+            "install",
+            "--no-clean",
+            "--dry-run",
+            "--ignore-installed",
+            "--report",
+            report_path,
+        ]
+        return self._spawn_install_compatible_command(
+            cmd=report_cmd,
+            requirements=requirements,
+            requirement_files=requirement_files,
+            constraint_files=constraint_files,
+            allow_prereleases=allow_prereleases,
+            transitive=transitive,
+            target=target,
+            package_index_configuration=package_index_configuration,
+            build_configuration=build_configuration,
+            observer=observer,
+            dependency_configuration=dependency_configuration,
+            universal_target=universal_target,
+            log=log,
+        )
+
     def spawn_download_distributions(
         self,
         download_dir,  # type: str
@@ -601,32 +640,66 @@ class Pip(object):
         log=None,  # type: Optional[str]
     ):
         # type: (...) -> Job
-        target = target or targets.current()
 
         download_cmd = ["download", "--dest", download_dir]
+        return self._spawn_install_compatible_command(
+            cmd=download_cmd,
+            requirements=requirements,
+            requirement_files=requirement_files,
+            constraint_files=constraint_files,
+            allow_prereleases=allow_prereleases,
+            transitive=transitive,
+            target=target,
+            package_index_configuration=package_index_configuration,
+            build_configuration=build_configuration,
+            observer=observer,
+            dependency_configuration=dependency_configuration,
+            universal_target=universal_target,
+            log=log,
+        )
+
+    def _spawn_install_compatible_command(
+        self,
+        cmd,  # type: List[str]
+        requirements=None,  # type: Optional[Iterable[str]]
+        requirement_files=None,  # type: Optional[Iterable[str]]
+        constraint_files=None,  # type: Optional[Iterable[str]]
+        allow_prereleases=False,  # type: bool
+        transitive=True,  # type: bool
+        target=None,  # type: Optional[Target]
+        package_index_configuration=None,  # type: Optional[PackageIndexConfiguration]
+        build_configuration=BuildConfiguration(),  # type: BuildConfiguration
+        observer=None,  # type: Optional[DownloadObserver]
+        dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
+        universal_target=None,  # type: Optional[UniversalTarget]
+        log=None,  # type: Optional[str]
+    ):
+        # type: (...) -> Job
+        target = target or targets.current()
+
         extra_env = {}  # type: Dict[str, str]
         pex_extra_sys_path = []  # type: List[str]
 
-        download_cmd.extend(self._iter_build_configuration_options(build_configuration))
+        cmd.extend(self._iter_build_configuration_options(build_configuration))
         if not build_configuration.build_isolation:
             pex_extra_sys_path.extend(sys.path)
 
         if allow_prereleases:
-            download_cmd.append("--pre")
+            cmd.append("--pre")
 
         if not transitive:
-            download_cmd.append("--no-deps")
+            cmd.append("--no-deps")
 
         if requirement_files:
             for requirement_file in requirement_files:
-                download_cmd.extend(["--requirement", requirement_file])
+                cmd.extend(["--requirement", requirement_file])
 
         if constraint_files:
             for constraint_file in constraint_files:
-                download_cmd.extend(["--constraint", constraint_file])
+                cmd.extend(["--constraint", constraint_file])
 
         if requirements:
-            download_cmd.extend(requirements)
+            cmd.extend(requirements)
 
         foreign_platform_observer = foreign_platform.patch(target)
         if (
@@ -722,7 +795,7 @@ class Pip(object):
                 tailer.stop()
 
         command, process = self._spawn_pip_isolated(
-            download_cmd,
+            cmd,
             package_index_configuration=package_index_configuration,
             interpreter=target.get_interpreter(),
             log=log,

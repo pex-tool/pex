@@ -8,6 +8,7 @@ import functools
 import glob
 import hashlib
 import itertools
+import json
 import os
 import tarfile
 import zipfile
@@ -30,6 +31,7 @@ from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import (
     DistMetadata,
     Distribution,
+    ProjectMetadata,
     Requirement,
     is_tar_sdist,
     is_wheel,
@@ -43,6 +45,7 @@ from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.pep_425 import CompatibilityTags
 from pex.pep_427 import InstallableType, WheelError, install_wheel_chroot
+from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pip.download_observer import DownloadObserver
 from pex.pip.installation import get_pip
@@ -63,6 +66,7 @@ from pex.resolve.resolvers import (
 )
 from pex.resolve.target_system import TargetSystem, UniversalTarget
 from pex.targets import AbbreviatedPlatform, CompletePlatform, LocalInterpreter, Target, Targets
+from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.third_party.packaging.tags import Tag
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
@@ -239,7 +243,52 @@ class PipLogManager(object):
 
 
 @attr.s(frozen=True)
-class _DownloadSession(object):
+class Report(object):
+    @classmethod
+    def parse(
+        cls,
+        download_target,  # type: DownloadTarget
+        report,  # type: str
+    ):
+        # type: (...) -> Report
+
+        with open(report) as fp:
+            data = json.load(fp)
+
+        project_metadata = []  # type: List[ProjectMetadata]
+        for distribution in data["install"]:
+            metadata = distribution["metadata"]
+            project_metadata.append(
+                ProjectMetadata(
+                    project_name=ProjectName(metadata["name"]),
+                    version=Version(metadata["version"]),
+                    requires_python=SpecifierSet(metadata.get("requires_python", "")),
+                    requires_dists=tuple(
+                        Requirement.parse(requirement)
+                        for requirement in metadata.get("requires_dist", ())
+                    ),
+                )
+            )
+        return cls(
+            download_target=download_target,
+            metadata={metadata.project_name: metadata for metadata in project_metadata},
+        )
+
+    download_target = attr.ib()  # type: DownloadTarget
+    metadata = attr.ib()  # type: Mapping[ProjectName, ProjectMetadata]
+
+
+@attr.s(frozen=True)
+class Reports(object):
+    reports = attr.ib(default=())  # type: Tuple[Report, ...]
+
+    def __iter__(self):
+        # type: () -> Iterator[Report]
+        return iter(self.reports)
+
+
+@attr.s(frozen=True)
+class _PipSession(object):
     requests = attr.ib(converter=_uniqued_download_requests)  # type: Tuple[DownloadRequest, ...]
     direct_requirements = attr.ib()  # type: Iterable[ParsedRequirement]
     allow_prereleases = attr.ib(default=False)  # type: bool
@@ -266,8 +315,108 @@ class _DownloadSession(object):
                         pip_version=self.pip_version,
                     )
 
+    def generate_reports(self, max_parallel_jobs=None):
+        # type: (Optional[int]) -> Reports
+
+        if not self.requests or not any(request.has_requirements for request in self.requests):
+            # Nothing to report.
+            return Reports()
+
+        dest = safe_mkdtemp(
+            prefix="resolver_report.", dir=safe_mkdir(CacheDir.DOWNLOADS.path(".tmp"))
+        )
+
+        log_manager = PipLogManager.create(
+            self.pip_log,
+            download_targets=tuple(request.download_target for request in self.requests),
+        )
+        if self.pip_log and not self.pip_log.user_specified:
+            TRACER.log(
+                "Preserving `pip install --dry-run` log at {log_path}".format(
+                    log_path=self.pip_log.path
+                ),
+                V=ENV.PEX_VERBOSE,
+            )
+
+        spawn_report = functools.partial(
+            self._spawn_report, resolved_target_dir=dest, log_manager=log_manager
+        )
+        with TRACER.timed(
+            "Resolving for:\n  {}".format(
+                "\n  ".join(request.render_description() for request in self.requests)
+            )
+        ):
+            try:
+                return Reports(
+                    reports=tuple(
+                        Report.parse(download_request.download_target, report)
+                        for download_request, report in zip(
+                            self.requests,
+                            execute_parallel(
+                                inputs=self.requests,
+                                spawn_func=spawn_report,
+                                error_handler=Raise[DownloadRequest, str](Unsatisfiable),
+                                max_jobs=max_parallel_jobs,
+                            ),
+                        )
+                    )
+                )
+            finally:
+                log_manager.finalize_log()
+
+    def _spawn_report(
+        self,
+        request,  # type: DownloadRequest
+        resolved_target_dir,  # type: str
+        log_manager,  # type: PipLogManager
+    ):
+        # type: (...) -> SpawnedJob[str]
+
+        report_dir = safe_mkdir(
+            os.path.join(resolved_target_dir, request.download_target.id(complete=True))
+        )
+        report = os.path.join(report_dir, "pip-report.json")
+        download_target = request.download_target
+        observer = (
+            self.observer.observe_download(
+                download_target=download_target, download_dir=resolved_target_dir
+            )
+            if self.observer
+            else None
+        )
+
+        target = download_target.target
+
+        download_job = get_pip(
+            interpreter=target.get_interpreter(),
+            version=self.pip_version,
+            resolver=self.resolver,
+            extra_requirements=(
+                self.package_index_configuration.extra_pip_requirements
+                if self.package_index_configuration
+                else ()
+            ),
+        ).spawn_report(
+            report_path=report,
+            requirements=request.requirements,
+            requirement_files=request.requirement_files,
+            constraint_files=request.constraint_files,
+            allow_prereleases=self.allow_prereleases,
+            transitive=self.transitive,
+            target=target,
+            package_index_configuration=self.package_index_configuration,
+            build_configuration=self.build_configuration,
+            observer=observer,
+            dependency_configuration=self.dependency_configuration,
+            universal_target=download_target.universal_target,
+            log=log_manager.get_log(download_target),
+        )
+
+        return SpawnedJob.wait(job=download_job, result=report)
+
     def download_distributions(self, dest=None, max_parallel_jobs=None):
         # type: (...) -> List[DownloadResult]
+
         if not self.requests or not any(request.has_requirements for request in self.requests):
             # Nothing to resolve.
             return []
@@ -1515,7 +1664,7 @@ def _download_internal(
 ):
     # type: (...) -> Tuple[List[BuildRequest], List[DownloadResult]]
 
-    download_session = _DownloadSession(
+    pip_session = _PipSession(
         requests=requests,
         direct_requirements=direct_requirements,
         allow_prereleases=allow_prereleases,
@@ -1529,8 +1678,8 @@ def _download_internal(
         dependency_configuration=dependency_configuration,
     )
 
-    local_projects = list(download_session.iter_local_projects())
-    download_results = download_session.download_distributions(
+    local_projects = list(pip_session.iter_local_projects())
+    download_results = pip_session.download_distributions(
         dest=dest, max_parallel_jobs=max_parallel_jobs
     )
     return local_projects, download_results
@@ -1780,3 +1929,51 @@ def download_requests(
             )
 
     return Downloaded(local_distributions=tuple(local_distributions))
+
+
+def reports(
+    requests,  # type: Tuple[DownloadRequest, ...]
+    direct_requirements,  # type: Tuple[ParsedRequirement, ...]
+    allow_prereleases=False,  # type: bool
+    transitive=True,  # type: bool
+    repos_configuration=ReposConfiguration(),  # type: ReposConfiguration
+    resolver_version=None,  # type: Optional[ResolverVersion.Value]
+    network_configuration=None,  # type: Optional[NetworkConfiguration]
+    build_configuration=BuildConfiguration(),  # type: BuildConfiguration
+    max_parallel_jobs=None,  # type: Optional[int]
+    observer=None,  # type: Optional[ResolveObserver]
+    pip_log=None,  # type: Optional[PipLog]
+    pip_version=None,  # type: Optional[PipVersionValue]
+    resolver=None,  # type: Optional[Resolver]
+    use_pip_config=False,  # type: bool
+    extra_pip_requirements=(),  # type: Tuple[Requirement, ...]
+    keyring_provider=None,  # type: Optional[str]
+    dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
+):
+    # type: (...) -> Reports
+
+    package_index_configuration = PackageIndexConfiguration.create(
+        pip_version=pip_version,
+        resolver_version=resolver_version,
+        repos_configuration=repos_configuration,
+        network_configuration=network_configuration,
+        use_pip_config=use_pip_config,
+        extra_pip_requirements=extra_pip_requirements,
+        keyring_provider=keyring_provider,
+    )
+
+    pip_session = _PipSession(
+        requests=requests,
+        direct_requirements=direct_requirements,
+        allow_prereleases=allow_prereleases,
+        transitive=transitive,
+        package_index_configuration=package_index_configuration,
+        build_configuration=build_configuration,
+        observer=observer,
+        pip_log=pip_log,
+        pip_version=pip_version,
+        resolver=resolver,
+        dependency_configuration=dependency_configuration,
+    )
+
+    return pip_session.generate_reports(max_parallel_jobs=max_parallel_jobs)
