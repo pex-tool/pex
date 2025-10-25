@@ -291,6 +291,16 @@ class Locker(LogAnalyzer):
     def _maybe_record_wheel(self, url):
         # type: (str) -> ArtifactURL
         artifact_url = self.parse_url_and_maybe_record_fingerprint(url)
+
+        # N.B.: Lock resolves driven by `pip install --dry-run --report` will only consult PEP-658
+        # `.whl.metadata` side-car files in the happy path; so we must use these as a proxy for the
+        # `.whl` file they are paired with.
+        # See: https://peps.python.org/pep-0658/
+        if not self._lock_is_via_pip_download and artifact_url.url_info.path.endswith(".metadata"):
+            artifact_url = ArtifactURL.from_url_info(
+                artifact_url.url_info._replace(path=artifact_url.url_info.path[:-9])
+            )
+
         if artifact_url.is_wheel:
             pin, partial_artifact = self._extract_resolve_data(artifact_url)
 
