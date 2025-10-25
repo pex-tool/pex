@@ -224,7 +224,7 @@ def register_options(parser):
     )
     parser.add_argument(
         "--scie-pbs-free-threaded",
-        "--no-scie-free-threaded",
+        "--no-scie-pbs-free-threaded",
         dest="scie_pbs_free_threaded",
         default=False,
         type=bool,
