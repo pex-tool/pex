@@ -10,7 +10,7 @@ import re
 import shutil
 import sys
 from textwrap import dedent
-from typing import Optional
+from typing import Dict, Optional
 
 import pytest
 
@@ -20,7 +20,7 @@ from pex.executables import chmod_plus_x, is_script
 from pex.fetcher import URLFetcher
 from pex.layout import Layout
 from pex.orderedset import OrderedSet
-from pex.os import is_exe
+from pex.os import WINDOWS, is_exe
 from pex.pip.version import PipVersion
 from pex.scie import ScieStyle
 from pex.sysconfig import SysPlatform
@@ -331,7 +331,7 @@ def test_specified_science_binary(tmpdir):
 
     local_science_binary = os.path.join(str(tmpdir), "science")
     with open(local_science_binary, "wb") as write_fp, URLFetcher().get_body_stream(
-        "https://github.com/a-scie/lift/releases/download/v0.14.0/{binary}".format(
+        "https://github.com/a-scie/lift/releases/download/v0.15.0/{binary}".format(
             binary=SysPlatform.CURRENT.qualified_binary_name("science")
         )
     ) as read_fp:
@@ -375,7 +375,7 @@ def test_specified_science_binary(tmpdir):
         cached_science_binaries
     ), "Expected the local science binary to be used but not cached."
     assert (
-        "0.14.0"
+        "0.15.0"
         == subprocess.check_output(args=[local_science_binary, "--version"]).decode("utf-8").strip()
     )
 
@@ -1259,3 +1259,92 @@ def test_scie_eager_no_ptex(tmpdir):
 
     assert_ptex(expect_included=False, lazy=False)
     assert_ptex(expect_included=True, lazy=True)
+
+
+@skip_if_no_provider
+@pytest.mark.skipif(
+    IS_PYPY or sys.version_info[:2] < (3, 13),
+    reason="Free-threaded CPython is only available for Python >=3.13.",
+)
+def test_free_threaded_scie_requested(tmpdir):
+    # type: (Tempdir) -> None
+
+    def build_and_run_scie(*extra_args):
+        # type: (*str) -> Dict[str, Any]
+
+        scie = tmpdir.join("scie")
+        run_pex_command(
+            args=["--scie", "eager", "--scie-only", "-o", scie] + list(extra_args)
+        ).assert_success()
+        data = json.loads(
+            subprocess.check_output(
+                args=[
+                    scie,
+                    "-c",
+                    dedent(
+                        """\
+                        import json
+                        import sys
+                        import sysconfig
+
+
+                        json.dump(
+                            {
+                                "debug": sysconfig.get_config_var("Py_DEBUG"),
+                                "free-threaded": sysconfig.get_config_var("Py_GIL_DISABLED"),
+                            },
+                            sys.stdout,
+                        )
+                        """
+                    ),
+                ]
+            )
+        )
+        assert isinstance(data, dict)
+        return data
+
+    assert {"debug": 0, "free-threaded": 0} == build_and_run_scie()
+    assert {"debug": 0, "free-threaded": 1} == build_and_run_scie("--scie-pbs-free-threaded")
+    if not WINDOWS:
+        assert {"debug": 1, "free-threaded": 0} == build_and_run_scie("--scie-pbs-debug")
+        assert {"debug": 1, "free-threaded": 1} == build_and_run_scie(
+            "--scie-pbs-debug", "--scie-pbs-free-threaded"
+        )
+
+
+@skip_if_no_provider
+@pytest.mark.skipif(
+    IS_PYPY or sys.version_info[:2] < (3, 13),
+    reason="Free-threaded CPython is only available for Python >=3.13.",
+)
+def test_free_threaded_scie_auto_detected(tmpdir):
+    # type: (Tempdir) -> None
+
+    # N.B.: We need to run Pex with a free-threaded Python to get a free-threaded psutil wheel.
+    free_threaded_python = tmpdir.join("pythont")
+    run_pex_command(
+        args=[
+            "--scie",
+            "eager",
+            "--scie-only",
+            "--scie-pbs-free-threaded",
+            "-o",
+            free_threaded_python,
+        ]
+    ).assert_success()
+
+    scie = tmpdir.join("scie")
+    run_pex_command(
+        args=["--scie", "eager", "psutil", "--scie-only", "-o", scie], python=free_threaded_python
+    ).assert_success()
+
+    assert (
+        b"1"
+        == subprocess.check_output(
+            args=[
+                scie,
+                "-c",
+                "import psutil, sysconfig; print(sysconfig.get_config_var('Py_GIL_DISABLED'))",
+            ]
+        ).strip()
+    )

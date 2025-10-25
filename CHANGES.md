@@ -1,5 +1,14 @@
 # Release Notes
 
+## 2.65.0
+
+This release adds support for PEX scies using CPython free-threaded builds. Most such scies should
+be able to auto-detect when a free-threaded CPython is needed, but new `--scie-pbs-free-threaded`
+and `--scie-pbs-debug` options have been added to explicitly request the desired PBS CPython build
+as well.
+
+* Support free-threaded PEX scies. (#2967)
+
 ## 2.64.1
 
 This release is a follow-up to 2.64.0 to fix a regression in locks for credentialed VCS

@@ -223,6 +223,32 @@ def register_options(parser):
         ),
     )
     parser.add_argument(
+        "--scie-pbs-free-threaded",
+        "--no-scie-pbs-free-threaded",
+        dest="scie_pbs_free_threaded",
+        default=False,
+        type=bool,
+        action=HandleBoolAction,
+        help=(
+            "Should the Python Standalone Builds CPython distributions be free-threaded. If left "
+            "unspecified or otherwise turned off, creating a scie from a PEX with free-threaded "
+            "abi wheels will automatically turn this option on. Note that this option is not "
+            "compatible with `--scie-pbs-stripped`."
+        ),
+    )
+    parser.add_argument(
+        "--scie-pbs-debug",
+        "--no-scie-pbs-debug",
+        dest="scie_pbs_debug",
+        default=False,
+        type=bool,
+        action=HandleBoolAction,
+        help=(
+            "Should the Python Standalone Builds CPython distributions be debug builds. Note that "
+            "this option is not compatible with `--scie-pbs-stripped`."
+        ),
+    )
+    parser.add_argument(
         "--scie-pbs-stripped",
         "--no-scie-pbs-stripped",
         dest="scie_pbs_stripped",
@@ -232,7 +258,8 @@ def register_options(parser):
         help=(
             "Should the Python Standalone Builds CPython distributions used be stripped of debug "
             "symbols or not. For Linux and Windows particularly, the stripped distributions are "
-            "less than half the size of the distributions that ship with debug symbols."
+            "less than half the size of the distributions that ship with debug symbols. Note that"
+            "this option is not compatible with `--scie-pbs-free-threaded` or `--scie-pbs-debug`."
         ),
     )
     parser.add_argument(
@@ -318,6 +345,10 @@ def render_options(options):
     if options.python_version:
         args.append("--scie-python-version")
         args.append(".".join(map(str, options.python_version)))
+    if options.pbs_free_threaded:
+        args.append("--scie-pbs-free-threaded")
+    if options.pbs_debug:
+        args.append("--scie-pbs-debug")
     if options.pbs_stripped:
         args.append("--scie-pbs-stripped")
     for hash_algorithm in options.hash_algorithms:
@@ -398,6 +429,12 @@ def extract_options(options):
                 )
             )
 
+    if options.scie_pbs_stripped and (options.scie_pbs_free_threaded or options.scie_pbs_debug):
+        raise ValueError(
+            "Python Standalone Builds does not release stripped distributions for debug or "
+            "free-threaded builds."
+        )
+
     science_binary = None  # type: Optional[Union[File, Url]]
     if options.scie_science_binary:
         url_info = urlparse.urlparse(options.scie_science_binary)
@@ -420,6 +457,8 @@ def extract_options(options):
         pbs_release=options.scie_pbs_release,
         pypy_release=options.scie_pypy_release,
         python_version=python_version,
+        pbs_free_threaded=options.scie_pbs_free_threaded,
+        pbs_debug=options.scie_pbs_debug,
         pbs_stripped=options.scie_pbs_stripped,
         hash_algorithms=tuple(options.scie_hash_algorithms),
         science_binary=science_binary,

@@ -303,6 +303,8 @@ class ScieOptions(object):
     python_version = attr.ib(
         default=None
     )  # type: Optional[Union[Tuple[int, int], Tuple[int, int, int]]]
+    pbs_free_threaded = attr.ib(default=False)  # type: bool
+    pbs_debug = attr.ib(default=False)  # type: bool
     pbs_stripped = attr.ib(default=False)  # type: bool
     hash_algorithms = attr.ib(default=())  # type: Tuple[str, ...]
     science_binary = attr.ib(default=None)  # type: Optional[Union[File, Url]]

@@ -24,6 +24,7 @@ from pex.hashing import Sha256
 from pex.os import is_exe
 from pex.pep_440 import Version
 from pex.pex import PEX
+from pex.pex_info import PexInfo
 from pex.result import Error, try_
 from pex.scie.model import (
     File,
@@ -37,6 +38,7 @@ from pex.scie.model import (
 )
 from pex.sysconfig import SysPlatform
 from pex.third_party.packaging.specifiers import SpecifierSet
+from pex.third_party.packaging.utils import parse_wheel_filename
 from pex.third_party.packaging.version import InvalidVersion
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
@@ -66,7 +68,7 @@ class Manifest(object):
 
 
 SCIENCE_RELEASES_URL = "https://github.com/a-scie/lift/releases"
-MIN_SCIENCE_VERSION = Version("0.14.0")
+MIN_SCIENCE_VERSION = Version("0.15.0")
 SCIENCE_REQUIREMENT = SpecifierSet("~={min_version}".format(min_version=MIN_SCIENCE_VERSION))
 
 
@@ -102,6 +104,16 @@ class Filenames(Enum["Filenames.Value"]):
 
 
 Filenames.seal()
+
+
+def _is_free_threaded_pex(pex_info):
+    # type: (PexInfo) -> bool
+    for distribution in pex_info.distributions:
+        _, _, _, tags = parse_wheel_filename(os.path.basename(distribution))
+        for tag in tags:
+            if tag.abi.startswith(("cp", "abi3")) and "t" in tag.abi:
+                return True
+    return False
 
 
 def create_manifests(
@@ -270,6 +282,7 @@ def create_manifests(
     }
 
     configure_binding_args = [Filenames.PEX.placeholder, Filenames.CONFIGURE_BINDING.placeholder]
+    pbs_free_threaded = _is_free_threaded_pex(pex_info) or configuration.options.pbs_free_threaded
     for interpreter in configuration.interpreters:
         lift = lift_template.copy()
 
@@ -285,10 +298,17 @@ def create_manifests(
             interpreter.platform.qualified_file_name("{name}-lift.toml".format(name=name)),
         )
 
+        version_str = interpreter.version_str
+        if Provider.PythonBuildStandalone is interpreter.provider:
+            if configuration.options.pbs_debug:
+                version_str += "d"
+            if pbs_free_threaded:
+                version_str += "t"
+
         interpreter_config = {
             "id": "python-distribution",
             "provider": interpreter.provider.value,
-            "version": interpreter.version_str,
+            "version": version_str,
             "lazy": configuration.options.style is ScieStyle.LAZY,
         }
         if interpreter.release:
@@ -297,7 +317,9 @@ def create_manifests(
             interpreter_config["base_url"] = "/".join(
                 (configuration.options.assets_base_url, "providers", str(interpreter.provider))
             )
-        if Provider.PythonBuildStandalone is interpreter.provider:
+        if Provider.PythonBuildStandalone is interpreter.provider and not (
+            configuration.options.pbs_debug or pbs_free_threaded
+        ):
             interpreter_config.update(
                 flavor=(
                     "install_only_stripped"

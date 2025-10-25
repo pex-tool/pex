@@ -5,12 +5,14 @@ FROM ubuntu:24.04
 # See: https://github.com/pyenv/pyenv/wiki#suggested-build-environment
 # Additionally, some sdists need cargo to build native extensions and we need add-apt-repository
 # from software-properties-common to install the deadsnakes ppa and ssh for integration tests to
-# use.
+# use. We also install clang since its the compiler toolchain configured for PBS CPythons used in
+# some tests.
 RUN apt update && \
   DEBIAN_FRONTEND=noninteractive apt upgrade --yes && \
   DEBIAN_FRONTEND=noninteractive apt install --yes --no-install-recommends \
     build-essential \
     cargo \
+    clang \
     curl \
     git \
     libbz2-dev \
@@ -22,6 +24,8 @@ RUN apt update && \
     libssl-dev \
     libxml2-dev \
     libxmlsec1-dev \
+    python3.12-dev \
+    python3.12-venv \
     software-properties-common \
     ssh \
     tk-dev \
