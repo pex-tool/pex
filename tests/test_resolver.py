@@ -16,6 +16,7 @@ from pex.build_system.pep_517 import build_sdist
 from pex.common import safe_copy, safe_mkdtemp, temporary_dir
 from pex.dist_metadata import Distribution, Requirement
 from pex.interpreter import PythonInterpreter
+from pex.pep_427 import InstallableType
 from pex.pip.version import PipVersion
 from pex.resolve import abbreviated_platforms
 from pex.resolve.configured_resolver import ConfiguredResolver
@@ -41,6 +42,7 @@ from testing import (
     make_source_dir,
     subprocess,
 )
+from testing.pytest_utils.tmp import Tempdir
 
 if TYPE_CHECKING:
     from typing import Any, DefaultDict, Iterable, Iterator, List, Union
@@ -259,23 +261,32 @@ def _parse_requirement(req):
     return Requirement.parse(req)
 
 
-def test_resolve_extra_setup_py():
-    # type: () -> None
+def test_resolve_extra_setup_py(tmpdir):
+    # type: (Tempdir) -> None
     with make_source_dir(
         name="project1", version="1.0.0", extras_require={"foo": ["project2"]}
     ) as project1_dir:
         project2_wheel = build_wheel(name="project2", version="2.0.0")
-        with temporary_dir() as td:
-            safe_copy(project2_wheel, os.path.join(td, os.path.basename(project2_wheel)))
-
-            resolved_dists = local_resolve(
-                requirements=["{}[foo]".format(project1_dir)],
-                repos_configuration=ReposConfiguration.create(find_links=[Repo(td)]),
+        safe_copy(project2_wheel, tmpdir.join(os.path.basename(project2_wheel)))
+        result = resolve(
+            requirements=["setuptools"],
+            build_configuration=BuildConfiguration.create(allow_builds=False),
+            result_type=InstallableType.WHEEL_FILE,
+        )
+        for resolved_dist in result.distributions:
+            safe_copy(
+                resolved_dist.distribution.location,
+                tmpdir.join(os.path.basename(resolved_dist.distribution.location)),
             )
-            assert {_parse_requirement(req) for req in ("project1==1.0.0", "project2==2.0.0")} == {
-                _parse_requirement(resolved_dist.distribution.as_requirement())
-                for resolved_dist in resolved_dists
-            }
+
+        resolved_dists = local_resolve(
+            requirements=["{}[foo]".format(project1_dir)],
+            repos_configuration=ReposConfiguration.create(find_links=[Repo(tmpdir.path)]),
+        )
+        assert {_parse_requirement(req) for req in ("project1==1.0.0", "project2==2.0.0")} == {
+            _parse_requirement(resolved_dist.distribution.as_requirement())
+            for resolved_dist in resolved_dists
+        }
 
 
 def test_resolve_extra_wheel():
