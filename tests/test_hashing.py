@@ -2,16 +2,22 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import hashlib
+import os.path
 
 import pytest
 
+from pex.common import is_pyc_file, open_zip
 from pex.hashing import (
     HashlibHasher,
     MultiDigest,
     Sha1Fingerprint,
+    Sha256,
     Sha256Fingerprint,
+    dir_hash,
     new_fingerprint,
+    zip_hash,
 )
+from testing.pytest_utils.tmp import Tempdir
 
 
 def test_fingerprint_equality():
@@ -69,3 +75,50 @@ def test_hasher():
     fingerprint = hasher.hexdigest()
     assert isinstance(fingerprint, Sha1Fingerprint)
     assert fingerprint == Sha1Fingerprint(sha1.hexdigest())
+
+
+def test_zip_hash_consistent_with_dir_hash(
+    tmpdir,  # type: Tempdir
+    pex_project_dir,  # type str
+):
+    # type: (...) -> None
+
+    zip_file = os.path.join(
+        pex_project_dir, "tests", "example_packages", "aws_cfn_bootstrap-1.4-py2-none-any.whl"
+    )
+
+    dir_filter = lambda dir_path: os.path.basename(dir_path) != "resources"
+    file_filter = lambda f: not is_pyc_file(f)
+
+    zip_digest = Sha256()
+    zip_hash(zip_path=zip_file, digest=zip_digest, dir_filter=dir_filter, file_filter=file_filter)
+
+    relpath_zip_digest = Sha256()
+    zip_hash(
+        zip_path=zip_file,
+        digest=relpath_zip_digest,
+        relpath="cfnbootstrap",
+        dir_filter=dir_filter,
+        file_filter=file_filter,
+    )
+
+    unzipped_dir = tmpdir.join("unzipped")
+    with open_zip(zip_file) as zf:
+        zf.extractall(unzipped_dir)
+
+    dir_digest = Sha256()
+    dir_hash(
+        directory=unzipped_dir, digest=dir_digest, dir_filter=dir_filter, file_filter=file_filter
+    )
+
+    relpath_dir_digest = Sha256()
+    dir_hash(
+        directory=os.path.join(unzipped_dir, "cfnbootstrap"),
+        digest=relpath_dir_digest,
+        dir_filter=dir_filter,
+        file_filter=file_filter,
+    )
+
+    assert dir_digest.hexdigest() == zip_digest.hexdigest()
+    assert dir_digest.hexdigest() != relpath_dir_digest.hexdigest()
+    assert relpath_dir_digest.hexdigest() == relpath_zip_digest.hexdigest()
