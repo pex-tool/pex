@@ -470,10 +470,7 @@ class PEXBuilder(object):
     def _prepare_code(self):
         chroot_path = self._chroot.path()
         self._pex_info.code_hash = CacheHelper.pex_code_hash(
-            chroot_path,
-            exclude_dirs=tuple(
-                os.path.join(chroot_path, d) for d in (layout.BOOTSTRAP_DIR, layout.DEPS_DIR)
-            ),
+            chroot_path, exclude_dirs=(layout.BOOTSTRAP_DIR, layout.DEPS_DIR)
         )
         self._pex_info.pex_hash = hashlib.sha1(self._pex_info.dump().encode("utf-8")).hexdigest()
         self._chroot.write(self._pex_info.dump().encode("utf-8"), PexInfo.PATH, label="manifest")

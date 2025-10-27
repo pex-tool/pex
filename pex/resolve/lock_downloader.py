@@ -154,6 +154,7 @@ class VCSArtifactDownloadManager(DownloadManager[VCSArtifact]):
         local_distribution = downloaded_vcs.local_distributions[0]
         filename = os.path.basename(local_distribution.path)
         digest_vcs_archive(
+            project_name=project_name,
             archive_path=local_distribution.path,
             vcs=artifact.vcs,
             digest=digest,

@@ -371,8 +371,8 @@ class Locker(LogAnalyzer):
                 if isinstance(artifact_url.scheme, VCSScheme):
                     source_fingerprint, archive_path = fingerprint_downloaded_vcs_archive(
                         download_dir=self._download_dir,
-                        project_name=str(build_result.pin.project_name),
-                        version=str(build_result.pin.version),
+                        project_name=build_result.pin.project_name,
+                        version=build_result.pin.version,
                         vcs=artifact_url.scheme.vcs,
                     )
                     verified = True
