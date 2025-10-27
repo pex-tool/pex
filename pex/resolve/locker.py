@@ -455,6 +455,7 @@ class Locker(LogAnalyzer):
                 if isinstance(artifact_url.scheme, VCSScheme):
                     digest = Sha256()
                     digest_vcs_repo(
+                        project_name=build_result.pin.project_name,
                         repo_path=build_result.path,
                         vcs=artifact_url.scheme.vcs,
                         digest=digest,
