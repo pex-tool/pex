@@ -8,6 +8,7 @@ from textwrap import dedent
 import pytest
 
 from pex.common import safe_open, touch
+from pex.pip.version import PipVersion
 from pex.typing import TYPE_CHECKING
 from testing import (
     IntegResults,
@@ -88,12 +89,14 @@ def test_pep_517_for_pep_517_project():
     build_pex().assert_success()
     build_pex("--force-pep517").assert_success()
 
-    result = build_pex("--no-use-pep517")
-    result.assert_failure()
-    assert (
-        "ERROR: Disabling PEP 517 processing is invalid: project does not have a setup.py"
-        in result.error
-    )
+    # N.B.: In 25.3 `--use-pep517` became the default and only option.
+    if PipVersion.DEFAULT < PipVersion.v25_3:
+        result = build_pex("--no-use-pep517")
+        result.assert_failure()
+        assert (
+            "ERROR: Disabling PEP 517 processing is invalid: project does not have a setup.py"
+            in result.error
+        )
 
 
 def test_pep_517_for_legacy_project():
@@ -108,4 +111,7 @@ def test_pep_517_for_legacy_project():
 
     assert_build_pex()
     assert_build_pex("--use-pep517")
-    assert_build_pex("--no-use-pep517")
+
+    # N.B.: In 25.3 `--use-pep517` became the default and only option.
+    if PipVersion.DEFAULT < PipVersion.v25_3:
+        assert_build_pex("--no-use-pep517")

@@ -24,11 +24,16 @@ if TYPE_CHECKING:
     from pex.hashing import HintedDigest
 
 
+def _project_name_re(project_name):
+    # type: (ProjectName) -> str
+    return project_name.normalized.replace("-", "[-_.]+")
+
+
 def _built_source_dist_pattern(project_name):
     # type: (ProjectName) -> Pattern
     return re.compile(
-        r"(?P<project_name>{project_name})-(?P<version>.+)\.zip".format(
-            project_name=project_name.normalized.replace("-", "[-_.]+")
+        r"(?P<project_name>{project_name_re})-(?P<version>.+)\.zip".format(
+            project_name_re=_project_name_re(project_name)
         ),
         re.IGNORECASE,
     )
@@ -78,8 +83,11 @@ def fingerprint_downloaded_vcs_archive(
     return Fingerprint.from_digest(digest), archive_path
 
 
-def _vcs_dir_filter(vcs):
-    # type: (VCS.Value) -> Callable[[Text], bool]
+def _vcs_dir_filter(
+    vcs,  # type: VCS.Value
+    project_name,  # type: ProjectName
+):
+    # type: (...) -> Callable[[Text], bool]
 
     # Ignore VCS control directories for the purposes of fingerprinting the version controlled
     # source tree. VCS control directories can contain non-reproducible content (Git at least
@@ -92,9 +100,26 @@ def _vcs_dir_filter(vcs):
     # hashes the same.
     vcs_control_dir = ".{vcs}".format(vcs=vcs)
 
-    return lambda dir_path: (
-        not is_pyc_dir(dir_path) and os.path.basename(dir_path) != vcs_control_dir
+    # N.B.: If the VCS project uses setuptools as its build backend, depending on the version of
+    # Pip used, the VCS checkout can have a `<project name>.egg-info/` directory littering its root
+    # left over from Pip generating project metadata to determine version and dependencies. No other
+    # well known build-backend has this problem at this time (checked hatchling, poetry-core,
+    # pdm-backend and uv_build).
+    # C.F.: https://github.com/pypa/pip/pull/13602
+    egg_info_dir_re = re.compile(
+        r"^{project_name_re}\.egg-info$".format(project_name_re=_project_name_re(project_name)),
+        re.IGNORECASE,
     )
+
+    def vcs_dir_filter(dir_path):
+        # type: (Text) -> bool
+        if is_pyc_dir(dir_path):
+            return False
+
+        base_dir_name = dir_path.split(os.sep)[0]
+        return base_dir_name != vcs_control_dir and not egg_info_dir_re.match(base_dir_name)
+
+    return vcs_dir_filter
 
 
 def _vcs_file_filter(vcs):
@@ -132,12 +157,13 @@ def digest_vcs_archive(
         zip_path=archive_path,
         digest=digest,
         relpath=top_dir,
-        dir_filter=_vcs_dir_filter(vcs),
+        dir_filter=_vcs_dir_filter(vcs, project_name),
         file_filter=_vcs_file_filter(vcs),
     )
 
 
 def digest_vcs_repo(
+    project_name,  # type: ProjectName
     repo_path,  # type: str
     vcs,  # type: VCS.Value
     digest,  # type: HintedDigest
@@ -148,6 +174,6 @@ def digest_vcs_repo(
     hashing.dir_hash(
         directory=os.path.join(repo_path, subdirectory) if subdirectory else repo_path,
         digest=digest,
-        dir_filter=_vcs_dir_filter(vcs),
+        dir_filter=_vcs_dir_filter(vcs, project_name),
         file_filter=_vcs_file_filter(vcs),
     )

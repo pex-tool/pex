@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.66.0
+
+This release adds support for `--pip-version 25.3`.
+
+* Add support for `--pip-version 25.3`. (#2968)
+
 ## 2.65.0
 
 This release adds support for PEX scies using CPython free-threaded builds. Most such scies should

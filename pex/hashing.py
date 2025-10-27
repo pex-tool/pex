@@ -290,12 +290,16 @@ def zip_hash(
                 dirs.add(dirname)
                 dirname = os.path.dirname(dirname)
 
-        accept_dirs = frozenset(d for d in dirs if dir_filter(d))
+        accept_dirs = frozenset(
+            d for d in dirs if dir_filter(os.path.relpath(d, relpath) if relpath else d)
+        )
         reject_dirs = tuple("{dir}/".format(dir=path) for path in (dirs - accept_dirs))
         accept_files = sorted(
             name
             for name in namelist
-            if not name.endswith("/") and not name.startswith(reject_dirs) and file_filter(name)
+            if not name.endswith("/")
+            and not name.startswith(reject_dirs)
+            and file_filter(os.path.relpath(name, relpath) if relpath else name)
         )
 
         hashed_names = (

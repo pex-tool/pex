@@ -88,10 +88,24 @@ def test_no_build_no_wheel_honored_pex(repo_args):
         re_flags=re.DOTALL,
     )
 
+    if PipVersion.DEFAULT >= PipVersion.v25_3:
+        # N.B.: Pip 25.3 is stricter and `--no-wheel`, which translates to Pip's
+        # `--no-binary :all:`, indicates not even build requirements, like setuptools and wheel,
+        # can come from wheels; so the sdist builds fail. As such we target just `only_sdist` and
+        # `both` for sdist builds.
+        no_wheel_args = [
+            "--only-build",
+            "only_sdist",
+            "--only-build",
+            "both",
+        ]
+    else:
+        no_wheel_args = ["--no-wheel"]
+
     run_pex_command(
         args=repo_args
+        + no_wheel_args
         + [
-            "--no-wheel",
             "only_sdist",
             "both",
             "--",

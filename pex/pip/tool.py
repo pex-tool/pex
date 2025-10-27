@@ -552,8 +552,7 @@ class Pip(object):
         )
         return Job(command=command, process=process, finalizer=finalizer, context="pip")
 
-    @staticmethod
-    def _iter_build_configuration_options(build_configuration):
+    def _iter_build_configuration_options(self, build_configuration):
         # type: (BuildConfiguration) -> Iterator[str]
 
         # N.B.: BuildConfiguration maintains invariants that ensure --only-binary, --no-binary,
@@ -576,7 +575,8 @@ class Pip(object):
         if build_configuration.prefer_older_binary:
             yield "--prefer-binary"
 
-        if build_configuration.use_pep517 is not None:
+        # N.B.: In 25.3 `--use-pep517` became the default and only option.
+        if build_configuration.use_pep517 is not None and self.version < PipVersion.v25_3:
             yield "--use-pep517" if build_configuration.use_pep517 else "--no-use-pep517"
 
         if not build_configuration.build_isolation:

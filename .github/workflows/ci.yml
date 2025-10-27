@@ -89,8 +89,8 @@ jobs:
           # Unit tests:
           # -----------
           - test-cmd: test-py27-pip20.3.4--patched
-          - test-cmd: test-py314-pip25.2
-          - test-cmd: test-py315-pip25.2
+          - test-cmd: test-py314-pip25.3
+          - test-cmd: test-py315-pip25.3
           - test-cmd: test-pypy311-pip24.3.1
 
           # Integration tests, split most into two shards:
@@ -104,14 +104,14 @@ jobs:
           - test-cmd: test-py38-pip22.3.1-integration
             pex-test-pos-args: --shard 2/2
 
-          - test-cmd: test-py314-pip25.2-integration
+          - test-cmd: test-py314-pip25.3-integration
             pex-test-pos-args: --shard 1/2
-          - test-cmd: test-py314-pip25.2-integration
+          - test-cmd: test-py314-pip25.3-integration
             pex-test-pos-args: --shard 2/2
 
-          - test-cmd: test-py315-pip25.2-integration
+          - test-cmd: test-py315-pip25.3-integration
             pex-test-pos-args: --shard 1/2
-          - test-cmd: test-py315-pip25.2-integration
+          - test-cmd: test-py315-pip25.3-integration
             pex-test-pos-args: --shard 2/2
 
           # PyPy is slow enough to require extra sharding.
@@ -162,12 +162,12 @@ jobs:
       matrix:
         include:
           - python-version: "3.14"
-            test-cmd: test-py314-pip25.2
+            test-cmd: test-py314-pip25.3
           - python-version: "3.14"
-            test-cmd: test-py314-pip25.2-integration
+            test-cmd: test-py314-pip25.3-integration
             pex-test-pos-args: --shard 1/2
           - python-version: "3.14"
-            test-cmd: test-py314-pip25.2-integration
+            test-cmd: test-py314-pip25.3-integration
             pex-test-pos-args: --shard 2/2
     steps:
       - name: Checkout Pex
@@ -253,19 +253,19 @@ jobs:
           - python-version: "3.11"
             test-cmd: typecheck package docs
           - python-version: "3.14"
-            test-cmd: test-py314-pip25.2
+            test-cmd: test-py314-pip25.3
             artifact-name: unit
             pex-test-pos-args: --junit-report ../dist/test-results/unit.xml
           - python-version: "3.14"
-            test-cmd: test-py314-pip25.2-integration
+            test-cmd: test-py314-pip25.3-integration
             artifact-name: integration-1
             pex-test-pos-args: --shard 1/3 --junit-report ../dist/test-results/integration-1.xml
           - python-version: "3.14"
-            test-cmd: test-py314-pip25.2-integration
+            test-cmd: test-py314-pip25.3-integration
             artifact-name: integration-2
             pex-test-pos-args: --shard 2/3 --junit-report ../dist/test-results/integration-2.xml
           - python-version: "3.14"
-            test-cmd: test-py314-pip25.2-integration
+            test-cmd: test-py314-pip25.3-integration
             artifact-name: integration-3
             pex-test-pos-args: --shard 3/3 --junit-report ../dist/test-results/integration-3.xml
     steps:
