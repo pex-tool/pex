@@ -1893,8 +1893,9 @@ def download_requests(
     def add_build_requests(requests):
         # type: (Iterable[BuildRequest]) -> None
         for request in requests:
-            fingerprint = request.fingerprint
-            if not fingerprint:
+            if request.fingerprint:
+                fingerprint = request.fingerprint
+            else:
                 production_assert(os.path.isdir(request.source_path))
                 fingerprint = _fingerprint_local_project(
                     path=request.source_path,
