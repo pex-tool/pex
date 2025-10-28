@@ -610,9 +610,10 @@ def _fingerprint_local_project(
 
         build_system_resolver = ConfiguredResolver.default()
 
+    hasher = _hasher()
     result = digest_local_project(
         directory=path,
-        digest=_hasher(),
+        digest=hasher,
         target=target,
         resolver=build_system_resolver,
         pip_version=pip_version,
@@ -622,7 +623,7 @@ def _fingerprint_local_project(
             "Failed to create an sdist for hashing from the local project at {path}: "
             "{err}".format(path=path, err=result)
         )
-    return result
+    return hasher.hexdigest()
 
 
 def _as_download_target(target):
