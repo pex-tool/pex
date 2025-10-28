@@ -101,19 +101,13 @@ def resolve_from_dists(
                 extra_pip_requirements=pip_configuration.extra_requirements,
                 keyring_provider=pip_configuration.keyring_provider,
             )
-            resolver = ConfiguredResolver(pip_configuration=pip_configuration)
             build_requests = [
                 BuildRequest.for_file(target=target, source_path=sdist)
                 for sdist in sdists
                 for target in unique_targets
             ]
             build_requests.extend(
-                BuildRequest.for_directory(
-                    target=target,
-                    source_path=local_project.path,
-                    resolver=resolver,
-                    pip_version=pip_configuration.version,
-                )
+                BuildRequest.for_directory(target=target, source_path=local_project.path)
                 for local_project in local_projects
                 for target in unique_targets
             )

@@ -357,8 +357,6 @@ class LockObserver(ResolveObserver):
                         target=local_distribution.download_target,
                         source_path=local_distribution.path,
                         subdirectory=local_distribution.subdirectory,
-                        resolver=self.resolver,
-                        pip_version=self.package_index_configuration.pip_version,
                     )
                 )
 
@@ -369,10 +367,7 @@ class LockObserver(ResolveObserver):
             lock_result = analysis.analyzer.lock_result
             build_requests.update(
                 BuildRequest.for_directory(
-                    target=analysis.download_target,
-                    source_path=local_project,
-                    resolver=self.resolver,
-                    pip_version=self.package_index_configuration.pip_version,
+                    target=analysis.download_target, source_path=local_project
                 )
                 for local_project in lock_result.local_projects
             )
