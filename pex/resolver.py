@@ -65,6 +65,7 @@ from pex.resolve.resolvers import (
     check_resolve,
 )
 from pex.resolve.target_system import TargetSystem, UniversalTarget
+from pex.result import Error
 from pex.targets import AbbreviatedPlatform, CompletePlatform, LocalInterpreter, Target, Targets
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.third_party.packaging.tags import Tag
@@ -591,12 +592,17 @@ def _fingerprint_directory(path):
     return CacheHelper.dir_hash(path, digest=_hasher())
 
 
+class BuildError(Exception):
+    pass
+
+
 def _fingerprint_local_project(
     path,  # type: str
     target,  # type: Target
     resolver=None,  # type: Optional[Resolver]
     pip_version=None,  # type: Optional[PipVersionValue]
 ):
+    # type: (...) -> str
     if resolver:
         build_system_resolver = resolver
     else:
@@ -604,17 +610,19 @@ def _fingerprint_local_project(
 
         build_system_resolver = ConfiguredResolver.default()
 
-    return digest_local_project(
+    result = digest_local_project(
         directory=path,
         digest=_hasher(),
         target=target,
         resolver=build_system_resolver,
         pip_version=pip_version,
     )
-
-
-class BuildError(Exception):
-    pass
+    if isinstance(result, Error):
+        raise BuildError(
+            "Failed to create an sdist for hashing from the local project at {path}: "
+            "{err}".format(path=path, err=result)
+        )
+    return result
 
 
 def _as_download_target(target):
