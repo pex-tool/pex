@@ -724,6 +724,19 @@ def iter_map_parallel(
     if not input_items:
         return
 
+    # We want each of the job slots to process MULTIPROCESSING_DEFAULT_MIN_AVERAGE_LOAD on
+    # average in order to overcome multiprocessing overheads. If we don't need at least 2 slots, we
+    # are unlikely to get any boost from multiprocessing.
+    needed_slots = len(input_items) // min_average_load
+    if needed_slots < 2:
+        for item in input_items:
+            yield function(item)
+        return
+
+    # Of course, if there are fewer available cores than that or the user has pinned max jobs lower,
+    # we clamp to that.
+    pool_size = min(needed_slots, _sanitize_max_jobs(max_jobs))
+
     if costing_function is not None:
         # We ensure no job slot is so unlucky as to get all the biggest jobs and thus become an
         # un-necessarily long pole by sorting based on cost. Some examples to illustrate the effect
@@ -739,12 +752,6 @@ def iter_map_parallel(
         #         [10, 6, 4, 3, 1, 1] -> slot1[10, 3] slot2[6, 4, 1, 1]: 13 long pole
         #
         input_items.sort(key=costing_function, reverse=True)
-
-    # We want each of the job slots above to process MULTIPROCESSING_DEFAULT_MIN_AVERAGE_LOAD on
-    # average in order to overcome multiprocessing overheads. Of course, if there are fewer
-    # available cores than that or the user has pinned max jobs lower, we clamp to that. Finally, we
-    # always want at least two slots to ensure we process input items in parallel.
-    pool_size = max(2, min(len(input_items) // min_average_load, _sanitize_max_jobs(max_jobs)))
 
     apply_function = functools.partial(_apply_function, function)
 

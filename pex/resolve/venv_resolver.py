@@ -5,14 +5,13 @@ from __future__ import absolute_import
 
 import functools
 import hashlib
-import itertools
 import os
 from collections import defaultdict, deque
 
 from pex import pex_warnings
 from pex.atomic_directory import atomic_directory
 from pex.cache.dirs import CacheDir, InstalledWheelDir
-from pex.common import safe_relative_symlink
+from pex.common import pluralize, safe_relative_symlink
 from pex.compatibility import commonpath
 from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import (
@@ -26,7 +25,6 @@ from pex.dist_metadata import (
 from pex.exceptions import production_assert, reportable_unexpected_error_msg
 from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.installed_wheel import InstalledWheel
-from pex.interpreter import PythonInterpreter
 from pex.jobs import DEFAULT_MAX_JOBS, iter_map_parallel
 from pex.orderedset import OrderedSet
 from pex.pep_376 import Record
@@ -47,7 +45,18 @@ from pex.wheel import WHEEL, Wheel
 from pex.whl import repacked_whl
 
 if TYPE_CHECKING:
-    from typing import DefaultDict, Deque, FrozenSet, Iterable, Iterator, List, Mapping, Set, Union
+    from typing import (
+        DefaultDict,
+        Deque,
+        FrozenSet,
+        Iterable,
+        Iterator,
+        List,
+        Mapping,
+        Set,
+        Tuple,
+        Union,
+    )
 
     import attr  # vendor:skip
 else:
@@ -96,12 +105,14 @@ def _normalize_record(
 
 
 def _install_distribution(
-    interpreter,  # type: PythonInterpreter
+    venv_distribution,  # type: VenvDistribution
     result_type,  # type: InstallableType.Value
     use_system_time,  # type: bool
-    distribution,  # type: Distribution
 ):
-    # type: (...) -> FingerprintedDistribution
+    # type: (...) -> ResolvedDistribution
+
+    interpreter = venv_distribution.target.interpreter
+    distribution = venv_distribution.distribution
 
     production_assert(distribution.type is DistributionType.INSTALLED)
     production_assert(distribution.metadata.files.metadata.type is MetadataType.DIST_INFO)
@@ -160,31 +171,86 @@ def _install_distribution(
         raise AssertionError(reportable_unexpected_error_msg())
 
     if result_type is InstallableType.INSTALLED_WHEEL_CHROOT:
-        return FingerprintedDistribution(
-            distribution=Distribution.load(installed_wheel.prefix_dir),
-            fingerprint=installed_wheel.fingerprint,
+        return ResolvedDistribution(
+            target=venv_distribution.target,
+            fingerprinted_distribution=FingerprintedDistribution(
+                distribution=Distribution.load(installed_wheel.prefix_dir),
+                fingerprint=installed_wheel.fingerprint,
+            ),
+            direct_requirements=venv_distribution.direct_requirements,
         )
-    return repacked_whl(
-        installed_wheel, fingerprint=installed_wheel.fingerprint, use_system_time=use_system_time
+
+    return ResolvedDistribution(
+        target=venv_distribution.target,
+        fingerprinted_distribution=repacked_whl(
+            installed_wheel,
+            fingerprint=installed_wheel.fingerprint,
+            use_system_time=use_system_time,
+        ),
+        direct_requirements=venv_distribution.direct_requirements,
     )
 
 
+@attr.s(frozen=True)
+class VenvDistribution(object):
+    target = attr.ib()  # type: LocalInterpreter
+    distribution = attr.ib()  # type: Distribution
+    direct_requirements = attr.ib()  # type: Iterable[Requirement]
+
+
 def _install_venv_distributions(
-    venv,  # type: Virtualenv
-    distributions,  # type: Iterable[Distribution]
+    venv_resolve_results,  # type: Iterable[VenvResolveResult]
     max_install_jobs=DEFAULT_MAX_JOBS,  # type: int
     result_type=InstallableType.INSTALLED_WHEEL_CHROOT,  # type: InstallableType.Value
     use_system_time=False,  # type: bool
 ):
-    # type: (...) -> Iterator[FingerprintedDistribution]
+    # type: (...) -> Iterator[ResolvedDistribution]
 
-    return iter_map_parallel(
-        inputs=distributions,
+    seen = set()  # type: Set[str]
+
+    venv_distributions = []  # type: List[VenvDistribution]
+    for venv_resolve_result in venv_resolve_results:
+        target = venv_resolve_result.target
+        direct_requirements = venv_resolve_result.direct_requirements_by_project_name
+        for re_resolved_distribution in venv_resolve_result.re_resolved_distributions:
+            wheel_file_name = Wheel.from_distribution(
+                re_resolved_distribution.distribution
+            ).wheel_file_name
+            if wheel_file_name in seen:
+                continue
+
+            seen.add(wheel_file_name)
+            yield ResolvedDistribution(
+                target=target,
+                fingerprinted_distribution=re_resolved_distribution,
+                direct_requirements=direct_requirements.get(
+                    re_resolved_distribution.project_name, ()
+                ),
+            )
+        for venv_distribution in venv_resolve_result.venv_distributions:
+            wheel_file_name = Wheel.from_distribution(venv_distribution).wheel_file_name
+            if wheel_file_name in seen:
+                continue
+
+            seen.add(wheel_file_name)
+            venv_distributions.append(
+                VenvDistribution(
+                    target=target,
+                    distribution=venv_distribution,
+                    direct_requirements=direct_requirements.get(
+                        venv_distribution.metadata.project_name, ()
+                    ),
+                )
+            )
+
+    for resolved_distribution in iter_map_parallel(
+        inputs=venv_distributions,
         function=functools.partial(
-            _install_distribution, venv.interpreter, result_type, use_system_time
+            _install_distribution, result_type=result_type, use_system_time=use_system_time
         ),
         max_jobs=max_install_jobs,
-    )
+    ):
+        yield resolved_distribution
 
 
 @attr.s(frozen=True)
@@ -359,27 +425,32 @@ def _resolve_distributions(
             )
 
 
-def resolve_from_venv(
-    targets,  # type: Targets
-    venv,  # type: Virtualenv
-    requirement_configuration=RequirementConfiguration(),  # type: RequirementConfiguration
-    pip_configuration=PipConfiguration(),  # type: PipConfiguration
-    compile=False,  # type: bool
-    ignore_errors=False,  # type: bool
-    result_type=InstallableType.INSTALLED_WHEEL_CHROOT,  # type: InstallableType.Value
-    dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
-):
-    # type: (...) -> Union[ResolveResult, Error]
+@attr.s(frozen=True)
+class VenvResolveResult(object):
+    venv = attr.ib()  # type: Virtualenv
+    venv_distributions = attr.ib()  # type: Tuple[Distribution, ...]
+    re_resolved_distributions = attr.ib()  # type: Tuple[FingerprintedDistribution, ...]
+    direct_requirements_by_project_name = attr.ib(
+        eq=False
+    )  # type: Mapping[ProjectName, Iterable[Requirement]]
 
+    @property
+    def target(self):
+        # type: () -> LocalInterpreter
+        return LocalInterpreter.create(self.venv.interpreter)
+
+
+def _resolve_from_venv(
+    venv,  # type: Virtualenv
+    requirement_configuration,  # type: RequirementConfiguration
+    pip_configuration,  # type: PipConfiguration
+    compile,  # type: bool
+    ignore_errors,  # type: bool
+    result_type,  # type: InstallableType.Value
+    dependency_configuration,  # type: DependencyConfiguration
+):
+    # type: (...) -> Union[VenvResolveResult, Error]
     target = LocalInterpreter.create(venv.interpreter)
-    if not targets.is_empty:
-        return Error(
-            "You configured custom targets via --python, --interpreter-constraint, --platform or "
-            "--complete-platform but custom targets are not allowed when resolving from a virtual "
-            "environment.\n"
-            "For such resolves, the supported target is implicitly the one matching the venv "
-            "interpreter; in this case: {target}.".format(target=target.render_description())
-        )
 
     if pip_configuration.version:
         compatible_pip_version = (
@@ -487,27 +558,90 @@ def resolve_from_venv(
             dist.fingerprinted_distribution for dist in result.distributions
         )
 
+    return VenvResolveResult(
+        venv=venv,
+        venv_distributions=tuple(venv_distributions),
+        re_resolved_distributions=tuple(fingerprinted_distributions),
+        direct_requirements_by_project_name=direct_requirements_by_project_name,
+    )
+
+
+def resolve_from_venvs(
+    targets,  # type: Targets
+    venvs,  # type: Tuple[Virtualenv, ...]
+    requirement_configuration=RequirementConfiguration(),  # type: RequirementConfiguration
+    pip_configuration=PipConfiguration(),  # type: PipConfiguration
+    compile=False,  # type: bool
+    ignore_errors=False,  # type: bool
+    result_type=InstallableType.INSTALLED_WHEEL_CHROOT,  # type: InstallableType.Value
+    dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
+):
+    # type: (...) -> Union[ResolveResult, Error]
+
+    if not targets.is_empty:
+        return Error(
+            "You configured custom targets via --python, --interpreter-constraint, --platform or "
+            "--complete-platform but custom targets are not allowed when resolving from {venvs}.\n"
+            "For such resolves, the supported target is implicitly the one matching the venv "
+            "{interpreters}; in this case:{targets}.".format(
+                venvs="a virtual environment" if len(venvs) == 1 else "virtual environments",
+                interpreters=pluralize(venvs, "interpreter"),
+                targets=(
+                    " {target}".format(
+                        target=LocalInterpreter.create(venvs[0].interpreter).render_description()
+                    )
+                    if len(venvs) == 1
+                    else "\n  {targets}".format(
+                        targets="\n  ".join(
+                            LocalInterpreter.create(venv.interpreter).render_description()
+                            for venv in venvs
+                        )
+                    )
+                ),
+            )
+        )
+
+    errors = []  # type: List[Error]
+    venv_resolve_results = []  # type: List[VenvResolveResult]
+    for result in iter_map_parallel(
+        venvs,
+        functools.partial(
+            _resolve_from_venv,
+            requirement_configuration=requirement_configuration,
+            pip_configuration=pip_configuration,
+            compile=compile,
+            ignore_errors=ignore_errors,
+            result_type=result_type,
+            dependency_configuration=dependency_configuration,
+        ),
+    ):
+        if isinstance(result, Error):
+            errors.append(result)
+        else:
+            venv_resolve_results.append(result)
+
+    if len(errors) == 1:
+        return errors[0]
+    elif errors:
+        return Error(
+            "Failed to resolve from {count} of {total} virtual environments:\n{failures}".format(
+                count=len(errors),
+                total=len(venvs),
+                failures="\n".join(
+                    "{index}. {error}".format(index=index, error=error)
+                    for index, error in enumerate(errors, start=1)
+                ),
+            )
+        )
+
     return ResolveResult(
         dependency_configuration=dependency_configuration,
         distributions=tuple(
-            ResolvedDistribution(
-                target=target,
-                fingerprinted_distribution=fingerprinted_distribution,
-                direct_requirements=direct_requirements_by_project_name[
-                    fingerprinted_distribution.project_name
-                ],
-            )
-            for fingerprinted_distribution in itertools.chain(
-                list(
-                    _install_venv_distributions(
-                        venv=venv,
-                        distributions=venv_distributions,
-                        max_install_jobs=pip_configuration.max_jobs,
-                        result_type=result_type,
-                        use_system_time=True,
-                    )
-                ),
-                fingerprinted_distributions,
+            _install_venv_distributions(
+                venv_resolve_results,
+                max_install_jobs=pip_configuration.max_jobs,
+                result_type=result_type,
+                use_system_time=True,
             )
         ),
         type=result_type,

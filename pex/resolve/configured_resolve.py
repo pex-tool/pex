@@ -20,7 +20,7 @@ from pex.resolve.resolver_configuration import (
     VenvRepositoryConfiguration,
 )
 from pex.resolve.resolvers import ResolveResult
-from pex.resolve.venv_resolver import resolve_from_venv
+from pex.resolve.venv_resolver import resolve_from_venvs
 from pex.resolver import resolve as resolve_via_pip
 from pex.result import try_
 from pex.targets import Targets
@@ -143,14 +143,22 @@ def resolve(
             )
     elif isinstance(resolver_configuration, VenvRepositoryConfiguration):
         with TRACER.timed(
-            "Resolving requirements from venv at {venv}.".format(
-                venv=resolver_configuration.venv.venv_dir
+            "Resolving requirements from {count} {venvs} at:{paths}.".format(
+                count=len(resolver_configuration.venvs),
+                venvs=pluralize(resolver_configuration.venvs, "venv"),
+                paths=(
+                    " {venv}".format(venv=resolver_configuration.venvs[0].venv_dir)
+                    if len(resolver_configuration.venvs) == 1
+                    else "\n  {venvs}".format(
+                        venvs="\n  ".join(venv.venv_dir for venv in resolver_configuration.venvs)
+                    )
+                ),
             )
         ):
             return try_(
-                resolve_from_venv(
+                resolve_from_venvs(
                     targets=targets,
-                    venv=resolver_configuration.venv,
+                    venvs=resolver_configuration.venvs,
                     requirement_configuration=requirement_configuration,
                     pip_configuration=resolver_configuration.pip_configuration,
                     compile=compile_pyc,
