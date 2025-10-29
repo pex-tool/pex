@@ -251,7 +251,7 @@ class PreResolvedConfiguration(object):
 
 @attr.s(frozen=True)
 class VenvRepositoryConfiguration(object):
-    venv = attr.ib()  # type: Virtualenv
+    venvs = attr.ib()  # type: Tuple[Virtualenv, ...]
     pip_configuration = attr.ib()  # type: PipConfiguration
 
     @property

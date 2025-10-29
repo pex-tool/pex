@@ -1,8 +1,16 @@
 # Release Notes
 
+## 2.67.0
+
+This release adds support for specifying multiple `--venv-repository`s when building a PEX. This
+allows creating multi-platform PEXes from multiple venvs that all satisfy a resolve, but for
+different interpreters.
+
+* Multi-platform PEXes via multiple `--venv-repository`s. (#2977)
+
 ## 2.66.1
 
-This release improves upon the local project directory hashing fix in [2.61.1](#2.61.1) by
+This release improves upon the local project directory hashing fix in [2.61.1](#2611) by
 avoiding the hashing altogether unless creating a lock, where the resulting fingerprint is
 needed.
 

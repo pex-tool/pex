@@ -56,9 +56,10 @@ class _HandleTransitiveAction(Action):
 class _ResolveVenvAction(Action):
     def __init__(self, *args, **kwargs):
         kwargs["nargs"] = "?"
-        super(_ResolveVenvAction, self).__init__(*args, **kwargs)
+        super(_ResolveVenvAction, self).__init__(*args, default=[], **kwargs)
 
     def __call__(self, parser, namespace, value, option_str=None):
+        venvs = getattr(namespace, self.dest)
         if value:
             if not os.path.exists(value):
                 raise ArgumentError(
@@ -86,7 +87,7 @@ class _ResolveVenvAction(Action):
                         "path.".format(option=option_str, value=value)
                     ),
                 )
-            setattr(namespace, self.dest, venv)
+            venvs.append(venv)
         else:
             current_venv = Virtualenv.enclosing(python=sys.executable)
             if not current_venv:
@@ -105,7 +106,7 @@ class _ResolveVenvAction(Action):
                             )
                         ),
                     )
-            setattr(namespace, self.dest, current_venv)
+            venvs.append(current_venv)
 
 
 def register(
@@ -320,14 +321,18 @@ def register(
     if include_venv_repository:
         repository_choice.add_argument(
             "--venv-repository",
-            dest="venv_repository",
+            dest="venv_repositories",
             action=_ResolveVenvAction,
-            type=str,
             help=(
                 "Resolve requirements from the given virtual environment instead of from "
                 "--index servers, --find-links repos or a --lock file. The virtual environment to "
                 "resolve from can be specified as the path to the venv or the path of its"
-                "interpreter. If no value is specified, the current active venv is used."
+                "interpreter. If no value is specified, the current active venv is used. Multiple "
+                "virtual environments may be specified via multiple --venv-repository options and "
+                "the resolve will be the combined results. Each virtual environment will be "
+                "resolved from individually and must contain the full transitive closure of "
+                "requirements. This allows for creating a multi-platform PEX by specifying "
+                "multiple virtual environments; say one for Python 3.12 and one for Python 3.13."
             ),
         )
 
@@ -803,9 +808,9 @@ def configure(
             sdists=tuple(sdists), wheels=tuple(wheels), pip_configuration=pip_configuration
         )
 
-    venv = getattr(options, "venv_repository", None)
-    if venv:
-        return VenvRepositoryConfiguration(venv=venv, pip_configuration=pip_configuration)
+    venvs = getattr(options, "venv_repositories", None)
+    if venvs:
+        return VenvRepositoryConfiguration(venvs=tuple(venvs), pip_configuration=pip_configuration)
 
     if pylock:
         return PylockRepositoryConfiguration(
