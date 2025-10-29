@@ -675,10 +675,30 @@ def pdm_exported_pylock_toml(shared_integration_test_tmpdir):
                     )
                 )
 
+            with open(os.path.join(chroot.work_dir, "constraints.txt"), "w") as fp:
+                fp.write(
+                    dedent(
+                        """\
+                        # hishel 1.0.0 breaks pdm as of 10/28/2025.
+                        hishel<1
+                        """
+                    )
+                )
+
             def run_pdm(*args):
                 # type: (*str) -> None
                 subprocess.check_call(
-                    args=["uv", "tool", "run", "--from", "pdm>=2.24.2", "pdm"] + list(args),
+                    args=[
+                        "uv",
+                        "tool",
+                        "run",
+                        "--from",
+                        "pdm>=2.24.2",
+                        "--constraints",
+                        "constraints.txt",
+                        "pdm",
+                    ]
+                    + list(args),
                     cwd=chroot.work_dir,
                     env=make_env(PDM_USE_VENV="False"),
                 )

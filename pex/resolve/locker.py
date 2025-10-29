@@ -30,6 +30,7 @@ from pex.resolve.pep_691.model import Endpoint
 from pex.resolve.resolved_requirement import PartialArtifact, Pin, ResolvedRequirement
 from pex.resolve.resolvers import Resolver
 from pex.resolve.target_system import UniversalTarget
+from pex.result import try_
 from pex.targets import Target
 from pex.typing import TYPE_CHECKING
 
@@ -417,12 +418,14 @@ class Locker(LogAnalyzer):
                             os.path.basename(artifact_url.path)
                         ] = build_result.pin
                     else:
-                        digest_local_project(
-                            directory=artifact_url.path,
-                            digest=digest,
-                            pip_version=self._pip_version,
-                            target=self._target,
-                            resolver=self._resolver,
+                        try_(
+                            digest_local_project(
+                                directory=artifact_url.path,
+                                digest=digest,
+                                pip_version=self._pip_version,
+                                target=self._target,
+                                resolver=self._resolver,
+                            )
                         )
                         self._local_projects.add(artifact_url.path)
                         self._saved.add(build_result.pin)
@@ -490,12 +493,14 @@ class Locker(LogAnalyzer):
                             os.path.basename(artifact_url.path)
                         ] = build_result.pin
                     else:
-                        digest_local_project(
-                            directory=artifact_url.path,
-                            digest=digest,
-                            pip_version=self._pip_version,
-                            target=self._target,
-                            resolver=self._resolver,
+                        try_(
+                            digest_local_project(
+                                directory=artifact_url.path,
+                                digest=digest,
+                                pip_version=self._pip_version,
+                                target=self._target,
+                                resolver=self._resolver,
+                            )
                         )
                         self._local_projects.add(artifact_url.path)
                         self._saved.add(build_result.pin)
