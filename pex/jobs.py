@@ -679,7 +679,6 @@ if TYPE_CHECKING:
 @contextmanager
 def _mp_pool(size):
     # type: (int) -> Iterator[Pool]
-
     pool = multiprocessing.Pool(processes=size)
     try:
         yield pool
