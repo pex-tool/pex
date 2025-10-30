@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.67.1
+
+This release fixes a bug subsetting `--venv-repository` resolves when top-level requirements
+had version specifiers; e.g.: `thing>2`.
+
+* Fix --venv-repository subsetting. (#2981)
+
 ## 2.67.0
 
 This release adds support for specifying multiple `--venv-repository`s when building a PEX. This
