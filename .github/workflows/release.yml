@@ -17,7 +17,7 @@ jobs:
   org-check:
     name: Check GitHub Organization
     if: ${{ github.repository_owner == 'pex-tool' }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-slim
     steps:
       - name: Noop
         if: false
@@ -26,7 +26,7 @@ jobs:
   determine-tag:
     name: Determine the release tag to operate against.
     needs: org-check
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-slim
     outputs:
       release-tag: ${{ steps.determine-tag.outputs.release-tag }}
       release-version: ${{ steps.determine-tag.outputs.release-version }}
@@ -135,7 +135,7 @@ jobs:
       - determine-tag
       - pypi
       - github-release
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-slim
     steps:
       - name: Dispatch `release-docs` Event
         uses: peter-evans/repository-dispatch@v3

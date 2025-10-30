@@ -13,14 +13,14 @@ jobs:
   org-check:
     name: Check GitHub Organization
     if: github.repository_owner == 'pex-tool'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-slim
     steps:
       - name: Noop
         if: false
         run: |
           echo "This is a dummy step that will never run."
   report:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-slim
     needs: org-check
     steps:
     - uses: dorny/test-reporter@v1
