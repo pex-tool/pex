@@ -25,7 +25,7 @@ jobs:
   setup:
     name: Check GitHub Organization
     if: github.repository_owner == 'pex-tool'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-slim
     outputs:
       pex_test_posargs: ${{ env._PEX_TEST_POS_ARGS }}
     steps:
@@ -351,7 +351,7 @@ jobs:
     name: Consolidate Windows Test Results
     needs: windows-tests
     if: always()
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-slim
     steps:
       - uses: actions/download-artifact@v4
         with:
