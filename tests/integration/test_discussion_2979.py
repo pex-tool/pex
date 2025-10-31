@@ -91,7 +91,9 @@ def test_venv_subset_with_specifiers(tmpdir):
     assert pex_root == commonpath(
         (
             pex_root,
-            subprocess.check_output(args=[pex, "-c", "import scipy; print(scipy.__file__)"])
+            subprocess.check_output(
+                args=[venv.interpreter.binary, pex, "-c", "import scipy; print(scipy.__file__)"]
+            )
             .decode("utf-8")
             .strip(),
         )
@@ -100,6 +102,7 @@ def test_venv_subset_with_specifiers(tmpdir):
         b"0.42.0"
         == subprocess.check_output(
             args=[
+                venv.interpreter.binary,
                 pex,
                 "-c",
                 "from importlib import metadata; print(metadata.version('project'))",
