@@ -780,7 +780,7 @@ class Constraint(object):
         )
 
     name = attr.ib(eq=False)  # type: str
-    specifier = attr.ib(factory=SpecifierSet)  # type: SpecifierSet
+    specifier = attr.ib(factory=SpecifierSet, order=False)  # type: SpecifierSet
     marker = attr.ib(default=None, eq=str)  # type: Optional[Marker]
 
     project_name = attr.ib(init=False, repr=False)  # type: ProjectName
