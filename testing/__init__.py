@@ -19,6 +19,7 @@ import pytest
 
 from pex.atomic_directory import atomic_directory
 from pex.common import open_zip, safe_mkdir, safe_mkdtemp, safe_rmtree, safe_sleep, temporary_dir
+from pex.compatibility import to_unicode
 from pex.dist_metadata import Distribution
 from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
@@ -411,11 +412,9 @@ class IntegResults(object):
         re_flags=0,  # type: int
     ):
         # type: (...) -> None
-        assert (
-            self.return_code == 0
-        ), "integration test failed: return_code={}, output={}, error={}".format(
-            self.return_code, self.output, self.error
-        )
+        assert self.return_code == 0, to_unicode(
+            "integration test failed: return_code={return_code}, output={output}, error={error}"
+        ).format(return_code=self.return_code, output=self.output, error=self.error)
         self.assert_output(expected_output_re, expected_error_re, re_flags)
 
     def assert_failure(
@@ -435,17 +434,13 @@ class IntegResults(object):
         re_flags=0,  # type: int
     ):
         if expected_output_re:
-            assert re.match(
-                expected_output_re, self.output, flags=re_flags
-            ), "Failed to match re: {re!r} against:\n{output}".format(
-                re=expected_output_re, output=self.output
-            )
+            assert re.match(expected_output_re, self.output, flags=re_flags), to_unicode(
+                "Failed to match re: {re!r} against:\n{output}"
+            ).format(re=expected_output_re, output=self.output)
         if expected_error_re:
-            assert re.match(
-                expected_error_re, self.error, flags=re_flags
-            ), "Failed to match re: {re!r} against:\n{output}".format(
-                re=expected_error_re, output=self.error
-            )
+            assert re.match(expected_error_re, self.error, flags=re_flags), to_unicode(
+                "Failed to match re: {re!r} against:\n{output}"
+            ).format(re=expected_error_re, output=self.error)
 
 
 def create_pex_command(

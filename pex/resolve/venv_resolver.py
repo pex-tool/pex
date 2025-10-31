@@ -380,7 +380,11 @@ def _resolve_distributions(
         elif meets_requirement(distribution, requirement):
             production_assert(distribution.type is DistributionType.INSTALLED)
             resolved.add(requirement.project_name)
-            if distribution.metadata.files.metadata.type is MetadataType.DIST_INFO:
+            editable_project_url = distribution.editable_install_url()
+            if (
+                not editable_project_url
+                and distribution.metadata.files.metadata.type is MetadataType.DIST_INFO
+            ):
                 to_resolve.extend(
                     requirement.dependency(
                         requirement=dependency,
@@ -391,8 +395,15 @@ def _resolve_distributions(
                 )
                 yield distribution
             else:
+                source_requirement = (
+                    "{project} @ {url}".format(
+                        project=distribution.metadata.project_name, url=editable_project_url
+                    )
+                    if editable_project_url
+                    else str(distribution.as_requirement())
+                )
                 result = resolver.resolve_requirements(
-                    requirements=[str(distribution.as_requirement())],
+                    requirements=[source_requirement],
                     targets=Targets.from_target(target),
                     transitive=False,
                     compile=compile,
@@ -542,7 +553,17 @@ def _resolve_from_venv(
             if venv_distribution.metadata.files.metadata.type is not MetadataType.DIST_INFO:
                 sdists_to_resolve.append(str(venv_distribution.as_requirement()))
             else:
-                venv_distributions.append(venv_distribution)
+                editable_project_url = venv_distribution.editable_install_url()
+                if editable_project_url:
+                    sdists_to_resolve.append(
+                        "{project_name} @ {url}".format(
+                            project_name=venv_distribution.metadata.project_name,
+                            url=editable_project_url,
+                        )
+                    )
+                else:
+                    venv_distributions.append(venv_distribution)
+
             direct_requirements_by_project_name[venv_distribution.metadata.project_name].add(
                 venv_distribution.as_requirement()
             )

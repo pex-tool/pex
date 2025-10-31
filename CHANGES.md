@@ -1,11 +1,17 @@
 # Release Notes
 
+## 2.67.2
+
+This release fixes a bug resolving editable projects from `--venv-repository`s.
+
+* Fix resolve of editables from `--venv-repository`s. (#2984)
+
 ## 2.67.1
 
 This release fixes a bug subsetting `--venv-repository` resolves when top-level requirements
 had version specifiers; e.g.: `thing>2`.
 
-* Fix --venv-repository subsetting. (#2981)
+* Fix `--venv-repository` subsetting. (#2981)
 
 ## 2.67.0
 

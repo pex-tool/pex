@@ -9,6 +9,7 @@ import functools
 import glob
 import importlib
 import itertools
+import json
 import os
 import sys
 import tarfile
@@ -22,7 +23,7 @@ from textwrap import dedent
 
 from pex import pex_warnings, specifier_sets
 from pex.common import open_zip, pluralize
-from pex.compatibility import PY2, to_unicode
+from pex.compatibility import PY2, string, to_unicode
 from pex.enum import Enum
 from pex.exceptions import reportable_unexpected_error_msg
 from pex.pep_440 import Version
@@ -1192,6 +1193,32 @@ class Distribution(object):
             entry_points_metadata_file,
             source=os.path.join(self.metadata.files.metadata.location, entry_points_txt_relpath),
         )
+
+    def editable_install_url(self):
+        # type: () -> Optional[Text]
+
+        # For the spec, see: https://peps.python.org/pep-0660/#frontend-requirements
+        direct_url_json_bytes = self._read_metadata_file("direct_url.json")
+        if not direct_url_json_bytes:
+            return None
+
+        direct_url_json_data = json.loads(direct_url_json_bytes)
+        if not direct_url_json_data.get("dir_info", {}).get("editable", False):
+            return None
+
+        url = direct_url_json_data.get("url", None)
+        if url is None:
+            return None
+
+        if not isinstance(url, string):
+            raise InvalidMetadataError(
+                "The direct_url.json metadata for {dist} at {location} is invalid.\n"
+                "Expected `url` to be a string but found {value} of type {type}".format(
+                    dist=self, location=self.location, value=url, type=type(url)
+                )
+            )
+
+        return cast("Text", url)
 
     def __str__(self):
         # type: () -> str
