@@ -12,7 +12,7 @@ from textwrap import dedent
 import pytest
 
 from pex.common import safe_open, touch
-from pex.compatibility import commonpath
+from pex.compatibility import PY2, commonpath
 from pex.interpreter import PythonInterpreter
 from pex.venv.virtualenv import Virtualenv
 from testing import run_pex_command
