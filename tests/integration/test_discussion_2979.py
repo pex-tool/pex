@@ -29,7 +29,7 @@ def project_dir(tmpdir):
             dedent(
                 """\
                 [build-system]
-                requires = ["uv_build>=0.9.6,<0.10.0"]
+                requires = ["uv_build>=0.9,<0.10.0"]
                 build-backend = "uv_build"
 
                 [project]
