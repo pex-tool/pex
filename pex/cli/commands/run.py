@@ -10,12 +10,11 @@ import os.path
 import posixpath
 import shutil
 import sys
-import tarfile
 from argparse import _ActionsContainer
-from contextlib import closing
 
 from pex import dependency_configuration, interpreter
 from pex import resolver as pip_resolver
+from pex import sdist
 from pex.artifact_url import ArtifactURL, Fingerprint
 from pex.atomic_directory import atomic_directory
 from pex.build_system import pep_517
@@ -676,8 +675,7 @@ class Run(CacheAwareMixin, BuildTimeCommand):
                         return package, os.path.join(lock_dest_dir, lock_path)
         elif is_sdist(distribution.path):
             if is_tar_sdist(distribution.path):
-                with closing(tarfile.open(distribution.path)) as tf:
-                    tf.extractall(lock_dest_dir)
+                sdist.extract_tarball(distribution.path, dest_dir=lock_dest_dir)
             else:
                 with open_zip(distribution.path) as zf:
                     zf.extractall(lock_dest_dir)

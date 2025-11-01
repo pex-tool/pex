@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.67.3
+
+This release brings Pex into compliance with sdist archive features as specified in
+https://packaging.python.org/en/latest/specifications/source-distribution-format/#source-distribution-archive-features.
+
+* Implement tar extraction data filtering. (#2987)
+
 ## 2.67.2
 
 This release fixes a bug resolving editable projects from `--venv-repository`s.

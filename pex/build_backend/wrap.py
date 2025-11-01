@@ -11,6 +11,7 @@ import io
 import os
 import tarfile
 
+from pex import sdist
 from pex.build_backend import BuildError
 from pex.build_backend.configuration import load_config
 from pex.build_backend.pylock import ScriptLocks
@@ -63,10 +64,7 @@ def build_sdist(
 
     sdist_path = os.path.join(sdist_directory, sdist_name)
     build_dir = _build_dir("sdist")
-
-    with tarfile.open(sdist_path) as tf:
-        tf.extractall(build_dir)
-
+    sdist.extract_tarball(sdist_path, dest_dir=build_dir)
     entries = os.listdir(build_dir)
     if len(entries) != 1:
         raise BuildError(

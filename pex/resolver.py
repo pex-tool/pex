@@ -10,12 +10,11 @@ import hashlib
 import itertools
 import json
 import os
-import tarfile
 import zipfile
 from abc import abstractmethod
 from collections import OrderedDict, defaultdict
 
-from pex import targets
+from pex import sdist, targets
 from pex.atomic_directory import AtomicDirectory, atomic_directory
 from pex.cache.dirs import BuiltWheelDir, CacheDir
 from pex.common import (
@@ -688,8 +687,7 @@ class BuildRequest(object):
             with open_zip(self.source_path) as zf:
                 zf.extractall(extract_dir)
         elif is_tar_sdist(self.source_path):
-            with tarfile.open(self.source_path) as tf:
-                tf.extractall(extract_dir)
+            sdist.extract_tarball(self.source_path, dest_dir=extract_dir)
         else:
             raise BuildError(
                 "Unexpected archive type for sdist {project}".format(project=self.source_path)
