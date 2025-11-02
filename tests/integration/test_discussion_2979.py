@@ -10,7 +10,6 @@ import shutil
 import subprocess
 from textwrap import dedent
 
-import attr
 import pytest
 
 from pex.common import safe_open, touch
@@ -19,11 +18,16 @@ from pex.interpreter import PythonInterpreter
 from pex.pep_503 import ProjectName
 from pex.pex import PEX
 from pex.resolve.lockfile import json_codec
-from pex.typing import cast
+from pex.typing import TYPE_CHECKING, cast
 from pex.venv.virtualenv import Virtualenv
 from testing import run_pex_command
 from testing.cli import run_pex3
 from testing.pytest_utils.tmp import Tempdir
+
+if TYPE_CHECKING:
+    import attr  # vendor:skip
+else:
+    from pex.third_party import attr
 
 
 @pytest.fixture
