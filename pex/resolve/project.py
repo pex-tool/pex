@@ -3,35 +3,44 @@
 
 from __future__ import absolute_import
 
+import hashlib
 import os.path
 from argparse import Namespace, _ActionsContainer
 
-from pex import requirements, toml
+from pex import requirements, sdist, toml
 from pex.build_system import pep_517
-from pex.common import pluralize
+from pex.common import pluralize, safe_mkdtemp
 from pex.compatibility import string
 from pex.dependency_configuration import DependencyConfiguration
-from pex.dist_metadata import DistMetadata, Requirement, RequirementParseError
+from pex.dist_metadata import DistMetadata, Requirement, RequirementParseError, is_wheel
 from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.interpreter import PythonInterpreter
-from pex.jobs import Raise, SpawnedJob, execute_parallel
+from pex.jobs import Job, Retain, SpawnedJob, execute_parallel
 from pex.orderedset import OrderedSet
 from pex.pep_427 import InstallableType
 from pex.pep_503 import ProjectName
+from pex.pip.tool import PackageIndexConfiguration
 from pex.pip.version import PipVersionValue
-from pex.requirements import LocalProjectRequirement, ParseError
+from pex.requirements import LocalProjectRequirement, ParseError, URLRequirement
 from pex.resolve.configured_resolve import resolve
+from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import PipConfiguration
-from pex.resolve.resolvers import Resolver, Untranslatable
+from pex.resolve.resolvers import Resolver
+from pex.resolver import BuildAndInstallRequest, BuildRequest, InstallRequest
+from pex.result import Error, ResultError
 from pex.sorted_tuple import SortedTuple
 from pex.targets import LocalInterpreter, Target, Targets
+from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
+from pex.util import CacheHelper
 
 if TYPE_CHECKING:
-    from typing import Any, Iterable, Iterator, List, Mapping, Optional, Set, Tuple, Union
+    from typing import Any, Dict, Iterable, Iterator, List, Mapping, Optional, Set, Tuple, Union
 
     import attr  # vendor:skip
+
+    from pex.requirements import ParsedRequirement
 else:
     from pex.third_party import attr
 
@@ -69,9 +78,13 @@ class BuiltProject(object):
 
 
 @attr.s(frozen=True)
-class Project(object):
-    path = attr.ib()  # type: str
+class ProjectDirectory(object):
     requirement = attr.ib()  # type: LocalProjectRequirement
+
+    @property
+    def path(self):
+        # type: () -> str
+        return self.requirement.path
 
     @property
     def requirement_str(self):
@@ -81,8 +94,29 @@ class Project(object):
 
 
 @attr.s(frozen=True)
+class ProjectArchive(object):
+    requirement = attr.ib()  # type: URLRequirement
+
+    @property
+    def path(self):
+        # type: () -> str
+        return self.requirement.url.path
+
+    @property
+    def is_wheel(self):
+        # type: () -> bool
+        return is_wheel(self.path)
+
+    @property
+    def subdirectory(self):
+        # type: () -> Optional[str]
+        return self.requirement.subdirectory
+
+
+@attr.s(frozen=True)
 class Projects(object):
-    projects = attr.ib(default=())  # type: Tuple[Project, ...]
+    project_directories = attr.ib(default=())  # type: Tuple[ProjectDirectory, ...]
+    project_archives = attr.ib(default=())  # type: Tuple[ProjectArchive, ...]
 
     def build(
         self,
@@ -95,23 +129,92 @@ class Projects(object):
     ):
         # type: (...) -> Iterator[BuiltProject]
 
-        resolve_result = resolve(
-            targets=targets,
-            requirement_configuration=RequirementConfiguration(
-                requirements=[project.requirement_str for project in self.projects]
-            ),
-            resolver_configuration=attr.evolve(pip_configuration, transitive=False),
-            compile_pyc=compile_pyc,
-            ignore_errors=ignore_errors,
-            result_type=result_type,
-            dependency_configuration=dependency_config,
-        )
-        for resolved_distribution in resolve_result.distributions:
-            yield BuiltProject(
-                target=resolved_distribution.target,
-                fingerprinted_distribution=resolved_distribution.fingerprinted_distribution,
-                satisfied_direct_requirements=resolved_distribution.direct_requirements,
+        if self.project_directories:
+            resolve_result = resolve(
+                targets=targets,
+                requirement_configuration=RequirementConfiguration(
+                    requirements=[project.requirement_str for project in self.project_directories]
+                ),
+                resolver_configuration=attr.evolve(pip_configuration, transitive=False),
+                compile_pyc=compile_pyc,
+                ignore_errors=ignore_errors,
+                result_type=result_type,
+                dependency_configuration=dependency_config,
             )
+            for resolved_distribution in resolve_result.distributions:
+                yield BuiltProject(
+                    target=resolved_distribution.target,
+                    fingerprinted_distribution=resolved_distribution.fingerprinted_distribution,
+                    satisfied_direct_requirements=resolved_distribution.direct_requirements,
+                )
+
+        if self.project_archives:
+            build_requests = []  # type: List[BuildRequest]
+            install_requests = []  # type: List[InstallRequest]
+            direct_requirements = []  # type: List[ParsedRequirement]
+            for project_archive in self.project_archives:
+                fingerprint = CacheHelper.hash(project_archive.path, hasher=hashlib.sha256)
+                direct_requirements.append(project_archive.requirement)
+                for target in targets.unique_targets():
+                    if project_archive.is_wheel:
+                        install_requests.append(
+                            InstallRequest(
+                                download_target=target,
+                                wheel_path=project_archive.path,
+                                fingerprint=fingerprint,
+                            )
+                        )
+                    else:
+                        build_requests.append(
+                            BuildRequest(
+                                download_target=target,
+                                source_path=project_archive.path,
+                                fingerprint=fingerprint,
+                                subdirectory=project_archive.subdirectory,
+                            )
+                        )
+
+            build_and_install_request = BuildAndInstallRequest(
+                build_requests=build_requests,
+                install_requests=install_requests,
+                direct_requirements=direct_requirements,
+                package_index_configuration=PackageIndexConfiguration.create(
+                    pip_version=pip_configuration.version,
+                    resolver_version=pip_configuration.resolver_version,
+                    repos_configuration=pip_configuration.repos_configuration,
+                    network_configuration=pip_configuration.network_configuration,
+                    use_pip_config=pip_configuration.use_pip_config,
+                    extra_pip_requirements=pip_configuration.extra_requirements,
+                    keyring_provider=pip_configuration.keyring_provider,
+                ),
+                compile=compile_pyc,
+                build_configuration=pip_configuration.build_configuration,
+                pip_version=pip_configuration.version,
+                resolver=ConfiguredResolver(pip_configuration=pip_configuration),
+                dependency_configuration=dependency_config,
+            )
+
+            # This checks the resolve, but we're not doing a full resolve here - we're installing
+            # projects to gather their requirements and _then_ perform a resolve of those
+            # requirements.
+            ignore_errors = True
+
+            if result_type is InstallableType.INSTALLED_WHEEL_CHROOT:
+                resolved_distributions = build_and_install_request.install_distributions(
+                    max_parallel_jobs=pip_configuration.max_jobs, ignore_errors=ignore_errors
+                )
+            else:
+                resolved_distributions = build_and_install_request.build_distributions(
+                    max_parallel_jobs=pip_configuration.max_jobs,
+                    ignore_errors=ignore_errors,
+                )
+
+            for resolved_distribution in resolved_distributions:
+                yield BuiltProject(
+                    target=resolved_distribution.target,
+                    fingerprinted_distribution=resolved_distribution.fingerprinted_distribution,
+                    satisfied_direct_requirements=resolved_distribution.direct_requirements,
+                )
 
     def collect_requirements(
         self,
@@ -123,33 +226,105 @@ class Projects(object):
         # type: (...) -> Iterator[Requirement]
 
         target = LocalInterpreter.create(interpreter)
+        seen = set()  # type: Set[Requirement]
 
-        def spawn_func(project):
-            # type: (Project) -> SpawnedJob[DistMetadata]
+        source_projects = list(
+            self.project_directories
+        )  # type: List[Union[ProjectDirectory, ProjectArchive]]
+        for project_archive in self.project_archives:
+            if project_archive.is_wheel:
+                for req in DistMetadata.load(project_archive.path).requires_dists:
+                    if req not in seen:
+                        seen.add(req)
+                        yield req
+            else:
+                source_projects.append(project_archive)
+
+        wheels_to_build = []  # type: List[str]
+        prepare_metadata_errors = {}  # type: Dict[str, str]
+
+        def spawn_prepare_metadata_func(project):
+            # type: (Union[ProjectDirectory, ProjectArchive]) -> SpawnedJob[DistMetadata]
+
+            if isinstance(project, ProjectDirectory):
+                project_dir = project.path
+            else:
+                project_dir = sdist.extract_tarball(
+                    tarball_path=project.path, dest_dir=safe_mkdtemp()
+                )
+
             return pep_517.spawn_prepare_metadata(
-                project.path, target, resolver, pip_version=pip_version
+                project_directory=project_dir,
+                target=target,
+                resolver=resolver,
+                pip_version=pip_version,
             )
 
-        seen = set()  # type: Set[Requirement]
-        for local_project, dist_metadata in zip(
-            self.projects,
+        for project_directory, dist_metadata_result in zip(
+            source_projects,
             execute_parallel(
-                self.projects,
-                spawn_func=spawn_func,
-                error_handler=Raise[Project, DistMetadata](Untranslatable),
+                source_projects,
+                # MyPy just can't figure out the next two args types; they're OK.
+                spawn_func=spawn_prepare_metadata_func,  # type: ignore[arg-type]
+                error_handler=Retain["Union[ProjectDirectory, ProjectArchive]"](),  # type: ignore[arg-type]
                 max_jobs=max_jobs,
             ),
         ):
-            for req in _iter_requirements(
-                target=target, dist_metadata=dist_metadata, extras=local_project.requirement.extras
-            ):
-                if req not in seen:
-                    seen.add(req)
-                    yield req
+            if isinstance(dist_metadata_result, DistMetadata):
+                for req in _iter_requirements(
+                    target=target,
+                    dist_metadata=dist_metadata_result,
+                    extras=project_directory.requirement.extras,
+                ):
+                    if req not in seen:
+                        seen.add(req)
+                        yield req
+            else:
+                _item, error = dist_metadata_result
+                if isinstance(error, Job.Error) and pep_517.is_hook_unavailable_error(error):
+                    TRACER.log(
+                        "Failed to prepare metadata for {project}, trying to build a wheel "
+                        "instead: {err}".format(
+                            project=project_directory.path, err=dist_metadata_result
+                        ),
+                        V=3,
+                    )
+                    wheels_to_build.append(project_directory.path)
+                else:
+                    prepare_metadata_errors[project_directory.path] = str(error)
+
+        if wheels_to_build:
+            resolve_result = resolver.resolve_requirements(
+                requirements=wheels_to_build,
+                targets=Targets.from_target(target),
+                pip_version=pip_version,
+            )
+            for resolved_distribution in resolve_result.distributions:
+                for req in resolved_distribution.distribution.requires():
+                    if req not in seen:
+                        seen.add(req)
+                        yield req
+
+        if prepare_metadata_errors:
+            raise ResultError(
+                Error(
+                    "Encountered {count} {errors} collecting project requirements:\n"
+                    "{error_items}".format(
+                        count=len(prepare_metadata_errors),
+                        errors=pluralize(prepare_metadata_errors, "error"),
+                        error_items="\n".join(
+                            "{index}. {path}: {error}".format(index=index, path=path, error=error)
+                            for index, (path, error) in enumerate(
+                                prepare_metadata_errors.items(), start=1
+                            )
+                        ),
+                    )
+                )
+            )
 
     def __len__(self):
         # type: () -> int
-        return len(self.projects)
+        return len(self.project_directories) + len(self.project_archives)
 
 
 @attr.s(frozen=True)
@@ -330,7 +505,8 @@ def register_options(
 def get_projects(options):
     # type: (Namespace) -> Projects
 
-    projects = []  # type: List[Project]
+    project_directories = []  # type: List[ProjectDirectory]
+    project_archives = []  # type: List[ProjectArchive]
     errors = []  # type: List[str]
     for project in getattr(options, "projects", ()):
         try:
@@ -342,18 +518,26 @@ def get_projects(options):
                 )
             )
         else:
-            if isinstance(parsed, LocalProjectRequirement):
+            if isinstance(parsed, (LocalProjectRequirement, URLRequirement)):
                 if parsed.marker:
                     errors.append(
                         "The --project {project} has a marker, which is not supported. "
                         "Remove marker: ;{marker}".format(project=project, marker=parsed.marker)
                     )
+                elif isinstance(parsed, LocalProjectRequirement):
+                    project_directories.append(ProjectDirectory(requirement=parsed))
+                elif parsed.url.scheme != "file":
+                    errors.append(
+                        "The --project {project} URL must be a local file: URL.".format(
+                            project=project
+                        )
+                    )
                 else:
-                    projects.append(Project(path=parsed.path, requirement=parsed))
+                    project_archives.append(ProjectArchive(requirement=parsed))
             else:
                 errors.append(
                     "The --project {project} does not appear to point to a directory containing a "
-                    "Python project.".format(project=project)
+                    "Python project or a project archive (sdist or whl).".format(project=project)
                 )
 
     if errors:
@@ -368,7 +552,9 @@ def get_projects(options):
             )
         )
 
-    return Projects(projects=tuple(projects))
+    return Projects(
+        project_directories=tuple(project_directories), project_archives=tuple(project_archives)
+    )
 
 
 def get_group_requirements(options):

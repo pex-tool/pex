@@ -64,22 +64,7 @@ def build_sdist(
 
     sdist_path = os.path.join(sdist_directory, sdist_name)
     build_dir = _build_dir("sdist")
-    sdist.extract_tarball(sdist_path, dest_dir=build_dir)
-    entries = os.listdir(build_dir)
-    if len(entries) != 1:
-        raise BuildError(
-            "Calling `{backend}.build_sdist` produced an sdist with unexpected contents.\n"
-            "Expected expected one top-level <project>-<version> directory but found {count}:\n"
-            "{entries}".format(
-                backend=_CONFIG.delegate_build_backend,
-                count=len(entries),
-                entries="\n".join(entries),
-            )
-        )
-
-    tarball_root_dir_name = entries[0]
-    tarball_root_dir = os.path.join(build_dir, tarball_root_dir_name)
-
+    tarball_root_dir = sdist.extract_tarball(sdist_path, dest_dir=build_dir)
     for plugin in plugins:
         plugin.modify_sdist(tarball_root_dir)
 

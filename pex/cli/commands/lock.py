@@ -688,7 +688,8 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             options_group,
             project_help=(
                 "Add the transitive dependencies of the local project at the specified path to "
-                "the lock but do not lock project itself."
+                "the lock but do not lock project itself. The path can be that of a project "
+                "directory, a project sdist or a pre-built project wheel."
             ),
         )
         dependency_configuration.register(options_group)

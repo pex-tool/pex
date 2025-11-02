@@ -759,7 +759,8 @@ def configure_clp_sources(parser):
         parser,
         project_help=(
             "Add the local project at the specified path to the generated .pex file along with "
-            "its transitive dependencies."
+            "its transitive dependencies. The path can be that of a project directory, a project"
+            "sdist or a pre-built project wheel."
         ),
     )
 

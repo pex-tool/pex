@@ -1,5 +1,15 @@
 # Release Notes
 
+## 2.68.0
+
+This release adds support for `--project` pointing to local project sdist or wheel paths in addition
+to the already supported local project directory path. The wheel case can be particularly useful
+when building a project wheel out of band is very much faster than letting Pex obtain the project
+metadata via a PEP-517 `prepare_metadata_for_build_wheel` call or via a wheel build via Pip, which
+is what Pex falls back to.
+
+* Support `--project` pointing at sdists and whls. (#2989)
+
 ## 2.67.3
 
 This release brings Pex into compliance with sdist archive features as specified in

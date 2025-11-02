@@ -13,7 +13,7 @@ from pex.compatibility import commonpath
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from typing import Any, Dict, Optional, Text
+    from typing import Any, Dict, Optional, Text, TypeVar
 
 
 class FilterError(tarfile.TarError):
@@ -45,8 +45,12 @@ _REALPATH_KWARGS = (
 )  # type: Dict[str, Any]
 
 
+if TYPE_CHECKING:
+    _Text = TypeVar("_Text", str, Text)
+
+
 def _realpath(path):
-    # type: (Text) -> Text
+    # type: (_Text) -> _Text
     return os.path.realpath(path, **_REALPATH_KWARGS)
 
 
@@ -162,6 +166,7 @@ def _data_filter(
     member,  # type: TarInfo
     dest_path,  # type: Text
 ):
+    # type: (...) -> TarInfo
     new_attrs = _get_filtered_attrs(member, dest_path, True)
     if new_attrs:
         return _replace(member, new_attrs)
@@ -171,17 +176,38 @@ def _data_filter(
 _EXTRACTALL_DATA_FILTER_KWARGS = {"filter": "data"}  # type: Dict[str, Any]
 
 
+class InvalidSourceDistributionError(ValueError):
+    pass
+
+
 def extract_tarball(
     tarball_path,  # type: Text
-    dest_dir,  # type: Text
+    dest_dir,  # type: _Text
 ):
-    # type: (...) -> None
+    # type: (...) -> _Text
 
     with tarfile.open(tarball_path) as tf:
         if sys.version_info[:2] >= (3, 12):
             tf.extractall(dest_dir, **_EXTRACTALL_DATA_FILTER_KWARGS)
-            return
+        else:
+            for tar_info in tf:  # type: ignore[unreachable]
+                tar_info = _data_filter(tar_info, dest_dir)
+                tf.extract(tar_info, dest_dir)
 
-        for tar_info in tf:  # type: ignore[unreachable]
-            tar_info = _data_filter(tar_info, dest_dir)
-            tf.extract(tar_info, dest_dir)
+    listing = os.listdir(dest_dir)
+    if len(listing) != 1:
+        raise InvalidSourceDistributionError(
+            "Expected one top-level project directory to be extracted from {project}, "
+            "found {count}: {listing}".format(
+                project=tarball_path, count=len(listing), listing=", ".join(listing)
+            )
+        )
+
+    project_dir = os.path.join(dest_dir, listing[0])
+    if not os.path.isdir(project_dir):
+        raise InvalidSourceDistributionError(
+            "Expected one top-level project directory to be extracted from {project}, "
+            "found file: {path}".format(project=tarball_path, path=listing[0])
+        )
+
+    return project_dir

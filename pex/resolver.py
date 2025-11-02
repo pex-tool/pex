@@ -686,25 +686,26 @@ class BuildRequest(object):
         if is_zip_sdist(self.source_path):
             with open_zip(self.source_path) as zf:
                 zf.extractall(extract_dir)
-        elif is_tar_sdist(self.source_path):
-            sdist.extract_tarball(self.source_path, dest_dir=extract_dir)
-        else:
-            raise BuildError(
-                "Unexpected archive type for sdist {project}".format(project=self.source_path)
-            )
 
-        listing = os.listdir(extract_dir)
-        if len(listing) != 1:
-            raise BuildError(
-                "Expected one top-level project directory to be extracted from {project}, "
-                "found {count}: {listing}".format(
-                    project=self.source_path, count=len(listing), listing=", ".join(listing)
+            listing = os.listdir(extract_dir)
+            if len(listing) != 1:
+                raise BuildError(
+                    "Expected one top-level project directory to be extracted from {project}, "
+                    "found {count}: {listing}".format(
+                        project=self.source_path, count=len(listing), listing=", ".join(listing)
+                    )
                 )
-            )
-        project_directory = os.path.join(extract_dir, listing[0])
-        if self.subdirectory:
-            project_directory = os.path.join(project_directory, self.subdirectory)
-        return project_directory
+            project_directory = os.path.join(extract_dir, listing[0])
+            if self.subdirectory:
+                project_directory = os.path.join(project_directory, self.subdirectory)
+            return project_directory
+
+        if is_tar_sdist(self.source_path):
+            return sdist.extract_tarball(self.source_path, dest_dir=extract_dir)
+
+        raise BuildError(
+            "Unexpected archive type for sdist {project}".format(project=self.source_path)
+        )
 
     def result(self, source_path=None):
         # type: (Optional[str]) -> BuildResult
