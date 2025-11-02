@@ -63,8 +63,8 @@ class Plugin(object):
 
         return cls(modify_sdist=modify_sdist, modify_wheel=modify_wheel)
 
-    _modify_sdist = attr.ib()  # type: Optional[Callable[[str], None]]
-    _modify_wheel = attr.ib()  # type: Optional[Callable[[str, str], None]]
+    _modify_sdist = attr.ib()  # type: Optional[Callable[[Text], None]]
+    _modify_wheel = attr.ib()  # type: Optional[Callable[[Text, Text], None]]
 
     @property
     def modifies_sdists(self):
@@ -72,7 +72,7 @@ class Plugin(object):
         return self._modify_sdist is not None
 
     def modify_sdist(self, sdist_dir):
-        # type: (str) -> Any
+        # type: (Text) -> Any
         if self._modify_sdist:
             return self._modify_sdist(sdist_dir)
         return None
@@ -84,8 +84,8 @@ class Plugin(object):
 
     def modify_wheel(
         self,
-        wheel_dir,  # type: str
-        dist_info_dir_relpath,  # type: str
+        wheel_dir,  # type: Text
+        dist_info_dir_relpath,  # type: Text
     ):
         # type: (...) -> Any
         if self._modify_wheel:

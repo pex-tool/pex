@@ -398,7 +398,7 @@ class LockObserver(ResolveObserver):
                     targets_and_project_directories,
                     # MyPy just can't figure out the next two args types; they're OK.
                     self._spawn_prepare_metadata,  # type: ignore[arg-type]
-                    error_handler=Retain[str](),  # type: ignore[arg-type]
+                    error_handler=Retain["Tuple[Target, str]"](),  # type: ignore[arg-type]
                     max_jobs=self.max_parallel_jobs,
                 ),
             ):

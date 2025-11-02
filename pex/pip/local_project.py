@@ -44,12 +44,6 @@ def digest_local_project(
             sdist_path = sdist_path_or_error
 
             extract_dir = dest_dir or os.path.join(td, "extracted")
-            sdist.extract_tarball(sdist_path, dest_dir=extract_dir)
-            listing = os.listdir(extract_dir)
-            assert len(listing) == 1, (
-                "Expected sdist generated for {directory} to contain one top-level directory, "
-                "found:\n{listing}".format(directory=directory, listing="\n".join(listing))
-            )
-            project_dir = os.path.join(extract_dir, listing[0])
+            project_dir = sdist.extract_tarball(sdist_path, dest_dir=extract_dir)
             hashing.dir_hash(directory=project_dir, digest=digest)
             return os.path.join(extract_dir, project_dir)

@@ -3,6 +3,7 @@
 
 from __future__ import absolute_import
 
+import glob
 import json
 import os.path
 import shutil
@@ -14,9 +15,20 @@ import pytest
 from pex.common import safe_open, touch
 from pex.compatibility import commonpath
 from pex.interpreter import PythonInterpreter
+from pex.pep_503 import ProjectName
+from pex.pex import PEX
+from pex.resolve.lockfile import json_codec
+from pex.resolve.package_repository import PYPI
+from pex.typing import TYPE_CHECKING, cast
 from pex.venv.virtualenv import Virtualenv
-from testing import run_pex_command
+from testing import make_env, run_pex_command
+from testing.cli import run_pex3
 from testing.pytest_utils.tmp import Tempdir
+
+if TYPE_CHECKING:
+    import attr  # vendor:skip
+else:
+    from pex.third_party import attr
 
 
 @pytest.fixture
@@ -79,6 +91,49 @@ def project_venv(project_dir):
     return Virtualenv(os.path.join(project_dir, ".venv"))
 
 
+@attr.s(frozen=True)
+class ProjectDistributions(object):
+    sdist = attr.ib()  # type: str
+    whl = attr.ib()  # type: str
+
+
+@pytest.fixture
+def project_distributions(
+    project_dir,  # type: str
+    tmpdir,  # type Tempdir
+):
+    # type: (...) -> ProjectDistributions
+
+    dists_dir = tmpdir.join("dists")
+    subprocess.check_call(args=["uv", "build", "-o", dists_dir], cwd=project_dir)
+
+    sdists = glob.glob(os.path.join(dists_dir, "*.tar.gz"))
+    assert 1 == len(sdists)
+
+    whls = glob.glob(os.path.join(dists_dir, "*.whl"))
+    assert 1 == len(whls)
+
+    return ProjectDistributions(sdist=sdists[0], whl=whls[0])
+
+
+@pytest.fixture
+def project_sdist(project_distributions):
+    # type: (ProjectDistributions) -> str
+    return project_distributions.sdist
+
+
+@pytest.fixture
+def project_whl(project_distributions):
+    # type: (ProjectDistributions) -> str
+    return project_distributions.whl
+
+
+@pytest.fixture(params=["project_dir", "project_sdist", "project_whl"])
+def project(request):
+    # type: (...) -> str
+    return cast(str, request.getfixturevalue(request.param))
+
+
 def assert_project(
     python,  # type: PythonInterpreter
     pex_root,  # type: str
@@ -126,7 +181,7 @@ def assert_project(
 
 def test_venv_subset_with_specifiers_discussion_op(
     tmpdir,  # type: Tempdir
-    project_dir,  # type: str
+    project,  # type: str
     project_venv,  # type: Virtualenv
 ):
     # type: (...) -> None
@@ -145,7 +200,7 @@ def test_venv_subset_with_specifiers_discussion_op(
             project_venv.venv_dir,
             "scipy",
             "--project",
-            project_dir,
+            project,
             "-o",
             pex,
             "--no-compress",
@@ -158,7 +213,7 @@ def test_venv_subset_with_specifiers_discussion_op(
 
 def test_editable_installs_subset_issue_2982(
     tmpdir,  # type: Tempdir
-    project_dir,  # type: str
+    project,  # type: str
     project_venv,  # type: Virtualenv
     py310,  # type: PythonInterpreter
 ):
@@ -184,13 +239,16 @@ def test_editable_installs_subset_issue_2982(
         python=project_venv.interpreter.binary,
     ).assert_success()
 
-    shutil.rmtree(project_dir)
+    if os.path.isdir(project):
+        shutil.rmtree(project)
+    else:
+        os.unlink(project)
     assert_project(python=py310, pex_root=pex_root, pex=pex)
 
 
 def test_editable_installs_full_resolve_issue_2982(
     tmpdir,  # type: Tempdir
-    project_dir,  # type: str
+    project,  # type: str
     project_venv,  # type: Virtualenv
     py310,  # type: PythonInterpreter
 ):
@@ -215,5 +273,71 @@ def test_editable_installs_full_resolve_issue_2982(
         python=project_venv.interpreter.binary,
     ).assert_success()
 
-    shutil.rmtree(project_dir)
+    if os.path.isdir(project):
+        shutil.rmtree(project)
+    else:
+        os.unlink(project)
     assert_project(python=py310, pex_root=pex_root, pex=pex)
+
+
+def test_lock_project(
+    tmpdir,  # type: Tempdir
+    project,  # type: str
+    project_whl,  # type: str
+    project_venv,  # type: Virtualenv
+):
+    # type: (...) -> None
+
+    pex_root = tmpdir.join("pex-root")
+    lock_file = tmpdir.join("lock.json")
+    run_pex3(
+        "lock",
+        "create",
+        "--pex-root",
+        pex_root,
+        "--project",
+        project,
+        "--pip-version",
+        "latest-compatible",
+        "--indent",
+        "2",
+        "-o",
+        lock_file,
+        # This test has problems completing its resolve just using --devpi, so we ensure PyPI is
+        # also used.
+        "--use-pip-config",
+        env=make_env(PIP_EXTRA_INDEX_URL=PYPI),
+        python=project_venv.interpreter.binary,
+    ).assert_success()
+    lock = json_codec.load(lock_file)
+    assert len(lock.locked_resolves) == 1
+    locked_project_names = {
+        locked_requirement.pin.project_name
+        for locked_requirement in lock.locked_resolves[0].locked_requirements
+    }
+
+    pex = tmpdir.join("project-deps.pex")
+    run_pex_command(
+        args=[
+            "--pex-root",
+            pex_root,
+            "--runtime-pex-root",
+            pex_root,
+            "--pip-version",
+            "latest-compatible",
+            "--project",
+            project_whl,
+            "--venv-repository",
+            project_venv.venv_dir,
+            "-o",
+            pex,
+            "--no-compress",
+        ],
+        python=project_venv.interpreter.binary,
+    ).assert_success()
+
+    assert locked_project_names == {
+        distribution.metadata.project_name
+        for distribution in PEX(pex, interpreter=project_venv.interpreter).resolve()
+        if distribution.metadata.project_name != ProjectName("project")
+    }

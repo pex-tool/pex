@@ -675,18 +675,19 @@ class Run(CacheAwareMixin, BuildTimeCommand):
                         return package, os.path.join(lock_dest_dir, lock_path)
         elif is_sdist(distribution.path):
             if is_tar_sdist(distribution.path):
-                sdist.extract_tarball(distribution.path, dest_dir=lock_dest_dir)
+                sdist_root = sdist.extract_tarball(distribution.path, dest_dir=lock_dest_dir)
             else:
                 with open_zip(distribution.path) as zf:
                     zf.extractall(lock_dest_dir)
-            entries = glob.glob(os.path.join(lock_dest_dir, "*"))
-            if len(entries) != 1:
-                return Error(
-                    "Expected {sdist} to have 1 entry, found {count}: {entries}".format(
-                        sdist=distribution.path, count=len(entries), entries=entries
+                entries = glob.glob(os.path.join(lock_dest_dir, "*"))
+                if len(entries) != 1:
+                    return Error(
+                        "Expected {sdist} to have 1 entry, found {count}: {entries}".format(
+                            sdist=distribution.path, count=len(entries), entries=entries
+                        )
                     )
-                )
-            sdist_root = entries[0]
+                sdist_root = entries[0]
+
             for lock_name in run_spec.locks:
                 lock_path = os.path.join(sdist_root, lock_name)
                 if os.path.exists(lock_path):
