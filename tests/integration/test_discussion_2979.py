@@ -18,9 +18,10 @@ from pex.interpreter import PythonInterpreter
 from pex.pep_503 import ProjectName
 from pex.pex import PEX
 from pex.resolve.lockfile import json_codec
+from pex.resolve.package_repository import PYPI
 from pex.typing import TYPE_CHECKING, cast
 from pex.venv.virtualenv import Virtualenv
-from testing import run_pex_command
+from testing import make_env, run_pex_command
 from testing.cli import run_pex3
 from testing.pytest_utils.tmp import Tempdir
 
@@ -284,7 +285,6 @@ def test_lock_project(
     project,  # type: str
     project_whl,  # type: str
     project_venv,  # type: Virtualenv
-    py310,  # type: PythonInterpreter
 ):
     # type: (...) -> None
 
@@ -303,7 +303,11 @@ def test_lock_project(
         "2",
         "-o",
         lock_file,
-        python=py310.binary,
+        # This test has problems completing its resolve just using --devpi, so we ensure PyPI is
+        # also used.
+        "--use-pip-config",
+        env=make_env(PIP_EXTRA_INDEX_URL=PYPI),
+        python=project_venv.interpreter.binary,
     ).assert_success()
     lock = json_codec.load(lock_file)
     assert len(lock.locked_resolves) == 1
@@ -334,6 +338,6 @@ def test_lock_project(
 
     assert locked_project_names == {
         distribution.metadata.project_name
-        for distribution in PEX(pex, interpreter=py310).resolve()
+        for distribution in PEX(pex, interpreter=project_venv.interpreter).resolve()
         if distribution.metadata.project_name != ProjectName("project")
     }
