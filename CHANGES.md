@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.68.1
+
+This release fixes a regression extracting sdists on some Pythons older than 3.12.
+
+* Fix sdist tar extraction filtering for old Pythons. (#2992)
+
 ## 2.68.0
 
 This release adds support for `--project` pointing to local project sdist or wheel paths in addition
