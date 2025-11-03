@@ -67,6 +67,7 @@ def _get_filtered_attrs(
     # + `os.path.realpath` -> `_realpath` to deal with `strict` parameter.
     # + `os.path.commonpath` -> `pex.compatibility.commonpath`
     # + `mode = None` guarded by `sys.version_info[:2] >= (3, 12)` with commentary.
+    # + `{uid,gid,uname,gname} = None` guarded by `sys.version_info[:2] >= (3, 12)` with commentary.
 
     new_attrs = {}  # type: Dict[str, Any]
     name = member.name
@@ -113,15 +114,20 @@ def _get_filtered_attrs(
         if mode != member.mode:
             new_attrs["mode"] = mode
     if for_data:
-        # Ignore ownership for 'data'
-        if member.uid is not None:
-            new_attrs["uid"] = None
-        if member.gid is not None:
-            new_attrs["gid"] = None
-        if member.uname is not None:
-            new_attrs["uname"] = None
-        if member.gname is not None:
-            new_attrs["gname"] = None
+        if sys.version_info[:2] >= (3, 12):
+            # Ignore ownership for 'data'
+            if member.uid is not None:
+                new_attrs["uid"] = None
+            if member.gid is not None:
+                new_attrs["gid"] = None
+            if member.uname is not None:
+                new_attrs["uname"] = None
+            if member.gname is not None:
+                new_attrs["gname"] = None
+        else:
+            # Retain uid/gid/uname/gname since older Pythons do not support None.
+            pass
+
         # Check link destination for 'data'
         if member.islnk() or member.issym():
             if os.path.isabs(member.linkname):
