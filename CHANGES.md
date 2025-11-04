@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.68.2
+
+This release bumps the floor of `science` to 0.15.1 to ensure least surprise with no bad
+`--scie-hash-alg` choices presented by the underlying science tool used to build Pex `--scie`s.
+
+* Upgrade `science` to 0.15.1. (#2995)
+
 ## 2.68.1
 
 This release fixes a regression extracting sdists on some Pythons older than 3.12.
