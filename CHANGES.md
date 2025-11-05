@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.68.3
+
+This release fixes Pex to handle installing a wider variety of whls violating various PyPA specs.
+
+* Handle two cases of bad whl metadata. (#2999)
+
 ## 2.68.2
 
 This release bumps the floor of `science` to 0.15.1 to ensure least surprise with no bad

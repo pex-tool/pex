@@ -27,7 +27,7 @@ from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.installed_wheel import InstalledWheel
 from pex.jobs import DEFAULT_MAX_JOBS, iter_map_parallel
 from pex.orderedset import OrderedSet
-from pex.pep_376 import Record
+from pex.pep_376 import InstalledDirectory, InstalledFile, Record
 from pex.pep_427 import InstallableType, InstallableWheel, InstallPaths, install_wheel_chroot
 from pex.pep_503 import ProjectName
 from pex.pip.version import PipVersion
@@ -85,10 +85,11 @@ def _normalize_record(
     if record_lines:
         eol = "\r\n" if record_lines[0].endswith("\r\n") else "\n"
 
-    installed_files = [
-        installed_file
-        for installed_file in Record.read(lines=iter(record_lines))
-        if (
+    installed_files = []  # type: List[Union[InstalledFile, InstalledDirectory]]
+    for installed_file in Record.read(lines=iter(record_lines)):
+        if isinstance(installed_file, InstalledDirectory):
+            installed_files.append(installed_file)
+        elif isinstance(installed_file, InstalledFile) and (
             (os.path.basename(installed_file.path) not in entry_point_scripts)
             or (
                 scripts_dir
@@ -99,8 +100,8 @@ def _normalize_record(
                     )
                 )
             )
-        )
-    ]
+        ):
+            installed_files.append(installed_file)
     return Record.write_bytes(installed_files=installed_files, eol=eol)
 
 

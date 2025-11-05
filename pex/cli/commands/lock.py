@@ -36,7 +36,7 @@ from pex.installed_wheel import InstalledWheel
 from pex.interpreter import PythonInterpreter
 from pex.orderedset import OrderedSet
 from pex.os import is_exe, safe_execv
-from pex.pep_376 import Record
+from pex.pep_376 import InstalledFile, Record
 from pex.pep_427 import InstallableType, reinstall_venv
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
@@ -306,6 +306,7 @@ class SyncTarget(object):
                     for installed_file in Record.read(
                         lines=distribution.iter_metadata_lines("RECORD")
                     )
+                    if isinstance(installed_file, InstalledFile)
                 )
             elif distribution.metadata.type is MetadataType.EGG_INFO:
                 installed_files = distribution.metadata.files.metadata_file_rel_path(
