@@ -36,7 +36,7 @@ from pex.exceptions import production_assert, reportable_unexpected_error_msg
 from pex.executables import chmod_plus_x, is_python_script
 from pex.installed_wheel import InstalledWheel
 from pex.interpreter import PythonInterpreter
-from pex.pep_376 import InstalledFile, Record, create_installed_file
+from pex.pep_376 import InstalledDirectory, InstalledFile, Record, create_installed_file
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.sysconfig import SCRIPT_DIR, SysPlatform
@@ -775,11 +775,24 @@ def create_whl(
                 )
         else:
             for installed_file in Record.read(lines=iter(record_data.decode("utf-8").splitlines())):
-                src = os.path.join(whl_chroot, installed_file.path)
+                path = (
+                    installed_file.dir_info.path
+                    if isinstance(installed_file, InstalledDirectory)
+                    else installed_file.path
+                )
+                src = os.path.join(whl_chroot, path)
+                if not os.path.exists(src):
+                    production_assert(
+                        isinstance(installed_file, InstalledDirectory),
+                        "The wheel entry {filename} is unexpectedly missing from {source}.",
+                        filename=path,
+                        source=wheel_to_create.source,
+                    )
+                    safe_mkdir(src)
                 if use_system_time:
-                    zip_fp.write(src, installed_file.path)
+                    zip_fp.write(src, path)
                 else:
-                    zip_fp.write_deterministic(src, installed_file.path)
+                    zip_fp.write_deterministic(src, path)
     return wheel_path
 
 
@@ -869,7 +882,11 @@ def install_wheel(
             eol = "\r\n" if record_lines[0].endswith("\r\n") else "\n"
 
         if not record_data or any(
-            os.path.isabs(installed_file.path)
+            os.path.isabs(
+                installed_file.dir_info.path
+                if isinstance(installed_file, InstalledDirectory)
+                else installed_file.path
+            )
             for installed_file in Record.read(lines=iter(record_lines))
         ):
             prefix = "The RECORD in {whl}".format(whl=os.path.basename(whl))
@@ -935,10 +952,15 @@ def install_wheel(
     requested_relpath = wheel.metadata_path("REQUESTED")
     zip_metadata_relpath = wheel.pex_metadata_path(ZipMetadata.FILENAME)
 
-    installed_files = []  # type: List[InstalledFile]
+    installed_files = []  # type: List[Union[InstalledFile, InstalledDirectory]]
     provenance = []  # type: List[Tuple[Text, Text]]
     symlinked = set()  # type: Set[Text]
-    for installed_file in Record.read(lines=iter(record_data.decode("utf-8").splitlines())):
+    for installed_file_or_dir in Record.read(lines=iter(record_data.decode("utf-8").splitlines())):
+        if isinstance(installed_file_or_dir, InstalledDirectory):
+            installed_files.append(installed_file_or_dir)
+            continue
+
+        installed_file = installed_file_or_dir
         if installed_file.path == record_relpath:
             record_eol = _detect_record_eol(os.path.join(wheel.location, installed_file.path))
             installed_files.append(InstalledFile(path=record_relpath, hash=None, size=None))
@@ -1051,7 +1073,7 @@ def install_wheel(
         py_files = [
             os.path.join(dest, installed_file.path)
             for installed_file in installed_files
-            if installed_file.path.endswith(".py")
+            if isinstance(installed_file, InstalledFile) and installed_file.path.endswith(".py")
         ]
         process = subprocess.Popen(
             args=args + py_files, stdout=subprocess.PIPE, stderr=subprocess.PIPE

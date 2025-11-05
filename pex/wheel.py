@@ -42,7 +42,7 @@ class WHEEL(object):
     """
 
     @classmethod
-    def _from_metadata_files(cls, metadata_files):
+    def from_metadata_files(cls, metadata_files):
         # type: (MetadataFiles) -> WHEEL
 
         metadata_bytes = metadata_files.read("WHEEL")
@@ -52,7 +52,18 @@ class WHEEL(object):
                     wheel=metadata_files.render_description(metadata_file_name="WHEEL")
                 )
             )
-        metadata = parse_message(metadata_bytes)
+
+        # Some WHEEL metadata in the wild has blank lines in between headers when it should not.
+        # Since WHEEL metadata, unlike METADATA, does not use the message body to convey metadata,
+        # this should be safe.
+        #
+        # See here for initial discovery case:
+        #   https://github.com/pex-tool/pex/issues/2998#issuecomment-3492998265
+        normalized_metadata = b"".join(
+            line for line in metadata_bytes.splitlines(True) if line.strip()
+        )
+
+        metadata = parse_message(normalized_metadata)
         return cls(files=metadata_files, metadata=metadata)
 
     _CACHE = {}  # type: Dict[Tuple[Text, Optional[ProjectName]], WHEEL]
@@ -73,7 +84,7 @@ class WHEEL(object):
                 raise WheelMetadataLoadError(
                     "Could not find any metadata in {wheel}.".format(wheel=location)
                 )
-            wheel = cls._from_metadata_files(metadata_files)
+            wheel = cls.from_metadata_files(metadata_files)
             cls._CACHE[(location, project_name)] = wheel
         return wheel
 
@@ -84,7 +95,7 @@ class WHEEL(object):
         project_name = distribution.metadata.project_name
         wheel = cls._CACHE.get((location, project_name))
         if not wheel:
-            wheel = cls._from_metadata_files(distribution.metadata.files)
+            wheel = cls.from_metadata_files(distribution.metadata.files)
             cls._CACHE[(location, project_name)] = wheel
         return wheel
 
@@ -144,14 +155,7 @@ class Wheel(object):
         if wheel:
             metadata = wheel
         else:
-            wheel_data = metadata_files.read("WHEEL")
-            if not wheel_data:
-                raise WheelMetadataLoadError(
-                    "Could not find WHEEL metadata in {source}.".format(
-                        source=cls._source(location, metadata_files)
-                    )
-                )
-            metadata = WHEEL(files=metadata_files, metadata=parse_message(wheel_data))
+            metadata = WHEEL.from_metadata_files(metadata_files)
 
         wheel_metadata_dir = os.path.dirname(metadata_files.metadata.rel_path)
         if not wheel_metadata_dir.endswith(".dist-info"):

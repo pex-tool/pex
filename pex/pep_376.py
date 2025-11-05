@@ -78,6 +78,14 @@ class InstalledFile(object):
     size = attr.ib(default=None)  # type: Optional[int]
 
 
+@attr.s(frozen=True)
+class InstalledDirectory(object):
+    # N.B.: Although directory entries should not exist in a RECORD, they have been seen in the
+    # wild; so we're forced to deal with them. See: https://github.com/pex-tool/pex/issues/2998
+
+    dir_info = attr.ib()  # type: InstalledFile
+
+
 def create_installed_file(
     path,  # type: Text
     dest_dir,  # type: str
@@ -121,18 +129,21 @@ class Record(object):
     def write_fp(
         cls,
         fp,  # type: IO
-        installed_files,  # type: Iterable[InstalledFile]
+        installed_files,  # type: Iterable[Union[InstalledFile, InstalledDirectory]]
         eol="\n",  # type: str
     ):
         # type: (...) -> None
         csv_writer = csv.writer(fp, delimiter=",", quotechar='"', lineterminator=eol)
         for installed_file in installed_files:
-            csv_writer.writerow(attr.astuple(installed_file, recurse=False))
+            if isinstance(installed_file, InstalledDirectory):
+                csv_writer.writerow(attr.astuple(installed_file.dir_info, recurse=False))
+            else:
+                csv_writer.writerow(attr.astuple(installed_file, recurse=False))
 
     @classmethod
     def write_bytes(
         cls,
-        installed_files,  # type: Iterable[InstalledFile]
+        installed_files,  # type: Iterable[Union[InstalledFile, InstalledDirectory]]
         eol="\n",  # type: str
     ):
         # type: (...) -> bytes
@@ -149,7 +160,7 @@ class Record(object):
     def write(
         cls,
         dst,  # type: Text
-        installed_files,  # type: Iterable[InstalledFile]
+        installed_files,  # type: Iterable[Union[InstalledFile, InstalledDirectory]]
         eol="\n",  # type: str
     ):
         # type: (...) -> None
@@ -165,7 +176,7 @@ class Record(object):
         lines,  # type: Union[FileInput[Text], Iterator[Text]]
         exclude=None,  # type: Optional[Callable[[Text], bool]]
     ):
-        # type: (...) -> Iterator[InstalledFile]
+        # type: (...) -> Iterator[Union[InstalledFile, InstalledDirectory]]
 
         # The RECORD is a csv file with the path to each installed file in the 1st column.
         # See: https://peps.python.org/pep-0376/#record
@@ -177,7 +188,11 @@ class Record(object):
                 continue
             file_hash = Hash(fingerprint) if fingerprint else None
             size = int(file_size) if file_size else None
-            yield InstalledFile(path=path, hash=file_hash, size=size)
+            installed_file = InstalledFile(path=path, hash=file_hash, size=size)
+            if path.endswith("/"):
+                yield InstalledDirectory(dir_info=installed_file)
+            else:
+                yield installed_file
 
     project_name = attr.ib()  # type: str
     version = attr.ib()  # type: str
