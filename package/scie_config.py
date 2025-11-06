@@ -13,6 +13,8 @@ from typing import Any
 
 import toml
 
+from pex.sysconfig import SysPlatform
+
 
 @dataclass(frozen=True)
 class PlatformConfig:
@@ -26,16 +28,21 @@ class PlatformConfig:
         default_python_version: str
     ) -> PlatformConfig:
         return cls(
-            name=name,
+            platform=SysPlatform.parse(name),
             pbs_release=platform_data.get("pbs-release", default_pbs_release),
             python_version=platform_data.get("python-version", default_python_version),
             required=platform_data.get("required", True),
         )
 
-    name: str
+    platform: SysPlatform.Value
     pbs_release: str
     python_version: str
     required: bool = True
+
+    @property
+    def name(self):
+        # type:() -> str
+        return str(self.platform)
 
 
 @dataclass(frozen=True)

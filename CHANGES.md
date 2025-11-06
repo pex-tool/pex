@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.69.0
+
+This release adds a `pexec` console script as an alias for `pex3 run`.
+
+* Add `pexec` script as a `pex3 run` alias. (#3001)
+
 ## 2.68.3
 
 This release fixes Pex to handle installing a wider variety of whls violating various PyPA specs.
