@@ -5,6 +5,7 @@ from __future__ import absolute_import, print_function
 
 import os.path
 import re
+import subprocess
 import sys
 from textwrap import dedent
 from typing import Iterator
@@ -14,9 +15,11 @@ import pytest
 from pex.cache.dirs import VenvDirs
 from pex.common import safe_copy, safe_open
 from pex.http.server import Server, ServerInfo
+from pex.sysconfig import SysPlatform
 from pex.typing import TYPE_CHECKING
+from pex.venv.virtualenv import InstallationChoice, Virtualenv
 from pex.version import __version__
-from testing import IS_MAC, PY_VER, run_pex_command
+from testing import IS_MAC, PY_VER, make_env, run_pex_command
 from testing.cli import run_pex3
 from testing.pytest_utils import IS_CI
 from testing.pytest_utils.tmp import Tempdir
@@ -536,3 +539,52 @@ def test_run_constraints(
         "cowsay",
         "--version",
     ).assert_success(expected_output_re=r"^4\.0$")
+
+
+def test_pexec(tmpdir):
+    # type: (Tempdir) -> None
+
+    dist_dir = tmpdir.join("dist")
+    subprocess.check_call(
+        args=[
+            "uv",
+            "run",
+            "dev-cmd",
+            "package",
+            "--",
+            "--dist-dir",
+            dist_dir,
+            "--scie",
+            "--additional-format",
+            "wheel",
+        ]
+    )
+
+    venv_dir = tmpdir.join("venv")
+    venv = Virtualenv.create(venv_dir=venv_dir, install_pip=InstallationChoice.YES)
+    subprocess.check_call(
+        args=[
+            venv.interpreter.binary,
+            "-m",
+            "pip",
+            "install",
+            os.path.join(
+                dist_dir, "pex-{version}-py2.py3-none-any.whl".format(version=__version__)
+            ),
+        ]
+    )
+    assert b"| Moo! |" in subprocess.check_output(
+        args=[venv.bin_path("pexec"), "cowsay==5", "Moo!"]
+    ), "Expected install of Pex whl to yield a functioning pexec console script."
+
+    assert b"| Moo! |" in subprocess.check_output(
+        args=[os.path.join(dist_dir, "pex"), "cowsay==5", "Moo!"], env=make_env(PEX_SCRIPT="pexec")
+    ), "Expected Pex PEX to support the pexec console script."
+    assert b"| Moo! |" in subprocess.check_output(
+        args=[
+            os.path.join(dist_dir, SysPlatform.CURRENT.qualified_binary_name("pex")),
+            "pexec",
+            "cowsay==5",
+            "Moo!",
+        ]
+    ), "Expected Pex scie to support a pexec busybox entry point."
