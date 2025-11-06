@@ -300,15 +300,15 @@ def main(
             print(f"  {dist_path}")
 
     if clean_docs:
-        shutil.rmtree(DEFAULT_DIST_DIR / "docs", ignore_errors=True)
+        shutil.rmtree(dist_dir / "docs", ignore_errors=True)
 
     if serve:
         server = HTTPServer(("", 0), SimpleHTTPRequestHandler)
         host, port = server.server_address
 
-        print(f"Serving Pex distributions from `{DEFAULT_DIST_DIR}` at http://{host}:{port} ...")
+        print(f"Serving Pex distributions from `{dist_dir}` at http://{host}:{port} ...")
 
-        os.chdir(DEFAULT_DIST_DIR)
+        os.chdir(dist_dir)
         try:
             server.serve_forever()
         except KeyboardInterrupt:
