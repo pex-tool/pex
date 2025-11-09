@@ -3,10 +3,8 @@
 
 from __future__ import absolute_import
 
-import glob
-import json
 import os.path
-import shutil
+import re
 import subprocess
 from textwrap import dedent
 
@@ -15,20 +13,9 @@ import pytest
 from pex.common import safe_open, touch
 from pex.compatibility import commonpath
 from pex.interpreter import PythonInterpreter
-from pex.pep_503 import ProjectName
-from pex.pex import PEX
-from pex.resolve.lockfile import json_codec
-from pex.resolve.package_repository import PYPI
-from pex.typing import TYPE_CHECKING, cast
 from pex.venv.virtualenv import Virtualenv
-from testing import make_env, run_pex_command
-from testing.cli import run_pex3
+from testing import run_pex_command
 from testing.pytest_utils.tmp import Tempdir
-
-if TYPE_CHECKING:
-    import attr  # vendor:skip
-else:
-    from pex.third_party import attr
 
 
 @pytest.fixture
@@ -67,53 +54,10 @@ def project_venv(project_dir):
     return Virtualenv(os.path.join(project_dir, ".venv"))
 
 
-@attr.s(frozen=True)
-class ProjectDistributions(object):
-    sdist = attr.ib()  # type: str
-    whl = attr.ib()  # type: str
-
-
-@pytest.fixture
-def project_distributions(
-        project_dir,  # type: str
-        tmpdir,  # type Tempdir
-):
-    # type: (...) -> ProjectDistributions
-
-    dists_dir = tmpdir.join("dists")
-    subprocess.check_call(args=["uv", "build", "-o", dists_dir], cwd=project_dir)
-
-    sdists = glob.glob(os.path.join(dists_dir, "*.tar.gz"))
-    assert 1 == len(sdists)
-
-    whls = glob.glob(os.path.join(dists_dir, "*.whl"))
-    assert 1 == len(whls)
-
-    return ProjectDistributions(sdist=sdists[0], whl=whls[0])
-
-
-@pytest.fixture
-def project_sdist(project_distributions):
-    # type: (ProjectDistributions) -> str
-    return project_distributions.sdist
-
-
-@pytest.fixture
-def project_whl(project_distributions):
-    # type: (ProjectDistributions) -> str
-    return project_distributions.whl
-
-
-@pytest.fixture(params=["project_dir", "project_sdist", "project_whl"])
-def project(request):
-    # type: (...) -> str
-    return cast(str, request.getfixturevalue(request.param))
-
-
-def assert_project(
-        python,  # type: PythonInterpreter
-        pex_root,  # type: str
-        pex,  # type: str
+def assert_opentelemetry_semconv(
+    python,  # type: PythonInterpreter
+    pex_root,  # type: str
+    pex,  # type: str
 ):
     # type: (...) -> None
 
@@ -123,28 +67,21 @@ def assert_project(
                 python.binary,
                 pex,
                 "-c",
-                dedent(
-                    """\
-                import opentelemetry-semantic-conventions
-                """
-                ),
+                "from opentelemetry import semconv; print(semconv.__file__)",
             ]
         )
         .decode("utf-8")
         .strip()
     )
 
-    data = json.loads(output)
-    assert pex_root == commonpath((pex_root, data["project_path"]))
-    assert "0.42.0" == data["project_version"]
-    assert pex_root == commonpath((pex_root, data["scipy_path"]))
+    assert pex_root == commonpath((pex_root, output))
 
 
 def test_edge_case_semver_version_satisfied(
-        tmpdir,  # type: Tempdir
-        project,  # type: str
-        project_venv,  # type: Virtualenv
-        py310,  # type: PythonInterpreter
+    tmpdir,  # type: Tempdir
+    project_dir,  # type: str
+    project_venv,  # type: Virtualenv
+    py310,  # type: PythonInterpreter
 ):
     # type: (...) -> None
 
@@ -166,12 +103,54 @@ def test_edge_case_semver_version_satisfied(
             "--no-compress",
         ],
         python=project_venv.interpreter.binary,
+    ).assert_failure(
+        expected_error_re=r".*^{error_msg}$".format(
+            error_msg=re.escape(
+                "Resolve from venv at {venv_dir} failed: The virtual environment has "
+                "opentelemetry-semantic-conventions 0.59b0 installed but it does not meet top "
+                "level requirement project -> opentelemetry-semantic-conventions==0.59b0.".format(
+                    venv_dir=project_venv.venv_dir
+                )
+            ),
+        ),
+        re_flags=re.DOTALL | re.MULTILINE,
+    )
+
+    run_pex_command(
+        args=[
+            "--pex-root",
+            pex_root,
+            "--runtime-pex-root",
+            pex_root,
+            "--pip-version",
+            "latest-compatible",
+            "--venv-repository",
+            project_venv.venv_dir,
+            "project",
+            "-o",
+            pex,
+            "--no-compress",
+            "--pre",
+        ],
+        python=project_venv.interpreter.binary,
     ).assert_success()
+    assert_opentelemetry_semconv(python=py310, pex_root=pex_root, pex=pex)
 
-    if os.path.isdir(project):
-        shutil.rmtree(project)
-    else:
-        os.unlink(project)
-    assert_project(python=py310, pex_root=pex_root, pex=pex)
-
-
+    run_pex_command(
+        args=[
+            "--pex-root",
+            pex_root,
+            "--runtime-pex-root",
+            pex_root,
+            "--pip-version",
+            "latest-compatible",
+            "--venv-repository",
+            project_venv.venv_dir,
+            "opentelemetry-semantic-conventions==0.59b0",
+            "-o",
+            pex,
+            "--no-compress",
+        ],
+        python=project_venv.interpreter.binary,
+    ).assert_success()
+    assert_opentelemetry_semconv(python=py310, pex_root=pex_root, pex=pex)
