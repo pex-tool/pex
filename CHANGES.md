@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.69.1
+
+This release fixes `--venv-repository` handling of top-level requirements that specify pre-releases.
+Such resolves now imply `--pre`.
+
+* Root reqs that specify prereleases imply `--pre`. (#3004)
+
 ## 2.69.0
 
 This release adds a `pexec` console script as an alias for `pex3 run`.
