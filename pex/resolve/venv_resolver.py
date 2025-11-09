@@ -504,10 +504,15 @@ def _resolve_from_venv(
         )
         local_project_requirements = OrderedSet()  # type: OrderedSet[LocalProjectRequirement]
         root_requirements = OrderedSet()  # type: OrderedSet[Requirement]
+        root_requirements_has_prereleases = False
         for parsed_requirement in parsed_requirements:
             if isinstance(parsed_requirement, LocalProjectRequirement):
                 local_project_requirements.add(parsed_requirement)
             else:
+                root_requirements_has_prereleases = (
+                    root_requirements_has_prereleases
+                    or parsed_requirement.requirement.specifier.prereleases
+                )
                 root_requirements.add(parsed_requirement.requirement)
                 direct_requirements_by_project_name[
                     parsed_requirement.requirement.project_name
@@ -537,7 +542,9 @@ def _resolve_from_venv(
             requirements=root_requirements,
             constraints_by_project_name=constraints_by_project_name,
             dependency_configuration=dependency_configuration,
-            allow_prereleases=pip_configuration.allow_prereleases,
+            allow_prereleases=(
+                root_requirements_has_prereleases or pip_configuration.allow_prereleases
+            ),
             compile=compile,
             ignore_errors=ignore_errors,
             result_type=result_type,
