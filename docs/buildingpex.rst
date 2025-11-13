@@ -253,7 +253,7 @@ Each of the commands above have been manipulating ephemeral PEX environments -- 
 exist for the duration of the pex command lifetime and immediately garbage collected.
 
 If the ``-o PATH`` option is specified, a PEX file of the environment is saved to disk at ``PATH``.  For example
-we can package a standalone Sphinx as above:
+we can package a standalone Ansible as above:
 
 .. code-block:: console
 
