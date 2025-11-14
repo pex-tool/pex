@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.69.2
+
+This release fixes handling of scoped repos. Previously, validation against duplicate scopes was too
+aggressive and disallowed multiple un-named indexes and find-links repositories.
+
+* Allow multiple un-named indexes and find-links repos. (#3009)
+
 ## 2.69.1
 
 This release fixes `--venv-repository` handling of top-level requirements that specify pre-releases.
