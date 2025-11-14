@@ -8,6 +8,7 @@ from argparse import ArgumentParser
 import pytest
 
 from pex.common import touch
+from pex.pep_503 import ProjectName
 from pex.pex_warnings import PEXWarning
 from pex.pip.version import PipVersion
 from pex.resolve import resolver_options
@@ -18,6 +19,7 @@ from pex.resolve.resolver_configuration import (
     PipConfiguration,
     PreResolvedConfiguration,
 )
+from pex.resolve.resolver_options import create_repos_configuration
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -376,3 +378,75 @@ def test_build_configuration_warn_no_build_isolation_no_build(parser):
         )
         assert not build_configuration.allow_builds
         assert not build_configuration.build_isolation
+
+
+def test_unnamed_find_links_and_index(parser):
+    # type: (ArgumentParser) -> None
+
+    resolver_options.register(parser)
+    options = parser.parse_args(
+        args=[
+            "--find-links",
+            "https://wheels.pantsbuild.org/simple",
+            "--no-pypi",
+            "--index",
+            "https://pypi.org/simple/",
+            "--index",
+            "pytorch_cpu=https://download.pytorch.org/whl/cpu",
+            "--source",
+            "pytorch_cpu=torch; sys_platform != 'darwin'",
+        ]
+    )
+
+    repos_configuration = create_repos_configuration(options)
+    assert tuple(["https://pypi.org/simple/"]) == repos_configuration.indexes
+    assert tuple(["https://wheels.pantsbuild.org/simple"]) == repos_configuration.find_links
+
+    linux_scoped_repos = repos_configuration.scoped({"sys_platform": "linux"})
+    assert ["https://download.pytorch.org/whl/cpu"] == linux_scoped_repos.in_scope_indexes(
+        ProjectName("torch")
+    )
+    assert [] == linux_scoped_repos.in_scope_indexes(ProjectName("pex"))
+    assert [] == linux_scoped_repos.in_scope_find_links(ProjectName("torch"))
+
+    mac_scoped_repos = repos_configuration.scoped({"sys_platform": "darwin"})
+    assert [] == mac_scoped_repos.in_scope_indexes(ProjectName("torch"))
+    assert [] == mac_scoped_repos.in_scope_indexes(ProjectName("pex"))
+    assert [] == mac_scoped_repos.in_scope_find_links(ProjectName("torch"))
+
+
+def test_multiple_unnamed_indexes(parser):
+    # type: (ArgumentParser) -> None
+
+    resolver_options.register(parser)
+    options = parser.parse_args(
+        args=[
+            "--find-links",
+            "https://wheels.pantsbuild.org/simple",
+            "--no-pypi",
+            "--index",
+            "https://pypi.org/simple/",
+            "--index",
+            "https://pypi.org/simple2/",
+            "--index",
+            "pytorch_cpu=https://download.pytorch.org/whl/cpu",
+            "--source",
+            "pytorch_cpu=torch; sys_platform != 'darwin'",
+        ]
+    )
+    repos_configuration = create_repos_configuration(options)
+    assert (
+        "https://pypi.org/simple/",
+        "https://pypi.org/simple2/",
+    ) == repos_configuration.indexes, repr(repos_configuration)
+    assert tuple(["https://wheels.pantsbuild.org/simple"]) == repos_configuration.find_links
+
+    linux_scoped_repos = repos_configuration.scoped({"sys_platform": "linux"})
+    assert ["https://download.pytorch.org/whl/cpu"] == linux_scoped_repos.in_scope_indexes(
+        ProjectName("torch")
+    )
+    assert [] == linux_scoped_repos.in_scope_find_links(ProjectName("torch"))
+
+    mac_scoped_repos = repos_configuration.scoped({"sys_platform": "darwin"})
+    assert [] == mac_scoped_repos.in_scope_indexes(ProjectName("torch"))
+    assert [] == mac_scoped_repos.in_scope_find_links(ProjectName("torch"))
