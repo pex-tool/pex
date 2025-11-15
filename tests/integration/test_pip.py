@@ -4,11 +4,18 @@
 from __future__ import absolute_import
 
 import re
+import sys
+
+import pytest
 
 from testing import make_env, run_pex_command
 from testing.pytest_utils.tmp import Tempdir
 
 
+@pytest.mark.skipif(
+    sys.version_info[:2] < (3, 9),
+    reason="The adhoc Pip version used in the test requires Python>=3.9.",
+)
 def test_adhoc_nominal(tmpdir):
     # type: (Tempdir) -> None
 
