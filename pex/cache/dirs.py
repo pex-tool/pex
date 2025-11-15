@@ -614,7 +614,10 @@ class PipPexDir(AtomicCacheDir):
         from pex.pip.version import PipVersion
 
         for base_dir in glob.glob(CacheDir.PIP.path("*", pex_root=pex_root)):
-            version = PipVersion.for_value(os.path.basename(base_dir))
+            dir_name = os.path.basename(base_dir)
+            version = (
+                PipVersion.ADHOC if dir_name.startswith("adhoc") else PipVersion.for_value(dir_name)
+            )
             cache_dir = os.path.join(base_dir, "pip_cache")
             for pex_dir in glob.glob(os.path.join(base_dir, "pip.pex", "*", "*")):
                 yield cls(path=pex_dir, version=version, base_dir=base_dir, cache_dir=cache_dir)

@@ -72,8 +72,8 @@ def test_adhoc_missing_req(tmpdir):
     ).assert_failure(
         expected_error_re=r"^.*{message}.*$".format(
             message=re.escape(
-                "You must set a value for the _PEX_PIP_ADHOC_REQUIREMENT environment value to use "
-                "an adhoc Pip version."
+                "You must set a value for the _PEX_PIP_ADHOC_REQUIREMENT environment variable to "
+                "use an adhoc Pip version."
             )
         ),
         re_flags=re.DOTALL | re.MULTILINE,

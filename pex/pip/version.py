@@ -88,7 +88,7 @@ class PipVersionValue(Enum.Value):
 
     def cache_dir_name(self):
         # type: () -> str
-        return str(self.version)
+        return self.value
 
     @property
     def requirement(self):
@@ -214,8 +214,8 @@ class Adhoc(PipVersionValue):
             requirement = os.environ.get("_PEX_PIP_ADHOC_REQUIREMENT")
             if not requirement:
                 raise ValueError(
-                    "You must set a value for the _PEX_PIP_ADHOC_REQUIREMENT environment value to use "
-                    "an adhoc Pip version."
+                    "You must set a value for the _PEX_PIP_ADHOC_REQUIREMENT environment variable "
+                    "to use an adhoc Pip version."
                 )
             self._adhoc_requirement = Requirement.parse(requirement)
         return self._adhoc_requirement
