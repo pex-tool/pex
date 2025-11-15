@@ -1,5 +1,13 @@
 # Release Notes
 
+## 2.70.0
+
+This release adds a feature for Pex developers. If you want to experiment with a new version of Pip
+you can now specify `_PEX_PIP_VERSION=adhoc _PEX_PIP_ADHOC_REQUIREMENT=...`. N.B.: This feature is
+for Pex development only.
+
+* Support adhoc Pip versions in development. (#3011)
+
 ## 2.69.2
 
 This release fixes handling of scoped repos. Previously, validation against duplicate scopes was too
