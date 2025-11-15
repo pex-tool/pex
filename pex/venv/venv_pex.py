@@ -172,6 +172,7 @@ def boot(
             "_PEX_HTTP_SERVER_TIMEOUT",
             "_PEX_PEXPECT_TIMEOUT",
             "_PEX_PIP_VERSION",
+            "_PEX_PIP_ADHOC_REQUIREMENT",
             "_PEX_REQUIRES_PYTHON",
             "_PEX_TEST_DEV_ROOT",
             "_PEX_TEST_POS_ARGS",

@@ -72,9 +72,13 @@ class Enum(Generic["_V"]):
             )
             return _get_or_create, (module, enum_type, type(self).__name__, self.value)
 
-        def __init__(self, value):
-            # type: (str) -> None
-            values = Enum.Value._values_by_type[type(self)]
+        def __init__(
+            self,
+            value,  # type: str
+            enum_type=None,  # type: Optional[Type[Enum.Value]]
+        ):
+            # type: (...) -> None
+            values = Enum.Value._values_by_type[enum_type or type(self)]
             self.value = value
             self.ordinal = len(values)
             values.append(weakref.ref(self))

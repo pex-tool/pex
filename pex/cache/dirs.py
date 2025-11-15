@@ -629,7 +629,7 @@ class PipPexDir(AtomicCacheDir):
 
         from pex.third_party import isolated
 
-        base_dir = CacheDir.PIP.path(str(version))
+        base_dir = CacheDir.PIP.path(version.cache_dir_name())
         return cls(
             path=os.path.join(base_dir, "pip.pex", isolated().pex_hash, fingerprint),
             version=version,
