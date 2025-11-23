@@ -14,8 +14,10 @@ import sys
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from logging import Logger
 from subprocess import CalledProcessError
+from textwrap import dedent
 
 import coloredlogs
+import dateutil.parser  # type: ignore[import]  # MyPy can't see the types under Python 2.7.
 
 from pex.common import temporary_dir
 from pex.dist_metadata import DistMetadata
@@ -59,14 +61,14 @@ os.environ["_PEX_TEST_PROJECT_DIR"] = find_project_dir()
 sys.path.insert(0, os.environ["_PEX_TEST_PROJECT_DIR"])
 
 from pex import toml, windows
-from pex.compatibility import urlparse
+from pex.compatibility import to_unicode, urlparse
 from pex.fs import safe_rename
 from pex.typing import TYPE_CHECKING, cast
 from pex.util import named_temporary_file
 from testing import devpi, pex_dist, pex_project_dir
 
 if TYPE_CHECKING:
-    from typing import Iterator, List, Optional, Tuple
+    from typing import Iterator, List, Optional, Text, Tuple
 
     import attr  # vendor:skip
 else:
@@ -164,8 +166,8 @@ PIP_WORKFLOW = "CI"
 def resolve_pip_dev(logger):
     # type: (Logger) -> Tuple[Version, Optional[SpecifierSet], List[str], str]
 
-    extra_log_lines = []  # type: List[str]
     build_system_requires = []  # type: List[str]
+    extra_log_lines = []  # type: List[Text]
 
     pip_adhoc_requirement = os.environ.get("_PEX_PIP_ADHOC_REQUIREMENT")
     if pip_adhoc_requirement:
@@ -209,25 +211,11 @@ def resolve_pip_dev(logger):
             workflow=PIP_WORKFLOW, repo=PIP_REPO, commit=commit
         )
         extra_log_lines.append(
-            "> {created_at}: {pr_title}".format(
-                created_at=green_ci_run["createdAt"], pr_title=green_ci_run["displayTitle"]
+            to_unicode("> {created_at}: {pr_title}").format(
+                created_at=dateutil.parser.isoparse(green_ci_run["createdAt"]).strftime("%c"),
+                pr_title=green_ci_run["displayTitle"],
             )
         )
-
-    if isinstance(pip_requirement, VCSRequirement) and pip_requirement.url.startswith(
-        "https://github.com/"
-    ):
-        path_components = urlparse.urlparse(pip_requirement.url).path.lstrip("/").split("/")
-        if len(path_components) >= 2:
-            project = path_components[1].rsplit("@", 1)[0]
-            repo = "{user}/{project}".format(user=path_components[0], project=project)
-            with URLFetcher().get_body_stream(
-                "https://raw.githubusercontent.com/{repo}/{sha}/pyproject.toml".format(
-                    repo=repo, sha=pip_requirement.commit or "HEAD"
-                )
-            ) as fp:
-                pyproject = toml.load(fp)
-            build_system_requires.extend(pyproject["build-system"]["requires"])
 
     with temporary_dir() as chroot:
         subprocess.check_call(
@@ -236,6 +224,119 @@ def resolve_pip_dev(logger):
         pip_metadata = DistMetadata.load(chroot)
         pip_version = pip_metadata.version
         pip_requires_python = pip_metadata.requires_python
+
+    repo_and_commit = None  # type: Optional[Tuple[str, str]]
+    if isinstance(pip_requirement, VCSRequirement) and pip_requirement.url.startswith(
+        "https://github.com/"
+    ):
+        path_components = urlparse.urlparse(pip_requirement.url).path.lstrip("/").split("/")
+        if len(path_components) >= 2:
+            project = path_components[1].rsplit("@", 1)[0]
+            repo = "{user}/{project}".format(user=path_components[0], project=project)
+            commit = pip_requirement.commit or "HEAD"
+            with URLFetcher().get_body_stream(
+                "https://raw.githubusercontent.com/{repo}/{sha}/pyproject.toml".format(
+                    repo=repo, sha=pip_requirement.commit or "HEAD"
+                )
+            ) as fp:
+                pyproject = toml.load(fp)
+            build_system_requires.extend(pyproject["build-system"]["requires"])
+            repo_and_commit = repo, commit
+
+    summary_file = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary_file:
+        with open(summary_file, "ab") as summary_fp:
+            if repo_and_commit:
+                repo, commit = repo_and_commit
+                output = subprocess.check_output(
+                    args=[
+                        "gh",
+                        "api",
+                        "repos/{repo}/commits/{sha}/pulls".format(repo=repo, sha=commit),
+                        "--jq",
+                        (
+                            ".[] | {"
+                            "url: .html_url, "
+                            'message: .title + "\\n\\n" + .body, '
+                            "created_at: .merged_at"
+                            "}"
+                        ),
+                    ]
+                ).decode("utf-8")
+                if not output:
+                    output = subprocess.check_output(
+                        args=[
+                            "gh",
+                            "api",
+                            "repos/{repo}/commits/{sha}".format(repo=repo, sha=commit),
+                            "--jq",
+                            (
+                                "{"
+                                "url: .html_url, "
+                                "message: .commit.message, "
+                                "created_at: .commit.committer.date"
+                                "}"
+                            ),
+                        ]
+                    ).decode("utf-8")
+
+                data = json.loads(output)
+                created_at = data["created_at"]
+                message = data["message"].splitlines()
+                url = data["url"]
+
+                build_requires = []  # type: List[str]
+                if build_system_requires:
+                    build_requires.append(
+                        "| build-system requires | `{requirement}` |".format(
+                            requirement=build_system_requires[0]
+                        )
+                    )
+                    build_requires.extend(
+                        "| | `{requirement}` |".format(requirement=requirement)
+                        for requirement in build_requires[1:]
+                    )
+
+                summary_fp.write(
+                    dedent(
+                        to_unicode(
+                            """\
+                            ## Pip {version}
+                            | metadata  |              |
+                            | --------- | ------------ |
+                            | via       | {via}        |
+                            | merged on | {created_at} |
+                            {build_requires}
+
+                            ---
+
+                            ### {title}
+
+                            {body}
+                            """
+                        )
+                    )
+                    .format(
+                        version=pip_version.raw,
+                        via=url,
+                        build_requires="\n".join(build_requires),
+                        created_at=dateutil.parser.isoparse(created_at).strftime("%c"),
+                        title=message[0],
+                        body="\n".join(message[1:]),
+                    )
+                    .encode("utf-8")
+                )
+            else:
+                summary_fp.write(
+                    dedent(
+                        """\
+                        ## Pip {version}
+                        via: {via}
+                        """
+                    )
+                    .format(version=pip_version.raw, via=pip_from)
+                    .encode("utf-8")
+                )
 
     logger.warning("Using adhoc Pip (%s) from %s", pip_version.raw, pip_from)
     for log_line in extra_log_lines:
