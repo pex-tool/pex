@@ -182,6 +182,7 @@ def vcs_req(
     extras=None,  # type: Optional[Iterable[str]]
     specifier=None,  # type: Optional[str]
     marker=None,  # type: Optional[str]
+    commit=None,  # type: Optional[str]
 ):
     # type: (...) -> VCSRequirement
 
@@ -199,6 +200,7 @@ def vcs_req(
                 scheme="{vcs}+{scheme}".format(vcs=vcs, scheme=url_info.scheme)
             ).geturl(),
         ),
+        commit=commit,
     )
 
 
@@ -410,6 +412,7 @@ def test_parse_requirements_stress(tmpdir):
             vcs=VCS.Git,
             project_name="MyProject",
             url="https://git.example.com/MyProject.git@da39a3ee5e6b4b0d3255bfef95601890afd80709",
+            commit="da39a3ee5e6b4b0d3255bfef95601890afd80709",
         ),
         vcs_req(vcs=VCS.Git, project_name="MyProject", url="ssh://git.example.com/MyProject"),
         vcs_req(
@@ -452,6 +455,7 @@ def test_parse_requirements_stress(tmpdir):
             url="http://hg.example.com/MyProject@da39a3ee5e6b#subdirectory=foo/bar",
             extras=["more", "extra"],
             marker="python_version == '3.9.*'",
+            commit="da39a3ee5e6b",
         ),
         vcs_req(
             vcs=VCS.Mercurial,
@@ -459,6 +463,7 @@ def test_parse_requirements_stress(tmpdir):
             url="http://hg.example.com/MyProject@da39a3ee5e6b#subdirectory=foo/bar",
             extras=["more", "extra"],
             marker="python_version == '3.9.*'",
+            commit="da39a3ee5e6b",
         ),
         url_req(project_name="Project", url="ftp://a/Project-1.0.tar.gz", specifier="==1.0"),
         url_req(project_name="Project", url="http://a/Project-1.0.zip", specifier="==1.0"),
@@ -484,11 +489,13 @@ def test_parse_requirements_stress(tmpdir):
             vcs=VCS.Git,
             project_name="Django",
             url="https://github.com/django/django.git@stable/2.1.x",
+            commit="stable/2.1.x",
         ),
         vcs_req(
             vcs=VCS.Git,
             project_name="Django",
             url="https://github.com/django/django.git@fd209f62f1d83233cc634443cfac5ee4328d98b8",
+            commit="fd209f62f1d83233cc634443cfac5ee4328d98b8",
         ),
         file_req(
             project_name="django",

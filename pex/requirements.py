@@ -566,7 +566,7 @@ def _parse_requirement_line(
         parsed_scheme = parsed_url.scheme
         if isinstance(parsed_scheme, VCSScheme):
             url = parsed_url_info._replace(scheme=parsed_scheme.scheme).geturl()
-            _, sep, commit = parsed_url_info.path.split("/")[-1].rpartition("@")
+            _, sep, commit = parsed_url_info.path.rpartition("@")
             return VCSRequirement(
                 line, parsed_scheme.vcs, url, requirement, commit=commit if sep else None
             )
