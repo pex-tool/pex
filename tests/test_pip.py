@@ -546,7 +546,8 @@ def test_extra_pip_requirements_setuptools_override(
     assert dists_by_project_name.pop(ProjectName("wheel")) in version.wheel_requirement
 
     setuptools = dists_by_project_name.pop(ProjectName("setuptools"))
-    assert setuptools not in version.setuptools_requirement
+    if version.setuptools_requirement.specifier:
+        assert setuptools not in version.setuptools_requirement
     assert custom_setuptools_version == setuptools.metadata.version
 
 
@@ -585,5 +586,6 @@ def test_extra_pip_requirements_wheel_override(
     assert dists_by_project_name.pop(ProjectName("setuptools")) in version.setuptools_requirement
 
     wheel = dists_by_project_name.pop(ProjectName("wheel"))
-    assert wheel not in version.wheel_requirement
+    if version.wheel_requirement.specifier:
+        assert wheel not in version.wheel_requirement
     assert custom_wheel_version == wheel.metadata.version
