@@ -68,7 +68,7 @@ def test_adhoc_missing_req(tmpdir):
             "--",
             "Moo!",
         ],
-        env=make_env(_PEX_PIP_VERSION="adhoc"),
+        env=make_env(_PEX_PIP_VERSION="adhoc", _PEX_PIP_ADHOC_REQUIREMENT=None),
     ).assert_failure(
         expected_error_re=r"^.*{message}.*$".format(
             message=re.escape(

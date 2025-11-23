@@ -4,6 +4,7 @@
 from __future__ import absolute_import, print_function
 
 import glob
+import itertools
 import os
 import re
 import shutil
@@ -201,7 +202,9 @@ def download_pip_requirements(
     extra_requirements=(),  # type: Iterable[str]
 ):
     # type: (...) -> None
-    requirements = list(map(str, pip_version.requirements))
+    requirements = list(
+        map(str, itertools.chain(pip_version.requirements, pip_version.build_system_requires))
+    )
     requirements.extend(extra_requirements)
     get_pip(resolver=ConfiguredResolver.version(pip_version)).spawn_download_distributions(
         download_dir=download_dir, requirements=requirements

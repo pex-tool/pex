@@ -5,6 +5,7 @@ from __future__ import absolute_import
 
 import functools
 import hashlib
+import json
 import os
 import sys
 from textwrap import dedent
@@ -64,7 +65,7 @@ class PipVersionValue(Enum.Value):
         version,  # type: str
         setuptools_version,  # type: str
         wheel_version,  # type: str
-        requires_python,  # type: str
+        requires_python=None,  # type: Optional[str]
         name=None,  # type: Optional[str]
         requirement=None,  # type: Optional[str]
         setuptools_requirement=None,  # type: Optional[str]
@@ -73,8 +74,10 @@ class PipVersionValue(Enum.Value):
         # type: (...) -> None
         super(PipVersionValue, self).__init__(name or version, enum_type=PipVersionValue)
 
-        self.version = Version(version)
+        self._version = version
         self._requirement = requirement
+        self._requires_python = requires_python
+
         self.setuptools_version = setuptools_version
         self.setuptools_requirement = (
             Requirement.parse(setuptools_requirement)
@@ -83,12 +86,21 @@ class PipVersionValue(Enum.Value):
         )
         self.wheel_version = wheel_version
         self.wheel_requirement = self._to_requirement("wheel", wheel_version)
-        self.requires_python = SpecifierSet(requires_python) if requires_python else None
         self.hidden = hidden
 
     def cache_dir_name(self):
         # type: () -> str
         return self.value
+
+    @property
+    def version(self):
+        # type: () -> Version
+        return Version(self._version)
+
+    @property
+    def requires_python(self):
+        # type: () -> Optional[SpecifierSet]
+        return SpecifierSet(self._requires_python) if self._requires_python else None
 
     @property
     def requirement(self):
@@ -103,6 +115,11 @@ class PipVersionValue(Enum.Value):
     def requirements(self):
         # type: () -> Iterable[Requirement]
         return self.requirement, self.setuptools_requirement, self.wheel_requirement
+
+    @property
+    def build_system_requires(self):
+        # type: () -> Iterable[Requirement]
+        return ()
 
     def requires_python_applies(self, target=None):
         # type: (Optional[Union[Version, Target]]) -> bool
@@ -195,7 +212,6 @@ class Adhoc(PipVersionValue):
             version="99",
             setuptools_version="",
             wheel_version="",
-            requires_python="",
             hidden=True,
         )
         self._adhoc_requirement = None  # type: Optional[Requirement]
@@ -205,6 +221,19 @@ class Adhoc(PipVersionValue):
         return "adhoc-{fingerprint}".format(
             fingerprint=hashlib.sha1(str(self.requirement).encode("utf-8")).hexdigest()
         )
+
+    @property
+    def version(self):
+        # type: () -> Version
+        return Version(os.environ.get("_PEX_PIP_ADHOC_VERSION", self._version))
+
+    @property
+    def requires_python(self):
+        # type: () -> Optional[SpecifierSet]
+        raw_requires_python = os.environ.get("_PEX_PIP_ADHOC_REQUIRES_PYTHON")
+        if raw_requires_python:
+            return SpecifierSet(raw_requires_python)
+        return None
 
     @property
     def requirement(self):
@@ -219,6 +248,14 @@ class Adhoc(PipVersionValue):
                 )
             self._adhoc_requirement = Requirement.parse(requirement)
         return self._adhoc_requirement
+
+    @property
+    def build_system_requires(self):
+        # type: () -> Iterable[Requirement]
+        build_system_requires = os.environ.get("_PEX_PIP_ADHOC_BUILD_SYSTEM_REQUIRES")
+        if not build_system_requires:
+            return ()
+        return tuple(Requirement.parse(req) for req in json.loads(build_system_requires))
 
 
 class PipVersion(Enum["PipVersionValue"]):
