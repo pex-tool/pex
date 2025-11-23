@@ -1585,8 +1585,8 @@ dependencies = [
     { name = "contextlib2", marker = "python_full_version < '3'" },
     { name = "pathlib2", marker = "python_full_version < '3'" },
     { name = "singledispatch", marker = "python_full_version < '3.4'" },
-    { name = "typing", marker = "python_full_version < '3.5'" },
-    { name = "zipp", version = "1.2.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.6'" },
+    { name = "typing", marker = "python_full_version < '3.4'" },
+    { name = "zipp", version = "1.2.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.4'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/e1/bf/b40e6ecb611fa3be5b0ecae7b37ae1fa0d8df3146477ec0a554e8f62c976/importlib_resources-3.3.1.tar.gz", hash = "sha256:0ed250dbd291947d1a298e89f39afcc477d5a6624770503034b72588601bcc05", size = 29012, upload-time = "2020-12-23T03:02:54.562Z" }
 wheels = [
@@ -2169,8 +2169,8 @@ name = "mock"
 version = "3.0.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "funcsigs", marker = "python_full_version < '3.3'" },
-    { name = "six", marker = "python_full_version < '3.6'" },
+    { name = "funcsigs", marker = "python_full_version < '2.8'" },
+    { name = "six", marker = "python_full_version < '2.8'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/2e/ab/4fe657d78b270aa6a32f027849513b829b41b0f28d9d8d7f8c3d29ea559a/mock-3.0.5.tar.gz", hash = "sha256:83657d894c90d5681d62155c82bda9c1187827525880eda8ff5df4ec813437c3", size = 28126, upload-time = "2019-05-07T21:22:24.036Z" }
 wheels = [
@@ -2613,6 +2613,7 @@ dev = [
     { name = "pytest-xdist", version = "3.5.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.7.*'" },
     { name = "pytest-xdist", version = "3.6.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.8.*'" },
     { name = "pytest-xdist", version = "3.8.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
+    { name = "python-dateutil" },
     { name = "pyyaml", marker = "python_full_version >= '3.8'" },
     { name = "setuptools", marker = "python_full_version >= '3.8'" },
     { name = "sphinx", version = "5.1.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.8' and python_full_version < '3.12'" },
@@ -2624,6 +2625,7 @@ dev = [
     { name = "types-docutils", marker = "python_full_version >= '3.8'" },
     { name = "types-mock", marker = "python_full_version >= '3.8'" },
     { name = "types-pexpect", marker = "python_full_version >= '3.8'" },
+    { name = "types-python-dateutil", marker = "python_full_version >= '3.8'" },
     { name = "types-pyyaml", marker = "python_full_version >= '3.8'" },
     { name = "types-setuptools", marker = "python_full_version >= '3.8'" },
     { name = "types-toml", marker = "python_full_version >= '3.8'" },
@@ -2728,6 +2730,7 @@ mypy = [
     { name = "pytest-xdist", version = "3.5.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.7.*'" },
     { name = "pytest-xdist", version = "3.6.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.8.*'" },
     { name = "pytest-xdist", version = "3.8.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
+    { name = "python-dateutil" },
     { name = "pyyaml", marker = "python_full_version >= '3.8'" },
     { name = "setuptools", marker = "python_full_version >= '3.8'" },
     { name = "sphinx", version = "5.1.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.8' and python_full_version < '3.12'" },
@@ -2739,6 +2742,7 @@ mypy = [
     { name = "types-docutils", marker = "python_full_version >= '3.8'" },
     { name = "types-mock", marker = "python_full_version >= '3.8'" },
     { name = "types-pexpect", marker = "python_full_version >= '3.8'" },
+    { name = "types-python-dateutil", marker = "python_full_version >= '3.8'" },
     { name = "types-pyyaml", marker = "python_full_version >= '3.8'" },
     { name = "types-setuptools", marker = "python_full_version >= '3.8'" },
     { name = "types-toml", marker = "python_full_version >= '3.8'" },
@@ -2778,6 +2782,7 @@ test = [
     { name = "pytest-xdist", version = "3.5.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.7.*'" },
     { name = "pytest-xdist", version = "3.6.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.8.*'" },
     { name = "pytest-xdist", version = "3.8.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
+    { name = "python-dateutil" },
     { name = "subprocess32" },
 ]
 vendor = [
@@ -2843,6 +2848,7 @@ dev = [
     { name = "pytest-md-report", marker = "python_full_version >= '3.9'" },
     { name = "pytest-retry", marker = "python_full_version >= '3.9'" },
     { name = "pytest-xdist" },
+    { name = "python-dateutil" },
     { name = "pyyaml", marker = "python_full_version >= '3.8'" },
     { name = "setuptools", marker = "python_full_version >= '3.8'", specifier = "==50.3.2" },
     { name = "sphinx", marker = "python_full_version >= '3.8'" },
@@ -2854,6 +2860,7 @@ dev = [
     { name = "types-docutils", marker = "python_full_version >= '3.8'", specifier = "==0.20.0.20240310" },
     { name = "types-mock", marker = "python_full_version >= '3.8'", specifier = "==5.1.0.20240106" },
     { name = "types-pexpect", marker = "python_full_version >= '3.8'", specifier = "==4.9.0.20240207" },
+    { name = "types-python-dateutil", marker = "python_full_version >= '3.8'", specifier = "==2.9.0.20241206" },
     { name = "types-pyyaml", marker = "python_full_version >= '3.8'", specifier = "==6.0.12.12" },
     { name = "types-setuptools", marker = "python_full_version >= '3.8'", specifier = "==69.1.0.20240302" },
     { name = "types-toml", marker = "python_full_version >= '3.8'", specifier = "==0.10.5" },
@@ -2925,6 +2932,7 @@ mypy = [
     { name = "pytest-md-report", marker = "python_full_version >= '3.9'" },
     { name = "pytest-retry", marker = "python_full_version >= '3.9'" },
     { name = "pytest-xdist" },
+    { name = "python-dateutil" },
     { name = "pyyaml", marker = "python_full_version >= '3.8'" },
     { name = "setuptools", marker = "python_full_version >= '3.8'", specifier = "==50.3.2" },
     { name = "sphinx", marker = "python_full_version >= '3.8'" },
@@ -2936,6 +2944,7 @@ mypy = [
     { name = "types-docutils", marker = "python_full_version >= '3.8'", specifier = "==0.20.0.20240310" },
     { name = "types-mock", marker = "python_full_version >= '3.8'", specifier = "==5.1.0.20240106" },
     { name = "types-pexpect", marker = "python_full_version >= '3.8'", specifier = "==4.9.0.20240207" },
+    { name = "types-python-dateutil", marker = "python_full_version >= '3.8'", specifier = "==2.9.0.20241206" },
     { name = "types-pyyaml", marker = "python_full_version >= '3.8'", specifier = "==6.0.12.12" },
     { name = "types-setuptools", marker = "python_full_version >= '3.8'", specifier = "==69.1.0.20240302" },
     { name = "types-toml", marker = "python_full_version >= '3.8'", specifier = "==0.10.5" },
@@ -2955,6 +2964,7 @@ test = [
     { name = "pytest-md-report", marker = "python_full_version >= '3.9'" },
     { name = "pytest-retry", marker = "python_full_version >= '3.9'" },
     { name = "pytest-xdist" },
+    { name = "python-dateutil" },
     { name = "subprocess32" },
 ]
 vendor = [
@@ -3997,7 +4007,7 @@ name = "python-dateutil"
 version = "2.9.0.post0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "six", marker = "python_full_version >= '3.8'" },
+    { name = "six" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/66/c0/0c8b6ad9f17a802ee498c46e004a0eb49bc148f2fd230864601a86dcf6db/python-dateutil-2.9.0.post0.tar.gz", hash = "sha256:37dd54208da7e1cd875388217d5e00ebd4179249f90fb72437e91a35459a0ad3", size = 342432, upload-time = "2024-03-01T18:36:20.211Z" }
 wheels = [
@@ -4802,6 +4812,15 @@ wheels = [
 ]
 
 [[package]]
+name = "types-python-dateutil"
+version = "2.9.0.20241206"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/a9/60/47d92293d9bc521cd2301e423a358abfac0ad409b3a1606d8fbae1321961/types_python_dateutil-2.9.0.20241206.tar.gz", hash = "sha256:18f493414c26ffba692a72369fea7a154c502646301ebfe3d56a04b3767284cb", size = 13802, upload-time = "2024-12-06T02:56:41.019Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/0f/b3/ca41df24db5eb99b00d97f89d7674a90cb6b3134c52fb8121b6d8d30f15c/types_python_dateutil-2.9.0.20241206-py3-none-any.whl", hash = "sha256:e248a4bc70a486d3e3ec84d0dc30eec3a5f979d6e7ee4123ae043eedbb987f53", size = 14384, upload-time = "2024-12-06T02:56:39.412Z" },
+]
+
+[[package]]
 name = "types-pyyaml"
 version = "6.0.12.12"
 source = { registry = "https://pypi.org/simple" }
@@ -4956,13 +4975,13 @@ name = "virtualenv"
 version = "20.15.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "distlib", marker = "python_full_version < '3.6'" },
-    { name = "filelock", version = "3.2.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.6'" },
-    { name = "importlib-metadata", version = "2.1.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.6'" },
-    { name = "importlib-resources", marker = "python_full_version < '3.6'" },
+    { name = "distlib", marker = "python_full_version < '3.4'" },
+    { name = "filelock", version = "3.2.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.4'" },
+    { name = "importlib-metadata", version = "2.1.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.4'" },
+    { name = "importlib-resources", marker = "python_full_version < '3.4'" },
     { name = "pathlib2", marker = "python_full_version < '3.4' and sys_platform != 'win32'" },
-    { name = "platformdirs", version = "2.0.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.6'" },
-    { name = "six", marker = "python_full_version < '3.6'" },
+    { name = "platformdirs", version = "2.0.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.4'" },
+    { name = "six", marker = "python_full_version < '3.4'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/a4/2f/05b77cb73501c01963de2cef343839f0803b64aab4d5476771ae303b97a6/virtualenv-20.15.1.tar.gz", hash = "sha256:288171134a2ff3bfb1a2f54f119e77cd1b81c29fc1265a2356f3e8d14c7d58c4", size = 13523736, upload-time = "2022-06-29T01:46:59.253Z" }
 wheels = [
