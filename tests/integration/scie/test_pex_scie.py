@@ -175,6 +175,9 @@ def test_multiple_platforms(tmpdir):
                 pex,
                 "--scie",
                 "lazy",
+                # N.B.: This is the last PBS release to support Python 3.9.
+                "--scie-pbs-release",
+                "20251031",
                 "--platform",
                 "linux-aarch64-cp-39-cp39",
                 "--platform",
