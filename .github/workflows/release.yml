@@ -34,8 +34,8 @@ jobs:
       - name: Determine Tag
         id: determine-tag
         run: |
-          if [[ -n "${{ github.event.inputs.tag }}" ]]; then
-            RELEASE_TAG=${{ github.event.inputs.tag }}
+          if [[ -n "${{ inputs.tag }}" ]]; then
+            RELEASE_TAG=${{ inputs.tag }}
           else
             RELEASE_TAG=${GITHUB_REF#refs/tags/}
           fi

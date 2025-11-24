@@ -76,7 +76,7 @@ jobs:
           dev-cmd --py "\$(uv python find 3.11)" gen-scie-platform -- \
             -d "${dest_dir}" \
             --no-sync-lock \
-            --encoded-scie-config ${{ github.event.inputs.encoded-scie-config }}
+            --encoded-scie-config ${{ inputs.encoded-scie-config }}
           EOF
           chmod +x ./gen-scie-platform.sh
       - name: Setup Docker QEMU Emulation

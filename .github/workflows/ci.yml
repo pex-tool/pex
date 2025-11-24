@@ -22,6 +22,8 @@ env:
   # We have integration tests that exercise `--scie` support and these can trigger downloads from
   # GitHub Releases that can be slow which this timeout accounts for.
   SCIENCE_NET_TIMEOUT: 30.0
+
+  _TEST_POS_ARGS: "--color --devpi --devpi-timeout 15.0 --shutdown-devpi -vvs"
 concurrency:
   group: CI-${{ github.ref }}
   # Queue on all branches and tags, but only cancel overlapping PR burns.

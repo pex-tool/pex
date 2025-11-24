@@ -119,8 +119,8 @@ jobs:
             unset GITHUB_STEP_SUMMARY
           fi
 
-          export _PEX_PIP_ADHOC_REQUIREMENT='${{ github.event.inputs.pip-requirement }}'
-          export _PEX_PIP_ADHOC_BUILD_SYSTEM_REQUIRES='${{ github.event.inputs.build-system-requires }}'
+          export _PEX_PIP_ADHOC_REQUIREMENT='${{ inputs.pip-requirement }}'
+          export _PEX_PIP_ADHOC_BUILD_SYSTEM_REQUIRES='${{ inputs.build-system-requires }}'
 
           BASE_MODE=pull CACHE_MODE=pull \
             ./duvrc.sh ${{ matrix.test-cmd }} -- \
