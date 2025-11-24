@@ -47,7 +47,7 @@ jobs:
           # -----------
           - test-cmd: test-py314-pip:adhoc
             pex-test-pos-args: --shard 1/3
-            summary: ${{ GITHUB_STEP_SUMMARY }}
+            summary: true
           - test-cmd: test-py314-pip:adhoc
             pex-test-pos-args: --shard 2/3
           - test-cmd: test-py314-pip:adhoc
@@ -103,8 +103,12 @@ jobs:
         run: |
           # This is needed to get pexpect tests working under PyPy running under docker.
           export TERM="xterm"
+
+          if [[ "${{ matrix.summary }}" != "true" ]]; then
+            unset GITHUB_STEP_SUMMARY
+          fi
+
           BASE_MODE=pull CACHE_MODE=pull \
-          GITHUB_STEP_SUMMARY="${{ matrix.summary }}" \
             ./duvrc.sh ${{ matrix.test-cmd }} -- \
               ${{ env._PEX_TEST_POS_ARGS }} ${{ matrix.pex-test-pos-args }}
 
