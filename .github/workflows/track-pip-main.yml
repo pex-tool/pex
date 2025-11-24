@@ -41,11 +41,35 @@ jobs:
     strategy:
       matrix:
         include:
+          # Unit tests:
+          # -----------
           - test-cmd: test-py314-pip:adhoc
+            pex-test-pos-args: --shard 1/3
+          - test-cmd: test-py314-pip:adhoc
+            pex-test-pos-args: --shard 2/3
+          - test-cmd: test-py314-pip:adhoc
+            pex-test-pos-args: --shard 3/3
+
+          # Integration tests:
+          # ------------------
           - test-cmd: test-py314-pip:adhoc-integration
-            pex-test-pos-args: --shard 1/2
+            pex-test-pos-args: --shard 1/9
           - test-cmd: test-py314-pip:adhoc-integration
-            pex-test-pos-args: --shard 2/2
+            pex-test-pos-args: --shard 2/9
+          - test-cmd: test-py314-pip:adhoc-integration
+            pex-test-pos-args: --shard 3/9
+          - test-cmd: test-py314-pip:adhoc-integration
+            pex-test-pos-args: --shard 4/9
+          - test-cmd: test-py314-pip:adhoc-integration
+            pex-test-pos-args: --shard 5/9
+          - test-cmd: test-py314-pip:adhoc-integration
+            pex-test-pos-args: --shard 6/9
+          - test-cmd: test-py314-pip:adhoc-integration
+            pex-test-pos-args: --shard 7/9
+          - test-cmd: test-py314-pip:adhoc-integration
+            pex-test-pos-args: --shard 8/9
+          - test-cmd: test-py314-pip:adhoc-integration
+            pex-test-pos-args: --shard 9/9
     steps:
       - name: Free Up Disk Space
         uses: jlumbroso/free-disk-space@v1.3.1

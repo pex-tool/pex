@@ -104,6 +104,24 @@ if [[ -t 1 ]]; then
   )
 fi
 
+if [[ -n "${GH_TOKEN:-}" ]]; then
+  # Some tests in CI may need access to the GH_TOKEN.
+  DOCKER_ARGS+=(
+    --env GH_TOKEN="${GH_TOKEN}"
+  )
+fi
+
+if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+  # Some tests in CI may need access to the GITHUB_STEP_SUMMARY file.
+  gh_step_summary_file="$(realpath "${GITHUB_STEP_SUMMARY}")"
+  mkdir -p "$(dirname "${gh_step_summary_file}")"
+  touch "${gh_step_summary_file}"
+  DOCKER_ARGS+=(
+    --volume "${gh_step_summary_file}:${gh_step_summary_file}"
+    --env GITHUB_STEP_SUMMARY="${gh_step_summary_file}"
+  )
+fi
+
 if [[ -n "${SSH_AUTH_SOCK:-}" ]]; then
   # Some integration tests need an SSH agent. Propagate it when available.
   DOCKER_ARGS+=(

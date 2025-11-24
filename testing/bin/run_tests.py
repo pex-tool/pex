@@ -186,6 +186,8 @@ def resolve_pip_dev(logger):
                     PIP_BRANCH,
                     "-w",
                     PIP_WORKFLOW,
+                    "-e",
+                    "push",
                     "-s",
                     "success",
                     "-L1",
