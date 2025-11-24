@@ -26,6 +26,9 @@ jobs:
     name: Check GitHub Organization
     if: github.repository_owner == 'pex-tool'
     runs-on: ubuntu-slim
+    outputs:
+      pex_cache_windows_stubs_dir: ${{ env._TEST_PEX_CACHE_WINDOWS_STUBS_DIR }}
+      pex_test_dev_root: ${{ env._TEST_PEX_TEST_DEV_ROOT }}
     steps:
       - name: Noop
         if: false
@@ -159,8 +162,8 @@ jobs:
     needs: setup
     runs-on: macos-15
     env:
-      _PEX_CACHE_WINDOWS_STUBS_DIR: ${{ env._TEST_PEX_CACHE_WINDOWS_STUBS_DIR }}
-      _PEX_TEST_DEV_ROOT: ${{ _TEST_PEX_TEST_DEV_ROOT }}
+      _PEX_CACHE_WINDOWS_STUBS_DIR: ${{ needs.setup.outputs.pex_cache_windows_stubs_dir }}
+      _PEX_TEST_DEV_ROOT: ${{ needs.setup.outputs.pex_test_dev_root }}
     strategy:
       matrix:
         include:
@@ -245,8 +248,8 @@ jobs:
     runs-on: windows-2022
     continue-on-error: true
     env:
-      _PEX_CACHE_WINDOWS_STUBS_DIR: ${{ env._TEST_PEX_CACHE_WINDOWS_STUBS_DIR }}
-      _PEX_TEST_DEV_ROOT: ${{ _TEST_PEX_TEST_DEV_ROOT }}
+      _PEX_CACHE_WINDOWS_STUBS_DIR: ${{ needs.setup.outputs.pex_cache_windows_stubs_dir }}
+      _PEX_TEST_DEV_ROOT: ${{ needs.setup.outputs.pex_test_dev_root }}
     strategy:
       matrix:
         include:
