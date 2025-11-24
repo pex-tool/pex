@@ -4,6 +4,18 @@ on:
     # 5:00 AM US-Pacific daily
     - cron: '0 12 * * *'
   workflow_dispatch:
+    inputs:
+      pip-requirement:
+        description: A custom Pip requirement to test.
+        required: false
+        type: string
+      build-system-requires:
+        description: |
+          The `[build-system] requires` value for this version of Pip.
+          Only needed for non-VCS requirements.
+          Should be in the format of a JSON string array; i.e.: `["setuptools"]`
+        required: false
+        type: string
 defaults:
   run:
     shell: bash
@@ -107,6 +119,9 @@ jobs:
           if [[ "${{ matrix.summary }}" != "true" ]]; then
             unset GITHUB_STEP_SUMMARY
           fi
+
+          export _PEX_PIP_ADHOC_REQUIREMENT="${{ github.event.inputs.pip-requirement }}"
+          export _PEX_PIP_ADHOC_BUILD_SYSTEM_REQUIRES="${{ github.event.inputs.build-system-requires }}"
 
           BASE_MODE=pull CACHE_MODE=pull \
             ./duvrc.sh ${{ matrix.test-cmd }} -- \
