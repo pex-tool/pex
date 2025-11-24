@@ -8,6 +8,15 @@ defaults:
   run:
     shell: bash
 env:
+  _PEX_PEXPECT_TIMEOUT: 10
+  _PEX_HTTP_SERVER_TIMEOUT: 30
+  # We fetch Windows script executable stubs when building Pex.
+  _PEX_FETCH_WINDOWS_STUBS_BEARER: ${{ secrets.GITHUB_TOKEN }}
+  # We have integration tests that exercise `--scie` support and these can trigger downloads from
+  # GitHub Releases that can be slow which this timeout accounts for.
+  SCIENCE_NET_TIMEOUT: 30.0
+  # We have integration tests that exercise `--scie` support and these can trigger downloads from
+  # GitHub Releases that need elevated rate limit quota, which this gives.
   SCIENCE_AUTH_API_GITHUB_COM_BEARER: ${{ secrets.GITHUB_TOKEN }}
 jobs:
   org-check:

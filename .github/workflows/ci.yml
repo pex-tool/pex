@@ -4,10 +4,9 @@ defaults:
   run:
     shell: bash
 env:
-  _PEX_TEST_DEV_ROOT: ${{ github.workspace }}/.pex_dev
-  _PEX_TEST_POS_ARGS: "--color --devpi --devpi-timeout 15.0 --shutdown-devpi -vvs"
   _PEX_PEXPECT_TIMEOUT: 10
   _PEX_HTTP_SERVER_TIMEOUT: 30
+  _PEX_FETCH_WINDOWS_STUBS_BEARER: ${{ secrets.GITHUB_TOKEN }}
   # We have integration tests that exercise `--scie` support and these can trigger downloads from
   # GitHub Releases that can be slow which this timeout accounts for.
   SCIENCE_NET_TIMEOUT: 30.0
@@ -15,8 +14,9 @@ env:
   # GitHub Releases that need elevated rate limit quota, which this gives.
   SCIENCE_AUTH_API_GITHUB_COM_BEARER: ${{ secrets.GITHUB_TOKEN }}
   # We fetch Windows script executable stubs when building Pex.
-  _PEX_CACHE_WINDOWS_STUBS_DIR: ${{ github.workspace }}/.pex_dev/windows_stubs
-  _PEX_FETCH_WINDOWS_STUBS_BEARER: ${{ secrets.GITHUB_TOKEN }}
+  _TEST_PEX_CACHE_WINDOWS_STUBS_DIR: ${{ github.workspace }}/.pex_dev/windows_stubs
+  _TEST_PEX_TEST_DEV_ROOT: ${{ github.workspace }}/.pex_dev
+  _TEST_POS_ARGS: "--color --devpi --devpi-timeout 15.0 --shutdown-devpi -vvs"
 concurrency:
   group: CI-${{ github.ref }}
   # Queue on all branches and tags, but only cancel overlapping PR burns.
@@ -26,8 +26,6 @@ jobs:
     name: Check GitHub Organization
     if: github.repository_owner == 'pex-tool'
     runs-on: ubuntu-slim
-    outputs:
-      pex_test_posargs: ${{ env._PEX_TEST_POS_ARGS }}
     steps:
       - name: Noop
         if: false
@@ -155,11 +153,14 @@ jobs:
           export TERM="xterm"
           BASE_MODE=pull CACHE_MODE=pull \
             ./duvrc.sh ${{ matrix.test-cmd }} -- \
-              ${{ env._PEX_TEST_POS_ARGS }} ${{ matrix.pex-test-pos-args }}
+              ${{ env._TEST_POS_ARGS }} ${{ matrix.pex-test-pos-args }}
   mac-tests:
     name: "Mac: uv run dev-cmd ${{ matrix.test-cmd }} ${{ matrix.pex-test-pos-args }}"
     needs: setup
     runs-on: macos-15
+    env:
+      _PEX_CACHE_WINDOWS_STUBS_DIR: ${{ env._TEST_PEX_CACHE_WINDOWS_STUBS_DIR }}
+      _PEX_TEST_DEV_ROOT: ${{ _TEST_PEX_TEST_DEV_ROOT }}
     strategy:
       matrix:
         include:
@@ -218,7 +219,8 @@ jobs:
       - name: Run Tests
         run: |
           cd repo
-          uv run dev-cmd ${{ matrix.test-cmd }} -- ${{ env._PEX_TEST_POS_ARGS }} ${{ matrix.pex-test-pos-args }}
+          uv run dev-cmd ${{ matrix.test-cmd }} -- \
+            ${{ env._TEST_POS_ARGS }} ${{ matrix.pex-test-pos-args }}
       - name: Cache Pyenv Interpreters
         uses: actions/cache/save@v4
         if: github.ref == 'refs/heads/main'
@@ -242,6 +244,9 @@ jobs:
     needs: setup
     runs-on: windows-2022
     continue-on-error: true
+    env:
+      _PEX_CACHE_WINDOWS_STUBS_DIR: ${{ env._TEST_PEX_CACHE_WINDOWS_STUBS_DIR }}
+      _PEX_TEST_DEV_ROOT: ${{ _TEST_PEX_TEST_DEV_ROOT }}
     strategy:
       matrix:
         include:
@@ -323,7 +328,7 @@ jobs:
         run: |
           cd repo
           uv run dev-cmd ${{ matrix.test-cmd }} -- \
-          ${{ needs.setup.outputs.pex_test_posargs }} \
+          ${{ env._TEST_POS_ARGS }} \
           ${{ matrix.pex-test-pos-args }} \
           --junit-report-suppress-stdio \
           --junit-report-redact "${{ secrets.GITHUB_TOKEN }}" \

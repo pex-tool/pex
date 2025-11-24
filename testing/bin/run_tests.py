@@ -251,6 +251,19 @@ def resolve_pip_dev(logger):
 
     summary_file = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary_file:
+        build_requires = []  # type: List[str]
+        if build_system_requires:
+            build_requires.append(
+                "| `[build-system] requires` | `{requirement}` |".format(
+                    requirement=build_system_requires[0]
+                )
+            )
+            build_requires.extend(
+                "| | `{requirement}` |".format(requirement=requirement)
+                for requirement in build_requires[1:]
+            )
+        build_requires_rows = "\n".join(build_requires)
+
         with open(summary_file, "ab") as summary_fp:
             if repo_and_commit:
                 repo, commit = repo_and_commit
@@ -291,28 +304,17 @@ def resolve_pip_dev(logger):
                 message = data["message"].splitlines()
                 url = data["url"]
 
-                build_requires = []  # type: List[str]
-                if build_system_requires:
-                    build_requires.append(
-                        "| build-system requires | `{requirement}` |".format(
-                            requirement=build_system_requires[0]
-                        )
-                    )
-                    build_requires.extend(
-                        "| | `{requirement}` |".format(requirement=requirement)
-                        for requirement in build_requires[1:]
-                    )
-
                 summary_fp.write(
                     dedent(
                         to_unicode(
                             """\
                             ## Pip {version}
-                            | metadata  |              |
-                            | --------- | ------------ |
-                            | via       | {via}        |
-                            | merged on | {created_at} |
-                            {build_requires}
+                            | metadata          |                     |
+                            | ----------------- | ------------------- |
+                            | via               | {via}               |
+                            | merged on         | {created_at}        |
+                            | `Requires-Python` | `{requires_python}` |
+                            {build_requires_rows}
 
                             ---
 
@@ -325,7 +327,8 @@ def resolve_pip_dev(logger):
                     .format(
                         version=pip_version.raw,
                         via=url,
-                        build_requires="\n".join(build_requires),
+                        requires_python=pip_requires_python,
+                        build_requires_rows=build_requires_rows,
                         created_at=dateutil.parser.isoparse(created_at).strftime("%c"),
                         title=message[0],
                         body="\n".join(message[1:]),
@@ -337,10 +340,19 @@ def resolve_pip_dev(logger):
                     dedent(
                         """\
                         ## Pip {version}
-                        via: {via}
+                        | metadata          |                     |
+                        | ----------------- | ------------------- |
+                        | via               | {via}               |
+                        | `Requires-Python` | `{requires_python}` |
+                        {build_requires_rows}
                         """
                     )
-                    .format(version=pip_version.raw, via=pip_from)
+                    .format(
+                        version=pip_version.raw,
+                        via=pip_from,
+                        requires_python=pip_requires_python,
+                        build_requires_rows=build_requires_rows,
+                    )
                     .encode("utf-8")
                 )
 
