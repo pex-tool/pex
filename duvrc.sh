@@ -104,6 +104,13 @@ if [[ -t 1 ]]; then
   )
 fi
 
+# We want to pass through various _PEX_ and SCIENCE_ control env vars.
+for env_var in $(/usr/bin/env | grep -E "^(_PEX_|SCIENCE_)"); do
+  DOCKER_ARGS+=(
+    --env "${env_var}"
+  )
+done
+
 if [[ -n "${GH_TOKEN:-}" ]]; then
   # Some tests in CI may need access to the GH_TOKEN.
   DOCKER_ARGS+=(

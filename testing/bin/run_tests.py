@@ -167,6 +167,10 @@ def resolve_pip_dev(logger):
     # type: (Logger) -> Tuple[Version, Optional[SpecifierSet], List[str], str]
 
     build_system_requires = []  # type: List[str]
+    pip_adhoc_build_system_requires = os.environ.get("_PEX_PIP_ADHOC_BUILD_SYSTEM_REQUIRES")
+    if pip_adhoc_build_system_requires:
+        build_system_requires.extend(json.loads(pip_adhoc_build_system_requires))
+
     extra_log_lines = []  # type: List[Text]
 
     pip_adhoc_requirement = os.environ.get("_PEX_PIP_ADHOC_REQUIREMENT")
