@@ -101,20 +101,6 @@ class BuildConfiguration(object):
                 "Cannot both disallow builds and disallow wheels. Please allow one of these or "
                 "both so that some distributions can be resolved."
             )
-        if not self.allow_builds and self.only_builds:
-            raise self.Error(
-                "Builds were disallowed, but the following project names are configured to only "
-                "allow building: {only_builds}".format(
-                    only_builds=", ".join(sorted(map(str, self.only_builds)))
-                )
-            )
-        if not self.allow_wheels and self.only_wheels:
-            raise self.Error(
-                "Resolving wheels was disallowed, but the following project names are configured "
-                "to only allow resolving pre-built wheels: {only_wheels}".format(
-                    only_wheels=", ".join(sorted(map(str, self.only_wheels)))
-                )
-            )
 
         contradictory_only = self.only_builds.intersection(self.only_wheels)
         if contradictory_only:

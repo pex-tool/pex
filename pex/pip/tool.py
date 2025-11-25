@@ -561,16 +561,15 @@ class Pip(object):
         if not build_configuration.allow_builds:
             yield "--only-binary"
             yield ":all:"
-        elif not build_configuration.allow_wheels:
+        if not build_configuration.allow_wheels:
             yield "--no-binary"
             yield ":all:"
-        else:
-            for project in build_configuration.only_wheels:
-                yield "--only-binary"
-                yield str(project)
-            for project in build_configuration.only_builds:
-                yield "--no-binary"
-                yield str(project)
+        for project in build_configuration.only_wheels:
+            yield "--only-binary"
+            yield str(project)
+        for project in build_configuration.only_builds:
+            yield "--no-binary"
+            yield str(project)
 
         if build_configuration.prefer_older_binary:
             yield "--prefer-binary"
