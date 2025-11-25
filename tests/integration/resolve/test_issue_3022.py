@@ -6,10 +6,14 @@ from __future__ import absolute_import
 import subprocess
 from textwrap import dedent
 
-import colors
-
+from pex.typing import TYPE_CHECKING
 from testing import run_pex_command
 from testing.pytest_utils.tmp import Tempdir
+
+if TYPE_CHECKING:
+    import colors  # vendor:skip
+else:
+    from pex.third_party import colors
 
 
 def build_cyan_penguin_pex_assert_only_cowsay_built(
