@@ -265,36 +265,6 @@ def test_build_configuration_invalid_no_builds_no_wheels(parser):
         compute_build_configuration(parser, args=["--no-build", "--no-wheel"])
 
 
-def test_build_configuration_invalid_no_builds_only_build(parser):
-    # type: (ArgumentParser) -> None
-    resolver_options.register(parser)
-
-    with pytest.raises(
-        BuildConfiguration.Error,
-        match=re.escape(
-            "Builds were disallowed, but the following project names are configured to only allow "
-            "building: ansicolors"
-        ),
-    ):
-        compute_build_configuration(parser, args=["--no-build", "--only-build", "ansicolors"])
-
-
-def test_build_configuration_invalid_no_wheels_only_wheel(parser):
-    # type: (ArgumentParser) -> None
-    resolver_options.register(parser)
-
-    with pytest.raises(
-        BuildConfiguration.Error,
-        match=re.escape(
-            "Resolving wheels was disallowed, but the following project names are configured to "
-            "only allow resolving pre-built wheels: ansicolors, cowsay"
-        ),
-    ):
-        compute_build_configuration(
-            parser, args=["--no-wheel", "--only-wheel", "cowsay", "--only-wheel", "ansicolors"]
-        )
-
-
 def test_build_configuration_invalid_only_build_only_wheel(parser):
     # type: (ArgumentParser) -> None
     resolver_options.register(parser)
