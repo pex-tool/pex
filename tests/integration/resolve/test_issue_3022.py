@@ -84,6 +84,9 @@ def test_no_build_exception_allowed(tmpdir):
 def test_no_wheel_exception_allowed(tmpdir):
     # type: (Tempdir) -> None
 
+    # Under modern versions of Pip, setuptools may also be built from source as part of setting up
+    # the PEP-517 build environment for cowsay; so we prevent this to avoid complications in the
+    # assertion.
     build_cyan_penguin_pex_assert_only_cowsay_built(
-        tmpdir, "--no-wheel", "--only-wheel", "ansicolors"
+        tmpdir, "--no-wheel", "--only-wheel", "ansicolors", "--only-wheel", "setuptools"
     )
