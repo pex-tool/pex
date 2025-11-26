@@ -181,6 +181,8 @@ def test_multiple_platforms(tmpdir):
                 "--platform",
                 "linux-aarch64-cp-39-cp39",
                 "--platform",
+                "musllinux-aarch64-cp-315-cp315",
+                "--platform",
                 "linux-armv7l-cp-311-cp311",
                 "--platform",
                 "linux-ppc64le-cp-312-cp312",
@@ -191,6 +193,8 @@ def test_multiple_platforms(tmpdir):
                 "--platform",
                 "linux-x86_64-cp-310-cp310",
                 "--platform",
+                "musllinux-x86_64-cp-314-cp314",
+                "--platform",
                 "macosx-10.9-arm64-cp-311-cp311",
                 "--platform",
                 "macosx-10.9-x86_64-cp-312-cp312",
@@ -200,11 +204,13 @@ def test_multiple_platforms(tmpdir):
 
     python_version_by_platform = {
         SysPlatform.LINUX_AARCH64: "3.9",
+        SysPlatform.MUSL_LINUX_AARCH64: "3.15",
         SysPlatform.LINUX_ARMV7L: "3.11",
         SysPlatform.LINUX_PPC64LE: "3.12",
         SysPlatform.LINUX_RISCV64: "3.13",
         SysPlatform.LINUX_S390X: "3.13",
         SysPlatform.LINUX_X86_64: "3.10",
+        SysPlatform.MUSL_LINUX_X86_64: "3.14",
         SysPlatform.MACOS_AARCH64: "3.11",
         SysPlatform.MACOS_X86_64: "3.12",
     }
@@ -215,7 +221,6 @@ def test_multiple_platforms(tmpdir):
         expected_platforms,  # type: Iterable[SysPlatform.Value]
     ):
         # type: (...) -> None
-
         all_output_files = set(
             path
             for path in os.listdir(output_dir)
@@ -260,11 +265,13 @@ def test_multiple_platforms(tmpdir):
         output_dir=all_platforms_output_dir,
         expected_platforms=(
             SysPlatform.LINUX_AARCH64,
+            SysPlatform.MUSL_LINUX_AARCH64,
             SysPlatform.LINUX_ARMV7L,
             SysPlatform.LINUX_PPC64LE,
             SysPlatform.LINUX_RISCV64,
             SysPlatform.LINUX_S390X,
             SysPlatform.LINUX_X86_64,
+            SysPlatform.MUSL_LINUX_X86_64,
             SysPlatform.MACOS_AARCH64,
             SysPlatform.MACOS_X86_64,
         ),
@@ -281,7 +288,7 @@ def test_multiple_platforms(tmpdir):
             "--scie-platform",
             str(SysPlatform.LINUX_AARCH64),
             "--scie-platform",
-            str(SysPlatform.LINUX_X86_64),
+            str(SysPlatform.MUSL_LINUX_X86_64),
         ],
     )
     assert_platforms(
@@ -289,7 +296,7 @@ def test_multiple_platforms(tmpdir):
         expected_platforms=(
             SysPlatform.CURRENT,
             SysPlatform.LINUX_AARCH64,
-            SysPlatform.LINUX_X86_64,
+            SysPlatform.MUSL_LINUX_X86_64,
         ),
     )
 

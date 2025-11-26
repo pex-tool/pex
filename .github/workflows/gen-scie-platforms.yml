@@ -19,11 +19,23 @@ jobs:
           - platform: Linux x86_64
             os: ubuntu-24.04
             docker-arch: amd64
+            libc: glibc
             artifact-name: linux-x86_64
+          - platform: Linux x86_64
+            os: ubuntu-24.04
+            docker-arch: amd64
+            libc: musl
+            artifact-name: musl-linux-x86_64
           - platform: Linux aarch64
             os: ubuntu-24.04
             docker-arch: arm64
+            libc: glibc
             artifact-name: linux-aarch64
+          - platform: Linux aarch64
+            os: ubuntu-24.04
+            docker-arch: arm64
+            libc: musl
+            artifact-name: musl-linux-aarch64
           - platform: Linux armv7l
             os: ubuntu-24.04
             docker-arch: arm/v7
@@ -85,7 +97,7 @@ jobs:
         with:
           platforms: linux/${{ matrix.docker-arch }}
       - name: Generate Complete Platform
-        if: matrix.docker-arch != '' && matrix.docker-arch != 'riscv64'
+        if: matrix.docker-arch != '' && matrix.docker-arch != 'riscv64' && matrix.libc != 'musl'
         run: |
           docker run \
             --rm \
@@ -94,6 +106,24 @@ jobs:
             -w /code \
             --platform linux/${{ matrix.docker-arch }} \
             python:3.11-bookworm bash ./gen-scie-platform.sh
+      - name: Generate Complete Platform
+        if: matrix.libc == 'musl'
+        run: |
+          docker run \
+            --rm \
+            -v "${{ steps.generate.outputs.dest-dir }}:${{ steps.generate.outputs.dest-dir }}" \
+            -v $PWD:/code \
+            -w /code \
+            --platform linux/${{ matrix.docker-arch }} \
+            python:3.11-alpine sh -c "
+              apk add \
+                bash \
+                gcc \
+                git \
+                linux-headers \
+                musl-dev && \
+              ./gen-scie-platform.sh
+            "
       - name: Generate Complete Platform
         if: matrix.docker-arch == 'riscv64'
         run: |
