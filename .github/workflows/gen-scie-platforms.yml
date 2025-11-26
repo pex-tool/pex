@@ -19,7 +19,7 @@ jobs:
           - platform: Linux x86_64
             os: ubuntu-24.04
             docker-arch: amd64
-            libc: glibc
+            libc: gnu
             artifact-name: linux-x86_64
           - platform: Linux x86_64
             os: ubuntu-24.04
@@ -29,7 +29,7 @@ jobs:
           - platform: Linux aarch64
             os: ubuntu-24.04
             docker-arch: arm64
-            libc: glibc
+            libc: gnu
             artifact-name: linux-aarch64
           - platform: Linux aarch64
             os: ubuntu-24.04

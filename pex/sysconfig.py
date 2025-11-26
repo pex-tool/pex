@@ -10,6 +10,7 @@ import subprocess
 import sys
 from sysconfig import get_config_var
 
+from pex import pex_warnings
 from pex.enum import Enum
 from pex.os import Os
 from pex.typing import TYPE_CHECKING
@@ -44,10 +45,21 @@ class _CurrentLibC(object):
             self._current = None
             if Os.CURRENT is Os.LINUX:
                 self._current = LibC.GLIBC
-                if b"musl" in subprocess.check_output(
-                    args=["ldd", sys.executable], stderr=subprocess.STDOUT
-                ):
-                    self._current = LibC.MUSL
+                try:
+                    process = subprocess.Popen(
+                        args=["ldd", sys.executable],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
+                    )
+                except OSError as e:
+                    pex_warnings.warn(
+                        "Failed to detect if this interpreter is running under musl libc: "
+                        "{err}".format(err=e)
+                    )
+                else:
+                    output, _ = process.communicate()
+                    if process.returncode == 0 and b"musl" in output:
+                        self._current = LibC.MUSL
         return self._current
 
 
@@ -55,7 +67,7 @@ class LibC(Enum["LibC.Value"]):
     class Value(Enum.Value):
         pass
 
-    GLIBC = Value("glibc")
+    GLIBC = Value("gnu")
     MUSL = Value("musl")
     CURRENT = _CurrentLibC()
 

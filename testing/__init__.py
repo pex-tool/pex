@@ -495,7 +495,7 @@ def run_simple_pex(
         blocking=False,
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
+        stderr=kwargs.pop("stderr", subprocess.STDOUT),
         **kwargs
     )
     stdout, _ = process.communicate(input=stdin)

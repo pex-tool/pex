@@ -182,6 +182,7 @@ def test_interpreter_constraints_honored_without_ppp_or_pp(tmpdir):
         pex_out_path,
         args=["-c", "import sys; print('.'.join(map(str, sys.version_info[:2])))"],
         env=env,
+        stderr=None,
     )
     assert rc == 0
 
