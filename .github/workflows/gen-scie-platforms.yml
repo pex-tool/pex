@@ -62,7 +62,15 @@ jobs:
 
           cat << EOF > ./gen-scie-platform.sh
           #!/usr/bin/env bash
-          python -m venv .venv
+
+          curl -LsSf https://astral.sh/uv/install.sh | UV_INSTALL_DIR=/usr/bin sh
+          if ! uv python find 3.11; then
+            uv python install 3.11
+            export PATH="/root/.local/bin:$PATH"
+          fi
+          PYTHON="\$(uv python find 3.11)"
+
+          "\${PYTHON}" -m venv .venv
           source .venv/bin/activate
           python -V
           pip install -U pip
@@ -71,11 +79,6 @@ jobs:
             export PIP_EXTRA_INDEX_URL=https://www.piwheels.org/simple
           elif [[ "riscv64" == "${{ matrix.docker-arch }}" ]]; then
             export PIP_EXTRA_INDEX_URL=https://__pat_na__:${{ secrets.GITLAB_READ_PASS }}@gitlab.com/api/v4/projects/riseproject%2Fpython%2Fwheel_builder/packages/pypi/simple
-          fi
-          pip install uv
-          if ! uv python find 3.11; then
-            uv python install 3.11
-            export PATH="/root/.local/bin:$PATH"
           fi
 
           # N.B.: We install Pex 1st from sources to ensure the current local Pex code powers
@@ -86,7 +89,7 @@ jobs:
           # custom indexes above and avoid wheel builds.
           pip install dev-cmd[old-pythons]
 
-          dev-cmd --py "\$(uv python find 3.11)" gen-scie-platform -- \
+          dev-cmd --py "\${PYTHON}" gen-scie-platform -- \
             -d "${dest_dir}" \
             --no-sync-lock \
             --encoded-scie-config ${{ inputs.encoded-scie-config }}
@@ -119,6 +122,7 @@ jobs:
             python:3.11-alpine sh -c "
               apk add \
                 bash \
+                curl \
                 gcc \
                 git \
                 linux-headers \
@@ -139,6 +143,7 @@ jobs:
               apt install -y \
                 build-essential \
                 cargo \
+                curl \
                 git \
                 libffi-dev \
                 libssl-dev \
