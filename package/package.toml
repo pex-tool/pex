@@ -16,10 +16,12 @@ extra-lock-args = [
 ]
 
 [scie.platforms.linux-aarch64]
-[scie.platforms.musl-linux-aarch64]
 [scie.platforms.linux-armv7l]
 [scie.platforms.linux-riscv64]
 [scie.platforms.linux-x86_64]
-[scie.platforms.musl-linux-x86_64]
 [scie.platforms.macos-aarch64]
 [scie.platforms.macos-x86_64]
+
+# Un-comment these once complete-platforms are generated for them.
+# [scie.platforms.musl-linux-aarch64]
+# [scie.platforms.musl-linux-x86_64]
