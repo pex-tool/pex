@@ -63,10 +63,12 @@ jobs:
           cat << EOF > ./gen-scie-platform.sh
           #!/usr/bin/env bash
 
-          curl -LsSf https://astral.sh/uv/install.sh | UV_INSTALL_DIR=.bin sh
-          source .bin/env
+          curl -LsSf https://astral.sh/uv/install.sh | UV_INSTALL_DIR="\$PWD/.bin" sh
+          export PATH="\$PWD/.bin:\$PATH"
+          
+          uv python update-shell
           if ! uv python find 3.11; then
-            uv python install -i .bin 3.11
+            uv python install -i "\$PWD/.bin 3.11
           fi
           PYTHON="\$(uv python find 3.11)"
 
