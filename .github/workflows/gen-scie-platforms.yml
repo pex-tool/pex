@@ -68,7 +68,8 @@ jobs:
           
           uv python update-shell
           if ! uv python find 3.11; then
-            uv python install -i "\$PWD/.bin" 3.11
+            uv python install 3.11
+            export PATH="\$HOME/.local/bin:\$PATH"
           fi
           PYTHON="\$(uv python find 3.11)"
 
