@@ -2666,7 +2666,6 @@ gen-scie-platform = [
     { name = "httpx", marker = "python_full_version >= '3.8'" },
     { name = "pygithub", marker = "python_full_version >= '3.8'" },
     { name = "pynacl", marker = "python_full_version >= '3.8'" },
-    { name = "toml" },
 ]
 lint = [
     { name = "autoflake", marker = "python_full_version >= '3.8'" },
@@ -2854,7 +2853,6 @@ dev = [
     { name = "sphinx", marker = "python_full_version >= '3.8'" },
     { name = "sphinx-simplepdf", marker = "python_full_version >= '3.8'" },
     { name = "subprocess32" },
-    { name = "toml" },
     { name = "toml", specifier = "==0.10.2" },
     { name = "types-appdirs", marker = "python_full_version >= '3.8'", specifier = "==1.4.3.5" },
     { name = "types-docutils", marker = "python_full_version >= '3.8'", specifier = "==0.20.0.20240310" },
@@ -2890,7 +2888,6 @@ gen-scie-platform = [
     { name = "httpx", marker = "python_full_version >= '3.8'" },
     { name = "pygithub", marker = "python_full_version >= '3.8'" },
     { name = "pynacl", marker = "python_full_version >= '3.8'", specifier = "==1.5.0" },
-    { name = "toml" },
 ]
 lint = [
     { name = "autoflake", marker = "python_full_version >= '3.8'", specifier = "==1.7.8" },
@@ -2938,7 +2935,6 @@ mypy = [
     { name = "sphinx", marker = "python_full_version >= '3.8'" },
     { name = "sphinx-simplepdf", marker = "python_full_version >= '3.8'" },
     { name = "subprocess32" },
-    { name = "toml" },
     { name = "toml", specifier = "==0.10.2" },
     { name = "types-appdirs", marker = "python_full_version >= '3.8'", specifier = "==1.4.3.5" },
     { name = "types-docutils", marker = "python_full_version >= '3.8'", specifier = "==0.20.0.20240310" },

@@ -338,7 +338,11 @@ def create_manifests(
         if use_platform_suffix is True or (
             use_platform_suffix is None and interpreter.platform is not SysPlatform.CURRENT
         ):
-            lift["platforms"] = [interpreter.platform.value]
+            lift["platforms"] = [
+                {"platform": interpreter.platform.os_arch, "libc": str(interpreter.platform.libc)}
+                if interpreter.platform.libc
+                else interpreter.platform.os_arch
+            ]
 
         with safe_open(manifest_path, "wb") as fp:
             toml.dump(

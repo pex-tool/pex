@@ -378,7 +378,12 @@ class ScieConfiguration(object):
             if not is_aarch64 ^ is_armv7l ^ is_ppc64le ^ is_riscv64 ^ is_s390x ^ is_x86_64:
                 continue
 
-            if "linux" in platform_str:
+            if "musllinux" in platform_str:
+                if is_aarch64:
+                    scie_platform = SysPlatform.MUSL_LINUX_AARCH64
+                else:
+                    scie_platform = SysPlatform.MUSL_LINUX_X86_64
+            elif "linux" in platform_str:
                 if is_aarch64:
                     scie_platform = SysPlatform.LINUX_AARCH64
                 elif is_armv7l:

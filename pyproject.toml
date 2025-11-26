@@ -110,7 +110,6 @@ gen-scie-platform = [
   "pynacl==1.5.0; python_version >= '3.8'",
 
   "httpx; python_version >= '3.8'",
-  "toml"
 ]
 lint = [
   {include-group = "dev-cmd"},

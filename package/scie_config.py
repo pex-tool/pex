@@ -6,13 +6,11 @@ from __future__ import annotations
 import base64
 import json
 import pkgutil
-import platform
 from collections import Counter
 from dataclasses import dataclass
 from typing import Any
 
-import toml
-
+from pex import toml
 from pex.sysconfig import SysPlatform
 
 
@@ -82,27 +80,12 @@ class ScieConfig:
     extra_lock_args: tuple[str, ...] = ()
 
     def current_platform(self) -> PlatformConfig:
-        system = platform.system().lower()
-        if system == "darwin":
-            system = "macos"
-        machine = platform.machine().lower()
-        if machine in ("aarch64", "arm64"):
-            plat = f"{system}-aarch64"
-        elif machine in ("armv7l", "armv8l"):
-            plat = f"{system}-armv7l"
-        elif machine == "riscv64":
-            plat = f"{system}-riscv64"
-        elif machine in ("amd64", "x86_64"):
-            plat = f"{system}-x86_64"
-        else:
-            raise ValueError(f"Unexpected platform.machine(): {platform.machine()}")
-
         for platform_config in self.platforms:
-            if platform_config.name == plat:
+            if platform_config.platform is SysPlatform.CURRENT:
                 return platform_config
         raise KeyError(
-            f"This scie configuration does not contain an entry for platform {plat!r}, only the "
-            f"following platforms are defined: "
+            f"This scie configuration does not contain an entry for platform "
+            f"{SysPlatform.CURRENT!r}, only the following platforms are defined: "
             f"{', '.join(platform_config.name for platform_config in self.platforms)}"
         )
 

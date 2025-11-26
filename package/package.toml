@@ -1,6 +1,6 @@
 [scie]
-pbs-release = "20250818"
-python-version = "3.13.7"
+pbs-release = "20251120"
+python-version = "3.14.0"
 
 pex-extras = [
     "management",
@@ -21,3 +21,7 @@ extra-lock-args = [
 [scie.platforms.linux-x86_64]
 [scie.platforms.macos-aarch64]
 [scie.platforms.macos-x86_64]
+
+# Un-comment these once complete-platforms are generated for them.
+# [scie.platforms.musl-linux-aarch64]
+# [scie.platforms.musl-linux-x86_64]
