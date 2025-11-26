@@ -16,22 +16,22 @@ jobs:
     strategy:
       matrix:
         include:
-          - platform: Linux x86_64
+          - platform: Linux x86_64 (glibc)
             os: ubuntu-24.04
             docker-arch: amd64
             libc: gnu
             artifact-name: linux-x86_64
-          - platform: Linux x86_64
+          - platform: Linux x86_64 (musl)
             os: ubuntu-24.04
             docker-arch: amd64
             libc: musl
             artifact-name: musl-linux-x86_64
-          - platform: Linux aarch64
+          - platform: Linux aarch64 (glibc)
             os: ubuntu-24.04
             docker-arch: arm64
             libc: gnu
             artifact-name: linux-aarch64
-          - platform: Linux aarch64
+          - platform: Linux aarch64 (musl)
             os: ubuntu-24.04
             docker-arch: arm64
             libc: musl
@@ -75,6 +75,7 @@ jobs:
           pip install uv
           if ! uv python find 3.11; then
             uv python install 3.11
+            export PATH="/root/.local/bin:$PATH"
           fi
 
           # N.B.: We install Pex 1st from sources to ensure the current local Pex code powers
