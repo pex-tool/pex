@@ -68,7 +68,7 @@ jobs:
           
           uv python update-shell
           if ! uv python find 3.11; then
-            uv python install -i "\$PWD/.bin 3.11
+            uv python install -i "\$PWD/.bin" 3.11
           fi
           PYTHON="\$(uv python find 3.11)"
 
