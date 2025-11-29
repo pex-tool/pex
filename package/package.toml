@@ -7,12 +7,14 @@ pex-extras = [
 ]
 
 extra-lock-args = [
-    # This customization gets us a lockable psutil wheel for armv7l.
+    # This customization gets us a lockable psutil wheel for Linux armv7l.
     "--index", "armv7l=https://www.piwheels.org/simple",
     "--source", "armv7l=platform_machine == 'armv7l'",
-    # This customization gets us a lockable psutil wheel for riscv64.
+    # This customization gets us a lockable psutil wheel for Linux riscv64.
     "--index", "riscv64=https://gitlab.com/api/v4/projects/56254198/packages/pypi/simple",
     "--source", "riscv64=platform_machine == 'riscv64'",
+    # This custimaztion gets us psutil musl wheels for musl Linux aarch64 and x86_64.
+    "--index", "https://pex-tool.github.io/packaging/simple-index"
 ]
 
 [scie.platforms.linux-aarch64]
@@ -21,7 +23,6 @@ extra-lock-args = [
 [scie.platforms.linux-x86_64]
 [scie.platforms.macos-aarch64]
 [scie.platforms.macos-x86_64]
+[scie.platforms.musl-linux-aarch64]
+[scie.platforms.musl-linux-x86_64]
 
-# Un-comment these once complete-platforms are generated for them.
-# [scie.platforms.musl-linux-aarch64]
-# [scie.platforms.musl-linux-x86_64]
