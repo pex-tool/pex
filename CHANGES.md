@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.72.0
+
+This release adds support for building foreign platform musl Linux PEX scies and dogfoods this to
+add musl Linux aarch64 & x86_64 Pex PEX scies to the Pex release.
+
+* Support targeting foreign platform musl scies. (#3025)
+
 ## 2.71.1
 
 This release fixes Pex to allow blanket disallowing builds but making targeted exceptions and
