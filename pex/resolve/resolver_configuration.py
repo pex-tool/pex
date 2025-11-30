@@ -132,10 +132,14 @@ class BuildConfiguration(object):
 
     def allow_build(self, project_name):
         # type: (ProjectName) -> bool
+        if project_name in self.only_builds:
+            return True
         return self.allow_builds and project_name not in self.only_wheels
 
     def allow_wheel(self, project_name):
         # type: (ProjectName) -> bool
+        if project_name in self.only_wheels:
+            return True
         return self.allow_wheels and project_name not in self.only_builds
 
 
