@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.72.1
+
+This release fixes Pex lock resolves (`--lock` and `--pylock`) to allow exceptions for `--no-wheel`
+and `--no-build` as a follow-on to the 2.71.1 release fix that enabled the same for Pip resolves.
+
+* Allow exceptions for `--no-{wheel,build}` with locks. (#3028)
+
 ## 2.72.0
 
 This release adds support for building foreign platform musl Linux PEX scies and dogfoods this to
