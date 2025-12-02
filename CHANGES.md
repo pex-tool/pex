@@ -1,5 +1,13 @@
 # Release Notes
 
+## 2.72.2
+
+This release fixes a regression introduced in the Pex 2.60.0 release when installing wheels with
+`*.data/` entries whose top-level name matches a top-level package in the wheel. This regression
+only affected default `--venv` mode PEXes which populate site-packages using symlinks.
+
+* Fix `--venv` (using symlinks) for some wheels. (#3031)
+
 ## 2.72.1
 
 This release fixes Pex lock resolves (`--lock` and `--pylock`) to allow exceptions for `--no-wheel`

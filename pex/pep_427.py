@@ -954,7 +954,7 @@ def install_wheel(
 
     installed_files = []  # type: List[Union[InstalledFile, InstalledDirectory]]
     provenance = []  # type: List[Tuple[Text, Text]]
-    symlinked = set()  # type: Set[Text]
+    symlinked = set()  # type: Set[Tuple[Text, Text]]
     for installed_file_or_dir in Record.read(lines=iter(record_data.decode("utf-8").splitlines())):
         if isinstance(installed_file_or_dir, InstalledDirectory):
             installed_files.append(installed_file_or_dir)
@@ -1041,12 +1041,12 @@ def install_wheel(
                 top_level = dst_rel_path.split(os.sep)[0]
                 if top_level in (dist_info_dir_relpath, pex_info_dir_relpath):
                     safe_relative_symlink(src_file, dst_file)
-                elif top_level not in symlinked:
+                elif (dst_path_name, top_level) not in symlinked:
                     top_level_src = os.path.join(wheel.install_paths[dst_path_name], top_level)
                     top_level_dst = os.path.join(install_paths[dst_path_name], top_level)
                     try:
                         safe_relative_symlink(top_level_src, top_level_dst)
-                        symlinked.add(top_level)
+                        symlinked.add((dst_path_name, top_level))
                     except OSError as e:
                         if e.errno != errno.EEXIST:
                             raise
