@@ -20,7 +20,13 @@ from pex.orderedset import OrderedSet
 from pex.pep_425 import CompatibilityTags, RankedTag
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
-from pex.requirements import LocalProjectRequirement, URLRequirement, parse_requirement_string
+from pex.requirements import (
+    LocalProjectRequirement,
+    PyPIRequirement,
+    URLRequirement,
+    VCSRequirement,
+    parse_requirement_string,
+)
 from pex.resolve.locked_resolve import (
     DownloadableArtifact,
     FileArtifact,
@@ -1651,6 +1657,7 @@ def subset(
         for parsed_constraint in requirement_configuration.parse_constraints(network_configuration)
     )
     missing_local_projects = []  # type: List[Text]
+    missing_url_requirements = []  # type: List[Tuple[Text, Optional[Requirement]]]
     requirements_to_resolve = OrderedSet()  # type: OrderedSet[Requirement]
     for parsed_requirement in parsed_requirements:
         if isinstance(parsed_requirement, LocalProjectRequirement):
@@ -1663,6 +1670,30 @@ def subset(
                 )
             else:
                 missing_local_projects.append(parsed_requirement.line.processed_text)
+        elif isinstance(parsed_requirement, (URLRequirement, VCSRequirement)):
+            # TODO(John Sirois): We could do better here and resolve the URL and compare its
+            #  hash with the equivalent item in the lock. In particular this would allow
+            #  differing VCS refs pointing to the same content in the end to be used as subset
+            #  requirements.
+            existing = None  # type: Optional[ParsedRequirement]
+            for package in pylock.packages:
+                if package.project_name == parsed_requirement.project_name:
+                    existing = package.as_parsed_requirement()
+                    break
+            if (
+                isinstance(existing, (URLRequirement, VCSRequirement))
+                and parsed_requirement.requirement == existing.requirement
+            ):
+                requirements_to_resolve.add(parsed_requirement.requirement)
+            else:
+                existing_req = None  # type: Optional[Requirement]
+                if isinstance(existing, (PyPIRequirement, URLRequirement, VCSRequirement)):
+                    existing_req = existing.requirement
+                elif isinstance(existing, LocalProjectRequirement):
+                    existing_req = Requirement.parse(str(existing))
+                missing_url_requirements.append(
+                    (parsed_requirement.line.processed_text, existing_req)
+                )
         else:
             requirements_to_resolve.add(parsed_requirement.requirement)
     if missing_local_projects:
@@ -1680,6 +1711,24 @@ def subset(
                 ),
                 for_example=", as one example," if len(missing_local_projects) > 1 else "",
                 project=missing_local_projects[0],
+            )
+        )
+    if missing_url_requirements:
+        missing_requirements = []  # type: List[str]
+        for index, (missing, existing_req) in enumerate(missing_url_requirements, start=1):
+            missing_requirements.append("{index}. {missing}".format(index=index, missing=missing))
+            if existing:
+                missing_requirements.append(
+                    "   locked version is: {existing}".format(existing=existing_req)
+                )
+
+        return Error(
+            "Found {count} URL {requirements} not present in the lock at {lock}:\n"
+            "{missing}".format(
+                count=len(missing_url_requirements),
+                requirements=pluralize(missing_url_requirements, "requirement"),
+                lock=pylock.source,
+                missing="\n".join(missing_requirements),
             )
         )
 
