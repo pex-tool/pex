@@ -1,5 +1,14 @@
 # Release Notes
 
+## 2.73.0
+
+This release upgrades the floor of `science` to 0.17.0 and `scie-jump` to 1.9.1 to pick up support
+for producing PEX scies for Linux aarch64 & x86_64 that link against glibc. Previously the embedded
+interpreter would link against glibc but the `scie-jump` at the PEX scie tip was a musl libc static
+binary and this could cause problems in those areas where glibc and musl diverge.
+
+* Upgrade science to 0.17.0 & scie-jump to 1.9.1. (#3033)
+
 ## 2.72.2
 
 This release fixes a regression introduced in the Pex 2.60.0 release when installing wheels with
