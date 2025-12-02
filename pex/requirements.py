@@ -174,6 +174,7 @@ class PyPIRequirement(_ParsedItem):
 
     @property
     def project_name(self):
+        # type: () -> ProjectName
         return self.requirement.project_name
 
     @property
@@ -196,6 +197,7 @@ class URLRequirement(_ParsedItem):
 
     @property
     def project_name(self):
+        # type: () -> ProjectName
         return self.requirement.project_name
 
     @property
@@ -231,6 +233,7 @@ class VCSRequirement(_ParsedItem):
 
     @property
     def project_name(self):
+        # type: () -> ProjectName
         return self.requirement.project_name
 
     @property
