@@ -1,5 +1,16 @@
 # Release Notes
 
+## 2.73.1
+
+This release fixes `--lock` and `--pylock` subsetting of direct reference and VCS requirements.
+Previously, just the project name was matched when subsetting but now the normalized URL is matched.
+The previous behavior could lead to subsets succeeding that should have otherwise failed. The new
+behavior can lead to a subset failing when URLs differ, but both URLs point to the same content.
+Although this too is a bug, it should be a much narrower use case in the wild; so this should be an
+improvement.
+
+* Fix URL requirement `--lock` & `--pylock` subsetting. (#3034)
+
 ## 2.73.0
 
 This release upgrades the floor of `science` to 0.17.0 and `scie-jump` to 1.9.1 to pick up support
