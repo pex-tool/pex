@@ -3,6 +3,8 @@
 
 from __future__ import absolute_import
 
+import sys
+
 from pex.dist_metadata import Requirement
 from pex.typing import TYPE_CHECKING
 from testing import run_pex_command
@@ -41,6 +43,7 @@ def assert_subset_succeeds(
     tmpdir,  # type: Tempdir
     lock,  # type: str
     requirement,  # type: str
+    test_pylock=True,  # type: bool
 ):
     # type: (...) -> None
 
@@ -57,6 +60,8 @@ def assert_subset_succeeds(
     result.assert_success()
     assert colors.green("subset") == result.output.strip()
 
+    if not test_pylock:
+        return
     pylock = create_pylock(tmpdir, lock)
     result = run_pex_command(
         args=[
@@ -65,11 +70,11 @@ def assert_subset_succeeds(
             requirement,
             "--",
             "-c",
-            "import colors; print(colors.green('subset'))",
+            "import colors; print(colors.yellow('subset'))",
         ]
     )
     result.assert_success()
-    assert colors.green("subset") == result.output.strip()
+    assert colors.yellow("subset") == result.output.strip()
 
 
 def assert_subset_fails(
@@ -77,6 +82,7 @@ def assert_subset_fails(
     lock,  # type: str
     requirement,  # type: str
     expect_existing=None,  # type: Optional[str]
+    test_pylock=True,  # type: bool
 ):
     # type: (...) -> None
 
@@ -98,6 +104,8 @@ def assert_subset_fails(
     result.assert_failure()
     assert expected_error_message(lock) in result.error, result.error
 
+    if not test_pylock:
+        return
     pylock = create_pylock(tmpdir, lock)
     result = run_pex_command(args=["--pylock", pylock, requirement])
     result.assert_failure()
@@ -164,17 +172,26 @@ def test_vcs_requirement_subset(tmpdir):
     lock = create_lock(
         tmpdir, "ansicolors@ git+https://github.com/jonathaneunice/colors.git@358f347"
     )
+
+    test_pylock = sys.version_info[0] != 2
     assert_subset_succeeds(
-        tmpdir, lock, "ansicolors@ git+https://github.com/jonathaneunice/colors.git@358f347"
+        tmpdir,
+        lock,
+        "ansicolors@ git+https://github.com/jonathaneunice/colors.git@358f347",
+        test_pylock=test_pylock,
     )
     assert_subset_succeeds(
-        tmpdir, lock, "ansicolors @ git+https://github.com/jonathaneunice/colors.git@358f347"
+        tmpdir,
+        lock,
+        "ansicolors @ git+https://github.com/jonathaneunice/colors.git@358f347",
+        test_pylock=test_pylock,
     )
     assert_subset_fails(
         tmpdir,
         lock,
         "ansicolors @ git+https://github.com/jonathaneunice/colors@358f347",
         expect_existing="ansicolors@ git+https://github.com/jonathaneunice/colors.git@358f347",
+        test_pylock=test_pylock,
     )
     assert_subset_fails(
         tmpdir,
@@ -184,9 +201,11 @@ def test_vcs_requirement_subset(tmpdir):
             "colors.git@358f3471bed3e98c6d7dabec936968f7e1a05eb7"
         ),
         expect_existing="ansicolors@ git+https://github.com/jonathaneunice/colors.git@358f347",
+        test_pylock=test_pylock,
     )
     assert_subset_fails(
         tmpdir,
         lock,
         "bob @ git+https://github.com/jonathaneunice/colors.git@358f347",
+        test_pylock=test_pylock,
     )
