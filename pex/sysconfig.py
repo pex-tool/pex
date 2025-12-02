@@ -175,13 +175,13 @@ class SysPlatform(Enum["SysPlatform.Value"]):
     class Value(_PlatformValue):
         pass
 
-    LINUX_AARCH64 = Value(Os.LINUX, "aarch64")
+    LINUX_AARCH64 = Value(Os.LINUX, "aarch64", LibC.GLIBC)
     MUSL_LINUX_AARCH64 = Value(Os.LINUX, "aarch64", LibC.MUSL)
     LINUX_ARMV7L = Value(Os.LINUX, "armv7l")
     LINUX_PPC64LE = Value(Os.LINUX, "powerpc64")
     LINUX_RISCV64 = Value(Os.LINUX, "riscv64")
     LINUX_S390X = Value(Os.LINUX, "s390x")
-    LINUX_X86_64 = Value(Os.LINUX, "x86_64")
+    LINUX_X86_64 = Value(Os.LINUX, "x86_64", LibC.GLIBC)
     MUSL_LINUX_X86_64 = Value(Os.LINUX, "x86_64", LibC.MUSL)
     MACOS_AARCH64 = Value(Os.MACOS, "aarch64")
     MACOS_X86_64 = Value(Os.MACOS, "x86_64")
