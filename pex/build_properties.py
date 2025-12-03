@@ -8,13 +8,12 @@ import logging
 import os.path
 import subprocess
 from argparse import ArgumentTypeError, Namespace, _ActionsContainer
-from typing import List, Optional, Tuple
 
 from pex.argparse import HandleBoolAction
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Any, Dict, Mapping
+    from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
