@@ -24,7 +24,8 @@ COPY populate_cache.sh /root/
 COPY .env /root/
 COPY --from=seed ${SEED_PATH} ${CACHE_PATH}
 RUN chown -R $(id -u):$(id -g) ${CACHE_PATH} && \
-    /root/populate_cache.sh ${CACHE_PATH} "${TEST_CMDS}" && \
+    cd /root && \
+    ./populate_cache.sh ${CACHE_PATH} "${TEST_CMDS}" && \
     touch "${CACHE_PATH}/.fingerprint-${FINGERPRINT}"
 
 # Grab just the ~/.pex_dev cache files for the final data-only image.
