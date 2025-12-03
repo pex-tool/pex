@@ -8,11 +8,6 @@ if (( $# != 2 )); then
   exit 1
 fi
 
-if [[ -f .env ]]; then
-  echo >&2 "Sourcing .env ..."
-  source .env
-fi
-
 function run_dev_cmd() {
   local cmd="$1"
   uv run dev-cmd "${cmd}" -- --color --devpi --require-devpi -vvs
@@ -24,6 +19,7 @@ function run_dev_cmd() {
   fi
 }
 
+source .env
 export _PEX_TEST_DEV_ROOT="$1"
 echo "Starting ${_PEX_TEST_DEV_ROOT} cache size:"
 du -sh "${_PEX_TEST_DEV_ROOT}"/* 2>/dev/null || echo "Empty."
