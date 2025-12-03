@@ -21,6 +21,7 @@ RUN git clone "${PEX_REPO}" /development/pex && \
 
 WORKDIR /development/pex
 COPY populate_cache.sh /root/
+COPY .env /root/
 COPY --from=seed ${SEED_PATH} ${CACHE_PATH}
 RUN chown -R $(id -u):$(id -g) ${CACHE_PATH} && \
     /root/populate_cache.sh ${CACHE_PATH} "${TEST_CMDS}" && \

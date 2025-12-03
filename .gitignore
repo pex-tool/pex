@@ -4,10 +4,13 @@ __pycache__/
 
 *~
 
+/.python-version
+
 /pex/hashing.py.lck
 
 /.mypy_cache/
 /dist/
 /docs/_static_dynamic/
 /pex/windows/stubs/
+/docker/cache/.env
 

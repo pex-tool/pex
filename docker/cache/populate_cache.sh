@@ -8,6 +8,11 @@ if (( $# != 2 )); then
   exit 1
 fi
 
+if [[ -f .env ]]; then
+  echo >&2 "Sourcing .env ..."
+  source .env
+fi
+
 function run_dev_cmd() {
   local cmd="$1"
   uv run dev-cmd "${cmd}" -- --color --devpi --require-devpi -vvs

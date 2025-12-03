@@ -4,6 +4,12 @@ on:
     # 2:00 AM US-Pacific on Wednesdays
     - cron: '0 9 * * 3'
   workflow_dispatch:
+    inputs:
+      seed:
+        required: false
+        default: true
+        type: boolean
+        description: Seed the cache from the prior image.
 defaults:
   run:
     shell: bash
@@ -86,6 +92,7 @@ jobs:
           uv run dev-cmd build-cache-image -- \
             --color \
             --build-style build \
+            ${{ inputs.seed && '--seed' || '--no-seed' }} \
             --dist-dir export \
             --post-action export \
             --test-cmd ${{ matrix.test-cmd }}
