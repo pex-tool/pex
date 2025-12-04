@@ -16,8 +16,9 @@ import sys
 from argparse import Action, ArgumentDefaultsHelpFormatter, ArgumentError, ArgumentParser
 from textwrap import TextWrapper
 
-from pex import dependency_configuration, pex_warnings, repl, scie
+from pex import build_properties, dependency_configuration, pex_warnings, repl, scie
 from pex.argparse import HandleBoolAction
+from pex.build_properties import BuildProperties
 from pex.commands.command import (
     GlobalConfigurationError,
     global_environment,
@@ -166,6 +167,8 @@ def configure_clp_pex_options(parser):
         "PEX output options",
         "Tailor the behavior of the emitted .pex file if -o is specified.",
     )
+
+    build_properties.register_options(group)
 
     group.add_argument(
         "--include-tools",
@@ -1004,6 +1007,7 @@ def build_pex(
     pex_info.interpreter_constraints = interpreter_constraints
     pex_info.deps_are_wheel_files = not options.pre_install_wheels
     pex_info.max_install_jobs = options.max_install_jobs
+    pex_info.build_properties = BuildProperties.from_options(options)
 
     dependency_config = dependency_configuration.configure(options)
     if dependency_config.overridden and isinstance(

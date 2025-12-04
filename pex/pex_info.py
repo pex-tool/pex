@@ -65,6 +65,7 @@ class PexInfo(object):
 
     @classmethod
     def make_build_properties(cls):
+        # type: () -> Dict[str, Any]
         return {
             "pex_version": pex_version,
         }
@@ -164,6 +165,7 @@ class PexInfo(object):
 
     @property
     def build_properties(self):
+        # type: () -> Dict[str, Any]
         """Information about the system on which this PEX was generated.
 
         :returns: A dictionary containing metadata about the environment used to build this PEX.
@@ -172,10 +174,11 @@ class PexInfo(object):
 
     @build_properties.setter
     def build_properties(self, value):
-        if not isinstance(value, dict):
-            raise TypeError("build_properties must be a dictionary!")
-        self._pex_info["build_properties"] = self.make_build_properties()
-        self._pex_info["build_properties"].update(value)
+        # type: (Mapping[str, Any]) -> None
+
+        build_properties = dict(value)
+        build_properties.update(self.make_build_properties())
+        self._pex_info["build_properties"] = build_properties
 
     @property
     def inject_python_args(self):

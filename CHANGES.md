@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.74.0
+
+This release adds support for setting custom PEX-INFO `build_properties` metadata via
+`--build-property`, `--build-properties` and `--record-git-state`.
+
+* Support custom PEX-INFO `build_properties`. (#3036)
+
 ## 2.73.1
 
 This release fixes `--lock` and `--pylock` subsetting of direct reference and VCS requirements.
