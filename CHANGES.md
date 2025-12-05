@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.74.1
+
+This release upgrades the floor of `science` to 0.17.1 and `scie-jump` to 1.9.2 to fix a regression
+in the breadth of Linux platforms `--scie {eager,lazy}` PEX scies were compatible with.
+
+* Upgrade science to 0.17.1 & scie-jump to 1.9.2. (#3038)
+
 ## 2.74.0
 
 This release adds support for setting custom PEX-INFO `build_properties` metadata via
