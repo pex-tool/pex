@@ -67,7 +67,11 @@ def project_dir(tmpdir):
                     "pyyaml<7.0.0,>=6.0.2",
                     "scikit-learn<2.0.0,>=1.6.1",
                     "scipy<2.0.0,>=1.15.0",
-                    "statsmodels<0.15.0,>=0.14.4",
+
+                    # The 0.14.6 release lacks an sdist which foils some of our test platforms.
+                    # See: https://github.com/statsmodels/statsmodels/issues/9704
+                    # "statsmodels<0.15.0,>=0.14.4",
+                    "statsmodels<0.14.6,>=0.14.4",
 
                     # Because only tsm>=8.0 is available and your project depends on tsm>=2.0.11,<3.0.0, we can conclude that your project's requirements are unsatisfiable.
                     # "tsm<3.0.0,>=2.0.11",
