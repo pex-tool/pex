@@ -30,11 +30,11 @@ from pex.orderedset import OrderedSet
 from pex.pep_376 import InstalledDirectory, InstalledFile, Record
 from pex.pep_427 import InstallableType, InstallableWheel, InstallPaths, install_wheel_chroot
 from pex.pep_503 import ProjectName
+from pex.pip.configuration import PipConfiguration
 from pex.pip.version import PipVersion
 from pex.requirements import LocalProjectRequirement
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.requirement_configuration import RequirementConfiguration
-from pex.resolve.resolver_configuration import PipConfiguration
 from pex.resolve.resolvers import ResolvedDistribution, Resolver, ResolveResult
 from pex.result import Error
 from pex.sysconfig import script_name

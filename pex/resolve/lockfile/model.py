@@ -9,12 +9,12 @@ from pex.dependency_configuration import DependencyConfiguration, Override
 from pex.dist_metadata import Constraint, Requirement
 from pex.orderedset import OrderedSet
 from pex.pep_503 import ProjectName
+from pex.pip.configuration import BuildConfiguration, ResolverVersion
 from pex.pip.version import PipVersion, PipVersionValue
 from pex.requirements import LocalProjectRequirement
 from pex.resolve.locked_resolve import LocalProjectArtifact, LockConfiguration, LockedResolve
 from pex.resolve.lockfile import requires_dist
 from pex.resolve.resolved_requirement import Pin
-from pex.resolve.resolver_configuration import BuildConfiguration, ResolverVersion
 from pex.sorted_tuple import SortedTuple
 from pex.typing import TYPE_CHECKING
 

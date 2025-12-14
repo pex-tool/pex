@@ -13,6 +13,7 @@ from pex.enum import Enum
 from pex.interpreter_constraints import InterpreterConstraint
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
+from pex.pip.configuration import BuildConfiguration, PipConfiguration, ResolverVersion
 from pex.pip.version import PipVersion
 from pex.resolve.locked_resolve import (
     Artifact,
@@ -27,7 +28,6 @@ from pex.resolve.locked_resolve import (
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.path_mappings import PathMappings
 from pex.resolve.resolved_requirement import Pin
-from pex.resolve.resolver_configuration import BuildConfiguration, PipConfiguration, ResolverVersion
 from pex.resolve.target_system import TargetSystem
 from pex.sorted_tuple import SortedTuple
 from pex.third_party.packaging import tags

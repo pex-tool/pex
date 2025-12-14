@@ -10,15 +10,11 @@ import pytest
 from pex.common import touch
 from pex.pep_503 import ProjectName
 from pex.pex_warnings import PEXWarning
+from pex.pip.configuration import BuildConfiguration, PipConfiguration
 from pex.pip.version import PipVersion
 from pex.resolve import resolver_options
 from pex.resolve.package_repository import PYPI, ReposConfiguration
-from pex.resolve.resolver_configuration import (
-    BuildConfiguration,
-    PexRepositoryConfiguration,
-    PipConfiguration,
-    PreResolvedConfiguration,
-)
+from pex.resolve.resolver_configuration import PexRepositoryConfiguration, PreResolvedConfiguration
 from pex.resolve.resolver_options import create_repos_configuration
 from pex.typing import TYPE_CHECKING
 

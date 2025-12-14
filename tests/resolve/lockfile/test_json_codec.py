@@ -13,6 +13,7 @@ from pex.compatibility import PY2
 from pex.dist_metadata import Constraint, Requirement
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
+from pex.pip.configuration import BuildConfiguration, ResolverVersion
 from pex.pip.version import PipVersion
 from pex.resolve.locked_resolve import (
     Artifact,
@@ -26,7 +27,6 @@ from pex.resolve.lockfile.json_codec import ParseError, PathMappingError
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.path_mappings import PathMapping, PathMappings
 from pex.resolve.resolved_requirement import Pin
-from pex.resolve.resolver_configuration import BuildConfiguration, ResolverVersion
 from pex.sorted_tuple import SortedTuple
 from pex.third_party.packaging import tags
 from pex.typing import TYPE_CHECKING

@@ -21,11 +21,11 @@ from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.orderedset import OrderedSet
 from pex.pex import PEX
 from pex.pex_info import PexInfo
+from pex.pip.configuration import PipConfiguration
 from pex.resolve import configured_resolve, requirement_options, resolver_options, target_options
 from pex.resolve.resolver_configuration import (
     LockRepositoryConfiguration,
     PexRepositoryConfiguration,
-    PipConfiguration,
     PylockRepositoryConfiguration,
 )
 from pex.result import Error, Ok, Result, try_

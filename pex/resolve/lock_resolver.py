@@ -13,6 +13,7 @@ from pex.interpreter_constraints import InterpreterConstraint
 from pex.network_configuration import NetworkConfiguration
 from pex.pep_427 import InstallableType
 from pex.pep_503 import ProjectName
+from pex.pip.configuration import BuildConfiguration, ResolverVersion
 from pex.pip.tool import PackageIndexConfiguration
 from pex.pip.version import PipVersionValue
 from pex.resolve.lock_downloader import LockDownloader
@@ -30,7 +31,6 @@ from pex.resolve.lockfile.subset import SubsetResult
 from pex.resolve.lockfile.subset import subset as subset_pex_lock
 from pex.resolve.package_repository import ReposConfiguration
 from pex.resolve.requirement_configuration import RequirementConfiguration
-from pex.resolve.resolver_configuration import BuildConfiguration, ResolverVersion
 from pex.resolve.resolvers import ResolvedDistribution, Resolver, ResolveResult
 from pex.resolver import BuildAndInstallRequest, BuildRequest, InstallRequest
 from pex.result import Error, try_

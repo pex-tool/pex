@@ -46,6 +46,7 @@ from pex.pep_425 import CompatibilityTags
 from pex.pep_427 import InstallableType, WheelError, install_wheel_chroot
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
+from pex.pip.configuration import BuildConfiguration, PipLog, ResolverVersion
 from pex.pip.download_observer import DownloadObserver
 from pex.pip.installation import get_pip
 from pex.pip.local_project import digest_local_project
@@ -54,7 +55,6 @@ from pex.pip.version import PipVersionValue
 from pex.requirements import LocalProjectRequirement, URLRequirement
 from pex.resolve.package_repository import ReposConfiguration
 from pex.resolve.requirement_configuration import RequirementConfiguration
-from pex.resolve.resolver_configuration import BuildConfiguration, PipLog, ResolverVersion
 from pex.resolve.resolvers import (
     ResolvedDistribution,
     Resolver,

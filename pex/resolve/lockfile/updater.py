@@ -16,6 +16,7 @@ from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
+from pex.pip.configuration import PipConfiguration, PipLog
 from pex.requirements import PyPIRequirement, URLRequirement, VCSRequirement
 from pex.resolve.locked_resolve import (
     Artifact,
@@ -28,7 +29,6 @@ from pex.resolve.lockfile.create import create
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.package_repository import ReposConfiguration
 from pex.resolve.requirement_configuration import RequirementConfiguration
-from pex.resolve.resolver_configuration import PipConfiguration, PipLog
 from pex.result import Error, ResultError, catch, try_
 from pex.sorted_tuple import SortedTuple
 from pex.targets import Target, Targets

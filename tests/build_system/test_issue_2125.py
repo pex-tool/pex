@@ -6,9 +6,9 @@ from textwrap import dedent
 
 from pex.build_system import pep_517
 from pex.common import safe_open
+from pex.pip.configuration import PipConfiguration
 from pex.pip.version import PipVersion
 from pex.resolve.configured_resolver import ConfiguredResolver
-from pex.resolve.resolver_configuration import PipConfiguration
 from pex.targets import LocalInterpreter
 from pex.typing import TYPE_CHECKING
 from testing.dist_metadata import create_dist_metadata

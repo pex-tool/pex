@@ -30,9 +30,9 @@ from pex.dist_metadata import (
 from pex.pep_427 import install_wheel_chroot
 from pex.pep_503 import ProjectName
 from pex.pex_warnings import PEXWarning
+from pex.pip.configuration import BuildConfiguration
 from pex.pip.installation import get_pip
 from pex.resolve.configured_resolver import ConfiguredResolver
-from pex.resolve.resolver_configuration import BuildConfiguration
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.typing import TYPE_CHECKING
 from testing import PY_VER

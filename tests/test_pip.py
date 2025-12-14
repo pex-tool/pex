@@ -21,12 +21,12 @@ from pex.jobs import Job
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pex_warnings import PEXWarning
+from pex.pip.configuration import ResolverVersion
 from pex.pip.installation import _PIP, PipInstallation, get_pip
 from pex.pip.tool import PackageIndexConfiguration, Pip
 from pex.pip.version import PipVersion, PipVersionValue
 from pex.resolve import abbreviated_platforms
 from pex.resolve.configured_resolver import ConfiguredResolver
-from pex.resolve.resolver_configuration import ResolverVersion
 from pex.targets import AbbreviatedPlatform, LocalInterpreter, Target
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV

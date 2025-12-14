@@ -8,13 +8,13 @@ import pytest
 
 from pex import dist_metadata, resolver, targets
 from pex.fs import safe_symlink
+from pex.pip.configuration import PipConfiguration
 from pex.pip.tool import PackageIndexConfiguration
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.locked_resolve import LockedResolve, LockStyle
 from pex.resolve.lockfile.create import LockObserver
 from pex.resolve.package_repository import Repo, ReposConfiguration
 from pex.resolve.resolved_requirement import Pin
-from pex.resolve.resolver_configuration import PipConfiguration
 from pex.resolver import Downloaded, LocalDistribution, WheelBuilder
 from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper

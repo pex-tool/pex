@@ -10,10 +10,10 @@ from pex.build_system.pep_517 import build_sdist
 from pex.dist_metadata import Distribution
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
+from pex.pip.configuration import PipConfiguration, ResolverVersion
 from pex.pip.installation import get_pip
 from pex.pip.version import PipVersion
 from pex.resolve.configured_resolver import ConfiguredResolver
-from pex.resolve.resolver_configuration import PipConfiguration, ResolverVersion
 from pex.result import Error
 from pex.targets import LocalInterpreter
 from pex.typing import TYPE_CHECKING

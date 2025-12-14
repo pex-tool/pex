@@ -19,13 +19,13 @@ from pex.jobs import Job, Retain, SpawnedJob, execute_parallel
 from pex.orderedset import OrderedSet
 from pex.pep_427 import InstallableType
 from pex.pep_503 import ProjectName
+from pex.pip.configuration import PipConfiguration
 from pex.pip.tool import PackageIndexConfiguration
 from pex.pip.version import PipVersionValue
 from pex.requirements import LocalProjectRequirement, ParseError, URLRequirement
 from pex.resolve.configured_resolve import resolve
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.requirement_configuration import RequirementConfiguration
-from pex.resolve.resolver_configuration import PipConfiguration
 from pex.resolve.resolvers import Resolver
 from pex.resolver import BuildAndInstallRequest, BuildRequest, InstallRequest
 from pex.result import Error, ResultError

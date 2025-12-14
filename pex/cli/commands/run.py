@@ -39,6 +39,7 @@ from pex.interpreter import PythonInterpreter
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.os import safe_execv
+from pex.pip.configuration import PipConfiguration
 from pex.pip.version import PipVersionValue
 from pex.requirements import LocalProjectRequirement, ParseError, parse_requirement_string
 from pex.resolve import lock_resolver, requirement_options, resolver_options, target_options
@@ -46,7 +47,6 @@ from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.locked_resolve import FileArtifact, UnFingerprintedLocalProjectArtifact
 from pex.resolve.lockfile.pep_751 import Dependency, Package, Pylock
 from pex.resolve.requirement_configuration import RequirementConfiguration
-from pex.resolve.resolver_configuration import PipConfiguration
 from pex.resolve.resolvers import Resolver, Unsatisfiable
 from pex.resolve.script_metadata import apply_script_metadata
 from pex.resolve.target_configuration import TargetConfiguration

@@ -10,8 +10,8 @@ import subprocess
 
 from pex.common import open_zip, safe_rmtree
 from pex.compatibility import commonpath
+from pex.pip.configuration import BuildConfiguration
 from pex.pip.installation import get_pip
-from pex.resolve.resolver_configuration import BuildConfiguration
 from pex.util import CacheHelper
 from pex.venv.virtualenv import InstallationChoice, Virtualenv
 from testing import make_env, run_pex_command

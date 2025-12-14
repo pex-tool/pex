@@ -20,6 +20,7 @@ from pex.orderedset import OrderedSet
 from pex.pep_425 import CompatibilityTags, RankedTag
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
+from pex.pip.configuration import BuildConfiguration
 from pex.requirements import (
     LocalProjectRequirement,
     PyPIRequirement,
@@ -43,7 +44,6 @@ from pex.resolve.lockfile.requires_dist import remove_unused_requires_dist
 from pex.resolve.lockfile.subset import Subset, SubsetResult
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolved_requirement import Pin
-from pex.resolve.resolver_configuration import BuildConfiguration
 from pex.resolve.target_system import TargetSystem, UniversalTarget
 from pex.result import Error, ResultError, try_
 from pex.sorted_tuple import SortedTuple

@@ -14,9 +14,9 @@ from pex.common import environment_as
 from pex.interpreter import PythonInterpreter
 from pex.pep_425 import CompatibilityTags
 from pex.pep_508 import MarkerEnvironment
+from pex.pip.configuration import PipConfiguration
 from pex.platforms import Platform
 from pex.resolve import abbreviated_platforms, target_options
-from pex.resolve.resolver_configuration import PipConfiguration
 from pex.resolve.target_configuration import InterpreterConstraintsNotSatisfied
 from pex.targets import CompletePlatform, Targets
 from pex.typing import TYPE_CHECKING

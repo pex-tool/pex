@@ -14,10 +14,10 @@ from pex.common import safe_open, safe_rmtree
 from pex.exceptions import production_assert
 from pex.jobs import SpawnedJob
 from pex.pep_425 import CompatibilityTags
+from pex.pip.configuration import PipConfiguration
 from pex.pip.installation import get_pip
 from pex.platforms import Platform, PlatformSpec
 from pex.resolve.configured_resolver import ConfiguredResolver
-from pex.resolve.resolver_configuration import PipConfiguration
 from pex.third_party.packaging import tags
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING

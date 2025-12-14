@@ -19,20 +19,17 @@ from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.os import is_exe
 from pex.pep_503 import ProjectName
+from pex.pip.configuration import BuildConfiguration, PipConfiguration, PipLog, ResolverVersion
 from pex.pip.version import PipVersion, PipVersionValue
 from pex.resolve.lockfile import json_codec
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.package_repository import PYPI, Repo, ReposConfiguration, Scope
 from pex.resolve.path_mappings import PathMapping, PathMappings
 from pex.resolve.resolver_configuration import (
-    BuildConfiguration,
     LockRepositoryConfiguration,
     PexRepositoryConfiguration,
-    PipConfiguration,
-    PipLog,
     PreResolvedConfiguration,
     PylockRepositoryConfiguration,
-    ResolverVersion,
     VenvRepositoryConfiguration,
 )
 from pex.result import Error

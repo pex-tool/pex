@@ -17,11 +17,11 @@ from pex.common import safe_copy, safe_mkdtemp, temporary_dir
 from pex.dist_metadata import Distribution, Requirement
 from pex.interpreter import PythonInterpreter
 from pex.pep_427 import InstallableType
+from pex.pip.configuration import BuildConfiguration, ResolverVersion
 from pex.pip.version import PipVersion
 from pex.resolve import abbreviated_platforms
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.package_repository import PYPI, Repo, ReposConfiguration
-from pex.resolve.resolver_configuration import BuildConfiguration, ResolverVersion
 from pex.resolve.resolvers import ResolvedDistribution, ResolveResult, Unsatisfiable
 from pex.resolver import download
 from pex.resolver import resolve as resolve_under_test

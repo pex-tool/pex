@@ -19,6 +19,7 @@ from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import InterpreterConstraint
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
+from pex.pip.configuration import ResolverVersion
 from pex.pip.version import PipVersion
 from pex.resolve import abbreviated_platforms
 from pex.resolve.locked_resolve import Artifact, LockedRequirement
@@ -26,7 +27,6 @@ from pex.resolve.lockfile import json_codec
 from pex.resolve.lockfile.download_manager import DownloadedArtifact
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.resolved_requirement import Pin
-from pex.resolve.resolver_configuration import ResolverVersion
 from pex.sorted_tuple import SortedTuple
 from pex.targets import AbbreviatedPlatform, LocalInterpreter
 from pex.typing import TYPE_CHECKING

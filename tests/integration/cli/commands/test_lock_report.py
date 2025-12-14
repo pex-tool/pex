@@ -10,8 +10,8 @@ from textwrap import dedent
 import pytest
 
 from pex.common import safe_open
+from pex.pip.configuration import ResolverVersion
 from pex.pip.version import PipVersion
-from pex.resolve.resolver_configuration import ResolverVersion
 from testing import IS_PYPY
 from testing.cli import run_pex3
 from testing.pytest_utils import IS_CI

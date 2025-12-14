@@ -17,8 +17,8 @@ from pex.bin.pex import (
 from pex.common import safe_copy, temporary_dir
 from pex.compatibility import to_bytes
 from pex.interpreter import PythonInterpreter
+from pex.pip.configuration import PipConfiguration
 from pex.resolve import requirement_options, resolver_options, target_options
-from pex.resolve.resolver_configuration import PipConfiguration
 from pex.typing import TYPE_CHECKING
 from pex.venv.bin_path import BinPath
 from testing import PY39, built_wheel, ensure_python_interpreter, run_pex_command, run_simple_pex

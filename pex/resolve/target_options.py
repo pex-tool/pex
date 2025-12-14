@@ -13,9 +13,9 @@ from pex.interpreter_constraints import InterpreterConstraints
 from pex.orderedset import OrderedSet
 from pex.pep_425 import CompatibilityTags
 from pex.pep_508 import MarkerEnvironment
+from pex.pip.configuration import PipConfiguration
 from pex.platforms import Platform, PlatformSpec
 from pex.resolve import abbreviated_platforms
-from pex.resolve.resolver_configuration import PipConfiguration
 from pex.resolve.target_configuration import InterpreterConfiguration, TargetConfiguration
 from pex.targets import CompletePlatform
 from pex.typing import TYPE_CHECKING

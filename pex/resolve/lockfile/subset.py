@@ -11,6 +11,7 @@ from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import Requirement
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
+from pex.pip.configuration import BuildConfiguration
 from pex.requirements import (
     LocalProjectRequirement,
     URLRequirement,
@@ -20,7 +21,6 @@ from pex.requirements import (
 from pex.resolve.locked_resolve import LockedResolve, Resolved
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.requirement_configuration import RequirementConfiguration
-from pex.resolve.resolver_configuration import BuildConfiguration
 from pex.result import Error
 from pex.targets import Target, Targets
 from pex.tracer import TRACER

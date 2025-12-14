@@ -3,12 +3,12 @@
 
 from __future__ import absolute_import
 
+from pex.pip.configuration import PipConfiguration
 from pex.pip.installation import compatible_version, validate_targets
 from pex.pip.version import PipVersionValue
 from pex.resolve.resolver_configuration import (
     LockRepositoryConfiguration,
     PexRepositoryConfiguration,
-    PipConfiguration,
     PreResolvedConfiguration,
     PylockRepositoryConfiguration,
 )

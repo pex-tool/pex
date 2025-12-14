@@ -13,6 +13,7 @@ from pex.pep_425 import CompatibilityTags, TagRank
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pep_508 import MarkerEnvironment
+from pex.pip.configuration import BuildConfiguration
 from pex.resolve import abbreviated_platforms
 from pex.resolve.locked_resolve import (
     Artifact,
@@ -27,7 +28,6 @@ from pex.resolve.locked_resolve import (
     _ResolvedArtifact,
 )
 from pex.resolve.resolved_requirement import PartialArtifact, Pin
-from pex.resolve.resolver_configuration import BuildConfiguration
 from pex.result import Error, try_
 from pex.sorted_tuple import SortedTuple
 from pex.targets import AbbreviatedPlatform, CompletePlatform, LocalInterpreter, Target

@@ -40,6 +40,7 @@ from pex.pep_376 import InstalledFile, Record
 from pex.pep_427 import InstallableType, reinstall_venv
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
+from pex.pip.configuration import PipConfiguration
 from pex.pip.version import PipVersionValue
 from pex.requirements import LocalProjectRequirement
 from pex.resolve import project, requirement_options, resolver_options, target_options
@@ -72,7 +73,7 @@ from pex.resolve.lockfile.updater import (
 from pex.resolve.path_mappings import PathMappings
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolved_requirement import Pin
-from pex.resolve.resolver_configuration import LockRepositoryConfiguration, PipConfiguration
+from pex.resolve.resolver_configuration import LockRepositoryConfiguration
 from pex.resolve.resolver_options import parse_lockfile
 from pex.resolve.resolvers import Resolver
 from pex.resolve.script_metadata import ScriptMetadataApplication, apply_script_metadata

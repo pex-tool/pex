@@ -6,7 +6,7 @@ import sys
 import pytest
 
 from pex.compatibility import safe_commonpath
-from pex.resolve.resolver_configuration import ResolverVersion
+from pex.pip.configuration import ResolverVersion
 from pex.typing import TYPE_CHECKING
 from testing import run_pex_command
 from testing.cli import run_pex3

@@ -15,10 +15,10 @@ import pytest
 from pex.common import DETERMINISTIC_DATETIME, open_zip, safe_open
 from pex.dist_metadata import Distribution, Requirement
 from pex.os import kill
+from pex.pip.configuration import BuildConfiguration
 from pex.pip.installation import get_pip
 from pex.pip.version import PipVersion
 from pex.resolve.configured_resolver import ConfiguredResolver
-from pex.resolve.resolver_configuration import BuildConfiguration
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.typing import TYPE_CHECKING
 from testing import (

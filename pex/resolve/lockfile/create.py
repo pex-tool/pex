@@ -21,6 +21,7 @@ from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
+from pex.pip.configuration import BuildConfiguration, PipConfiguration, ResolverVersion
 from pex.pip.download_observer import DownloadObserver
 from pex.pip.tool import PackageIndexConfiguration
 from pex.pip.version import PipVersion, PipVersionValue
@@ -46,7 +47,6 @@ from pex.resolve.package_repository import ReposConfiguration
 from pex.resolve.pep_691.fingerprint_service import FingerprintService
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolved_requirement import Pin, ResolvedRequirement
-from pex.resolve.resolver_configuration import BuildConfiguration, PipConfiguration, ResolverVersion
 from pex.resolve.resolvers import Resolver
 from pex.resolver import (
     BuildRequest,

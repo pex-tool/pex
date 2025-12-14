@@ -43,6 +43,7 @@ from pex.pex import PEX, validate_entry_point
 from pex.pex_bootstrapper import ensure_venv
 from pex.pex_builder import Check, PEXBuilder
 from pex.pex_info import PexInfo
+from pex.pip.configuration import PipConfiguration
 from pex.resolve import (
     project,
     requirement_options,
@@ -56,7 +57,6 @@ from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import (
     LockRepositoryConfiguration,
     PexRepositoryConfiguration,
-    PipConfiguration,
 )
 from pex.resolve.resolvers import Unsatisfiable, sorted_requirements
 from pex.resolve.script_metadata import apply_script_metadata

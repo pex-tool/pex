@@ -21,9 +21,9 @@ from pex.orderedset import OrderedSet
 from pex.pep_425 import CompatibilityTags, TagRank
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
+from pex.pip.configuration import BuildConfiguration
 from pex.rank import Rank
 from pex.resolve.resolved_requirement import PartialArtifact, Pin, ResolvedRequirement
-from pex.resolve.resolver_configuration import BuildConfiguration
 from pex.resolve.target_system import TargetSystem, UniversalTarget
 from pex.result import Error
 from pex.sorted_tuple import SortedTuple

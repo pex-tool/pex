@@ -17,13 +17,13 @@ from pex.jobs import iter_map_parallel
 from pex.orderedset import OrderedSet
 from pex.pep_427 import InstallableType
 from pex.pep_503 import ProjectName
+from pex.pip.configuration import PipConfiguration
 from pex.pip.tool import PackageIndexConfiguration
 from pex.requirements import LocalProjectRequirement
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.locked_resolve import FileArtifact, LockedRequirement, LockedResolve
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolved_requirement import Pin
-from pex.resolve.resolver_configuration import PipConfiguration
 from pex.resolve.resolvers import (
     ResolvedDistribution,
     ResolveResult,

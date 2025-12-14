@@ -11,6 +11,7 @@ from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import is_wheel
 from pex.exceptions import reportable_unexpected_error_msg
 from pex.orderedset import OrderedSet
+from pex.pip.configuration import PipConfiguration
 from pex.pip.tool import PackageIndexConfiguration
 from pex.resolve import lock_resolver, requirement_options, resolver_options, target_options
 from pex.resolve.configured_resolver import ConfiguredResolver
@@ -19,7 +20,6 @@ from pex.resolve.lockfile.pep_751 import Pylock
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import (
     LockRepositoryConfiguration,
-    PipConfiguration,
     PylockRepositoryConfiguration,
 )
 from pex.resolve.resolvers import Resolver

@@ -21,9 +21,9 @@ from pex.executor import Executor
 from pex.pep_503 import ProjectName
 from pex.pex import PEX
 from pex.pex_info import PexInfo
+from pex.pip.configuration import ResolverVersion
 from pex.pip.version import PipVersion, PipVersionValue
 from pex.resolve.lockfile import json_codec
-from pex.resolve.resolver_configuration import ResolverVersion
 from pex.sorted_tuple import SortedTuple
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import InstallationChoice, Virtualenv

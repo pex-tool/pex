@@ -16,6 +16,7 @@ from pex.dist_metadata import Requirement
 from pex.fs.lock import FileLockStyle
 from pex.network_configuration import NetworkConfiguration
 from pex.pep_503 import ProjectName
+from pex.pip.configuration import BuildConfiguration, ResolverVersion
 from pex.pip.local_project import digest_local_project
 from pex.pip.tool import PackageIndexConfiguration
 from pex.pip.vcs import digest_vcs_archive
@@ -32,7 +33,6 @@ from pex.resolve.locked_resolve import (
 )
 from pex.resolve.lockfile.download_manager import DownloadedArtifact, DownloadManager
 from pex.resolve.package_repository import ReposConfiguration
-from pex.resolve.resolver_configuration import BuildConfiguration, ResolverVersion
 from pex.resolve.resolvers import MAX_PARALLEL_DOWNLOADS, Resolver
 from pex.result import Error, catch
 from pex.targets import Target, Targets

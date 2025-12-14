@@ -28,13 +28,13 @@ from pex.network_configuration import NetworkConfiguration
 from pex.pep_427 import install_wheel_interpreter
 from pex.pep_508 import MarkerEnvironment
 from pex.pip import dependencies, foreign_platform, package_repositories
+from pex.pip.configuration import BuildConfiguration, ResolverVersion
 from pex.pip.download_observer import DownloadObserver, PatchSet
 from pex.pip.log_analyzer import ErrorAnalyzer, ErrorMessage, LogAnalyzer, LogScrapeJob
 from pex.pip.tailer import Tailer
 from pex.pip.version import PipVersion, PipVersionValue
 from pex.platforms import PlatformSpec
 from pex.resolve.package_repository import ReposConfiguration
-from pex.resolve.resolver_configuration import BuildConfiguration, ResolverVersion
 from pex.resolve.target_system import UniversalTarget
 from pex.targets import Target
 from pex.tracer import TRACER
