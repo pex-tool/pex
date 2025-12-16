@@ -46,14 +46,14 @@ from pex.pep_425 import CompatibilityTags
 from pex.pep_427 import InstallableType, WheelError, install_wheel_chroot
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
-from pex.pip.configuration import BuildConfiguration, PipLog, ResolverVersion
+from pex.pip.configuration import PipConfiguration, PipLog
 from pex.pip.download_observer import DownloadObserver
 from pex.pip.installation import get_pip
 from pex.pip.local_project import digest_local_project
 from pex.pip.tool import PackageIndexConfiguration
 from pex.pip.version import PipVersionValue
 from pex.requirements import LocalProjectRequirement, URLRequirement
-from pex.resolve.package_repository import ReposConfiguration
+from pex.resolve.pip_resolver import PipResolver
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolvers import (
     ResolvedDistribution,
@@ -291,14 +291,8 @@ class Reports(object):
 class _PipSession(object):
     requests = attr.ib(converter=_uniqued_download_requests)  # type: Tuple[DownloadRequest, ...]
     direct_requirements = attr.ib()  # type: Iterable[ParsedRequirement]
-    allow_prereleases = attr.ib(default=False)  # type: bool
-    transitive = attr.ib(default=True)  # type: bool
-    package_index_configuration = attr.ib(default=None)  # type: Optional[PackageIndexConfiguration]
-    build_configuration = attr.ib(default=BuildConfiguration())  # type: BuildConfiguration
+    pip_configuration = attr.ib(default=PipConfiguration())  # type: PipConfiguration
     observer = attr.ib(default=None)  # type: Optional[ResolveObserver]
-    pip_log = attr.ib(default=None)  # type: Optional[PipLog]
-    pip_version = attr.ib(default=None)  # type: Optional[PipVersionValue]
-    resolver = attr.ib(default=None)  # type: Optional[Resolver]
     dependency_configuration = attr.ib(
         default=DependencyConfiguration()
     )  # type: DependencyConfiguration
@@ -312,8 +306,8 @@ class _PipSession(object):
                         target=request.target, source_path=requirement.path
                     )
 
-    def generate_reports(self, max_parallel_jobs=None):
-        # type: (Optional[int]) -> Reports
+    def generate_reports(self):
+        # type: () -> Reports
 
         if not self.requests or not any(request.has_requirements for request in self.requests):
             # Nothing to report.
@@ -324,13 +318,13 @@ class _PipSession(object):
         )
 
         log_manager = PipLogManager.create(
-            self.pip_log,
+            self.pip_configuration.log,
             download_targets=tuple(request.download_target for request in self.requests),
         )
-        if self.pip_log and not self.pip_log.user_specified:
+        if self.pip_configuration.log and not self.pip_configuration.log.user_specified:
             TRACER.log(
                 "Preserving `pip install --dry-run` log at {log_path}".format(
-                    log_path=self.pip_log.path
+                    log_path=self.pip_configuration.log.path
                 ),
                 V=ENV.PEX_VERBOSE,
             )
@@ -353,7 +347,7 @@ class _PipSession(object):
                                 inputs=self.requests,
                                 spawn_func=spawn_report,
                                 error_handler=Raise[DownloadRequest, str](Unsatisfiable),
-                                max_jobs=max_parallel_jobs,
+                                max_jobs=self.pip_configuration.max_jobs,
                             ),
                         )
                     )
@@ -385,24 +379,17 @@ class _PipSession(object):
         target = download_target.target
 
         download_job = get_pip(
-            interpreter=target.get_interpreter(),
-            version=self.pip_version,
-            resolver=self.resolver,
-            extra_requirements=(
-                self.package_index_configuration.extra_pip_requirements
-                if self.package_index_configuration
-                else ()
-            ),
+            interpreter=target.get_interpreter(), resolver=PipResolver(self.pip_configuration)
         ).spawn_report(
             report_path=report,
             requirements=request.requirements,
             requirement_files=request.requirement_files,
             constraint_files=request.constraint_files,
-            allow_prereleases=self.allow_prereleases,
-            transitive=self.transitive,
+            allow_prereleases=self.pip_configuration.allow_prereleases,
+            transitive=self.pip_configuration.transitive,
             target=target,
-            package_index_configuration=self.package_index_configuration,
-            build_configuration=self.build_configuration,
+            package_index_configuration=PackageIndexConfiguration.create(self.pip_configuration),
+            build_configuration=self.pip_configuration.build_configuration,
             observer=observer,
             dependency_configuration=self.dependency_configuration,
             universal_target=download_target.universal_target,
@@ -411,8 +398,8 @@ class _PipSession(object):
 
         return SpawnedJob.wait(job=download_job, result=report)
 
-    def download_distributions(self, dest=None, max_parallel_jobs=None):
-        # type: (...) -> List[DownloadResult]
+    def download_distributions(self, dest=None):
+        # type: (Optional[str]) -> List[DownloadResult]
 
         if not self.requests or not any(request.has_requirements for request in self.requests):
             # Nothing to resolve.
@@ -423,12 +410,14 @@ class _PipSession(object):
         )
 
         log_manager = PipLogManager.create(
-            self.pip_log,
+            self.pip_configuration.log,
             download_targets=tuple(request.download_target for request in self.requests),
         )
-        if self.pip_log and not self.pip_log.user_specified:
+        if self.pip_configuration.log and not self.pip_configuration.log.user_specified:
             TRACER.log(
-                "Preserving `pip download` log at {log_path}".format(log_path=self.pip_log.path),
+                "Preserving `pip download` log at {log_path}".format(
+                    log_path=self.pip_configuration.log.path
+                ),
                 V=ENV.PEX_VERBOSE,
             )
 
@@ -448,7 +437,7 @@ class _PipSession(object):
                         inputs=self.requests,
                         spawn_func=spawn_download,
                         error_handler=Raise[DownloadRequest, DownloadResult](Unsatisfiable),
-                        max_jobs=max_parallel_jobs,
+                        max_jobs=self.pip_configuration.max_jobs,
                     )
                 )
             finally:
@@ -467,13 +456,10 @@ class _PipSession(object):
             requirement_files=request.requirement_files,
             constraint_files=request.constraint_files,
         )
-        network_configuration = (
-            self.package_index_configuration.network_configuration
-            if self.package_index_configuration
-            else None
-        )
         subdirectory_by_filename = {}  # type: Dict[str, str]
-        for parsed_requirement in requirement_config.parse_requirements(network_configuration):
+        for parsed_requirement in requirement_config.parse_requirements(
+            self.pip_configuration.network_configuration
+        ):
             if not isinstance(parsed_requirement, URLRequirement):
                 continue
             subdirectory = parsed_requirement.subdirectory
@@ -493,24 +479,17 @@ class _PipSession(object):
         download_result = DownloadResult(download_target, download_dir, subdirectory_by_filename)
         target = download_target.target
         download_job = get_pip(
-            interpreter=target.get_interpreter(),
-            version=self.pip_version,
-            resolver=self.resolver,
-            extra_requirements=(
-                self.package_index_configuration.extra_pip_requirements
-                if self.package_index_configuration
-                else ()
-            ),
+            interpreter=target.get_interpreter(), resolver=PipResolver(self.pip_configuration)
         ).spawn_download_distributions(
             download_dir=download_dir,
             requirements=request.requirements,
             requirement_files=request.requirement_files,
             constraint_files=request.constraint_files,
-            allow_prereleases=self.allow_prereleases,
-            transitive=self.transitive,
+            allow_prereleases=self.pip_configuration.allow_prereleases,
+            transitive=self.pip_configuration.transitive,
             target=target,
-            package_index_configuration=self.package_index_configuration,
-            build_configuration=self.build_configuration,
+            package_index_configuration=PackageIndexConfiguration.create(self.pip_configuration),
+            build_configuration=self.pip_configuration.build_configuration,
             observer=observer,
             dependency_configuration=self.dependency_configuration,
             universal_target=download_target.universal_target,
@@ -605,9 +584,9 @@ def _fingerprint_local_project(
     if resolver:
         build_system_resolver = resolver
     else:
-        from pex.resolve.configured_resolver import ConfiguredResolver
+        from pex.resolve.pip_resolver import PipResolver
 
-        build_system_resolver = ConfiguredResolver.default()
+        build_system_resolver = PipResolver.default()
 
     hasher = _hasher()
     result = digest_local_project(
@@ -1003,18 +982,12 @@ class InstallResult(object):
 class WheelBuilder(object):
     def __init__(
         self,
-        package_index_configuration=None,  # type: Optional[PackageIndexConfiguration]
-        build_configuration=BuildConfiguration(),  # type: BuildConfiguration
+        pip_configuration=PipConfiguration(),  # type: PipConfiguration
         verify_wheels=True,  # type: bool
-        pip_version=None,  # type: Optional[PipVersionValue]
-        resolver=None,  # type: Optional[Resolver]
     ):
         # type: (...) -> None
-        self._package_index_configuration = package_index_configuration
-        self._build_configuration = build_configuration
+        self._pip_configuration = pip_configuration
         self._verify_wheels = verify_wheels
-        self._pip_version = pip_version
-        self._resolver = resolver
 
     @staticmethod
     def _categorize_build_requests(
@@ -1050,19 +1023,13 @@ class WheelBuilder(object):
         build_result = build_request.result(source_path)
         build_job = get_pip(
             interpreter=build_request.target.get_interpreter(),
-            version=self._pip_version,
-            resolver=self._resolver,
-            extra_requirements=(
-                self._package_index_configuration.extra_pip_requirements
-                if self._package_index_configuration is not None
-                else ()
-            ),
+            resolver=PipResolver(self._pip_configuration),
         ).spawn_build_wheels(
             distributions=[source_path],
             wheel_dir=build_result.build_dir,
-            package_index_configuration=self._package_index_configuration,
+            package_index_configuration=PackageIndexConfiguration.create(self._pip_configuration),
             interpreter=build_request.target.get_interpreter(),
-            build_configuration=self._build_configuration,
+            build_configuration=self._pip_configuration.build_configuration,
             verify=self._verify_wheels,
         )
         return SpawnedJob.wait(job=build_job, result=build_result)
@@ -1208,12 +1175,9 @@ class BuildAndInstallRequest(object):
         build_requests,  # type: Iterable[BuildRequest]
         install_requests,  # type:  Iterable[InstallRequest]
         direct_requirements=None,  # type: Optional[Iterable[ParsedRequirement]]
-        package_index_configuration=None,  # type: Optional[PackageIndexConfiguration]
+        pip_configuration=PipConfiguration(),  # type: PipConfiguration
         compile=False,  # type: bool
-        build_configuration=BuildConfiguration(),  # type: BuildConfiguration
         verify_wheels=True,  # type: bool
-        pip_version=None,  # type: Optional[PipVersionValue]
-        resolver=None,  # type: Optional[Resolver]
         dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
     ):
         # type: (...) -> None
@@ -1222,14 +1186,8 @@ class BuildAndInstallRequest(object):
         self._direct_requirements = tuple(direct_requirements or ())
         self._compile = compile
         self._wheel_builder = WheelBuilder(
-            package_index_configuration=package_index_configuration,
-            build_configuration=build_configuration,
-            verify_wheels=verify_wheels,
-            pip_version=pip_version,
-            resolver=resolver,
+            pip_configuration=pip_configuration, verify_wheels=verify_wheels
         )
-        self._pip_version = pip_version
-        self._resolver = resolver
         self._dependency_configuration = dependency_configuration
 
     @staticmethod
@@ -1469,22 +1427,10 @@ def resolve(
     requirements=None,  # type: Optional[Iterable[str]]
     requirement_files=None,  # type: Optional[Iterable[str]]
     constraint_files=None,  # type: Optional[Iterable[str]]
-    allow_prereleases=False,  # type: bool
-    transitive=True,  # type: bool
-    repos_configuration=ReposConfiguration(),  # type: ReposConfiguration
-    resolver_version=None,  # type: Optional[ResolverVersion.Value]
-    network_configuration=None,  # type: Optional[NetworkConfiguration]
-    build_configuration=BuildConfiguration(),  # type: BuildConfiguration
+    pip_configuration=PipConfiguration(),  # type: PipConfiguration
     compile=False,  # type: bool
-    max_parallel_jobs=None,  # type: Optional[int]
     ignore_errors=False,  # type: bool
     verify_wheels=True,  # type: bool
-    pip_log=None,  # type: Optional[PipLog]
-    pip_version=None,  # type: Optional[PipVersionValue]
-    resolver=None,  # type: Optional[Resolver]
-    use_pip_config=False,  # type: bool
-    extra_pip_requirements=(),  # type: Tuple[Requirement, ...]
-    keyring_provider=None,  # type: Optional[str]
     result_type=InstallableType.INSTALLED_WHEEL_CHROOT,  # type: InstallableType.Value
     dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
 ):
@@ -1498,23 +1444,8 @@ def resolve(
     :keyword requirements: A sequence of requirement strings.
     :keyword requirement_files: A sequence of requirement file paths.
     :keyword constraint_files: A sequence of constraint file paths.
-    :keyword allow_prereleases: Whether to include pre-release and development versions when
-      resolving requirements. Defaults to ``False``, but any requirements that explicitly request
-      pre-release or development versions will override this setting.
-    :keyword transitive: Whether to resolve transitive dependencies of requirements.
-      Defaults to ``True``.
-    :keyword repos_configuration: Configuration for package repositories to resolve packages from.
-    :keyword resolver_version: The resolver version to use.
-    :keyword network_configuration: Configuration for network requests made downloading and building
-      distributions.
-    :keyword build_configuration: The configuration for building resolved projects.
+    :keyword pip_configuration: The configuration of a Pip session used to perform the resolve.
     :keyword compile: Whether to pre-compile resolved distribution python sources.
-      Defaults to ``False``.
-    :keyword max_parallel_jobs: The maximum number of parallel jobs to use when resolving,
-      building and installing distributions in a resolve. Defaults to the number of CPUs available.
-    :keyword ignore_errors: Whether to ignore resolution solver errors. Defaults to ``False``.
-    :keyword verify_wheels: Whether to verify wheels have valid metadata. Defaults to ``True``.
-    :keyword pip_log: Preserve the `pip download` log and print its location to stderr.
       Defaults to ``False``.
     :returns: The installed distributions meeting all requirements and constraints.
     :raises Unsatisfiable: If ``requirements`` is not transitively satisfiable.
@@ -1524,7 +1455,7 @@ def resolve(
     :raises ValueError: If `build=False` and `use_wheel=False`.
     """
 
-    if not build_configuration.allow_wheels:
+    if not pip_configuration.build_configuration.allow_wheels:
         foreign_targets = [
             target
             for target in targets.unique_targets()
@@ -1571,17 +1502,9 @@ def resolve(
     # resolved along with any environment markers that control which runtime environments the
     # requirement should be activated in.
 
-    direct_requirements = _parse_reqs(requirements, requirement_files, network_configuration)
-    package_index_configuration = PackageIndexConfiguration.create(
-        pip_version=pip_version,
-        resolver_version=resolver_version,
-        repos_configuration=repos_configuration,
-        network_configuration=network_configuration,
-        use_pip_config=use_pip_config,
-        extra_pip_requirements=extra_pip_requirements,
-        keyring_provider=keyring_provider,
+    direct_requirements = _parse_reqs(
+        requirements, requirement_files, pip_configuration.network_configuration
     )
-
     requests = tuple(
         DownloadRequest(
             download_target=DownloadTarget(target=target),
@@ -1595,14 +1518,7 @@ def resolve(
     build_requests, download_results = _download_internal(
         requests=requests,
         direct_requirements=direct_requirements,
-        allow_prereleases=allow_prereleases,
-        transitive=transitive,
-        package_index_configuration=package_index_configuration,
-        build_configuration=build_configuration,
-        max_parallel_jobs=max_parallel_jobs,
-        pip_log=pip_log,
-        pip_version=pip_version,
-        resolver=resolver,
+        pip_configuration=pip_configuration,
         dependency_configuration=dependency_configuration,
     )
 
@@ -1615,23 +1531,20 @@ def resolve(
         build_requests=build_requests,
         install_requests=install_requests,
         direct_requirements=direct_requirements,
-        package_index_configuration=package_index_configuration,
+        pip_configuration=pip_configuration,
         compile=compile,
-        build_configuration=build_configuration,
         verify_wheels=verify_wheels,
-        pip_version=pip_version,
-        resolver=resolver,
         dependency_configuration=dependency_configuration,
     )
 
-    ignore_errors = ignore_errors or not transitive
+    ignore_errors = ignore_errors or not pip_configuration.transitive
     distributions = tuple(
         build_and_install_request.install_distributions(
-            ignore_errors=ignore_errors, max_parallel_jobs=max_parallel_jobs
+            ignore_errors=ignore_errors, max_parallel_jobs=pip_configuration.max_jobs
         )
         if result_type is InstallableType.INSTALLED_WHEEL_CHROOT
         else build_and_install_request.build_distributions(
-            ignore_errors=ignore_errors, max_parallel_jobs=max_parallel_jobs
+            ignore_errors=ignore_errors, max_parallel_jobs=pip_configuration.max_jobs
         )
     )
     return ResolveResult(
@@ -1644,16 +1557,9 @@ def resolve(
 def _download_internal(
     requests,  # type: Tuple[DownloadRequest, ...]
     direct_requirements,  # type: Iterable[ParsedRequirement]
-    allow_prereleases=False,  # type: bool
-    transitive=True,  # type: bool
-    package_index_configuration=None,  # type: Optional[PackageIndexConfiguration]
-    build_configuration=BuildConfiguration(),  # type: BuildConfiguration
+    pip_configuration=PipConfiguration(),  # type: PipConfiguration
     dest=None,  # type: Optional[str]
-    max_parallel_jobs=None,  # type: Optional[int]
     observer=None,  # type: Optional[ResolveObserver]
-    pip_log=None,  # type: Optional[PipLog]
-    pip_version=None,  # type: Optional[PipVersionValue]
-    resolver=None,  # type: Optional[Resolver]
     dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
 ):
     # type: (...) -> Tuple[List[BuildRequest], List[DownloadResult]]
@@ -1661,21 +1567,13 @@ def _download_internal(
     pip_session = _PipSession(
         requests=requests,
         direct_requirements=direct_requirements,
-        allow_prereleases=allow_prereleases,
-        transitive=transitive,
-        package_index_configuration=package_index_configuration,
-        build_configuration=build_configuration,
+        pip_configuration=pip_configuration,
         observer=observer,
-        pip_log=pip_log,
-        pip_version=pip_version,
-        resolver=resolver,
         dependency_configuration=dependency_configuration,
     )
 
     local_projects = list(pip_session.iter_local_projects())
-    download_results = pip_session.download_distributions(
-        dest=dest, max_parallel_jobs=max_parallel_jobs
-    )
+    download_results = pip_session.download_distributions(dest=dest)
     return local_projects, download_results
 
 
@@ -1717,21 +1615,9 @@ def download(
     requirements=None,  # type: Optional[Iterable[str]]
     requirement_files=None,  # type: Optional[Iterable[str]]
     constraint_files=None,  # type: Optional[Iterable[str]]
-    allow_prereleases=False,  # type: bool
-    transitive=True,  # type: bool
-    repos_configuration=ReposConfiguration(),  # type: ReposConfiguration
-    resolver_version=None,  # type: Optional[ResolverVersion.Value]
-    network_configuration=None,  # type: Optional[NetworkConfiguration]
-    build_configuration=BuildConfiguration(),  # type: BuildConfiguration
+    pip_configuration=PipConfiguration(),  # type: PipConfiguration
     dest=None,  # type: Optional[str]
-    max_parallel_jobs=None,  # type: Optional[int]
     observer=None,  # type: Optional[ResolveObserver]
-    pip_log=None,  # type: Optional[PipLog]
-    pip_version=None,  # type: Optional[PipVersionValue]
-    resolver=None,  # type: Optional[Resolver]
-    use_pip_config=False,  # type: bool
-    extra_pip_requirements=(),  # type: Tuple[Requirement, ...]
-    keyring_provider=None,  # type: Optional[str]
     dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
 ):
     # type: (...) -> Downloaded
@@ -1741,22 +1627,9 @@ def download(
     :keyword requirements: A sequence of requirement strings.
     :keyword requirement_files: A sequence of requirement file paths.
     :keyword constraint_files: A sequence of constraint file paths.
-    :keyword allow_prereleases: Whether to include pre-release and development versions when
-      resolving requirements. Defaults to ``False``, but any requirements that explicitly request
-      pre-release or development versions will override this setting.
-    :keyword transitive: Whether to resolve transitive dependencies of requirements.
-      Defaults to ``True``.
-    :keyword repos_configuration: Configuration for package repositories to resolve packages from.
-    :keyword resolver_version: The resolver version to use.
-    :keyword network_configuration: Configuration for network requests made downloading and building
-      distributions.
-    :keyword build_configuration: The configuration for building resolved projects.
+    :keyword pip_configuration: The configuration of a Pip session used to perform the download.
     :keyword dest: A directory path to download distributions to.
-    :keyword max_parallel_jobs: The maximum number of parallel jobs to use when resolving,
-      building and installing distributions in a resolve. Defaults to the number of CPUs available.
     :keyword observer: An optional observer of the download internals.
-    :keyword pip_log: Preserve the `pip download` log and print its location to stderr.
-      Defaults to ``False``.
     :returns: The local distributions meeting all requirements and constraints.
     :raises Unsatisfiable: If the resolution of download of distributions fails for any reason.
     :raises ValueError: If a foreign platform was provided in `platforms`, and `use_wheel=False`.
@@ -1772,22 +1645,12 @@ def download(
             )
             for target in targets.unique_targets()
         ),
-        direct_requirements=_parse_reqs(requirements, requirement_files, network_configuration),
-        allow_prereleases=allow_prereleases,
-        transitive=transitive,
-        repos_configuration=repos_configuration,
-        resolver_version=resolver_version,
-        network_configuration=network_configuration,
-        build_configuration=build_configuration,
+        direct_requirements=_parse_reqs(
+            requirements, requirement_files, pip_configuration.network_configuration
+        ),
+        pip_configuration=pip_configuration,
         dest=dest,
-        max_parallel_jobs=max_parallel_jobs,
         observer=observer,
-        pip_log=pip_log,
-        pip_version=pip_version,
-        resolver=resolver,
-        use_pip_config=use_pip_config,
-        extra_pip_requirements=extra_pip_requirements,
-        keyring_provider=keyring_provider,
         dependency_configuration=dependency_configuration,
     )
 
@@ -1851,48 +1714,19 @@ class DownloadRequest(object):
 def download_requests(
     requests,  # type: Tuple[DownloadRequest, ...]
     direct_requirements,  # type: Tuple[ParsedRequirement, ...]
-    allow_prereleases=False,  # type: bool
-    transitive=True,  # type: bool
-    repos_configuration=ReposConfiguration(),  # type: ReposConfiguration
-    resolver_version=None,  # type: Optional[ResolverVersion.Value]
-    network_configuration=None,  # type: Optional[NetworkConfiguration]
-    build_configuration=BuildConfiguration(),  # type: BuildConfiguration
+    pip_configuration=PipConfiguration(),  # type: PipConfiguration
     dest=None,  # type: Optional[str]
-    max_parallel_jobs=None,  # type: Optional[int]
     observer=None,  # type: Optional[ResolveObserver]
-    pip_log=None,  # type: Optional[PipLog]
-    pip_version=None,  # type: Optional[PipVersionValue]
-    resolver=None,  # type: Optional[Resolver]
-    use_pip_config=False,  # type: bool
-    extra_pip_requirements=(),  # type: Tuple[Requirement, ...]
-    keyring_provider=None,  # type: Optional[str]
     dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
 ):
     # type: (...) -> Downloaded
 
-    package_index_configuration = PackageIndexConfiguration.create(
-        pip_version=pip_version,
-        resolver_version=resolver_version,
-        repos_configuration=repos_configuration,
-        network_configuration=network_configuration,
-        use_pip_config=use_pip_config,
-        extra_pip_requirements=extra_pip_requirements,
-        keyring_provider=keyring_provider,
-    )
-
     build_requests, download_results = _download_internal(
         requests=requests,
         direct_requirements=direct_requirements,
-        allow_prereleases=allow_prereleases,
-        transitive=transitive,
-        package_index_configuration=package_index_configuration,
-        build_configuration=build_configuration,
+        pip_configuration=pip_configuration,
         dest=dest,
-        max_parallel_jobs=max_parallel_jobs,
         observer=observer,
-        pip_log=pip_log,
-        pip_version=pip_version,
-        resolver=resolver,
         dependency_configuration=dependency_configuration,
     )
 
@@ -1908,8 +1742,8 @@ def download_requests(
                 fingerprint = _fingerprint_local_project(
                     path=request.source_path,
                     target=request.target,
-                    resolver=resolver,
-                    pip_version=pip_version,
+                    resolver=PipResolver(pip_configuration=pip_configuration),
+                    pip_version=pip_configuration.version,
                 )
             local_distributions.append(
                 LocalDistribution(
@@ -1938,46 +1772,17 @@ def download_requests(
 def reports(
     requests,  # type: Tuple[DownloadRequest, ...]
     direct_requirements,  # type: Tuple[ParsedRequirement, ...]
-    allow_prereleases=False,  # type: bool
-    transitive=True,  # type: bool
-    repos_configuration=ReposConfiguration(),  # type: ReposConfiguration
-    resolver_version=None,  # type: Optional[ResolverVersion.Value]
-    network_configuration=None,  # type: Optional[NetworkConfiguration]
-    build_configuration=BuildConfiguration(),  # type: BuildConfiguration
-    max_parallel_jobs=None,  # type: Optional[int]
+    pip_configuration=PipConfiguration(),  # type: PipConfiguration
     observer=None,  # type: Optional[ResolveObserver]
-    pip_log=None,  # type: Optional[PipLog]
-    pip_version=None,  # type: Optional[PipVersionValue]
-    resolver=None,  # type: Optional[Resolver]
-    use_pip_config=False,  # type: bool
-    extra_pip_requirements=(),  # type: Tuple[Requirement, ...]
-    keyring_provider=None,  # type: Optional[str]
     dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
 ):
     # type: (...) -> Reports
 
-    package_index_configuration = PackageIndexConfiguration.create(
-        pip_version=pip_version,
-        resolver_version=resolver_version,
-        repos_configuration=repos_configuration,
-        network_configuration=network_configuration,
-        use_pip_config=use_pip_config,
-        extra_pip_requirements=extra_pip_requirements,
-        keyring_provider=keyring_provider,
-    )
-
     pip_session = _PipSession(
         requests=requests,
         direct_requirements=direct_requirements,
-        allow_prereleases=allow_prereleases,
-        transitive=transitive,
-        package_index_configuration=package_index_configuration,
-        build_configuration=build_configuration,
+        pip_configuration=pip_configuration,
         observer=observer,
-        pip_log=pip_log,
-        pip_version=pip_version,
-        resolver=resolver,
         dependency_configuration=dependency_configuration,
     )
-
-    return pip_session.generate_reports(max_parallel_jobs=max_parallel_jobs)
+    return pip_session.generate_reports()

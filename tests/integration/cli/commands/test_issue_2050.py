@@ -13,10 +13,10 @@ from pex.build_system import pep_517
 from pex.dist_metadata import Requirement
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
-from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.locked_resolve import LockedRequirement
 from pex.resolve.lockfile import json_codec
 from pex.resolve.path_mappings import PathMapping, PathMappings
+from pex.resolve.pip_resolver import PipResolver
 from pex.result import try_
 from pex.sorted_tuple import SortedTuple
 from pex.targets import LocalInterpreter
@@ -71,7 +71,7 @@ def build_sdist(tmpdir):
                 project_directory=project_directory,
                 dist_dir=find_links,
                 target=LocalInterpreter.create(),
-                resolver=ConfiguredResolver.default(),
+                resolver=PipResolver.default(),
             )
         )
         return Repo(find_links=find_links, path_mapping=PathMapping(path=find_links, name="FL"))

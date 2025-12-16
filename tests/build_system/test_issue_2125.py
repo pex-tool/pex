@@ -8,7 +8,7 @@ from pex.build_system import pep_517
 from pex.common import safe_open
 from pex.pip.configuration import PipConfiguration
 from pex.pip.version import PipVersion
-from pex.resolve.configured_resolver import ConfiguredResolver
+from pex.resolve.pip_resolver import PipResolver
 from pex.targets import LocalInterpreter
 from pex.typing import TYPE_CHECKING
 from testing.dist_metadata import create_dist_metadata
@@ -83,7 +83,7 @@ def test_missing_get_requires_for_build_wheel(tmpdir):
         project_directory=project_directory,
         pip_version=pip_version,
         target=LocalInterpreter.create(),
-        resolver=ConfiguredResolver(PipConfiguration(version=pip_version)),
+        resolver=PipResolver(PipConfiguration(version=pip_version)),
     ).await_result()
 
     assert (

@@ -7,7 +7,7 @@ import os.path
 
 from pex.build_system.pep_517 import build_sdist
 from pex.common import touch
-from pex.resolve.configured_resolver import ConfiguredResolver
+from pex.resolve.pip_resolver import PipResolver
 from pex.result import Error
 from pex.targets import LocalInterpreter
 from pex.typing import TYPE_CHECKING
@@ -29,7 +29,7 @@ def test_build_sdist_project_directory_dne(tmpdir):
         project_dir,
         dist_dir,
         LocalInterpreter.create(),
-        ConfiguredResolver.default(),
+        PipResolver.default(),
     )
     assert isinstance(result, Error)
     assert str(result).startswith(
@@ -47,7 +47,7 @@ def test_build_sdist_project_directory_is_file(tmpdir):
         project_dir,
         dist_dir,
         LocalInterpreter.create(),
-        ConfiguredResolver.default(),
+        PipResolver.default(),
     )
     assert isinstance(result, Error)
     assert str(result).startswith(

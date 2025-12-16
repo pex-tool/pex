@@ -13,7 +13,7 @@ from pex.pep_503 import ProjectName
 from pex.pip.configuration import PipConfiguration, ResolverVersion
 from pex.pip.installation import get_pip
 from pex.pip.version import PipVersion
-from pex.resolve.configured_resolver import ConfiguredResolver
+from pex.resolve.pip_resolver import PipResolver
 from pex.result import Error
 from pex.targets import LocalInterpreter
 from pex.typing import TYPE_CHECKING
@@ -43,14 +43,12 @@ def assert_build_sdist(
     resolver_version = ResolverVersion.default(pip_version)
 
     target = LocalInterpreter.create()
-    resolver = ConfiguredResolver(
-        PipConfiguration(version=pip_version, resolver_version=resolver_version)
-    )
+    pip_configuration = PipConfiguration(version=pip_version, resolver_version=resolver_version)
     location = build_sdist(
         project_dir,
         sdist_dir,
         target,
-        resolver,
+        resolver=PipResolver(pip_configuration),
         pip_version=pip_version,
     )
     assert not isinstance(location, Error), location
@@ -61,7 +59,7 @@ def assert_build_sdist(
 
     # Verify the sdist is valid such that we can build a wheel from it.
     wheel_dir = os.path.join(str(tmpdir), "wheel_dir")
-    get_pip(version=pip_version, resolver=resolver).spawn_build_wheels(
+    get_pip(resolver=PipResolver(pip_configuration)).spawn_build_wheels(
         distributions=[sdist.location], wheel_dir=wheel_dir
     ).wait()
     wheels = glob.glob(os.path.join(wheel_dir, "*.whl"))

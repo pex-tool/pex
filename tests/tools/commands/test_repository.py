@@ -18,7 +18,6 @@ from pex.os import kill
 from pex.pip.configuration import BuildConfiguration
 from pex.pip.installation import get_pip
 from pex.pip.version import PipVersion
-from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.typing import TYPE_CHECKING
 from testing import (
@@ -230,7 +229,7 @@ def test_extract_lifecycle(pex, pex_tools_env, tmpdir):
     # Since we'll be locking down indexes to just find-links, we need to include setuptools and
     # wheel build deps for sdists.
     build_reqs_dists_dir = os.path.join(str(tmpdir), "vendored-pip-dists")
-    get_pip(resolver=ConfiguredResolver.default()).spawn_download_distributions(
+    get_pip().spawn_download_distributions(
         download_dir=build_reqs_dists_dir,
         requirements=[
             str(PipVersion.VENDORED.setuptools_requirement),

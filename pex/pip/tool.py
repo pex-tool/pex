@@ -28,7 +28,7 @@ from pex.network_configuration import NetworkConfiguration
 from pex.pep_427 import install_wheel_interpreter
 from pex.pep_508 import MarkerEnvironment
 from pex.pip import dependencies, foreign_platform, package_repositories
-from pex.pip.configuration import BuildConfiguration, ResolverVersion
+from pex.pip.configuration import BuildConfiguration, PipConfiguration, ResolverVersion
 from pex.pip.download_observer import DownloadObserver, PatchSet
 from pex.pip.log_analyzer import ErrorAnalyzer, ErrorMessage, LogAnalyzer, LogScrapeJob
 from pex.pip.tailer import Tailer
@@ -150,41 +150,36 @@ class PackageIndexConfiguration(object):
             yield "PIP_CLIENT_CERT", os.path.abspath(network_configuration.client_cert)
 
     @classmethod
-    def create(
-        cls,
-        pip_version=None,  # type: Optional[PipVersionValue]
-        resolver_version=None,  # type: Optional[ResolverVersion.Value]
-        repos_configuration=ReposConfiguration(),  # type: ReposConfiguration
-        network_configuration=None,  # type: Optional[NetworkConfiguration]
-        use_pip_config=False,  # type: bool
-        extra_pip_requirements=(),  # type: Tuple[Requirement, ...]
-        keyring_provider=None,  # type: Optional[str]
-    ):
-        # type: (...) -> PackageIndexConfiguration
-        resolver_version = resolver_version or ResolverVersion.default(pip_version)
-        network_configuration = network_configuration or NetworkConfiguration()
+    def create(cls, pip_configuration=PipConfiguration()):
+        # type: (PipConfiguration) -> PackageIndexConfiguration
+        resolver_version = pip_configuration.resolver_version or ResolverVersion.default(
+            pip_configuration.version
+        )
+        network_configuration = pip_configuration.network_configuration
 
         # We must pass `--client-cert` via PIP_CLIENT_CERT to work around
         # https://github.com/pypa/pip/issues/5502. We can only do this by breaking Pip `--isolated`
         # mode.
-        use_pip_config = use_pip_config or network_configuration.client_cert is not None
+        use_pip_config = (
+            pip_configuration.use_pip_config or network_configuration.client_cert is not None
+        )
 
         return cls(
-            pip_version=pip_version,
+            pip_version=pip_configuration.version,
             resolver_version=resolver_version,
             network_configuration=network_configuration,
             args=PipArgs(
-                indexes=repos_configuration.indexes,
-                find_links=repos_configuration.find_links,
+                indexes=pip_configuration.repos_configuration.indexes,
+                find_links=pip_configuration.repos_configuration.find_links,
                 network_configuration=network_configuration,
             ),
             env=cls._calculate_env(
                 network_configuration=network_configuration, use_pip_config=use_pip_config
             ),
             use_pip_config=use_pip_config,
-            extra_pip_requirements=extra_pip_requirements,
-            repos_configuration=repos_configuration,
-            keyring_provider=keyring_provider,
+            extra_pip_requirements=pip_configuration.extra_requirements,
+            repos_configuration=pip_configuration.repos_configuration,
+            keyring_provider=pip_configuration.keyring_provider,
         )
 
     def __init__(

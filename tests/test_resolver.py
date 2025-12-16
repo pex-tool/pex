@@ -17,11 +17,11 @@ from pex.common import safe_copy, safe_mkdtemp, temporary_dir
 from pex.dist_metadata import Distribution, Requirement
 from pex.interpreter import PythonInterpreter
 from pex.pep_427 import InstallableType
-from pex.pip.configuration import BuildConfiguration, ResolverVersion
+from pex.pip.configuration import BuildConfiguration, PipConfiguration, ResolverVersion
 from pex.pip.version import PipVersion
 from pex.resolve import abbreviated_platforms
-from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.package_repository import PYPI, Repo, ReposConfiguration
+from pex.resolve.pip_resolver import PipResolver
 from pex.resolve.resolvers import ResolvedDistribution, ResolveResult, Unsatisfiable
 from pex.resolver import download
 from pex.resolver import resolve as resolve_under_test
@@ -61,7 +61,7 @@ def create_sdist(**kwargs):
             project_directory=project_dir,
             dist_dir=dist_dir,
             target=targets.current(),
-            resolver=ConfiguredResolver.default(),
+            resolver=PipResolver.default(),
         )
 
     dists = os.listdir(dist_dir)
@@ -75,17 +75,19 @@ def build_wheel(**kwargs):
         return whl
 
 
-def resolve(**kwargs):
-    # type: (**Any) -> ResolveResult
-    kwargs.setdefault("resolver", ConfiguredResolver.default())
-    return resolve_under_test(**kwargs)
+def resolve(*args, **kwargs):
+    # type: (*Any, **Any) -> ResolveResult
+    return resolve_under_test(*args, **kwargs)
 
 
 def local_resolve(*args, **kwargs):
     # type: (*Any, **Any) -> List[ResolvedDistribution]
-    # Skip remote lookups.
-    repos_configuration = kwargs.pop("repos_configuration", ReposConfiguration())
-    kwargs["repos_configuration"] = attr.evolve(repos_configuration, index_repos=())
+    pip_configuration = kwargs.pop("pip_configuration", PipConfiguration())
+    kwargs["pip_configuration"] = attr.evolve(
+        pip_configuration,
+        # Skip remote lookups.
+        repos_configuration=attr.evolve(pip_configuration.repos_configuration, index_repos=()),
+    )
     return list(resolve(*args, **kwargs).distributions)
 
 
@@ -124,7 +126,9 @@ def test_simple_local_resolve():
         safe_copy(project_wheel, os.path.join(td, os.path.basename(project_wheel)))
         resolved_dists = local_resolve(
             requirements=["project"],
-            repos_configuration=ReposConfiguration.create(find_links=[Repo(td)]),
+            pip_configuration=PipConfiguration(
+                repos_configuration=ReposConfiguration.create(find_links=[Repo(td)])
+            ),
         )
         assert len(resolved_dists) == 1
 
@@ -140,12 +144,16 @@ def test_resolve_cache():
         with disabled_cache():
             resolved_dists1 = local_resolve(
                 requirements=["project"],
-                repos_configuration=ReposConfiguration.create(find_links=[Repo(td)]),
+                pip_configuration=PipConfiguration(
+                    repos_configuration=ReposConfiguration.create(find_links=[Repo(td)])
+                ),
             )
         with disabled_cache():
             resolved_dists2 = local_resolve(
                 requirements=["project"],
-                repos_configuration=ReposConfiguration.create(find_links=[Repo(td)]),
+                pip_configuration=PipConfiguration(
+                    repos_configuration=ReposConfiguration.create(find_links=[Repo(td)])
+                ),
             )
         assert resolved_dists1 != resolved_dists2
         assert len(resolved_dists1) == 1
@@ -157,11 +165,15 @@ def test_resolve_cache():
         with cache(cache_dir):
             resolved_dists3 = local_resolve(
                 requirements=["project"],
-                repos_configuration=ReposConfiguration.create(find_links=[Repo(td)]),
+                pip_configuration=PipConfiguration(
+                    repos_configuration=ReposConfiguration.create(find_links=[Repo(td)])
+                ),
             )
             resolved_dists4 = local_resolve(
                 requirements=["project"],
-                repos_configuration=ReposConfiguration.create(find_links=[Repo(td)]),
+                pip_configuration=PipConfiguration(
+                    repos_configuration=ReposConfiguration.create(find_links=[Repo(td)])
+                ),
             )
         assert resolved_dists1 != resolved_dists3
         assert resolved_dists2 != resolved_dists3
@@ -180,7 +192,9 @@ def test_diamond_local_resolve_cached():
         with temporary_dir() as cd, cache(cd):
             resolved_dists = local_resolve(
                 requirements=["project1", "project2"],
-                repos_configuration=ReposConfiguration.create(find_links=[Repo(dd)]),
+                pip_configuration=PipConfiguration(
+                    repos_configuration=ReposConfiguration.create(find_links=[Repo(dd)])
+                ),
             )
             assert len(resolved_dists) == 2
 
@@ -198,7 +212,9 @@ def test_cached_dependency_pinned_unpinned_resolution_multi_run():
             # First run, pinning 1.0.0 in the cache
             resolved_dists = local_resolve(
                 requirements=["project==1.0.0"],
-                repos_configuration=ReposConfiguration.create(find_links=[Repo(td)]),
+                pip_configuration=PipConfiguration(
+                    repos_configuration=ReposConfiguration.create(find_links=[Repo(td)])
+                ),
             )
             assert len(resolved_dists) == 1
             assert resolved_dists[0].distribution.version == "1.0.0"
@@ -207,7 +223,9 @@ def test_cached_dependency_pinned_unpinned_resolution_multi_run():
             # also return SourcePackages found in td
             resolved_dists = local_resolve(
                 requirements=["project"],
-                repos_configuration=ReposConfiguration.create(find_links=[Repo(td)]),
+                pip_configuration=PipConfiguration(
+                    repos_configuration=ReposConfiguration.create(find_links=[Repo(td)])
+                ),
             )
             assert len(resolved_dists) == 1
             assert resolved_dists[0].distribution.version == "1.1.0"
@@ -224,8 +242,10 @@ def test_intransitive():
         with temporary_dir() as cd, cache(cd):
             resolved_dists = local_resolve(
                 requirements=["foo", "bar"],
-                repos_configuration=ReposConfiguration.create(find_links=[Repo(td)]),
-                transitive=False,
+                pip_configuration=PipConfiguration(
+                    repos_configuration=ReposConfiguration.create(find_links=[Repo(td)]),
+                    transitive=False,
+                ),
             )
             assert len(resolved_dists) == 2
 
@@ -239,11 +259,13 @@ def test_resolve_prereleases():
         for wheel in (stable_dep, prerelease_dep):
             safe_copy(wheel, os.path.join(td, os.path.basename(wheel)))
 
-        def assert_resolve(expected_version, **resolve_kwargs):
+        def assert_resolve(expected_version, **pip_kwargs):
             resolved_dists = local_resolve(
                 requirements=["dep>=1,<4"],
-                repos_configuration=ReposConfiguration.create(find_links=[Repo(td)]),
-                **resolve_kwargs
+                pip_configuration=PipConfiguration(
+                    repos_configuration=ReposConfiguration.create(find_links=[Repo(td)]),
+                    **pip_kwargs
+                ),
             )
             assert 1 == len(resolved_dists)
             resolved_dist = resolved_dists[0]
@@ -270,7 +292,9 @@ def test_resolve_extra_setup_py(tmpdir):
         safe_copy(project2_wheel, tmpdir.join(os.path.basename(project2_wheel)))
         result = resolve(
             requirements=["setuptools"],
-            build_configuration=BuildConfiguration.create(allow_builds=False),
+            pip_configuration=PipConfiguration(
+                build_configuration=BuildConfiguration.create(allow_builds=False)
+            ),
             result_type=InstallableType.WHEEL_FILE,
         )
         for resolved_dist in result.distributions:
@@ -281,7 +305,9 @@ def test_resolve_extra_setup_py(tmpdir):
 
         resolved_dists = local_resolve(
             requirements=["{}[foo]".format(project1_dir)],
-            repos_configuration=ReposConfiguration.create(find_links=[Repo(tmpdir.path)]),
+            pip_configuration=PipConfiguration(
+                repos_configuration=ReposConfiguration.create(find_links=[Repo(tmpdir.path)])
+            ),
         )
         assert {_parse_requirement(req) for req in ("project1==1.0.0", "project2==2.0.0")} == {
             _parse_requirement(resolved_dist.distribution.as_requirement())
@@ -301,7 +327,9 @@ def test_resolve_extra_wheel():
 
         resolved_dists = local_resolve(
             requirements=["project1[foo]"],
-            repos_configuration=ReposConfiguration.create(find_links=[Repo(td)]),
+            pip_configuration=PipConfiguration(
+                repos_configuration=ReposConfiguration.create(find_links=[Repo(td)])
+            ),
         )
         assert {_parse_requirement(req) for req in ("project1==1.0.0", "project2==2.0.0")} == {
             _parse_requirement(resolved_dist.distribution.as_requirement())
@@ -322,6 +350,9 @@ def resolve_p537_wheel_names(
     **kwargs  # type: Any
 ):
     # type: (...) -> List[str]
+    kwargs["pip_configuration"] = attr.evolve(
+        kwargs.pop("pip_configuration", PipConfiguration()), transitive=False
+    )
     with cache(cache_dir):
         return resolve_wheel_names(
             requirements=[
@@ -329,7 +360,6 @@ def resolve_p537_wheel_names(
                     version="1.0.10" if sys.version_info[:2] >= (3, 6) else "1.0.5"
                 )
             ],
-            transitive=False,
             **kwargs
         )
 
@@ -431,8 +461,10 @@ def test_resolve_foreign_abi3(tmpdir):
                         ),
                     ),
                 ),
-                transitive=False,
-                build_configuration=BuildConfiguration.create(allow_builds=False),
+                pip_configuration=PipConfiguration(
+                    transitive=False,
+                    build_configuration=BuildConfiguration.create(allow_builds=False),
+                ),
             )
 
     wheel_names = resolve_cryptography_wheel_names(manylinux="manylinux2014")
@@ -551,10 +583,11 @@ def test_download2():
     downloaded_by_target = defaultdict(list)  # type: DefaultDict[Target, List[Distribution]]
     result = download(
         requirements=["{}[foo]".format(project1_sdist)],
-        repos_configuration=ReposConfiguration.create(
-            indexes=[Repo(PYPI)], find_links=[Repo(os.path.dirname(project2_wheel))]
+        pip_configuration=PipConfiguration(
+            repos_configuration=ReposConfiguration.create(
+                indexes=[Repo(PYPI)], find_links=[Repo(os.path.dirname(project2_wheel))]
+            )
         ),
-        resolver=ConfiguredResolver.default(),
     )
     for local_distribution in result.local_distributions:
         distribution = Distribution.load(local_distribution.path)
@@ -687,10 +720,14 @@ def test_duplicate_requirements_issues_1550():
     # type: () -> None
 
     with pytest.raises(Unsatisfiable):
-        resolve(requirements=["PyJWT", "PyJWT==1.7.1"], resolver_version=ResolverVersion.PIP_LEGACY)
+        resolve(
+            requirements=["PyJWT", "PyJWT==1.7.1"],
+            pip_configuration=PipConfiguration(resolver_version=ResolverVersion.PIP_LEGACY),
+        )
 
     resolved_dists = resolve(
-        requirements=["PyJWT", "PyJWT==1.7.1"], resolver_version=ResolverVersion.PIP_2020
+        requirements=["PyJWT", "PyJWT==1.7.1"],
+        pip_configuration=PipConfiguration(resolver_version=ResolverVersion.PIP_2020),
     )
     assert len(resolved_dists.distributions) == 1
     resolved_distribution = resolved_dists.distributions[0]
@@ -717,8 +754,12 @@ def test_check_resolve_prerelease_transitive_dependencies_issue_1730(tmpdir):
 
     resolved = resolve(
         requirements=["direct==2.12.dev3"],
-        allow_prereleases=False,
         ignore_errors=False,
-        repos_configuration=ReposConfiguration.create(indexes=[], find_links=[Repo(find_links)]),
+        pip_configuration=PipConfiguration(
+            allow_prereleases=False,
+            repos_configuration=ReposConfiguration.create(
+                indexes=[], find_links=[Repo(find_links)]
+            ),
+        ),
     )
     assert 2 == len(resolved.distributions)

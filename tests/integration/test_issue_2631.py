@@ -20,7 +20,6 @@ from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pip.configuration import PipConfiguration, ResolverVersion
 from pex.pip.version import PipVersion
-from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.lockfile import json_codec
 from pex.resolve.resolved_requirement import Pin
 from pex.resolver import LocalDistribution
@@ -80,10 +79,8 @@ def downloaded_wheel(
     downloaded = resolver.download(
         targets=Targets.from_target(target),
         requirements=[requirement],
-        resolver=ConfiguredResolver(
-            pip_configuration=PipConfiguration(
-                version=pip_version, resolver_version=ResolverVersion.default(pip_version)
-            )
+        pip_configuration=PipConfiguration(
+            version=pip_version, resolver_version=ResolverVersion.default(pip_version)
         ),
     )
     assert 1 == len(downloaded.local_distributions)

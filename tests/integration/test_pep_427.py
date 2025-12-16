@@ -10,7 +10,6 @@ from pex.common import safe_open
 from pex.os import is_exe
 from pex.pep_427 import install_wheel_interpreter
 from pex.pip.installation import get_pip
-from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import InstallationChoice, Virtualenv
 from testing import WheelBuilder, make_env, subprocess
@@ -28,12 +27,12 @@ def test_install_wheel_interpreter(tmpdir):
     assert not os.path.exists(cowsay_script)
 
     download_dir = os.path.join(str(tmpdir), "downloads")
-    get_pip(resolver=ConfiguredResolver.default()).spawn_download_distributions(
+    get_pip().spawn_download_distributions(
         download_dir=download_dir, requirements=["cowsay==5.0"]
     ).wait()
 
     wheel_dir = os.path.join(str(tmpdir), "wheels")
-    get_pip(resolver=ConfiguredResolver.default()).spawn_build_wheels(
+    get_pip().spawn_build_wheels(
         distributions=glob(os.path.join(download_dir, "*.tar.gz")), wheel_dir=wheel_dir
     ).wait()
     wheels = glob(os.path.join(wheel_dir, "*.whl"))

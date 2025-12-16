@@ -12,7 +12,7 @@ from pex.build_system import pep_518
 from pex.build_system.pep_518 import BuildSystem
 from pex.common import touch
 from pex.pep_503 import ProjectName
-from pex.resolve.configured_resolver import ConfiguredResolver
+from pex.resolve.pip_resolver import PipResolver
 from pex.result import Error
 from pex.targets import LocalInterpreter
 from pex.toml import TOMLI_SUPPORTED
@@ -29,7 +29,7 @@ def load_build_system(project_directory):
     # type: (...) -> Union[Optional[BuildSystem], Error]
     return pep_518.load_build_system(
         LocalInterpreter.create(),
-        ConfiguredResolver.default(),
+        PipResolver.default(),
         project_directory,
     )
 

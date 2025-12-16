@@ -12,11 +12,10 @@ from pex.dist_metadata import is_wheel
 from pex.exceptions import reportable_unexpected_error_msg
 from pex.orderedset import OrderedSet
 from pex.pip.configuration import PipConfiguration
-from pex.pip.tool import PackageIndexConfiguration
 from pex.resolve import lock_resolver, requirement_options, resolver_options, target_options
-from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.lockfile.download_manager import DownloadedArtifact
 from pex.resolve.lockfile.pep_751 import Pylock
+from pex.resolve.pip_resolver import PipResolver
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import (
     LockRepositoryConfiguration,
@@ -58,7 +57,7 @@ class Configuration(object):
 
     def resolver(self):
         # type: () -> Resolver
-        return ConfiguredResolver(pip_configuration=self.pip_configuration)
+        return PipResolver(pip_configuration=self.pip_configuration)
 
     def resolve_targets(self):
         # type: () -> Targets
@@ -129,20 +128,10 @@ def download_distributions(configuration):
                 lock_resolver.download_from_pex_lock(
                     targets,
                     lock,
-                    resolver,
                     requirements=requirement_configuration.requirements,
                     requirement_files=requirement_configuration.requirement_files,
                     constraint_files=requirement_configuration.constraint_files,
-                    repos_configuration=resolver_configuration.repos_configuration,
-                    resolver_version=pip_configuration.resolver_version,
-                    network_configuration=resolver_configuration.network_configuration,
-                    build_configuration=pip_configuration.build_configuration,
-                    transitive=pip_configuration.transitive,
-                    max_parallel_jobs=pip_configuration.max_jobs,
-                    pip_version=pip_configuration.version,
-                    use_pip_config=pip_configuration.use_pip_config,
-                    extra_pip_requirements=pip_configuration.extra_requirements,
-                    keyring_provider=pip_configuration.keyring_provider,
+                    pip_configuration=resolver_configuration.pip_configuration,
                     dependency_configuration=dep_configuration,
                 )
             )
@@ -160,16 +149,7 @@ def download_distributions(configuration):
                     extras=resolver_configuration.extras,
                     dependency_groups=resolver_configuration.dependency_groups,
                     constraint_files=requirement_configuration.constraint_files,
-                    repos_configuration=resolver_configuration.repos_configuration,
-                    resolver_version=pip_configuration.resolver_version,
-                    network_configuration=resolver_configuration.network_configuration,
-                    build_configuration=pip_configuration.build_configuration,
-                    transitive=pip_configuration.transitive,
-                    max_parallel_jobs=pip_configuration.max_jobs,
-                    pip_version=pip_configuration.version,
-                    use_pip_config=pip_configuration.use_pip_config,
-                    extra_pip_requirements=pip_configuration.extra_requirements,
-                    keyring_provider=pip_configuration.keyring_provider,
+                    pip_configuration=resolver_configuration.pip_configuration,
                     dependency_configuration=dep_configuration,
                 )
             )
@@ -182,19 +162,7 @@ def download_distributions(configuration):
                     requirements=requirement_configuration.requirements,
                     requirement_files=requirement_configuration.requirement_files,
                     constraint_files=requirement_configuration.constraint_files,
-                    allow_prereleases=pip_configuration.allow_prereleases,
-                    transitive=pip_configuration.transitive,
-                    repos_configuration=resolver_configuration.repos_configuration,
-                    resolver_version=pip_configuration.resolver_version,
-                    network_configuration=resolver_configuration.network_configuration,
-                    build_configuration=pip_configuration.build_configuration,
-                    max_parallel_jobs=pip_configuration.max_jobs,
-                    pip_log=pip_configuration.log,
-                    pip_version=pip_configuration.version,
-                    resolver=resolver,
-                    use_pip_config=pip_configuration.use_pip_config,
-                    extra_pip_requirements=pip_configuration.extra_requirements,
-                    keyring_provider=pip_configuration.keyring_provider,
+                    pip_configuration=pip_configuration,
                     dependency_configuration=dep_configuration,
                 )
             ).local_distributions
@@ -219,21 +187,7 @@ def build_wheels(
 ):
     # type: (...) -> Union[Tuple[str, ...], Error]
 
-    wheel_builder = WheelBuilder(
-        package_index_configuration=PackageIndexConfiguration.create(
-            pip_version=configuration.pip_configuration.version,
-            resolver_version=configuration.pip_configuration.resolver_version,
-            repos_configuration=configuration.pip_configuration.repos_configuration,
-            network_configuration=configuration.pip_configuration.network_configuration,
-            use_pip_config=configuration.pip_configuration.use_pip_config,
-            extra_pip_requirements=configuration.pip_configuration.extra_requirements,
-            keyring_provider=configuration.pip_configuration.keyring_provider,
-        ),
-        build_configuration=configuration.pip_configuration.build_configuration,
-        pip_version=configuration.pip_configuration.version,
-        resolver=configuration.resolver(),
-    )
-
+    wheel_builder = WheelBuilder(pip_configuration=configuration.pip_configuration)
     results = wheel_builder.build_wheels(
         build_requests, configuration.pip_configuration.max_jobs, check_compatible=check_compatible
     )

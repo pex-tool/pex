@@ -15,7 +15,7 @@ from pex.build_system import pep_517
 from pex.common import open_zip, safe_open
 from pex.interpreter import PythonInterpreter
 from pex.pip.version import PipVersion, PipVersionValue
-from pex.resolve.configured_resolver import ConfiguredResolver
+from pex.resolve.pip_resolver import PipResolver
 from pex.result import try_
 from pex.targets import LocalInterpreter
 from pex.typing import TYPE_CHECKING
@@ -40,7 +40,7 @@ class Builder(object):
                 project_directory=project_directory,
                 dist_dir=self._tmpdir.join("dist"),
                 target=LocalInterpreter.create(),
-                resolver=ConfiguredResolver.version(self._pip_version),
+                resolver=PipResolver.version(self._pip_version),
             )
         )
 

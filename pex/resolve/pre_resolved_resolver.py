@@ -18,9 +18,7 @@ from pex.orderedset import OrderedSet
 from pex.pep_427 import InstallableType
 from pex.pep_503 import ProjectName
 from pex.pip.configuration import PipConfiguration
-from pex.pip.tool import PackageIndexConfiguration
 from pex.requirements import LocalProjectRequirement
-from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.locked_resolve import FileArtifact, LockedRequirement, LockedResolve
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolved_requirement import Pin
@@ -92,15 +90,6 @@ def resolve_from_dists(
     )
     with TRACER.timed("Preparing pre-resolved distributions"):
         if sdists or local_projects or resolve_installed_wheel_chroots:
-            package_index_configuration = PackageIndexConfiguration.create(
-                pip_version=pip_configuration.version,
-                resolver_version=pip_configuration.resolver_version,
-                repos_configuration=pip_configuration.repos_configuration,
-                network_configuration=pip_configuration.network_configuration,
-                use_pip_config=pip_configuration.use_pip_config,
-                extra_pip_requirements=pip_configuration.extra_requirements,
-                keyring_provider=pip_configuration.keyring_provider,
-            )
             build_requests = [
                 BuildRequest.for_file(target=target, source_path=sdist)
                 for sdist in sdists
@@ -123,12 +112,9 @@ def resolve_from_dists(
                     for target in unique_targets
                 ],
                 direct_requirements=direct_requirements,
-                package_index_configuration=package_index_configuration,
+                pip_configuration=pip_configuration,
                 compile=compile,
-                build_configuration=pip_configuration.build_configuration,
                 verify_wheels=True,
-                pip_version=pip_configuration.version,
-                resolver=ConfiguredResolver(pip_configuration=pip_configuration),
                 dependency_configuration=dependency_configuration,
             )
             resolved_dists.extend(

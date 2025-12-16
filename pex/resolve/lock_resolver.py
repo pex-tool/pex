@@ -7,15 +7,12 @@ from collections import defaultdict
 
 from pex.auth import PasswordDatabase
 from pex.dependency_configuration import DependencyConfiguration
-from pex.dist_metadata import Requirement, is_wheel
+from pex.dist_metadata import is_wheel
 from pex.exceptions import production_assert
 from pex.interpreter_constraints import InterpreterConstraint
-from pex.network_configuration import NetworkConfiguration
 from pex.pep_427 import InstallableType
 from pex.pep_503 import ProjectName
-from pex.pip.configuration import BuildConfiguration, ResolverVersion
-from pex.pip.tool import PackageIndexConfiguration
-from pex.pip.version import PipVersionValue
+from pex.pip.configuration import PipConfiguration
 from pex.resolve.lock_downloader import LockDownloader
 from pex.resolve.locked_resolve import (
     DownloadableArtifact,
@@ -29,7 +26,6 @@ from pex.resolve.lockfile.pep_751 import Package, Pylock
 from pex.resolve.lockfile.pep_751 import subset as subset_pylock
 from pex.resolve.lockfile.subset import SubsetResult
 from pex.resolve.lockfile.subset import subset as subset_pex_lock
-from pex.resolve.package_repository import ReposConfiguration
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolvers import ResolvedDistribution, Resolver, ResolveResult
 from pex.resolver import BuildAndInstallRequest, BuildRequest, InstallRequest
@@ -115,34 +111,17 @@ def _check_subset(
 def resolve_from_pylock(
     targets,  # type: Targets
     pylock,  # type: Pylock
-    resolver,  # type: Resolver
-    requirements=None,  # type: Optional[Iterable[str]]
-    requirement_files=None,  # type: Optional[Iterable[str]]
+    pip_configuration=PipConfiguration(),  # type: PipConfiguration
+    requirement_configuration=RequirementConfiguration(),  # type: RequirementConfiguration
     extras=frozenset(),  # type: FrozenSet[str]
     dependency_groups=frozenset(),  # type: FrozenSet[str]
-    constraint_files=None,  # type: Optional[Iterable[str]]
-    repos_configuration=ReposConfiguration(),  # type: ReposConfiguration
-    resolver_version=None,  # type: Optional[ResolverVersion.Value]
-    network_configuration=None,  # type: Optional[NetworkConfiguration]
-    build_configuration=BuildConfiguration(),  # type: BuildConfiguration
     compile=False,  # type: bool
-    transitive=True,  # type: bool
-    verify_wheels=True,  # type: bool
-    max_parallel_jobs=None,  # type: Optional[int]
-    pip_version=None,  # type: Optional[PipVersionValue]
-    use_pip_config=False,  # type: bool
-    extra_pip_requirements=(),  # type: Tuple[Requirement, ...]
-    keyring_provider=None,  # type: Optional[str]
     result_type=InstallableType.INSTALLED_WHEEL_CHROOT,  # type: InstallableType.Value
     dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
 ):
     # type: (...) -> Union[ResolveResult, Error]
 
-    requirement_configuration = RequirementConfiguration(
-        requirements=requirements,
-        requirement_files=requirement_files,
-        constraint_files=constraint_files,
-    )
+    transitive = pip_configuration.transitive
     pylock_subset_result = try_(
         subset_pylock(
             targets=targets,
@@ -150,8 +129,8 @@ def resolve_from_pylock(
             requirement_configuration=requirement_configuration,
             extras=extras,
             dependency_groups=dependency_groups,
-            network_configuration=network_configuration,
-            build_configuration=build_configuration,
+            network_configuration=pip_configuration.network_configuration,
+            build_configuration=pip_configuration.build_configuration,
             transitive=transitive,
             dependency_configuration=dependency_configuration,
         )
@@ -167,18 +146,8 @@ def resolve_from_pylock(
                 else []
             )
         ),
-        resolver=resolver,
-        repos_configuration=repos_configuration,
-        resolver_version=resolver_version,
-        network_configuration=network_configuration,
-        build_configuration=build_configuration,
+        pip_configuration=pip_configuration,
         compile=compile,
-        verify_wheels=verify_wheels,
-        max_parallel_jobs=max_parallel_jobs,
-        pip_version=pip_version,
-        use_pip_config=use_pip_config,
-        extra_pip_requirements=extra_pip_requirements,
-        keyring_provider=keyring_provider,
         result_type=result_type,
         dependency_configuration=dependency_configuration,
     )
@@ -208,16 +177,7 @@ def download_from_pylock(
     extras=frozenset(),  # type: FrozenSet[str]
     dependency_groups=frozenset(),  # type: FrozenSet[str]
     constraint_files=None,  # type: Optional[Iterable[str]]
-    repos_configuration=ReposConfiguration(),  # type: ReposConfiguration
-    resolver_version=None,  # type: Optional[ResolverVersion.Value]
-    network_configuration=None,  # type: Optional[NetworkConfiguration]
-    build_configuration=BuildConfiguration(),  # type: BuildConfiguration
-    transitive=True,  # type: bool
-    max_parallel_jobs=None,  # type: Optional[int]
-    pip_version=None,  # type: Optional[PipVersionValue]
-    use_pip_config=False,  # type: bool
-    extra_pip_requirements=(),  # type: Tuple[Requirement, ...]
-    keyring_provider=None,  # type: Optional[str]
+    pip_configuration=PipConfiguration(),  # type: PipConfiguration
     dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
 ):
     # type: (...) -> Union[Tuple[DownloadedArtifact, ...], Error]
@@ -234,9 +194,9 @@ def download_from_pylock(
             requirement_configuration=requirement_configuration,
             extras=extras,
             dependency_groups=dependency_groups,
-            network_configuration=network_configuration,
-            build_configuration=build_configuration,
-            transitive=transitive,
+            network_configuration=pip_configuration.network_configuration,
+            build_configuration=pip_configuration.build_configuration,
+            transitive=pip_configuration.transitive,
             dependency_configuration=dependency_configuration,
         )
     )
@@ -251,16 +211,7 @@ def download_from_pylock(
                 else []
             ),
         ),
-        resolver=resolver,
-        repos_configuration=repos_configuration,
-        resolver_version=resolver_version,
-        network_configuration=network_configuration,
-        build_configuration=build_configuration,
-        max_parallel_jobs=max_parallel_jobs,
-        pip_version=pip_version,
-        use_pip_config=use_pip_config,
-        extra_pip_requirements=extra_pip_requirements,
-        keyring_provider=keyring_provider,
+        pip_configuration=pip_configuration,
     )
     if isinstance(downloaded_artifacts, Error):
         return downloaded_artifacts
@@ -270,22 +221,9 @@ def download_from_pylock(
 def resolve_from_pex_lock(
     targets,  # type: Targets
     lock,  # type: Lockfile
-    resolver,  # type: Resolver
-    requirements=None,  # type: Optional[Iterable[str]]
-    requirement_files=None,  # type: Optional[Iterable[str]]
-    constraint_files=None,  # type: Optional[Iterable[str]]
-    repos_configuration=ReposConfiguration(),  # type: ReposConfiguration
-    resolver_version=None,  # type: Optional[ResolverVersion.Value]
-    network_configuration=None,  # type: Optional[NetworkConfiguration]
-    build_configuration=BuildConfiguration(),  # type: BuildConfiguration
+    requirement_configuration=RequirementConfiguration(),  # type: RequirementConfiguration
+    pip_configuration=PipConfiguration(),  # type: PipConfiguration
     compile=False,  # type: bool
-    transitive=True,  # type: bool
-    verify_wheels=True,  # type: bool
-    max_parallel_jobs=None,  # type: Optional[int]
-    pip_version=None,  # type: Optional[PipVersionValue]
-    use_pip_config=False,  # type: bool
-    extra_pip_requirements=(),  # type: Tuple[Requirement, ...]
-    keyring_provider=None,  # type: Optional[str]
     result_type=InstallableType.INSTALLED_WHEEL_CHROOT,  # type: InstallableType.Value
     dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
 ):
@@ -296,32 +234,18 @@ def resolve_from_pex_lock(
         subset_pex_lock(
             targets=targets,
             lock=lock,
-            requirement_configuration=RequirementConfiguration(
-                requirements=requirements,
-                requirement_files=requirement_files,
-                constraint_files=constraint_files,
-            ),
-            network_configuration=network_configuration,
-            build_configuration=build_configuration,
-            transitive=transitive,
+            requirement_configuration=requirement_configuration,
+            network_configuration=pip_configuration.network_configuration,
+            build_configuration=pip_configuration.build_configuration,
+            transitive=pip_configuration.transitive,
             dependency_configuration=dependency_configuration,
         )
     )
     return _resolve_from_subset_result(
         subset_result,
         lock_configuration=lock.configuration,
-        resolver=resolver,
-        repos_configuration=repos_configuration,
-        resolver_version=resolver_version,
-        network_configuration=network_configuration,
-        build_configuration=build_configuration,
+        pip_configuration=pip_configuration,
         compile=compile,
-        verify_wheels=verify_wheels,
-        max_parallel_jobs=max_parallel_jobs,
-        pip_version=pip_version,
-        use_pip_config=use_pip_config,
-        extra_pip_requirements=extra_pip_requirements,
-        keyring_provider=keyring_provider,
         result_type=result_type,
         dependency_configuration=dependency_configuration,
     )
@@ -330,20 +254,10 @@ def resolve_from_pex_lock(
 def download_from_pex_lock(
     targets,  # type: Targets
     lock,  # type: Lockfile
-    resolver,  # type: Resolver
     requirements=None,  # type: Optional[Iterable[str]]
     requirement_files=None,  # type: Optional[Iterable[str]]
     constraint_files=None,  # type: Optional[Iterable[str]]
-    repos_configuration=ReposConfiguration(),  # type: ReposConfiguration
-    resolver_version=None,  # type: Optional[ResolverVersion.Value]
-    network_configuration=None,  # type: Optional[NetworkConfiguration]
-    build_configuration=BuildConfiguration(),  # type: BuildConfiguration
-    transitive=True,  # type: bool
-    max_parallel_jobs=None,  # type: Optional[int]
-    pip_version=None,  # type: Optional[PipVersionValue]
-    use_pip_config=False,  # type: bool
-    extra_pip_requirements=(),  # type: Tuple[Requirement, ...]
-    keyring_provider=None,  # type: Optional[str]
+    pip_configuration=PipConfiguration(),  # type: PipConfiguration
     dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
 ):
     # type: (...) -> Union[Tuple[DownloadedArtifact, ...], Error]
@@ -358,25 +272,16 @@ def download_from_pex_lock(
                 requirement_files=requirement_files,
                 constraint_files=constraint_files,
             ),
-            network_configuration=network_configuration,
-            build_configuration=build_configuration,
-            transitive=transitive,
+            network_configuration=pip_configuration.network_configuration,
+            build_configuration=pip_configuration.build_configuration,
+            transitive=pip_configuration.transitive,
             dependency_configuration=dependency_configuration,
         )
     )
     downloaded_artifacts = _download_from_subset_result(
         subset_result,
         lock_configuration=lock.configuration,
-        resolver=resolver,
-        repos_configuration=repos_configuration,
-        resolver_version=resolver_version,
-        network_configuration=network_configuration,
-        build_configuration=build_configuration,
-        max_parallel_jobs=max_parallel_jobs,
-        pip_version=pip_version,
-        use_pip_config=use_pip_config,
-        extra_pip_requirements=extra_pip_requirements,
-        keyring_provider=keyring_provider,
+        pip_configuration=pip_configuration,
     )
     if isinstance(downloaded_artifacts, Error):
         return downloaded_artifacts
@@ -386,16 +291,7 @@ def download_from_pex_lock(
 def _download_from_subset_result(
     subset_result,  # type: SubsetResult
     lock_configuration,  # type: LockConfiguration
-    resolver,  # type: Resolver
-    repos_configuration=ReposConfiguration(),  # type: ReposConfiguration
-    resolver_version=None,  # type: Optional[ResolverVersion.Value]
-    network_configuration=None,  # type: Optional[NetworkConfiguration]
-    build_configuration=BuildConfiguration(),  # type: BuildConfiguration
-    max_parallel_jobs=None,  # type: Optional[int]
-    pip_version=None,  # type: Optional[PipVersionValue]
-    use_pip_config=False,  # type: bool
-    extra_pip_requirements=(),  # type: Tuple[Requirement, ...]
-    keyring_provider=None,  # type: Optional[str]
+    pip_configuration=PipConfiguration(),  # type: PipConfiguration
 ):
     # type: (...) -> Union[Dict[DownloadableArtifact, DownloadedArtifact], Error]
 
@@ -407,16 +303,7 @@ def _download_from_subset_result(
     lock_downloader = LockDownloader.create(
         targets=tuple(resolved_subset.target for resolved_subset in subset_result.subsets),
         lock_configuration=lock_configuration,
-        resolver=resolver,
-        repos_configuration=repos_configuration,
-        max_parallel_jobs=max_parallel_jobs,
-        pip_version=pip_version,
-        resolver_version=resolver_version,
-        network_configuration=network_configuration,
-        build_configuration=build_configuration,
-        use_pip_config=use_pip_config,
-        extra_pip_requirements=extra_pip_requirements,
-        keyring_provider=keyring_provider,
+        pip_configuration=pip_configuration,
     )
     with TRACER.timed(
         "Downloading {url_count} distributions to satisfy {requirement_count} requirements".format(
@@ -430,18 +317,9 @@ def _download_from_subset_result(
 def _resolve_from_subset_result(
     subset_result,  # type: SubsetResult
     lock_configuration,  # type: LockConfiguration
-    resolver,  # type: Resolver
-    repos_configuration=ReposConfiguration(),  # type: ReposConfiguration
-    resolver_version=None,  # type: Optional[ResolverVersion.Value]
-    network_configuration=None,  # type: Optional[NetworkConfiguration]
-    build_configuration=BuildConfiguration(),  # type: BuildConfiguration
+    pip_configuration,  # type: PipConfiguration
     compile=False,  # type: bool
     verify_wheels=True,  # type: bool
-    max_parallel_jobs=None,  # type: Optional[int]
-    pip_version=None,  # type: Optional[PipVersionValue]
-    use_pip_config=False,  # type: bool
-    extra_pip_requirements=(),  # type: Tuple[Requirement, ...]
-    keyring_provider=None,  # type: Optional[str]
     result_type=InstallableType.INSTALLED_WHEEL_CHROOT,  # type: InstallableType.Value
     dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
 ):
@@ -450,16 +328,7 @@ def _resolve_from_subset_result(
     downloaded_artifacts = _download_from_subset_result(
         subset_result,
         lock_configuration=lock_configuration,
-        resolver=resolver,
-        repos_configuration=repos_configuration,
-        resolver_version=resolver_version,
-        network_configuration=network_configuration,
-        build_configuration=build_configuration,
-        max_parallel_jobs=max_parallel_jobs,
-        pip_version=pip_version,
-        use_pip_config=use_pip_config,
-        extra_pip_requirements=extra_pip_requirements,
-        keyring_provider=keyring_provider,
+        pip_configuration=pip_configuration,
     )
     if isinstance(downloaded_artifacts, Error):
         return downloaded_artifacts
@@ -493,28 +362,21 @@ def _resolve_from_subset_result(
         )
     ):
         password_database = PasswordDatabase.from_netrc().append(
-            repos_configuration.password_entries
+            pip_configuration.repos_configuration.password_entries
         )
         build_and_install_request = BuildAndInstallRequest(
             build_requests=build_requests,
             install_requests=install_requests,
             direct_requirements=subset_result.requirements,
-            package_index_configuration=PackageIndexConfiguration.create(
-                pip_version=pip_version,
-                resolver_version=resolver_version,
+            pip_configuration=attr.evolve(
+                pip_configuration,
                 repos_configuration=attr.evolve(
-                    repos_configuration, password_entries=password_database.entries
+                    pip_configuration.repos_configuration,
+                    password_entries=password_database.entries,
                 ),
-                network_configuration=network_configuration,
-                use_pip_config=use_pip_config,
-                extra_pip_requirements=extra_pip_requirements,
-                keyring_provider=keyring_provider,
             ),
             compile=compile,
-            build_configuration=build_configuration,
             verify_wheels=verify_wheels,
-            pip_version=pip_version,
-            resolver=resolver,
             dependency_configuration=dependency_configuration,
         )
 
@@ -536,13 +398,13 @@ def _resolve_from_subset_result(
         distributions = (
             build_and_install_request.install_distributions(
                 ignore_errors=ignore_errors,
-                max_parallel_jobs=max_parallel_jobs,
+                max_parallel_jobs=pip_configuration.max_jobs,
                 local_project_directory_to_sdist=local_project_directory_to_sdist,
             )
             if result_type is InstallableType.INSTALLED_WHEEL_CHROOT
             else build_and_install_request.build_distributions(
                 ignore_errors=ignore_errors,
-                max_parallel_jobs=max_parallel_jobs,
+                max_parallel_jobs=pip_configuration.max_jobs,
                 local_project_directory_to_sdist=local_project_directory_to_sdist,
             )
         )

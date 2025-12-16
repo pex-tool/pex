@@ -6,7 +6,6 @@ from __future__ import absolute_import
 from pex.common import pluralize
 from pex.dependency_configuration import DependencyConfiguration
 from pex.pep_427 import InstallableType
-from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.lock_resolver import resolve_from_pex_lock, resolve_from_pylock
 from pex.resolve.lockfile.pep_751 import Pylock
 from pex.resolve.pex_repository_resolver import resolve_from_pex
@@ -47,26 +46,13 @@ def resolve(
         with TRACER.timed(
             "Resolving requirements from lock file {lock_file}".format(lock_file=lock.source)
         ):
-            pip_configuration = resolver_configuration.pip_configuration
             return try_(
                 resolve_from_pex_lock(
                     targets=targets,
                     lock=lock,
-                    resolver=ConfiguredResolver(pip_configuration=pip_configuration),
-                    requirements=requirement_configuration.requirements,
-                    requirement_files=requirement_configuration.requirement_files,
-                    constraint_files=requirement_configuration.constraint_files,
-                    transitive=pip_configuration.transitive,
-                    repos_configuration=pip_configuration.repos_configuration,
-                    resolver_version=pip_configuration.resolver_version,
-                    network_configuration=pip_configuration.network_configuration,
-                    build_configuration=pip_configuration.build_configuration,
+                    pip_configuration=resolver_configuration.pip_configuration,
+                    requirement_configuration=requirement_configuration,
                     compile=compile_pyc,
-                    max_parallel_jobs=pip_configuration.max_jobs,
-                    pip_version=pip_configuration.version or lock.pip_version,
-                    use_pip_config=pip_configuration.use_pip_config,
-                    extra_pip_requirements=pip_configuration.extra_requirements,
-                    keyring_provider=pip_configuration.keyring_provider,
                     result_type=result_type,
                     dependency_configuration=dependency_configuration,
                 )
@@ -76,28 +62,15 @@ def resolve(
         with TRACER.timed(
             "Resolving requirements from lock file {lock_file}".format(lock_file=pylock.source)
         ):
-            pip_configuration = resolver_configuration.pip_configuration
             return try_(
                 resolve_from_pylock(
                     targets=targets,
                     pylock=pylock,
-                    resolver=ConfiguredResolver(pip_configuration=pip_configuration),
-                    requirements=requirement_configuration.requirements,
-                    requirement_files=requirement_configuration.requirement_files,
+                    pip_configuration=resolver_configuration.pip_configuration,
+                    requirement_configuration=requirement_configuration,
                     extras=resolver_configuration.extras,
                     dependency_groups=resolver_configuration.dependency_groups,
-                    constraint_files=requirement_configuration.constraint_files,
-                    transitive=pip_configuration.transitive,
-                    repos_configuration=pip_configuration.repos_configuration,
-                    resolver_version=pip_configuration.resolver_version,
-                    network_configuration=pip_configuration.network_configuration,
-                    build_configuration=pip_configuration.build_configuration,
                     compile=compile_pyc,
-                    max_parallel_jobs=pip_configuration.max_jobs,
-                    pip_version=pip_configuration.version,
-                    use_pip_config=pip_configuration.use_pip_config,
-                    extra_pip_requirements=pip_configuration.extra_requirements,
-                    keyring_provider=pip_configuration.keyring_provider,
                     result_type=result_type,
                     dependency_configuration=dependency_configuration,
                 )
@@ -174,21 +147,9 @@ def resolve(
                 requirements=requirement_configuration.requirements,
                 requirement_files=requirement_configuration.requirement_files,
                 constraint_files=requirement_configuration.constraint_files,
-                allow_prereleases=resolver_configuration.allow_prereleases,
-                transitive=resolver_configuration.transitive,
-                repos_configuration=resolver_configuration.repos_configuration,
-                resolver_version=resolver_configuration.resolver_version,
-                network_configuration=resolver_configuration.network_configuration,
-                build_configuration=resolver_configuration.build_configuration,
+                pip_configuration=resolver_configuration,
                 compile=compile_pyc,
-                max_parallel_jobs=resolver_configuration.max_jobs,
                 ignore_errors=ignore_errors,
-                pip_log=resolver_configuration.log,
-                pip_version=resolver_configuration.version,
-                resolver=ConfiguredResolver(pip_configuration=resolver_configuration),
-                use_pip_config=resolver_configuration.use_pip_config,
-                extra_pip_requirements=resolver_configuration.extra_requirements,
-                keyring_provider=resolver_configuration.keyring_provider,
                 result_type=result_type,
                 dependency_configuration=dependency_configuration,
             )

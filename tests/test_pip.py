@@ -21,12 +21,12 @@ from pex.jobs import Job
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pex_warnings import PEXWarning
-from pex.pip.configuration import ResolverVersion
+from pex.pip.configuration import PipConfiguration, ResolverVersion
 from pex.pip.installation import _PIP, PipInstallation, get_pip
 from pex.pip.tool import PackageIndexConfiguration, Pip
 from pex.pip.version import PipVersion, PipVersionValue
 from pex.resolve import abbreviated_platforms
-from pex.resolve.configured_resolver import ConfiguredResolver
+from pex.resolve.pip_resolver import PipResolver
 from pex.targets import AbbreviatedPlatform, LocalInterpreter, Target
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
@@ -75,9 +75,9 @@ def create_pip(pex_root):
         with ENV.patch(PEX_ROOT=pex_root, **extra_env):
             return get_pip(
                 interpreter=interpreter,
-                version=version,
-                resolver=ConfiguredResolver.default(),
-                extra_requirements=tuple(extra_requirements),
+                resolver=PipResolver(
+                    PipConfiguration(version=version, extra_requirements=tuple(extra_requirements))
+                ),
             )
 
     yield create_pip
@@ -124,13 +124,17 @@ def package_index_configuration(
         # N.B.: Pip 23.2 has a bug handling PEP-658 metadata with the legacy resolver; so we use the
         # 2020 resolver to work around. See: https://github.com/pypa/pip/issues/12156
         return PackageIndexConfiguration.create(
-            pip_version,
-            resolver_version=ResolverVersion.PIP_2020,
-            use_pip_config=use_pip_config,
-            keyring_provider=keyring_provider,
+            pip_configuration=PipConfiguration(
+                version=pip_version,
+                resolver_version=ResolverVersion.PIP_2020,
+                use_pip_config=use_pip_config,
+                keyring_provider=keyring_provider,
+            )
         )
     return PackageIndexConfiguration.create(
-        use_pip_config=use_pip_config, keyring_provider=keyring_provider
+        pip_configuration=PipConfiguration(
+            use_pip_config=use_pip_config, keyring_provider=keyring_provider
+        )
     )
 
 

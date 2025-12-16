@@ -29,9 +29,10 @@ from pex.pep_427 import install_wheel_chroot
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
+from pex.pip.configuration import PipConfiguration
 from pex.pip.installation import get_pip
 from pex.pip.version import PipVersion, PipVersionValue
-from pex.resolve.configured_resolver import ConfiguredResolver
+from pex.resolve.pip_resolver import PipResolver
 from pex.sysconfig import SCRIPT_DIR, script_name
 from pex.typing import TYPE_CHECKING, cast
 from pex.util import named_temporary_file
@@ -239,15 +240,13 @@ class WheelBuilder(object):
         self._wheel_dir = wheel_dir or safe_mkdtemp()
         self._interpreter = interpreter or PythonInterpreter.get()
         self._pip_version = pip_version or PipVersion.DEFAULT
-        self._resolver = ConfiguredResolver.version(self._pip_version)
         self._verify = verify
 
     def bdist(self):
         # type: () -> str
         get_pip(
             interpreter=self._interpreter,
-            version=self._pip_version,
-            resolver=self._resolver,
+            resolver=PipResolver(PipConfiguration(version=self._pip_version)),
         ).spawn_build_wheels(
             distributions=[self._source_dir],
             wheel_dir=self._wheel_dir,

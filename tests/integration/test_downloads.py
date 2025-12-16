@@ -6,7 +6,6 @@ import os.path
 import pytest
 
 from pex.artifact_url import Fingerprint
-from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.downloads import ArtifactDownloader
 from pex.resolve.locked_resolve import Artifact, FileArtifact
 from pex.resolve.resolved_requirement import PartialArtifact
@@ -56,9 +55,7 @@ MAC_ARTIFACT = file_artifact(
 @pytest.fixture
 def downloader():
     # type: () -> ArtifactDownloader
-    return ArtifactDownloader(
-        resolver=ConfiguredResolver.default(), universal_target=UniversalTarget()
-    )
+    return ArtifactDownloader(universal_target=UniversalTarget())
 
 
 def test_issue_1849_download_foreign_artifact(

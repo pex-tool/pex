@@ -20,11 +20,9 @@ from pex.orderedset import OrderedSet
 from pex.pep_427 import InstallableType
 from pex.pep_503 import ProjectName
 from pex.pip.configuration import PipConfiguration
-from pex.pip.tool import PackageIndexConfiguration
 from pex.pip.version import PipVersionValue
 from pex.requirements import LocalProjectRequirement, ParseError, URLRequirement
 from pex.resolve.configured_resolve import resolve
-from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolvers import Resolver
 from pex.resolver import BuildAndInstallRequest, BuildRequest, InstallRequest
@@ -178,19 +176,8 @@ class Projects(object):
                 build_requests=build_requests,
                 install_requests=install_requests,
                 direct_requirements=direct_requirements,
-                package_index_configuration=PackageIndexConfiguration.create(
-                    pip_version=pip_configuration.version,
-                    resolver_version=pip_configuration.resolver_version,
-                    repos_configuration=pip_configuration.repos_configuration,
-                    network_configuration=pip_configuration.network_configuration,
-                    use_pip_config=pip_configuration.use_pip_config,
-                    extra_pip_requirements=pip_configuration.extra_requirements,
-                    keyring_provider=pip_configuration.keyring_provider,
-                ),
+                pip_configuration=pip_configuration,
                 compile=compile_pyc,
-                build_configuration=pip_configuration.build_configuration,
-                pip_version=pip_configuration.version,
-                resolver=ConfiguredResolver(pip_configuration=pip_configuration),
                 dependency_configuration=dependency_config,
             )
 

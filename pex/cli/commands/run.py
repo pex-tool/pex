@@ -43,9 +43,9 @@ from pex.pip.configuration import PipConfiguration
 from pex.pip.version import PipVersionValue
 from pex.requirements import LocalProjectRequirement, ParseError, parse_requirement_string
 from pex.resolve import lock_resolver, requirement_options, resolver_options, target_options
-from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.locked_resolve import FileArtifact, UnFingerprintedLocalProjectArtifact
 from pex.resolve.lockfile.pep_751 import Dependency, Package, Pylock
+from pex.resolve.pip_resolver import PipResolver
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolvers import Resolver, Unsatisfiable
 from pex.resolve.script_metadata import apply_script_metadata
@@ -214,7 +214,7 @@ def _create_sdists(
                         project_directory=local_project.path,
                         dist_dir=dist_dir,
                         target=target,
-                        resolver=ConfiguredResolver(pip_configuration),
+                        resolver=PipResolver(pip_configuration),
                         pip_version=pip_configuration.version,
                     )
                 )
@@ -605,7 +605,7 @@ class Run(CacheAwareMixin, BuildTimeCommand):
             return None
 
         pip_configuration = run_spec.pip_configuration
-        resolver = ConfiguredResolver(pip_configuration=pip_configuration)
+        resolver = PipResolver(pip_configuration=pip_configuration)
         targets = Targets.from_target(run_spec.target)
         dep_config = dependency_configuration.configure(self.options)
 
@@ -613,19 +613,7 @@ class Run(CacheAwareMixin, BuildTimeCommand):
             targets=targets,
             requirements=[str(requirement)],
             constraint_files=run_spec.all_requirements.constraint_files,
-            allow_prereleases=pip_configuration.allow_prereleases,
-            transitive=False,
-            repos_configuration=pip_configuration.repos_configuration,
-            resolver_version=pip_configuration.resolver_version,
-            network_configuration=pip_configuration.network_configuration,
-            build_configuration=pip_configuration.build_configuration,
-            max_parallel_jobs=pip_configuration.max_jobs,
-            pip_log=pip_configuration.log,
-            pip_version=pip_configuration.version,
-            resolver=resolver,
-            use_pip_config=pip_configuration.use_pip_config,
-            extra_pip_requirements=pip_configuration.extra_requirements,
-            keyring_provider=pip_configuration.keyring_provider,
+            pip_configuration=attr.evolve(pip_configuration, transitive=False),
             dependency_configuration=dep_config,
         )
         production_assert(
@@ -709,28 +697,14 @@ class Run(CacheAwareMixin, BuildTimeCommand):
     ):
         # type: (...) -> Union[Tuple[Distribution, ...], Error]
 
-        pip_configuration = run_spec.pip_configuration
-        resolver = ConfiguredResolver(pip_configuration=pip_configuration)
         targets = Targets.from_target(run_spec.target)
         dep_config = dependency_configuration.configure(self.options)
         if pylock:
             resolved = lock_resolver.resolve_from_pylock(
                 targets=targets,
                 pylock=pylock,
-                resolver=resolver,
-                requirements=run_spec.all_requirements.requirements,
-                requirement_files=run_spec.all_requirements.requirement_files,
-                constraint_files=run_spec.all_requirements.constraint_files,
-                repos_configuration=pip_configuration.repos_configuration,
-                resolver_version=pip_configuration.resolver_version,
-                network_configuration=pip_configuration.network_configuration,
-                build_configuration=pip_configuration.build_configuration,
-                transitive=pip_configuration.transitive,
-                max_parallel_jobs=pip_configuration.max_jobs,
-                pip_version=pip_configuration.version,
-                use_pip_config=pip_configuration.use_pip_config,
-                extra_pip_requirements=pip_configuration.extra_requirements,
-                keyring_provider=pip_configuration.keyring_provider,
+                requirement_configuration=run_spec.all_requirements,
+                pip_configuration=run_spec.pip_configuration,
                 dependency_configuration=dep_config,
             )
         else:
@@ -739,19 +713,7 @@ class Run(CacheAwareMixin, BuildTimeCommand):
                 requirements=run_spec.all_requirements.requirements,
                 requirement_files=run_spec.all_requirements.requirement_files,
                 constraint_files=run_spec.all_requirements.constraint_files,
-                allow_prereleases=pip_configuration.allow_prereleases,
-                transitive=pip_configuration.transitive,
-                repos_configuration=pip_configuration.repos_configuration,
-                resolver_version=pip_configuration.resolver_version,
-                network_configuration=pip_configuration.network_configuration,
-                build_configuration=pip_configuration.build_configuration,
-                max_parallel_jobs=pip_configuration.max_jobs,
-                pip_log=pip_configuration.log,
-                pip_version=pip_configuration.version,
-                resolver=resolver,
-                use_pip_config=pip_configuration.use_pip_config,
-                extra_pip_requirements=pip_configuration.extra_requirements,
-                keyring_provider=pip_configuration.keyring_provider,
+                pip_configuration=run_spec.pip_configuration,
                 dependency_configuration=dep_config,
             )
         if isinstance(resolved, Error):

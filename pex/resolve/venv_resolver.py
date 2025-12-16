@@ -33,7 +33,7 @@ from pex.pep_503 import ProjectName
 from pex.pip.configuration import PipConfiguration
 from pex.pip.version import PipVersion
 from pex.requirements import LocalProjectRequirement
-from pex.resolve.configured_resolver import ConfiguredResolver
+from pex.resolve.pip_resolver import PipResolver
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolvers import ResolvedDistribution, Resolver, ResolveResult
 from pex.result import Error
@@ -490,7 +490,7 @@ def _resolve_from_venv(
     else:
         compatible_pip_version = PipVersion.latest_compatible(target)
 
-    resolver = ConfiguredResolver(
+    resolver = PipResolver(
         pip_configuration=attr.evolve(pip_configuration, version=compatible_pip_version)
     )
     fingerprinted_distributions = []  # type: List[FingerprintedDistribution]

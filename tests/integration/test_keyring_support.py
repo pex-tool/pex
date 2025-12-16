@@ -17,10 +17,11 @@ from pex.common import safe_open
 from pex.compatibility import urlparse
 from pex.dist_metadata import DistMetadata
 from pex.pep_503 import ProjectName
+from pex.pip.configuration import PipConfiguration
 from pex.pip.installation import get_pip
 from pex.pip.version import PipVersion, PipVersionValue
-from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.package_repository import PYPI
+from pex.resolve.pip_resolver import PipResolver
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import InstallationChoice, Virtualenv
 from testing import PY_VER, WheelBuilder, make_env, run_pex_command
@@ -206,9 +207,9 @@ def download_pip_requirements(
         map(str, itertools.chain(pip_version.requirements, pip_version.build_system_requires))
     )
     requirements.extend(extra_requirements)
-    get_pip(resolver=ConfiguredResolver.version(pip_version)).spawn_download_distributions(
-        download_dir=download_dir, requirements=requirements
-    ).wait()
+    get_pip(
+        resolver=PipResolver(PipConfiguration(version=pip_version))
+    ).spawn_download_distributions(download_dir=download_dir, requirements=requirements).wait()
 
 
 @skip_if_required_keyring_version_not_supported

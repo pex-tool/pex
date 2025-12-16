@@ -45,7 +45,6 @@ from pex.pip.version import PipVersionValue
 from pex.requirements import LocalProjectRequirement
 from pex.resolve import project, requirement_options, resolver_options, target_options
 from pex.resolve.config import finalize as finalize_resolve_config
-from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.lock_resolver import resolve_from_pex_lock
 from pex.resolve.locked_resolve import (
     FileArtifact,
@@ -71,6 +70,7 @@ from pex.resolve.lockfile.updater import (
     VersionUpdate,
 )
 from pex.resolve.path_mappings import PathMappings
+from pex.resolve.pip_resolver import PipResolver
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolved_requirement import Pin
 from pex.resolve.resolver_configuration import LockRepositoryConfiguration
@@ -1190,7 +1190,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 requirements.update(
                     str(req)
                     for req in projects.collect_requirements(
-                        resolver=ConfiguredResolver(pip_configuration),
+                        resolver=PipResolver(pip_configuration),
                         interpreter=targets.interpreter,
                         pip_version=pip_configuration.version,
                         max_jobs=pip_configuration.max_jobs,
@@ -1585,7 +1585,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         func = functools.partial(
             self._build_sdist,
             target=target,
-            resolver=ConfiguredResolver(pip_configuration),
+            resolver=PipResolver(pip_configuration),
             pip_version=pip_configuration.version,
         )
         pool = ThreadPool(processes=pip_configuration.max_jobs)
@@ -2383,20 +2383,8 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             resolve_from_pex_lock(
                 targets=Targets.from_target(target),
                 lock=lock_file,
-                resolver=ConfiguredResolver(pip_configuration),
-                requirements=requirement_configuration.requirements,
-                requirement_files=requirement_configuration.requirement_files,
-                constraint_files=requirement_configuration.constraint_files,
-                repos_configuration=pip_configuration.repos_configuration,
-                resolver_version=pip_configuration.resolver_version,
-                network_configuration=pip_configuration.network_configuration,
-                build_configuration=pip_configuration.build_configuration,
-                transitive=pip_configuration.transitive,
-                max_parallel_jobs=pip_configuration.max_jobs,
-                pip_version=pip_configuration.version,
-                use_pip_config=pip_configuration.use_pip_config,
-                extra_pip_requirements=pip_configuration.extra_requirements,
-                keyring_provider=pip_configuration.keyring_provider,
+                requirement_configuration=requirement_configuration,
+                pip_configuration=pip_configuration,
                 result_type=InstallableType.INSTALLED_WHEEL_CHROOT,
                 dependency_configuration=dependency_config,
             )

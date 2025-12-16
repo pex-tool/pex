@@ -10,9 +10,9 @@ from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pip.log_analyzer import ErrorMessage
 from pex.requirements import parse_requirement_string
-from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.locked_resolve import LockStyle
 from pex.resolve.locker import Locker, LockResult
+from pex.resolve.pip_resolver import PipResolver
 from pex.resolve.resolved_requirement import PartialArtifact, Pin, ResolvedRequirement
 from pex.targets import LocalInterpreter
 from pex.typing import TYPE_CHECKING
@@ -29,7 +29,7 @@ def locker(tmpdir):
     return Locker(
         target=LocalInterpreter.create(),
         root_requirements=[parse_requirement_string("wheel")],
-        resolver=ConfiguredResolver.default(),
+        resolver=PipResolver.default(),
         lock_style=LockStyle.SOURCES,
         download_dir=download_dir,
         lock_is_via_pip_download=True,

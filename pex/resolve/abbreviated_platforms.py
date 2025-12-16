@@ -17,7 +17,7 @@ from pex.pep_425 import CompatibilityTags
 from pex.pip.configuration import PipConfiguration
 from pex.pip.installation import get_pip
 from pex.platforms import Platform, PlatformSpec
-from pex.resolve.configured_resolver import ConfiguredResolver
+from pex.resolve.pip_resolver import PipResolver
 from pex.third_party.packaging import tags
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
@@ -56,10 +56,7 @@ def _calculate_tags(
             if count != 0:
                 raise AssertionError("Finished with count {}.".format(count))
 
-    pip = get_pip(
-        version=pip_configuration.version,
-        resolver=ConfiguredResolver(pip_configuration=pip_configuration),
-    )
+    pip = get_pip(resolver=PipResolver(pip_configuration))
     job = SpawnedJob.stdout(
         job=pip.spawn_debug(
             platform_spec=platform_spec,

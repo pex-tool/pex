@@ -466,14 +466,12 @@ _PIP = {}  # type: Dict[PipInstallation, Pip]
 
 def get_pip(
     interpreter=None,
-    version=None,  # type: Optional[PipVersionValue]
     resolver=None,  # type: Optional[Resolver]
-    extra_requirements=(),  # type: Tuple[Requirement, ...]
 ):
     # type: (...) -> Pip
     """Returns a lazily instantiated global Pip object that is safe for un-coordinated use."""
-    if version:
-        calculated_version = version
+    if resolver and resolver.pip_configuration.version:
+        calculated_version = resolver.pip_configuration.version
     elif PipVersion.DEFAULT is PipVersion.VENDORED:
         calculated_version = PipVersion.VENDORED
     else:
@@ -492,7 +490,7 @@ def get_pip(
     installation = PipInstallation(
         interpreter=interpreter or PythonInterpreter.get(),
         version=calculated_version,
-        extra_requirements=extra_requirements,
+        extra_requirements=resolver.pip_configuration.extra_requirements if resolver else (),
         use_system_time=resolver.use_system_time() if resolver else False,
     )
     pip = _PIP.get(installation)

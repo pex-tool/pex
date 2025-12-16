@@ -23,7 +23,6 @@ from pex.pep_425 import CompatibilityTags
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
-from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.targets import LocalInterpreter, Targets
 from pex.typing import TYPE_CHECKING
 from pex.version import __version__
@@ -150,7 +149,6 @@ def assert_force_local_implicit_ns_packages_issues_598(
         for resolved_dist in resolver.resolve(
             targets=Targets(interpreters=(builder.interpreter,)),
             requirements=requirements,
-            resolver=ConfiguredResolver.default(),
         ).distributions:
             builder.add_distribution(resolved_dist.distribution)
             for direct_req in resolved_dist.direct_requirements:
@@ -287,7 +285,6 @@ def test_osx_platform_intel_issue_523():
         for resolved_dist in resolver.resolve(
             targets=Targets(interpreters=(pb.interpreter,)),
             requirements=["psutil==5.4.3"],
-            resolver=ConfiguredResolver.default(),
         ).distributions:
             pb.add_dist_location(resolved_dist.distribution.location)
         pb.build(pex_file)
@@ -355,7 +352,6 @@ def test_activate_extras_issue_615():
         for resolved_dist in resolver.resolve(
             targets=Targets(interpreters=(pb.interpreter,)),
             requirements=["pex[requests]==1.6.3"],
-            resolver=ConfiguredResolver.default(),
         ).distributions:
             for direct_req in resolved_dist.direct_requirements:
                 pb.add_requirement(direct_req)
@@ -380,10 +376,7 @@ def assert_namespace_packages_warning(distribution, version, expected_warning):
     # type: (str, str, bool) -> None
     requirement = "{}=={}".format(distribution, version)
     pb = PEXBuilder()
-    for resolved_dist in resolver.resolve(
-        requirements=[requirement],
-        resolver=ConfiguredResolver.default(),
-    ).distributions:
+    for resolved_dist in resolver.resolve(requirements=[requirement]).distributions:
         pb.add_dist_location(resolved_dist.distribution.location)
     pb.freeze()
 

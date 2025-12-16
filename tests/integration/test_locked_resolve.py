@@ -9,8 +9,6 @@ import pytest
 from pex import dist_metadata, resolver, targets
 from pex.fs import safe_symlink
 from pex.pip.configuration import PipConfiguration
-from pex.pip.tool import PackageIndexConfiguration
-from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.locked_resolve import LockedResolve, LockStyle
 from pex.resolve.lockfile.create import LockObserver
 from pex.resolve.package_repository import Repo, ReposConfiguration
@@ -45,20 +43,11 @@ def normalize(
 def create_lock_observer(lock_style):
     # type: (LockStyle.Value) -> LockObserver
     pip_configuration = PipConfiguration()
-    package_index_configuration = PackageIndexConfiguration.create(
-        resolver_version=pip_configuration.resolver_version,
-        repos_configuration=pip_configuration.repos_configuration,
-        network_configuration=pip_configuration.network_configuration,
-    )
     return LockObserver(
         root_requirements=(),
         lock_style=lock_style,
-        resolver=ConfiguredResolver(pip_configuration=pip_configuration),
-        wheel_builder=WheelBuilder(
-            package_index_configuration,
-            build_configuration=pip_configuration.build_configuration,
-        ),
-        package_index_configuration=package_index_configuration,
+        pip_configuration=pip_configuration,
+        wheel_builder=WheelBuilder(pip_configuration),
         lock_is_via_pip_download=True,
     )
 
@@ -69,11 +58,7 @@ def create_lock(
 ):
     # type: (...) -> Tuple[Downloaded, Tuple[LockedResolve, ...]]
     lock_observer = create_lock_observer(lock_style)
-    downloaded = resolver.download(
-        observer=lock_observer,
-        resolver=ConfiguredResolver(pip_configuration=PipConfiguration()),
-        **kwargs
-    )
+    downloaded = resolver.download(observer=lock_observer, **kwargs)
     return downloaded, lock_observer.lock(downloaded)
 
 

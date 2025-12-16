@@ -16,10 +16,10 @@ from pex.pep_427 import InstallableType
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pip.version import PipVersion, PipVersionValue
-from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.lockfile import json_codec
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.path_mappings import PathMapping, PathMappings
+from pex.resolve.pip_resolver import PipResolver
 from pex.resolve.resolved_requirement import Pin
 from pex.resolve.resolvers import Resolver
 from pex.typing import TYPE_CHECKING
@@ -131,7 +131,7 @@ def lock_session_fixtures(shared_integration_test_tmpdir):
     )
     with atomic_directory(test_lock_update_chroot) as chroot:
         if not chroot.is_finalized():
-            resolver = ConfiguredResolver.version(pip_version)
+            resolver = PipResolver.version(pip_version)
 
             find_links = os.path.join(chroot.work_dir, "find_links")
             find_links_repo = FindLinksRepo.create(find_links)

@@ -14,13 +14,14 @@ from pex.common import safe_mkdir, safe_mkdtemp
 from pex.hashing import Sha256
 from pex.jobs import Job, Raise, SpawnedJob, execute_parallel
 from pex.pip import foreign_platform
+from pex.pip.configuration import PipConfiguration
 from pex.pip.download_observer import DownloadObserver
 from pex.pip.installation import get_pip
 from pex.pip.tool import PackageIndexConfiguration, Pip
 from pex.resolve import locker
 from pex.resolve.locked_resolve import Artifact, FileArtifact
+from pex.resolve.pip_resolver import PipResolver
 from pex.resolve.resolved_requirement import PartialArtifact
-from pex.resolve.resolvers import Resolver
 from pex.resolve.target_system import UniversalTarget
 from pex.result import Error
 from pex.targets import LocalInterpreter, Target
@@ -38,22 +39,15 @@ else:
 
 @attr.s(frozen=True)
 class ArtifactDownloader(object):
-    resolver = attr.ib()  # type: Resolver
     universal_target = attr.ib(default=None)  # type: Optional[UniversalTarget]
     target = attr.ib(factory=LocalInterpreter.create)  # type: Target
-    package_index_configuration = attr.ib(
-        factory=PackageIndexConfiguration.create
-    )  # type: PackageIndexConfiguration
-    max_parallel_jobs = attr.ib(default=None)  # type: Optional[int]
+    pip_configuration = attr.ib(default=PipConfiguration())  # type: PipConfiguration
     pip = attr.ib(init=False)  # type: Pip
 
     @pip.default
     def _pip(self):
         return get_pip(
-            interpreter=self.target.get_interpreter(),
-            version=self.package_index_configuration.pip_version,
-            resolver=self.resolver,
-            extra_requirements=self.package_index_configuration.extra_pip_requirements,
+            interpreter=self.target.get_interpreter(), resolver=PipResolver(self.pip_configuration)
         )
 
     @staticmethod
@@ -92,7 +86,7 @@ class ArtifactDownloader(object):
         # type: (...) -> Job
 
         download_url = url.download_url
-        for password_entry in self.package_index_configuration.password_entries:
+        for password_entry in self.pip_configuration.repos_configuration.password_entries:
             credentialed_url = password_entry.maybe_inject_in_url(download_url)
             if credentialed_url:
                 download_url = credentialed_url
@@ -110,7 +104,7 @@ class ArtifactDownloader(object):
             download_dir=download_dir,
             requirements=[download_url],
             transitive=False,
-            package_index_configuration=self.package_index_configuration,
+            package_index_configuration=PackageIndexConfiguration.create(self.pip_configuration),
             observer=download_observer,
         )
 

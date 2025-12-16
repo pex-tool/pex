@@ -11,7 +11,7 @@ import pytest
 from pex import targets
 from pex.build_system import pep_517
 from pex.common import safe_open
-from pex.resolve.configured_resolver import ConfiguredResolver
+from pex.resolve.pip_resolver import PipResolver
 from pex.result import try_
 from pex.typing import TYPE_CHECKING
 from testing import PY_VER, data, run_pex_command, subprocess
@@ -117,7 +117,7 @@ def test_lock_foreign_platform_sdist(tmpdir):
             project_directory=project_dir,
             dist_dir=find_links,
             target=current_target,
-            resolver=ConfiguredResolver.default(),
+            resolver=PipResolver.default(),
         )
     )
 

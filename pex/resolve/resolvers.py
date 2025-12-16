@@ -15,6 +15,7 @@ from pex.dist_metadata import Distribution, Requirement
 from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.pep_427 import InstallableType
 from pex.pep_503 import ProjectName
+from pex.pip.configuration import PipConfiguration
 from pex.pip.version import PipVersionValue
 from pex.sorted_tuple import SortedTuple
 from pex.targets import AbbreviatedPlatform, Target, Targets
@@ -236,7 +237,10 @@ class ResolveResult(object):
     type = attr.ib()  # type: InstallableType.Value
 
 
+@attr.s(frozen=True)
 class Resolver(object):
+    pip_configuration = attr.ib(default=PipConfiguration())  # type: PipConfiguration
+
     @abstractmethod
     def is_default_repos(self):
         # type: () -> bool

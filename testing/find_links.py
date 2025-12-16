@@ -9,7 +9,7 @@ import shutil
 from pex.build_system import pep_517
 from pex.common import safe_mkdir, safe_mkdtemp
 from pex.pip.version import PipVersionValue
-from pex.resolve.configured_resolver import ConfiguredResolver
+from pex.resolve.pip_resolver import PipResolver
 from pex.resolve.resolvers import Resolver
 from pex.result import try_
 from pex.targets import LocalInterpreter
@@ -34,7 +34,7 @@ class FindLinksRepo(object):
     ):
         # type: (...) -> FindLinksRepo
         safe_mkdir(path, clean=True)
-        return cls(path=path, resolver=ConfiguredResolver.version(pip_version))
+        return cls(path=path, resolver=PipResolver.version(pip_version))
 
     path = attr.ib()  # type: str
     resolver = attr.ib()  # type: Resolver

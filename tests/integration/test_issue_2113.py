@@ -12,7 +12,7 @@ import pytest
 from pex import targets
 from pex.build_system import pep_517
 from pex.common import safe_open
-from pex.resolve.configured_resolver import ConfiguredResolver
+from pex.resolve.pip_resolver import PipResolver
 from pex.result import try_
 from pex.typing import TYPE_CHECKING
 from testing import PY_VER, IntegResults, run_pex_command
@@ -133,7 +133,7 @@ def feast_simulator_sdist(
                 project_directory=feast_simulator_project,
                 dist_dir=os.path.join(str(tmpdir), "build"),
                 target=targets.current(),
-                resolver=ConfiguredResolver.default(),
+                resolver=PipResolver.default(),
             )
         )
     )
