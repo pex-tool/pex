@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.74.2
+
+This release fixes building PEXes from direct URL requirements. Previously, the direct URL
+requirement would be recorded incorrectly in PEX-INFO metadata leading to a failure to boot.
+
+* Fix `str(req)` of direct URLs with known versions. (#3043)
+
 ## 2.74.1
 
 This release upgrades the floor of `science` to 0.17.1 and `scie-jump` to 1.9.2 to fix a regression

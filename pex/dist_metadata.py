@@ -934,12 +934,16 @@ class Requirement(Constraint):
         parts = [self.name]
         if self.extras:
             parts.append("[{extras}]".format(extras=",".join(sorted(self.extras))))
-        if self.specifier:
-            parts.append(str(self.specifier))
+
+        # N.B.: URLs and specifiers are mutually exclusive in the spec:
+        #   https://packaging.python.org/en/latest/specifications/dependency-specifiers/#grammar
         if self.url:
-            parts.append("@ {url}".format(url=self.url))
+            parts.append(" @ {url}".format(url=self.url))
             if self.marker:
                 parts.append(" ")
+        elif self.specifier:
+            parts.append(str(self.specifier))
+
         if self.marker:
             parts.append("; {marker}".format(marker=self.marker))
         object.__setattr__(self, "_str", "".join(parts))
