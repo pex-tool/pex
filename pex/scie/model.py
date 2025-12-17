@@ -295,6 +295,7 @@ class ScieOptions(object):
     style = attr.ib(default=ScieStyle.LAZY)  # type: ScieStyle.Value
     naming_style = attr.ib(default=None)  # type: Optional[PlatformNamingStyle.Value]
     scie_only = attr.ib(default=False)  # type: bool
+    load_dotenv = attr.ib(default=False)  # type: bool
     busybox_entrypoints = attr.ib(default=None)  # type: Optional[BusyBoxEntryPoints]
     busybox_pex_entrypoint_env_passthrough = attr.ib(default=False)  # type: bool
     platforms = attr.ib(default=())  # type: Tuple[SysPlatform.Value, ...]
