@@ -160,7 +160,6 @@ class PEX(object):  # noqa: T000
         pex=sys.argv[0],  # type: str
         interpreter=None,  # type: Optional[PythonInterpreter]
         env=ENV,  # type: Variables
-        verify_entry_point=False,  # type: bool
     ):
         # type: (...) -> None
         self._pex = pex
@@ -171,8 +170,6 @@ class PEX(object):  # noqa: T000
         self._envs = None  # type: Optional[Sequence[PEXEnvironment]]
         self._activated_dists = None  # type: Optional[Sequence[Distribution]]
         self._layout = None  # type: Optional[Layout.Value]
-        if verify_entry_point:
-            self._do_entry_point_verification()
 
     @property
     def layout(self):
@@ -857,32 +854,35 @@ class PEX(object):  # noqa: T000
         )
         return process.wait() if blocking else process
 
-    def _do_entry_point_verification(self):
 
-        entry_point = self._pex_info.entry_point
-        ep_split = entry_point.split(":")
+def validate_entry_point(
+    pex,  # type: PEX
+    entry_point,  # type: str
+):
+    # type: (...) -> None
 
-        # a.b.c:m ->
-        # ep_module = 'a.b.c'
-        # ep_method = 'm'
+    try:
+        ep = parse_entry_point(entry_point)
+    except ValueError as e:
+        raise PEX.InvalidEntryPoint(
+            "Failed to parse `{entry_point}`: {err}".format(entry_point=entry_point, err=e)
+        )
 
-        # Only module is specified
-        if len(ep_split) == 1:
-            ep_module = ep_split[0]
-            import_statement = "import {}".format(ep_module)
-        elif len(ep_split) == 2:
-            ep_module = ep_split[0]
-            ep_method = ep_split[1]
-            import_statement = "from {} import {}".format(ep_module, ep_method)
-        else:
-            raise self.InvalidEntryPoint("Failed to parse: `{}`".format(entry_point))
+    if isinstance(ep, ModuleEntryPoint):
+        import_statement = "import {module}".format(module=ep.module)
+    else:
+        import_statement = "from {module} import {method}".format(
+            module=ep.module, method=ep.attrs[0]
+        )
 
-        with named_temporary_file() as fp:
-            fp.write(import_statement.encode("utf-8"))
-            fp.close()
-            retcode = self.run([fp.name], env={"PEX_INTERPRETER": "1"})
-            if retcode != 0:
-                raise self.InvalidEntryPoint(
-                    "Invalid entry point: `{}`\n"
-                    "Entry point verification failed: `{}`".format(entry_point, import_statement)
+    with named_temporary_file() as fp:
+        fp.write(import_statement.encode("utf-8"))
+        fp.close()
+        retcode = pex.run([fp.name], env={"PEX_INTERPRETER": "1"})
+        if retcode != 0:
+            raise PEX.InvalidEntryPoint(
+                "Invalid entry point: `{entry_point}`\n"
+                "Entry point verification failed: `{import_statement}`".format(
+                    entry_point=entry_point, import_statement=import_statement
                 )
+            )

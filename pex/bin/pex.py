@@ -39,7 +39,7 @@ from pex.orderedset import OrderedSet
 from pex.os import WINDOWS
 from pex.pep_427 import InstallableType
 from pex.pep_723 import ScriptMetadata
-from pex.pex import PEX
+from pex.pex import PEX, validate_entry_point
 from pex.pex_bootstrapper import ensure_venv
 from pex.pex_builder import Check, PEXBuilder
 from pex.pex_info import PexInfo
@@ -1324,6 +1324,11 @@ def do_main(
     cmdline,  # type: List[str]
     env,  # type: Dict[str, str]
 ):
+    if options.validate_ep and not options.entry_point:
+        raise ValueError(
+            "You requested `--validate-entry-point` but specified no `--entry-point` to validate."
+        )
+
     scie_options = scie.extract_options(options)
     if scie_options and not options.pex_name:
         raise ValueError(
@@ -1359,8 +1364,9 @@ def do_main(
     pex = PEX(
         pex_builder.path(),
         interpreter=interpreter,
-        verify_entry_point=options.validate_ep,
     )
+    if options.validate_ep and options.entry_point:
+        validate_entry_point(pex, options.entry_point)
 
     pex_file = options.pex_name
     if pex_file is not None:
