@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.75.0
+
+This release adds supoort for `--scie-load-dotenv` to enable `.env` file loading in PEX scies.
+
+* Support scie-jump `.env` loading with `--scie-load-dotenv`. (#3046)
+
 ## 2.74.3
 
 This release fixes a bug gracefully handling a request for `--validate-entry-point` when no

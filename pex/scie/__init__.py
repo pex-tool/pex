@@ -97,6 +97,19 @@ def register_options(parser):
         ),
     )
     parser.add_argument(
+        "--scie-load-dotenv",
+        "--no-scie-load-dotenv",
+        dest="scie_load_dotenv",
+        default=False,
+        type=bool,
+        action=HandleBoolAction,
+        help=(
+            "Have the scie launcher load `.env` files and apply the loaded env vars to the PEX "
+            "scie environment. See the 'load_dotenv' docs here for more on the `.env` loading "
+            "specifics: https://github.com/a-scie/jump/blob/main/docs/packaging.md#optional-fields"
+        ),
+    )
+    parser.add_argument(
         "--scie-name-style",
         dest="naming_style",
         default=None,
@@ -326,6 +339,8 @@ def render_options(options):
         args.append(str(options.naming_style))
     if options.scie_only:
         args.append("--scie-only")
+    if options.load_dotenv:
+        args.append("--scie-load-dotenv")
     if options.busybox_entrypoints:
         args.append("--scie-busybox")
         entrypoints = list(options.busybox_entrypoints.console_scripts_manifest.iter_specs())
@@ -451,6 +466,7 @@ def extract_options(options):
         style=options.scie_style,
         naming_style=options.naming_style,
         scie_only=options.scie_only,
+        load_dotenv=options.scie_load_dotenv,
         busybox_entrypoints=entry_points,
         busybox_pex_entrypoint_env_passthrough=options.scie_busybox_pex_entrypoint_env_passthrough,
         platforms=tuple(OrderedSet(options.scie_platforms)),

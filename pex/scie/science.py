@@ -250,6 +250,7 @@ def create_manifests(
 
     lift_template = {
         "name": name,
+        "load_dotenv": configuration.options.load_dotenv,
         "scie_jump": scie_jump_config,
         "files": [
             {"name": Filenames.CONFIGURE_BINDING.name},
