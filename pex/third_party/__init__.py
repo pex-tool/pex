@@ -51,13 +51,15 @@ class _Loader(namedtuple("_Loader", ["module_name", "vendor_module_name"])):
         return vendored_module
 
     # Modern API (2-step):
-    def create_module(self, spec):
-        return self.load_module(spec.name)
+    if sys.version_info[:2] >= (3, 15):
 
-    def exec_module(self, module):
-        # We have already created and executed the module in our create_module implementation; so
-        # there is nothing further to do here.
-        pass
+        def create_module(self, spec):
+            return self.load_module(spec.name)
+
+        def exec_module(self, module):
+            # We have already created and executed the module in our create_module implementation;
+            # so there is nothing further to do here.
+            pass
 
     # Custom internal API for our _Loader only:
     def unload(self):
