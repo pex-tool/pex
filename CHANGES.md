@@ -6,6 +6,13 @@ This release adds supoort for `--scie-load-dotenv` to enable `.env` file loading
 
 * Support scie-jump `.env` loading with `--scie-load-dotenv`. (#3046)
 
+## 2.74.3
+
+This release fixes a bug gracefully handling a request for `--validate-entry-point` when no
+`--entry-point` was given.
+
+* Error for missing entry point under `--validate-entry-point`. (#3048)
+
 ## 2.74.2
 
 This release fixes building PEXes from direct URL requirements. Previously, the direct URL

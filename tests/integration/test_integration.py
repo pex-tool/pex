@@ -1028,7 +1028,6 @@ def test_multiplatform_entrypoint(tmpdir):
             "p537",
             "-o",
             pex_out_path,
-            "--validate-entry-point",
             "--pip-log",
             os.path.join(str(tmpdir), "pip.log"),
         ]
@@ -1069,7 +1068,6 @@ def test_pex_console_script_custom_setuptools_useable():
         with temporary_dir() as out:
             pex = os.path.join(out, "pex.pex")
             pex_command = [
-                "--validate-entry-point",
                 "-c",
                 "my_app_function",
                 project_dir,

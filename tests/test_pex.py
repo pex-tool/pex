@@ -21,7 +21,7 @@ from pex.dist_metadata import Distribution
 from pex.fs import safe_symlink
 from pex.interpreter import PythonIdentity, PythonInterpreter
 from pex.os import WINDOWS
-from pex.pex import PEX, IsolatedSysPath
+from pex.pex import PEX, IsolatedSysPath, validate_entry_point
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
 from pex.resolve.configured_resolver import ConfiguredResolver
@@ -577,34 +577,46 @@ def _add_test_hello_to_pex(ep):
         yield pex_builder
 
 
-def test_pex_verify_entry_point_method_should_pass():
+def test_pex_validate_entry_point_method_should_pass():
     # type: () -> None
-    with _add_test_hello_to_pex("test:hello") as pex_builder:
+    entry_point = "test:hello"
+    with _add_test_hello_to_pex(entry_point) as pex_builder:
         # No error should happen here because `test:hello` is correct
-        PEX(pex_builder.path(), interpreter=pex_builder.interpreter, verify_entry_point=True)
+        validate_entry_point(
+            PEX(pex_builder.path(), interpreter=pex_builder.interpreter), entry_point
+        )
 
 
-def test_pex_verify_entry_point_module_should_pass():
+def test_pex_validate_entry_point_module_should_pass():
     # type: () -> None
-    with _add_test_hello_to_pex("test") as pex_builder:
+    entry_point = "test"
+    with _add_test_hello_to_pex(entry_point) as pex_builder:
         # No error should happen here because `test` is correct
-        PEX(pex_builder.path(), interpreter=pex_builder.interpreter, verify_entry_point=True)
+        validate_entry_point(
+            PEX(pex_builder.path(), interpreter=pex_builder.interpreter), entry_point
+        )
 
 
-def test_pex_verify_entry_point_method_should_fail():
+def test_pex_validate_entry_point_method_should_fail():
     # type: () -> None
-    with _add_test_hello_to_pex("test:invalid_entry_point") as pex_builder:
+    entry_point = "test:invalid_entry_point"
+    with _add_test_hello_to_pex(entry_point) as pex_builder:
         # Expect InvalidEntryPoint due to invalid entry point method
         with pytest.raises(PEX.InvalidEntryPoint):
-            PEX(pex_builder.path(), interpreter=pex_builder.interpreter, verify_entry_point=True)
+            validate_entry_point(
+                PEX(pex_builder.path(), interpreter=pex_builder.interpreter), entry_point
+            )
 
 
-def test_pex_verify_entry_point_module_should_fail():
+def test_pex_validate_entry_point_module_should_fail():
     # type: () -> None
-    with _add_test_hello_to_pex("invalid.module") as pex_builder:
+    entry_point = "invalid.module"
+    with _add_test_hello_to_pex(entry_point) as pex_builder:
         # Expect InvalidEntryPoint due to invalid entry point module
         with pytest.raises(PEX.InvalidEntryPoint):
-            PEX(pex_builder.path(), interpreter=pex_builder.interpreter, verify_entry_point=True)
+            validate_entry_point(
+                PEX(pex_builder.path(), interpreter=pex_builder.interpreter), entry_point
+            )
 
 
 def test_activate_interpreter_different_from_current():
