@@ -38,6 +38,8 @@ class _Loader(namedtuple("_Loader", ["module_name", "vendor_module_name"])):
 
     # The PEP-302 loader API.
     # See: https://peps.python.org/pep-0302/#specification-part-1-the-importer-protocol
+
+    # Deprecated API dropped in Python 3.15.0a3:
     def load_module(self, fullname):
         assert fullname in (
             self.module_name,
@@ -48,6 +50,18 @@ class _Loader(namedtuple("_Loader", ["module_name", "vendor_module_name"])):
         _tracer().log("{} imported via {}".format(fullname, self), V=9)
         return vendored_module
 
+    # Modern API (2-step):
+    if sys.version_info[:2] >= (3, 15):
+
+        def create_module(self, spec):
+            return self.load_module(spec.name)
+
+        def exec_module(self, module):
+            # We have already created and executed the module in our create_module implementation;
+            # so there is nothing further to do here.
+            pass
+
+    # Custom internal API for our _Loader only:
     def unload(self):
         for mod in (self.module_name, self.vendor_module_name):
             if mod in sys.modules:
