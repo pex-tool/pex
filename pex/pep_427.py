@@ -955,6 +955,7 @@ def install_wheel(
     installed_files = []  # type: List[Union[InstalledFile, InstalledDirectory]]
     provenance = []  # type: List[Tuple[Text, Text]]
     symlinked = set()  # type: Set[Tuple[Text, Text]]
+    warned_bad_record = False
     for installed_file_or_dir in Record.read(lines=iter(record_data.decode("utf-8").splitlines())):
         if isinstance(installed_file_or_dir, InstalledDirectory):
             installed_files.append(installed_file_or_dir)
@@ -974,6 +975,17 @@ def install_wheel(
             continue
 
         src_file = os.path.realpath(os.path.join(wheel.location, installed_file.path))
+        if not os.path.exists(src_file):
+            if not warned_bad_record:
+                pex_warnings.warn(
+                    "The wheel {whl} has a bad RECORD. Skipping install of non-existent file "
+                    "{path} and possibly others.".format(
+                        whl=wheel.wheel_file_name, path=installed_file.path
+                    )
+                )
+                warned_bad_record = True
+            continue
+
         dst_components = None  # type: Optional[Tuple[Text, Text, bool]]
         for path_name, installed_path in wheel.iter_install_paths_by_name():
             installed_path = os.path.realpath(installed_path)
