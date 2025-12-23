@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.75.1
+
+This release fixes Pex handling of wheels with bad RECORDs that record files that do not exist in
+the `.whl` file.
+
+* Warn when non-existent files in RECORD, but proceed. (#3051)
+
 ## 2.75.0
 
 This release adds supoort for `--scie-load-dotenv` to enable `.env` file loading in PEX scies.
