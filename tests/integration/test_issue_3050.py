@@ -6,15 +6,15 @@ from __future__ import absolute_import
 import pytest
 
 from pex.compatibility import commonpath
-from testing import PY_VER, run_pex_command
+from testing import IS_PYPY, PY_VER, run_pex_command
 from testing.pytest_utils.tmp import Tempdir
 
 
 @pytest.mark.skipif(
-    PY_VER < (3, 7) or PY_VER >= (3, 14),
+    IS_PYPY or PY_VER < (3, 7) or PY_VER >= (3, 14),
     reason=(
-        "The ddtrace 2.21.11 distribution requires Python >= 3.7 and only publishes wheels through "
-        "Python 3.13."
+        "The ddtrace 2.21.11 distribution requires Python >= 3.7 and only publishes CPython wheels "
+        "through Python 3.13."
     ),
 )
 def test_record_with_non_existent_files(tmpdir):
