@@ -77,10 +77,10 @@ def test_check_install_issue_1726(
         python=py310.binary if PY_VER > (3, 10) or (IS_PYPY and PY_VER > (3, 7)) else None,
     )
     old_result.assert_failure()
+    assert "Failed to resolve compatible distributions:\n" in old_result.error, old_result.error
     assert (
-        "Failed to resolve compatible distributions:\n"
-        "1: pex-test==0.1 requires jaraco-collections==3.5.1 but jaraco.collections 3.5.1 was "
-        "resolved" in old_result.error
+        ": pex-test==0.1 requires jaraco-collections==3.5.1 but jaraco.collections 3.5.1 was "
+        "resolved\n" in old_result.error
     ), old_result.error
 
     new_result = run_pex_command(args=pex_args)
