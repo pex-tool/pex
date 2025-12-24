@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.75.2
+
+This release updates vendored Pip's vendored certifi's cacert.pem to that from certifi 2025.11.12.
+
+* Update vendored Pip's CA cert bundle. (#3052)
+
 ## 2.75.1
 
 This release fixes Pex handling of wheels with bad RECORDs that record files that do not exist in
