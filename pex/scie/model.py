@@ -297,7 +297,7 @@ class ScieOptions(object):
     scie_only = attr.ib(default=False)  # type: bool
     load_dotenv = attr.ib(default=False)  # type: bool
     busybox_entrypoints = attr.ib(default=None)  # type: Optional[BusyBoxEntryPoints]
-    busybox_pex_entrypoint_env_passthrough = attr.ib(default=False)  # type: bool
+    pex_entrypoint_env_passthrough = attr.ib(default=None)  # type: Optional[bool]
     platforms = attr.ib(default=())  # type: Tuple[SysPlatform.Value, ...]
     pbs_release = attr.ib(default=None)  # type: Optional[str]
     pypy_release = attr.ib(default=None)  # type: Optional[str]

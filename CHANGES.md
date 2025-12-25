@@ -1,5 +1,15 @@
 # Release Notes
 
+## 2.76.0
+
+This release adds support for `--no-scie-pex-entrypoint-env-passthrough` to trigger direct execution
+of `--venv` PEX scie script entrypoints. This performance optimization mirrors the existing default
+`--no-scie-busybox-pex-entrypoint-env-passthrough` for busybox scies, but must be selected by 
+passing `--no-scie-pex-entrypoint-env-passthrough` explicitly. In addition, the `VIRTUAL_ENV` env
+var is now guaranteed to be set for all `--venv` PEX scies.
+
+* Add scie support for direct exec of venv scripts. (#3053)
+
 ## 2.75.2
 
 This release updates vendored Pip's vendored certifi's cacert.pem to that from certifi 2025.11.12.
