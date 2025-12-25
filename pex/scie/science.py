@@ -137,6 +137,14 @@ def create_manifests(
         # type: (SysPlatform.Value) -> Iterator[Dict[str, Any]]
         entrypoints = configuration.options.busybox_entrypoints
         if entrypoints:
+            pex_entrypoint_env_passthrough = (
+                configuration.options.pex_entrypoint_env_passthrough is True
+            )
+        else:
+            pex_entrypoint_env_passthrough = (
+                configuration.options.pex_entrypoint_env_passthrough is not False
+            )
+        if entrypoints:
             pex_entry_point = (
                 parse_entry_point(pex_info.entry_point) if pex_info.entry_point else None
             )
@@ -165,28 +173,28 @@ def create_manifests(
             def create_cmd(named_entry_point):
                 # type: (NamedEntryPoint) -> Dict[str, Any]
 
+                remove_exact = ["PEX_VENV"]
+                replace = {
+                    "__PEX_EXE__": "{scie}",
+                    "__PEX_ENTRY_POINT__": "{scie.bindings.configure:PEX}",
+                }
+                env = {
+                    "default": default_env(named_entry_point),
+                    "remove_exact": remove_exact,
+                    "replace": replace,
+                }
+
+                if pex_info.venv:
+                    replace["VIRTUAL_ENV"] = "{scie.bindings.configure:VIRTUAL_ENV}"
+
                 if (
-                    configuration.options.busybox_pex_entrypoint_env_passthrough
-                    and named_entry_point.entry_point == pex_entry_point
+                    not pex_entrypoint_env_passthrough
+                    or named_entry_point.entry_point != pex_entry_point
                 ):
-                    env = {
-                        "default": default_env(named_entry_point),
-                        "remove_exact": ["PEX_VENV"],
-                        "replace": {
-                            "__PEX_EXE__": "{scie}",
-                            "__PEX_ENTRY_POINT__": "{scie.bindings.configure:PEX}",
-                        },
-                    }
-                else:
-                    env = {
-                        "default": default_env(named_entry_point),
-                        "remove_exact": ["PEX_INTERPRETER", "PEX_SCRIPT", "PEX_VENV"],
-                        "replace": {
-                            "__PEX_EXE__": "{scie}",
-                            "__PEX_ENTRY_POINT__": "{scie.bindings.configure:PEX}",
-                            "PEX_MODULE": str(named_entry_point.entry_point),
-                        },
-                    }
+                    remove_exact.append("PEX_INTERPRETER")
+                    remove_exact.append("PEX_SCRIPT")
+                    replace["PEX_MODULE"] = str(named_entry_point.entry_point)
+
                 return {
                     "name": named_entry_point.name,
                     "env": env,
@@ -194,11 +202,12 @@ def create_manifests(
                     "args": args(named_entry_point, "{scie.bindings.configure:PEX}"),
                 }
 
-            if pex_info.venv and not configuration.options.busybox_pex_entrypoint_env_passthrough:
+            console_scripts = entrypoints.console_scripts_manifest.collect(pex)
+            if pex_info.venv and not pex_entrypoint_env_passthrough:
                 # N.B.: Executing the console script directly instead of bouncing through the PEX
                 # __main__.py using PEX_SCRIPT saves ~10ms of re-exec overhead in informal testing; so
                 # it's worth specializing here.
-                for named_entry_point in entrypoints.console_scripts_manifest.collect(pex):
+                for named_entry_point in console_scripts:
                     yield {
                         "name": named_entry_point.name,
                         "env": {
@@ -209,21 +218,46 @@ def create_manifests(
                                 "PEX_SCRIPT",
                                 "PEX_VENV",
                             ],
+                            "replace": {"VIRTUAL_ENV": "{scie.bindings.configure:VIRTUAL_ENV}"},
                         },
-                        "exe": "{scie.bindings.configure:PYTHON}",
-                        "args": args(
-                            named_entry_point,
+                        "exe": (
                             "{scie.bindings.configure:VENV_BIN_DIR_PLUS_SEP}"
-                            + platform.binary_name(named_entry_point.name),
+                            + platform.binary_name(named_entry_point.name)
                         ),
+                        "args": args(named_entry_point),
                     }
             else:
-                for named_entry_point in entrypoints.console_scripts_manifest.collect(pex):
+                for named_entry_point in console_scripts:
                     yield create_cmd(named_entry_point)
             for named_entry_point in entrypoints.ad_hoc_entry_points:
                 yield create_cmd(named_entry_point)
+        elif pex_info.script and pex_info.venv and not pex_entrypoint_env_passthrough:
+            cmd = {
+                "env": {
+                    "default": pex_info.inject_env,
+                    "remove_exact": [
+                        "PEX_INTERPRETER",
+                        "PEX_MODULE",
+                        "PEX_SCRIPT",
+                        "PEX_VENV",
+                    ],
+                    "replace": {"VIRTUAL_ENV": "{scie.bindings.configure:VIRTUAL_ENV}"},
+                }
+            }  # type: Dict[str, Any]
+            script = "{scie.bindings.configure:VENV_BIN_DIR_PLUS_SEP}" + platform.binary_name(
+                pex_info.script
+            )
+            if pex_info.inject_python_args:
+                cmd["exe"] = "{scie.bindings.configure:PYTHON}"
+                cmd["args"] = list(pex_info.inject_python_args)
+                cmd["args"].append(script)
+                cmd["args"].extend(pex_info.inject_args)
+            else:
+                cmd["exe"] = script
+                cmd["args"] = pex_info.inject_args
+            yield cmd
         else:
-            yield {
+            cmd = {
                 "env": {
                     "remove_exact": ["PEX_VENV"],
                     "replace": {
@@ -234,6 +268,9 @@ def create_manifests(
                 "exe": "{scie.bindings.configure:PYTHON}",
                 "args": ["{scie.bindings.configure:PEX}"],
             }
+            if pex_info.venv:
+                cmd["env"]["replace"]["VIRTUAL_ENV"] = "{scie.bindings.configure:VIRTUAL_ENV}"
+            yield cmd
 
     # Try to give the PEX the extracted filename expected by the user. This should work in almost
     # all cases save for the Pex PEX.

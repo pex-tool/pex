@@ -28,6 +28,7 @@ def write_bindings(
         print("PYTHON=" + sys.executable, file=fp)
         print("PEX=" + pex, file=fp)
         if venv_bin_dir:
+            print("VIRTUAL_ENV=" + os.path.dirname(venv_bin_dir), file=fp)
             print("VENV_BIN_DIR_PLUS_SEP=" + venv_bin_dir + os.path.sep, file=fp)
 
 

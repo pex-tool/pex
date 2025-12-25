@@ -157,16 +157,19 @@ def register_options(parser):
         ),
     )
     parser.add_argument(
+        "--scie-pex-entrypoint-env-passthrough",
         "--scie-busybox-pex-entrypoint-env-passthrough",
+        "--no-scie-pex-entrypoint-env-passthrough",
         "--no-scie-busybox-pex-entrypoint-env-passthrough",
-        dest="scie_busybox_pex_entrypoint_env_passthrough",
-        default=False,
+        dest="scie_pex_entrypoint_env_passthrough",
+        default=None,
         type=bool,
         action=HandleBoolAction,
         help=(
-            "When creating a busybox, allow overriding the primary entrypoint at runtime via "
-            "PEX_INTERPRETER, PEX_SCRIPT and PEX_MODULE. Note that when using --venv this adds "
-            "modest startup overhead on the order of 10ms."
+            "Allow overriding the primary entrypoint at runtime via PEX_INTERPRETER, PEX_SCRIPT "
+            "and PEX_MODULE. Note that when using --venv with a script entrypoint this adds modest "
+            "startup overhead on the order of 10ms. Defaults to false for busybox scies and true "
+            "for single entrypoint scies."
         ),
     )
     parser.add_argument(
@@ -346,8 +349,11 @@ def render_options(options):
         entrypoints = list(options.busybox_entrypoints.console_scripts_manifest.iter_specs())
         entrypoints.extend(map(str, options.busybox_entrypoints.ad_hoc_entry_points))
         args.append(",".join(entrypoints))
-    if options.busybox_pex_entrypoint_env_passthrough:
-        args.append("--scie-busybox-pex-entrypoint-env-passthrough")
+    if options.pex_entrypoint_env_passthrough is not None:
+        if options.pex_entrypoint_env_passthrough:
+            args.append("--scie-busybox-pex-entrypoint-env-passthrough")
+        else:
+            args.append("--no-scie-pex-entrypoint-env-passthrough")
     for platform in options.platforms:
         args.append("--scie-platform")
         args.append(str(platform))
@@ -468,7 +474,7 @@ def extract_options(options):
         scie_only=options.scie_only,
         load_dotenv=options.scie_load_dotenv,
         busybox_entrypoints=entry_points,
-        busybox_pex_entrypoint_env_passthrough=options.scie_busybox_pex_entrypoint_env_passthrough,
+        pex_entrypoint_env_passthrough=options.scie_pex_entrypoint_env_passthrough,
         platforms=tuple(OrderedSet(options.scie_platforms)),
         pbs_release=options.scie_pbs_release,
         pypy_release=options.scie_pypy_release,
