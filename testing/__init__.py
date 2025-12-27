@@ -249,7 +249,7 @@ class WheelBuilder(object):
             version=self._pip_version,
             resolver=self._resolver,
         ).spawn_build_wheels(
-            distributions=[self._source_dir],
+            requirements=[self._source_dir],
             wheel_dir=self._wheel_dir,
             interpreter=self._interpreter,
             verify=self._verify,

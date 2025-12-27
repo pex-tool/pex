@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.76.1
+
+This release fixes bootstrapping of Pips specified via `--pip-version` to respect Pex Pip
+configuration options (like custom indexes) under Python 3.12 and newer.
+
+* Fix Pip bootstrap to respect Pip config for Python >= 3.12. (#3054)
+
 ## 2.76.0
 
 This release adds support for `--no-scie-pex-entrypoint-env-passthrough` to trigger direct execution

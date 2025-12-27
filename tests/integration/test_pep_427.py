@@ -34,7 +34,7 @@ def test_install_wheel_interpreter(tmpdir):
 
     wheel_dir = os.path.join(str(tmpdir), "wheels")
     get_pip(resolver=ConfiguredResolver.default()).spawn_build_wheels(
-        distributions=glob(os.path.join(download_dir, "*.tar.gz")), wheel_dir=wheel_dir
+        requirements=glob(os.path.join(download_dir, "*.tar.gz")), wheel_dir=wheel_dir
     ).wait()
     wheels = glob(os.path.join(wheel_dir, "*.whl"))
     assert 1 == len(wheels)
