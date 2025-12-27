@@ -14,8 +14,7 @@ from pex.atomic_directory import atomic_directory
 from pex.cache.dirs import InstalledWheelDir, PipPexDir
 from pex.common import REPRODUCIBLE_BUILDS_ENV, CopyMode, pluralize, safe_mkdtemp
 from pex.dist_metadata import Requirement
-from pex.exceptions import production_assert
-from pex.executor import Executor
+from pex.exceptions import production_assert, reportable_unexpected_error_msg
 from pex.fs import safe_symlink
 from pex.interpreter import PythonInterpreter
 from pex.jobs import Job, iter_map_parallel
@@ -261,46 +260,31 @@ def _bootstrap_pip(
             interpreter=interpreter,
             install_pip=InstallationChoice.YES,
         )
-        try:
-            _, stdout, _ = venv.interpreter.execute(args=["-m", "pip", "-V"])
-        except Executor.NonZeroExit as e:
-            raise PipInstallError(
-                "Failed to bootstrap Pip {version}.\n"
-                "Failed to determine bootstrap Pip version: {err}\n"
-                "STDOUT:\n"
-                "{stdout}"
-                "STDERR:\n"
-                "{stderr}".format(version=version, err=str(e), stdout=e.stdout, stderr=e.stderr)
+
+        pip_project_name = ProjectName("pip")
+        pip_version = None  # type: Optional[Version]
+        for dist in venv.iter_distributions():
+            if dist.metadata.project_name == pip_project_name:
+                pip_version = dist.metadata.version
+                break
+        if pip_version is None:
+            raise AssertionError(
+                reportable_unexpected_error_msg(
+                    "Venv for bootstrapping Pip {version} does not contain Pip.", version=version
+                )
             )
-        # N.B.: output is of the form:
-        # pip <version> from <path>
-        words = stdout.split(" ")
-        if words[0] != "pip" or len(words) < 2:
-            raise PipInstallError(
-                "Bootstrap Pip reported unexpected version information:\n"
-                "{stdout}".format(stdout=stdout)
-            )
-        bootstrap_pip_version_str = words[1]
 
         try:
-            bootstrap_pip_version = PipVersion.for_value(bootstrap_pip_version_str)
+            bootstrap_pip_version = PipVersion.for_value(pip_version.raw)
         except ValueError:
             # Backstop with the version of Pip CPython 3.12.0 shipped with. This should be the
             # oldest Pip we need in the Pip bootstrap process (which is only required for
             # Python >= 3.12 which have distutils removed rendering vendored Pip unusable).
             bootstrap_pip_version = PipVersion.v23_2
-            try:
-                rev = Version(bootstrap_pip_version_str)
-            except ValueError as e:
-                raise PipInstallError(
-                    "Bootstrap Pip reported unexpected version information: {err}\n"
-                    "{stdout}".format(err=e, stdout=stdout)
-                )
-            else:
-                for pip_version in sorted(PipVersion.values(), reverse=True):
-                    if rev > pip_version.version:
-                        bootstrap_pip_version = pip_version
-                        break
+            for rev in sorted(PipVersion.values(), reverse=True):
+                if pip_version > rev.version:
+                    bootstrap_pip_version = rev
+                    break
 
         pip = BootstrapPip(
             pip_venv=PipVenv(
