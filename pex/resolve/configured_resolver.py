@@ -7,7 +7,6 @@ from pex import resolver
 from pex.dist_metadata import Requirement
 from pex.pep_427 import InstallableType
 from pex.pip.version import PipVersion, PipVersionValue
-from pex.resolve.package_repository import ReposConfiguration
 from pex.resolve.resolver_configuration import PipConfiguration, ResolverVersion
 from pex.resolve.resolvers import Resolver, ResolveResult
 from pex.targets import Targets
@@ -19,9 +18,6 @@ if TYPE_CHECKING:
     import attr  # vendor:skip
 else:
     from pex.third_party import attr
-
-
-_DEFAULT_REPOS = ReposConfiguration.create()
 
 
 @attr.s(frozen=True)
@@ -40,15 +36,12 @@ class ConfiguredResolver(Resolver):
         # type: () -> ConfiguredResolver
         return cls.version(PipVersion.DEFAULT)
 
-    pip_configuration = attr.ib()  # type: PipConfiguration
+    _pip_configuration = attr.ib()  # type: PipConfiguration
 
-    def is_default_repos(self):
-        # type: () -> bool
-        return self.pip_configuration.repos_configuration == _DEFAULT_REPOS
-
-    def use_system_time(self):
-        # type: () -> bool
-        return self.pip_configuration.build_configuration.use_system_time
+    @property
+    def pip_configuration(self):
+        # type: () -> PipConfiguration
+        return self._pip_configuration
 
     def resolve_requirements(
         self,
@@ -67,24 +60,24 @@ class ConfiguredResolver(Resolver):
             targets=targets,
             requirements=requirements,
             constraint_files=constraint_files,
-            allow_prereleases=self.pip_configuration.allow_prereleases,
-            transitive=transitive if transitive is not None else self.pip_configuration.transitive,
-            repos_configuration=self.pip_configuration.repos_configuration,
-            resolver_version=self.pip_configuration.resolver_version,
-            network_configuration=self.pip_configuration.network_configuration,
-            build_configuration=self.pip_configuration.build_configuration,
+            allow_prereleases=self._pip_configuration.allow_prereleases,
+            transitive=transitive if transitive is not None else self._pip_configuration.transitive,
+            repos_configuration=self._pip_configuration.repos_configuration,
+            resolver_version=self._pip_configuration.resolver_version,
+            network_configuration=self._pip_configuration.network_configuration,
+            build_configuration=self._pip_configuration.build_configuration,
             compile=compile,
-            max_parallel_jobs=self.pip_configuration.max_jobs,
+            max_parallel_jobs=self._pip_configuration.max_jobs,
             ignore_errors=ignore_errors,
             verify_wheels=True,
-            pip_version=pip_version or self.pip_configuration.version,
+            pip_version=pip_version or self._pip_configuration.version,
             resolver=self,
-            use_pip_config=self.pip_configuration.use_pip_config,
+            use_pip_config=self._pip_configuration.use_pip_config,
             extra_pip_requirements=(
                 extra_resolver_requirements
                 if extra_resolver_requirements is not None
-                else self.pip_configuration.extra_requirements
+                else self._pip_configuration.extra_requirements
             ),
-            keyring_provider=self.pip_configuration.keyring_provider,
+            keyring_provider=self._pip_configuration.keyring_provider,
             result_type=result_type,
         )

@@ -307,9 +307,8 @@ class _PexIssue2113Analyzer(ErrorAnalyzer):
 @attr.s(frozen=True)
 class PipVenv(object):
     venv_dir = attr.ib()  # type: str
-    pex_hash = attr.ib()  # type: str
-    execute_env = attr.ib(default=())  # type: Tuple[Tuple[str, str], ...]
-    _execute_args = attr.ib(default=())  # type: Tuple[str, ...]
+    execute_env = attr.ib()  # type: Tuple[Tuple[str, str], ...]
+    _execute_args = attr.ib()  # type: Tuple[str, ...]
 
     def execute_args(self, *args):
         # type: (*str) -> List[str]
@@ -321,12 +320,12 @@ class PipVenv(object):
 
 
 @attr.s(frozen=True)
-class Pip(object):
+class BootstrapPip(object):
     _PATCHES_PACKAGE_ENV_VAR_NAME = "_PEX_PIP_RUNTIME_PATCHES_PACKAGE"
     _PATCHES_PACKAGE_NAME = "_pex_pip_patches"
 
-    _pip_pex = attr.ib()  # type: PipPexDir
     _pip_venv = attr.ib()  # type: PipVenv
+    version = attr.ib()  # type: PipVersionValue
 
     @property
     def venv_dir(self):
@@ -334,24 +333,9 @@ class Pip(object):
         return self._pip_venv.venv_dir
 
     @property
-    def pex_hash(self):
-        # type: () -> str
-        return self._pip_venv.pex_hash
-
-    @property
-    def version(self):
-        # type: () -> PipVersionValue
-        return self._pip_pex.version
-
-    @property
-    def pex_dir(self):
-        # type: () -> PipPexDir
-        return self._pip_pex
-
-    @property
     def cache_dir(self):
         # type: () -> str
-        return self._pip_pex.cache_dir
+        return os.path.join(self._pip_venv.venv_dir, ".bootstrap-cache")
 
     @staticmethod
     def _calculate_resolver_version(package_index_configuration=None):
@@ -902,3 +886,19 @@ class Pip(object):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
+
+
+@attr.s(frozen=True)
+class Pip(BootstrapPip):
+    _pip_pex = attr.ib()  # type: PipPexDir
+    pex_hash = attr.ib()  # type: str
+
+    @property
+    def pex_dir(self):
+        # type: () -> PipPexDir
+        return self._pip_pex
+
+    @property
+    def cache_dir(self):
+        # type: () -> str
+        return self._pip_pex.cache_dir

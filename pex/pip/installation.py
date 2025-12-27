@@ -18,14 +18,16 @@ from pex.exceptions import production_assert
 from pex.executor import Executor
 from pex.fs import safe_symlink
 from pex.interpreter import PythonInterpreter
-from pex.jobs import iter_map_parallel
+from pex.jobs import Job, iter_map_parallel
 from pex.orderedset import OrderedSet
 from pex.os import WINDOWS
+from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pex import PEX
 from pex.pex_bootstrapper import ensure_venv
-from pex.pip.tool import Pip, PipVenv
+from pex.pip.tool import BootstrapPip, PackageIndexConfiguration, Pip, PipVenv
 from pex.pip.version import PipVersion, PipVersionValue
+from pex.resolve.resolver_configuration import PipConfiguration
 from pex.resolve.resolvers import Resolver
 from pex.result import Error, try_
 from pex.targets import LocalInterpreter, RequiresPythonError, Targets
@@ -62,11 +64,12 @@ def _create_pip(
     production_assert(pex_hash is not None)
     pip_venv = PipVenv(
         venv_dir=venv_pex.venv_dir,
-        pex_hash=cast(str, pex_hash),
         execute_env=tuple(REPRODUCIBLE_BUILDS_ENV.items()) if not use_system_time else (),
         execute_args=tuple(venv_pex.execute_args()),
     )
-    return Pip(pip_pex=pip_pex, pip_venv=pip_venv)
+    return Pip(
+        pip_venv=pip_venv, version=pip_pex.version, pip_pex=pip_pex, pex_hash=cast(str, pex_hash)
+    )
 
 
 def _pip_installation(
@@ -244,6 +247,7 @@ def _install_wheel(wheel_path):
 
 def _bootstrap_pip(
     version,  # type: PipVersionValue
+    pip_configuration,  # type: PipConfiguration
     interpreter=None,  # type: Optional[PythonInterpreter]
 ):
     # type: (...) -> Callable[[], Iterator[str]]
@@ -255,22 +259,85 @@ def _bootstrap_pip(
         venv = Virtualenv.create(
             venv_dir=os.path.join(chroot, "pip"),
             interpreter=interpreter,
-            install_pip=InstallationChoice.UPGRADED,
+            install_pip=InstallationChoice.YES,
         )
-
-        wheels = os.path.join(chroot, "wheels")
-        wheels_cmd = ["-m", "pip", "wheel", "-vvv", "--wheel-dir", wheels]
-        wheels_cmd.extend(str(req) for req in version.requirements)
         try:
-            venv.interpreter.execute(args=wheels_cmd)
+            _, stdout, _ = venv.interpreter.execute(args=["-m", "pip", "-V"])
         except Executor.NonZeroExit as e:
             raise PipInstallError(
                 "Failed to bootstrap Pip {version}.\n"
-                "Failed to download its dependencies: {err}\n"
+                "Failed to determine bootstrap Pip version: {err}\n"
                 "STDOUT:\n"
                 "{stdout}"
                 "STDERR:\n"
                 "{stderr}".format(version=version, err=str(e), stdout=e.stdout, stderr=e.stderr)
+            )
+        # N.B.: output is of the form:
+        # pip <version> from <path>
+        words = stdout.split(" ")
+        if words[0] != "pip" or len(words) < 2:
+            raise PipInstallError(
+                "Bootstrap Pip reported unexpected version information:\n"
+                "{stdout}".format(stdout=stdout)
+            )
+        bootstrap_pip_version_str = words[1]
+
+        try:
+            bootstrap_pip_version = PipVersion.for_value(bootstrap_pip_version_str)
+        except ValueError:
+            # Backstop with the version of Pip CPython 3.12.0 shipped with. This should be the
+            # oldest Pip we need in the Pip bootstrap process (which is only required for
+            # Python >= 3.12 which have distutils removed rendering vendored Pip unusable).
+            bootstrap_pip_version = PipVersion.v23_2
+            try:
+                rev = Version(bootstrap_pip_version_str)
+            except ValueError as e:
+                raise PipInstallError(
+                    "Bootstrap Pip reported unexpected version information: {err}\n"
+                    "{stdout}".format(err=e, stdout=stdout)
+                )
+            else:
+                for pip_version in sorted(PipVersion.values(), reverse=True):
+                    if rev > pip_version.version:
+                        bootstrap_pip_version = pip_version
+                        break
+
+        pip = BootstrapPip(
+            pip_venv=PipVenv(
+                venv_dir=venv.venv_dir,
+                execute_env=(
+                    tuple(REPRODUCIBLE_BUILDS_ENV.items())
+                    if not pip_configuration.build_configuration.use_system_time
+                    else ()
+                ),
+                execute_args=(venv.interpreter.binary, "-m", "pip"),
+            ),
+            version=bootstrap_pip_version,
+        )
+        wheels = os.path.join(chroot, "wheels")
+        bootstrap_job = pip.spawn_build_wheels(
+            distributions=[str(req) for req in version.requirements],
+            wheel_dir=wheels,
+            interpreter=interpreter,
+            package_index_configuration=PackageIndexConfiguration.create(
+                pip_version=bootstrap_pip_version,
+                resolver_version=pip_configuration.resolver_version,
+                repos_configuration=pip_configuration.repos_configuration,
+                network_configuration=pip_configuration.network_configuration,
+                use_pip_config=pip_configuration.use_pip_config,
+                extra_pip_requirements=pip_configuration.extra_requirements,
+                keyring_provider=pip_configuration.keyring_provider,
+            ),
+            build_configuration=pip_configuration.build_configuration,
+        )
+        try:
+            bootstrap_job.wait()
+        except Job.Error as e:
+            raise PipInstallError(
+                "Failed to bootstrap Pip {version}.\n"
+                "Failed to download its dependencies: {err}\n"
+                "STDERR:\n"
+                "{stderr}".format(version=version, err=str(e), stderr=e.stderr)
             )
 
         return iter_map_parallel(
@@ -304,9 +371,19 @@ def _resolved_installation(
         )
     )
     if bootstrap_pip_version is not PipVersion.VENDORED and not extra_requirements:
+        if not resolver:
+            raise ValueError(
+                "A resolver is required to install {requirements} for Pip {version}: {reqs}".format(
+                    requirements=pluralize(version.requirements, "requirement"),
+                    version=version,
+                    reqs=" ".join(str(req) for req in version.requirements),
+                )
+            )
         return _pip_installation(
             version=version,
-            iter_distribution_locations=_bootstrap_pip(version, interpreter=interpreter),
+            iter_distribution_locations=_bootstrap_pip(
+                version, pip_configuration=resolver.pip_configuration, interpreter=interpreter
+            ),
             interpreter=interpreter,
             fingerprint=_fingerprint(extra_requirements),
             use_system_time=use_system_time,
@@ -347,7 +424,6 @@ def _resolved_installation(
         for resolved_distribution in resolver.resolve_requirements(
             requirements=requirements_by_project_name.values(),
             targets=targets,
-            pip_version=bootstrap_pip_version,
             extra_resolver_requirements=(),
         ).distributions:
             yield resolved_distribution.distribution.location
@@ -493,7 +569,9 @@ def get_pip(
         interpreter=interpreter or PythonInterpreter.get(),
         version=calculated_version,
         extra_requirements=extra_requirements,
-        use_system_time=resolver.use_system_time() if resolver else False,
+        use_system_time=(
+            resolver.pip_configuration.build_configuration.use_system_time if resolver else False
+        ),
     )
     pip = _PIP.get(installation)
     if pip is None:

@@ -113,7 +113,7 @@ class PipVersionValue(Enum.Value):
 
     @property
     def requirements(self):
-        # type: () -> Iterable[Requirement]
+        # type: () -> Tuple[Requirement, ...]
         return self.requirement, self.setuptools_requirement, self.wheel_requirement
 
     @property
