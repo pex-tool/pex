@@ -267,16 +267,16 @@ def iter_vendor_specs(filter_requires_python=None):
     # We use toml to read pyproject.toml when building sdists from local source projects.
     # The toml project provides compatibility back to Python 2.7, but is frozen in time in 2020
     # with bugs - notably no support for heterogeneous lists. We add the more modern tomli for
-    # other Pythons.
+    # other Pythons and just use tomllib for Python 3.11+.
     if not python_major_minor or python_major_minor < (3, 7):
         yield VendorSpec.pinned("toml", "0.10.2")
-    if not python_major_minor or python_major_minor >= (3, 7):
+    if not python_major_minor or (3, 7) <= python_major_minor < (3, 11):
         yield VendorSpec.pinned("tomli", "2.0.1")
 
-    # We shell out to pip at buildtime to resolve and install dependencies.
+    # We shell out to pip at build-time to resolve and install dependencies.
     yield PIP_SPEC
 
-    # We expose this to pip at buildtime for legacy builds, but we also use pkg_resources via
+    # We expose this to pip at build-time for legacy builds, but we also use pkg_resources via
     # pex.third_party at runtime to inject pkg_resources style namespace packages if needed.
     # N.B.: 44.0.0 is the last setuptools version compatible with Python 2 and we use a fork of that
     # with patches needed to support Pex on the v44.0.0/patches/pex-2.x branch.
