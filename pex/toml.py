@@ -15,35 +15,50 @@ from pex.typing import TYPE_CHECKING, cast
 if TYPE_CHECKING:
     from typing import IO, Any, Dict, List, Text, Tuple, Union
 
-TOMLI_SUPPORTED = sys.version_info[:2] >= (3, 7)
+TOMLLIB_SUPPORTED = sys.version_info[:2] >= (3, 11)
+TOMLI_SUPPORTED = (3, 7) <= sys.version_info[:2] < (3, 11)
 
+if TOMLLIB_SUPPORTED:
+    # N.B.: When type-checking under older Pythons, these imports are unknown.
+    from tomllib import TOMLDecodeError as _TomlDecodeError  # type: ignore[import]
+    from tomllib import load as tomllib_load  # type: ignore[import]
+    from tomllib import loads as _loads  # type: ignore[import]
 
-if not TOMLI_SUPPORTED:
-    from pex.third_party.toml import TomlDecodeError as _TomlDecodeError
-    from pex.third_party.toml import load as _load
-    from pex.third_party.toml import loads as _loads
-
-    def load(source):
+    def _load(source):
         # type: (Union[str, IO[bytes]]) -> Dict[str, Any]
         if isinstance(source, str):
+            with open(source, "rb") as fp:
+                return cast("Dict[str, Any]", tomllib_load(fp))
+        else:
             return cast("Dict[str, Any]", _load(source))
+
+elif not TOMLI_SUPPORTED:
+    from pex.third_party.toml import TomlDecodeError as _TomlDecodeError  # type: ignore[no-redef]
+    from pex.third_party.toml import load as toml_load
+    from pex.third_party.toml import loads as _loads  # type: ignore[no-redef]
+
+    def _load(source):
+        # type: (Union[str, IO[bytes]]) -> Dict[str, Any]
+        if isinstance(source, str):
+            return cast("Dict[str, Any]", toml_load(source))
         else:
             return cast("Dict[str, Any]", _loads(source.read().decode("utf-8")))
 
 else:
-    from pex.third_party.tomli import TOMLDecodeError as _TomlDecodeError
-    from pex.third_party.tomli import load as _load
-    from pex.third_party.tomli import loads as _loads
+    from pex.third_party.tomli import TOMLDecodeError as _TomlDecodeError  # type: ignore[no-redef]
+    from pex.third_party.tomli import load as tomli_load
+    from pex.third_party.tomli import loads as _loads  # type: ignore[no-redef]
 
-    def load(source):
+    def _load(source):
         # type: (Union[str, IO[bytes]]) -> Dict[str, Any]
         if isinstance(source, str):
             with open(source, "rb") as fp:
-                return cast("Dict[str, Any]", _load(fp))
+                return cast("Dict[str, Any]", tomli_load(fp))
         else:
-            return cast("Dict[str, Any]", _load(source))
+            return cast("Dict[str, Any]", tomli_load(source))
 
 
+load = _load
 loads = _loads
 TomlDecodeError = _TomlDecodeError
 
