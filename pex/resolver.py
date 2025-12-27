@@ -1058,7 +1058,7 @@ class WheelBuilder(object):
                 else ()
             ),
         ).spawn_build_wheels(
-            distributions=[source_path],
+            requirements=[source_path],
             wheel_dir=build_result.build_dir,
             package_index_configuration=self._package_index_configuration,
             interpreter=build_request.target.get_interpreter(),

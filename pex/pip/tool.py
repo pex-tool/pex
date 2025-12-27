@@ -810,19 +810,23 @@ class BootstrapPip(object):
 
     def spawn_build_wheels(
         self,
-        distributions,  # type: Iterable[str]
+        requirements,  # type: Iterable[str]
         wheel_dir,  # type: str
         interpreter=None,  # type: Optional[PythonInterpreter]
         package_index_configuration=None,  # type: Optional[PackageIndexConfiguration]
         build_configuration=BuildConfiguration(),  # type: BuildConfiguration
         verify=True,  # type: bool
+        transitive=False,
     ):
         # type: (...) -> Job
 
         if self.version is PipVersion.VENDORED:
             self._ensure_wheel_installed(package_index_configuration=package_index_configuration)
 
-        wheel_cmd = ["wheel", "--no-deps", "--wheel-dir", wheel_dir]
+        wheel_cmd = ["wheel", "--wheel-dir", wheel_dir]
+        if not transitive:
+            wheel_cmd.append("--no-deps")
+
         extra_env = {}  # type: Dict[str, str]
 
         # It's not clear if Pip's implementation of PEP-517 builds respects all build configuration
@@ -835,7 +839,7 @@ class BootstrapPip(object):
         if not verify:
             wheel_cmd.append("--no-verify")
 
-        wheel_cmd.extend(distributions)
+        wheel_cmd.extend(requirements)
 
         return self._spawn_pip_isolated_job(
             wheel_cmd,

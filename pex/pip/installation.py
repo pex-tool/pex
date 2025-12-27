@@ -37,7 +37,7 @@ from pex.variables import ENV, Variables
 from pex.venv.virtualenv import InstallationChoice, Virtualenv
 
 if TYPE_CHECKING:
-    from typing import Callable, Dict, Iterator, Optional, Tuple, Union
+    from typing import Callable, Dict, Iterable, Iterator, Optional, Tuple, Union
 
     import attr  # vendor:skip
 else:
@@ -246,6 +246,7 @@ def _install_wheel(wheel_path):
 
 def _bootstrap_pip(
     version,  # type: PipVersionValue
+    pip_requirements,  # type: Iterable[str]
     pip_configuration,  # type: PipConfiguration
     interpreter=None,  # type: Optional[PythonInterpreter]
 ):
@@ -300,7 +301,7 @@ def _bootstrap_pip(
         )
         wheels = os.path.join(chroot, "wheels")
         bootstrap_job = pip.spawn_build_wheels(
-            distributions=[str(req) for req in version.requirements],
+            requirements=pip_requirements,
             wheel_dir=wheels,
             interpreter=interpreter,
             package_index_configuration=PackageIndexConfiguration.create(
@@ -313,6 +314,7 @@ def _bootstrap_pip(
                 keyring_provider=pip_configuration.keyring_provider,
             ),
             build_configuration=pip_configuration.build_configuration,
+            transitive=True,
         )
         try:
             bootstrap_job.wait()
@@ -344,34 +346,8 @@ def _resolved_installation(
     use_system_time=False,  # type: bool
 ):
     # type: (...) -> Pip
-    targets = Targets.from_target(LocalInterpreter.create(interpreter))
 
-    bootstrap_pip_version = try_(
-        compatible_version(
-            targets,
-            PipVersion.VENDORED,
-            context="Bootstrapping Pip {version}".format(version=version),
-            warn=False,
-        )
-    )
-    if bootstrap_pip_version is not PipVersion.VENDORED and not extra_requirements:
-        if not resolver:
-            raise ValueError(
-                "A resolver is required to install {requirements} for Pip {version}: {reqs}".format(
-                    requirements=pluralize(version.requirements, "requirement"),
-                    version=version,
-                    reqs=" ".join(str(req) for req in version.requirements),
-                )
-            )
-        return _pip_installation(
-            version=version,
-            iter_distribution_locations=_bootstrap_pip(
-                version, pip_configuration=resolver.pip_configuration, interpreter=interpreter
-            ),
-            interpreter=interpreter,
-            fingerprint=_fingerprint(extra_requirements),
-            use_system_time=use_system_time,
-        )
+    targets = Targets.from_target(LocalInterpreter.create(interpreter))
 
     requirements_by_project_name = OrderedDict(
         (req.project_name, str(req)) for req in version.requirements
@@ -404,13 +380,32 @@ def _resolved_installation(
             )
         )
 
-    def resolve_distribution_locations():
-        for resolved_distribution in resolver.resolve_requirements(
-            requirements=requirements_by_project_name.values(),
-            targets=targets,
-            extra_resolver_requirements=(),
-        ).distributions:
-            yield resolved_distribution.distribution.location
+    bootstrap_pip_version = try_(
+        compatible_version(
+            targets,
+            PipVersion.VENDORED,
+            context="Bootstrapping Pip {version}".format(version=version),
+            warn=False,
+        )
+    )
+    if bootstrap_pip_version is PipVersion.VENDORED:
+
+        def resolve_distribution_locations():
+            for resolved_distribution in resolver.resolve_requirements(
+                requirements=requirements_by_project_name.values(),
+                targets=targets,
+                extra_resolver_requirements=(),
+                pip_version=PipVersion.VENDORED,
+            ).distributions:
+                yield resolved_distribution.distribution.location
+
+    else:
+        resolve_distribution_locations = _bootstrap_pip(
+            version,
+            requirements_by_project_name.values(),
+            pip_configuration=resolver.pip_configuration,
+            interpreter=interpreter,
+        )
 
     return _pip_installation(
         version=version,
