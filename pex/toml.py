@@ -30,7 +30,7 @@ if TOMLLIB_SUPPORTED:
             with open(source, "rb") as fp:
                 return cast("Dict[str, Any]", tomllib_load(fp))
         else:
-            return cast("Dict[str, Any]", _load(source))
+            return cast("Dict[str, Any]", tomllib_load(source))
 
 elif not TOMLI_SUPPORTED:
     from pex.third_party.toml import TomlDecodeError as _TomlDecodeError  # type: ignore[no-redef]
