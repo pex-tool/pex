@@ -1,5 +1,17 @@
 # Release Notes
 
+## 2.77.0
+
+This release has no fixes or new features per-se, but just changes the set of distributions that
+Pex releases to PyPI. Previously Pex released an sdist and a universal (`py2.py3-none-any`) `.whl`.
+Pex now releases two wheels in addition to the sdist. The `py3.py312-none-any.whl` targets
+Python>=3.12 and has un-needed vendored libraries elided making it bith a smaller `.whl` and less
+prone to false-positive security scan issues since unused vendored code is now omitted. The other
+wheel carries the same contents as prior and supports creating PEXes for Python 2.7 and
+Python>=3.5,<3.12.
+
+* Split Pex `.whl` into two `.whl`s. (#3057)
+
 ## 2.76.1
 
 This release fixes bootstrapping of Pips specified via `--pip-version` to respect Pex Pip
