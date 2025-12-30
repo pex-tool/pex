@@ -141,9 +141,7 @@ def test_pex_root_run(
     python39 = ensure_python_interpreter(PY39)
     python311 = ensure_python_interpreter(PY311)
     wheels = [
-        pex_dist.select_best_wheel(
-            pex_wheels, LocalInterpreter.create(PythonInterpreter.from_binary(binary))
-        )
+        pex_dist.select_best_wheel(pex_wheels, LocalInterpreter.create(binary))
         for binary in (python39, python311)
     ]
     runtime_pex_root = safe_mkdir(os.path.join(str(tmpdir), "runtime_pex_root"))
@@ -1831,7 +1829,7 @@ def test_seed_verbose(
     assert pex_root == verbose_info.pop("pex_root")
 
     python = verbose_info.pop("python")
-    assert PythonInterpreter.from_binary(results.cmd[0]) == PythonInterpreter.from_binary(python)
+    assert results.interpreter == PythonInterpreter.from_binary(python)
 
     verbose_info.pop("pex")
     assert {} == verbose_info

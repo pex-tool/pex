@@ -244,8 +244,15 @@ class Target(object):
 class LocalInterpreter(Target):
     @classmethod
     def create(cls, interpreter=None):
-        # type: (Optional[PythonInterpreter]) -> LocalInterpreter
-        python_interpreter = interpreter or PythonInterpreter.get()
+        # type: (Optional[Union[str, PythonInterpreter]]) -> LocalInterpreter
+
+        if not interpreter:
+            python_interpreter = PythonInterpreter.get()
+        elif isinstance(interpreter, PythonInterpreter):
+            python_interpreter = interpreter
+        else:
+            python_interpreter = PythonInterpreter.from_binary(interpreter)
+
         return cls(
             id=python_interpreter.binary.replace(os.sep, ".").lstrip("."),
             platform=python_interpreter.platform,

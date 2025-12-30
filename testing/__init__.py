@@ -407,6 +407,26 @@ class IntegResults(object):
     error = attr.ib()  # type: Text
     return_code = attr.ib()  # type: int
 
+    @property
+    def exe(self):
+        # type: () -> str
+        return self.cmd[0]
+
+    @property
+    def interpreter(self):
+        # type: () -> PythonInterpreter
+        return PythonInterpreter.from_binary(self.exe)
+
+    @property
+    def target(self):
+        # type: () -> LocalInterpreter
+        return LocalInterpreter.create(self.exe)
+
+    @property
+    def pex(self):
+        # type: () -> PEX
+        return PEX(self.exe)
+
     def assert_success(
         self,
         expected_output_re=None,  # type: Optional[str]
@@ -450,9 +470,15 @@ def create_pex_command(
     python=None,  # type: Optional[str]
     quiet=None,  # type: Optional[bool]
     pex_module="pex",  # type: str
+    use_pex_whl_venv=True,  # type: bool
 ):
     # type: (...) -> List[str]
-    cmd = [installed_pex_wheel_venv_python(python or sys.executable), "-m", pex_module]
+    python_exe = python or sys.executable
+    cmd = [
+        installed_pex_wheel_venv_python(python_exe) if use_pex_whl_venv else python_exe,
+        "-m",
+        pex_module,
+    ]
     if pex_module == "pex" and not quiet:
         cmd.append("-v")
     if args:
@@ -467,6 +493,7 @@ def run_pex_command(
     quiet=None,  # type: Optional[bool]
     cwd=None,  # type: Optional[str]
     pex_module="pex",  # type: str
+    use_pex_whl_venv=True,  # type: bool
 ):
     # type: (...) -> IntegResults
     """Simulate running pex command for integration testing.
@@ -475,7 +502,9 @@ def run_pex_command(
     generated pex.  This is useful for testing end to end runs with specific command line arguments
     or env options.
     """
-    cmd = create_pex_command(args, python=python, quiet=quiet, pex_module=pex_module)
+    cmd = create_pex_command(
+        args, python=python, quiet=quiet, pex_module=pex_module, use_pex_whl_venv=use_pex_whl_venv
+    )
     process = Executor.open_process(
         cmd=cmd, env=env, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
     )

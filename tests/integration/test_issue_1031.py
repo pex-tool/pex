@@ -88,6 +88,7 @@ def test_setuptools_isolation_with_system_site_packages(
             args=args + ("--", "-c", print_sys_path_code),
             python=system_site_packages_venv_python,
             env=make_env(**env),
+            use_pex_whl_venv=False,
         )
         result.assert_success()
         return OrderedSet(result.output.strip().splitlines())

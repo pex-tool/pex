@@ -13,7 +13,6 @@ from textwrap import dedent
 from colors import color  # vendor:skip
 
 from pex.common import open_zip, safe_open, touch
-from pex.targets import LocalInterpreter
 from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper
 from testing import run_pex_command, subprocess
@@ -271,8 +270,7 @@ def test_locked_project(tmpdir):
     # If the project is updated in a way incompatible with the lock, building a
     # `pex --project ... --lock ...` should fail.
     write_setup(cowsay_requirement="cowsay==5.0")
-    target = LocalInterpreter.create()
-    run_pex_command(
+    result = run_pex_command(
         args=[
             "--pex-root",
             pex_root,
@@ -287,7 +285,9 @@ def test_locked_project(tmpdir):
             "-o",
             pex3,
         ]
-    ).assert_failure(
+    )
+    target = result.target
+    result.assert_failure(
         expected_error_re=r".*{message}$".format(
             message=re.escape(
                 "Failed to resolve compatible artifacts from lock {lock} for 1 target:\n"
