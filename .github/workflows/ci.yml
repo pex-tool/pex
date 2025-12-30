@@ -72,7 +72,8 @@ jobs:
         run: |
           uv run dev-cmd package -- \
             --additional-format sdist \
-            --additional-format wheel \
+            --additional-format whl \
+            --additional-format whl-3.12-plus \
             --embed-docs \
             --clean-docs \
             --scies \

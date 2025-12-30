@@ -49,7 +49,9 @@ class RankedTag(object):
     rank = attr.ib()  # type: TagRank
 
     def select_higher_rank(self, other):
-        # type: (RankedTag) -> RankedTag
+        # type: (Optional[RankedTag]) -> RankedTag
+        if other is None:
+            return self
         return Rank.select_highest_rank(
             self, other, extract_rank=lambda ranked_tag: ranked_tag.rank
         )

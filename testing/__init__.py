@@ -25,7 +25,7 @@ from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_implementation import InterpreterImplementation
 from pex.os import LINUX, MAC, WINDOWS
-from pex.pep_427 import install_wheel_chroot
+from pex.pep_427 import install_wheel_chroot, install_wheel_interpreter
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
@@ -33,6 +33,7 @@ from pex.pip.installation import get_pip
 from pex.pip.version import PipVersion, PipVersionValue
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.sysconfig import SCRIPT_DIR, script_name
+from pex.targets import LocalInterpreter
 from pex.typing import TYPE_CHECKING, cast
 from pex.util import named_temporary_file
 from pex.venv.virtualenv import InstallationChoice, Virtualenv
@@ -401,6 +402,7 @@ def re_exact(text):
 class IntegResults(object):
     """Convenience object to return integration run results."""
 
+    cmd = attr.ib()  # type: Tuple[str, ...]
     output = attr.ib()  # type: Text
     error = attr.ib()  # type: Text
     return_code = attr.ib()  # type: int
@@ -450,7 +452,7 @@ def create_pex_command(
     pex_module="pex",  # type: str
 ):
     # type: (...) -> List[str]
-    cmd = [python or sys.executable, "-m", pex_module]
+    cmd = [installed_pex_wheel_venv_python(python or sys.executable), "-m", pex_module]
     if pex_module == "pex" and not quiet:
         cmd.append("-v")
     if args:
@@ -478,7 +480,9 @@ def run_pex_command(
         cmd=cmd, env=env, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
     )
     output, error = process.communicate()
-    return IntegResults(output.decode("utf-8"), error.decode("utf-8"), process.returncode)
+    return IntegResults(
+        tuple(cmd), output.decode("utf-8"), error.decode("utf-8"), process.returncode
+    )
 
 
 def run_simple_pex(
@@ -905,3 +909,18 @@ class NonDeterministicWalk:
             return x
         rotate_by = self._counter[counter_key] % len(x)
         return x[-rotate_by:] + x[:-rotate_by]
+
+
+def installed_pex_wheel_venv_python(python):
+    # type: (str) -> str
+
+    from testing.pex_dist import wheel
+
+    interpreter = PythonInterpreter.from_binary(python)
+    pex_wheel = wheel(LocalInterpreter.create(interpreter=interpreter))
+    pex_venv_dir = os.path.join(PEX_TEST_DEV_ROOT, "pex_venvs", "0", str(interpreter.identity))
+    with atomic_directory(pex_venv_dir) as atomic_dir:
+        if not atomic_dir.is_finalized():
+            venv = Virtualenv.create(atomic_dir.work_dir, interpreter=interpreter)
+            install_wheel_interpreter(pex_wheel, interpreter=venv.interpreter)
+    return Virtualenv(pex_venv_dir).interpreter.binary

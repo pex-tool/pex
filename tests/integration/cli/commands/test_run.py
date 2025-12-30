@@ -556,7 +556,7 @@ def test_pexec(tmpdir):
             dist_dir,
             "--scie",
             "--additional-format",
-            "wheel",
+            "whl-3.12-plus" if sys.version_info[:2] >= (3, 12) else "whl",
         ]
     )
 
@@ -568,9 +568,10 @@ def test_pexec(tmpdir):
             "-m",
             "pip",
             "install",
-            os.path.join(
-                dist_dir, "pex-{version}-py2.py3-none-any.whl".format(version=__version__)
-            ),
+            "--no-index",
+            "--find-links",
+            dist_dir,
+            "pex=={version}".format(version=__version__),
         ]
     )
     assert b"| Moo! |" in subprocess.check_output(

@@ -64,8 +64,15 @@ jobs:
           python-version: "3.11"
       - name: Install uv
         uses: astral-sh/setup-uv@v5
-      - name: Build sdist and wheel
-        run: uv run dev-cmd package -- --no-pex --additional-format sdist --additional-format wheel --embed-docs --clean-docs
+      - name: Build sdist and wheels
+        run: |
+          uv run dev-cmd package -- \
+            --no-pex \
+            --additional-format sdist \
+            --additional-format whl \
+            --additional-format whl-3.12-plus \
+            --embed-docs \
+            --clean-docs
       - name: Publish Pex ${{ needs.determine-tag.outputs.release-tag }}
         uses: pypa/gh-action-pypi-publish@release/v1
         with:

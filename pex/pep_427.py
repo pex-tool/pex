@@ -76,8 +76,8 @@ class InstallableType(Enum["InstallableType.Value"]):
     class Value(Enum.Value):
         pass
 
-    INSTALLED_WHEEL_CHROOT = Value("installed wheel chroot")
-    WHEEL_FILE = Value(".whl file")
+    INSTALLED_WHEEL_CHROOT = Value("installed-wheel-chroot")
+    WHEEL_FILE = Value(".whl-file")
 
 
 InstallableType.seal()

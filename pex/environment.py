@@ -59,7 +59,7 @@ def _import_pkg_resources():
     except ImportError:
         from pex import third_party
 
-        third_party.install(expose=["setuptools"])
+        third_party.install(expose_if_available=["setuptools"])
         try:
             import pkg_resources  # vendor:skip
 
