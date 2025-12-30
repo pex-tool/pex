@@ -258,12 +258,16 @@ PIP_SPEC = VendorSpec.git(
 )
 
 
-def iter_vendor_specs(filter_requires_python=None):
-    # type: (Optional[Union[Tuple[int, int], PythonInterpreter]]) -> Iterator[VendorSpec]
+def iter_vendor_specs(
+    filter_requires_python=None,  # type: Optional[Union[Tuple[int, int], PythonInterpreter]]
+    filter_exists=True,  # type: bool
+):
+    # type: (...) -> Iterator[VendorSpec]
     """Iterate specifications for code vendored by pex.
 
     :param filter_requires_python: An optional interpreter (or its major and minor version) to
                                    tailor the vendor specs to.
+    :param filter_exists: Whether to exclude vendor specs whose vendored content is not present.
     :return: An iterator over specs of all vendored code.
     """
     python_major_minor = None  # type: Optional[Tuple[int, int]]
@@ -318,16 +322,16 @@ def iter_vendor_specs(filter_requires_python=None):
     # other Pythons and just use tomllib for Python 3.11+.
     if not python_major_minor or python_major_minor < (3, 7):
         vendored_toml = VendorSpec.pinned("toml", "0.10.2")
-        if vendored_toml.exists:
+        if not filter_exists or vendored_toml.exists:
             yield vendored_toml
     if not python_major_minor or (3, 7) <= python_major_minor < (3, 11):
         vendored_tomli = VendorSpec.pinned("tomli", "2.0.1")
-        if vendored_tomli.exists:
+        if not filter_exists or vendored_tomli.exists:
             yield vendored_tomli
 
     # We shell out to pip at build-time to resolve and install dependencies.
     if not python_major_minor or python_major_minor < (3, 12):
-        if PIP_SPEC.exists:
+        if not filter_exists or PIP_SPEC.exists:
             yield PIP_SPEC
 
     # We expose this to pip at build-time for legacy builds, but we also use pkg_resources via
@@ -368,7 +372,7 @@ def iter_vendor_specs(filter_requires_python=None):
         ],
     )
     if not python_major_minor or python_major_minor < (3, 12):
-        if vendored_setuptools.exists:
+        if not filter_exists or vendored_setuptools.exists:
             yield vendored_setuptools
 
 
