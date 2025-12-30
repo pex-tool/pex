@@ -219,7 +219,7 @@ class Format(_FormatData, Enum):
     )
     WHEEL_3_12_PLUS = (
         "whl-3.12-plus",
-        ("--wheel", "--config-setting=--build-option=--python-tag=py3"),
+        ("--wheel", "--config-setting=--build-option=--python-tag=py3.py312"),
         (("__PEX_BUILD_WHL_3_12_PLUS__", "1"),),
     )
 

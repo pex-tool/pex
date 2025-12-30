@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 @pytest.fixture
 def docker_python():
     # type: () -> Target
-    with open(data.path("platforms", "complete_platform_almalinux:8.10_py3.11.json")) as fp:
+    with open(data.path("platforms", "complete_platform_almalinux-8.10_py3.11.json")) as fp:
         complete_platform_data = json.load(fp)
 
     return CompletePlatform.create(
