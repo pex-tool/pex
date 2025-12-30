@@ -58,7 +58,9 @@ def test_build_isolation(
 
     python, pip = venv_factory.create_venv()
     # N.B.: Pip 25.0 introduces a new message to check for here.
-    run_pex_command(args=[project_dir, "--no-build-isolation"], python=python).assert_failure(
+    run_pex_command(
+        args=[project_dir, "--no-build-isolation"], python=python, use_pex_whl_venv=False
+    ).assert_failure(
         expected_error_re=r".*(?:{old_message}|{new_message}).*".format(
             old_message=re.escape("ModuleNotFoundError: No module named 'flit_core'"),
             new_message=re.escape("BackendUnavailable: Cannot import 'flit_core.buildapi'"),
@@ -70,7 +72,7 @@ def test_build_isolation(
 
     pex = os.path.join(str(tmpdir), "pex")
     run_pex_command(
-        args=[project_dir, "--no-build-isolation", "-o", pex], python=python
+        args=[project_dir, "--no-build-isolation", "-o", pex], python=python, use_pex_whl_venv=False
     ).assert_success()
     subprocess.check_call(args=[python, pex, "-c", "import foo"])
 

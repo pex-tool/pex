@@ -13,7 +13,7 @@ from testing import IntegResults
 from testing.cli import run_pex3
 
 if TYPE_CHECKING:
-    from typing import Any, Dict, Text
+    from typing import Any, Dict, Optional
 
 
 def inspect(
@@ -28,16 +28,17 @@ def assert_inspect(
     *args,  # type: str
     **popen_kwargs  # type: str
 ):
-    # type: (...) -> Text
+    # type: (...) -> IntegResults
 
     result = inspect(*args, **popen_kwargs)
     result.assert_success()
-    return result.output
+    return result
 
 
-def test_inspect_default(current_interpreter):
-    # type: (PythonInterpreter) -> None
-    assert current_interpreter.binary == assert_inspect().strip()
+def test_inspect_default():
+    # type: () -> None
+    result = assert_inspect()
+    assert result.interpreter.binary == result.output.strip()
 
 
 def assert_default_verbose_data(
@@ -46,18 +47,19 @@ def assert_default_verbose_data(
 ):
     # type: (...) -> Dict[str, Any]
 
-    return assert_verbose_data(PythonInterpreter.get(), *args, **popen_kwargs)
+    return assert_verbose_data(None, *args, **popen_kwargs)
 
 
 def assert_verbose_data(
-    interpreter,  # type: PythonInterpreter
+    interpreter,  # type: Optional[PythonInterpreter]
     *args,  # type: str
     **popen_kwargs  # type: str
 ):
     # type: (...) -> Dict[str, Any]
 
-    data = json.loads(assert_inspect(*args, **popen_kwargs))
-    assert interpreter.binary == data.pop("path")
+    result = assert_inspect(*args, **popen_kwargs)
+    data = json.loads(result.output)
+    assert (interpreter or result.interpreter).binary == data.pop("path")
     return cast("Dict[str, Any]", data)
 
 
@@ -111,7 +113,9 @@ def test_inspect_default_combined():
 
 def test_inspect_all():
     # type: () -> None
-    assert [pi.binary for pi in PythonInterpreter.all()] == assert_inspect("--all").splitlines()
+    assert [pi.binary for pi in PythonInterpreter.all()] == assert_inspect(
+        "--all"
+    ).output.splitlines()
 
 
 def test_inspect_interpreter_selection(
@@ -123,18 +127,18 @@ def test_inspect_interpreter_selection(
 
     assert [py27.binary, py311.binary] == assert_inspect(
         "--python", py27.binary, "--python", py311.binary
-    ).splitlines()
+    ).output.splitlines()
 
     assert [py39.binary, py311.binary] == assert_inspect(
         "--all", "--python-path", os.pathsep.join([os.path.dirname(py39.binary), py311.binary])
-    ).splitlines()
+    ).output.splitlines()
 
     assert [py39.binary] == assert_inspect(
         "--interpreter-constraint",
         "<3.11",
         "--python-path",
         os.pathsep.join([os.path.dirname(py39.binary), py311.binary]),
-    ).splitlines()
+    ).output.splitlines()
 
 
 def test_inspect_distributions(tmpdir):

@@ -25,7 +25,7 @@ from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_implementation import InterpreterImplementation
 from pex.os import LINUX, MAC, WINDOWS
-from pex.pep_427 import install_wheel_chroot, install_wheel_interpreter
+from pex.pep_427 import install_wheel_chroot
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
@@ -950,6 +950,10 @@ def installed_pex_wheel_venv_python(python):
     pex_venv_dir = os.path.join(PEX_TEST_DEV_ROOT, "pex_venvs", "0", str(interpreter.identity))
     with atomic_directory(pex_venv_dir) as atomic_dir:
         if not atomic_dir.is_finalized():
-            venv = Virtualenv.create(atomic_dir.work_dir, interpreter=interpreter)
-            install_wheel_interpreter(pex_wheel, interpreter=venv.interpreter)
+            Virtualenv.create_atomic(
+                atomic_dir,
+                interpreter=interpreter,
+                install_pip=InstallationChoice.UPGRADED,
+                other_installs=[pex_wheel],
+            )
     return Virtualenv(pex_venv_dir).interpreter.binary
