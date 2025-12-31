@@ -550,7 +550,9 @@ def test_scoped_marker(
                 str(PipVersion.VENDORED.wheel_requirement),
             ]
         else:
-            requirements = list(map(str, PipVersion.DEFAULT.requirements))
+            requirements = list(
+                map(str, PipVersion.DEFAULT.requirements + PipVersion.DEFAULT.build_system_requires)
+            )
         downloaded = resolver.download(requirements=requirements)
         for dist in downloaded.local_distributions:
             shutil.copy(dist.path, find_links)

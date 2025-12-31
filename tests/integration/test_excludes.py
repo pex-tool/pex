@@ -328,7 +328,16 @@ def test_exclude_deep(
     # Bootstrap the Pip version being used if needed before we turn off PyPI.
     if pip_options.pip_version is not PipVersion.VENDORED:
         subprocess.check_call(
-            [pip, "wheel", "-w", find_links] + list(map(str, pip_options.pip_version.requirements))
+            [pip, "wheel", "-w", find_links]
+            + list(
+                map(
+                    str,
+                    (
+                        pip_options.pip_version.requirements
+                        + pip_options.pip_version.build_system_requires
+                    ),
+                )
+            )
         )
 
     project_dir = tmpdir.join("projects")

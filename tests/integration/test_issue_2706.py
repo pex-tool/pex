@@ -26,7 +26,9 @@ def test_extras_from_dup_root_reqs(tmpdir):
             tmpdir.join("pip-resolver-venv"), install_pip=InstallationChoice.YES
         ).interpreter.execute(
             args=["-m", "pip", "wheel", "--wheel-dir", find_links]
-            + list(map(str, PipVersion.DEFAULT.requirements))
+            + list(
+                map(str, PipVersion.DEFAULT.requirements + PipVersion.DEFAULT.build_system_requires)
+            )
         )
 
     with built_wheel(

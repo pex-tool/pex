@@ -173,7 +173,12 @@ def test_pre_resolved_dists_offline(
         if PipVersion.DEFAULT is not PipVersion.VENDORED:
             # In order to go offline and still be able to build sdists, we need both the un-vendored Pip and
             # its basic build requirements.
-            args.extend(str(req) for req in PipVersion.DEFAULT.requirements)
+            args.extend(
+                str(req)
+                for req in (
+                    PipVersion.DEFAULT.requirements + PipVersion.DEFAULT.build_system_requires
+                )
+            )
         if IS_PYPY:
             # For PyPy, we need extra build dependencies for argon2-cffi-bindings.
             args.append("setuptools_scm")

@@ -7,6 +7,8 @@ import os.path
 import subprocess
 import sys
 
+import pytest
+
 from pex.common import safe_mkdir
 from pex.interpreter import PythonInterpreter
 from pex.pep_440 import Version
@@ -18,6 +20,10 @@ from testing.docker import skip_unless_docker
 from testing.pytest_utils.tmp import Tempdir
 
 
+@pytest.mark.skipif(
+    PipVersion.DEFAULT is PipVersion.ADHOC,
+    reason="Adhoc pip requires a git clone and we run the container under test with no network.",
+)
 @skip_unless_docker
 def test_pip_bootstrap_respects_pip_configuration(
     tmpdir,  # type: Tempdir
