@@ -15,6 +15,7 @@ from pex.compatibility import ConfigParser
 from pex.targets import LocalInterpreter, Target, WheelEvaluation
 from pex.typing import TYPE_CHECKING, cast
 from pex.util import CacheHelper
+from pex.venv.virtualenv import Virtualenv
 from pex.version import __version__
 from testing import PEX_TEST_DEV_ROOT, pex_project_dir
 
@@ -56,11 +57,13 @@ def wheels():
     pex_wheel_dir = os.path.join(PEX_TEST_DEV_ROOT, "pex_wheels", "0", pex_wheel_inputs_fingerprint)
     with atomic_directory(pex_wheel_dir) as atomic_dir:
         if not atomic_dir.is_finalized():
+            # The package command can be slow to run which locks up uv; so we just ensure a synced
+            # uv venv (fast), then run the dev-cmd console script directly to avoid uv lock
+            # timeouts in CI.
+            subprocess.check_call(args=["uv", "sync"])
             subprocess.check_call(
                 args=[
-                    "uv",
-                    "run",
-                    "dev-cmd",
+                    Virtualenv(venv_dir=".venv").bin_path("dev-cmd"),
                     "package",
                     "--",
                     "--no-pex",
