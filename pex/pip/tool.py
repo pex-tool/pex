@@ -365,7 +365,7 @@ class BootstrapPip(object):
         if (
             resolver_version == ResolverVersion.PIP_2020
             and interpreter.version[0] == 2
-            and self.version.version < PipVersion.v22_3.version
+            and PipVersion.VENDORED <= self.version < PipVersion.v22_3
         ):
             yield "--use-feature"
             yield "2020-resolver"
@@ -398,7 +398,7 @@ class BootstrapPip(object):
             # We are not interactive.
             "--no-input",
         ]
-        if self.version < PipVersion.v25_0:
+        if PipVersion.VENDORED <= self.version < PipVersion.v25_0:
             # If we want to warn about a version of python we support, we should do it, not pip.
             # That said, the option does nothing in Pip 25.0 and is deprecated and slated for
             # removal.

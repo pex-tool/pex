@@ -47,7 +47,7 @@ class PipVersionValue(Enum.Value):
     @staticmethod
     def _to_requirement(
         project_name,  # type: str
-        project_version,  # type: Union[str, Version]
+        project_version=None,  # type: Optional[Union[str, Version]]
     ):
         # type: (...) -> Requirement
 
@@ -63,13 +63,14 @@ class PipVersionValue(Enum.Value):
     def __init__(
         self,
         version,  # type: str
-        setuptools_version,  # type: str
-        wheel_version,  # type: str
+        setuptools_version=None,  # type: Optional[str]
+        wheel_version=None,  # type: Optional[str]
         requires_python=None,  # type: Optional[str]
         name=None,  # type: Optional[str]
         requirement=None,  # type: Optional[str]
         setuptools_requirement=None,  # type: Optional[str]
         hidden=False,  # type: bool
+        available=True,  # type: bool
     ):
         # type: (...) -> None
         super(PipVersionValue, self).__init__(name or version, enum_type=PipVersionValue)
@@ -87,6 +88,7 @@ class PipVersionValue(Enum.Value):
         self.wheel_version = wheel_version
         self.wheel_requirement = self._to_requirement("wheel", wheel_version)
         self.hidden = hidden
+        self.available = available
 
     def cache_dir_name(self):
         # type: () -> str
@@ -283,6 +285,7 @@ class PipVersion(Enum["PipVersionValue"]):
         setuptools_requirement="setuptools",
         wheel_version="0.37.1",
         requires_python="<3.12",
+        available=vendor.PIP_SPEC.exists,
     )
 
     v22_2_2 = PipVersionValue(

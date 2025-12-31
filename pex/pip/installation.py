@@ -278,14 +278,7 @@ def _bootstrap_pip(
         try:
             bootstrap_pip_version = PipVersion.for_value(pip_version.raw)
         except ValueError:
-            # Backstop with the version of Pip CPython 3.12.0 shipped with. This should be the
-            # oldest Pip we need in the Pip bootstrap process (which is only required for
-            # Python >= 3.12 which have distutils removed rendering vendored Pip unusable).
-            bootstrap_pip_version = PipVersion.v23_2
-            for rev in sorted(PipVersion.values(), reverse=True):
-                if pip_version > rev.version:
-                    bootstrap_pip_version = rev
-                    break
+            bootstrap_pip_version = PipVersionValue(pip_version.raw)
 
         pip = BootstrapPip(
             pip_venv=PipVenv(
@@ -388,7 +381,7 @@ def _resolved_installation(
             warn=False,
         )
     )
-    if bootstrap_pip_version is PipVersion.VENDORED:
+    if bootstrap_pip_version is PipVersion.VENDORED and PipVersion.VENDORED.available:
 
         def resolve_distribution_locations():
             for resolved_distribution in resolver.resolve_requirements(
@@ -555,7 +548,7 @@ def get_pip(
     pip = _PIP.get(installation)
     if pip is None:
         installation.check_python_applies()
-        if installation.version is PipVersion.VENDORED:
+        if installation.version is PipVersion.VENDORED and PipVersion.VENDORED.available:
             pip = _vendored_installation(
                 interpreter=interpreter,
                 resolver=resolver,

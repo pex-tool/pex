@@ -12,7 +12,7 @@ from textwrap import dedent
 
 import pytest
 
-from pex import targets, toml
+from pex import toml
 from pex.common import safe_mkdir, safe_open
 from pex.dist_metadata import DistMetadata, Requirement
 from pex.orderedset import OrderedSet
@@ -302,7 +302,8 @@ def test_dependencies_nominal_lock_not_spec_compliant_ambiguous_install(
         #   https://packaging.python.org/en/latest/specifications/pylock-toml/#installation
         attr.evolve(wheel_b2, marker=B1_DEP_MARKER),
     )
-    pex_from_lock(lock.source).assert_failure(
+    result = pex_from_lock(lock.source)
+    result.assert_failure(
         expected_error_re=re.escape(
             "Failed to resolve compatible artifacts from lock {lock_file} created by {creator} for "
             "1 target:\n"
@@ -311,7 +312,7 @@ def test_dependencies_nominal_lock_not_spec_compliant_ambiguous_install(
             "  b 1 wheel\n"
             "  b 2 wheel\n"
             "Pex resolves must produce a unique package per project.".format(
-                lock_file=lock.source, creator=lock.created_by, target=targets.current()
+                lock_file=lock.source, creator=lock.created_by, target=result.target
             )
         )
     )

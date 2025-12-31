@@ -35,7 +35,7 @@ from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.sysconfig import SCRIPT_DIR, script_name
 from pex.targets import LocalInterpreter
 from pex.typing import TYPE_CHECKING, cast
-from pex.util import named_temporary_file
+from pex.util import CacheHelper, named_temporary_file
 from pex.venv.virtualenv import InstallationChoice, Virtualenv
 
 # Explicitly re-export subprocess to enable a transparent substitution in tests that supports
@@ -947,7 +947,9 @@ def installed_pex_wheel_venv_python(python):
 
     interpreter = PythonInterpreter.from_binary(python)
     pex_wheel = wheel(LocalInterpreter.create(interpreter=interpreter))
-    pex_venv_dir = os.path.join(PEX_TEST_DEV_ROOT, "pex_venvs", "0", str(interpreter.identity))
+    pex_venv_dir = os.path.join(
+        PEX_TEST_DEV_ROOT, "pex_venvs", "0", str(interpreter.identity), CacheHelper.hash(pex_wheel)
+    )
     with atomic_directory(pex_venv_dir) as atomic_dir:
         if not atomic_dir.is_finalized():
             Virtualenv.create_atomic(
