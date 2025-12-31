@@ -118,7 +118,7 @@ class PipVersionValue(Enum.Value):
 
     @property
     def build_system_requires(self):
-        # type: () -> Iterable[Requirement]
+        # type: () -> Tuple[Requirement, ...]
         return ()
 
     def requires_python_applies(self, target=None):
@@ -251,7 +251,7 @@ class Adhoc(PipVersionValue):
 
     @property
     def build_system_requires(self):
-        # type: () -> Iterable[Requirement]
+        # type: () -> Tuple[Requirement, ...]
         build_system_requires = os.environ.get("_PEX_PIP_ADHOC_BUILD_SYSTEM_REQUIRES")
         if not build_system_requires:
             return ()
