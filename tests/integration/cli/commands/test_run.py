@@ -545,11 +545,13 @@ def test_pexec(tmpdir):
     # type: (Tempdir) -> None
 
     dist_dir = tmpdir.join("dist")
+    # The package command can be slow to run which locks up uv; so we just ensure a synced
+    # uv venv (fast), then run the dev-cmd console script directly to avoid uv lock
+    # timeouts in CI.
+    subprocess.check_call(args=["uv", "sync", "--frozen"])
     subprocess.check_call(
         args=[
-            "uv",
-            "run",
-            "dev-cmd",
+            Virtualenv(".venv").bin_path("dev-cmd"),
             "package",
             "--",
             "--dist-dir",

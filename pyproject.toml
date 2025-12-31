@@ -14,6 +14,7 @@ plugins = ["pex_build"]
 command = [
   "uv",
   "export",
+  "--frozen",
   "--format",
   "pylock.toml",
   "--no-header",
@@ -414,6 +415,7 @@ extra-cache-keys = ["uv.lock"]
 
 3rdparty-export-command = [
   "uv", "export", "-q",
+  "--frozen",
   "--no-emit-project",
   # Both uv and Pip can't handle VCS URLs in hashed requirements; so we handle this ourselves.
   "--no-emit-package", "attrs",
@@ -441,6 +443,7 @@ when = "platform_machine == 'armv7l' or platform_machine == 'riscv64'"
 
 3rdparty-export-command = [
   "uv", "export", "-q",
+  "--frozen",
   "--no-emit-project",
   # We get some wheels from https://www.piwheels.org/simple and
   # https://gitlab.com/api/v4/projects/riseproject%2Fpython%2Fwheel_builder/packages/pypi/simple
