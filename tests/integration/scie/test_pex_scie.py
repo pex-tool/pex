@@ -1342,7 +1342,9 @@ def test_free_threaded_scie_auto_detected(tmpdir):
 
     scie = tmpdir.join("scie")
     run_pex_command(
-        args=["--scie", "eager", "psutil", "--scie-only", "-o", scie], python=free_threaded_python
+        args=["--scie", "eager", "psutil", "--scie-only", "-o", scie],
+        python=free_threaded_python,
+        use_pex_whl_venv=False,
     ).assert_success()
 
     assert (

@@ -180,6 +180,7 @@ def create_ansicolors_pex(
     run_pex_command(
         args=["ansicolors==1.1.8", "-D", "src", "-m" "app", "-o", pex] + list(extra_args),
         cwd=tmpdir.path,
+        use_pex_whl_venv=False,
     ).assert_success()
     return AnsicolorsPex(pex)
 
