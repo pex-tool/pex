@@ -257,7 +257,8 @@ class VendorImporter(object):
                      path to the pex code, which serves as the root under which code is vendored at
                      ``pex/vendor/_vendored``.
         :param expose: Names of distributions to expose for direct, un-prefixed import.
-        :param expose: Names of distributions to expose for direct, un-prefixed import only if available.
+        :param expose_if_available: Names of distributions to expose, if available, for direct,
+                                    un-prefixed import.
         :raise: :class:`ValueError` if any distributions to expose cannot be found.
         """
         root = cls._abs_root(root)
