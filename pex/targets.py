@@ -203,16 +203,13 @@ class Target(object):
 
         wheel_tags = CompatibilityTags.from_wheel(wheel)
         ranked_tag = self.supported_tags.best_match(wheel_tags)
-
-        requires_python = None  # type: Optional[SpecifierSet]
-        if ranked_tag:
-            requires_python = (
-                wheel.metadata.requires_python
-                if isinstance(wheel, Distribution)
-                else dist_requires_python(wheel)
-            )
-
+        requires_python = (
+            wheel.metadata.requires_python
+            if isinstance(wheel, Distribution)
+            else dist_requires_python(wheel)
+        )
         wheel_location = wheel.location if isinstance(wheel, Distribution) else wheel
+
         return WheelEvaluation(
             wheel=wheel_location,
             tags=tuple(wheel_tags),
