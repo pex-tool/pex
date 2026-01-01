@@ -19,8 +19,20 @@ from pex.vendor import iter_vendor_specs
 if TYPE_CHECKING:
     from typing import Callable, Iterator, Optional
 
-INCLUDE_DOCS = os.environ.get("__PEX_BUILD_INCLUDE_DOCS__", "False").lower() in ("1", "true")
-WHEEL_3_12_PLUS = os.environ.get("__PEX_BUILD_WHL_3_12_PLUS__", "False").lower() in ("1", "true")
+
+def read_bool_env(
+    name,  # type: str
+    default,  # type: bool
+):
+    # type: (...) -> bool
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.lower() in ("1", "true")
+
+
+INCLUDE_DOCS = read_bool_env("__PEX_BUILD_INCLUDE_DOCS__", default=False)
+WHEEL_3_12_PLUS = read_bool_env("__PEX_BUILD_WHL_3_12_PLUS__", default=False)
 
 
 @contextmanager
