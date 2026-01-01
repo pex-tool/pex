@@ -54,4 +54,4 @@ def test_bootstrap_vendored_pip(
         # root.
         cwd=safe_mkdir(tmpdir.join("empty-pythonpath")),
     ).assert_success()
-    assert b"| Moo! |" in subprocess.check_output(args=[pex, "Moo!"])
+    assert b"| Moo! |" in subprocess.check_output(args=[old_python, pex, "Moo!"])
