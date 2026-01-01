@@ -974,7 +974,7 @@ def install_wheel(
         if not compile and installed_file.path.endswith(".pyc"):
             continue
 
-        src_file = os.path.realpath(os.path.join(wheel.location, installed_file.path))
+        src_file = os.path.join(wheel.location, installed_file.path)
         if not os.path.exists(src_file):
             if not warned_bad_record:
                 pex_warnings.warn(
