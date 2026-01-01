@@ -11,6 +11,7 @@ import pytest
 
 from pex.atomic_directory import atomic_directory
 from pex.http.server import Server, ServerInfo
+from pex.pip.version import PipVersion
 from pex.scie.science import SCIE_JUMP_VERSION, ensure_science
 from pex.typing import TYPE_CHECKING
 from testing import IS_MAC, make_env, run_pex_command
@@ -82,6 +83,27 @@ CI_skip_mac = pytest.mark.xfail(
 )
 
 
+def boostrap_pip(pex_root):
+    # type: (str) -> None
+
+    if PipVersion.DEFAULT is PipVersion.VENDORED:
+        return
+
+    # Bootstrap the non-vendored Pip outside proxy strictures.
+    run_pex_command(
+        args=[
+            "--pex-root",
+            pex_root,
+            "--runtime-pex-root",
+            pex_root,
+            "ansicolors",
+            "--",
+            "-c",
+            "import colors",
+        ]
+    ).assert_success()
+
+
 @CI_skip_mac
 @skip_if_no_provider
 def test_proxy_args(
@@ -92,6 +114,8 @@ def test_proxy_args(
     # type: (...) -> None
 
     pex_root = tmpdir.join("pex_root")
+    boostrap_pip(pex_root)
+
     cowsay_scie = tmpdir.join("cowsay")
     with proxy.run() as (port, cert):
         run_pex_command(
@@ -128,6 +152,8 @@ def test_proxy_env(
     # type: (...) -> None
 
     pex_root = tmpdir.join("pex_root")
+    boostrap_pip(pex_root)
+
     cowsay_scie = tmpdir.join("cowsay")
     with proxy.run() as (port, cert):
         proxy_url = "http://localhost:{port}".format(port=port)
