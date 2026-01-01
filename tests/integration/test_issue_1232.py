@@ -100,6 +100,7 @@ def test_isolated_pex_zip(
         "pyproject.toml",
         "setup.cfg",
         "setup.py",
+        "uv.lock",
     ):
         shutil.copy(build_file, os.path.join(modified_pex_src, build_file))
 
