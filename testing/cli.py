@@ -19,7 +19,7 @@ def run_pex3(
 ):
     # type: (...) -> IntegResults
 
-    python_exe = kwargs.pop("python", sys.executable)
+    python_exe = kwargs.pop("python", None) or sys.executable
     python = (
         installed_pex_wheel_venv_python(python_exe)
         if kwargs.pop("use_pex_whl_venv", True)
