@@ -14,11 +14,25 @@ from pex import hashing, toml, windows
 from pex.common import safe_mkdir, safe_mkdtemp
 from pex.third_party.packaging.markers import Marker
 from pex.typing import TYPE_CHECKING
+from pex.vendor import iter_vendor_specs
 
 if TYPE_CHECKING:
     from typing import Callable, Iterator, Optional
 
-INCLUDE_DOCS = os.environ.get("__PEX_BUILD_INCLUDE_DOCS__", "False").lower() in ("1", "true")
+
+def read_bool_env(
+    name,  # type: str
+    default,  # type: bool
+):
+    # type: (...) -> bool
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.lower() in ("1", "true")
+
+
+INCLUDE_DOCS = read_bool_env("__PEX_BUILD_INCLUDE_DOCS__", default=False)
+WHEEL_3_12_PLUS = read_bool_env("__PEX_BUILD_WHL_3_12_PLUS__", default=False)
 
 
 @contextmanager
@@ -128,3 +142,8 @@ def modify_wheel(
                 out_dir,
             ]
         )
+    if WHEEL_3_12_PLUS:
+        for vendor_spec in iter_vendor_specs():
+            if vendor_spec.key in ("pip", "setuptools", "toml", "tomli"):
+                shutil.rmtree(os.path.join(wheel_dir, vendor_spec.relpath))
+                print("Removed un-needed vendored library", vendor_spec.relpath, file=sys.stderr)

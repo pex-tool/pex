@@ -86,6 +86,8 @@ class WHEEL(object):
                 )
             wheel = cls.from_metadata_files(metadata_files)
             cls._CACHE[(location, project_name)] = wheel
+            if project_name is None:
+                cls._CACHE[(location, wheel.files.metadata.project_name)] = wheel
         return wheel
 
     @classmethod

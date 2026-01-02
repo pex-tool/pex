@@ -9,23 +9,53 @@ import subprocess
 import sys
 from textwrap import dedent
 
-from pex.common import Chroot, is_pyc_dir, is_pyc_file, safe_mkdtemp, touch
+from pex.common import Chroot, is_pyc_dir, is_pyc_file, open_zip, safe_mkdtemp, touch
+from pex.exceptions import production_assert
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Iterable, Iterator, Optional, Sequence, Set, Text, Tuple, Union
+    from typing import Iterable, Iterator, List, Optional, Sequence, Set, Text, Tuple, Union
 
     from pex.interpreter import PythonInterpreter
 
 _PACKAGE_COMPONENTS = __name__.split(".")
 
 
+class EnclosingZip(collections.namedtuple("EnclosingZip", ["path", "entries"])):
+    pass
+
+
+class VendorRoot(collections.namedtuple("VendorRoot", ["path", "enclosing_zip"])):
+    pass
+
+
 def _root():
+    # type: () -> VendorRoot
+
     path = os.path.dirname(os.path.abspath(__file__))
     for _ in _PACKAGE_COMPONENTS:
         path = os.path.dirname(path)
-    return path
+
+    if os.path.isdir(path):
+        return VendorRoot(path, enclosing_zip=None)
+
+    import zipfile
+
+    enclosing_zip = path
+    while not zipfile.is_zipfile(enclosing_zip):
+        parent = os.path.dirname(enclosing_zip)
+        production_assert(
+            parent != enclosing_zip,
+            "Expected to find enclosing PEX or .whl zip for vendor root: {root}",
+            root=path,
+        )
+        enclosing_zip = parent
+
+    with open_zip(enclosing_zip) as zf:
+        return VendorRoot(
+            path, enclosing_zip=EnclosingZip(path=enclosing_zip, entries=frozenset(zf.namelist()))
+        )
 
 
 class VendorSpec(
@@ -49,7 +79,7 @@ class VendorSpec(
     case of pex, which is a py2.py3 platform-agnostic wheel, vendored libraries should be as well.
     """
 
-    ROOT = _root()
+    ROOT, _ENCLOSING_ZIP = _root()
 
     _VENDOR_DIR = "_vendored"
 
@@ -122,15 +152,30 @@ class VendorSpec(
 
     @property
     def _subpath_components(self):
+        # type: () -> List[str]
         return [self._VENDOR_DIR, self.import_path]
 
     @property
     def relpath(self):
-        return os.path.join(*(_PACKAGE_COMPONENTS + self._subpath_components))
+        # type: () -> str
+        return self._relpath()
+
+    def _relpath(self, sep=os.sep):
+        # type: (str) -> str
+        return sep.join(_PACKAGE_COMPONENTS + self._subpath_components)
 
     @property
     def target_dir(self):
         return os.path.join(self.ROOT, self.relpath)
+
+    @property
+    def exists(self):
+        # type: () -> bool
+        if self._ENCLOSING_ZIP:
+            prefix = self.ROOT[len(self._ENCLOSING_ZIP.path) + len(os.sep) :]
+            target_dir = prefix + "/" + self._relpath("/") + "/"
+            return target_dir in self._ENCLOSING_ZIP.entries
+        return os.path.isdir(self.target_dir)
 
     def prepare(self):
         return self.requirement
@@ -213,12 +258,16 @@ PIP_SPEC = VendorSpec.git(
 )
 
 
-def iter_vendor_specs(filter_requires_python=None):
-    # type: (Optional[Union[Tuple[int, int], PythonInterpreter]]) -> Iterator[VendorSpec]
+def iter_vendor_specs(
+    filter_requires_python=None,  # type: Optional[Union[Tuple[int, int], PythonInterpreter]]
+    filter_exists=True,  # type: bool
+):
+    # type: (...) -> Iterator[VendorSpec]
     """Iterate specifications for code vendored by pex.
 
     :param filter_requires_python: An optional interpreter (or its major and minor version) to
                                    tailor the vendor specs to.
+    :param filter_exists: Whether to exclude vendor specs whose vendored content is not present.
     :return: An iterator over specs of all vendored code.
     """
     python_major_minor = None  # type: Optional[Tuple[int, int]]
@@ -264,24 +313,33 @@ def iter_vendor_specs(filter_requires_python=None):
         # Modern packaging for everyone else.
         yield VendorSpec.pinned("packaging", "25.0", import_path="packaging_25_0")
 
+    # N.B.: All vendored items below are optional and may not be present in Pex distributions
+    # targeting newer Pythons.
+
     # We use toml to read pyproject.toml when building sdists from local source projects.
     # The toml project provides compatibility back to Python 2.7, but is frozen in time in 2020
     # with bugs - notably no support for heterogeneous lists. We add the more modern tomli for
     # other Pythons and just use tomllib for Python 3.11+.
     if not python_major_minor or python_major_minor < (3, 7):
-        yield VendorSpec.pinned("toml", "0.10.2")
+        vendored_toml = VendorSpec.pinned("toml", "0.10.2")
+        if not filter_exists or vendored_toml.exists:
+            yield vendored_toml
     if not python_major_minor or (3, 7) <= python_major_minor < (3, 11):
-        yield VendorSpec.pinned("tomli", "2.0.1")
+        vendored_tomli = VendorSpec.pinned("tomli", "2.0.1")
+        if not filter_exists or vendored_tomli.exists:
+            yield vendored_tomli
 
     # We shell out to pip at build-time to resolve and install dependencies.
-    yield PIP_SPEC
+    if not python_major_minor or python_major_minor < (3, 12):
+        if not filter_exists or PIP_SPEC.exists:
+            yield PIP_SPEC
 
     # We expose this to pip at build-time for legacy builds, but we also use pkg_resources via
     # pex.third_party at runtime to inject pkg_resources style namespace packages if needed.
     # N.B.: 44.0.0 is the last setuptools version compatible with Python 2 and we use a fork of that
     # with patches needed to support Pex on the v44.0.0/patches/pex-2.x branch.
     pex_tool_setuptools_commit = "3acb925dd708430aeaf197ea53ac8a752f7c1863"
-    yield VendorSpec.git(
+    vendored_setuptools = VendorSpec.git(
         repo="https://github.com/pex-tool/setuptools",
         commit=pex_tool_setuptools_commit,
         project_name="setuptools",
@@ -313,6 +371,9 @@ def iter_vendor_specs(filter_requires_python=None):
             ).format(commit=pex_tool_setuptools_commit),
         ],
     )
+    if not python_major_minor or python_major_minor < (3, 12):
+        if not filter_exists or vendored_setuptools.exists:
+            yield vendored_setuptools
 
 
 def vendor_runtime(

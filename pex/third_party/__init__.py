@@ -244,6 +244,7 @@ class VendorImporter(object):
         prefix,  # type: str
         root=None,  # type: Optional[str]
         expose=None,  # type: Optional[Iterable[str]]
+        expose_if_available=None,  # type: Optional[Iterable[str]]
     ):
         # type: (...) -> None
         """Install an importer for all vendored code with the given import prefix.
@@ -255,7 +256,9 @@ class VendorImporter(object):
         :param root: The root path of the distribution containing the vendored code. NB: This is the
                      path to the pex code, which serves as the root under which code is vendored at
                      ``pex/vendor/_vendored``.
-        :param expose: Optional names of distributions to expose for direct, un-prefixed import.
+        :param expose: Names of distributions to expose for direct, un-prefixed import.
+        :param expose_if_available: Names of distributions to expose, if available, for direct,
+                                    un-prefixed import.
         :raise: :class:`ValueError` if any distributions to expose cannot be found.
         """
         root = cls._abs_root(root)
@@ -274,14 +277,17 @@ class VendorImporter(object):
                 uninstallable=True, prefix=prefix, path_items=cls._vendored_path_items(), root=root
             )
 
+        # Only expose the bits needed.
+        exposed_paths = []
         if expose:
-            # But only expose the bits needed.
-            exposed_paths = []
             for path in cls.expose(expose, root):
                 sys.path.insert(0, path)
                 exposed_paths.append(os.path.relpath(path, root))
-
-            vendor_importer._expose(exposed_paths)
+        if expose_if_available:
+            for path in cls.expose(expose_if_available, root, optional=True):
+                sys.path.insert(0, path)
+                exposed_paths.append(os.path.relpath(path, root))
+        vendor_importer._expose(exposed_paths)
 
     @classmethod
     def expose(
@@ -289,6 +295,7 @@ class VendorImporter(object):
         dists,  # type: Iterable[str]
         root=None,  # type: Optional[str]
         interpreter=None,  # type: Optional[PythonInterpreter]
+        optional=False,  # type: bool
     ):
         # type: (...) -> Iterator[str]
         from pex import vendor
@@ -304,13 +311,14 @@ class VendorImporter(object):
             (key, relpath) for key, relpath in iter_available() if key in dists
         )
 
-        unexposed = set(dists) - set(path_by_key.keys())
-        if unexposed:
-            raise ValueError(
-                "The following vendored dists are not available to expose: {}".format(
-                    ", ".join(sorted(unexposed))
+        if not optional:
+            unexposed = set(dists) - set(path_by_key.keys())
+            if unexposed:
+                raise ValueError(
+                    "The following vendored dists are not available to expose: {}".format(
+                        ", ".join(sorted(unexposed))
+                    )
                 )
-            )
 
         exposed_paths = path_by_key.values()
         for exposed_path in exposed_paths:
@@ -568,7 +576,7 @@ def import_prefix():
     return __name__
 
 
-def install(root=None, expose=None):
+def install(root=None, expose=None, expose_if_available=None):
     """Installs the default :class:`VendorImporter` for PEX vendored code.
 
     Any distributions listed in ``expose`` will also be exposed for direct import; ie:
@@ -610,7 +618,9 @@ def install(root=None, expose=None):
     :type expose: list of str
     :raise: :class:`ValueError` if any distributions to expose cannot be found.
     """
-    VendorImporter.install_vendored(prefix=import_prefix(), root=root, expose=expose)
+    VendorImporter.install_vendored(
+        prefix=import_prefix(), root=root, expose=expose, expose_if_available=expose_if_available
+    )
 
 
 def exposed(root=None):

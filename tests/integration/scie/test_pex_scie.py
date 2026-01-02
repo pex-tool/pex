@@ -24,7 +24,6 @@ from pex.os import WINDOWS, is_exe
 from pex.pip.version import PipVersion
 from pex.scie import ScieStyle
 from pex.sysconfig import SysPlatform
-from pex.targets import LocalInterpreter
 from pex.typing import TYPE_CHECKING
 from pex.version import __version__
 from testing import IS_PYPY, PY_VER, make_env, run_pex_command, subprocess
@@ -80,9 +79,7 @@ def test_basic(
                 message=re.escape(
                     "You selected `--scie {style}`, but none of the selected targets have "
                     "compatible interpreters that can be embedded to form a scie:\n"
-                    "{target}".format(
-                        style=scie_style, target=LocalInterpreter.create().render_description()
-                    )
+                    "{target}".format(style=scie_style, target=result.target.render_description())
                 )
             ),
             re_flags=re.DOTALL | re.MULTILINE,
@@ -1345,7 +1342,9 @@ def test_free_threaded_scie_auto_detected(tmpdir):
 
     scie = tmpdir.join("scie")
     run_pex_command(
-        args=["--scie", "eager", "psutil", "--scie-only", "-o", scie], python=free_threaded_python
+        args=["--scie", "eager", "psutil", "--scie-only", "-o", scie],
+        python=free_threaded_python,
+        use_pex_whl_venv=False,
     ).assert_success()
 
     assert (

@@ -180,6 +180,7 @@ def create_ansicolors_pex(
     run_pex_command(
         args=["ansicolors==1.1.8", "-D", "src", "-m" "app", "-o", pex] + list(extra_args),
         cwd=tmpdir.path,
+        use_pex_whl_venv=False,
     ).assert_success()
     return AnsicolorsPex(pex)
 
@@ -334,8 +335,11 @@ def test_zipapp_prune_shared_code(
 
     write_app_py(tmpdir.join("app.py"))
     no_colors_pex = tmpdir.join("no-colors.pex")
+    use_pex_whl_venv = sys.version_info[0] == 3
     run_pex_command(
-        args=["-M" "app", "-m", "app", "-o", no_colors_pex], cwd=tmpdir.path
+        args=["-M" "app", "-m", "app", "-o", no_colors_pex],
+        cwd=tmpdir.path,
+        use_pex_whl_venv=use_pex_whl_venv,
     ).assert_success()
     assert b"Hello Cache!\n" == subprocess.check_output(args=[no_colors_pex])
     assert all_user_code == list(
@@ -343,12 +347,16 @@ def test_zipapp_prune_shared_code(
     ), "Expected the shared code cache to be re-used since the code is the same for both PEXes."
 
     set_last_access_one_day_ago(ansicolors_zipapp_pex.path)
-    run_pex3("cache", "prune", "--older-than", "1 hour").assert_success()
+    run_pex3(
+        "cache", "prune", "--older-than", "1 hour", use_pex_whl_venv=use_pex_whl_venv
+    ).assert_success()
     assert all_user_code == list(
         UserCodeDir.iter_all()
     ), "Expected the shared code cache to be un-pruned since no_colors_pex still needs it."
 
-    run_pex3("cache", "prune", "--older-than", "0 seconds").assert_success()
+    run_pex3(
+        "cache", "prune", "--older-than", "0 seconds", use_pex_whl_venv=use_pex_whl_venv
+    ).assert_success()
     assert len(list(UserCodeDir.iter_all())) == 0, (
         "Expected the shared code cache to be pruned since the last remaining user, no_colors_pex,"
         "is now pruned."

@@ -140,6 +140,7 @@ def ensure_devpi_server():
                     args=[
                         "uv",
                         "export",
+                        "--frozen",
                         "-q",
                         "--only-group",
                         "devpi-server",

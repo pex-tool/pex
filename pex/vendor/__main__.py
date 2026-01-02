@@ -577,7 +577,7 @@ if __name__ == "__main__":
         os.umask(0o022)
         vendorize(
             root_dir=root_directory,
-            vendor_specs=list(iter_vendor_specs()),
+            vendor_specs=list(iter_vendor_specs(filter_exists=False)),
             prefix="pex.third_party",
             update=options.update,
         )

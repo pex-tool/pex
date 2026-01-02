@@ -545,18 +545,20 @@ def test_pexec(tmpdir):
     # type: (Tempdir) -> None
 
     dist_dir = tmpdir.join("dist")
+    # The package command can be slow to run which locks up uv; so we just ensure a synced
+    # uv venv (fast), then run the dev-cmd console script directly to avoid uv lock
+    # timeouts in CI.
+    subprocess.check_call(args=["uv", "sync", "--frozen"])
     subprocess.check_call(
         args=[
-            "uv",
-            "run",
-            "dev-cmd",
+            Virtualenv(".venv").bin_path("dev-cmd"),
             "package",
             "--",
             "--dist-dir",
             dist_dir,
             "--scie",
             "--additional-format",
-            "wheel",
+            "whl-3.12-plus" if sys.version_info[:2] >= (3, 12) else "whl",
         ]
     )
 
@@ -568,9 +570,10 @@ def test_pexec(tmpdir):
             "-m",
             "pip",
             "install",
-            os.path.join(
-                dist_dir, "pex-{version}-py2.py3-none-any.whl".format(version=__version__)
-            ),
+            "--no-index",
+            "--find-links",
+            dist_dir,
+            "pex=={version}".format(version=__version__),
         ]
     )
     assert b"| Moo! |" in subprocess.check_output(

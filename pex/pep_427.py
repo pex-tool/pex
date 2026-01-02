@@ -76,8 +76,8 @@ class InstallableType(Enum["InstallableType.Value"]):
     class Value(Enum.Value):
         pass
 
-    INSTALLED_WHEEL_CHROOT = Value("installed wheel chroot")
-    WHEEL_FILE = Value(".whl file")
+    INSTALLED_WHEEL_CHROOT = Value("installed-wheel-chroot")
+    WHEEL_FILE = Value(".whl-file")
 
 
 InstallableType.seal()
@@ -974,8 +974,9 @@ def install_wheel(
         if not compile and installed_file.path.endswith(".pyc"):
             continue
 
-        src_file = os.path.realpath(os.path.join(wheel.location, installed_file.path))
-        if not os.path.exists(src_file):
+        src_file = os.path.normpath(os.path.join(wheel.location, installed_file.path))
+        src_file_realpath = os.path.realpath(src_file)
+        if not os.path.exists(src_file_realpath):
             if not warned_bad_record:
                 pex_warnings.warn(
                     "The wheel {whl} has a bad RECORD. Skipping install of non-existent file "
@@ -989,17 +990,24 @@ def install_wheel(
         dst_components = None  # type: Optional[Tuple[Text, Text, bool]]
         for path_name, installed_path in wheel.iter_install_paths_by_name():
             installed_path = os.path.realpath(installed_path)
-            if installed_path == commonpath((installed_path, src_file)):
+
+            src_path = None  # type: Optional[Text]
+            if installed_path == commonpath((installed_path, src_file_realpath)):
+                src_path = src_file_realpath
+            elif installed_path == commonpath((installed_path, src_file)):
+                src_path = src_file
+
+            if src_path:
                 rewrite_script = False
                 if "scripts" == path_name:
-                    if is_entry_point_script(src_file):
+                    if is_entry_point_script(src_path):
                         # This entry point script will be installed afresh below as needed.
                         break
                     rewrite_script = interpreter is not None and is_python_script(
-                        src_file, check_executable=False
+                        src_path, check_executable=False
                     )
 
-                dst_rel_path = os.path.relpath(src_file, installed_path)
+                dst_rel_path = os.path.relpath(src_path, installed_path)
                 dst_components = path_name, dst_rel_path, rewrite_script
                 break
         else:

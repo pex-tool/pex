@@ -15,6 +15,7 @@ from pex.common import open_zip
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pip.installation import get_pip
+from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.resolver_configuration import BuildConfiguration
 from pex.util import CacheHelper
 from pex.wheel import Wheel
@@ -48,7 +49,7 @@ def test_repository_extract_wheels_with_data(
     )
 
     wheels_dir = tmpdir.join("wheels")
-    get_pip().spawn_download_distributions(
+    get_pip(resolver=ConfiguredResolver.default()).spawn_download_distributions(
         download_dir=wheels_dir,
         requirements=[greenlet_requirement],
         build_configuration=BuildConfiguration.create(allow_builds=False),
@@ -97,7 +98,7 @@ def test_venv_repository_resolve_whls(tmpdir):
     # type: (Tempdir) -> None
 
     download_dir = tmpdir.join("wheels")
-    get_pip().spawn_download_distributions(
+    get_pip(resolver=ConfiguredResolver.default()).spawn_download_distributions(
         download_dir=download_dir, requirements=["ansicolors==1.1.8"]
     ).wait()
     pypi_wheels = glob.glob(os.path.join(download_dir, "*.whl"))

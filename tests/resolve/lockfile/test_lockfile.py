@@ -7,7 +7,6 @@ from textwrap import dedent
 
 import pytest
 
-from pex.interpreter import PythonInterpreter
 from pex.resolve.lockfile import json_codec
 from pex.targets import LocalInterpreter, Target
 from pex.typing import TYPE_CHECKING
@@ -19,7 +18,7 @@ if TYPE_CHECKING:
 
 def create_target(python):
     # type: (str) -> Target
-    return LocalInterpreter.create(PythonInterpreter.from_binary(python))
+    return LocalInterpreter.create(python)
 
 
 @pytest.fixture

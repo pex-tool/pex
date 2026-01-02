@@ -131,6 +131,7 @@ def test_interpreter_mode_python_options(
         )
         stdout, stderr = process.communicate(input=execution_configuration.stdin)
         return IntegResults(
+            cmd=tuple(args),
             output=stdout.decode("utf-8"),
             error=stderr.decode("utf-8"),
             return_code=process.returncode,

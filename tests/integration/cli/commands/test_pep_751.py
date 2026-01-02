@@ -16,7 +16,7 @@ from typing import Any, Dict, Iterator, Text
 import pytest
 
 import testing
-from pex import targets, toml
+from pex import toml
 from pex.atomic_directory import atomic_directory
 from pex.common import CopyMode, iter_copytree, safe_copy
 from pex.compatibility import string
@@ -726,7 +726,7 @@ def assert_pdm_less_than_39_failure(
                     "support the current target.\n"
                     "The supported environments are:\n"
                     '+ python_version >= "3.9"\n'.format(
-                        pylock=pdm_exported_pylock_toml, target=targets.current()
+                        pylock=pdm_exported_pylock_toml, target=result.target
                     )
                 )
             )

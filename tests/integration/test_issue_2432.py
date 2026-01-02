@@ -5,7 +5,6 @@ import os.path
 from textwrap import dedent
 
 from pex.compatibility import safe_commonpath
-from pex.targets import LocalInterpreter
 from pex.typing import TYPE_CHECKING
 from testing import run_pex_command
 from testing.cli import run_pex3
@@ -53,7 +52,10 @@ def test_lock_use_no_build_wheel(tmpdir):
         result = run_pex_command(args=list(extra_args) + args)
         if expected_error:
             result.assert_failure()
-            assert expected_error in result.error
+            assert (
+                expected_error.format(target_description=result.target.render_description())
+                in result.error
+            )
         else:
             result.assert_success()
             assert pex_root == safe_commonpath((pex_root, result.output.strip()))
@@ -71,7 +73,7 @@ def test_lock_use_no_build_wheel(tmpdir):
         extra_args=["--only-build", "ansicolors"],
         expected_error=dedent(
             """\
-            Failed to resolve all requirements for {target_description} from {lock}:
+            Failed to resolve all requirements for {{target_description}} from {lock}:
 
             Configured with:
                 build: True
@@ -81,5 +83,5 @@ def test_lock_use_no_build_wheel(tmpdir):
             Dependency on ansicolors not satisfied, 1 incompatible candidate found:
             1.) ansicolors 1.1.8 (via: ansicolors==1.1.8) does not have any compatible artifacts:
             """
-        ).format(lock=lock, target_description=LocalInterpreter.create().render_description()),
+        ).format(lock=lock),
     )

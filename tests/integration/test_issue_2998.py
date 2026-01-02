@@ -11,6 +11,7 @@ import subprocess
 from pex.common import open_zip, safe_rmtree
 from pex.compatibility import commonpath
 from pex.pip.installation import get_pip
+from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.resolver_configuration import BuildConfiguration
 from pex.util import CacheHelper
 from pex.venv.virtualenv import InstallationChoice, Virtualenv
@@ -44,7 +45,7 @@ def test_record_directory_entries_whl_round_trip(tmpdir):
 
     pex_root = tmpdir.join("pex-root")
     download_dir = tmpdir.join("downloads")
-    get_pip().spawn_download_distributions(
+    get_pip(resolver=ConfiguredResolver.default()).spawn_download_distributions(
         download_dir=download_dir,
         requirements=["cmake==3.26.3"],
         build_configuration=BuildConfiguration.create(allow_builds=False),

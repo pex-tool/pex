@@ -80,7 +80,8 @@ def test_issue_1881(
             "--runtime-pex-root",
             pex_root,
         ]
-        + execution_mode_args
+        + execution_mode_args,
+        use_pex_whl_venv=sys.version_info[0] == 3,
     ).assert_success()
     # simulate pex_root writable at runtime.
     os.chmod(pex_root, 0o777)

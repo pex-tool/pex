@@ -73,6 +73,7 @@ def test_repl_python_options(
         )
         stdout, stderr = process.communicate(input=repl_commands.encode("utf-8"))
         return IntegResults(
+            cmd=tuple(args),
             output=stdout.decode("utf-8"),
             error=stderr.decode("utf-8"),
             return_code=process.returncode,

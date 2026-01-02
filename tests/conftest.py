@@ -17,7 +17,7 @@ from testing import PY27, PY39, PY310, PY311, ensure_python_interpreter, pex_dis
 from testing.pytest_utils import tmp, track_status_hook
 
 if TYPE_CHECKING:
-    from typing import Iterator
+    from typing import Iterator, List
 
     from _pytest.fixtures import FixtureRequest
 
@@ -32,6 +32,12 @@ def pex_project_dir():
 def pex_wheel():
     # type: () -> str
     return pex_dist.wheel()
+
+
+@pytest.fixture(scope="session")
+def pex_wheels():
+    # type: () -> List[str]
+    return pex_dist.wheels()
 
 
 @pytest.fixture(scope="session")

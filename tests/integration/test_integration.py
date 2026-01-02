@@ -31,6 +31,7 @@ from pex.pep_427 import InstallableType
 from pex.pex_info import PexInfo
 from pex.pip.version import PipVersion
 from pex.requirements import LogicalLine, PyPIRequirement, parse_requirement_file
+from pex.targets import LocalInterpreter
 from pex.typing import TYPE_CHECKING, cast
 from pex.util import named_temporary_file
 from pex.variables import ENV, unzip_dir, venv_dir
@@ -50,6 +51,7 @@ from testing import (
     ensure_python_interpreter,
     get_dep_dist_names_from_pex,
     make_env,
+    pex_dist,
     run_pex_command,
     run_simple_pex,
     run_simple_pex_test,
@@ -132,13 +134,16 @@ def test_pex_root_build():
 
 @skip_if_only_vendored_pip_supported
 def test_pex_root_run(
-    pex_wheel,  # type: str
+    pex_wheels,  # type: str
     tmpdir,  # type: Any
 ):
     # type: (...) -> None
     python39 = ensure_python_interpreter(PY39)
     python311 = ensure_python_interpreter(PY311)
-
+    wheels = [
+        pex_dist.select_best_wheel(pex_wheels, LocalInterpreter.create(binary))
+        for binary in (python39, python311)
+    ]
     runtime_pex_root = safe_mkdir(os.path.join(str(tmpdir), "runtime_pex_root"))
     home = safe_mkdir(os.path.join(str(tmpdir), "home"))
 
@@ -151,7 +156,6 @@ def test_pex_root_run(
     args = [
         "--pip-version",
         PipVersion.LATEST_COMPATIBLE.value,
-        pex_wheel,
         "-o",
         pex_pex,
         "-c",
@@ -160,7 +164,7 @@ def test_pex_root_run(
         "--pex-root={}".format(buildtime_pex_root),
         "--runtime-pex-root={}".format(runtime_pex_root),
         "--interpreter-constraint=CPython=={version}".format(version=PY311),
-    ]
+    ] + wheels
     results = run_pex_command(args=args, env=pex_env, python=python311)
     results.assert_success()
     assert ["pex.pex"] == os.listdir(output_dir), "Expected built pex file."
@@ -1825,7 +1829,7 @@ def test_seed_verbose(
     assert pex_root == verbose_info.pop("pex_root")
 
     python = verbose_info.pop("python")
-    assert PythonInterpreter.get() == PythonInterpreter.from_binary(python)
+    assert results.interpreter == PythonInterpreter.from_binary(python)
 
     verbose_info.pop("pex")
     assert {} == verbose_info

@@ -12,11 +12,12 @@ import subprocess
 import sys
 import tempfile
 from argparse import Action, ArgumentDefaultsHelpFormatter, ArgumentError, ArgumentParser
+from dataclasses import dataclass
 from email.parser import Parser
 from enum import Enum, unique
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path, PurePath
-from typing import Dict, Iterator, Optional, Tuple, cast
+from typing import Dict, Iterator, Optional, Tuple
 
 from package.scie_config import PlatformConfig, ScieConfig
 from pex.common import safe_mkdtemp
@@ -191,16 +192,46 @@ def describe_file(path: Path) -> Tuple[str, int]:
     return hasher.hexdigest(), size
 
 
+@dataclass
+class _FormatData:
+    _name: str
+    build_args: Tuple[str, ...]
+    build_env: Tuple[Tuple[str, str], ...]
+
+
 @unique
-class Format(Enum):
-    SDIST = "sdist"
-    WHEEL = "wheel"
+class Format(_FormatData, Enum):
+    @classmethod
+    def for_name(cls, name: str):
+        for member in cls:
+            if name in (member._name, member.name):
+                return member
+        raise ValueError(f"Not a recognized format: {name}")
+
+    SDIST = ("sdist", ("--sdist",), ())
+    WHEEL = (
+        "whl",
+        (
+            "--wheel",
+            "--config-setting=--build-option=--python-tag=py2.py35.py36.py37.py38.py39.py310.py311",
+        ),
+        (),
+    )
+    WHEEL_3_12_PLUS = (
+        "whl-3.12-plus",
+        ("--wheel", "--config-setting=--build-option=--python-tag=py3.py312"),
+        (("__PEX_BUILD_WHL_3_12_PLUS__", "1"),),
+    )
+
+    def add_build_env(self, env: Optional[Dict[str, str]] = None) -> Optional[Dict[str, str]]:
+        if not env and not self.build_env:
+            return None
+        build_env = dict(env or os.environ)
+        build_env.update(self.build_env)
+        return build_env
 
     def __str__(self) -> str:
-        return cast(str, self.value)
-
-    def build_arg(self) -> str:
-        return f"--{self.value}"
+        return self._name
 
 
 def build_pex_dists(
@@ -217,20 +248,14 @@ def build_pex_dists(
 
     output = None if verbose else subprocess.DEVNULL
 
-    subprocess.run(
-        args=[
-            sys.executable,
-            "-m",
-            "build",
-            "--outdir",
-            out_dir,
-            *[fmt.build_arg() for fmt in [dist_fmt, *additional_dist_fmts]],
-        ],
-        env=env,
-        stdout=output,
-        stderr=output,
-        check=True,
-    )
+    for fmt in [dist_fmt, *additional_dist_fmts]:
+        subprocess.run(
+            args=[sys.executable, "-m", "build", "--outdir", out_dir, *fmt.build_args],
+            env=fmt.add_build_env(env),
+            stdout=output,
+            stderr=output,
+            check=True,
+        )
 
     for dist in os.listdir(out_dir):
         built = dist_dir / dist
@@ -359,7 +384,7 @@ if __name__ == "__main__":
         "--additional-format",
         dest="additional_formats",
         choices=list(Format),
-        type=Format,
+        type=Format.for_name,
         action="append",
         help="Package Pex in additional formats.",
     )

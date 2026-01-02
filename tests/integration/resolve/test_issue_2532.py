@@ -3,27 +3,47 @@
 
 from __future__ import absolute_import
 
+import json
 import os
 import shutil
 from textwrap import dedent
 
+import pytest
+
+from pex.pep_425 import CompatibilityTags
+from pex.pep_508 import MarkerEnvironment
+from pex.targets import CompletePlatform, Target
 from pex.typing import TYPE_CHECKING
-from testing import subprocess
+from testing import data, pex_dist, subprocess
 from testing.docker import skip_unless_docker
 
 if TYPE_CHECKING:
-    from typing import Any
+    from typing import Any, List
+
+
+@pytest.fixture
+def docker_python():
+    # type: () -> Target
+    with open(data.path("platforms", "complete_platform_almalinux-8.10_py3.11.json")) as fp:
+        complete_platform_data = json.load(fp)
+
+    return CompletePlatform.create(
+        marker_environment=MarkerEnvironment(**complete_platform_data["marker_environment"]),
+        supported_tags=CompatibilityTags.from_strings(complete_platform_data["compatible_tags"]),
+    )
 
 
 @skip_unless_docker
 def test_resolved_wheel_tag_platform_mismatch_warns(
     tmpdir,  # type: Any
-    pex_wheel,  # type: str
+    pex_wheels,  # type: List[str]
+    docker_python,  # type: Target
 ):
     # type: (...) -> None
 
     context = os.path.join(str(tmpdir), "context")
     os.mkdir(context)
+    pex_wheel = pex_dist.select_best_wheel(pex_wheels, target=docker_python)
     shutil.copy(pex_wheel, context)
     with open(os.path.join(context, "Dockerfile"), "w") as fp:
         fp.write(

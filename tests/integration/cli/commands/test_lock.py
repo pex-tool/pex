@@ -15,7 +15,6 @@ from pex.artifact_url import Fingerprint
 from pex.cache.dirs import CacheDir
 from pex.common import safe_open
 from pex.dist_metadata import Constraint, Requirement
-from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import InterpreterConstraint
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
@@ -902,7 +901,7 @@ def test_update_targeted_impossible(
     ] == error_lines[:11]
     assert re.match(
         r"^1\.\) {platform}: pid [\d]+ -> ".format(
-            platform=LocalInterpreter.create(PythonInterpreter.from_binary(py310)).platform.tag
+            platform=LocalInterpreter.create(py310).platform.tag
         ),
         error_lines[11],
     )
@@ -1015,7 +1014,7 @@ def test_update_add_impossible(
     ] == error_lines[:12]
     assert re.match(
         r"^1\.\) {platform}: pid [\d]+ -> ".format(
-            platform=LocalInterpreter.create(PythonInterpreter.from_binary(py310)).platform.tag
+            platform=LocalInterpreter.create(py310).platform.tag
         ),
         error_lines[12],
     )

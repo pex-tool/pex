@@ -42,9 +42,7 @@ def compatible_pip_version(pythons):
     # type: (Iterable[str]) -> PipVersionValue
     for pip_version in sorted(PipVersion.values(), key=lambda v: v.version, reverse=True):
         if all(
-            pip_version.requires_python_applies(
-                LocalInterpreter.create(PythonInterpreter.from_binary(python))
-            )
+            pip_version.requires_python_applies(LocalInterpreter.create(python))
             for python in pythons
         ):
             return pip_version
