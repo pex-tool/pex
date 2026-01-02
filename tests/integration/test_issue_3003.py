@@ -18,7 +18,7 @@ from testing import make_env, run_pex_command
 from testing.cli import run_pex3
 from testing.pytest_utils.tmp import Tempdir
 
-OPEN_TELEMETRY_SEMANTIC_CONVERSIONS_BETA = "opentelemetry-semantic-conventions==0.59b0"
+OPEN_TELEMETRY_SEMANTIC_CONVENTIONS_BETA = "opentelemetry-semantic-conventions==0.59b0"
 
 
 @pytest.fixture
@@ -49,7 +49,7 @@ def project_dir(tmpdir):
                     "{opentelemetry_requirement}",
                 ]
                 """.format(
-                    opentelemetry_requirement=OPEN_TELEMETRY_SEMANTIC_CONVERSIONS_BETA
+                    opentelemetry_requirement=OPEN_TELEMETRY_SEMANTIC_CONVENTIONS_BETA
                 )
             )
         )
@@ -156,7 +156,7 @@ def test_edge_case_semver_version_satisfied_venv_repository(
             "latest-compatible",
             "--venv-repository",
             project_venv.venv_dir,
-            OPEN_TELEMETRY_SEMANTIC_CONVERSIONS_BETA,
+            OPEN_TELEMETRY_SEMANTIC_CONVENTIONS_BETA,
             "-o",
             pex,
             "--no-compress",
@@ -233,7 +233,7 @@ def test_edge_case_semver_version_satisfied_locks(
             pex_root,
             "--pylock",
             pylock_toml,
-            OPEN_TELEMETRY_SEMANTIC_CONVERSIONS_BETA,
+            OPEN_TELEMETRY_SEMANTIC_CONVENTIONS_BETA,
             "-o",
             pex,
             "--no-compress",
@@ -250,7 +250,7 @@ def test_edge_case_semver_version_satisfied_locks(
             pex_root,
             "--lock",
             pex_lock,
-            OPEN_TELEMETRY_SEMANTIC_CONVERSIONS_BETA,
+            OPEN_TELEMETRY_SEMANTIC_CONVENTIONS_BETA,
             "-o",
             pex,
             "--no-compress",
@@ -325,7 +325,7 @@ def test_edge_case_semver_version_satisfied_pex_repository(
             pex_root,
             "--pex-repository",
             repository_pex,
-            OPEN_TELEMETRY_SEMANTIC_CONVERSIONS_BETA,
+            OPEN_TELEMETRY_SEMANTIC_CONVENTIONS_BETA,
             "-o",
             pex,
             "--no-compress",
@@ -352,7 +352,7 @@ def test_edge_case_semver_version_satisfied_pre_resolved_dists(
             pex_root,
             "--pre-resolved-dists",
             pre_resolved_dists,
-            OPEN_TELEMETRY_SEMANTIC_CONVERSIONS_BETA,
+            OPEN_TELEMETRY_SEMANTIC_CONVENTIONS_BETA,
             "-o",
             pex,
             "--no-compress",
