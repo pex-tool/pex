@@ -149,11 +149,12 @@ class PEX(object):  # noqa: T000
 
     @classmethod
     def _clean_environment(cls, env=None, strip_pex_env=True):
+        if not strip_pex_env:
+            return
         env = env or os.environ
-        if strip_pex_env:
-            for key in list(env):
-                if key.startswith("PEX_"):
-                    del env[key]
+        for key in list(env):
+            if key and key.startswith("PEX_"):
+                del env[key]
 
     def __init__(
         self,
@@ -838,7 +839,7 @@ class PEX(object):  # noqa: T000
             env = env.copy()
         else:
             env = os.environ.copy()
-            self._clean_environment(env=env)
+            self._clean_environment(env=env, strip_pex_env=self._pex_info.strip_pex_env)
 
         kwargs = dict(subprocess_daemon_kwargs() if setsid else {}, **kwargs)
 
