@@ -6,22 +6,44 @@ from __future__ import absolute_import
 import os.path
 import shutil
 
+from pex.pip.version import PipVersion
 from pex.typing import TYPE_CHECKING
 from testing import run_pex_command, subprocess
 from testing.mitmproxy import Proxy
+from testing.pytest_utils.tmp import Tempdir
 
 if TYPE_CHECKING:
-    from typing import Any
+    pass
 
 
 def test_rel_cert_path(
     proxy,  # type: Proxy
-    tmpdir,  # type: Any
+    tmpdir,  # type: Tempdir
 ):
     # type: (...) -> None
-    pex_file = os.path.join(str(tmpdir), "pex")
-    workdir = os.path.join(str(tmpdir), "workdir")
+
+    pex_root = tmpdir.join("pex-root")
+    pex_file = tmpdir.join("pex")
+
+    workdir = tmpdir.join("workdir")
     os.mkdir(workdir)
+
+    if PipVersion.DEFAULT is not PipVersion.VENDORED:
+        # Bootstrap the non-vendored Pip outside proxy strictures.
+        run_pex_command(
+            args=[
+                "--pex-root",
+                pex_root,
+                "--runtime-pex-root",
+                pex_root,
+                "ansicolors",
+                "--",
+                "-c",
+                "import colors",
+            ],
+            cwd=workdir,
+        ).assert_success()
+
     with proxy.run() as (port, ca_cert):
         shutil.copy(ca_cert, os.path.join(workdir, "cert"))
         run_pex_command(
@@ -30,6 +52,10 @@ def test_rel_cert_path(
                 "http://localhost:{port}".format(port=port),
                 "--cert",
                 "cert",
+                "--pex-root",
+                pex_root,
+                "--runtime-pex-root",
+                pex_root,
                 # N.B.: The original issue (https://github.com/pex-tool/pex/issues/1537) involved
                 # avro-python3 1.10.0, but that distribution utilizes setup_requires which leads to
                 # issues in CI for Mac. We use the Python 2/3 version of the same distribution
