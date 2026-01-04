@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.77.1
+
+This release fixes a very old bug where the Pex PEX (or any other PEX created with
+`--no-strip-pex-env`) would, in fact, strip `PEX_PYTHON` and `PEX_PYTHON_PATH`.
+
+* Fix `PEX_PYTHON{,_PATH}` stripping on Pex re-exec. (#3063)
+
 ## 2.77.0
 
 This release has no fixes or new features per-se, but just changes the set of distributions that

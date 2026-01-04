@@ -401,9 +401,6 @@ def maybe_reexec_pex(
     except UnsatisfiableInterpreterConstraintsError as e:
         die(str(e))
 
-    os.environ.pop("PEX_PYTHON", None)
-    os.environ.pop("PEX_PYTHON_PATH", None)
-
     if interpreter_test.pex_info.inherit_path == InheritPath.FALSE:
         # Now that we've found a compatible Python interpreter, make sure we resolve out of any
         # virtual environments it may be contained in since virtual environments created with
