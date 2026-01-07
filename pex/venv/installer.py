@@ -207,6 +207,40 @@ class Provenance(object):
         for src, dst in src_to_dst:
             self._provenance[dst].append(src)
 
+    def _equal_asts(self, srcs):
+        # type: (Iterable[Text]) -> bool
+        args = [
+            self.target_python,
+            "-c",
+            dedent(
+                """\
+                import ast
+                import sys
+
+
+                def equal_asts(srcs):
+                    normalized = None
+                    for src in srcs:
+                        with open(src) as fp:
+                            content = ast.unparse(ast.parse(fp.read(), fp.name))
+                            if normalized is None:
+                                normalized = content
+                            elif content != normalized:
+                                return False
+                    return True
+
+
+                if __name__ == "__main__":
+                    srcs = sys.argv[1:]
+                    if sys.version_info[:2] >= (3, 9) and equal_asts(srcs):
+                        sys.exit(0)
+                    sys.exit(len(srcs))    
+                """
+            ),
+        ]  # type: List[Text]
+        args.extend(srcs)
+        return subprocess.call(args) == 0
+
     def check_collisions(
         self,
         collisions_ok=False,  # type: bool
@@ -225,7 +259,9 @@ class Provenance(object):
             contents = defaultdict(list)
             for src in srcs:
                 contents[CacheHelper.hash(src)].append(src)
-            if len(contents) > 1:
+            if len(contents) > 1 and (
+                os.path.basename(dst) != "__init__.py" or not self._equal_asts(srcs)
+            ):
                 collisions[dst] = contents
 
         if not collisions:
