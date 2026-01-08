@@ -12,13 +12,16 @@ from pex.compatibility import commonpath
 from pex.pep_503 import ProjectName
 from pex.pex import PEX
 from pex.venv.virtualenv import Virtualenv
-from testing import PY_VER, make_env, run_pex_command
+from testing import IS_PYPY, PY_VER, make_env, run_pex_command
 from testing.pytest_utils.tmp import Tempdir
 
 
 @pytest.mark.skipif(
-    PY_VER < (3, 9) or PY_VER >= (3, 15),
-    reason="The dbt libraries under test require Python>=3.9 and no wheels are published for 3.15.",
+    IS_PYPY or PY_VER < (3, 9) or PY_VER >= (3, 15),
+    reason=(
+        "The dbt libraries under test require Python>=3.9 and no wheels are published for PyPy or "
+        "Python>=3.15."
+    ),
 )
 def test_whitespace_only_init_py_collisions_avoided(tmpdir):
     # type: (Tempdir) -> None
