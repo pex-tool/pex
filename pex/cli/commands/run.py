@@ -811,7 +811,8 @@ class Run(CacheAwareMixin, BuildTimeCommand):
                         interpreter=PythonInterpreter.get(),
                     )
                     provenance = Provenance.create(
-                        venv=venv, python=interpreter.adjust_to_final_path(venv.interpreter.binary)
+                        venv=venv,
+                        shebang_python=interpreter.adjust_to_final_path(venv.interpreter.binary),
                     )
                     installer.populate_venv_distributions(
                         venv=venv, distributions=distributions, provenance=provenance

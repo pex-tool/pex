@@ -321,7 +321,7 @@ class Venv(OutputMixin, JsonMixin, BuildTimeCommand):
             provenance = (
                 Provenance.create(venv=venv)
                 if venv
-                else Provenance(target_dir=dest_dir, target_python=target.get_interpreter().binary)
+                else Provenance(target_dir=dest_dir, target_python=target.get_interpreter())
             )
             if pex:
                 _install_from_pex(

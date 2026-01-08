@@ -18,6 +18,7 @@ from pex.environment import PEXEnvironment
 from pex.executables import chmod_plus_x
 from pex.fs import safe_symlink
 from pex.installed_wheel import InstalledWheel
+from pex.interpreter import PythonInterpreter
 from pex.orderedset import OrderedSet
 from pex.os import WINDOWS
 from pex.pep_427 import reinstall_flat, reinstall_venv
@@ -164,23 +165,23 @@ class Provenance(object):
     def create(
         cls,
         venv,  # type: Virtualenv
-        python=None,  # type: Optional[str]
+        shebang_python=None,  # type: Optional[str]
     ):
         # type: (...) -> Provenance
-        venv_bin_dir = os.path.dirname(python) if python else venv.bin_dir
-        venv_dir = os.path.dirname(venv_bin_dir) if python else venv.venv_dir
-
-        venv_python = python or venv.interpreter.binary
-        return cls(target_dir=venv_dir, target_python=venv_python)
+        return cls(
+            target_dir=venv.venv_dir, target_python=venv.interpreter, shebang_python=shebang_python
+        )
 
     def __init__(
         self,
         target_dir,  # type: str
-        target_python,  # type: str
+        target_python,  # type: PythonInterpreter
+        shebang_python=None,  # type: Optional[str]
     ):
         # type: (...) -> None
         self._target_dir = target_dir
         self._target_python = target_python
+        self._shebang_python = shebang_python
         self._provenance = defaultdict(list)  # type: DefaultDict[Text, List[Text]]
 
     @property
@@ -191,7 +192,7 @@ class Provenance(object):
     @property
     def target_python(self):
         # type: () -> str
-        return self._target_python
+        return self._shebang_python or self._target_python.binary
 
     def calculate_shebang(self, hermetic_scripts=True):
         # type: (bool) -> str
@@ -210,7 +211,7 @@ class Provenance(object):
     def _equal_asts(self, srcs):
         # type: (Iterable[Text]) -> bool
         args = [
-            self.target_python,
+            self._target_python.binary,
             "-c",
             dedent(
                 """\
@@ -410,7 +411,7 @@ def populate_venv_from_pex(
     venv,  # type: Virtualenv
     pex,  # type: PEX
     bin_path=BinPath.FALSE,  # type: BinPath.Value
-    python=None,  # type: Optional[str]
+    shebang_python=None,  # type: Optional[str]
     collisions_ok=True,  # type: bool
     copy_mode=CopyMode.LINK,  # type: CopyMode.Value
     scope=InstallScope.ALL,  # type: InstallScope.Value
@@ -418,7 +419,7 @@ def populate_venv_from_pex(
 ):
     # type: (...) -> str
 
-    provenance = Provenance.create(venv, python=python)
+    provenance = Provenance.create(venv, shebang_python=shebang_python)
     shebang = provenance.calculate_shebang(hermetic_scripts=hermetic_scripts)
     top_level_source_packages = tuple(iter_top_level_source_packages(pex))
 

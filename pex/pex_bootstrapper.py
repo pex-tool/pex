@@ -593,7 +593,7 @@ def ensure_venv(
                                 virtualenv,
                                 pex,
                                 bin_path=pex_info.venv_bin_path,
-                                python=os.path.join(
+                                shebang_python=os.path.join(
                                     venv_dirs.short_dir,
                                     "venv",
                                     SCRIPT_DIR,
