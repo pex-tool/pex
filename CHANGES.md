@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.77.3
+
+This release updates vendored Pip's vendored certifi's cacert.pem to that from certifi 2026.1.4.
+
+* Update vendored Pip's CA cert bundle. (#3065)
+
 ## 2.77.2
 
 This release fixes venv creation from PEXes to avoid declaring false collisions in `__init__.py`
