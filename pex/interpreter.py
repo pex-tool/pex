@@ -259,8 +259,12 @@ class PythonIdentity(object):
         supported_tags = tuple(tags.sys_tags())
         preferred_tag = supported_tags[0]
 
+        sys_config_vars = sysconfig.get_config_vars()
         configured_macosx_deployment_target = cls._normalize_macosx_deployment_target(
-            sysconfig.get_config_var("MACOSX_DEPLOYMENT_TARGET")
+            sys_config_vars.get("MACOSX_DEPLOYMENT_TARGET")
+        )
+        free_threaded = (
+            sys.version_info[:2] >= (3, 13) and sys_config_vars.get("Py_GIL_DISABLED", 0) == 1
         )
 
         # Pex identifies interpreters using a bit of Pex code injected via an extraction of that
@@ -313,6 +317,7 @@ class PythonIdentity(object):
             supported_tags=supported_tags,
             env_markers=MarkerEnvironment.default(),
             configured_macosx_deployment_target=configured_macosx_deployment_target,
+            free_threaded=free_threaded,
         )
 
     # Increment this integer version number when changing the encode / decode format or content.
@@ -323,7 +328,7 @@ class PythonIdentity(object):
         # type: (Text) -> PythonIdentity
         TRACER.log("creating PythonIdentity from encoded: {encoded}".format(encoded=encoded), V=9)
         values = json.loads(encoded)
-        if len(values) != 19:
+        if len(values) != 20:
             raise cls.InvalidError(
                 "Invalid interpreter identity: {encoded}".format(encoded=encoded)
             )
@@ -394,10 +399,16 @@ class PythonIdentity(object):
         )
 
     @classmethod
-    def _find_implementation(cls, python_tag):
-        # type: (str) -> InterpreterImplementation.Value
+    def _find_implementation(
+        cls,
+        python_tag,  # type: str
+        free_threaded,  # type: bool
+    ):
+        # type: (...) -> InterpreterImplementation.Value
         for implementation in InterpreterImplementation.values():
-            if python_tag.startswith(implementation.abbr):
+            if python_tag.startswith(implementation.abbr) and (
+                not free_threaded or implementation.free_threaded
+            ):
                 return implementation
         raise ValueError("Unknown interpreter: {}".format(python_tag))
 
@@ -419,10 +430,11 @@ class PythonIdentity(object):
         supported_tags,  # type: Iterable[tags.Tag]
         env_markers,  # type: MarkerEnvironment
         configured_macosx_deployment_target,  # type: Optional[str]
+        free_threaded,  # type: bool
     ):
         # type: (...) -> None
 
-        self._implementation = self._find_implementation(python_tag)
+        self._implementation = self._find_implementation(python_tag, free_threaded)
         production_assert(
             not pypy_version or self._implementation is InterpreterImplementation.PYPY
         )
@@ -443,6 +455,7 @@ class PythonIdentity(object):
         self._supported_tags = CompatibilityTags(tags=supported_tags)
         self._env_markers = env_markers
         self._configured_macosx_deployment_target = configured_macosx_deployment_target
+        self._free_threaded = free_threaded
 
     def encode(self):
         # type: () -> str
@@ -482,6 +495,7 @@ class PythonIdentity(object):
             ],
             env_markers=self._env_markers.as_dict(),
             configured_macosx_deployment_target=self._configured_macosx_deployment_target,
+            free_threaded=self._free_threaded,
         )
         return json.dumps(values, sort_keys=True, separators=(",", ":"))
 
@@ -563,6 +577,11 @@ class PythonIdentity(object):
     def is_pypy(self):
         # type: () -> bool
         return self._implementation is InterpreterImplementation.PYPY
+
+    @property
+    def free_threaded(self):
+        # type: () -> bool
+        return self._free_threaded
 
     @property
     def version_str(self):
@@ -1494,6 +1513,11 @@ class PythonInterpreter(object):
     def is_pypy(self):
         # type: () -> bool
         return self._identity.is_pypy
+
+    @property
+    def free_threaded(self):
+        # type: () -> bool
+        return self._identity.free_threaded
 
     @property
     def python(self):

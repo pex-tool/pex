@@ -111,7 +111,13 @@ class InterpreterConstraint(object):
     def __contains__(self, interpreter):
         # type: (PythonInterpreter) -> bool
         python_identity = interpreter.identity
-        if self.implementation and self.implementation is not python_identity.implementation:
+        if self.implementation is InterpreterImplementation.CPYTHON:
+            if python_identity.implementation not in (
+                InterpreterImplementation.CPYTHON,
+                InterpreterImplementation.CPYTHON_FREE_THREADED,
+            ):
+                return False
+        elif self.implementation and self.implementation is not python_identity.implementation:
             return False
         return python_identity.version_str in self.specifier
 

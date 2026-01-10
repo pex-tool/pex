@@ -19,17 +19,17 @@ from pex.interpreter_implementation import InterpreterImplementation
 from pex.pex_warnings import PEXWarning
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.typing import TYPE_CHECKING
-from testing import PY39, ensure_python_interpreter
 
 if TYPE_CHECKING:
     from typing import List, Tuple
 
 
-def test_parse():
-    py39 = PythonInterpreter.from_binary(ensure_python_interpreter(PY39))
+def test_parse(py39):
+    # type: (PythonInterpreter) -> None
 
     assert py39 in InterpreterConstraint.parse("==3.9.*")
     assert py39 in InterpreterConstraint.parse("CPython==3.9.*")
+    assert py39 not in InterpreterConstraint.parse("CPython_t==3.9.*")
     assert py39 in InterpreterConstraint.parse(
         "==3.9.*", default_interpreter=InterpreterImplementation.CPYTHON
     )
