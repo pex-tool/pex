@@ -274,7 +274,7 @@ def register_options(parser):
         help=(
             "Should the Python Standalone Builds CPython distributions used be stripped of debug "
             "symbols or not. For Linux and Windows particularly, the stripped distributions are "
-            "less than half the size of the distributions that ship with debug symbols. Note that"
+            "less than half the size of the distributions that ship with debug symbols. Note that "
             "this option is not compatible with `--scie-pbs-free-threaded` or `--scie-pbs-debug`."
         ),
     )
