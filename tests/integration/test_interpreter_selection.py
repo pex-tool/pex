@@ -537,6 +537,9 @@ def test_free_threaded_cpython_selection(
     else:
         py314t = find_py314t_result
 
+    assert py311.free_threaded is False
+    assert py314t.free_threaded is True
+
     assert py311 in InterpreterConstraint.parse(">=3.11")
     assert py314t in InterpreterConstraint.parse(">=3.11")
 
@@ -546,14 +549,23 @@ def test_free_threaded_cpython_selection(
     assert py311 in InterpreterConstraint.parse("CPython>=3.11")
     assert py314t in InterpreterConstraint.parse("CPython>=3.11")
 
-    assert py311 not in InterpreterConstraint.parse("CPython_t")
-    assert py314t in InterpreterConstraint.parse("CPython_t")
+    assert py311 not in InterpreterConstraint.parse("CPython+t")
+    assert py314t in InterpreterConstraint.parse("CPython+t")
 
-    assert py311 not in InterpreterConstraint.parse("CPython_t>=3.11")
-    assert py314t in InterpreterConstraint.parse("CPython_t>=3.11")
+    assert py311 in InterpreterConstraint.parse("CPython-t")
+    assert py314t not in InterpreterConstraint.parse("CPython-t")
+
+    assert py311 not in InterpreterConstraint.parse("CPython+t>=3.11")
+    assert py314t in InterpreterConstraint.parse("CPython+t>=3.11")
+
+    assert py311 in InterpreterConstraint.parse("CPython-t>=3.11")
+    assert py314t not in InterpreterConstraint.parse("CPython-t>=3.11")
 
     assert py311 not in InterpreterConstraint.parse("PyPy>=3.11")
     assert py314t not in InterpreterConstraint.parse("PyPy>=3.11")
 
-    assert py311 not in InterpreterConstraint.parse("CPython_t<3.12")
-    assert py314t not in InterpreterConstraint.parse("CPython_t<3.12")
+    assert py311 not in InterpreterConstraint.parse("CPython+t<3.12")
+    assert py314t not in InterpreterConstraint.parse("CPython+t<3.12")
+
+    assert py311 not in InterpreterConstraint.parse("CPython-t<3.11")
+    assert py314t not in InterpreterConstraint.parse("CPython-t>=3.11")

@@ -17,12 +17,18 @@ class _InterpreterImplementationValue(Enum.Value):
         abbr,  # type: str
         binary_name,  # type: str
         free_threaded=None,  # type: Optional[bool]
+        initial_version=None,  # type: Optional[Tuple[int, ...]]
     ):
         # type: (...) -> None
         super(_InterpreterImplementationValue, self).__init__(value)
         self.abbr = abbr
         self.binary_name = binary_name
         self.free_threaded = free_threaded
+        self._initial_version = initial_version
+
+    def applies(self, version):
+        # type: (Tuple[int, ...]) -> bool
+        return self._initial_version is None or version >= self._initial_version
 
     def calculate_binary_name(self, version=None):
         # type: (Optional[Tuple[int, ...]]) -> str
@@ -31,7 +37,7 @@ class _InterpreterImplementationValue(Enum.Value):
         return "{name}{version}{abiflags}".format(
             name=self.binary_name,
             version=".".join(map(str, version)),
-            abiflags="t" if self.free_threaded else "",
+            abiflags="t" if self.free_threaded and self.applies(version) else "",
         )
 
 
@@ -40,7 +46,10 @@ class InterpreterImplementation(Enum["InterpreterImplementation.Value"]):
         pass
 
     CPYTHON = Value("CPython", "cp", "python")
-    CPYTHON_FREE_THREADED = Value("CPython_t", "cp", "python", free_threaded=True)
+    CPYTHON_FREE_THREADED = Value(
+        "CPython+t", "cp", "python", free_threaded=True, initial_version=(3, 13)
+    )
+    CPYTHON_GIL = Value("CPython-t", "cp", "python", free_threaded=False)
     PYPY = Value("PyPy", "pp", "pypy")
 
 

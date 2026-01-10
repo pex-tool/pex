@@ -2,12 +2,13 @@
 
 ## 2.78.0
 
-This release adds support for the `CPython_t` implementation name in interpreter constraints to
+This release adds support for the `CPython+t` implementation name in interpreter constraints to
 allow constraining selected interpreters to CPython interpreters built with free-threading support.
 The existing `CPython` implementation selects from either classic GIL enabled `CPython` interpreters
-or CPython free-threaded interpreters as was the case previously.
+or CPython free-threaded interpreters as was the case previously. The `CPython-t` implementation
+name can be used to require classic GIL-only CPython interpreters.
 -
-* Support `CPython_t` in ICs to select free-threaded CPython. (#3067)
+* Support `CPython+t` in ICs to select free-threaded CPython. (#3067)
 
 ## 2.77.3
 

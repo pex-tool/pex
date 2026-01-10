@@ -260,12 +260,21 @@ class PythonIdentity(object):
         preferred_tag = supported_tags[0]
 
         sys_config_vars = sysconfig.get_config_vars()
+
         configured_macosx_deployment_target = cls._normalize_macosx_deployment_target(
             sys_config_vars.get("MACOSX_DEPLOYMENT_TARGET")
         )
-        free_threaded = (
-            sys.version_info[:2] >= (3, 13) and sys_config_vars.get("Py_GIL_DISABLED", 0) == 1
+
+        pypy_version = cast(
+            "Optional[Tuple[int, int, int]]",
+            tuple(getattr(sys, "pypy_version_info", ())[:3]) or None,
         )
+        if pypy_version is None:
+            free_threaded = (
+                sys.version_info[:2] >= (3, 13) and sys_config_vars.get("Py_GIL_DISABLED", 0) == 1
+            )  # type: Optional[bool]
+        else:
+            free_threaded = None
 
         # Pex identifies interpreters using a bit of Pex code injected via an extraction of that
         # code under the `PEX_ROOT` adjoined to `sys.path` via `PYTHONPATH`. Pex also exposes the
@@ -310,10 +319,7 @@ class PythonIdentity(object):
             abi_tag=preferred_tag.abi,
             platform_tag=preferred_tag.platform,
             version=cast("Tuple[int, int, int]", tuple(sys.version_info[:3])),
-            pypy_version=cast(
-                "Optional[Tuple[int, int, int]]",
-                tuple(getattr(sys, "pypy_version_info", ())[:3]) or None,
-            ),
+            pypy_version=pypy_version,
             supported_tags=supported_tags,
             env_markers=MarkerEnvironment.default(),
             configured_macosx_deployment_target=configured_macosx_deployment_target,
@@ -402,12 +408,15 @@ class PythonIdentity(object):
     def _find_implementation(
         cls,
         python_tag,  # type: str
-        free_threaded,  # type: bool
+        free_threaded,  # type: Optional[bool]
+        version,  # type: Tuple[int, int, int]
     ):
         # type: (...) -> InterpreterImplementation.Value
         for implementation in InterpreterImplementation.values():
-            if python_tag.startswith(implementation.abbr) and (
-                not free_threaded or implementation.free_threaded
+            if (
+                implementation.applies(version)
+                and python_tag.startswith(implementation.abbr)
+                and (implementation.free_threaded == free_threaded)
             ):
                 return implementation
         raise ValueError("Unknown interpreter: {}".format(python_tag))
@@ -430,11 +439,11 @@ class PythonIdentity(object):
         supported_tags,  # type: Iterable[tags.Tag]
         env_markers,  # type: MarkerEnvironment
         configured_macosx_deployment_target,  # type: Optional[str]
-        free_threaded,  # type: bool
+        free_threaded,  # type: Optional[bool]
     ):
         # type: (...) -> None
 
-        self._implementation = self._find_implementation(python_tag, free_threaded)
+        self._implementation = self._find_implementation(python_tag, free_threaded, version)
         production_assert(
             not pypy_version or self._implementation is InterpreterImplementation.PYPY
         )
@@ -580,7 +589,7 @@ class PythonIdentity(object):
 
     @property
     def free_threaded(self):
-        # type: () -> bool
+        # type: () -> Optional[bool]
         return self._free_threaded
 
     @property
@@ -1516,7 +1525,7 @@ class PythonInterpreter(object):
 
     @property
     def free_threaded(self):
-        # type: () -> bool
+        # type: () -> Optional[bool]
         return self._identity.free_threaded
 
     @property

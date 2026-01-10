@@ -10,7 +10,6 @@ import itertools
 from pex import pex_warnings
 from pex.common import pluralize
 from pex.compatibility import indent
-from pex.dist_metadata import Requirement, RequirementParseError
 from pex.enum import Enum
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_implementation import InterpreterImplementation
@@ -39,24 +38,28 @@ class InterpreterConstraint(object):
     def parse(
         cls,
         constraint,  # type: str
-        default_interpreter=None,  # type: Optional[InterpreterImplementation.Value]
+        default_interpreter_implementation=None,  # type: Optional[InterpreterImplementation.Value]
     ):
         # type: (...) -> InterpreterConstraint
+
+        implementation = default_interpreter_implementation
+        specifier = constraint
+        for interpreter_implementation in sorted(
+            InterpreterImplementation.values(), key=lambda ii: len(ii.value), reverse=True
+        ):
+            if constraint.startswith(interpreter_implementation.value):
+                implementation = interpreter_implementation
+                specifier = constraint[len(interpreter_implementation.value) :]
+                break
+
         try:
-            requirement = Requirement.parse(constraint)
-            return cls(
-                specifier=requirement.specifier,
-                implementation=InterpreterImplementation.for_value(requirement.name),
-            )
-        except RequirementParseError:
-            try:
-                return cls(specifier=SpecifierSet(constraint), implementation=default_interpreter)
-            except InvalidSpecifier as e:
-                raise ValueError(
-                    "Unparseable interpreter constraint {constraint}: {err}".format(
-                        constraint=constraint, err=e
-                    )
+            return cls(specifier=SpecifierSet(specifier), implementation=implementation)
+        except InvalidSpecifier as e:
+            raise ValueError(
+                "Unparseable interpreter constraint {constraint}: {err}".format(
+                    constraint=constraint, err=e
                 )
+            )
 
     @classmethod
     def matches(
@@ -115,6 +118,7 @@ class InterpreterConstraint(object):
             if python_identity.implementation not in (
                 InterpreterImplementation.CPYTHON,
                 InterpreterImplementation.CPYTHON_FREE_THREADED,
+                InterpreterImplementation.CPYTHON_GIL,
             ):
                 return False
         elif self.implementation and self.implementation is not python_identity.implementation:
