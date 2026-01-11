@@ -543,12 +543,14 @@ def test_free_threaded_cpython_selection(
         args=[
             "--interpreter-constraint",
             "CPython+t==3.14.*",
+            "--python-path",
+            os.path.dirname(py314t.binary),
             "--scie",
             "eager",
             "--scie-only",
             "-o",
             py314t_scie,
-        ]
+        ],
     ).assert_success()
     py314t = PythonInterpreter.from_binary(
         str(
