@@ -5,7 +5,6 @@ import os
 import subprocess
 import sys
 from textwrap import dedent
-from typing import Union
 
 import pytest
 
@@ -14,7 +13,6 @@ from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import InterpreterConstraint, InterpreterConstraints
 from pex.pex_info import PexInfo
 from pex.pip.version import PipVersion
-from pex.result import Error, catch, try_
 from pex.typing import TYPE_CHECKING
 from testing import (
     PY39,
@@ -515,30 +513,53 @@ def test_free_threaded_cpython_selection(
 ):
     # type: (...) -> None
 
-    def find_py314t():
-        # type: () -> Union[PythonInterpreter, Error]
-        return catch(
-            lambda: PythonInterpreter.from_binary(
-                str(
-                    subprocess.check_output(args=["uv", "python", "find", "3.14t"])
-                    .decode("utf-8")
-                    .strip()
-                )
-            )
-        )
-
-    find_py314t_result = find_py314t()
-    if isinstance(find_py314t_result, Error):
-        install_dir = tmpdir.join("python-installs")
-        subprocess.check_call(
-            args=["uv", "python", "install", "--install-dir", install_dir, "3.14t"]
-        )
-        py314t = try_(find_py314t())
-    else:
-        py314t = find_py314t_result
-
     assert py311.free_threaded is False
-    assert py314t.free_threaded is True
+
+    py314t_scie = tmpdir.join("py314t")
+    run_pex_command(
+        args=[
+            "--interpreter-constraint",
+            "CPython==3.14.*",
+            "--scie-pbs-free-threaded",
+            "--scie",
+            "eager",
+            "--scie-only",
+            "-o",
+            py314t_scie,
+        ]
+    ).assert_success()
+    py314t = PythonInterpreter.from_binary(
+        str(
+            subprocess.check_output(args=[py314t_scie, "-c", "import sys; print(sys.executable)"])
+            .decode("utf-8")
+            .strip()
+        )
+    )
+    assert (
+        py314t.free_threaded is True
+    ), "Expected coercion of free-threading via `--scie-pbs-free-threaded` to work."
+
+    run_pex_command(
+        args=[
+            "--interpreter-constraint",
+            "CPython+t==3.14.*",
+            "--scie",
+            "eager",
+            "--scie-only",
+            "-o",
+            py314t_scie,
+        ]
+    ).assert_success()
+    py314t = PythonInterpreter.from_binary(
+        str(
+            subprocess.check_output(args=[py314t_scie, "-c", "import sys; print(sys.executable)"])
+            .decode("utf-8")
+            .strip()
+        )
+    )
+    assert (
+        py314t.free_threaded is True
+    ), "Expected selection of free-threading via `--interpreter-constraint` to work."
 
     assert py311 in InterpreterConstraint.parse(">=3.11")
     assert py314t in InterpreterConstraint.parse(">=3.11")
