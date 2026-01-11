@@ -7,7 +7,7 @@ from pex.enum import Enum
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Optional, Tuple
+    from typing import FrozenSet, Optional, Tuple
 
 
 class _InterpreterImplementationValue(Enum.Value):
@@ -44,6 +44,13 @@ class _InterpreterImplementationValue(Enum.Value):
 class InterpreterImplementation(Enum["InterpreterImplementation.Value"]):
     class Value(_InterpreterImplementationValue):
         pass
+
+    @classmethod
+    def covering_sets(cls):
+        # type: () -> Tuple[FrozenSet[InterpreterImplementation.Value], ...]
+        return frozenset((cls.CPYTHON, cls.PYPY)), frozenset(
+            (cls.CPYTHON_FREE_THREADED, cls.CPYTHON_GIL, cls.PYPY)
+        )
 
     CPYTHON = Value("CPython", "cp", "python")
     CPYTHON_FREE_THREADED = Value(
