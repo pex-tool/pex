@@ -1,7 +1,6 @@
 # Copyright 2022 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-
 from pex import sh_boot
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import InterpreterConstraints, iter_compatible_versions
@@ -57,11 +56,15 @@ def expected(
         ),
         reverse=True,  # Newest (highest) version 1st.
     )
-    for exe_name in "python", "pypy":
-        all_names.update(
-            "{exe_name}{major}.{minor}".format(exe_name=exe_name, major=major, minor=minor)
-            for major, minor in supported_versions
-        )
+    for major, minor in supported_versions:
+        all_names.add("python{major}.{minor}".format(major=major, minor=minor))
+        if (major, minor) >= (3, 13):
+            all_names.add("python{major}.{minor}t".format(major=major, minor=minor))
+
+    all_names.update(
+        "pypy{major}.{minor}".format(major=major, minor=minor)
+        for major, minor in supported_versions
+    )
 
     if names:
         all_names.update(name.render(version_components=1) for name in names)
@@ -138,15 +141,18 @@ def test_calculate_no_targets_ics(pex_requires_python):
     assert (
         expected(
             pex_requires_python,
-            PythonBinaryName(implementation=InterpreterImplementation.CPYTHON, version=(3, 7)),
-            PythonBinaryName(implementation=InterpreterImplementation.PYPY, version=(3, 7)),
-            PythonBinaryName(implementation=InterpreterImplementation.CPYTHON, version=(3, 8)),
-            PythonBinaryName(implementation=InterpreterImplementation.PYPY, version=(3, 8)),
-            PythonBinaryName(implementation=InterpreterImplementation.CPYTHON, version=(3, 9)),
-            PythonBinaryName(implementation=InterpreterImplementation.PYPY, version=(3, 9)),
-            PythonBinaryName(implementation=InterpreterImplementation.PYPY, version=(3, 6)),
+            PythonBinaryName(implementation=InterpreterImplementation.CPYTHON, version=(3, 11)),
+            PythonBinaryName(implementation=InterpreterImplementation.PYPY, version=(3, 11)),
+            PythonBinaryName(implementation=InterpreterImplementation.CPYTHON, version=(3, 12)),
+            PythonBinaryName(implementation=InterpreterImplementation.PYPY, version=(3, 12)),
+            PythonBinaryName(implementation=InterpreterImplementation.CPYTHON, version=(3, 13)),
+            PythonBinaryName(
+                implementation=InterpreterImplementation.CPYTHON_FREE_THREADED, version=(3, 13)
+            ),
+            PythonBinaryName(implementation=InterpreterImplementation.PYPY, version=(3, 13)),
+            PythonBinaryName(implementation=InterpreterImplementation.PYPY, version=(3, 10)),
         )
-        == calculate_binary_names(interpreter_constraints=[">=3.7,<3.10", "PyPy==3.6.*"])
+        == calculate_binary_names(interpreter_constraints=[">=3.11,<3.14", "PyPy==3.10.*"])
     )
 
 

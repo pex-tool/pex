@@ -76,7 +76,7 @@ def test_ics_implementation_conflicting():
         expected_error_re=re.escape(
             "The interpreter constraints for a universal resolve cannot have mixed implementations "
             "unless they are all explicit and span the full set of Pex supported implementations: "
-            "CPython and PyPy.\n"
+            "(CPython, PyPy) or (CPython+t, CPython-t, PyPy).\n"
             "Given: <3.12,>=3.10 or PyPy<3.12,>=3.10"
         )
     )

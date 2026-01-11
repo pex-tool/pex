@@ -21,6 +21,7 @@ from pex.exceptions import reportable_unexpected_error_msg
 from pex.executables import chmod_plus_x
 from pex.fetcher import URLFetcher
 from pex.hashing import Sha256
+from pex.interpreter_implementation import InterpreterImplementation
 from pex.os import is_exe
 from pex.pep_440 import Version
 from pex.pex import PEX
@@ -108,6 +109,9 @@ Filenames.seal()
 
 def _is_free_threaded_pex(pex_info):
     # type: (PexInfo) -> bool
+    for ic in pex_info.interpreter_constraints:
+        if ic.implementation is InterpreterImplementation.CPYTHON_FREE_THREADED:
+            return True
     for distribution in pex_info.distributions:
         _, _, _, tags = parse_wheel_filename(os.path.basename(distribution))
         for tag in tags:

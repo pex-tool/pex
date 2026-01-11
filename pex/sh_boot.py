@@ -63,7 +63,11 @@ def _calculate_applicable_binary_names(
             for implementation in (
                 (interpreter_constraint.implementation,)
                 if interpreter_constraint.implementation
-                else InterpreterImplementation.values()
+                else tuple(
+                    implementation
+                    for implementation in InterpreterImplementation.values()
+                    if implementation.applies(version)
+                )
             )
         )
     # If we get targets from ICs, we only want explicitly specified local interpreter targets;
@@ -104,12 +108,18 @@ def _calculate_applicable_binary_names(
     # for CPython end targets and for PyPy it need not be quite as fast since it inherently asks you
     # to trade startup latency for longer term jit performance.
     names.update(
-        PythonBinaryName(implementation=InterpreterImplementation.CPYTHON, version=version)
+        PythonBinaryName(implementation=implementation, version=version)
         for version in pex_supported_python_versions
+        for implementation in (
+            InterpreterImplementation.CPYTHON,
+            InterpreterImplementation.CPYTHON_FREE_THREADED,
+        )
+        if implementation.applies(version)
     )
     names.update(
         PythonBinaryName(implementation=InterpreterImplementation.PYPY, version=version)
         for version in pex_supported_python_versions
+        if InterpreterImplementation.PYPY.applies(version)
     )
 
     # Favor more specific interpreter names since these should need re-direction less often.
