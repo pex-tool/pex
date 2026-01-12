@@ -573,22 +573,34 @@ def test_free_threaded_cpython_selection(
     assert py314t in InterpreterConstraint.parse("CPython>=3.11")
 
     assert py311 not in InterpreterConstraint.parse("CPython+t")
+    assert py311 not in InterpreterConstraint.parse("CPython[free-threaded]")
     assert py314t in InterpreterConstraint.parse("CPython+t")
+    assert py314t in InterpreterConstraint.parse("CPython[free-threaded]")
 
     assert py311 in InterpreterConstraint.parse("CPython-t")
+    assert py311 in InterpreterConstraint.parse("CPython[gil]")
     assert py314t not in InterpreterConstraint.parse("CPython-t")
+    assert py314t not in InterpreterConstraint.parse("CPython[gil]")
 
     assert py311 not in InterpreterConstraint.parse("CPython+t>=3.11")
+    assert py311 not in InterpreterConstraint.parse("CPython[free-threaded]>=3.11")
     assert py314t in InterpreterConstraint.parse("CPython+t>=3.11")
+    assert py314t in InterpreterConstraint.parse("CPython[free-threaded]>=3.11")
 
     assert py311 in InterpreterConstraint.parse("CPython-t>=3.11")
+    assert py311 in InterpreterConstraint.parse("CPython[gil]>=3.11")
     assert py314t not in InterpreterConstraint.parse("CPython-t>=3.11")
+    assert py314t not in InterpreterConstraint.parse("CPython[gil]>=3.11")
 
     assert py311 not in InterpreterConstraint.parse("PyPy>=3.11")
     assert py314t not in InterpreterConstraint.parse("PyPy>=3.11")
 
     assert py311 not in InterpreterConstraint.parse("CPython+t<3.12")
+    assert py311 not in InterpreterConstraint.parse("CPython[free-threaded]<3.12")
     assert py314t not in InterpreterConstraint.parse("CPython+t<3.12")
+    assert py314t not in InterpreterConstraint.parse("CPython[free-threaded]<3.12")
 
     assert py311 not in InterpreterConstraint.parse("CPython-t<3.11")
+    assert py311 not in InterpreterConstraint.parse("CPython[gil]<3.11")
     assert py314t not in InterpreterConstraint.parse("CPython-t>=3.11")
+    assert py314t not in InterpreterConstraint.parse("CPython[gil]>=3.11")
