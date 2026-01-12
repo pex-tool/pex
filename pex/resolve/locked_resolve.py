@@ -90,15 +90,23 @@ class LockConfiguration(object):
             implementations[interpreter_constraint.implementation].add(
                 interpreter_constraint.requires_python
             )
-        if len(implementations) > 1 and frozenset(implementations) != frozenset(
-            InterpreterImplementation.values()
+        if (
+            len(implementations) > 1
+            and frozenset(implementations) not in InterpreterImplementation.covering_sets()
         ):
             raise ValueError(
                 "The interpreter constraints for a universal resolve cannot have mixed "
                 "implementations unless they are all explicit and span the full set of Pex "
                 "supported implementations: {implementations}.\n"
                 "Given: {constraints}".format(
-                    implementations=" and ".join(map(str, InterpreterImplementation.values())),
+                    implementations=" or ".join(
+                        "({elements})".format(
+                            elements=", ".join(
+                                impl.value for impl in sorted(covering_set, key=lambda i: i.value)
+                            )
+                        )
+                        for covering_set in InterpreterImplementation.covering_sets()
+                    ),
                     constraints=" or ".join(map(str, interpreter_constraints)),
                 )
             )
