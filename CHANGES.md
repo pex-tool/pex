@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.79.0
+
+This release adds the `CPython[free-threaded]` alias for `CPython+t` and the `CPython[gil]` alias
+fo `CPython-t` when writing interpreter constraints.
+
+* Add `CPython[{free-threaded,gil}]` aliases for `CPython{+,-}t`. #(3068)
+
 ## 2.78.0
 
 This release adds support for the `CPython+t` implementation name in interpreter constraints to

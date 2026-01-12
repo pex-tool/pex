@@ -32,6 +32,19 @@ class UnsatisfiableError(ValueError):
     """Indicates an unsatisfiable interpreter constraint, e.g. `>=3.8,<3.8`."""
 
 
+def _iter_interpreter_implementations():
+    # type: () -> Iterator[Tuple[InterpreterImplementation.Value, str]]
+    for interpreter_implementation in InterpreterImplementation.values():
+        yield interpreter_implementation, interpreter_implementation.value
+        if interpreter_implementation.alias:
+            yield interpreter_implementation, interpreter_implementation.alias
+
+
+_INTERPRETER_IMPLEMENTATIONS = tuple(
+    sorted(_iter_interpreter_implementations(), key=lambda tup: tup[1], reverse=True)
+)
+
+
 @attr.s(frozen=True)
 class InterpreterConstraint(object):
     @classmethod
@@ -44,12 +57,11 @@ class InterpreterConstraint(object):
 
         implementation = default_interpreter_implementation
         specifier = constraint
-        for interpreter_implementation in sorted(
-            InterpreterImplementation.values(), key=lambda ii: len(ii.value), reverse=True
-        ):
-            if constraint.startswith(interpreter_implementation.value):
+
+        for interpreter_implementation, value in _INTERPRETER_IMPLEMENTATIONS:
+            if constraint.startswith(value):
                 implementation = interpreter_implementation
-                specifier = constraint[len(interpreter_implementation.value) :]
+                specifier = constraint[len(value) :]
                 break
 
         try:

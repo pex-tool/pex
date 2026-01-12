@@ -28,9 +28,15 @@ def test_parse(py39):
     # type: (PythonInterpreter) -> None
 
     assert py39 in InterpreterConstraint.parse("==3.9.*")
+
     assert py39 in InterpreterConstraint.parse("CPython==3.9.*")
+
     assert py39 not in InterpreterConstraint.parse("CPython+t==3.9.*")
+    assert py39 not in InterpreterConstraint.parse("CPython[free-threaded]==3.9.*")
+
     assert py39 in InterpreterConstraint.parse("CPython-t==3.9.*")
+    assert py39 in InterpreterConstraint.parse("CPython[gil]==3.9.*")
+
     assert py39 in InterpreterConstraint.parse(
         "==3.9.*", default_interpreter_implementation=InterpreterImplementation.CPYTHON
     )

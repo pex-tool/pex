@@ -100,12 +100,13 @@ def register(
             'e.g. "CPython>=2.7,<3" (A CPython interpreter with version >=2.7 AND version <3), '
             '">=2.7,<3" (Any Python interpreter with version >=2.7 AND version <3) or "PyPy" (A '
             "PyPy interpreter of any version). The recognized requirement names are `CPython` for "
-            "any CPython interpreter, `CPython+t` for a free-threaded CPython interpreter,"
-            "`CPython-t`for a classic GIL-only CPython interpreter and `PyPy` for a PyPy "
-            "interpreter. This argument may be repeated multiple times to OR the constraints. Try "
-            "`{single_interpreter_info_cmd}` to find the exact interpreter constraints of "
-            "{current_interpreter} and `{all_interpreters_info_cmd}` to find out the interpreter "
-            "constraints of all Python interpreters on the $PATH.".format(
+            "any CPython interpreter, `CPython+t` (or `CPython[free-threaded]`) for a "
+            "free-threaded CPython interpreter, `CPython-t` (or `CPython[gil]`) for a classic "
+            "GIL-only CPython interpreter and `PyPy` for a PyPy interpreter. This argument may be "
+            "repeated multiple times to OR the constraints. Try `{single_interpreter_info_cmd}` to "
+            "find the exact interpreter constraints of {current_interpreter} and "
+            "`{all_interpreters_info_cmd}` to find out the interpreter constraints of all Python "
+            "interpreters on the $PATH.".format(
                 current_interpreter=sys.executable,
                 single_interpreter_info_cmd=single_interpreter_info_cmd,
                 all_interpreters_info_cmd=all_interpreters_info_cmd,
