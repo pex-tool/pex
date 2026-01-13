@@ -18,10 +18,7 @@ from pex.specifier_sets import (
     includes,
 )
 from pex.third_party.packaging.specifiers import InvalidSpecifier
-from pex.typing import TYPE_CHECKING, cast
-
-if TYPE_CHECKING:
-    pass
+from pex.typing import cast
 
 
 def test_range_simplification():

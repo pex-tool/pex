@@ -7,13 +7,9 @@ import os.path
 import shutil
 
 from pex.pip.version import PipVersion
-from pex.typing import TYPE_CHECKING
 from testing import run_pex_command, subprocess
 from testing.mitmproxy import Proxy
 from testing.pytest_utils.tmp import Tempdir
-
-if TYPE_CHECKING:
-    pass
 
 
 def test_rel_cert_path(
