@@ -45,7 +45,16 @@ class _InterpreterImplementationValue(Enum.Value):
 
 class InterpreterImplementation(Enum["InterpreterImplementation.Value"]):
     class Value(_InterpreterImplementationValue):
-        pass
+        def includes(self, implementation):
+            # type: (InterpreterImplementation.Value) -> bool
+            if self is implementation:
+                return True
+            if self is InterpreterImplementation.CPYTHON and implementation in (
+                InterpreterImplementation.CPYTHON_FREE_THREADED,
+                InterpreterImplementation.CPYTHON_GIL,
+            ):
+                return True
+            return False
 
     @classmethod
     def covering_sets(cls):

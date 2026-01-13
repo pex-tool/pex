@@ -165,6 +165,11 @@ class PipConfiguration(object):
     extra_requirements = attr.ib(default=())  # type Tuple[Requirement, ...]
     keyring_provider = attr.ib(default=None)  # type: Optional[str]
 
+    @property
+    def pip_configuration(self):
+        # type: () -> PipConfiguration
+        return self
+
 
 @attr.s(frozen=True)
 class PexRepositoryConfiguration(object):
