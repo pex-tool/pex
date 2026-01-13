@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.80.0
+
+This release adds the `pex3 scie create` tool for creating scies from existing PEX files. This
+works for PEXes created by Pex 2.1.25 (released on January 21st, 2021) and newer.
+
+* Add a `pex3 scie create` command. (#3070)
+
 ## 2.79.0
 
 This release adds the `CPython[free-threaded]` alias for `CPython+t` and the `CPython[gil]` alias
