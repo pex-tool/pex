@@ -62,7 +62,7 @@ def _narrow_interpreter_constraints(
             return Error(
                 "The PEX has interpreter constraints of {pex_interpreter_constraints} and the "
                 "user-supplied interpreter constraints of {user_interpreter_constraints} do not "
-                "form a subset of those".format(
+                "form a subset of those.".format(
                     pex_interpreter_constraints=" or ".join(map(str, pex_interpreter_constraints)),
                     user_interpreter_constraints=" or ".join(
                         map(str, user_interpreter_constraints)
