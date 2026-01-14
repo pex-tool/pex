@@ -13,7 +13,6 @@ from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import InterpreterConstraint, InterpreterConstraints
 from pex.pex_info import PexInfo
 from pex.pip.version import PipVersion
-from pex.typing import TYPE_CHECKING
 from testing import (
     PY39,
     PY310,
@@ -25,9 +24,6 @@ from testing import (
 )
 from testing.pip import skip_if_only_vendored_pip_supported
 from testing.pytest_utils.tmp import Tempdir
-
-if TYPE_CHECKING:
-    pass
 
 
 def test_interpreter_constraints_to_pex_info_py2():

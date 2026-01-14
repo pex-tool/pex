@@ -32,7 +32,7 @@ from pex.typing import TYPE_CHECKING, cast
 from pex.variables import ENV, Variables
 
 if TYPE_CHECKING:
-    from typing import Iterator, List, Optional, Text, Tuple, Union
+    from typing import Any, Dict, Iterator, List, Optional, Text, Tuple, Union
 
 __all__ = (
     "InterpreterDistribution",
@@ -48,12 +48,14 @@ __all__ = (
 )
 
 
-def register_options(parser):
-    # type: (_ActionsContainer) -> None
+def register_options(
+    parser,  # type: _ActionsContainer
+    style_option_names=(),  # type: Tuple[str, ...]
+):
+    # type: (...) -> None
 
-    parser.add_argument(
-        "--scie",
-        "--par",
+    scie_style_option_names = style_option_names or ("--scie", "--par")  # type: Tuple[str, ...]
+    argument_options = dict(
         dest="scie_style",
         default=None,
         type=ScieStyle.for_value,
@@ -81,7 +83,10 @@ def register_options(parser):
                 lazy=ScieStyle.LAZY, eager=ScieStyle.EAGER
             )
         ),
-    )
+    )  # type: Dict[str, Any]
+
+    parser.add_argument(*scie_style_option_names, **argument_options)
+
     parser.add_argument(
         "--scie-only",
         "--no-scie-only",

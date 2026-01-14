@@ -9,7 +9,6 @@ import pytest
 
 from pex.common import safe_open, touch
 from pex.pip.version import PipVersion
-from pex.typing import TYPE_CHECKING
 from testing import (
     IntegResults,
     VenvFactory,
@@ -19,9 +18,6 @@ from testing import (
     subprocess,
 )
 from testing.pytest_utils.tmp import Tempdir
-
-if TYPE_CHECKING:
-    pass
 
 
 @pytest.mark.parametrize(

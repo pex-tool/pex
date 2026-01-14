@@ -10,11 +10,11 @@ from pex.typing import TYPE_CHECKING
 from testing import IntegResults, installed_pex_wheel_venv_python
 
 if TYPE_CHECKING:
-    from typing import Any
+    from typing import Any, Text
 
 
 def run_pex3(
-    *args,  # type: str
+    *args,  # type: Text
     **kwargs  # type: Any
 ):
     # type: (...) -> IntegResults
