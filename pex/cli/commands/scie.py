@@ -124,15 +124,17 @@ def _fetch(
             size = os.path.getsize(url.path)
             if expected_size != size:
                 return Error(
-                    "Rejecting file at {path} with size {size} since expected size is "
-                    "{expected_size}.".format(path=url.path, size=size, expected_size=expected_size)
+                    "Rejecting file at {path} with size {size} bytes since expected size is "
+                    "{expected_size} bytes.".format(
+                        path=url.path, size=size, expected_size=expected_size
+                    )
                 )
 
         if digest:
             fingerprint = CacheHelper.hash(path=url.path, digest=digest)
             if fingerprint != expected_fingerprint:
                 return Error(
-                    "File at {path} had unexpected fingerprint:\n"
+                    "File at {path} had unexpected fingerprint.\n"
                     "Expected: {expected_fingerprint}\n"
                     "Actual:   {actual_fingerprint}".format(
                         path=url.path,
@@ -150,7 +152,7 @@ def _fetch(
             if expected_size is not None and size > expected_size:
                 return Error(
                     "Terminating download of {url} at {size} bytes since expected size is "
-                    "{expected_size}.".format(
+                    "{expected_size} bytes.".format(
                         url=url.raw_url, size=size, expected_size=expected_size
                     )
                 )
@@ -237,18 +239,20 @@ class Scie(OutputMixin, BuildTimeCommand):
             return Error("You must specify `--style {eager,lazy}`.")
 
         resolver_configuration = resolver_options.configure(self.options)
-        pex_url = ArtifactURL.parse(self.options.pex[0])
-        pex_file = try_(
-            _fetch(
-                pex_url,
-                fetcher=URLFetcher(
-                    network_configuration=resolver_configuration.network_configuration,
-                    handle_file_urls=True,
-                    password_entries=resolver_configuration.repos_configuration.password_entries,
-                ),
-                dest_dir=self.options.dest_dir,
+        if os.path.exists(self.options.pex[0]):
+            pex_file = self.options.pex[0]
+        else:
+            pex_file = try_(
+                _fetch(
+                    url=ArtifactURL.parse(self.options.pex[0]),
+                    fetcher=URLFetcher(
+                        network_configuration=resolver_configuration.network_configuration,
+                        handle_file_urls=True,
+                        password_entries=resolver_configuration.repos_configuration.password_entries,
+                    ),
+                    dest_dir=self.options.dest_dir,
+                )
             )
-        )
 
         pex_info_or_error = catch(PexInfo.from_pex, pex_file)
         if isinstance(pex_info_or_error, Error):
