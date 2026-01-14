@@ -6,7 +6,7 @@ from __future__ import absolute_import
 import os.path
 from argparse import Namespace, _ActionsContainer
 
-from pex.argparse import HandleBoolAction
+from pex.argparse import HandleBoolAction, InjectArgAction, InjectEnvAction
 from pex.compatibility import urlparse
 from pex.dist_metadata import NamedEntryPoint
 from pex.fetcher import URLFetcher
@@ -15,6 +15,7 @@ from pex.pep_440 import Version
 from pex.scie import science
 from pex.scie.model import (
     BusyBoxEntryPoints,
+    Command,
     ConsoleScriptsManifest,
     File,
     InterpreterDistribution,
@@ -133,6 +134,54 @@ def register_options(
         ),
     )
     parser.add_argument(
+        "--scie-bind-resource-path",
+        dest="scie_bind_resource_paths",
+        default=[],
+        action=InjectEnvAction,
+        help=(
+            "Specifies an environment variable to bind the path of a resource in the PEX to in the "
+            "form `<env var name>=<resource rel path>`. For example "
+            "`WINDOWS_X64_CONSOLE_TRAMPOLINE=pex/windows/stubs/uv-trampoline-x86_64-console.exe` "
+            "would lookup the path of the `pex/windows/stubs/uv-trampoline-x86_64-console.exe` "
+            "file on the `sys.path` and bind its absolute path to the "
+            "WINDOWS_X64_CONSOLE_TRAMPOLINE environment variable. N.B.: resource paths must use "
+            "the Unix path separator of `/`. These will be converted to the runtime host path "
+            "separator as needed."
+        ),
+    )
+
+    entrypoints = parser.add_mutually_exclusive_group()
+    entrypoints.add_argument(
+        "--scie-exe",
+        dest="scie_exe",
+        help=(
+            "Specify a custom PEX scie entry point instead of using the PEX's entrypoint. When "
+            "specifying a custom entry point additional args can be set via `--scie-args` and "
+            "environment variables can be set via `--scie-env`. Scie placeholders can be used in "
+            "`--scie-exe`."
+        ),
+    )
+    parser.add_argument(
+        "--scie-args",
+        dest="scie_args",
+        default=[],
+        action=InjectArgAction,
+        help=(
+            "Additional arguments to pass to the custom `--scie-exe` entry point. Scie "
+            "placeholders can be used in `--scie-args`."
+        ),
+    )
+    parser.add_argument(
+        "--scie-env",
+        dest="scie_env",
+        default=[],
+        action=InjectEnvAction,
+        help=(
+            "Environment variables to set when executing the custom `--scie-exe` entry point. Scie "
+            "placeholders can be used in `--scie-env`."
+        ),
+    )
+    entrypoints.add_argument(
         "--scie-busybox",
         dest="scie_busybox",
         type=str,
@@ -161,6 +210,7 @@ def register_options(
             "review the `install` command help."
         ),
     )
+
     parser.add_argument(
         "--scie-pex-entrypoint-env-passthrough",
         "--scie-busybox-pex-entrypoint-env-passthrough",
@@ -177,6 +227,7 @@ def register_options(
             "for single entrypoint scies."
         ),
     )
+
     parser.add_argument(
         "--scie-platform",
         dest="scie_platforms",
@@ -349,6 +400,18 @@ def render_options(options):
         args.append("--scie-only")
     if options.load_dotenv:
         args.append("--scie-load-dotenv")
+    for name, value in options.bind_resource_paths:
+        args.append("--scie-bind-resource-path")
+        args.append("{name}={value}".format(name=name, value=value))
+    if options.custom_entrypoint:
+        args.append("--scie-exe")
+        args.append(options.custom_entrypoint.exe)
+        for arg in options.custom_entrypoint.args:
+            args.append("--scie-args")
+            args.append(arg)
+        for name, value in options.custom_entrypoint.env:
+            args.append("--scie-env")
+            args.append("{name}={value}".format(name=name, value=value))
     if options.busybox_entrypoints:
         args.append("--scie-busybox")
         entrypoints = list(options.busybox_entrypoints.console_scripts_manifest.iter_specs())
@@ -398,8 +461,13 @@ def extract_options(options):
     if not options.scie_style:
         return None
 
-    entry_points = None
-    if options.scie_busybox:
+    custom_entrypoint = None  # type: Optional[Command]
+    busybox_entrypoints = None  # type: Optional[BusyBoxEntryPoints]
+    if options.scie_exe:
+        custom_entrypoint = Command(
+            exe=options.scie_exe, args=tuple(options.scie_args), env=tuple(options.scie_env)
+        )
+    elif options.scie_busybox:
         eps = []  # type: List[str]
         for value in options.scie_busybox:
             eps.extend(ep.strip() for ep in value.split(","))
@@ -424,7 +492,7 @@ def extract_options(options):
                 "The following --scie-busybox entry point specifications were not understood:\n"
                 "{bad_entry_points}".format(bad_entry_points="\n".join(bad_entry_points))
             )
-        entry_points = BusyBoxEntryPoints(
+        busybox_entrypoints = BusyBoxEntryPoints(
             console_scripts_manifest=console_scripts_manifest,
             ad_hoc_entry_points=tuple(ad_hoc_entry_points),
         )
@@ -478,7 +546,9 @@ def extract_options(options):
         naming_style=options.naming_style,
         scie_only=options.scie_only,
         load_dotenv=options.scie_load_dotenv,
-        busybox_entrypoints=entry_points,
+        bind_resource_paths=tuple(options.scie_bind_resource_paths),
+        custom_entrypoint=custom_entrypoint,
+        busybox_entrypoints=busybox_entrypoints,
         pex_entrypoint_env_passthrough=options.scie_pex_entrypoint_env_passthrough,
         platforms=tuple(OrderedSet(options.scie_platforms)),
         pbs_release=options.scie_pbs_release,

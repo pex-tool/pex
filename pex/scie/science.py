@@ -139,6 +139,7 @@ def create_manifests(
 
     def create_commands(platform):
         # type: (SysPlatform.Value) -> Iterator[Dict[str, Any]]
+
         entrypoints = configuration.options.busybox_entrypoints
         if entrypoints:
             pex_entrypoint_env_passthrough = (
@@ -148,6 +149,37 @@ def create_manifests(
             pex_entrypoint_env_passthrough = (
                 configuration.options.pex_entrypoint_env_passthrough is not False
             )
+
+        if configuration.options.custom_entrypoint:
+            env = {}  # type: Dict[str, Any]
+
+            replace = {}
+            if pex_info.venv:
+                replace["VIRTUAL_ENV"] = "{scie.bindings.configure:VIRTUAL_ENV}"
+            for env_name, env_value in configuration.options.custom_entrypoint.env:
+                replace[env_name] = env_value
+            for env_name, resource_path in configuration.options.bind_resource_paths:
+                replace[env_name] = "{{scie.bindings.configure:BIND_RESOURCE_{env_name}}}".format(
+                    env_name=env_name
+                )
+            if replace:
+                env["replace"] = replace
+
+            if not pex_entrypoint_env_passthrough:
+                env["remove_exact"] = [
+                    "PEX_INTERPRETER",
+                    "PEX_MODULE",
+                    "PEX_SCRIPT",
+                    "PEX_VENV",
+                ]
+
+            yield {
+                "env": env,
+                "exe": configuration.options.custom_entrypoint.exe,
+                "args": configuration.options.custom_entrypoint.args,
+            }
+            return
+
         if entrypoints:
             pex_entry_point = (
                 parse_entry_point(pex_info.entry_point) if pex_info.entry_point else None
@@ -375,6 +407,9 @@ def create_manifests(
             extra_configure_binding_args.extend(
                 ("--venv-bin-dir", interpreter.platform.venv_bin_dir)
             )
+        for name, value in configuration.options.bind_resource_paths:
+            extra_configure_binding_args.append("--bind-resource-path")
+            extra_configure_binding_args.append("{name}={value}".format(name=name, value=value))
         extra_configure_binding_args.append(pex_hash)
 
         if use_platform_suffix is True or (
