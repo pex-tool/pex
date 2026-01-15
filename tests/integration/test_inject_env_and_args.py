@@ -326,3 +326,42 @@ def test_pyuwsgi(
         process.send_signal(signal.SIGINT)
     finally:
         cleanup(port)
+
+
+@parametrize_execution_mode_args
+def test_env_placeholder_replacement(
+    tmpdir,  # type: Any
+    execution_mode_args,  # type: List[str]
+):
+    # type: (...) -> None
+
+    pex = os.path.join(str(tmpdir), "pex")
+    with open(os.path.join(str(tmpdir), "exe.py"), "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                import json
+                import sys
+
+
+                json.dump(sys.argv[1:], sys.stdout)
+                """
+            )
+        )
+    run_pex_command(
+        args=[
+            "--exe",
+            fp.name,
+            "--inject-args",
+            "{pex.env.FOO} {pex.env.BAZ}",
+            "--inject-args",
+            "{pex.env.SPAM}",
+            "-o",
+            pex,
+        ]
+        + execution_mode_args
+    ).assert_success()
+
+    assert ["bar", "", ""] == json.loads(
+        subprocess.check_output(args=[pex], env=make_env(FOO="bar", BAZ=None, SPAM=""))
+    )

@@ -675,7 +675,10 @@ def bootstrap_pex(
             maybe_reexec_pex(interpreter_test=interpreter_test, python_args=python_args)
             from . import pex
 
-            return pex.PEX(entry_point).execute()
+            try:
+                return pex.PEX(entry_point).execute()
+            except pex.PEX.Error as e:
+                return e
 
 
 def _activate_pex(

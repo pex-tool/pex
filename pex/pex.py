@@ -147,6 +147,38 @@ class PEX(object):  # noqa: T000
     class InvalidEntryPoint(Error):
         pass
 
+    class ResourceBindingError(Error):
+        pass
+
+    @classmethod
+    def _resolve_resource_path(
+        cls,
+        name,  # type: str
+        resource,  # type: str
+    ):
+        # type: (...) -> str
+
+        rel_path = os.path.normpath(os.path.join(*resource.split("/")))
+        if os.path.isabs(resource) or rel_path.startswith(os.pardir):
+            raise cls.ResourceBindingError(
+                "The following resource binding spec is invalid: {name}={resource}\n"
+                "The resource path {resource} must be relative to the `sys.path`.".format(
+                    name=name, resource=resource
+                )
+            )
+
+        for entry in sys.path:
+            value = os.path.join(entry, rel_path)
+            if os.path.isfile(value):
+                return value
+
+        raise cls.ResourceBindingError(
+            "There was no resource file {resource} found on the `sys.path` corresponding to "
+            "the given resource binding spec `{name}={resource}`".format(
+                resource=resource, name=name
+            )
+        )
+
     @classmethod
     def _clean_environment(cls, env=None, strip_pex_env=True):
         if not strip_pex_env:
@@ -589,6 +621,37 @@ class PEX(object):  # noqa: T000
         for name, value in self._pex_info.inject_env.items():
             os.environ.setdefault(name, value)
 
+        for name, resource in self._pex_info.bind_resource_paths.items():
+            os.environ[name] = self._resolve_resource_path(name, resource)
+
+        class Namespace(object):
+            def __init__(
+                self,
+                seed=(),  # type: Union[Mapping[str, Any], Iterable[Tuple[str, Any]]]
+                safe=False,  # type: bool
+                **kwargs  # type: Any
+            ):
+                # type: (...) -> None
+                self.__dict__.update(seed)
+                self.__dict__.update(kwargs)
+                self._safe = safe
+
+            def __getattr__(self, key):
+                # type: (str) -> Any
+                return self._value(key)
+
+            def __getitem__(self, key):
+                # type: (str) -> Any
+                return self._value(key)
+
+            def _value(self, key):
+                # type: (str) -> Any
+                if self._safe:
+                    return self.__dict__.get(key, "")
+                return self.__dict__[key]
+
+        replacements = Namespace(env=Namespace(os.environ, safe=True))
+
         if force_interpreter:
             TRACER.log("PEX_INTERPRETER specified, dropping into interpreter")
             return self.execute_interpreter()
@@ -615,7 +678,7 @@ class PEX(object):  # noqa: T000
         if self._pex_info_overrides.entry_point:
             return self.execute_entry(parse_entry_point(self._pex_info_overrides.entry_point))
 
-        sys.argv[1:1] = list(self._pex_info.inject_args)
+        sys.argv[1:1] = [arg.format(pex=replacements) for arg in self._pex_info.inject_args]
 
         if self._pex_info.script:
             return self.execute_script(self._pex_info.script)
