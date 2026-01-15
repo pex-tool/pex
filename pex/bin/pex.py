@@ -546,6 +546,23 @@ def configure_clp_pex_entry_points(parser):
     )
 
     group.add_argument(
+        "--bind-resource-path",
+        dest="bind_resource_paths",
+        default=[],
+        action=InjectEnvAction,
+        help=(
+            "Specifies an environment variable to bind the path of a resource in the PEX to in the "
+            "form `<env var name>=<resource rel path>`. For example "
+            "`WINDOWS_X64_CONSOLE_TRAMPOLINE=pex/windows/stubs/uv-trampoline-x86_64-console.exe` "
+            "would lookup the path of the `pex/windows/stubs/uv-trampoline-x86_64-console.exe` "
+            "file on the `sys.path` and bind its absolute path to the "
+            "WINDOWS_X64_CONSOLE_TRAMPOLINE environment variable. N.B.: resource paths must use "
+            "the Unix path separator of `/`. These will be converted to the runtime host path "
+            "separator as needed."
+        ),
+    )
+
+    group.add_argument(
         "--inject-env",
         dest="inject_env",
         default=[],
@@ -568,7 +585,11 @@ def configure_clp_pex_entry_points(parser):
         dest="inject_args",
         default=[],
         action=InjectArgAction,
-        help="Command line arguments to the application to freeze in.",
+        help=(
+            "Command line arguments to the application to freeze in. Arguments that have "
+            "`{pex.env.<env var name>}` placeholders will have them replaced with the "
+            "corresponding environment variable value if set and '' otherwise."
+        ),
     )
 
 
@@ -970,6 +991,7 @@ def build_pex(
 
     pex_info = pex_builder.info
     pex_info.inject_python_args = options.inject_python_args
+    pex_info.bind_resource_paths = dict(options.bind_resource_paths)
     pex_info.inject_env = dict(options.inject_env)
     pex_info.inject_args = options.inject_args
     pex_info.venv = bool(options.venv)

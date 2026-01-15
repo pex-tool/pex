@@ -1,5 +1,16 @@
 # Release Notes
 
+## 2.82.0
+
+This release adds support for resource path bindings to plain PEXes as a follow-on to adding
+resource binding support for PEX scies in the 2.81.0 release. Resource paths are bound to
+environment variables with `--bind-resource-path`. Additionally, the existing `--inject-args` option
+now supports replacement of `{pex.env.<env var name>}` placeholders with the corresponding
+environment variable value. Notably, the combination of these features allows passing the paths of
+files contained in a PEX to third party scripts without extra shim code.
+
+* Support passing PEX file paths to 3rd party scripts.  (#3074)
+
 ## 2.81.0
 
 This release adds the ability to set a custom scie entrypoint for PEX scies using `--scie-exe`,

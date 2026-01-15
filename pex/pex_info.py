@@ -191,6 +191,16 @@ class PexInfo(object):
         self._pex_info["inject_python_args"] = tuple(value)
 
     @property
+    def bind_resource_paths(self):
+        # type: () -> Dict[str, str]
+        return dict(self._pex_info.get("bind_resource_paths", {}))
+
+    @bind_resource_paths.setter
+    def bind_resource_paths(self, value):
+        # type: (Mapping[str, str]) -> None
+        self._pex_info["bind_resource_paths"] = dict(value)
+
+    @property
     def inject_env(self):
         # type: () -> Dict[str, str]
         return dict(self._pex_info.get("inject_env", {}))
