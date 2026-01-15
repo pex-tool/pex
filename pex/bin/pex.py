@@ -11,13 +11,12 @@ from __future__ import absolute_import, print_function
 import itertools
 import json
 import os
-import shlex
 import sys
-from argparse import Action, ArgumentDefaultsHelpFormatter, ArgumentError, ArgumentParser
+from argparse import Action, ArgumentDefaultsHelpFormatter, ArgumentParser
 from textwrap import TextWrapper
 
 from pex import build_properties, dependency_configuration, pex_warnings, repl, scie
-from pex.argparse import HandleBoolAction
+from pex.argparse import HandleBoolAction, InjectArgAction, InjectEnvAction
 from pex.build_properties import BuildProperties
 from pex.commands.command import (
     GlobalConfigurationError,
@@ -36,7 +35,6 @@ from pex.inherit_path import InheritPath
 from pex.interpreter_constraints import InterpreterConstraints
 from pex.layout import Layout, ensure_installed
 from pex.orderedset import OrderedSet
-from pex.os import WINDOWS
 from pex.pep_427 import InstallableType
 from pex.pep_723 import ScriptMetadata
 from pex.pex import PEX, validate_entry_point
@@ -547,17 +545,6 @@ def configure_clp_pex_entry_points(parser):
         "`from a.b.c import m` during validation.",
     )
 
-    class InjectEnvAction(Action):
-        def __call__(self, parser, namespace, value, option_str=None):
-            components = value.split("=", 1)
-            if len(components) != 2:
-                raise ArgumentError(
-                    self,
-                    "Environment variable values must be of the form `name=value`. "
-                    "Given: {value}".format(value=value),
-                )
-            self.default.append(tuple(components))
-
     group.add_argument(
         "--inject-env",
         dest="inject_env",
@@ -565,11 +552,6 @@ def configure_clp_pex_entry_points(parser):
         action=InjectEnvAction,
         help="Environment variables to freeze in to the application environment.",
     )
-
-    class InjectArgAction(Action):
-        def __call__(self, parser, namespace, value, option_str=None):
-            self.default.extend(shlex.split(value, posix=not WINDOWS))
-
     group.add_argument(
         "--inject-python-args",
         dest="inject_python_args",
@@ -581,7 +563,6 @@ def configure_clp_pex_entry_points(parser):
             "warnings."
         ),
     )
-
     group.add_argument(
         "--inject-args",
         dest="inject_args",

@@ -50,6 +50,13 @@ PlatformNamingStyle.seal()
 
 
 @attr.s(frozen=True)
+class Command(object):
+    exe = attr.ib()  # type: str
+    args = attr.ib(default=())  # type: Tuple[str, ...]
+    env = attr.ib(default=())  # type: Tuple[Tuple[str, str], ...]
+
+
+@attr.s(frozen=True)
 class ConsoleScript(object):
     name = attr.ib()  # type: str
     project_name = attr.ib(default=None)  # type: Optional[ProjectName]
@@ -296,6 +303,8 @@ class ScieOptions(object):
     naming_style = attr.ib(default=None)  # type: Optional[PlatformNamingStyle.Value]
     scie_only = attr.ib(default=False)  # type: bool
     load_dotenv = attr.ib(default=False)  # type: bool
+    bind_resource_paths = attr.ib(default=())  # type: Tuple[Tuple[str, str], ...]
+    custom_entrypoint = attr.ib(default=None)  # type: Optional[Command]
     busybox_entrypoints = attr.ib(default=None)  # type: Optional[BusyBoxEntryPoints]
     pex_entrypoint_env_passthrough = attr.ib(default=None)  # type: Optional[bool]
     platforms = attr.ib(default=())  # type: Tuple[SysPlatform.Value, ...]

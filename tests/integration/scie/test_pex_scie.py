@@ -15,7 +15,7 @@ from typing import Dict, Optional
 import pytest
 
 from pex.cache.dirs import CacheDir
-from pex.common import safe_open
+from pex.common import safe_mkdir, safe_open
 from pex.executables import chmod_plus_x, is_script
 from pex.fetcher import URLFetcher
 from pex.layout import Layout
@@ -23,7 +23,7 @@ from pex.orderedset import OrderedSet
 from pex.os import WINDOWS, is_exe
 from pex.pip.version import PipVersion
 from pex.scie import ScieStyle
-from pex.sysconfig import SysPlatform
+from pex.sysconfig import SCRIPT_DIR, SysPlatform
 from pex.typing import TYPE_CHECKING
 from pex.version import __version__
 from testing import IS_PYPY, PY_VER, make_env, run_pex_command, subprocess
@@ -1357,3 +1357,48 @@ def test_free_threaded_scie_auto_detected(tmpdir):
             ]
         ).strip()
     )
+
+
+@skip_if_no_provider
+def test_bind_resource_path(tmpdir):
+    # type: (Tempdir) -> None
+
+    fortune = tmpdir.join("fortune")
+    resources = tmpdir.join("resources")
+    with open(
+        os.path.join(safe_mkdir(os.path.join(resources, "fortunes")), "fortune-file"), "w"
+    ) as fp:
+        fp.write(
+            dedent(
+                """\
+                A day for firm decisions!!!!!  Or is it?
+                %
+                """
+            )
+        )
+
+    run_pex_command(
+        args=[
+            "fortune==1.1.1",
+            "-c",
+            "fortune",
+            "-D",
+            resources,
+            "--venv",
+            "--scie",
+            "eager",
+            "--scie-only",
+            "--scie-bind-resource-path",
+            "FORTUNE_FILE=fortunes/fortune-file",
+            "--scie-exe",
+            "{{scie.env.VIRTUAL_ENV}}{sep}{bin_dir}{sep}fortune".format(
+                sep=os.sep, bin_dir=SCRIPT_DIR
+            ),
+            "--scie-args",
+            "{scie.env.FORTUNE_FILE}",
+            "-o",
+            fortune,
+        ]
+    ).assert_success()
+
+    assert b"A day for firm decisions!!!!!  Or is it?\n" == subprocess.check_output(args=[fortune])

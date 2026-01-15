@@ -3,12 +3,16 @@
 
 from __future__ import absolute_import, print_function
 
+import hashlib
+import io
 import os
 from argparse import ArgumentParser
 
 from pex import scie, specifier_sets
+from pex.artifact_url import ArtifactURL
 from pex.cli.command import BuildTimeCommand
 from pex.commands.command import OutputMixin
+from pex.common import safe_mkdir
 from pex.fetcher import URLFetcher
 from pex.interpreter_constraints import InterpreterConstraints
 from pex.pep_440 import Version
@@ -19,9 +23,10 @@ from pex.result import Error, Ok, Result, catch, try_
 from pex.scie import build as build_scies
 from pex.targets import Targets
 from pex.typing import TYPE_CHECKING
+from pex.util import CacheHelper
 
 if TYPE_CHECKING:
-    from typing import Union
+    from typing import Optional, Union
 
     import attr  # vendor:skip
 else:
@@ -96,6 +101,93 @@ def _resolve_targets(
     return target_configuration.resolve_targets()
 
 
+def _fetch(
+    url,  # type: ArtifactURL
+    fetcher,  # type: URLFetcher
+    dest_dir=None,  # type: Optional[str]
+):
+    # type: (...) -> Union[str, Error]
+
+    basename = os.path.basename(url.path)
+    dest = os.path.join(safe_mkdir(dest_dir), basename) if dest_dir else basename
+
+    digest = hashlib.new(url.fingerprint.algorithm) if url.fingerprint else None
+    expected_fingerprint = url.fingerprint.hash if url.fingerprint else None
+
+    expected_size = None  # type: Optional[int]
+    expected_sizes = url.fragment_parameters.get("size")
+    if expected_sizes and len(expected_sizes) == 1:
+        expected_size = int(expected_sizes[0])
+
+    if url.scheme == "file" and os.path.realpath(url.path) == os.path.realpath(dest):
+        if expected_size is not None:
+            size = os.path.getsize(url.path)
+            if expected_size != size:
+                return Error(
+                    "Rejecting file at {path} with size {size} bytes since expected size is "
+                    "{expected_size} bytes.".format(
+                        path=url.path, size=size, expected_size=expected_size
+                    )
+                )
+
+        if digest:
+            fingerprint = CacheHelper.hash(path=url.path, digest=digest)
+            if fingerprint != expected_fingerprint:
+                return Error(
+                    "File at {path} had unexpected fingerprint.\n"
+                    "Expected: {expected_fingerprint}\n"
+                    "Actual:   {actual_fingerprint}".format(
+                        path=url.path,
+                        expected_fingerprint=expected_fingerprint,
+                        actual_fingerprint=fingerprint,
+                    )
+                )
+
+        return dest
+
+    size = 0
+    with fetcher.get_body_stream(url.raw_url) as in_fp, open(dest, "wb") as out_fp:
+        for chunk in iter(lambda: in_fp.read(io.DEFAULT_BUFFER_SIZE), b""):
+            size += len(chunk)
+            if expected_size is not None and size > expected_size:
+                return Error(
+                    "Terminating download of {url} at {size} bytes since expected size is "
+                    "{expected_size} bytes.".format(
+                        url=url.raw_url, size=size, expected_size=expected_size
+                    )
+                )
+
+            if digest:
+                digest.update(chunk)
+            out_fp.write(chunk)
+
+    if expected_size is not None and size < expected_size:
+        return Error(
+            "Download of {url} was too small.\n"
+            "Expected: {expected_size} bytes\n"
+            "Actual:   {actual_size} bytes".format(
+                url=url.raw_url,
+                expected_size=expected_size,
+                actual_size=size,
+            )
+        )
+
+    if digest:
+        fingerprint = digest.hexdigest()
+        if fingerprint != expected_fingerprint:
+            return Error(
+                "Download of {url} had unexpected fingerprint.\n"
+                "Expected: {expected_fingerprint}\n"
+                "Actual:   {actual_fingerprint}".format(
+                    url=url.raw_url,
+                    expected_fingerprint=expected_fingerprint,
+                    actual_fingerprint=fingerprint,
+                )
+            )
+
+    return dest
+
+
 class Scie(OutputMixin, BuildTimeCommand):
     """Manipulate scies."""
 
@@ -123,9 +215,10 @@ class Scie(OutputMixin, BuildTimeCommand):
         parser.add_argument(
             "pex",
             nargs=1,
-            help="The path of a PEX to create one or more scies from.",
+            help="The path or URL of a PEX to create one or more scies from.",
             metavar="PATH",
         )
+        parser.add_argument("-d", "--dest-dir")
         cls.add_output_option(parser, "scie information")
         scie.register_options(
             parser.add_argument_group(title="Scie options"),
@@ -145,7 +238,22 @@ class Scie(OutputMixin, BuildTimeCommand):
         if not scie_options:
             return Error("You must specify `--style {eager,lazy}`.")
 
-        pex_file = self.options.pex[0]
+        resolver_configuration = resolver_options.configure(self.options)
+        if os.path.exists(self.options.pex[0]):
+            pex_file = self.options.pex[0]
+        else:
+            pex_file = try_(
+                _fetch(
+                    url=ArtifactURL.parse(self.options.pex[0]),
+                    fetcher=URLFetcher(
+                        network_configuration=resolver_configuration.network_configuration,
+                        handle_file_urls=True,
+                        password_entries=resolver_configuration.repos_configuration.password_entries,
+                    ),
+                    dest_dir=self.options.dest_dir,
+                )
+            )
+
         pex_info_or_error = catch(PexInfo.from_pex, pex_file)
         if isinstance(pex_info_or_error, Error):
             return Error(
@@ -163,7 +271,6 @@ class Scie(OutputMixin, BuildTimeCommand):
                 )
             )
 
-        resolver_configuration = resolver_options.configure(self.options)
         targets = try_(
             _resolve_targets(
                 pex_interpreter_constraints=pex_info_or_error.interpreter_constraints,
