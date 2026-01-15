@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.82.1
+
+This release fixes `pex3 scie create --dest-dir` to work when the specified PEX is a local file
+path. Previously `--dest-dir` only worked when the specified PEX was an URL.
+
+* Fix `pex3 scie create --dest-dir` handling. (#3076)
+
 ## 2.82.0
 
 This release adds support for resource path bindings to plain PEXes as a follow-on to adding

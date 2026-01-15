@@ -10,9 +10,12 @@ import shutil
 import subprocess
 import sys
 
+import pytest
+
 from pex.common import safe_delete
 from pex.fetcher import URLFetcher
 from pex.interpreter import PythonInterpreter
+from pex.layout import Layout
 from pex.pep_440 import Version
 from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper
@@ -292,3 +295,35 @@ def test_pex_url(tmpdir):
         "2.80.0"
         == subprocess.check_output(args=[os.path.join(dest, "pex"), "-V"]).decode("utf-8").strip()
     )
+
+
+@skip_if_no_provider
+@pytest.mark.parametrize(
+    "layout", [pytest.param(layout, id=str(layout)) for layout in Layout.values()]
+)
+def test_pex_file_path_dest(
+    tmpdir,  # type: Tempdir
+    layout,  # type: Layout.Value
+):
+    pex = tmpdir.join("cowsay.pex")
+    run_pex_command(
+        args=["cowsay<6", "-c", "cowsay", "-o", pex, "--layout", str(layout)]
+    ).assert_success()
+
+    dest = tmpdir.join("dest")
+    run_pex3("scie", "create", "--style", "eager", "-d", dest, pex).assert_success()
+
+    assert b"| Moo! |" in subprocess.check_output(args=[sys.executable, pex, "Moo!"])
+    assert not os.path.exists(tmpdir.join("cowsay"))
+    assert b"| Foo! |" in subprocess.check_output(
+        args=[sys.executable, os.path.join(dest, "cowsay.pex"), "Foo!"]
+    )
+    assert b"| Boo! |" in subprocess.check_output(args=[os.path.join(dest, "cowsay"), "Boo!"])
+
+    dest2 = tmpdir.join("dest2")
+    run_pex3("scie", "create", "--style", "eager", "--scie-only", "-d", dest2, pex).assert_success()
+
+    assert b"| Zoo! |" in subprocess.check_output(args=[sys.executable, pex, "Zoo!"])
+    assert not os.path.exists(tmpdir.join("cowsay"))
+    assert not os.path.exists(os.path.join(dest2, "cowsay.pex"))
+    assert b"| Goo! |" in subprocess.check_output(args=[os.path.join(dest2, "cowsay"), "Goo!"])

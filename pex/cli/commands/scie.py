@@ -6,6 +6,7 @@ from __future__ import absolute_import, print_function
 import hashlib
 import io
 import os
+import shutil
 from argparse import ArgumentParser
 
 from pex import scie, specifier_sets
@@ -188,6 +189,30 @@ def _fetch(
     return dest
 
 
+def _validate_pex(path):
+    # type: (str) -> Union[str, Error]
+
+    pex_info_or_error = catch(PexInfo.from_pex, path)
+    if isinstance(pex_info_or_error, Error):
+        return Error(
+            "The path {path} does not appear to be a PEX: {err}".format(
+                path=path, err=pex_info_or_error
+            )
+        )
+
+    raw_pex_version = pex_info_or_error.build_properties.get("pex_version")
+    if raw_pex_version and Version(raw_pex_version) < Version("2.1.25"):
+        return Error(
+            "Can only create scies from PEXes built by Pex 2.1.25 (which was released on "
+            "January 21st, 2021) or newer.\n"
+            "The PEX at {path} was built by Pex {pex_version}.".format(
+                path=path, pex_version=raw_pex_version
+            )
+        )
+
+    return path
+
+
 class Scie(OutputMixin, BuildTimeCommand):
     """Manipulate scies."""
 
@@ -240,7 +265,18 @@ class Scie(OutputMixin, BuildTimeCommand):
 
         resolver_configuration = resolver_options.configure(self.options)
         if os.path.exists(self.options.pex[0]):
-            pex_file = self.options.pex[0]
+            pex_file = try_(_validate_pex(self.options.pex[0]))
+            if self.options.dest_dir and os.path.realpath(
+                self.options.dest_dir
+            ) != os.path.realpath(os.path.dirname(pex_file)):
+                pex_dest = os.path.join(
+                    safe_mkdir(self.options.dest_dir), os.path.basename(pex_file)
+                )
+                if os.path.isfile(pex_file):
+                    shutil.copy(pex_file, pex_dest)
+                else:
+                    shutil.copytree(pex_file, pex_dest)
+                pex_file = pex_dest
         else:
             pex_file = try_(
                 _fetch(
@@ -253,6 +289,7 @@ class Scie(OutputMixin, BuildTimeCommand):
                     dest_dir=self.options.dest_dir,
                 )
             )
+            try_(_validate_pex(pex_file))
 
         pex_info_or_error = catch(PexInfo.from_pex, pex_file)
         if isinstance(pex_info_or_error, Error):
@@ -313,6 +350,9 @@ class Scie(OutputMixin, BuildTimeCommand):
             if scie_configuration.options.scie_only and os.path.realpath(
                 pex_file
             ) != os.path.realpath(scie_info.file):
-                os.unlink(pex_file)
+                if os.path.isfile(pex_file):
+                    os.unlink(pex_file)
+                else:
+                    shutil.rmtree(pex_file)
 
         return Ok()
