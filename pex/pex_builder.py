@@ -47,7 +47,7 @@ from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper
 
 if TYPE_CHECKING:
-    from typing import Dict, Optional
+    from typing import Dict, Iterable, Optional
 
 # N.B.: __file__ will be relative when this module is loaded from a "" `sys.path` entry under
 # Python 2.7. This can occur in test scenarios; so we ensure the __file__ is resolved to an absolute
@@ -449,6 +449,11 @@ class PEXBuilder(object):
             raise self.InvalidDistribution(str(e))
         self.add_distribution(distribution, fingerprint=fingerprint)
         self.add_requirement(distribution.as_requirement())
+
+    @property
+    def distributions(self):
+        # type: () -> Iterable[Distribution]
+        return self._distributions.values()
 
     def _precompile_source(self):
         vendored_dir = os.path.join(self._pex_info.bootstrap, "pex/vendor/_vendored")

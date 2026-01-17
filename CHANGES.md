@@ -1,5 +1,54 @@
 # Release Notes
 
+## 2.83.0
+
+This release adds support for templating `{platform}` in PEX file names. When this substitution
+token is found, it is replaced with the most specific platform tag(s) of wheels in the PEX. For
+example:
+```console
+:; python -mpex ansicolors -o "ansicolors-{platform}.pex"
+
+:; ./ansicolors-py2.py3-none-any.pex
+Pex 2.83.0 hermetic environment with 1 requirement and 1 activated distribution.
+Python 3.14.2 (main, Dec  5 2025, 14:39:48) [GCC 15.2.0] on linux
+Type "help", "pex", "copyright", "credits" or "license" for more information.
+>>> pex()
+Running from PEX file: ./ansicolors-py2.py3-none-any.pex
+Requirements:
+  ansicolors
+Activated Distributions:
+  ansicolors-1.1.8-py2.py3-none-any.whl
+>>>
+
+:; python -mpex \
+    --complete-platform package/complete-platforms/linux-x86_64.json \
+    --complete-platform package/complete-platforms/macos-aarch64.json ansible \
+    -o "ansible-{platform}.pex"
+
+:; ./ansible-cp314-cp314-macosx_11_0_arm64.manylinux2014_x86_64.pex
+Pex 2.83.0 hermetic environment with 1 requirement and 10 activated distributions.
+Python 3.14.2 (main, Dec  5 2025, 14:39:48) [GCC 15.2.0] on linux
+Type "help", "pex", "copyright", "credits" or "license" for more information.
+>>> pex()
+Running from PEX file: ./ansible-cp314-cp314-macosx_11_0_arm64.manylinux2014_x86_64.pex
+Requirements:
+  ansible
+Activated Distributions:
+  ansible-13.2.0-py3-none-any.whl
+  ansible_core-2.20.1-py3-none-any.whl
+  jinja2-3.1.6-py3-none-any.whl
+  markupsafe-3.0.3-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl
+  pyyaml-6.0.3-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl
+  cryptography-46.0.3-cp311-abi3-manylinux_2_34_x86_64.whl
+  cffi-2.0.0-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.whl
+  pycparser-2.23-py3-none-any.whl
+  packaging-25.0-py3-none-any.whl
+  resolvelib-1.2.1-py3-none-any.whl
+>>>
+```
+
+# Support a `{platform}` placeholder in PEX file names. (#3078)
+
 ## 2.82.1
 
 This release fixes `pex3 scie create --dest-dir` to work when the specified PEX is a local file
