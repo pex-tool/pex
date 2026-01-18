@@ -27,7 +27,7 @@ from pex.common import CopyMode, die, is_pyc_dir, is_pyc_file
 from pex.compatibility import commonpath
 from pex.dependency_configuration import DependencyConfiguration
 from pex.dependency_manager import DependencyManager
-from pex.dist_metadata import Requirement
+from pex.dist_metadata import Distribution, Requirement
 from pex.docs.command import serve_html_docs
 from pex.enum import Enum
 from pex.fetcher import URLFetcher
@@ -35,6 +35,7 @@ from pex.inherit_path import InheritPath
 from pex.interpreter_constraints import InterpreterConstraints
 from pex.layout import Layout, ensure_installed
 from pex.orderedset import OrderedSet
+from pex.pep_425 import RankedTag
 from pex.pep_427 import InstallableType
 from pex.pep_723 import ScriptMetadata
 from pex.pex import PEX, validate_entry_point
@@ -840,8 +841,14 @@ def configure_clp():
         "--output-file",
         dest="pex_name",
         default=None,
-        help="The name of the generated .pex file: Omitting this will run PEX "
-        "immediately and not save it to a file.",
+        help=(
+            "The name of the generated .pex file: Omitting this will run PEX "
+            "immediately and not save it to a file. If the name contains the {platform} "
+            "placeholder, the most-specific platform tags supported by the PEX will be "
+            "substituted. For example, for a multi-platform Linux x86-64, Mac ARM PEX containing "
+            "platform-specific wheels, `-o 'example-{platform}.pex'` might expand to a PEX "
+            "filename of `example-cp314-cp314-macosx_11_0_arm64.manylinux2014_x86_64.pex`"
+        ),
     )
 
     parser.add_argument(
@@ -1318,6 +1325,45 @@ def main(args=None):
         die(str(e))
 
 
+def calculate_pex_tag(
+    targets,  # type: Targets
+    distributions,  # type: Iterable[Distribution]
+):
+    # type: (...) -> str
+
+    interpreters = set()  # type: Set[str]
+    abis = set()  # type: Set[str]
+    platforms = set()  # type: Set[str]
+    for target in targets.unique_targets():
+        best_match_tag = None  # type: Optional[RankedTag]
+        best_match_tag_interpreters = []  # type: List[str]
+        best_match_tag_abi = "none"  # type: str
+        best_match_tag_platform_lcd = "any"  # type: str
+        for whl in distributions:
+            wheel_applies = target.wheel_applies(whl)
+            if not wheel_applies or not wheel_applies.best_match:
+                continue
+            best_match_tag = wheel_applies.best_match.select_higher_rank(best_match_tag)
+            if best_match_tag == wheel_applies.best_match:
+                best_match_tag_interpreters = [tag.interpreter for tag in wheel_applies.tags]
+                best_match_tag_abi = best_match_tag.tag.abi
+                best_match_tag_platform_lcd = sorted(
+                    (tag for tag in wheel_applies.tags),
+                    key=lambda tag: target.supported_tags.rank(tag)
+                    or target.supported_tags.lowest_rank,
+                )[-1].platform
+        if best_match_tag:
+            interpreters.update(best_match_tag_interpreters)
+            abis.add(best_match_tag_abi)
+            platforms.add(best_match_tag_platform_lcd)
+
+    return "{interpreter}-{abi}-{platform}".format(
+        interpreter=".".join(sorted(interpreters)),
+        abi=".".join(sorted(abis)),
+        platform=".".join(sorted(platforms)),
+    )
+
+
 def do_main(
     options,  # type: Namespace
     requirement_configuration,  # type: RequirementConfiguration
@@ -1373,6 +1419,10 @@ def do_main(
 
     pex_file = options.pex_name
     if pex_file is not None:
+        if "{platform}" in pex_file:
+            pex_file = pex_file.format(
+                platform=calculate_pex_tag(targets, pex_builder.distributions)
+            )
         log("Saving PEX file to {pex_file}".format(pex_file=pex_file), V=options.verbosity)
         if options.sh_boot:
             with TRACER.timed("Creating /bin/sh boot script"):
