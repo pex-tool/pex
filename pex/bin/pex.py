@@ -1419,7 +1419,10 @@ def do_main(
 
     pex_file = options.pex_name
     if pex_file is not None:
-        pex_file = pex_file.format(platform=calculate_pex_tag(targets, pex_builder.distributions))
+        if "{platform}" in pex_file:
+            pex_file = pex_file.format(
+                platform=calculate_pex_tag(targets, pex_builder.distributions)
+            )
         log("Saving PEX file to {pex_file}".format(pex_file=pex_file), V=options.verbosity)
         if options.sh_boot:
             with TRACER.timed("Creating /bin/sh boot script"):
