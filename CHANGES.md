@@ -1,5 +1,13 @@
 # Release Notes
 
+## 2.84.0
+
+This release causes `pex ...` to emit the output path of the generated PEX (and / or scies) on
+STDOUT. If `--seed verbose` is set, then the output path of the PEX is included in the new
+`"seeded_from"` field.
+
+* Emit PEX output path to stdout. (#3079)
+
 ## 2.83.0
 
 This release adds support for templating `{platform}` in PEX file names. When this substitution
@@ -47,7 +55,7 @@ Activated Distributions:
 >>>
 ```
 
-# Support a `{platform}` placeholder in PEX file names. (#3078)
+* Support a `{platform}` placeholder in PEX file names. (#3078)
 
 ## 2.82.1
 
