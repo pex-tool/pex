@@ -63,7 +63,7 @@ from pex.result import Error, ResultError, catch, try_
 from pex.scie import ScieConfiguration
 from pex.targets import Targets
 from pex.tracer import TRACER
-from pex.typing import TYPE_CHECKING, cast
+from pex.typing import TYPE_CHECKING
 from pex.variables import ENV, Variables
 from pex.venv.bin_path import BinPath
 from pex.version import __version__
@@ -1441,13 +1441,15 @@ def do_main(
             compress=options.compress,
             check=options.check,
         )
-        if options.seed != Seed.NONE:
+        if options.seed is not Seed.NONE:
             seed_info = seed_cache(
-                options,
                 PEX(pex_file, interpreter=interpreter),
                 verbose=options.seed == Seed.VERBOSE,
             )
             print(seed_info)
+        else:
+            print(pex_file)
+
         if scie_configuration:
             url_fetcher = URLFetcher(
                 network_configuration=resolver_configuration.network_configuration,
@@ -1465,10 +1467,12 @@ def do_main(
                         ),
                         V=options.verbosity,
                     )
-                if scie_configuration.options.scie_only and os.path.realpath(
-                    pex_file
-                ) != os.path.realpath(scie_info.file):
-                    os.unlink(pex_file)
+                    if scie_configuration.options.scie_only and os.path.realpath(
+                        pex_file
+                    ) != os.path.realpath(scie_info.file):
+                        os.unlink(pex_file)
+                    elif options.seed is Seed.NONE:
+                        print(os.path.relpath(scie_info.file))
     else:
         if not _compatible_with_current_platform(interpreter, targets.platforms):
             log("WARNING: attempting to run PEX with incompatible platforms!", V=1)
@@ -1487,22 +1491,26 @@ def do_main(
 
 
 def seed_cache(
-    options,  # type: Namespace
     pex,  # type: PEX
     verbose=False,  # type : bool
 ):
     # type: (...) -> str
 
-    pex_path = cast(str, options.pex_name)
+    pex_path = pex.path()
     with TRACER.timed("Seeding local caches for {}".format(pex_path)):
         pex_info = pex.pex_info()
         pex_root = pex_info.pex_root
 
         def create_verbose_info(final_pex_path):
             # type: (str) -> Dict[str, str]
-            return dict(pex_root=pex_root, python=pex.interpreter.binary, pex=final_pex_path)
+            return dict(
+                seeded_from=pex_path,
+                pex_root=pex_root,
+                python=pex.interpreter.binary,
+                pex=final_pex_path,
+            )
 
-        if options.venv:
+        if pex.pex_info(include_env_overrides=False).venv:
             with TRACER.timed("Creating venv from {}".format(pex_path)):
                 with ENV.patch(PEX=os.path.realpath(os.path.expanduser(pex_path))):
                     venv_pex = ensure_venv(pex)

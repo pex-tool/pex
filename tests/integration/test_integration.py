@@ -1826,6 +1826,7 @@ def test_seed_verbose(
     verbose_info = json.loads(results.output)
     seeded_argv0 = [verbose_info[arg] for arg in seeded_execute_args]
 
+    assert pex_file == verbose_info.pop("seeded_from")
     assert pex_root == verbose_info.pop("pex_root")
 
     python = verbose_info.pop("python")

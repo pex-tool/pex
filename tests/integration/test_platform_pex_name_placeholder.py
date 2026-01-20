@@ -3,7 +3,7 @@
 
 from __future__ import absolute_import
 
-import os.path
+import json
 import subprocess
 import sys
 
@@ -17,12 +17,40 @@ from testing.pytest_utils.tmp import Tempdir
 def test_platform_placeholder_simple(tmpdir):
     # type: (Tempdir) -> None
 
-    run_pex_command(
+    result = run_pex_command(
         args=["ansicolors==1.1.8", "-o", tmpdir.join("ansicolors-{platform}.pex")]
-    ).assert_success()
+    )
+    result.assert_success()
 
-    pex = tmpdir.join("ansicolors-py2.py3-none-any.pex")
-    assert os.path.exists(pex)
+    pex = result.output.strip()
+    assert tmpdir.join("ansicolors-py2.py3-none-any.pex") == pex
+    assert (
+        colors.blue("platform")
+        == subprocess.check_output(
+            args=[pex, "-c", "import colors; print(colors.blue('platform'))"]
+        )
+        .decode("utf-8")
+        .strip()
+    )
+
+
+def test_platform_placeholder_seed(tmpdir):
+    # type: (Tempdir) -> None
+
+    result = run_pex_command(
+        args=[
+            "ansicolors==1.1.8",
+            "-o",
+            tmpdir.join("ansicolors-{platform}.pex"),
+            "--seed",
+            "verbose",
+        ]
+    )
+    result.assert_success()
+
+    seed_data = json.loads(result.output)
+    pex = seed_data["seeded_from"]
+    assert tmpdir.join("ansicolors-py2.py3-none-any.pex") == pex
     assert (
         colors.blue("platform")
         == subprocess.check_output(
@@ -39,7 +67,7 @@ def test_platform_placeholder_simple(tmpdir):
 def test_platform_placeholder_multiplatform(tmpdir):
     # type: (Tempdir) -> None
 
-    run_pex_command(
+    result = run_pex_command(
         args=[
             "cowsay<6",
             "ansicolors==1.1.8",
@@ -51,10 +79,14 @@ def test_platform_placeholder_multiplatform(tmpdir):
             "-o",
             tmpdir.join("multiplatform-{platform}.pex"),
         ]
-    ).assert_success()
+    )
+    result.assert_success()
 
-    pex = tmpdir.join("multiplatform-cp314-cp314-macosx_10_15_universal2.manylinux1_x86_64.pex")
-    assert os.path.exists(pex)
+    pex = result.output.strip()
+    assert (
+        tmpdir.join("multiplatform-cp314-cp314-macosx_10_15_universal2.manylinux1_x86_64.pex")
+        == pex
+    )
     assert (
         colors.yellow("platform")
         == subprocess.check_output(
