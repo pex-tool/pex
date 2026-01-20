@@ -1,5 +1,16 @@
 # Release Notes
 
+## 2.85.0
+
+This release introduces a new `--interpreter-selection-strategy` option for use when building PEXes
+that use `--interpreter-constraint`s. When multiple interpreters satisfy the specified
+`--interpreter-constraint`s, the `--interpreter-selection-strategy` allows you to direct Pex to
+select the `oldest` (the default and the existing behavior) or the `newest`. In either case, the
+highest available patch version will be selected from amongst multiple interpeters with the same
+major and minor versions.
+
+* Support an `--interpreter-selection-strategy` option. (#3080)
+
 ## 2.84.0
 
 This release causes `pex ...` to emit the output path of the generated PEX (and / or scies) on

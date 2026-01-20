@@ -1015,6 +1015,7 @@ def build_pex(
     pex_info.pex_root = options.runtime_pex_root
     pex_info.strip_pex_env = options.strip_pex_env
     pex_info.interpreter_constraints = interpreter_constraints
+    pex_info.interpreter_selection_strategy = options.interpreter_selection_strategy
     pex_info.deps_are_wheel_files = not options.pre_install_wheels
     pex_info.max_install_jobs = options.max_install_jobs
     pex_info.build_properties = BuildProperties.from_options(options)

@@ -39,9 +39,9 @@ from testing import (
 from testing.pytest_utils.tmp import Tempdir, TempdirFactory
 
 try:
-    from unittest.mock import Mock, patch  # type: ignore[import]
+    from unittest.mock import patch  # type: ignore[import]
 except ImportError:
-    from mock import Mock, patch  # type: ignore[misc,import]
+    from mock import patch  # type: ignore[misc,import]
 
 if TYPE_CHECKING:
     from typing import Any, Iterator, List, Tuple
@@ -313,27 +313,6 @@ class TestPythonInterpreter(object):
                 safe_rename(py39_deleted, py39_version_dir)
 
             assert_shim("python", py39)
-
-
-def test_latest_release_of_min_compatible_version():
-    # type: () -> None
-    def mock_interp(version):
-        interp = Mock()
-        interp.version = tuple(int(v) for v in version.split("."))
-        return interp
-
-    def assert_chosen(expected_version, other_version):
-        expected = mock_interp(expected_version)
-        other = mock_interp(other_version)
-        assert (
-            PythonInterpreter.latest_release_of_min_compatible_version([expected, other])
-            == expected
-        ), "{} was selected instead of {}".format(other_version, expected_version)
-
-    # Note that we don't consider the interpreter name in comparisons.
-    assert_chosen(expected_version="2.7.0", other_version="3.6.0")
-    assert_chosen(expected_version="3.5.0", other_version="3.6.0")
-    assert_chosen(expected_version="3.6.1", other_version="3.6.0")
 
 
 def test_detect_pyvenv(tmpdir):
