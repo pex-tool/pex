@@ -681,6 +681,7 @@ def ensure_python_distribution(version):
 
             env = os.environ.copy()
             env["PYENV_ROOT"] = pyenv_root
+            env["CFLAGS"] = "-std=c11"
             if sys.platform.lower().startswith("linux"):
                 env["CONFIGURE_OPTS"] = "--enable-shared"
                 # The pyenv builder detects `--enable-shared` and sets up `RPATH` via
