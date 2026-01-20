@@ -3,6 +3,7 @@
 
 from __future__ import absolute_import
 
+import functools
 import hashlib
 import os.path
 from argparse import Namespace, _ActionsContainer
@@ -337,10 +338,18 @@ class GroupName(ProjectName):
 @attr.s(frozen=True)
 class DependencyGroup(object):
     @classmethod
-    def parse(cls, spec):
-        # type: (str) -> DependencyGroup
+    def parse(
+        cls,
+        spec,  # type: str
+        cwd=None,  # type: Optional[str]
+    ):
+        # type: (...) -> DependencyGroup
 
         group, sep, project_dir = spec.partition("@")
+
+        if cwd and not os.path.isabs(project_dir):
+            project_dir = os.path.join(cwd, project_dir)
+
         abs_project_dir = os.path.realpath(project_dir)
         if not os.path.isdir(abs_project_dir):
             raise ValueError(
@@ -468,6 +477,7 @@ class DependencyGroup(object):
 def register_options(
     parser,  # type: _ActionsContainer
     project_help,  # type: str
+    cwd=None,  # type: Optional[str]
 ):
     # type: (...) -> None
 
@@ -487,7 +497,7 @@ def register_options(
         dest="dependency_groups",
         metavar="GROUP[@DIR]",
         default=[],
-        type=DependencyGroup.parse,
+        type=functools.partial(DependencyGroup.parse, cwd=cwd),
         action="append",
         help=(
             "Pull requirements from the specified PEP-735 dependency group. Dependency groups are "

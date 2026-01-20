@@ -1,7 +1,7 @@
 # Copyright 2020 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-from __future__ import absolute_import
+from __future__ import absolute_import, print_function
 
 import errno
 import multiprocessing
@@ -50,12 +50,12 @@ def pex(tmpdir):
     # Fabric dips into Invoke vendored code. It depends on "invoke<2.0,>=1.3", but in version
     # 1.7.0, the vendored `decorator` module Fabric depends on inside Invoke no longer is
     # importable under Python 2.7; so we pin low.
+    # Additionally, the paramiko transitive dependency conflicts on Invoke for paramiko >=4.
     constraints = tmpdir.join("constraints.txt")
     with open(constraints, "w") as fp:
-        fp.write("Invoke==1.6.0")
+        print("Invoke==1.6.0", file=fp)
+        print("paramiko<4", file=fp)
 
-    # N.B.: --unzip just speeds up runs 2+ of the pex file and is otherwise not relevant to
-    # these tests.
     run_pex_command(
         args=[
             "fabric=={}".format(FABRIC_VERSION),

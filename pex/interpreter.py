@@ -1064,6 +1064,7 @@ class PythonInterpreter(object):
         cls,
         binary,  # type: str
         pyenv=None,  # type: Optional[Pyenv]
+        cwd=None,  # type: Optional[str]
     ):
         # type: (...) -> Optional[str]
 
@@ -1071,7 +1072,7 @@ class PythonInterpreter(object):
         if pyenv is not None:
             shim = pyenv.as_shim(binary)
             if shim is not None:
-                python = shim.select_version()
+                python = shim.select_version(search_dir=cwd)
                 if python is None:
                     TRACER.log("Detected inactive pyenv shim: {}.".format(shim), V=3)
                 else:
@@ -1229,6 +1230,7 @@ class PythonInterpreter(object):
         cls,
         binary,  # type: str
         pyenv=None,  # type: Optional[Pyenv]
+        cwd=None,  # type: Optional[str]
     ):
         # type: (...) -> PythonInterpreter
         """Create an interpreter from the given `binary`.
@@ -1236,9 +1238,11 @@ class PythonInterpreter(object):
         :param binary: The path to the python interpreter binary.
         :param pyenv: A custom Pyenv installation for handling pyenv shim identification.
                       Auto-detected by default.
+        :param cwd: The cwd to use as a base to look for python version files from. The process cwd
+                    by default.
         :return: an interpreter created from the given `binary`.
         """
-        python = cls._resolve_pyenv_shim(binary, pyenv=pyenv)
+        python = cls._resolve_pyenv_shim(binary, pyenv=pyenv, cwd=cwd)
         if python is None:
             raise cls.IdentificationError("The pyenv shim at {} is not active.".format(binary))
 
