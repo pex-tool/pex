@@ -317,5 +317,7 @@ def create_sh_boot_script(
             shlex_quote(venv_python_arg) for venv_python_arg in venv_python_args
         ),
         pex="$0" if layout is Layout.ZIPAPP else '$(dirname "$0")',
-        check_no_fast_path=" -a ".join(" -z {}".format(name) for name in vars_for_no_fast_path),
+        check_no_fast_path=" -a ".join(
+            '-z "${{{env_var_name}:-}}"'.format(env_var_name=name) for name in vars_for_no_fast_path
+        ),
     )
