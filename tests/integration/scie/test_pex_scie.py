@@ -97,6 +97,18 @@ def test_basic(
             re_flags=re.DOTALL | re.MULTILINE,
         )
         return
+    if PY_VER == (3, 9) and not IS_PYPY:
+        result.assert_failure(
+            expected_error_re=r".*{message}$".format(
+                message=re.escape(
+                    "No released assets available for Python 3.9 in the latest "
+                    "PythonBuildStandalone release. Support for Python 3.9 was dropped in the "
+                    "20251120 release. Try specifying an older PythonBuildStandalone release.\n"
+                )
+            ),
+            re_flags=re.DOTALL | re.MULTILINE,
+        )
+        return
     if PY_VER >= (3, 16):
         result.assert_failure(
             expected_error_re=(
@@ -338,7 +350,7 @@ def test_specified_science_binary(tmpdir):
 
     local_science_binary = os.path.join(str(tmpdir), "science")
     with open(local_science_binary, "wb") as write_fp, URLFetcher().get_body_stream(
-        "https://github.com/a-scie/lift/releases/download/v0.17.1/{binary}".format(
+        "https://github.com/a-scie/lift/releases/download/v0.17.2/{binary}".format(
             binary=SysPlatform.CURRENT.qualified_binary_name("science")
         )
     ) as read_fp:
@@ -382,7 +394,7 @@ def test_specified_science_binary(tmpdir):
         cached_science_binaries
     ), "Expected the local science binary to be used but not cached."
     assert (
-        "0.17.1"
+        "0.17.2"
         == subprocess.check_output(args=[local_science_binary, "--version"]).decode("utf-8").strip()
     )
 
