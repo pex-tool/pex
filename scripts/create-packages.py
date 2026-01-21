@@ -3,6 +3,7 @@
 from __future__ import absolute_import, annotations
 
 import atexit
+import functools
 import glob
 import hashlib
 import io
@@ -21,6 +22,7 @@ from typing import Dict, Iterator, Optional, Tuple
 
 from package.scie_config import PlatformConfig, ScieConfig
 from pex.common import safe_mkdtemp
+from pex.jobs import Job, SpawnedJob, execute_parallel
 from pex.pip.version import PipVersion
 from pex.sysconfig import SysPlatform
 
@@ -66,6 +68,65 @@ def build_pex_pex(
     return output_file
 
 
+def build_pex_scie(
+    platform_info: tuple[PlatformConfig, Path],
+    *,
+    lock: Path,
+    pex_requirement: str,
+    verbosity: int = 0,
+    env: Optional[Dict[str, str]] = None,
+) -> SpawnedJob[tuple[str, PlatformConfig]]:
+    platform_config, complete_platform = platform_info
+    command = [
+        sys.executable,
+        "-m",
+        "pex",
+        *["-v" for _ in range(verbosity)],
+        "--disable-cache",
+        "--no-build",
+        "--no-compile",
+        "--no-use-system-time",
+        "--record-git-state",
+        "--venv",
+        "--no-strip-pex-env",
+        "--complete-platform",
+        str(complete_platform),
+        "--lock",
+        str(lock),
+        "--scie",
+        "eager",
+        "--scie-only",
+        "--scie-name-style",
+        "platform-file-suffix",
+        "--scie-platform",
+        platform_config.name,
+        "--scie-pbs-release",
+        platform_config.pbs_release,
+        "--scie-python-version",
+        platform_config.python_version,
+        "--scie-pbs-stripped",
+        "--scie-hash-alg",
+        "sha256",
+        "--scie-busybox",
+        "@pex",
+        "--scie-busybox-pex-entrypoint-env-passthrough",
+        "--pip-version",
+        PipVersion.LATEST_COMPATIBLE.value,
+        "-o",
+        os.path.join(safe_mkdtemp(), "pex"),
+        "-c",
+        "pex",
+        "--project",
+        pex_requirement,
+    ]
+    return SpawnedJob.stdout(
+        job=Job(
+            command=command, process=subprocess.Popen(args=command, env=env, stdout=subprocess.PIPE)
+        ),
+        result_func=lambda stdout: (stdout.decode("utf-8").strip(), platform_config),
+    )
+
+
 def build_pex_scies(
     dist_dir: Path,
     scie_choice: ScieChoice,
@@ -109,52 +170,12 @@ def build_pex_scies(
             f"{missing}"
         )
 
-    for platform_config, complete_platform in platforms:
-        output_file = os.path.join(safe_mkdtemp(), "pex")
-        args = [
-            sys.executable,
-            "-m",
-            "pex",
-            *["-v" for _ in range(verbosity)],
-            "--disable-cache",
-            "--no-build",
-            "--no-compile",
-            "--no-use-system-time",
-            "--record-git-state",
-            "--venv",
-            "--no-strip-pex-env",
-            "--complete-platform",
-            str(complete_platform),
-            "--lock",
-            str(lock),
-            "--scie",
-            "eager",
-            "--scie-only",
-            "--scie-name-style",
-            "platform-file-suffix",
-            "--scie-platform",
-            platform_config.name,
-            "--scie-pbs-release",
-            platform_config.pbs_release,
-            "--scie-python-version",
-            platform_config.python_version,
-            "--scie-pbs-stripped",
-            "--scie-hash-alg",
-            "sha256",
-            "--scie-busybox",
-            "@pex",
-            "--scie-busybox-pex-entrypoint-env-passthrough",
-            "--pip-version",
-            PipVersion.LATEST_COMPATIBLE.value,
-            "-o",
-            output_file,
-            "-c",
-            "pex",
-            "--project",
-            pex_requirement,
-        ]
-        subprocess.run(args=args, env=env, check=True)
-
+    for output_file, platform_config in execute_parallel(
+        platforms,
+        spawn_func=functools.partial(
+            build_pex_scie, verbosity=verbosity, lock=lock, pex_requirement=pex_requirement, env=env
+        ),
+    ):
         artifacts = glob.glob(f"{output_file}*")
         scie_artifacts = [artifact for artifact in artifacts if not artifact.endswith(".sha256")]
         if len(scie_artifacts) != 1:
