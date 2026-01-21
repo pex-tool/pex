@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.85.1
+
+This release upgrades the floor of `science` to 0.17.2 to pick up better handling for CPython 3.9
+which was dropped in new [PBS][PBS] releases at the end of 2025.
+
+* Upgrade science to 0.17.2 (#3081)
+
 ## 2.85.0
 
 This release introduces a new `--interpreter-selection-strategy` option for use when building PEXes
