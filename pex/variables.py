@@ -828,7 +828,8 @@ def venv_dir(
 
     # The venv contents are affected by which PEX files are in play as well as which interpreter
     # is selected. The former is influenced via PEX_PATH and the latter is influenced by interpreter
-    # constraints, PEX_PYTHON and PEX_PYTHON_PATH.
+    # constraints, PEX_PYTHON and PEX_PYTHON_PATH. (NB. `create_sh_boot_script` in `pex.sh_boot`
+    # has code to disable its fast-path that must be kept in sync with the logic here.)
 
     pex_path_contents = {}  # type: Dict[str, Dict[str, str]]
     venv_contents = {"pex_path": pex_path_contents}  # type: Dict[str, Any]

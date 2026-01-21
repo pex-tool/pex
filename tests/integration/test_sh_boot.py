@@ -10,11 +10,21 @@ from textwrap import dedent
 import pytest
 
 from pex.common import safe_open
+from pex.interpreter import PythonInterpreter
 from pex.layout import Layout
 from pex.os import WINDOWS
+from pex.pex_info import PexInfo
 from pex.pip.version import PipVersion
 from pex.typing import TYPE_CHECKING
-from testing import all_pythons, make_env, run_pex_command, subprocess
+from testing import (
+    PY310,
+    PY311,
+    all_pythons,
+    ensure_python_interpreter,
+    make_env,
+    run_pex_command,
+    subprocess,
+)
 from testing.pip import skip_if_only_vendored_pip_supported
 from testing.pytest_utils.tmp import Tempdir
 
@@ -310,36 +320,96 @@ def test_argv0(
     assert {} == data
 
 
+def create_empty_pex(
+    tmpdir,  # type: Tempdir
+    extra_args,  # type: List[str]
+):
+    # type: (...) -> str
+    pex_root = tmpdir.join("pex-root")
+    pex = os.path.realpath(tmpdir.join("empty.pex"))
+    run_pex_command(
+        args=(["--pex-root", pex_root, "--runtime-pex-root", pex_root, "-o", pex] + extra_args)
+    ).assert_success()
+    return pex
+
+
 @execution_mode
 def test_issue_2726_pex_tools(
-    tmpdir,  # type: Any
+    tmpdir,  # type: Tempdir
     execution_mode_args,  # type: List[str]
 ):
     # type: (...) -> None
 
-    pex = os.path.realpath(os.path.join(str(tmpdir), "pex.sh"))
-
-    run_pex_command(args=["-o", pex, "--include-tools"] + execution_mode_args).assert_success()
-
-    pex_root = os.path.join(str(tmpdir), "pex_root")
+    pex = create_empty_pex(tmpdir, execution_mode_args + ["--include-tools"])
 
     def _check_pex_tools():
-        output = subprocess.check_output(
-            args=[pex, "info"],
-            env=make_env(PEX_TOOLS=1, PEX_ROOT=pex_root),
-            stderr=subprocess.STDOUT,
-        )
-        # Check for output that implies we got sensible `PEX_TOOLS=1 ./some.pex info` output (a JSON
-        # object with specific keys):
-        info = json.loads(output)
-        assert "bootstrap_hash" in info
-        assert "pex_hash" in info
+        output = subprocess.check_output(args=[pex, "info"], env=make_env(PEX_TOOLS=1))
+        # Check for output that implies we got sensible `PEX_TOOLS=1 ./some.pex info` output:
+        assert PexInfo.from_pex(pex).as_json_dict() == json.loads(output)
 
     # run the tools with an empty/unseeded PEX_ROOT
     _check_pex_tools()
 
     # ensure the PEX_ROOT is fully seeded e.g. with a venv for venv execution mode
-    subprocess.check_output(args=[pex, "-c", ""], env=make_env(PEX_ROOT=pex_root))
+    subprocess.check_output(args=[pex, "-c", ""])
 
     # run the tools with seeded PEX_ROOT
     _check_pex_tools()
+
+
+@execution_mode
+@pytest.mark.parametrize("pex_env_var", ["PEX_PYTHON", "PEX_PYTHON_PATH"])
+def test_issue_2728_pex_python_and_pex_python_path(
+    tmpdir,  # type: Tempdir
+    execution_mode_args,  # type: List[str]
+    pex_env_var,
+):
+    # type: (...) -> None
+
+    pex = create_empty_pex(tmpdir, execution_mode_args)
+
+    other_python = ensure_python_interpreter(PY310 if sys.version_info[:2] == (3, 11) else PY311)
+
+    def _check_pex_with_python():
+        output = subprocess.check_output(
+            args=[pex, "-c", "import sys; print('.'.join(map(str, sys.version_info[:3])))"],
+            env=make_env(**{pex_env_var: other_python}),
+        )
+        assert (
+            ".".join(map(str, PythonInterpreter.from_binary(other_python).version[:3]))
+            == output.decode("utf-8").strip()
+        )
+
+    _check_pex_with_python()
+
+    # ensure the PEX_ROOT is fully seeded e.g. with a venv for venv execution mode
+    subprocess.check_output(args=[pex, "-c", ""])
+
+    _check_pex_with_python()
+
+
+@execution_mode
+def test_issue_2728_pex_path(
+    tmpdir,  # type: Tempdir
+    execution_mode_args,  # type: List[str]
+):
+    # type: (...) -> None
+
+    pex = create_empty_pex(tmpdir, execution_mode_args)
+
+    cowsay = tmpdir.join("cowsay.pex")
+    run_pex_command(args=["cowsay==5.0", "-o", cowsay]).assert_success()
+
+    def _check_pex_with_path():
+        output = subprocess.check_output(
+            args=[pex, "-c", "import cowsay; print(cowsay.__version__)"],
+            env=make_env(PEX_PATH=cowsay),
+        )
+        assert b"5.0\n" == output
+
+    _check_pex_with_path()
+
+    # ensure the PEX_ROOT is fully seeded e.g. with a venv for venv execution mode
+    subprocess.check_output(args=[pex, "-c", ""])
+
+    _check_pex_with_path()
