@@ -328,10 +328,7 @@ def create_empty_pex(
     pex_root = tmpdir.join("pex-root")
     pex = os.path.realpath(tmpdir.join("empty.pex"))
     run_pex_command(
-        args=(
-            ["--pex-root", pex_root, "--runtime-pex-root", pex_root, "-o", pex, "--include-tools"]
-            + extra_args
-        )
+        args=(["--pex-root", pex_root, "--runtime-pex-root", pex_root, "-o", pex] + extra_args)
     ).assert_success()
     return pex
 
