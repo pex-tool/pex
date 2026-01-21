@@ -13,6 +13,7 @@ from pex.common import open_zip
 from pex.compatibility import PY2
 from pex.compatibility import string as compatibility_string
 from pex.inherit_path import InheritPath
+from pex.interpreter_selection_strategy import InterpreterSelectionStrategy
 from pex.orderedset import OrderedSet
 from pex.os import WINDOWS
 from pex.typing import TYPE_CHECKING, cast
@@ -432,6 +433,21 @@ class PexInfo(object):
         self._interpreter_constraints = value
 
     @property
+    def interpreter_selection_strategy(self):
+        # type: () -> InterpreterSelectionStrategy.Value
+        strategy = self._pex_info.get("interpreter_selection_strategy")
+        return (
+            InterpreterSelectionStrategy.for_value(strategy)
+            if strategy
+            else InterpreterSelectionStrategy.OLDEST
+        )
+
+    @interpreter_selection_strategy.setter
+    def interpreter_selection_strategy(self, value):
+        # type: (InterpreterSelectionStrategy.Value) -> None
+        self._pex_info["interpreter_selection_strategy"] = value.value
+
+    @property
     def ignore_errors(self):
         return self._pex_info.get("ignore_errors", False)
 
@@ -614,6 +630,7 @@ class PexInfo(object):
         data["excluded"] = sorted(self._excluded)
         data["overridden"] = sorted(self._overridden)
         data["interpreter_constraints"] = sorted(str(ic) for ic in self.interpreter_constraints)
+        data["interpreter_selection_strategy"] = self.interpreter_selection_strategy.value
         data["distributions"] = self._distributions.copy()
         return data
 

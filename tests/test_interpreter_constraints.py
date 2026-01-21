@@ -1,5 +1,8 @@
 # Copyright 2022 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+from __future__ import absolute_import
+
 import itertools
 import sys
 from textwrap import dedent
@@ -16,12 +19,19 @@ from pex.interpreter_constraints import (
     UnsatisfiableError,
 )
 from pex.interpreter_implementation import InterpreterImplementation
+from pex.interpreter_selection_strategy import InterpreterSelectionStrategy
 from pex.pex_warnings import PEXWarning
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from typing import List, Tuple
+
+
+try:
+    from unittest.mock import Mock  # type: ignore[import]
+except ImportError:
+    from mock import Mock  # type: ignore[import]
 
 
 def test_parse(py39):
@@ -194,4 +204,61 @@ def test_iter_compatible_versions_non_eol():
         "Expected the oldest python version to always be EOL and thus iterate its versions exactly "
         "and the newest python version to be non-EOL and iterate its versions past its patch all "
         "the way to the max patch."
+    )
+
+
+def assert_selected(
+    expected_version,  # type: str
+    other_version,  # type: str
+    strategy,  # type: InterpreterSelectionStrategy.Value
+):
+    # type: (...) -> None
+
+    def mock_interpreter(version):
+        interp = Mock()
+        interp.version = tuple(int(v) for v in version.split("."))
+        return interp
+
+    expected = mock_interpreter(expected_version)
+    other = mock_interpreter(other_version)
+    assert (
+        strategy.select([expected, other]) == expected
+    ), "{other_version} was selected instead of {expected_version}".format(
+        other_version=other_version, expected_version=expected_version
+    )
+
+
+def test_interpreter_selection_strategy():
+    # type: () -> None
+
+    assert_selected(
+        expected_version="2.7.0",
+        other_version="3.6.0",
+        strategy=InterpreterSelectionStrategy.OLDEST,
+    )
+    assert_selected(
+        expected_version="3.5.0",
+        other_version="3.6.0",
+        strategy=InterpreterSelectionStrategy.OLDEST,
+    )
+    assert_selected(
+        expected_version="3.6.1",
+        other_version="3.6.0",
+        strategy=InterpreterSelectionStrategy.OLDEST,
+    )
+
+    assert_selected(
+        expected_version="3.6.0",
+        other_version="2.7.0",
+        strategy=InterpreterSelectionStrategy.NEWEST,
+    )
+    assert_selected(
+        expected_version="3.6.0",
+        other_version="3.5.0",
+        strategy=InterpreterSelectionStrategy.NEWEST,
+    )
+    assert_selected(
+        expected_version="3.6.1",
+        other_version="3.6.0",
+        strategy=InterpreterSelectionStrategy.NEWEST,
     )

@@ -15,8 +15,8 @@ import psutil  # type: ignore[import]
 
 from pex.atomic_directory import atomic_directory
 from pex.common import safe_open, safe_rmtree
-from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import InterpreterConstraint
+from pex.interpreter_selection_strategy import InterpreterSelectionStrategy
 from pex.subprocess import launch_python_daemon
 from pex.typing import TYPE_CHECKING, cast
 from pex.venv.virtualenv import InvalidVirtualenvError, Virtualenv
@@ -153,7 +153,7 @@ def ensure_devpi_server():
                         locked_reqs,
                     ]
                 )
-                python = PythonInterpreter.latest_release_of_min_compatible_version(
+                python = InterpreterSelectionStrategy.OLDEST.select(
                     InterpreterConstraint.parse(">=3.8,<3.15").iter_matching()
                 )
                 venv_workdir = os.path.join(atomic_venvdir.work_dir, "venv")

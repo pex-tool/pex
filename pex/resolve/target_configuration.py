@@ -10,6 +10,7 @@ from pex.interpreter_constraints import (
     InterpreterConstraints,
     UnsatisfiableInterpreterConstraintsError,
 )
+from pex.interpreter_selection_strategy import InterpreterSelectionStrategy
 from pex.orderedset import OrderedSet
 from pex.pex_bootstrapper import iter_compatible_interpreters, normalize_path
 from pex.platforms import Platform
@@ -33,6 +34,9 @@ class InterpreterConfiguration(object):
     interpreter_constraints = attr.ib(
         default=InterpreterConstraints()
     )  # type: InterpreterConstraints
+    interpreter_selection_strategy = attr.ib(
+        default=InterpreterSelectionStrategy.OLDEST
+    )  # type: InterpreterSelectionStrategy.Value
 
     @property
     def python_path(self):
@@ -235,6 +239,7 @@ class TargetConfiguration(object):
 
         return Targets(
             interpreters=tuple(interpreters),
+            interpreter_selection_strategy=self.interpreter_configuration.interpreter_selection_strategy,
             complete_platforms=tuple(requested_complete_platforms),
             platforms=tuple(requested_platforms),
         )

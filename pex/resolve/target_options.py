@@ -10,6 +10,7 @@ from argparse import Action, ArgumentTypeError, Namespace, _ActionsContainer
 
 from pex.argparse import HandleBoolAction
 from pex.interpreter_constraints import InterpreterConstraints
+from pex.interpreter_selection_strategy import InterpreterSelectionStrategy
 from pex.orderedset import OrderedSet
 from pex.pep_425 import CompatibilityTags
 from pex.pep_508 import MarkerEnvironment
@@ -111,6 +112,19 @@ def register(
                 single_interpreter_info_cmd=single_interpreter_info_cmd,
                 all_interpreters_info_cmd=all_interpreters_info_cmd,
             )
+        ),
+    )
+    parser.add_argument(
+        "--interpreter-selection-strategy",
+        dest="interpreter_selection_strategy",
+        default=InterpreterSelectionStrategy.OLDEST,
+        choices=InterpreterSelectionStrategy.values(),
+        type=InterpreterSelectionStrategy.for_value,
+        help=(
+            "When using `--interpreter-constraint`s, use this strategy to select between multiple "
+            "interpreters of differing major or minor version. N.B.: Whatever selection strategy "
+            "is chosen, the highest available patch version is always selected as a tie-breaker "
+            "when there is more than one compatible interpreter available."
         ),
     )
 
@@ -222,6 +236,7 @@ def configure_interpreters(options):
             else None
         ),
         pythons=tuple(OrderedSet(options.python)),
+        interpreter_selection_strategy=options.interpreter_selection_strategy,
     )
 
 
