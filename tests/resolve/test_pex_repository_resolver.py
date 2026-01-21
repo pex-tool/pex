@@ -4,7 +4,6 @@
 from __future__ import absolute_import, print_function
 
 import os
-import re
 from collections import defaultdict
 
 import pytest
@@ -22,6 +21,7 @@ from pex.resolve.pex_repository_resolver import resolve_from_pex
 from pex.resolve.resolver_configuration import PipConfiguration
 from pex.resolve.resolvers import ResolveResult, Unsatisfiable
 from pex.resolver import resolve
+from pex.sysconfig import SysPlatform
 from pex.targets import Targets
 from pex.typing import TYPE_CHECKING, cast
 from testing import IS_LINUX, PY27, PY310, ensure_python_interpreter
@@ -116,6 +116,12 @@ def pex_repository(
 ):
     # type (...) -> str
 
+    if SysPlatform.CURRENT.arch != "x86_64":
+        pytest.skip(
+            "The PEX repository used only has pre-built wheels for x86_64 making testing on other "
+            "platforms dependent on installed toolchains and native libraries."
+        )
+
     constraints_file = create_constraints_file(
         # The 2.25.1 release of requests constrains urllib3 to <1.27,>=1.21.1 and picks 1.26.2 on
         # its own as of this writing.
@@ -202,30 +208,15 @@ def test_resolve_from_pex(
         expected_result_type=InstallableType.INSTALLED_WHEEL_CHROOT,
     )
 
-    if pex_info.deps_are_wheel_files:
-        assert_resolve_result(
-            resolve_from_pex(
-                pex=pex_repository,
-                requirements=direct_requirements,
-                targets=Targets(interpreters=(py27, py310), platforms=(foreign_platform,)),
-                result_type=InstallableType.WHEEL_FILE,
-            ),
-            expected_result_type=InstallableType.WHEEL_FILE,
-        )
-    else:
-        with pytest.raises(
-            Unsatisfiable,
-            match=(
-                r"Cannot resolve \.whl files from PEX at {pex}; its dependencies are in the form "
-                r"of pre-installed wheel chroots\.".format(pex=re.escape(pex_repository))
-            ),
-        ):
-            resolve_from_pex(
-                pex=pex_repository,
-                requirements=direct_requirements,
-                targets=Targets(interpreters=(py27, py310), platforms=(foreign_platform,)),
-                result_type=InstallableType.WHEEL_FILE,
-            )
+    assert_resolve_result(
+        resolve_from_pex(
+            pex=pex_repository,
+            requirements=direct_requirements,
+            targets=Targets(interpreters=(py27, py310), platforms=(foreign_platform,)),
+            result_type=InstallableType.WHEEL_FILE,
+        ),
+        expected_result_type=InstallableType.WHEEL_FILE,
+    )
 
 
 def test_resolve_from_pex_subset(

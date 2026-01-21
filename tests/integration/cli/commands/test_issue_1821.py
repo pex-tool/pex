@@ -9,10 +9,11 @@ import pytest
 from pex.interpreter import PythonInterpreter
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
-from pex.resolve.locked_resolve import Artifact, FileArtifact, LockStyle, TargetSystem
+from pex.resolve.locked_resolve import Artifact, FileArtifact, LockStyle
 from pex.resolve.lockfile import json_codec
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.resolved_requirement import Pin
+from pex.resolve.target_system import TargetSystem
 from pex.sorted_tuple import SortedTuple
 from pex.typing import TYPE_CHECKING
 from testing import IntegResults, run_pex_command
@@ -221,7 +222,11 @@ def test_issue_1821(
     ) in result.error
 
     lockfile = lock(tmpdir, args, TargetSystem.LINUX, TargetSystem.MAC)
-    assert SortedTuple((TargetSystem.LINUX, TargetSystem.MAC)) == lockfile.target_systems
+    assert lockfile.configuration.universal_target is not None
+    assert (
+        SortedTuple((TargetSystem.LINUX, TargetSystem.MAC))
+        == lockfile.configuration.universal_target.systems
+    )
     assert lockfile.source is not None
     run_pex_command(
         args=["--lock", lockfile.source, "--", "-c", "import docker"], python=py310.binary

@@ -6,24 +6,32 @@ from __future__ import absolute_import
 import json
 
 from pex import compatibility
+from pex.artifact_url import Fingerprint
+from pex.dependency_configuration import Override
 from pex.dist_metadata import Requirement, RequirementParseError
 from pex.enum import Enum
+from pex.interpreter_constraints import InterpreterConstraint
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pip.version import PipVersion
 from pex.resolve.locked_resolve import (
     Artifact,
+    FileArtifact,
+    LocalProjectArtifact,
+    LockConfiguration,
     LockedRequirement,
     LockedResolve,
     LockStyle,
-    TargetSystem,
+    VCSArtifact,
 )
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.path_mappings import PathMappings
-from pex.resolve.resolved_requirement import Fingerprint, Pin
+from pex.resolve.resolved_requirement import Pin
 from pex.resolve.resolver_configuration import BuildConfiguration, PipConfiguration, ResolverVersion
+from pex.resolve.target_system import TargetSystem
 from pex.sorted_tuple import SortedTuple
 from pex.third_party.packaging import tags
+from pex.third_party.packaging.markers import InvalidMarker, Marker
 from pex.third_party.packaging.specifiers import InvalidSpecifier, SpecifierSet
 from pex.typing import TYPE_CHECKING, cast
 
@@ -180,6 +188,18 @@ def loads(
                 "The requirement string at '{path}' is invalid: {err}".format(path=path, err=e)
             )
 
+    def parse_override(
+        raw_override,  # type: str
+        path,  # type: str
+    ):
+        # type: (...) -> Override
+        try:
+            return Override.parse(raw_override)
+        except Override.InvalidError as e:
+            raise ParseError(
+                "The override string at '{path}' is invalid: {err}".format(path=path, err=e)
+            )
+
     def parse_version_specifier(
         raw_version_specifier,  # type: str
         path,  # type: str
@@ -192,6 +212,28 @@ def loads(
                 "The version specifier at '{path}' is invalid: {err}".format(path=path, err=e)
             )
 
+    def parse_interpreter_constraint(
+        value,  # type: str
+        path,  # type: str
+    ):
+        # type: (...) -> InterpreterConstraint
+        try:
+            return InterpreterConstraint.parse(value)
+        except ValueError as e:
+            raise ParseError(
+                "The interpreter constraint at '{path}' is invalid: {err}".format(path=path, err=e)
+            )
+
+    def parse_marker(
+        raw_marker,  # type: str
+        path,  # type: str
+    ):
+        # type: (...) -> Marker
+        try:
+            return Marker(raw_marker)
+        except InvalidMarker as e:
+            raise ParseError("The marker at '{path}' is invalid: {err}".format(path=path, err=e))
+
     required_path_mappings = get("path_mappings", dict, optional=True) or {}
     given_mappings = set(mapping.name for mapping in path_mappings.mappings)
     unspecified_paths = set(required_path_mappings) - given_mappings
@@ -200,16 +242,33 @@ def loads(
             required_path_mappings=required_path_mappings, unspecified_paths=unspecified_paths
         )
 
-    target_systems = [
-        parse_enum_value(
-            enum_type=TargetSystem,
-            value=target_system,
-            path=".target_systems[{index}]".format(index=index),
-        )
-        for index, target_system in enumerate(get("target_systems", list, optional=True) or ())
-    ]
-
+    style = get_enum_value(LockStyle, "style")
     elide_unused_requires_dist = get("elide_unused_requires_dist", bool, optional=True) or False
+    if style is LockStyle.UNIVERSAL:
+        lock_configuration = LockConfiguration.universal(
+            interpreter_constraints=[
+                parse_interpreter_constraint(
+                    value=interpreter_constraint,
+                    path=".requires_python[{index}]".format(index=index),
+                )
+                for index, interpreter_constraint in enumerate(get("requires_python", list))
+            ],
+            systems=[
+                parse_enum_value(
+                    enum_type=TargetSystem,
+                    value=target_system,
+                    path=".target_systems[{index}]".format(index=index),
+                )
+                for index, target_system in enumerate(
+                    get("target_systems", list, optional=True) or ()
+                )
+            ],
+            elide_unused_requires_dist=elide_unused_requires_dist,
+        )
+    else:
+        lock_configuration = LockConfiguration(
+            style=style, elide_unused_requires_dist=elide_unused_requires_dist
+        )
 
     only_wheels = [
         parse_project_name(project_name, path=".only_wheels[{index}]".format(index=index))
@@ -241,8 +300,8 @@ def loads(
     ]
 
     overridden = [
-        parse_requirement(req, path=".overridden[{index}]".format(index=index))
-        for index, req in enumerate(get("overridden", list, optional=True) or ())
+        parse_override(override, path=".overridden[{index}]".format(index=index))
+        for index, override in enumerate(get("overridden", list, optional=True) or ())
     ]
 
     def assemble_tag(
@@ -276,6 +335,12 @@ def loads(
             if platform_tag_components
             else None
         )
+        marker_str = get("marker", str, data=locked_resolve, path=lock_path, optional=True)
+        marker = (
+            parse_marker(marker_str, path='{lock_path}["marker"]'.format(lock_path=lock_path))
+            if marker_str
+            else None
+        )
         locked_reqs = []
         for req_index, req in enumerate(
             get("locked_requirements", list, data=locked_resolve, path=lock_path)
@@ -292,6 +357,8 @@ def loads(
                             algorithm=get("algorithm", data=artifact, path=ap),
                             hash=get("hash", data=artifact, path=ap),
                         ),
+                        commit_id=get("commit_id", data=artifact, path=ap, optional=True),
+                        editable=get("editable", data=artifact, path=ap, optional=True),
                     )
                 )
 
@@ -331,15 +398,16 @@ def loads(
             )
 
         locked_resolves.append(
-            LockedResolve(locked_requirements=SortedTuple(locked_reqs), platform_tag=platform_tag)
+            LockedResolve(
+                locked_requirements=SortedTuple(locked_reqs),
+                platform_tag=platform_tag,
+                marker=marker,
+            )
         )
 
     return Lockfile.create(
         pex_version=get("pex_version"),
-        style=get_enum_value(LockStyle, "style"),
-        requires_python=get("requires_python", list),
-        target_systems=target_systems,
-        elide_unused_requires_dist=elide_unused_requires_dist,
+        lock_configuration=lock_configuration,
         pip_version=get_enum_value(
             PipVersion,
             "pip_version",
@@ -386,12 +454,36 @@ def as_json_data(
     path_mappings=PathMappings(),  # type: PathMappings
 ):
     # type: (...) -> Dict[str, Any]
+
+    def as_artifact_dict(artifact):
+        # type: (Union[FileArtifact, LocalProjectArtifact, VCSArtifact]) -> Dict[str, Any]
+        data = {
+            "url": path_mappings.maybe_canonicalize(artifact.url.download_url),
+            "algorithm": artifact.fingerprint.algorithm,
+            "hash": artifact.fingerprint.hash,
+        }  # type: Dict[str, Any]
+        if isinstance(artifact, VCSArtifact) and artifact.commit_id:
+            data["commit_id"] = artifact.commit_id
+        if isinstance(artifact, LocalProjectArtifact):
+            data["editable"] = artifact.editable
+        return data
+
+    requires_python = []  # type: List[str]
+    target_systems = []  # type: List[str]
+    if lockfile.configuration.universal_target:
+        universal_target = lockfile.configuration.universal_target
+        requires_python.extend(
+            str(interpreter_constraint)
+            for interpreter_constraint in universal_target.iter_interpreter_constraints()
+        )
+        target_systems.extend(str(target_system) for target_system in universal_target.systems)
+
     return {
         "pex_version": lockfile.pex_version,
-        "style": str(lockfile.style),
-        "requires_python": list(lockfile.requires_python),
-        "target_systems": [str(target_system) for target_system in lockfile.target_systems],
-        "elide_unused_requires_dist": lockfile.elide_unused_requires_dist,
+        "style": str(lockfile.configuration.style),
+        "requires_python": requires_python,
+        "target_systems": target_systems,
+        "elide_unused_requires_dist": lockfile.configuration.elide_unused_requires_dist,
         "pip_version": str(lockfile.pip_version),
         "resolver_version": str(lockfile.resolver_version),
         "requirements": [
@@ -412,13 +504,16 @@ def as_json_data(
         "overridden": [str(override) for override in lockfile.overridden],
         "locked_resolves": [
             {
-                "platform_tag": [
-                    locked_resolve.platform_tag.interpreter,
-                    locked_resolve.platform_tag.abi,
-                    locked_resolve.platform_tag.platform,
-                ]
-                if locked_resolve.platform_tag
-                else None,
+                "platform_tag": (
+                    [
+                        locked_resolve.platform_tag.interpreter,
+                        locked_resolve.platform_tag.abi,
+                        locked_resolve.platform_tag.platform,
+                    ]
+                    if locked_resolve.platform_tag
+                    else None
+                ),
+                "marker": str(locked_resolve.marker) if locked_resolve.marker else None,
                 "locked_requirements": [
                     {
                         "project_name": str(req.pin.project_name),
@@ -430,16 +525,11 @@ def as_json_data(
                             path_mappings.maybe_canonicalize(str(dependency))
                             for dependency in req.requires_dists
                         ],
-                        "requires_python": str(req.requires_python)
-                        if req.requires_python
-                        else None,
+                        "requires_python": (
+                            str(req.requires_python) if req.requires_python else None
+                        ),
                         "artifacts": [
-                            {
-                                "url": path_mappings.maybe_canonicalize(artifact.url.download_url),
-                                "algorithm": artifact.fingerprint.algorithm,
-                                "hash": artifact.fingerprint.hash,
-                            }
-                            for artifact in req.iter_artifacts()
+                            as_artifact_dict(artifact) for artifact in req.iter_artifacts()
                         ],
                     }
                     for req in locked_resolve.locked_requirements

@@ -13,7 +13,7 @@ from hashlib import sha1
 from site import makepath  # type: ignore[attr-defined]
 
 from pex import hashing
-from pex.common import is_pyc_dir, is_pyc_file, safe_mkdir, safe_mkdtemp
+from pex.common import is_pyc_dir, is_pyc_file, safe_delete, safe_mkdir, safe_mkdtemp
 from pex.compatibility import (  # type: ignore[attr-defined]  # `exec_function` is defined dynamically
     PY2,
     exec_function,
@@ -151,4 +151,4 @@ def named_temporary_file(**kwargs):
         with fp:
             yield fp
     finally:
-        os.remove(fp.name)
+        safe_delete(fp.name)

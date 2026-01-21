@@ -1,0 +1,142 @@
+name: Track Pip main
+on:
+  schedule:
+    # 5:00 AM US-Pacific daily
+    - cron: '0 12 * * *'
+  workflow_dispatch:
+    inputs:
+      pip-requirement:
+        description: A custom Pip requirement to test.
+        required: false
+        type: string
+      build-system-requires:
+        description: |
+          The `[build-system] requires` value for this version of Pip.
+          Only needed for non-VCS requirements.
+          Should be in the format of a JSON string array; i.e.: `["setuptools"]`
+        required: false
+        type: string
+defaults:
+  run:
+    shell: bash
+env:
+  # We fetch Windows script executable stubs when building Pex.
+  _PEX_FETCH_WINDOWS_STUBS_BEARER: ${{ secrets.GITHUB_TOKEN }}
+
+  # These timeouts help with flaky CI / oversubscription issues.
+  _PEX_HTTP_SERVER_TIMEOUT: 30
+  _PEX_PEXPECT_TIMEOUT: 10
+
+  # We have integration tests that exercise `--scie` support and these can trigger downloads from
+  # GitHub Releases that need elevated rate limit quota, which this gives.
+  SCIENCE_AUTH_API_GITHUB_COM_BEARER: ${{ secrets.GITHUB_TOKEN }}
+
+  # We have integration tests that exercise `--scie` support and these can trigger downloads from
+  # GitHub Releases that can be slow which this timeout accounts for.
+  SCIENCE_NET_TIMEOUT: 30.0
+jobs:
+  setup:
+    name: Check GitHub Organization
+    if: github.repository_owner == 'pex-tool'
+    runs-on: ubuntu-slim
+    steps:
+      - name: Noop
+        if: false
+        run: |
+          echo "This is a dummy step that will never run."
+
+  tests:
+    name: "Linux: ./duvrc.sh ${{ matrix.test-cmd }} ${{ matrix.pex-test-pos-args }}"
+    needs: setup
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    strategy:
+      matrix:
+        include:
+          # Unit tests:
+          # -----------
+          - test-cmd: test-py314-pip:adhoc
+            pex-test-pos-args: --shard 1/3
+            summary: true
+          - test-cmd: test-py314-pip:adhoc
+            pex-test-pos-args: --shard 2/3
+          - test-cmd: test-py314-pip:adhoc
+            pex-test-pos-args: --shard 3/3
+
+          # Integration tests:
+          # ------------------
+          - test-cmd: test-py314-pip:adhoc-integration
+            pex-test-pos-args: --shard 1/9
+          - test-cmd: test-py314-pip:adhoc-integration
+            pex-test-pos-args: --shard 2/9
+          - test-cmd: test-py314-pip:adhoc-integration
+            pex-test-pos-args: --shard 3/9
+          - test-cmd: test-py314-pip:adhoc-integration
+            pex-test-pos-args: --shard 4/9
+          - test-cmd: test-py314-pip:adhoc-integration
+            pex-test-pos-args: --shard 5/9
+          - test-cmd: test-py314-pip:adhoc-integration
+            pex-test-pos-args: --shard 6/9
+          - test-cmd: test-py314-pip:adhoc-integration
+            pex-test-pos-args: --shard 7/9
+          - test-cmd: test-py314-pip:adhoc-integration
+            pex-test-pos-args: --shard 8/9
+          - test-cmd: test-py314-pip:adhoc-integration
+            pex-test-pos-args: --shard 9/9
+    steps:
+      - name: Free Up Disk Space
+        uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          android: true # ~14GB
+          dotnet: true # ~2GB
+          tool-cache: true # ~12GB
+
+          # Too little space savings or too slow.
+          haskell: false
+          large-packages: false
+          docker-images: false
+          swap-storage: false
+      - name: Checkout Pex
+        uses: actions/checkout@v4
+        with:
+          # We need branches and tags for some ITs.
+          fetch-depth: 0
+      # Some ITs need this for VCS URLs of the form git+ssh://git@github.com/...
+      - name: Setup SSH Agent
+        uses: webfactory/ssh-agent@v0.9.0
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        if: env.SSH_PRIVATE_KEY != ''
+        with:
+          ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
+      - name: Run Tests
+        run: |
+          # This is needed to get pexpect tests working under PyPy running under docker.
+          export TERM="xterm"
+
+          if [[ "${{ matrix.summary }}" != "true" ]]; then
+            unset GITHUB_STEP_SUMMARY
+          fi
+
+          export _PEX_PIP_ADHOC_REQUIREMENT='${{ inputs.pip-requirement }}'
+          export _PEX_PIP_ADHOC_BUILD_SYSTEM_REQUIRES='${{ inputs.build-system-requires }}'
+
+          BASE_MODE=pull CACHE_MODE=pull \
+            ./duvrc.sh ${{ matrix.test-cmd }} -- \
+              --color --devpi --devpi-timeout 15.0 --shutdown-devpi -vvs ${{ matrix.pex-test-pos-args }}
+
+  final-status:
+    name: Gather Final Status
+    needs:
+      - tests
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check Non-Success
+        if: |
+          contains(needs.*.result, 'cancelled') ||
+          contains(needs.*.result, 'failure') ||
+          contains(needs.*.result, 'skipped')
+        run: "false"
+      - name: Success
+        run: "true"

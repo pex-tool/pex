@@ -8,16 +8,18 @@ from argparse import ArgumentParser
 import pytest
 
 from pex.common import touch
+from pex.pep_503 import ProjectName
 from pex.pex_warnings import PEXWarning
 from pex.pip.version import PipVersion
-from pex.resolve import resolver_configuration, resolver_options
+from pex.resolve import resolver_options
+from pex.resolve.package_repository import PYPI, ReposConfiguration
 from pex.resolve.resolver_configuration import (
     BuildConfiguration,
     PexRepositoryConfiguration,
     PipConfiguration,
     PreResolvedConfiguration,
-    ReposConfiguration,
 )
+from pex.resolve.resolver_options import create_repos_configuration
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -124,7 +126,7 @@ def test_clp_index_option_render(parser):
     repos_configuration = compute_repos_configuration(
         parser, args=["--index", "http://www.example.com"]
     )
-    assert (resolver_configuration.PYPI, "http://www.example.com") == repos_configuration.indexes
+    assert (PYPI, "http://www.example.com") == repos_configuration.indexes
     assert () == repos_configuration.find_links
 
 
@@ -220,6 +222,16 @@ def test_latest_pip_version(parser):
     assert pip_configuration.version is PipVersion.LATEST
 
 
+def test_latest_compatible_pip_version(parser):
+    # type: (ArgumentParser) -> None
+    resolver_options.register(parser)
+
+    pip_configuration = compute_pip_configuration(
+        parser, args=["--pip-version", "latest-compatible"]
+    )
+    assert pip_configuration.version is PipVersion.LATEST_COMPATIBLE
+
+
 def test_resolver_version_invalid(parser):
     # type: (ArgumentParser) -> None
     resolver_options.register(parser)
@@ -251,36 +263,6 @@ def test_build_configuration_invalid_no_builds_no_wheels(parser):
         ),
     ):
         compute_build_configuration(parser, args=["--no-build", "--no-wheel"])
-
-
-def test_build_configuration_invalid_no_builds_only_build(parser):
-    # type: (ArgumentParser) -> None
-    resolver_options.register(parser)
-
-    with pytest.raises(
-        BuildConfiguration.Error,
-        match=re.escape(
-            "Builds were disallowed, but the following project names are configured to only allow "
-            "building: ansicolors"
-        ),
-    ):
-        compute_build_configuration(parser, args=["--no-build", "--only-build", "ansicolors"])
-
-
-def test_build_configuration_invalid_no_wheels_only_wheel(parser):
-    # type: (ArgumentParser) -> None
-    resolver_options.register(parser)
-
-    with pytest.raises(
-        BuildConfiguration.Error,
-        match=re.escape(
-            "Resolving wheels was disallowed, but the following project names are configured to "
-            "only allow resolving pre-built wheels: ansicolors, cowsay"
-        ),
-    ):
-        compute_build_configuration(
-            parser, args=["--no-wheel", "--only-wheel", "cowsay", "--only-wheel", "ansicolors"]
-        )
 
 
 def test_build_configuration_invalid_only_build_only_wheel(parser):
@@ -366,3 +348,75 @@ def test_build_configuration_warn_no_build_isolation_no_build(parser):
         )
         assert not build_configuration.allow_builds
         assert not build_configuration.build_isolation
+
+
+def test_unnamed_find_links_and_index(parser):
+    # type: (ArgumentParser) -> None
+
+    resolver_options.register(parser)
+    options = parser.parse_args(
+        args=[
+            "--find-links",
+            "https://wheels.pantsbuild.org/simple",
+            "--no-pypi",
+            "--index",
+            "https://pypi.org/simple/",
+            "--index",
+            "pytorch_cpu=https://download.pytorch.org/whl/cpu",
+            "--source",
+            "pytorch_cpu=torch; sys_platform != 'darwin'",
+        ]
+    )
+
+    repos_configuration = create_repos_configuration(options)
+    assert tuple(["https://pypi.org/simple/"]) == repos_configuration.indexes
+    assert tuple(["https://wheels.pantsbuild.org/simple"]) == repos_configuration.find_links
+
+    linux_scoped_repos = repos_configuration.scoped({"sys_platform": "linux"})
+    assert ["https://download.pytorch.org/whl/cpu"] == linux_scoped_repos.in_scope_indexes(
+        ProjectName("torch")
+    )
+    assert [] == linux_scoped_repos.in_scope_indexes(ProjectName("pex"))
+    assert [] == linux_scoped_repos.in_scope_find_links(ProjectName("torch"))
+
+    mac_scoped_repos = repos_configuration.scoped({"sys_platform": "darwin"})
+    assert [] == mac_scoped_repos.in_scope_indexes(ProjectName("torch"))
+    assert [] == mac_scoped_repos.in_scope_indexes(ProjectName("pex"))
+    assert [] == mac_scoped_repos.in_scope_find_links(ProjectName("torch"))
+
+
+def test_multiple_unnamed_indexes(parser):
+    # type: (ArgumentParser) -> None
+
+    resolver_options.register(parser)
+    options = parser.parse_args(
+        args=[
+            "--find-links",
+            "https://wheels.pantsbuild.org/simple",
+            "--no-pypi",
+            "--index",
+            "https://pypi.org/simple/",
+            "--index",
+            "https://pypi.org/simple2/",
+            "--index",
+            "pytorch_cpu=https://download.pytorch.org/whl/cpu",
+            "--source",
+            "pytorch_cpu=torch; sys_platform != 'darwin'",
+        ]
+    )
+    repos_configuration = create_repos_configuration(options)
+    assert (
+        "https://pypi.org/simple/",
+        "https://pypi.org/simple2/",
+    ) == repos_configuration.indexes, repr(repos_configuration)
+    assert tuple(["https://wheels.pantsbuild.org/simple"]) == repos_configuration.find_links
+
+    linux_scoped_repos = repos_configuration.scoped({"sys_platform": "linux"})
+    assert ["https://download.pytorch.org/whl/cpu"] == linux_scoped_repos.in_scope_indexes(
+        ProjectName("torch")
+    )
+    assert [] == linux_scoped_repos.in_scope_find_links(ProjectName("torch"))
+
+    mac_scoped_repos = repos_configuration.scoped({"sys_platform": "darwin"})
+    assert [] == mac_scoped_repos.in_scope_indexes(ProjectName("torch"))
+    assert [] == mac_scoped_repos.in_scope_find_links(ProjectName("torch"))

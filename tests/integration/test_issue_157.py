@@ -15,9 +15,11 @@ from colors import color  # vendor:skip
 
 from pex.common import environment_as
 from pex.pex_info import PexInfo
+from pex.pip.version import PipVersion
 from pex.typing import TYPE_CHECKING
 from pex.version import __version__
 from testing import IS_PYPY, make_env, run_pex_command, scie, subprocess
+from testing.pip import skip_if_only_vendored_pip_supported
 
 if TYPE_CHECKING:
     from typing import Any, Iterable, Iterator, List, Tuple
@@ -210,6 +212,7 @@ def test_empty_pex_no_args(
         expect_banner_footer(pex, process, timeout=pexpect_timeout, expect_color=expect_color)
 
 
+@skip_if_only_vendored_pip_supported
 @execution_mode_args
 def test_pex_cli_no_args(
     tmpdir,  # type: Any
@@ -219,7 +222,17 @@ def test_pex_cli_no_args(
 ):
     # type: (...) -> None
 
-    pex = create_pex(tmpdir, extra_args=[pex_project_dir, "-c", "pex"] + execution_mode_args)
+    pex = create_pex(
+        tmpdir,
+        extra_args=[
+            "--pip-version",
+            PipVersion.LATEST_COMPATIBLE.value,
+            pex_project_dir,
+            "-c",
+            "pex",
+        ]
+        + execution_mode_args,
+    )
     with pexpect_spawn(
         tmpdir,
         pex,

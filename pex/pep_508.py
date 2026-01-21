@@ -3,6 +3,7 @@
 
 from __future__ import absolute_import
 
+from pex.interpreter_implementation import InterpreterImplementation
 from pex.platforms import Platform
 from pex.third_party.packaging import markers
 from pex.typing import TYPE_CHECKING
@@ -53,7 +54,7 @@ class MarkerEnvironment(object):
 
         Since Pex support is (currently) restricted to:
         + interpreters: CPython and PyPy
-        + os: Linux and Mac
+        + os: Linux and Mac and Windows
 
         We can fill in most of the environment markers used in these environments in practice in the
         wild. For those we can't, we leave the markers unset (`None`).
@@ -107,13 +108,19 @@ class MarkerEnvironment(object):
             platform_machine = platform.platform.split("_", 3)[-1]
             platform_system = "Darwin"
             sys_platform = "darwin"
+        elif "win" in platform.platform:
+            os_name = "nt"
+            # E.G:
+            # + win32
+            # + win_amd64
+            platform_machine = platform.platform.split("_", 2)[-1]
+            platform_system = "Windows"
+            sys_platform = "win32"
 
         platform_python_implementation = None
-
-        if platform.impl == "cp":
-            platform_python_implementation = "CPython"
-        elif platform.impl == "pp":
-            platform_python_implementation = "PyPy"
+        for implementation in InterpreterImplementation.values():
+            if implementation.abbr == platform.impl:
+                platform_python_implementation = implementation.value
 
         python_version = ".".join(map(str, platform.version_info[:2]))
 

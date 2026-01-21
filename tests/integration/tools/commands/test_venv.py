@@ -11,7 +11,13 @@ from pex.common import CopyMode, is_pyc_file, safe_open
 from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper
 from pex.venv.virtualenv import Virtualenv
-from testing import IntegResults, make_env, run_pex_command, subprocess
+from testing import (
+    IntegResults,
+    installed_pex_wheel_venv_python,
+    make_env,
+    run_pex_command,
+    subprocess,
+)
 from testing.venv import assert_venv_site_packages_copy_mode
 
 if TYPE_CHECKING:
@@ -21,14 +27,18 @@ if TYPE_CHECKING:
 def run_pex_tools(*args):
     # type: (*str) -> IntegResults
 
+    cmd = [installed_pex_wheel_venv_python(sys.executable), "-m", "pex.tools"] + list(args)
     process = subprocess.Popen(
-        args=[sys.executable, "-mpex.tools"] + list(args),
+        args=cmd,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
     stdout, stderr = process.communicate()
     return IntegResults(
-        output=stdout.decode("utf-8"), error=stderr.decode("utf-8"), return_code=process.returncode
+        tuple(cmd),
+        output=stdout.decode("utf-8"),
+        error=stderr.decode("utf-8"),
+        return_code=process.returncode,
     )
 
 

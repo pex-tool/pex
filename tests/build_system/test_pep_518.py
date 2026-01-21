@@ -1,8 +1,12 @@
 # Copyright 2022 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+from __future__ import absolute_import
+
 import os.path
 from textwrap import dedent
+
+import pytest
 
 from pex.build_system import pep_518
 from pex.build_system.pep_518 import BuildSystem
@@ -11,11 +15,11 @@ from pex.pep_503 import ProjectName
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.result import Error
 from pex.targets import LocalInterpreter
+from pex.toml import TOMLI_SUPPORTED
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
 from pex.venv.virtualenv import Virtualenv
 from testing import subprocess
-from testing.build_system import hatchling_only_supports_37_and_greater
 
 if TYPE_CHECKING:
     from typing import Any, Optional, Union
@@ -61,7 +65,12 @@ def test_load_build_system_pyproject_but_not_for_build(tmpdir):
     assert load_build_system(project_dir) is None
 
 
-@hatchling_only_supports_37_and_greater
+skip_if_tomli_not_supported = pytest.mark.skipif(
+    not TOMLI_SUPPORTED, reason="Pex pyproject.toml uses modern TOML features only TOMLI can parse."
+)
+
+
+@skip_if_tomli_not_supported
 def test_load_build_system_pyproject(
     tmpdir,  # type: Any
     pex_project_dir,  # type: str
@@ -82,7 +91,7 @@ def test_load_build_system_pyproject(
     )
 
 
-@hatchling_only_supports_37_and_greater
+@skip_if_tomli_not_supported
 def test_load_build_system_env_strip_issue_1872(
     tmpdir,  # type: Any
     pex_project_dir,  # type: str

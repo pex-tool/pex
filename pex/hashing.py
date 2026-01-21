@@ -1,12 +1,14 @@
 # Copyright 2022 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-from __future__ import absolute_import
+from __future__ import absolute_import, print_function
 
 import hashlib
 import os
+from contextlib import contextmanager
 
 from pex.common import open_zip
+from pex.compatibility import to_unicode
 from pex.typing import TYPE_CHECKING, Generic
 
 if TYPE_CHECKING:
@@ -186,6 +188,45 @@ def file_hash(
         update_hash(filelike=fp, digest=digest)
 
 
+@contextmanager
+def lock_pex_project_dir():
+    # type: () -> Iterator[None]
+
+    if "_PEX_LOCKED_PROJECT_DIR" in os.environ:
+        # N.B.: We're in a subprocess of a root Pex invocation that holds the lock; so it's
+        # ok to proceed.
+        yield
+        return
+
+    from pex.fs import lock
+    from pex.fs.lock import FileLockStyle
+
+    lck = lock.acquire(__file__ + ".lck", exclusive=True, style=FileLockStyle.BSD)
+    os.environ["_PEX_LOCKED_PROJECT_DIR"] = str(os.getpid())
+    try:
+        yield
+    finally:
+        lck.release()
+        del os.environ["_PEX_LOCKED_PROJECT_DIR"]
+
+
+@contextmanager
+def locked_directory(directory):
+    # type: (Text) -> Iterator[Text]
+
+    top = os.path.realpath(directory)
+    if __file__:
+        maybe_pex_project_directory = os.path.dirname(os.path.dirname(__file__))
+        if directory == maybe_pex_project_directory and os.path.isfile(
+            os.path.join(maybe_pex_project_directory, "pyproject.toml")
+        ):
+            with lock_pex_project_dir():
+                yield top
+            return
+
+    yield top
+
+
 def dir_hash(
     directory,  # type: Text
     digest,  # type: HintedDigest
@@ -195,26 +236,28 @@ def dir_hash(
     # type: (...) -> None
     """Digest the contents of a directory in a reproducible manner."""
 
-    top = os.path.realpath(directory)
+    with locked_directory(directory) as top:
 
-    def iter_files():
-        # type: () -> Iterator[Text]
-        for root, dirs, files in os.walk(top, followlinks=True):
-            dirs[:] = [d for d in dirs if dir_filter(os.path.join(root, d))]
-            for f in files:
-                path = os.path.join(root, f)
-                if file_filter(path):
-                    yield path
+        def iter_files():
+            # type: () -> Iterator[Text]
+            for root, dirs, files in os.walk(top, followlinks=True):
+                dirs[:] = [
+                    d for d in dirs if dir_filter(os.path.relpath(os.path.join(root, d), top))
+                ]
+                for f in files:
+                    path = os.path.join(root, f)
+                    if file_filter(os.path.relpath(path, top)):
+                        yield path
 
-    file_paths = sorted(iter_files())
+        file_paths = sorted(iter_files())
 
-    # Regularize to / as the directory separator so that a dir hash on Unix matches a dir hash on
-    # Windows matches a zip hash (see below) of that same dir.
-    hashed_names = [os.path.relpath(n, top).replace(os.sep, "/") for n in file_paths]
-    digest.update("".join(hashed_names).encode("utf-8"))
+        # Regularize to / as the directory separator so that a dir hash on Unix matches a dir hash
+        # on Windows matches a zip hash (see below) of that same dir.
+        hashed_names = [os.path.relpath(n, top).replace(os.sep, "/") for n in file_paths]
+        digest.update(to_unicode("").join(map(to_unicode, hashed_names)).encode("utf-8"))
 
-    for file_path in file_paths:
-        file_hash(file_path, digest)
+        for file_path in file_paths:
+            file_hash(file_path, digest)
 
 
 def zip_hash(
@@ -237,22 +280,82 @@ def zip_hash(
             else zf.namelist()
         )
 
-        dirs = frozenset(name.rstrip("/") for name in namelist if name.endswith("/"))
-        accept_dirs = frozenset(d for d in dirs if dir_filter(os.path.basename(d)))
-        reject_dirs = dirs - accept_dirs
+        dirs = set()
+        for name in namelist:
+            if name.endswith("/"):
+                dirname = name.rstrip("/")
+            else:
+                dirname = os.path.dirname(name)
+            while dirname:
+                dirs.add(dirname)
+                dirname = os.path.dirname(dirname)
 
+        accept_dirs = frozenset(
+            d for d in dirs if dir_filter(os.path.relpath(d, relpath) if relpath else d)
+        )
+        reject_dirs = tuple("{dir}/".format(dir=path) for path in (dirs - accept_dirs))
         accept_files = sorted(
             name
             for name in namelist
             if not name.endswith("/")
-            and not any(name.startswith(reject_dir) for reject_dir in reject_dirs)
-            and file_filter(os.path.basename(name))
+            and not name.startswith(reject_dirs)
+            and file_filter(os.path.relpath(name, relpath) if relpath else name)
         )
 
         hashed_names = (
             [os.path.relpath(name, relpath) for name in accept_files] if relpath else accept_files
         )
-        digest.update("".join(hashed_names).encode("utf-8"))
+        digest.update(to_unicode("").join(map(to_unicode, hashed_names)).encode("utf-8"))
 
         for filename in accept_files:
             update_hash(zf.open(filename, "r"), digest)
+
+
+if __name__ == "__main__":
+    import sys
+    import zipfile
+    from argparse import ArgumentParser
+
+    from pex.common import is_pyc_dir, is_pyc_file
+
+    parser = ArgumentParser()
+    parser.add_argument(
+        "--exclude-dir",
+        dest="exclude_dirs",
+        action="append",
+        default=[],
+    )
+    parser.add_argument("--zip-relpath")
+    parser.add_argument("paths", nargs="+")
+
+    options = parser.parse_args()
+    exclude_dirs = frozenset(options.exclude_dirs)
+
+    for path in options.paths:
+        digest = Sha256()
+        if zipfile.is_zipfile(path):
+            zip_hash(
+                path,
+                digest=digest,
+                relpath=options.zip_relpath,
+                dir_filter=(
+                    lambda dir_path: (
+                        not is_pyc_dir(dir_path) and os.path.basename(dir_path) not in exclude_dirs
+                    )
+                ),
+                file_filter=lambda f: not is_pyc_file(f),
+            )
+        elif os.path.isdir(path):
+            dir_hash(
+                path,
+                digest=digest,
+                dir_filter=(
+                    lambda dir_path: (
+                        not is_pyc_dir(dir_path) and os.path.basename(dir_path) not in exclude_dirs
+                    )
+                ),
+                file_filter=lambda f: not is_pyc_file(f),
+            )
+        else:
+            print("Can only hash zip files or directories. Skipping file", path, file=sys.stderr)
+        print(path, digest.hexdigest(), file=sys.stdout)

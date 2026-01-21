@@ -147,20 +147,52 @@ class PEX(object):  # noqa: T000
     class InvalidEntryPoint(Error):
         pass
 
+    class ResourceBindingError(Error):
+        pass
+
+    @classmethod
+    def _resolve_resource_path(
+        cls,
+        name,  # type: str
+        resource,  # type: str
+    ):
+        # type: (...) -> str
+
+        rel_path = os.path.normpath(os.path.join(*resource.split("/")))
+        if os.path.isabs(resource) or rel_path.startswith(os.pardir):
+            raise cls.ResourceBindingError(
+                "The following resource binding spec is invalid: {name}={resource}\n"
+                "The resource path {resource} must be relative to the `sys.path`.".format(
+                    name=name, resource=resource
+                )
+            )
+
+        for entry in sys.path:
+            value = os.path.join(entry, rel_path)
+            if os.path.isfile(value):
+                return value
+
+        raise cls.ResourceBindingError(
+            "There was no resource file {resource} found on the `sys.path` corresponding to "
+            "the given resource binding spec `{name}={resource}`".format(
+                resource=resource, name=name
+            )
+        )
+
     @classmethod
     def _clean_environment(cls, env=None, strip_pex_env=True):
+        if not strip_pex_env:
+            return
         env = env or os.environ
-        if strip_pex_env:
-            for key in list(env):
-                if key.startswith("PEX_"):
-                    del env[key]
+        for key in list(env):
+            if key and key.startswith("PEX_"):
+                del env[key]
 
     def __init__(
         self,
         pex=sys.argv[0],  # type: str
         interpreter=None,  # type: Optional[PythonInterpreter]
         env=ENV,  # type: Variables
-        verify_entry_point=False,  # type: bool
     ):
         # type: (...) -> None
         self._pex = pex
@@ -171,8 +203,6 @@ class PEX(object):  # noqa: T000
         self._envs = None  # type: Optional[Sequence[PEXEnvironment]]
         self._activated_dists = None  # type: Optional[Sequence[Distribution]]
         self._layout = None  # type: Optional[Layout.Value]
-        if verify_entry_point:
-            self._do_entry_point_verification()
 
     @property
     def layout(self):
@@ -591,6 +621,37 @@ class PEX(object):  # noqa: T000
         for name, value in self._pex_info.inject_env.items():
             os.environ.setdefault(name, value)
 
+        for name, resource in self._pex_info.bind_resource_paths.items():
+            os.environ[name] = self._resolve_resource_path(name, resource)
+
+        class Namespace(object):
+            def __init__(
+                self,
+                seed=(),  # type: Union[Mapping[str, Any], Iterable[Tuple[str, Any]]]
+                safe=False,  # type: bool
+                **kwargs  # type: Any
+            ):
+                # type: (...) -> None
+                self.__dict__.update(seed)
+                self.__dict__.update(kwargs)
+                self._safe = safe
+
+            def __getattr__(self, key):
+                # type: (str) -> Any
+                return self._value(key)
+
+            def __getitem__(self, key):
+                # type: (str) -> Any
+                return self._value(key)
+
+            def _value(self, key):
+                # type: (str) -> Any
+                if self._safe:
+                    return self.__dict__.get(key, "")
+                return self.__dict__[key]
+
+        replacements = Namespace(env=Namespace(os.environ, safe=True))
+
         if force_interpreter:
             TRACER.log("PEX_INTERPRETER specified, dropping into interpreter")
             return self.execute_interpreter()
@@ -617,11 +678,14 @@ class PEX(object):  # noqa: T000
         if self._pex_info_overrides.entry_point:
             return self.execute_entry(parse_entry_point(self._pex_info_overrides.entry_point))
 
-        sys.argv[1:1] = list(self._pex_info.inject_args)
+        sys.argv[1:1] = [arg.format(pex=replacements) for arg in self._pex_info.inject_args]
 
         if self._pex_info.script:
             return self.execute_script(self._pex_info.script)
         else:
+            # N.B.: We tested one of script or entry_point in pex_info or overrides was non-empty
+            # above; so this just satisfies type checking.
+            assert self._pex_info.entry_point
             return self.execute_entry(parse_entry_point(self._pex_info.entry_point))
 
     def execute_interpreter(self):
@@ -838,7 +902,7 @@ class PEX(object):  # noqa: T000
             env = env.copy()
         else:
             env = os.environ.copy()
-            self._clean_environment(env=env)
+            self._clean_environment(env=env, strip_pex_env=self._pex_info.strip_pex_env)
 
         kwargs = dict(subprocess_daemon_kwargs() if setsid else {}, **kwargs)
 
@@ -854,32 +918,35 @@ class PEX(object):  # noqa: T000
         )
         return process.wait() if blocking else process
 
-    def _do_entry_point_verification(self):
 
-        entry_point = self._pex_info.entry_point
-        ep_split = entry_point.split(":")
+def validate_entry_point(
+    pex,  # type: PEX
+    entry_point,  # type: str
+):
+    # type: (...) -> None
 
-        # a.b.c:m ->
-        # ep_module = 'a.b.c'
-        # ep_method = 'm'
+    try:
+        ep = parse_entry_point(entry_point)
+    except ValueError as e:
+        raise PEX.InvalidEntryPoint(
+            "Failed to parse `{entry_point}`: {err}".format(entry_point=entry_point, err=e)
+        )
 
-        # Only module is specified
-        if len(ep_split) == 1:
-            ep_module = ep_split[0]
-            import_statement = "import {}".format(ep_module)
-        elif len(ep_split) == 2:
-            ep_module = ep_split[0]
-            ep_method = ep_split[1]
-            import_statement = "from {} import {}".format(ep_module, ep_method)
-        else:
-            raise self.InvalidEntryPoint("Failed to parse: `{}`".format(entry_point))
+    if isinstance(ep, ModuleEntryPoint):
+        import_statement = "import {module}".format(module=ep.module)
+    else:
+        import_statement = "from {module} import {method}".format(
+            module=ep.module, method=ep.attrs[0]
+        )
 
-        with named_temporary_file() as fp:
-            fp.write(import_statement.encode("utf-8"))
-            fp.close()
-            retcode = self.run([fp.name], env={"PEX_INTERPRETER": "1"})
-            if retcode != 0:
-                raise self.InvalidEntryPoint(
-                    "Invalid entry point: `{}`\n"
-                    "Entry point verification failed: `{}`".format(entry_point, import_statement)
+    with named_temporary_file() as fp:
+        fp.write(import_statement.encode("utf-8"))
+        fp.close()
+        retcode = pex.run([fp.name], env={"PEX_INTERPRETER": "1"})
+        if retcode != 0:
+            raise PEX.InvalidEntryPoint(
+                "Invalid entry point: `{entry_point}`\n"
+                "Entry point verification failed: `{import_statement}`".format(
+                    entry_point=entry_point, import_statement=import_statement
                 )
+            )

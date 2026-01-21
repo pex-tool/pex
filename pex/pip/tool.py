@@ -21,21 +21,21 @@ from pex.common import safe_mkdir, safe_mkdtemp
 from pex.compatibility import get_stderr_bytes_buffer, shlex_quote, urlparse
 from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import Requirement
+from pex.fetcher import URLFetcher
 from pex.interpreter import PythonInterpreter
 from pex.jobs import Job
 from pex.network_configuration import NetworkConfiguration
 from pex.pep_427 import install_wheel_interpreter
-from pex.pip import dependencies, foreign_platform
+from pex.pep_508 import MarkerEnvironment
+from pex.pip import dependencies, foreign_platform, package_repositories
 from pex.pip.download_observer import DownloadObserver, PatchSet
 from pex.pip.log_analyzer import ErrorAnalyzer, ErrorMessage, LogAnalyzer, LogScrapeJob
 from pex.pip.tailer import Tailer
 from pex.pip.version import PipVersion, PipVersionValue
 from pex.platforms import PlatformSpec
-from pex.resolve.resolver_configuration import (
-    BuildConfiguration,
-    ReposConfiguration,
-    ResolverVersion,
-)
+from pex.resolve.package_repository import ReposConfiguration
+from pex.resolve.resolver_configuration import BuildConfiguration, ResolverVersion
+from pex.resolve.target_system import UniversalTarget
 from pex.targets import Target
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
@@ -54,7 +54,9 @@ if TYPE_CHECKING:
         Match,
         Optional,
         Sequence,
+        Text,
         Tuple,
+        Union,
     )
 
     import attr  # vendor:skip
@@ -62,14 +64,14 @@ else:
     from pex.third_party import attr
 
 
-class PackageIndexConfiguration(object):
-    @staticmethod
-    def _calculate_args(
-        indexes=None,  # type: Optional[Sequence[str]]
-        find_links=None,  # type: Optional[Iterable[str]]
-        network_configuration=None,  # type: Optional[NetworkConfiguration]
-    ):
-        # type: (...) -> Iterator[str]
+@attr.s(frozen=True)
+class PipArgs(object):
+    indexes = attr.ib(default=None)  # type: Optional[Sequence[Text]]
+    find_links = attr.ib(default=None)  # type: Optional[Iterable[Text]]
+    network_configuration = attr.ib(default=None)  # type: Optional[NetworkConfiguration]
+
+    def iter(self, version):
+        # type: (PipVersionValue) -> Iterator[str]
 
         # N.B.: `--cert` and `--client-cert` are passed via env var to work around:
         #   https://github.com/pypa/pip/issues/5502
@@ -87,11 +89,11 @@ class PackageIndexConfiguration(object):
 
         # N.B.: We interpret None to mean accept pip index defaults, [] to mean turn off all index
         # use.
-        if indexes is not None and tuple(indexes) != ReposConfiguration().indexes:
-            if len(indexes) == 0:
+        if self.indexes is not None and tuple(self.indexes) != ReposConfiguration().indexes:
+            if len(self.indexes) == 0:
                 yield "--no-index"
             else:
-                all_indexes = deque(indexes)
+                all_indexes = deque(self.indexes)
                 yield "--index-url"
                 yield maybe_trust_insecure_host(all_indexes.popleft())
                 if all_indexes:
@@ -99,8 +101,8 @@ class PackageIndexConfiguration(object):
                         yield "--extra-index-url"
                         yield maybe_trust_insecure_host(extra_index)
 
-        if find_links:
-            for find_link_url in find_links:
+        if self.find_links:
+            for find_link_url in self.find_links:
                 yield "--find-links"
                 yield maybe_trust_insecure_host(find_link_url)
 
@@ -108,14 +110,20 @@ class PackageIndexConfiguration(object):
             yield "--trusted-host"
             yield trusted_host
 
-        network_configuration = network_configuration or NetworkConfiguration()
+        network_configuration = self.network_configuration or NetworkConfiguration()
 
         yield "--retries"
         yield str(network_configuration.retries)
 
+        if version >= PipVersion.v25_1:
+            yield "--resume-retries"
+            yield str(network_configuration.resume_retries)
+
         yield "--timeout"
         yield str(network_configuration.timeout)
 
+
+class PackageIndexConfiguration(object):
     @staticmethod
     def _calculate_env(
         network_configuration,  # type: NetworkConfiguration
@@ -146,10 +154,8 @@ class PackageIndexConfiguration(object):
         cls,
         pip_version=None,  # type: Optional[PipVersionValue]
         resolver_version=None,  # type: Optional[ResolverVersion.Value]
-        indexes=None,  # type: Optional[Sequence[str]]
-        find_links=None,  # type: Optional[Iterable[str]]
+        repos_configuration=ReposConfiguration(),  # type: ReposConfiguration
         network_configuration=None,  # type: Optional[NetworkConfiguration]
-        password_entries=(),  # type: Iterable[PasswordEntry]
         use_pip_config=False,  # type: bool
         extra_pip_requirements=(),  # type: Tuple[Requirement, ...]
         keyring_provider=None,  # type: Optional[str]
@@ -167,15 +173,17 @@ class PackageIndexConfiguration(object):
             pip_version=pip_version,
             resolver_version=resolver_version,
             network_configuration=network_configuration,
-            args=cls._calculate_args(
-                indexes=indexes, find_links=find_links, network_configuration=network_configuration
+            args=PipArgs(
+                indexes=repos_configuration.indexes,
+                find_links=repos_configuration.find_links,
+                network_configuration=network_configuration,
             ),
             env=cls._calculate_env(
                 network_configuration=network_configuration, use_pip_config=use_pip_config
             ),
             use_pip_config=use_pip_config,
             extra_pip_requirements=extra_pip_requirements,
-            password_entries=password_entries,
+            repos_configuration=repos_configuration,
             keyring_provider=keyring_provider,
         )
 
@@ -183,10 +191,10 @@ class PackageIndexConfiguration(object):
         self,
         resolver_version,  # type: ResolverVersion.Value
         network_configuration,  # type: NetworkConfiguration
-        args,  # type: Iterable[str]
+        args,  # type: PipArgs
         env,  # type: Iterable[Tuple[str, str]]
         use_pip_config,  # type: bool
-        password_entries=(),  # type: Iterable[PasswordEntry]
+        repos_configuration=ReposConfiguration(),  # type: ReposConfiguration
         pip_version=None,  # type: Optional[PipVersionValue]
         extra_pip_requirements=(),  # type: Tuple[Requirement, ...]
         keyring_provider=None,  # type: Optional[str]
@@ -194,13 +202,34 @@ class PackageIndexConfiguration(object):
         # type: (...) -> None
         self.resolver_version = resolver_version  # type: ResolverVersion.Value
         self.network_configuration = network_configuration  # type: NetworkConfiguration
-        self.args = tuple(args)  # type: Iterable[str]
+        self.args = args  # type: PipArgs
         self.env = dict(env)  # type: Mapping[str, str]
         self.use_pip_config = use_pip_config  # type: bool
-        self.password_entries = password_entries  # type: Iterable[PasswordEntry]
+        self.repos_configuration = repos_configuration
         self.pip_version = pip_version  # type: Optional[PipVersionValue]
         self.extra_pip_requirements = extra_pip_requirements  # type: Tuple[Requirement, ...]
         self.keyring_provider = keyring_provider  # type: Optional[str]
+
+    @property
+    def password_entries(self):
+        # type: () -> Iterable[PasswordEntry]
+        return self.repos_configuration.password_entries
+
+    def patch(
+        self,
+        pip_version,  # type: PipVersionValue
+        target,  # type:  Union[UniversalTarget, MarkerEnvironment]
+        requirement_files=None,  # type: Optional[Iterable[str]]
+    ):
+        # type: (...) -> Optional[DownloadObserver]
+        return package_repositories.patch(
+            repos_configuration=self.repos_configuration.with_contained_repos(
+                requirement_files,
+                fetcher=URLFetcher(network_configuration=self.network_configuration),
+            ),
+            pip_version=pip_version,
+            target=target,
+        )
 
 
 if TYPE_CHECKING:
@@ -278,9 +307,8 @@ class _PexIssue2113Analyzer(ErrorAnalyzer):
 @attr.s(frozen=True)
 class PipVenv(object):
     venv_dir = attr.ib()  # type: str
-    pex_hash = attr.ib()  # type: str
-    execute_env = attr.ib(default=())  # type: Tuple[Tuple[str, str], ...]
-    _execute_args = attr.ib(default=())  # type: Tuple[str, ...]
+    execute_env = attr.ib()  # type: Tuple[Tuple[str, str], ...]
+    _execute_args = attr.ib()  # type: Tuple[str, ...]
 
     def execute_args(self, *args):
         # type: (*str) -> List[str]
@@ -292,12 +320,12 @@ class PipVenv(object):
 
 
 @attr.s(frozen=True)
-class Pip(object):
+class BootstrapPip(object):
     _PATCHES_PACKAGE_ENV_VAR_NAME = "_PEX_PIP_RUNTIME_PATCHES_PACKAGE"
     _PATCHES_PACKAGE_NAME = "_pex_pip_patches"
 
-    _pip_pex = attr.ib()  # type: PipPexDir
     _pip_venv = attr.ib()  # type: PipVenv
+    version = attr.ib()  # type: PipVersionValue
 
     @property
     def venv_dir(self):
@@ -305,24 +333,9 @@ class Pip(object):
         return self._pip_venv.venv_dir
 
     @property
-    def pex_hash(self):
-        # type: () -> str
-        return self._pip_venv.pex_hash
-
-    @property
-    def version(self):
-        # type: () -> PipVersionValue
-        return self._pip_pex.version
-
-    @property
-    def pex_dir(self):
-        # type: () -> PipPexDir
-        return self._pip_pex
-
-    @property
     def cache_dir(self):
         # type: () -> str
-        return self._pip_pex.cache_dir
+        return os.path.join(self._pip_venv.venv_dir, ".bootstrap-cache")
 
     @staticmethod
     def _calculate_resolver_version(package_index_configuration=None):
@@ -352,7 +365,7 @@ class Pip(object):
         if (
             resolver_version == ResolverVersion.PIP_2020
             and interpreter.version[0] == 2
-            and self.version.version < PipVersion.v22_3.version
+            and PipVersion.VENDORED <= self.version < PipVersion.v22_3
         ):
             yield "--use-feature"
             yield "2020-resolver"
@@ -385,7 +398,7 @@ class Pip(object):
             # We are not interactive.
             "--no-input",
         ]
-        if self.version < PipVersion.v25_0:
+        if PipVersion.VENDORED <= self.version < PipVersion.v25_0:
             # If we want to warn about a version of python we support, we should do it, not pip.
             # That said, the option does nothing in Pip 25.0 and is deprecated and slated for
             # removal.
@@ -447,11 +460,11 @@ class Pip(object):
 
         command = pip_args + list(args)
 
-        # N.B.: Package index options in Pep always have the same option names, but they are
+        # N.B.: Package index options in Pip always have the same option names, but they are
         # registered as subcommand-specific, so we must append them here _after_ the pip subcommand
         # specified in `args`.
         if package_index_configuration:
-            command.extend(package_index_configuration.args)
+            command.extend(package_index_configuration.args.iter(self.version))
 
         extra_env = extra_env or {}
         if package_index_configuration:
@@ -462,9 +475,7 @@ class Pip(object):
         # since Pip relies upon `shutil.move` which is only atomic when `os.rename` can be used.
         # See https://github.com/pex-tool/pex/issues/1776 for an example of the issues non-atomic
         # moves lead to in the `pip wheel` case.
-        pip_tmpdir = os.path.join(self.cache_dir, ".tmp")
-        safe_mkdir(pip_tmpdir)
-        extra_env.update(TMPDIR=pip_tmpdir)
+        extra_env.update(TMPDIR=safe_mkdtemp(dir=safe_mkdir(self.cache_dir), prefix=".tmp."))
 
         with ENV.strip().patch(
             PEX_ROOT=ENV.PEX_ROOT,
@@ -525,8 +536,7 @@ class Pip(object):
         )
         return Job(command=command, process=process, finalizer=finalizer, context="pip")
 
-    @staticmethod
-    def _iter_build_configuration_options(build_configuration):
+    def _iter_build_configuration_options(self, build_configuration):
         # type: (BuildConfiguration) -> Iterator[str]
 
         # N.B.: BuildConfiguration maintains invariants that ensure --only-binary, --no-binary,
@@ -535,25 +545,66 @@ class Pip(object):
         if not build_configuration.allow_builds:
             yield "--only-binary"
             yield ":all:"
-        elif not build_configuration.allow_wheels:
+        if not build_configuration.allow_wheels:
             yield "--no-binary"
             yield ":all:"
-        else:
-            for project in build_configuration.only_wheels:
-                yield "--only-binary"
-                yield str(project)
-            for project in build_configuration.only_builds:
-                yield "--no-binary"
-                yield str(project)
+        for project in build_configuration.only_wheels:
+            yield "--only-binary"
+            yield str(project)
+        for project in build_configuration.only_builds:
+            yield "--no-binary"
+            yield str(project)
 
         if build_configuration.prefer_older_binary:
             yield "--prefer-binary"
 
-        if build_configuration.use_pep517 is not None:
+        # N.B.: In 25.3 `--use-pep517` became the default and only option.
+        if build_configuration.use_pep517 is not None and self.version < PipVersion.v25_3:
             yield "--use-pep517" if build_configuration.use_pep517 else "--no-use-pep517"
 
         if not build_configuration.build_isolation:
             yield "--no-build-isolation"
+
+    def spawn_report(
+        self,
+        report_path,  # type: str
+        requirements=None,  # type: Optional[Iterable[str]]
+        requirement_files=None,  # type: Optional[Iterable[str]]
+        constraint_files=None,  # type: Optional[Iterable[str]]
+        allow_prereleases=False,  # type: bool
+        transitive=True,  # type: bool
+        target=None,  # type: Optional[Target]
+        package_index_configuration=None,  # type: Optional[PackageIndexConfiguration]
+        build_configuration=BuildConfiguration(),  # type: BuildConfiguration
+        observer=None,  # type: Optional[DownloadObserver]
+        dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
+        universal_target=None,  # type: Optional[UniversalTarget]
+        log=None,  # type: Optional[str]
+    ):
+        # type: (...) -> Job
+        report_cmd = [
+            "install",
+            "--no-clean",
+            "--dry-run",
+            "--ignore-installed",
+            "--report",
+            report_path,
+        ]
+        return self._spawn_install_compatible_command(
+            cmd=report_cmd,
+            requirements=requirements,
+            requirement_files=requirement_files,
+            constraint_files=constraint_files,
+            allow_prereleases=allow_prereleases,
+            transitive=transitive,
+            target=target,
+            package_index_configuration=package_index_configuration,
+            build_configuration=build_configuration,
+            observer=observer,
+            dependency_configuration=dependency_configuration,
+            universal_target=universal_target,
+            log=log,
+        )
 
     def spawn_download_distributions(
         self,
@@ -568,35 +619,70 @@ class Pip(object):
         build_configuration=BuildConfiguration(),  # type: BuildConfiguration
         observer=None,  # type: Optional[DownloadObserver]
         dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
+        universal_target=None,  # type: Optional[UniversalTarget]
+        log=None,  # type: Optional[str]
+    ):
+        # type: (...) -> Job
+
+        download_cmd = ["download", "--dest", download_dir]
+        return self._spawn_install_compatible_command(
+            cmd=download_cmd,
+            requirements=requirements,
+            requirement_files=requirement_files,
+            constraint_files=constraint_files,
+            allow_prereleases=allow_prereleases,
+            transitive=transitive,
+            target=target,
+            package_index_configuration=package_index_configuration,
+            build_configuration=build_configuration,
+            observer=observer,
+            dependency_configuration=dependency_configuration,
+            universal_target=universal_target,
+            log=log,
+        )
+
+    def _spawn_install_compatible_command(
+        self,
+        cmd,  # type: List[str]
+        requirements=None,  # type: Optional[Iterable[str]]
+        requirement_files=None,  # type: Optional[Iterable[str]]
+        constraint_files=None,  # type: Optional[Iterable[str]]
+        allow_prereleases=False,  # type: bool
+        transitive=True,  # type: bool
+        target=None,  # type: Optional[Target]
+        package_index_configuration=None,  # type: Optional[PackageIndexConfiguration]
+        build_configuration=BuildConfiguration(),  # type: BuildConfiguration
+        observer=None,  # type: Optional[DownloadObserver]
+        dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
+        universal_target=None,  # type: Optional[UniversalTarget]
         log=None,  # type: Optional[str]
     ):
         # type: (...) -> Job
         target = target or targets.current()
 
-        download_cmd = ["download", "--dest", download_dir]
         extra_env = {}  # type: Dict[str, str]
         pex_extra_sys_path = []  # type: List[str]
 
-        download_cmd.extend(self._iter_build_configuration_options(build_configuration))
+        cmd.extend(self._iter_build_configuration_options(build_configuration))
         if not build_configuration.build_isolation:
             pex_extra_sys_path.extend(sys.path)
 
         if allow_prereleases:
-            download_cmd.append("--pre")
+            cmd.append("--pre")
 
         if not transitive:
-            download_cmd.append("--no-deps")
+            cmd.append("--no-deps")
 
         if requirement_files:
             for requirement_file in requirement_files:
-                download_cmd.extend(["--requirement", requirement_file])
+                cmd.extend(["--requirement", requirement_file])
 
         if constraint_files:
             for constraint_file in constraint_files:
-                download_cmd.extend(["--constraint", constraint_file])
+                cmd.extend(["--constraint", constraint_file])
 
         if requirements:
-            download_cmd.extend(requirements)
+            cmd.extend(requirements)
 
         foreign_platform_observer = foreign_platform.patch(target)
         if (
@@ -615,7 +701,18 @@ class Pip(object):
         for obs in (
             foreign_platform_observer,
             observer,
-            dependencies.patch(dependency_configuration),
+            dependencies.patch(
+                dependency_configuration, target=universal_target or target.marker_environment
+            ),
+            (
+                package_index_configuration.patch(
+                    pip_version=self.version,
+                    target=universal_target or target.marker_environment,
+                    requirement_files=requirement_files,
+                )
+                if package_index_configuration
+                else None
+            ),
         ):
             if obs:
                 if obs.analyzer:
@@ -681,7 +778,7 @@ class Pip(object):
                 tailer.stop()
 
         command, process = self._spawn_pip_isolated(
-            download_cmd,
+            cmd,
             package_index_configuration=package_index_configuration,
             interpreter=target.get_interpreter(),
             log=log,
@@ -709,23 +806,27 @@ class Pip(object):
                     build_configuration=BuildConfiguration.create(allow_builds=False),
                 ).wait()
                 for wheel in glob.glob(os.path.join(atomic_dir.work_dir, "*.whl")):
-                    install_wheel_interpreter(wheel_path=wheel, interpreter=pip_interpreter)
+                    install_wheel_interpreter(wheel=wheel, interpreter=pip_interpreter)
 
     def spawn_build_wheels(
         self,
-        distributions,  # type: Iterable[str]
+        requirements,  # type: Iterable[str]
         wheel_dir,  # type: str
         interpreter=None,  # type: Optional[PythonInterpreter]
         package_index_configuration=None,  # type: Optional[PackageIndexConfiguration]
         build_configuration=BuildConfiguration(),  # type: BuildConfiguration
         verify=True,  # type: bool
+        transitive=False,
     ):
         # type: (...) -> Job
 
         if self.version is PipVersion.VENDORED:
             self._ensure_wheel_installed(package_index_configuration=package_index_configuration)
 
-        wheel_cmd = ["wheel", "--no-deps", "--wheel-dir", wheel_dir]
+        wheel_cmd = ["wheel", "--wheel-dir", wheel_dir]
+        if not transitive:
+            wheel_cmd.append("--no-deps")
+
         extra_env = {}  # type: Dict[str, str]
 
         # It's not clear if Pip's implementation of PEP-517 builds respects all build configuration
@@ -738,7 +839,7 @@ class Pip(object):
         if not verify:
             wheel_cmd.append("--no-verify")
 
-        wheel_cmd.extend(distributions)
+        wheel_cmd.extend(requirements)
 
         return self._spawn_pip_isolated_job(
             wheel_cmd,
@@ -789,3 +890,19 @@ class Pip(object):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
+
+
+@attr.s(frozen=True)
+class Pip(BootstrapPip):
+    _pip_pex = attr.ib()  # type: PipPexDir
+    pex_hash = attr.ib()  # type: str
+
+    @property
+    def pex_dir(self):
+        # type: () -> PipPexDir
+        return self._pip_pex
+
+    @property
+    def cache_dir(self):
+        # type: () -> str
+        return self._pip_pex.cache_dir

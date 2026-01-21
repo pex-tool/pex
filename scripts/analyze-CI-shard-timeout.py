@@ -12,7 +12,7 @@ def analyze(log: Path) -> Any:
     with log.open() as fp:
         for line in fp:
             # E.G.: 2024-11-13T06:29:33.3456360Z tests/integration/test_issue_1018.py::test_execute_module_alter_sys[ep-function-zipapp-VENV]
-            match = re.match(r"^.*\d+Z (?P<test>tests/\S+(?:\[[^\]]+\])?).*", line)
+            match = re.match(r"^.*\d+Z (?P<test>tests/\S+(?:\[[^]]+])?).*", line)
             if match:
                 test = match.group("test")
                 if test not in tests:
@@ -20,7 +20,10 @@ def analyze(log: Path) -> Any:
                 continue
 
             # E.G.: 2024-11-13T06:29:33.3478200Z [gw3] PASSED tests/integration/venv_ITs/test_issue_1745.py::test_interpreter_mode_python_options[-c <code>-VENV]
-            match = re.match(r"^.*\d+Z \[gw\d+\] [A-Z]+ (?P<test>tests/\S+(?:\[[^\]]+\])?).*", line)
+            match = re.match(
+                r"^.*\d+Z \[gw\d+] .*(?:ERROR|FAILED|PASSED|SKIPPED|XFAIL|XPASS).* (?P<test>tests/\S+(?:\[[^]]+])?).*",
+                line,
+            )
             if match:
                 tests[match.group("test")] = True
                 continue

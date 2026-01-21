@@ -8,7 +8,7 @@ from textwrap import dedent
 import pytest
 
 from pex.common import safe_open, touch
-from pex.typing import TYPE_CHECKING
+from pex.pip.version import PipVersion
 from testing import (
     IntegResults,
     VenvFactory,
@@ -18,10 +18,6 @@ from testing import (
     subprocess,
 )
 from testing.pytest_utils.tmp import Tempdir
-from testing.pythonPI import skip_flit_core_39
-
-if TYPE_CHECKING:
-    pass
 
 
 @pytest.mark.parametrize(
@@ -58,7 +54,9 @@ def test_build_isolation(
 
     python, pip = venv_factory.create_venv()
     # N.B.: Pip 25.0 introduces a new message to check for here.
-    run_pex_command(args=[project_dir, "--no-build-isolation"], python=python).assert_failure(
+    run_pex_command(
+        args=[project_dir, "--no-build-isolation"], python=python, use_pex_whl_venv=False
+    ).assert_failure(
         expected_error_re=r".*(?:{old_message}|{new_message}).*".format(
             old_message=re.escape("ModuleNotFoundError: No module named 'flit_core'"),
             new_message=re.escape("BackendUnavailable: Cannot import 'flit_core.buildapi'"),
@@ -70,12 +68,11 @@ def test_build_isolation(
 
     pex = os.path.join(str(tmpdir), "pex")
     run_pex_command(
-        args=[project_dir, "--no-build-isolation", "-o", pex], python=python
+        args=[project_dir, "--no-build-isolation", "-o", pex], python=python, use_pex_whl_venv=False
     ).assert_success()
     subprocess.check_call(args=[python, pex, "-c", "import foo"])
 
 
-@skip_flit_core_39
 def test_pep_517_for_pep_517_project():
     # type: () -> None
 
@@ -90,12 +87,14 @@ def test_pep_517_for_pep_517_project():
     build_pex().assert_success()
     build_pex("--force-pep517").assert_success()
 
-    result = build_pex("--no-use-pep517")
-    result.assert_failure()
-    assert (
-        "ERROR: Disabling PEP 517 processing is invalid: project does not have a setup.py"
-        in result.error
-    )
+    # N.B.: In 25.3 `--use-pep517` became the default and only option.
+    if PipVersion.DEFAULT < PipVersion.v25_3:
+        result = build_pex("--no-use-pep517")
+        result.assert_failure()
+        assert (
+            "ERROR: Disabling PEP 517 processing is invalid: project does not have a setup.py"
+            in result.error
+        )
 
 
 def test_pep_517_for_legacy_project():
@@ -110,4 +109,7 @@ def test_pep_517_for_legacy_project():
 
     assert_build_pex()
     assert_build_pex("--use-pep517")
-    assert_build_pex("--no-use-pep517")
+
+    # N.B.: In 25.3 `--use-pep517` became the default and only option.
+    if PipVersion.DEFAULT < PipVersion.v25_3:
+        assert_build_pex("--no-use-pep517")

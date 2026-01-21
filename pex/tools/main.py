@@ -70,7 +70,8 @@ def main(pex=None):
                 pex_info = PexInfo.from_pex(pex_file_path)
                 pex_info.update(PexInfo.from_env())
                 interpreter = pex_bootstrapper.find_compatible_interpreter(
-                    interpreter_test=InterpreterTest(entry_point=pex_file_path, pex_info=pex_info)
+                    interpreter_test=InterpreterTest(entry_point=pex_file_path, pex_info=pex_info),
+                    interpreter_selection_strategy=pex_info.interpreter_selection_strategy,
                 )
                 pex = PEX(pex_file_path, interpreter=interpreter)
             result = catch(pex_command.run, pex)

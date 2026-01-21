@@ -10,12 +10,12 @@ import itertools
 from pex import pex_warnings
 from pex.common import pluralize
 from pex.compatibility import indent
-from pex.dist_metadata import Requirement, RequirementParseError
 from pex.enum import Enum
 from pex.interpreter import PythonInterpreter
+from pex.interpreter_implementation import InterpreterImplementation
 from pex.orderedset import OrderedSet
 from pex.specifier_sets import UnsatisfiableSpecifierSet, as_range
-from pex.third_party.packaging.specifiers import SpecifierSet
+from pex.third_party.packaging.specifiers import InvalidSpecifier, SpecifierSet
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -32,34 +32,46 @@ class UnsatisfiableError(ValueError):
     """Indicates an unsatisfiable interpreter constraint, e.g. `>=3.8,<3.8`."""
 
 
+def _iter_interpreter_implementations():
+    # type: () -> Iterator[Tuple[InterpreterImplementation.Value, str]]
+    for interpreter_implementation in InterpreterImplementation.values():
+        yield interpreter_implementation, interpreter_implementation.value
+        if interpreter_implementation.alias:
+            yield interpreter_implementation, interpreter_implementation.alias
+
+
+_INTERPRETER_IMPLEMENTATIONS = tuple(
+    sorted(_iter_interpreter_implementations(), key=lambda tup: tup[1], reverse=True)
+)
+
+
 @attr.s(frozen=True)
 class InterpreterConstraint(object):
     @classmethod
     def parse(
         cls,
         constraint,  # type: str
-        default_interpreter=None,  # type: Optional[str]
+        default_interpreter_implementation=None,  # type: Optional[InterpreterImplementation.Value]
     ):
         # type: (...) -> InterpreterConstraint
+
+        implementation = default_interpreter_implementation
+        specifier = constraint
+
+        for interpreter_implementation, value in _INTERPRETER_IMPLEMENTATIONS:
+            if constraint.startswith(value):
+                implementation = interpreter_implementation
+                specifier = constraint[len(value) :]
+                break
+
         try:
-            requirement = Requirement.parse(constraint)
-            return cls(specifier=requirement.specifier, name=requirement.name)
-        except RequirementParseError:
-            if default_interpreter is not None:
-                return cls.parse(
-                    constraint="{interpreter}{specifier}".format(
-                        interpreter=default_interpreter, specifier=constraint
-                    ),
-                    default_interpreter=None,
+            return cls(specifier=SpecifierSet(specifier), implementation=implementation)
+        except InvalidSpecifier as e:
+            raise ValueError(
+                "Unparseable interpreter constraint {constraint}: {err}".format(
+                    constraint=constraint, err=e
                 )
-            try:
-                return cls(specifier=SpecifierSet(constraint))
-            except RequirementParseError as e:
-                raise ValueError(
-                    "Unparseable interpreter constraint {constraint}: {err}".format(
-                        constraint=constraint, err=e
-                    )
-                )
+            )
 
     @classmethod
     def matches(
@@ -74,13 +86,13 @@ class InterpreterConstraint(object):
         # type: (Optional[PythonInterpreter]) -> InterpreterConstraint
         python_identity = (interpreter or PythonInterpreter.get()).identity
         return cls.parse(
-            "{interpreter}=={version}".format(
-                interpreter=python_identity.interpreter, version=python_identity.version_str
+            "{implementation}=={version}".format(
+                implementation=python_identity.implementation, version=python_identity.version_str
             )
         )
 
     specifier = attr.ib()  # type: SpecifierSet
-    name = attr.ib(default=None)  # type: Optional[str]
+    implementation = attr.ib(default=None)  # type: Optional[InterpreterImplementation.Value]
 
     @specifier.validator
     def _validate_specifier(
@@ -107,12 +119,14 @@ class InterpreterConstraint(object):
 
     def __str__(self):
         # type: () -> str
-        return "{name}{specifier}".format(name=self.name or "", specifier=self.specifier)
+        return "{implementation}{specifier}".format(
+            implementation=self.implementation or "", specifier=self.specifier
+        )
 
     def __contains__(self, interpreter):
         # type: (PythonInterpreter) -> bool
         python_identity = interpreter.identity
-        if self.name and self.name != python_identity.interpreter:
+        if self.implementation and not self.implementation.includes(python_identity.implementation):
             return False
         return python_identity.version_str in self.specifier
 
@@ -376,22 +390,23 @@ COMPATIBLE_PYTHON_VERSIONS = (
     PythonVersion(Lifecycle.EOL, 3, 6, 15),
     PythonVersion(Lifecycle.EOL, 3, 7, 17),
     PythonVersion(Lifecycle.EOL, 3, 8, 20),
-    PythonVersion(Lifecycle.STABLE, 3, 9, 21),
-    PythonVersion(Lifecycle.STABLE, 3, 10, 16),
-    PythonVersion(Lifecycle.STABLE, 3, 11, 11),
-    PythonVersion(Lifecycle.STABLE, 3, 12, 9),
-    PythonVersion(Lifecycle.STABLE, 3, 13, 2),
-    PythonVersion(Lifecycle.DEV, 3, 14, 0),
+    PythonVersion(Lifecycle.EOL, 3, 9, 25),
+    PythonVersion(Lifecycle.STABLE, 3, 10, 19),
+    PythonVersion(Lifecycle.STABLE, 3, 11, 14),
+    PythonVersion(Lifecycle.STABLE, 3, 12, 12),
+    PythonVersion(Lifecycle.STABLE, 3, 13, 11),
+    PythonVersion(Lifecycle.STABLE, 3, 14, 2),
+    PythonVersion(Lifecycle.DEV, 3, 15, 0),
 )
 
 
 def iter_compatible_versions(
-    requires_python,  # type: Iterable[str]
+    requires_python,  # type: Iterable[SpecifierSet]
     max_patch=DEFAULT_MAX_PATCH,  # type: int
 ):
     # type: (...) -> Iterator[Tuple[int, int, int]]
 
-    specifier_sets = OrderedSet(SpecifierSet(req) for req in requires_python)
+    specifier_sets = OrderedSet(requires_python)
     return itertools.chain.from_iterable(
         python_version.iter_compatible_versions(specifier_sets, max_patch=max_patch)
         for python_version in COMPATIBLE_PYTHON_VERSIONS

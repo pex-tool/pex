@@ -8,6 +8,7 @@ import logging
 from collections import OrderedDict
 from contextlib import contextmanager
 
+from pex.artifact_url import ArtifactURL, Fingerprint
 from pex.common import pluralize
 from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import Constraint, Requirement
@@ -25,9 +26,9 @@ from pex.resolve.locked_resolve import (
 )
 from pex.resolve.lockfile.create import create
 from pex.resolve.lockfile.model import Lockfile
+from pex.resolve.package_repository import ReposConfiguration
 from pex.resolve.requirement_configuration import RequirementConfiguration
-from pex.resolve.resolved_requirement import ArtifactURL, Fingerprint
-from pex.resolve.resolver_configuration import PipConfiguration, PipLog, ReposConfiguration
+from pex.resolve.resolver_configuration import PipConfiguration, PipLog
 from pex.result import Error, ResultError, catch, try_
 from pex.sorted_tuple import SortedTuple
 from pex.targets import Target, Targets
@@ -251,6 +252,7 @@ class ResolveUpdater(object):
         lock_configuration,  # type: LockConfiguration
         pip_configuration,  # type: PipConfiguration
         dependency_configuration,  # type: DependencyConfiguration
+        avoid_downloads,  # type: bool
     ):
         # type: (...) -> Union[ResolveUpdater, Error]
 
@@ -309,6 +311,7 @@ class ResolveUpdater(object):
             lock_configuration=lock_configuration,
             pip_configuration=pip_configuration,
             dependency_configuration=dependency_configuration,
+            avoid_downloads=avoid_downloads,
         )
 
     @classmethod
@@ -321,6 +324,7 @@ class ResolveUpdater(object):
         lock_configuration,  # type: LockConfiguration
         pip_configuration,  # type: PipConfiguration
         dependency_configuration,  # type: DependencyConfiguration
+        avoid_downloads,  # type: bool
     ):
         # type: (...) -> ResolveUpdater
 
@@ -361,6 +365,7 @@ class ResolveUpdater(object):
             lock_configuration=lock_configuration,
             pip_configuration=pip_configuration,
             dependency_configuration=dependency_configuration,
+            avoid_downloads=avoid_downloads,
         )
 
     requirement_configuration = attr.ib()  # type: RequirementConfiguration
@@ -376,6 +381,7 @@ class ResolveUpdater(object):
     update_requirements_by_project_name = attr.ib(
         factory=dict
     )  # type: Mapping[ProjectName, Requirement]
+    avoid_downloads = attr.ib(default=False)
 
     def iter_updated_requirements(self):
         # type: () -> Iterator[Requirement]
@@ -501,6 +507,7 @@ class ResolveUpdater(object):
                             targets=Targets.from_target(target),
                             pip_configuration=self.pip_configuration,
                             dependency_configuration=self.dependency_configuration,
+                            avoid_downloads=self.avoid_downloads,
                         )
                     )
                     assert 1 == len(updated_lock_file.locked_resolves)
@@ -526,7 +533,7 @@ class ResolveUpdater(object):
                 )
             )
             included_projects = frozenset(
-                artifact.pin.project_name for artifact in resolve.downloadable_artifacts
+                artifact.project_name for artifact in resolve.downloadable_artifacts
             )
             updates.update(
                 (locked_requirement.pin.project_name, DeleteUpdate(locked_requirement.pin.version))
@@ -690,6 +697,7 @@ class LockUpdater(object):
         use_pip_config,  # type: bool
         dependency_configuration,  # type: DependencyConfiguration
         pip_log,  # type: Optional[PipLog]
+        avoid_downloads,  # type: bool
     ):
         # type: (...) -> LockUpdater
 
@@ -707,15 +715,17 @@ class LockUpdater(object):
         )
         return cls(
             lock_file=lock_file,
-            lock_configuration=lock_file.lock_configuration(),
+            lock_configuration=lock_file.configuration,
             pip_configuration=pip_configuration,
             dependency_configuration=dependency_configuration,
+            avoid_downloads=avoid_downloads,
         )
 
     lock_file = attr.ib()  # type: Lockfile
     lock_configuration = attr.ib()  # type: LockConfiguration
     pip_configuration = attr.ib()  # type: PipConfiguration
     dependency_configuration = attr.ib()  # type: DependencyConfiguration
+    avoid_downloads = attr.ib()  # type: bool
 
     def sync(
         self,
@@ -737,6 +747,7 @@ class LockUpdater(object):
                 lock_configuration=self.lock_configuration,
                 pip_configuration=self.pip_configuration,
                 dependency_configuration=self.dependency_configuration,
+                avoid_downloads=self.avoid_downloads,
             )
         )
         return self._perform_update(
@@ -772,6 +783,7 @@ class LockUpdater(object):
             lock_configuration=self.lock_configuration,
             pip_configuration=self.pip_configuration,
             dependency_configuration=self.dependency_configuration,
+            avoid_downloads=self.avoid_downloads,
         )
         return self._perform_update(
             update_requests=update_requests,
@@ -788,11 +800,11 @@ class LockUpdater(object):
         # type: (...) -> Union[LockUpdate, Error]
 
         error_by_target = OrderedDict()  # type: OrderedDict[Target, Error]
-        locked_resolve_by_platform_tag = OrderedDict(
-            (locked_resolve.platform_tag, locked_resolve)
+        locked_resolve_by_target_platform = OrderedDict(
+            (locked_resolve.target_platform, locked_resolve)
             for locked_resolve in self.lock_file.locked_resolves
         )  # type: OrderedDict[Optional[tags.Tag], LockedResolve]
-        resolve_updates_by_platform_tag = (
+        resolve_updates_by_target_platform = (
             {}
         )  # type: Dict[Optional[tags.Tag], Mapping[ProjectName, Optional[Update]]]
 
@@ -808,9 +820,9 @@ class LockUpdater(object):
             if isinstance(result, Error):
                 error_by_target[update_request.target] = result
             else:
-                platform_tag = update_request.locked_resolve.platform_tag
-                locked_resolve_by_platform_tag[platform_tag] = result.updated_resolve
-                resolve_updates_by_platform_tag[platform_tag] = result.updates
+                target_platform = update_request.locked_resolve.target_platform
+                locked_resolve_by_target_platform[target_platform] = result.updated_resolve
+                resolve_updates_by_target_platform[target_platform] = result.updates
 
         if error_by_target:
             return Error(
@@ -833,8 +845,8 @@ class LockUpdater(object):
             resolves=tuple(
                 ResolveUpdate(
                     updated_resolve=updated_resolve,
-                    updates=resolve_updates_by_platform_tag.get(platform_tag, {}),
+                    updates=resolve_updates_by_target_platform.get(target_platform, {}),
                 )
-                for platform_tag, updated_resolve in locked_resolve_by_platform_tag.items()
+                for target_platform, updated_resolve in locked_resolve_by_target_platform.items()
             ),
         )

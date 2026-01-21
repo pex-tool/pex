@@ -6,13 +6,14 @@ import shutil
 
 import pytest
 
+from pex.artifact_url import ArtifactURL
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.resolve.locked_resolve import LockedRequirement
 from pex.resolve.lockfile import json_codec
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.path_mappings import PathMapping, PathMappings
-from pex.resolve.resolved_requirement import ArtifactURL, Pin
+from pex.resolve.resolved_requirement import Pin
 from pex.typing import TYPE_CHECKING
 from testing import make_env, run_pex_command, subprocess
 from testing.cli import run_pex3

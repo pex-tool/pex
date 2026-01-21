@@ -2,9 +2,7 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 from pex.cli.command import BuildTimeCommand
-from pex.docs.command import HtmlDocsConfig, register_open_options, serve_html_docs
-from pex.docs.server import SERVER_NAME, Pidfile
-from pex.docs.server import shutdown as shutdown_docs_server
+from pex.docs.command import HtmlDocsConfig, register_open_options, serve_html_docs, server
 from pex.result import Ok, Result, try_
 
 
@@ -32,32 +30,32 @@ class Docs(BuildTimeCommand):
             dest="kill_server",
             default=False,
             action="store_true",
-            help="Shut down the {server} if it is running.".format(server=SERVER_NAME),
+            help="Shut down the {server} if it is running.".format(server=server.name),
         )
         kill_or_info.add_argument(
             "--server-info",
             dest="server_info",
             default=False,
             action="store_true",
-            help="Print information about the status of the {server}.".format(server=SERVER_NAME),
+            help="Print information about the status of the {server}.".format(server=server.name),
         )
 
     def run(self):
         # type: () -> Result
 
         if self.options.server_info:
-            pidfile = Pidfile.load()
+            pidfile = server.pidfile()
             if pidfile and pidfile.alive():
                 return Ok(
-                    "{server} serving {info}".format(server=SERVER_NAME, info=pidfile.server_info)
+                    "{server} serving {info}".format(server=server.name, info=pidfile.server_info)
                 )
-            return Ok("No {server} is running.".format(server=SERVER_NAME))
+            return Ok("No {server} is running.".format(server=server.name))
 
         if self.options.kill_server:
-            server_info = shutdown_docs_server()
+            server_info = server.shutdown()
             if server_info:
-                return Ok("Shut down {server} {info}".format(server=SERVER_NAME, info=server_info))
-            return Ok("No {server} was running.".format(server=SERVER_NAME))
+                return Ok("Shut down {server} {info}".format(server=server.name, info=server_info))
+            return Ok("No {server} was running.".format(server=server.name))
 
         launch_result = try_(
             serve_html_docs(
@@ -72,5 +70,5 @@ class Docs(BuildTimeCommand):
                 "{server} already running {info}"
                 if launch_result.already_running
                 else "Launched {server} {info}"
-            ).format(server=SERVER_NAME, info=launch_result.server_info)
+            ).format(server=server.name, info=launch_result.server_info)
         )

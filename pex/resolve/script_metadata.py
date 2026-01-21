@@ -3,6 +3,8 @@
 
 from __future__ import absolute_import
 
+import os
+import re
 from textwrap import dedent
 
 from pex import specifier_sets
@@ -18,7 +20,7 @@ from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import List, Optional, Sequence, Tuple
+    from typing import List, Optional, Sequence, Text, Tuple
 
     import attr  # vendor:skip
 
@@ -58,8 +60,29 @@ def apply_script_metadata(
     )  # type: OrderedSet[str]
     requires_python = SpecifierSet()
     for script in scripts:
-        with open(script) as fp:
-            script_metadata = ScriptMetadata.parse(fp.read(), source=fp.name)
+        with open(script, "rb") as fp:
+            # N.B.: The default encoding for python source files prior to Python 3.15 is ascii,
+            # but since utf-8 is a superset and people might forget to use encoding comment lines,
+            # this is a strictly better default to use. In fact, PEP-723 mandates this default.
+            #
+            # See:
+            # * https://packaging.python.org/en/latest/specifications/inline-script-metadata/
+            # * https://peps.python.org/pep-0263/
+            # * https://peps.python.org/pep-0686/
+            encoding = "utf-8"  # type: Text
+            lines_read = 0
+            while lines_read < 2:
+                line = fp.readline()
+                lines_read += 1
+                match = re.search(
+                    br"^[ \t\f]*#.*?coding[:=][ \t]*(?P<encoding>[-_.a-zA-Z0-9]+)", line
+                )
+                if match:
+                    encoding = match.group("encoding").decode("ascii")
+                    break
+
+            fp.seek(0, os.SEEK_SET)
+            script_metadata = ScriptMetadata.parse(fp.read().decode(encoding), source=fp.name)
         script_metadatas.append(script_metadata)
         requirements.update(map(str, script_metadata.dependencies))
         requires_python &= script_metadata.requires_python

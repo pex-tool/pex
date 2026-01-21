@@ -10,6 +10,7 @@ from pex.resolve.resolver_configuration import (
     PexRepositoryConfiguration,
     PipConfiguration,
     PreResolvedConfiguration,
+    PylockRepositoryConfiguration,
 )
 from pex.result import Error, catch, try_
 from pex.targets import Targets
@@ -23,8 +24,9 @@ if TYPE_CHECKING:
     Configuration = Union[
         LockRepositoryConfiguration,
         PexRepositoryConfiguration,
-        PreResolvedConfiguration,
         PipConfiguration,
+        PreResolvedConfiguration,
+        PylockRepositoryConfiguration,
     ]
     _C = TypeVar("_C", bound=Configuration)
 
@@ -85,7 +87,11 @@ def finalize(
                 resolver_configuration.pip_configuration,
                 targets,
                 context,
-                pip_version=pip_version or lock_file.pip_version,
+                pip_version=(
+                    pip_version
+                    or resolver_configuration.pip_configuration.version
+                    or lock_file.pip_version
+                ),
             )
         )
         return cast(

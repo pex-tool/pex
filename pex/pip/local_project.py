@@ -4,9 +4,8 @@
 from __future__ import absolute_import
 
 import os.path
-import tarfile
 
-from pex import hashing
+from pex import hashing, sdist
 from pex.build_system import pep_517
 from pex.common import temporary_dir
 from pex.pip.version import PipVersionValue
@@ -33,25 +32,18 @@ def digest_local_project(
     # type: (...) -> Union[str, Error]
     with TRACER.timed("Fingerprinting local project at {directory}".format(directory=directory)):
         with temporary_dir() as td:
-            sdist_or_error = pep_517.build_sdist(
+            sdist_path_or_error = pep_517.build_sdist(
                 project_directory=directory,
                 dist_dir=os.path.join(td, "dists"),
                 pip_version=pip_version,
                 target=target,
                 resolver=resolver,
             )
-            if isinstance(sdist_or_error, Error):
-                return sdist_or_error
-            sdist = sdist_or_error
+            if isinstance(sdist_path_or_error, Error):
+                return sdist_path_or_error
+            sdist_path = sdist_path_or_error
 
             extract_dir = dest_dir or os.path.join(td, "extracted")
-            with tarfile.open(sdist) as tf:
-                tf.extractall(extract_dir)
-            listing = os.listdir(extract_dir)
-            assert len(listing) == 1, (
-                "Expected sdist generated for {directory} to contain one top-level directory, "
-                "found:\n{listing}".format(directory=directory, listing="\n".join(listing))
-            )
-            project_dir = os.path.join(extract_dir, listing[0])
+            project_dir = sdist.extract_tarball(sdist_path, dest_dir=extract_dir)
             hashing.dir_hash(directory=project_dir, digest=digest)
             return os.path.join(extract_dir, project_dir)

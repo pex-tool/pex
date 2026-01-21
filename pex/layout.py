@@ -161,6 +161,10 @@ class _Layout(object):
         # type: (str) -> None
         self._layout.record(dest_dir)
 
+    def installed(self):
+        # type: () -> bool
+        return Layout.Value.try_load(self._path) is not None
+
 
 def _install_distribution(
     distribution_info,  # type: Tuple[str, str]
@@ -489,7 +493,9 @@ class _ZipAppPEX(_Layout):
 
     def wheel_file_path(self, dist_relpath_components):
         # type: (Tuple[str, ...]) -> str
-        extract_chroot = safe_mkdtemp()
+        extract_chroot = safe_mkdtemp(
+            prefix="pex-whl-install.", suffix=".{name}".format(name=dist_relpath_components[-1])
+        )
         self.zfp.extract("/".join(dist_relpath_components), extract_chroot)
         return os.path.join(extract_chroot, *dist_relpath_components)
 
@@ -701,4 +707,6 @@ def ensure_installed(
     executed directly.
     """
     with identify_layout(pex) as layout:
+        if layout.installed():
+            return layout.path
         return _ensure_installed(layout, pex_root, pex_hash)

@@ -15,7 +15,7 @@ from textwrap import dedent
 import pytest
 
 from pex.cache.dirs import InterpreterDir
-from pex.common import environment_as, safe_mkdir, safe_mkdtemp, temporary_dir, touch
+from pex.common import environment_as, safe_mkdir, temporary_dir, touch
 from pex.executables import chmod_plus_x
 from pex.executor import Executor
 from pex.fs import safe_rename, safe_symlink
@@ -25,23 +25,23 @@ from pex.pyenv import Pyenv
 from pex.typing import TYPE_CHECKING, cast
 from pex.variables import ENV
 from testing import (
-    PY38,
+    PY27,
     PY39,
     PY310,
+    PY311,
     PY_VER,
     all_pythons,
     ensure_python_distribution,
     ensure_python_interpreter,
     ensure_python_venv,
-    pushd,
     subprocess,
 )
-from testing.pytest_utils.tmp import TempdirFactory
+from testing.pytest_utils.tmp import Tempdir, TempdirFactory
 
 try:
-    from unittest.mock import Mock, patch  # type: ignore[import]
+    from unittest.mock import patch  # type: ignore[import]
 except ImportError:
-    from mock import Mock, patch  # type: ignore[misc,import]
+    from mock import patch  # type: ignore[misc,import]
 
 if TYPE_CHECKING:
     from typing import Any, Iterator, List, Tuple
@@ -61,10 +61,10 @@ class TestPythonInterpreter(object):
         with patch.dict(os.environ, clear=True), PythonInterpreter._cleared_memory_cache():
             PythonInterpreter.all()
 
-    TEST_INTERPRETER1_VERSION = PY39
+    TEST_INTERPRETER1_VERSION = PY310
     TEST_INTERPRETER1_VERSION_TUPLE = tuple_from_version(TEST_INTERPRETER1_VERSION)
 
-    TEST_INTERPRETER2_VERSION = PY38
+    TEST_INTERPRETER2_VERSION = PY39
     TEST_INTERPRETER2_VERSION_TUPLE = tuple_from_version(TEST_INTERPRETER2_VERSION)
 
     @pytest.fixture
@@ -220,22 +220,22 @@ class TestPythonInterpreter(object):
 
     def test_pyenv_shims(self, tmpdir):
         # type: (Any) -> None
-        py38_dist = ensure_python_distribution(PY38)
-        py38 = py38_dist.binary
-        run_pyenv = py38_dist.run_pyenv
+        py39_dist = ensure_python_distribution(PY39)
+        py39 = py39_dist.binary
+        run_pyenv = py39_dist.run_pyenv
 
-        py310 = ensure_python_interpreter(PY310)
+        py311 = ensure_python_interpreter(PY311)
 
         pyenv_root = str(run_pyenv(["root"]).strip())
         pyenv_shims = os.path.join(pyenv_root, "shims")
 
-        def pyenv_global(*versions):
-            # type: (*str) -> None
-            run_pyenv(["global"] + list(versions))
+        def pyenv_global(*versions, **kwargs):
+            # type: (*str, **str) -> None
+            run_pyenv(["global"] + list(versions), **kwargs)
 
-        def pyenv_local(*versions):
-            # type: (*str) -> None
-            run_pyenv(["local"] + list(versions))
+        def pyenv_local(*versions, **kwargs):
+            # type: (*str, **str) -> None
+            run_pyenv(["local"] + list(versions), **kwargs)
 
         @contextmanager
         def pyenv_shell(*versions):
@@ -246,8 +246,8 @@ class TestPythonInterpreter(object):
         pex_root = os.path.join(str(tmpdir), "pex_root")
         cwd = safe_mkdir(os.path.join(str(tmpdir), "home", "jake", "project"))
         with ENV.patch(PEX_ROOT=pex_root) as pex_env, environment_as(
-            PYENV_ROOT=pyenv_root, PEX_PYTHON_PATH=pyenv_shims, **pex_env
-        ), pyenv_shell(), pushd(cwd):
+            **dict(pex_env, PYENV_ROOT=pyenv_root, PEX_PYTHON_PATH=pyenv_shims)
+        ), pyenv_shell():
             pyenv = Pyenv.find()
             assert pyenv is not None
             assert pyenv_root == pyenv.root
@@ -255,7 +255,7 @@ class TestPythonInterpreter(object):
             def interpreter_for_shim(shim_name):
                 # type: (str) -> PythonInterpreter
                 binary = os.path.join(pyenv_shims, shim_name)
-                return PythonInterpreter.from_binary(binary, pyenv=pyenv)
+                return PythonInterpreter.from_binary(binary, pyenv=pyenv, cwd=cwd)
 
             def assert_shim(
                 shim_name,  # type: str
@@ -270,77 +270,56 @@ class TestPythonInterpreter(object):
                 with pytest.raises(PythonInterpreter.IdentificationError):
                     interpreter_for_shim(shim_name)
 
-            pyenv_global(PY38, PY310)
-            assert_shim("python", py38)
-            assert_shim("python3", py38)
-            assert_shim("python3.8", py38)
-            assert_shim("python3.10", py310)
+            pyenv_global(PY39, PY311, cwd=cwd)
+            assert_shim("python", py39)
+            assert_shim("python3", py39)
+            assert_shim("python3.9", py39)
+            assert_shim("python3.11", py311)
 
-            pyenv_global(PY310, PY38)
-            assert_shim("python", py310)
-            assert_shim("python3", py310)
-            assert_shim("python3.10", py310)
-            assert_shim("python3.8", py38)
+            pyenv_global(PY311, PY39, cwd=cwd)
+            assert_shim("python", py311)
+            assert_shim("python3", py311)
+            assert_shim("python3.11", py311)
+            assert_shim("python3.9", py39)
 
-            pyenv_local(PY38)
-            assert_shim("python", py38)
-            assert_shim("python3", py38)
-            assert_shim("python3.8", py38)
+            pyenv_local(PY39, cwd=cwd)
+            assert_shim("python", py39)
+            assert_shim("python3", py39)
+            assert_shim("python3.9", py39)
             assert_shim_inactive("python3.7")
 
-            with pyenv_shell(PY310):
-                assert_shim("python", py310)
-                assert_shim("python3", py310)
-                assert_shim("python3.10", py310)
-                assert_shim_inactive("python3.8")
+            with pyenv_shell(PY311):
+                assert_shim("python", py311)
+                assert_shim("python3", py311)
+                assert_shim("python3.11", py311)
+                assert_shim_inactive("python3.9")
 
-            with pyenv_shell(PY38, PY310):
-                assert_shim("python", py38)
-                assert_shim("python3", py38)
-                assert_shim("python3.8", py38)
-                assert_shim("python3.10", py310)
+            with pyenv_shell(PY39, PY311):
+                assert_shim("python", py39)
+                assert_shim("python3", py39)
+                assert_shim("python3.9", py39)
+                assert_shim("python3.11", py311)
 
-            # The shim pointer is now invalid since python3.7 was uninstalled and so
+            # The shim pointer is now invalid since python3.9 was uninstalled and so
             # should be re-read and found invalid.
-            py37_version_dir = os.path.dirname(os.path.dirname(py38))
-            py37_deleted = "{}.uninstalled".format(py37_version_dir)
-            safe_rename(py37_version_dir, py37_deleted)
+            py39_version_dir = os.path.dirname(os.path.dirname(py39))
+            py39_deleted = "{}.uninstalled".format(py39_version_dir)
+            safe_rename(py39_version_dir, py39_deleted)
             try:
                 assert_shim_inactive("python")
                 assert_shim_inactive("python3")
-                assert_shim_inactive("python3.8")
+                assert_shim_inactive("python3.9")
             finally:
-                safe_rename(py37_deleted, py37_version_dir)
+                safe_rename(py39_deleted, py39_version_dir)
 
-            assert_shim("python", py38)
-
-
-def test_latest_release_of_min_compatible_version():
-    # type: () -> None
-    def mock_interp(version):
-        interp = Mock()
-        interp.version = tuple(int(v) for v in version.split("."))
-        return interp
-
-    def assert_chosen(expected_version, other_version):
-        expected = mock_interp(expected_version)
-        other = mock_interp(other_version)
-        assert (
-            PythonInterpreter.latest_release_of_min_compatible_version([expected, other])
-            == expected
-        ), "{} was selected instead of {}".format(other_version, expected_version)
-
-    # Note that we don't consider the interpreter name in comparisons.
-    assert_chosen(expected_version="2.7.0", other_version="3.6.0")
-    assert_chosen(expected_version="3.5.0", other_version="3.6.0")
-    assert_chosen(expected_version="3.6.1", other_version="3.6.0")
+            assert_shim("python", py39)
 
 
 def test_detect_pyvenv(tmpdir):
     # type: (Any) -> None
     venv = str(tmpdir)
-    py38 = ensure_python_interpreter(PY38)
-    real_interpreter = PythonInterpreter.from_binary(py38)
+    py39 = ensure_python_interpreter(PY39)
+    real_interpreter = PythonInterpreter.from_binary(py39)
     real_interpreter.execute(["-m", "venv", venv])
     with pytest.raises(Executor.NonZeroExit):
         real_interpreter.execute(["-c", "import colors"])
@@ -359,7 +338,7 @@ def test_detect_pyvenv(tmpdir):
     ), "Expected exactly one canonical venv python, found: {}".format(canonical_to_python)
     canonical, pythons = canonical_to_python.popitem()
 
-    real_python = os.path.realpath(py38)
+    real_python = os.path.realpath(py39)
     assert canonical != real_python
     assert os.path.dirname(canonical) == venv_bin_dir
     assert os.path.realpath(canonical) == real_python
@@ -368,16 +347,18 @@ def test_detect_pyvenv(tmpdir):
     )
 
 
-def check_resolve_venv(real_interpreter):
-    # type: (PythonInterpreter) -> None
-    tmpdir = safe_mkdtemp()
+def check_resolve_venv(
+    tmpdir,  # type: Tempdir
+    real_interpreter,  # type: PythonInterpreter
+):
+    # type: (...) -> None
 
     def create_venv(
         interpreter,  # type: PythonInterpreter
         rel_path,  # type: str
     ):
         # type: (...) -> List[str]
-        venv_dir = os.path.join(tmpdir, rel_path)
+        venv_dir = tmpdir.join(rel_path)
 
         # N.B.: We don't need pip in the venv for this test and sometimes system interpreters
         # don't have ensurepip support.
@@ -402,36 +383,34 @@ def check_resolve_venv(real_interpreter):
             assert real_interpreter == nested_venv_interpreter.resolve_base_interpreter()
 
 
-def test_resolve_venv():
-    # type: () -> None
-    real_interpreter = PythonInterpreter.from_binary(ensure_python_interpreter(PY38))
-    check_resolve_venv(real_interpreter)
+def test_resolve_venv(tmpdir):
+    # type: (Tempdir) -> None
+    real_interpreter = PythonInterpreter.from_binary(ensure_python_interpreter(PY311))
+    check_resolve_venv(tmpdir, real_interpreter)
 
 
 @pytest.mark.skipif(
     PY_VER < (3, 0), reason="Test requires the venv module which is not present in Python 2."
 )
-def test_resolve_venv_ambient():
-    # type: () -> None
+def test_resolve_venv_ambient(tmpdir):
+    # type: (Tempdir) -> None
     ambient_real_interpreter = PythonInterpreter.get().resolve_base_interpreter()
-    check_resolve_venv(ambient_real_interpreter)
+    check_resolve_venv(tmpdir, ambient_real_interpreter)
 
 
 def test_identify_cwd_isolation_issues_1231(tmpdir):
     # type: (Any) -> None
 
-    venv = ensure_python_venv(PY38)
-    python38 = venv.interpreter.binary
+    venv = ensure_python_venv(PY27)
+    python27 = venv.interpreter.binary
     pip = venv.bin_path("pip")
 
     polluted_cwd = os.path.join(str(tmpdir), "dir")
     subprocess.check_call(args=[pip, "install", "--target", polluted_cwd, "pex==2.1.16"])
 
     pex_root = os.path.join(str(tmpdir), "pex_root")
-    with pushd(polluted_cwd), ENV.patch(
-        PEX_ROOT=pex_root
-    ), PythonInterpreter._cleared_memory_cache():
-        interp = PythonInterpreter.from_binary(python38)
+    with ENV.patch(PEX_ROOT=pex_root), PythonInterpreter._cleared_memory_cache():
+        interp = PythonInterpreter.from_binary(python27, cwd=polluted_cwd)
 
     interpreter_dirs = list(InterpreterDir.iter_all(pex_root=pex_root))
     assert 1 == len(interpreter_dirs)

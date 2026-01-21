@@ -6,23 +6,40 @@ from __future__ import absolute_import
 import json
 import os.path
 import sys
-from argparse import ArgumentTypeError, Namespace, _ActionsContainer
+from argparse import Action, ArgumentTypeError, Namespace, _ActionsContainer
 
 from pex.argparse import HandleBoolAction
 from pex.interpreter_constraints import InterpreterConstraints
+from pex.interpreter_selection_strategy import InterpreterSelectionStrategy
 from pex.orderedset import OrderedSet
 from pex.pep_425 import CompatibilityTags
 from pex.pep_508 import MarkerEnvironment
 from pex.platforms import Platform, PlatformSpec
 from pex.resolve import abbreviated_platforms
 from pex.resolve.resolver_configuration import PipConfiguration
-from pex.resolve.resolver_options import _ManylinuxAction
 from pex.resolve.target_configuration import InterpreterConfiguration, TargetConfiguration
 from pex.targets import CompletePlatform
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from typing import Optional
+
+
+class _ManylinuxAction(Action):
+    def __init__(self, *args, **kwargs):
+        kwargs["nargs"] = "?"
+        super(_ManylinuxAction, self).__init__(*args, **kwargs)
+
+    def __call__(self, parser, namespace, value, option_str=None):
+        if option_str.startswith("--no"):
+            setattr(namespace, self.dest, None)
+        elif value.startswith("manylinux"):
+            setattr(namespace, self.dest, value)
+        else:
+            raise ArgumentTypeError(
+                "Please specify a manylinux standard; ie: --manylinux=manylinux1. "
+                "Given {}".format(value)
+            )
 
 
 def register(
@@ -83,14 +100,31 @@ def register(
             "Constrain the selected Python interpreter. Specify with Requirement-style syntax, "
             'e.g. "CPython>=2.7,<3" (A CPython interpreter with version >=2.7 AND version <3), '
             '">=2.7,<3" (Any Python interpreter with version >=2.7 AND version <3) or "PyPy" (A '
-            "PyPy interpreter of any version). This argument may be repeated multiple times to OR "
-            "the constraints. Try `{single_interpreter_info_cmd}` to find the exact interpreter "
-            "constraints of {current_interpreter} and `{all_interpreters_info_cmd}` to find out "
-            "the interpreter constraints of all Python interpreters on the $PATH.".format(
+            "PyPy interpreter of any version). The recognized requirement names are `CPython` for "
+            "any CPython interpreter, `CPython+t` (or `CPython[free-threaded]`) for a "
+            "free-threaded CPython interpreter, `CPython-t` (or `CPython[gil]`) for a classic "
+            "GIL-only CPython interpreter and `PyPy` for a PyPy interpreter. This argument may be "
+            "repeated multiple times to OR the constraints. Try `{single_interpreter_info_cmd}` to "
+            "find the exact interpreter constraints of {current_interpreter} and "
+            "`{all_interpreters_info_cmd}` to find out the interpreter constraints of all Python "
+            "interpreters on the $PATH.".format(
                 current_interpreter=sys.executable,
                 single_interpreter_info_cmd=single_interpreter_info_cmd,
                 all_interpreters_info_cmd=all_interpreters_info_cmd,
             )
+        ),
+    )
+    parser.add_argument(
+        "--interpreter-selection-strategy",
+        dest="interpreter_selection_strategy",
+        default=InterpreterSelectionStrategy.OLDEST,
+        choices=InterpreterSelectionStrategy.values(),
+        type=InterpreterSelectionStrategy.for_value,
+        help=(
+            "When using `--interpreter-constraint`s, use this strategy to select between multiple "
+            "interpreters of differing major or minor version. N.B.: Whatever selection strategy "
+            "is chosen, the highest available patch version is always selected as a tie-breaker "
+            "when there is more than one compatible interpreter available."
         ),
     )
 
@@ -170,11 +204,15 @@ def _register_platform_options(
         default=False,
         action=HandleBoolAction,
         help=(
-            "When --platforms are specified, attempt to resolve a local interpreter that matches "
-            "each platform specified. If found, use the interpreter to resolve distributions; if "
-            "not (or if this option is not specified), resolve for each platform only allowing "
-            "matching binary distributions and failing if only sdists or non-matching binary "
-            "distributions can be found."
+            "When either `--platform`s or `--complete-platform`s are specified, for each such "
+            "`--platform` or `--complete-platform` attempt to resolve a local interpreter that "
+            "matches. If found, use the matching interpreter to resolve distributions for the "
+            "corresponding `--platform` or `--complete-platform`; if not (or if this option is not "
+            "specified), the interpreter executing Pex will be used to attempt to build any "
+            "distributions that have an sdist available but no wheel available that matches the "
+            "specified `--platform` or `--complete-platform`. If the resulting wheel matches the "
+            "specified platform, the resolve proceeds; otherwise it fails fast noting a wheel was "
+            "built whose tags don't match the specified platform."
         ),
     )
 
@@ -198,6 +236,7 @@ def configure_interpreters(options):
             else None
         ),
         pythons=tuple(OrderedSet(options.python)),
+        interpreter_selection_strategy=options.interpreter_selection_strategy,
     )
 
 

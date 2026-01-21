@@ -17,12 +17,15 @@ from pex.dist_metadata import Distribution
 from pex.environment import PEXEnvironment
 from pex.executables import chmod_plus_x
 from pex.fs import safe_symlink
+from pex.installed_wheel import InstalledWheel
+from pex.interpreter import PythonInterpreter
 from pex.orderedset import OrderedSet
 from pex.os import WINDOWS
-from pex.pep_376 import InstalledWheel
+from pex.pep_427 import reinstall_flat, reinstall_venv
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pex import PEX
+from pex.pex_info import PexInfo
 from pex.result import Error
 from pex.sysconfig import SCRIPT_DIR
 from pex.tracer import TRACER
@@ -43,6 +46,7 @@ if TYPE_CHECKING:
         Iterator,
         List,
         Optional,
+        Sequence,
         Text,
         Tuple,
         Union,
@@ -161,23 +165,23 @@ class Provenance(object):
     def create(
         cls,
         venv,  # type: Virtualenv
-        python=None,  # type: Optional[str]
+        shebang_python=None,  # type: Optional[str]
     ):
         # type: (...) -> Provenance
-        venv_bin_dir = os.path.dirname(python) if python else venv.bin_dir
-        venv_dir = os.path.dirname(venv_bin_dir) if python else venv.venv_dir
-
-        venv_python = python or venv.interpreter.binary
-        return cls(target_dir=venv_dir, target_python=venv_python)
+        return cls(
+            target_dir=venv.venv_dir, target_python=venv.interpreter, shebang_python=shebang_python
+        )
 
     def __init__(
         self,
         target_dir,  # type: str
-        target_python,  # type: str
+        target_python,  # type: PythonInterpreter
+        shebang_python=None,  # type: Optional[str]
     ):
         # type: (...) -> None
         self._target_dir = target_dir
         self._target_python = target_python
+        self._shebang_python = shebang_python
         self._provenance = defaultdict(list)  # type: DefaultDict[Text, List[Text]]
 
     @property
@@ -188,7 +192,7 @@ class Provenance(object):
     @property
     def target_python(self):
         # type: () -> str
-        return self._target_python
+        return self._shebang_python or self._target_python.binary
 
     def calculate_shebang(self, hermetic_scripts=True):
         # type: (bool) -> str
@@ -203,6 +207,40 @@ class Provenance(object):
         # type: (Iterable[Tuple[Text, Text]]) -> None
         for src, dst in src_to_dst:
             self._provenance[dst].append(src)
+
+    def _equal_asts(self, srcs):
+        # type: (Iterable[Text]) -> bool
+        args = [
+            self._target_python.binary,
+            "-c",
+            dedent(
+                """\
+                import ast
+                import sys
+
+
+                def equal_asts(srcs):
+                    normalized = None
+                    for src in srcs:
+                        with open(src) as fp:
+                            content = ast.unparse(ast.parse(fp.read(), fp.name))
+                            if normalized is None:
+                                normalized = content
+                            elif content != normalized:
+                                return False
+                    return True
+
+
+                if __name__ == "__main__":
+                    srcs = sys.argv[1:]
+                    if sys.version_info[:2] >= (3, 9) and equal_asts(srcs):
+                        sys.exit(0)
+                    sys.exit(len(srcs))    
+                """
+            ),
+        ]  # type: List[Text]
+        args.extend(srcs)
+        return subprocess.call(args) == 0
 
     def check_collisions(
         self,
@@ -222,7 +260,9 @@ class Provenance(object):
             contents = defaultdict(list)
             for src in srcs:
                 contents[CacheHelper.hash(src)].append(src)
-            if len(contents) > 1:
+            if len(contents) > 1 and (
+                os.path.basename(dst) != "__init__.py" or not self._equal_asts(srcs)
+            ):
                 collisions[dst] = contents
 
         if not collisions:
@@ -268,8 +308,8 @@ def _populate_flat_deps(
     for dist in distributions:
         try:
             installed_wheel = InstalledWheel.load(dist.location)
-            for src, dst in installed_wheel.reinstall_flat(
-                target_dir=dest_dir, copy_mode=copy_mode
+            for src, dst in reinstall_flat(
+                installed_wheel=installed_wheel, target_dir=dest_dir, copy_mode=copy_mode
             ):
                 yield src, dst
         except InstalledWheel.LoadError:
@@ -371,7 +411,7 @@ def populate_venv_from_pex(
     venv,  # type: Virtualenv
     pex,  # type: PEX
     bin_path=BinPath.FALSE,  # type: BinPath.Value
-    python=None,  # type: Optional[str]
+    shebang_python=None,  # type: Optional[str]
     collisions_ok=True,  # type: bool
     copy_mode=CopyMode.LINK,  # type: CopyMode.Value
     scope=InstallScope.ALL,  # type: InstallScope.Value
@@ -379,7 +419,7 @@ def populate_venv_from_pex(
 ):
     # type: (...) -> str
 
-    provenance = Provenance.create(venv, python=python)
+    provenance = Provenance.create(venv, shebang_python=shebang_python)
     shebang = provenance.calculate_shebang(hermetic_scripts=hermetic_scripts)
     top_level_source_packages = tuple(iter_top_level_source_packages(pex))
 
@@ -482,8 +522,11 @@ def _populate_venv_deps(
 
         try:
             installed_wheel = InstalledWheel.load(dist.location)
-            for src, dst in installed_wheel.reinstall_venv(
-                venv, copy_mode=copy_mode, rel_extra_path=rel_extra_path
+            for src, dst in reinstall_venv(
+                installed_wheel=installed_wheel,
+                venv=venv,
+                copy_mode=copy_mode,
+                rel_extra_path=rel_extra_path,
             ):
                 yield src, dst
         except InstalledWheel.LoadError:
@@ -570,24 +613,16 @@ def _populate_sources(
         yield src, dest
 
 
-def _populate_first_party(
+def install_pex_main(
     target_dir,  # type: str
     venv,  # type: Virtualenv
-    pex,  # type: PEX
+    pex_info,  # type: PexInfo
+    activated_dists,  # type: Sequence[Distribution]
     shebang,  # type: str
     venv_python,  # type: str
     bin_path,  # type: BinPath.Value
 ):
-    # type: (...) -> Iterator[Tuple[Text, Text]]
-
-    # We want the venv at rest to reflect the PEX it was created from at rest; as such we use the
-    # PEX's at-rest PEX-INFO to perform the layout. The venv can then be executed with various PEX
-    # environment variables in-play that it respects (e.g.: PEX_EXTRA_SYS_PATH, PEX_INTERPRETER,
-    # PEX_MODULE, etc.).
-    pex_info = pex.pex_info(include_env_overrides=False)
-
-    for src, dst in _populate_sources(pex=pex, dst=venv.site_packages_dir):
-        yield src, dst
+    # type: (...) -> None
 
     with open(os.path.join(venv.site_packages_dir, "PEX_EXTRA_SYS_PATH.pth"), "w") as fp:
         # N.B.: .pth import lines must be single lines: https://docs.python.org/3/library/site.html
@@ -603,7 +638,7 @@ def _populate_first_party(
     with open(os.path.join(venv.venv_dir, pex_info.PATH), "w") as fp:
         fp.write(pex_info.dump())
 
-    # 2. Add a __main__ to the root of the venv for running the venv dir like a loose PEX dir
+    # Add a __main__ to the root of the venv for running the venv dir like a loose PEX dir
     # and a main.py for running as a script.
     with open(venv.join_path("__main__.py"), "w") as fp:
         fp.write(
@@ -614,11 +649,20 @@ def _populate_first_party(
 
 
                 if __name__ == "__main__":
+                    import os
+                    pex_root_fallback = os.environ.get("_PEX_ROOT_FALLBACK")
+                    if pex_root_fallback:
+                        import atexit
+                        import shutil
+
+                        atexit.register(shutil.rmtree, pex_root_fallback, True)
+
                     boot(
                         shebang_python={shebang_python!r},
                         venv_bin_dir={venv_bin_dir!r},
                         bin_path={bin_path!r},
                         strip_pex_env={strip_pex_env!r},
+                        bind_resource_paths={bind_resource_paths!r},
                         inject_env={inject_env!r},
                         inject_args={inject_args!r},
                         entry_point={entry_point!r},
@@ -633,6 +677,7 @@ def _populate_first_party(
                 venv_bin_dir=SCRIPT_DIR,
                 bin_path=bin_path,
                 strip_pex_env=pex_info.strip_pex_env,
+                bind_resource_paths=tuple(pex_info.bind_resource_paths.items()),
                 inject_env=tuple(pex_info.inject_env.items()),
                 inject_args=list(pex_info.inject_args),
                 entry_point=pex_info.entry_point,
@@ -648,9 +693,38 @@ def _populate_first_party(
             repl.create_pex_repl_exe(
                 shebang=shebang,
                 pex_info=pex_info,
-                activated_dists=tuple(pex.resolve()),
+                activated_dists=activated_dists,
                 pex=os.path.join(target_dir, "pex"),
                 venv=True,
             )
         )
     chmod_plus_x(fp.name)
+
+
+def _populate_first_party(
+    target_dir,  # type: str
+    venv,  # type: Virtualenv
+    pex,  # type: PEX
+    shebang,  # type: str
+    venv_python,  # type: str
+    bin_path,  # type: BinPath.Value
+):
+    # type: (...) -> Iterator[Tuple[Text, Text]]
+
+    for src, dst in _populate_sources(pex=pex, dst=venv.site_packages_dir):
+        yield src, dst
+
+    # We want the venv at rest to reflect the PEX it was created from at rest; as such we use the
+    # PEX's at-rest PEX-INFO to perform the layout. The venv can then be executed with various PEX
+    # environment variables in-play that it respects (e.g.: PEX_EXTRA_SYS_PATH, PEX_INTERPRETER,
+    # PEX_MODULE, etc.).
+    pex_info = pex.pex_info(include_env_overrides=False)
+    install_pex_main(
+        target_dir=target_dir,
+        venv=venv,
+        pex_info=pex_info,
+        activated_dists=tuple(pex.resolve()),
+        shebang=shebang,
+        venv_python=venv_python,
+        bin_path=bin_path,
+    )

@@ -11,17 +11,20 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
+from argparse import Action, ArgumentDefaultsHelpFormatter, ArgumentError, ArgumentParser
+from dataclasses import dataclass
 from email.parser import Parser
 from enum import Enum, unique
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path, PurePath
-from typing import Dict, Iterator, Optional, Tuple, cast
+from typing import Dict, Iterator, Optional, Tuple
 
 from package.scie_config import PlatformConfig, ScieConfig
 from pex.common import safe_mkdtemp
+from pex.pip.version import PipVersion
+from pex.sysconfig import SysPlatform
 
-DIST_DIR = Path("dist")
+DEFAULT_DIST_DIR = Path("dist")
 PACKAGE_DIR = Path("package")
 
 
@@ -50,6 +53,9 @@ def build_pex_pex(
         "/usr/bin/env python",
         "--no-strip-pex-env",
         "--include-tools",
+        "--record-git-state",
+        "--pip-version",
+        "latest-compatible",
         "-o",
         str(output_file),
         "-c",
@@ -61,7 +67,10 @@ def build_pex_pex(
 
 
 def build_pex_scies(
-    scie_dest_dir: Path, verbosity: int = 0, env: Optional[Dict[str, str]] = None
+    dist_dir: Path,
+    scie_choice: ScieChoice,
+    verbosity: int = 0,
+    env: Optional[Dict[str, str]] = None,
 ) -> Iterator[tuple[Path, PlatformConfig]]:
     scie_config = ScieConfig.load()
 
@@ -71,12 +80,18 @@ def build_pex_scies(
     if not lock.exists():
         raise SystemExit(
             f"The Pex scie lock at {lock} does not exist.\n"
-            f"Run `tox -e gen-scie-platform -- --all ...` to generate it."
+            f"Run `uv run dev-cmd gen-scie-platform -- --all ...` to generate it."
         )
 
     missing_platforms: list[str] = []
     platforms: list[tuple[PlatformConfig, Path]] = []
     for platform_config in scie_config.platforms:
+        if (
+            scie_choice is ScieChoice.CURRENT
+            and platform_config.platform is not SysPlatform.CURRENT
+        ):
+            continue
+
         complete_platform = PACKAGE_DIR / "complete-platforms" / f"{platform_config.name}.json"
         if complete_platform.exists():
             platforms.append((platform_config, complete_platform))
@@ -95,8 +110,7 @@ def build_pex_scies(
         )
 
     for platform_config, complete_platform in platforms:
-        dest_dir = safe_mkdtemp()
-        output_file = os.path.join(dest_dir, "pex")
+        output_file = os.path.join(safe_mkdtemp(), "pex")
         args = [
             sys.executable,
             "-m",
@@ -106,6 +120,7 @@ def build_pex_scies(
             "--no-build",
             "--no-compile",
             "--no-use-system-time",
+            "--record-git-state",
             "--venv",
             "--no-strip-pex-env",
             "--complete-platform",
@@ -129,6 +144,8 @@ def build_pex_scies(
             "--scie-busybox",
             "@pex",
             "--scie-busybox-pex-entrypoint-env-passthrough",
+            "--pip-version",
+            PipVersion.LATEST_COMPATIBLE.value,
             "-o",
             output_file,
             "-c",
@@ -147,9 +164,9 @@ def build_pex_scies(
             )
         scie_name = os.path.basename(scie_artifacts[0])
         for artifact in artifacts:
-            shutil.move(artifact, scie_dest_dir / os.path.basename(artifact))
+            shutil.move(artifact, dist_dir / os.path.basename(artifact))
 
-        yield scie_dest_dir / scie_name, platform_config
+        yield dist_dir / scie_name, platform_config
 
 
 def describe_rev() -> str:
@@ -175,59 +192,85 @@ def describe_file(path: Path) -> Tuple[str, int]:
     return hasher.hexdigest(), size
 
 
+@dataclass
+class _FormatData:
+    _name: str
+    build_args: Tuple[str, ...]
+    build_env: Tuple[Tuple[str, str], ...]
+
+
 @unique
-class Format(Enum):
-    SDIST = "sdist"
-    WHEEL = "wheel"
+class Format(_FormatData, Enum):
+    @classmethod
+    def for_name(cls, name: str):
+        for member in cls:
+            if name in (member._name, member.name):
+                return member
+        raise ValueError(f"Not a recognized format: {name}")
+
+    SDIST = ("sdist", ("--sdist",), ())
+    WHEEL = (
+        "whl",
+        (
+            "--wheel",
+            "--config-setting=--build-option=--python-tag=py2.py35.py36.py37.py38.py39.py310.py311",
+        ),
+        (),
+    )
+    WHEEL_3_12_PLUS = (
+        "whl-3.12-plus",
+        ("--wheel", "--config-setting=--build-option=--python-tag=py3.py312"),
+        (("__PEX_BUILD_WHL_3_12_PLUS__", "1"),),
+    )
+
+    def add_build_env(self, env: Optional[Dict[str, str]] = None) -> Optional[Dict[str, str]]:
+        if not env and not self.build_env:
+            return None
+        build_env = dict(env or os.environ)
+        build_env.update(self.build_env)
+        return build_env
 
     def __str__(self) -> str:
-        return cast(str, self.value)
-
-    def build_arg(self) -> str:
-        return f"--{self.value}"
+        return self._name
 
 
 def build_pex_dists(
+    dist_dir: Path,
     dist_fmt: Format,
     *additional_dist_fmts: Format,
     verbose: bool = False,
     env: Optional[Dict[str, str]] = None
 ) -> Iterator[PurePath]:
-    tmp_dir = DIST_DIR / ".tmp"
+    tmp_dir = dist_dir / ".tmp"
     tmp_dir.mkdir(parents=True, exist_ok=True)
     atexit.register(shutil.rmtree, tmp_dir, ignore_errors=True)
     out_dir = tempfile.mkdtemp(dir=tmp_dir)
 
     output = None if verbose else subprocess.DEVNULL
 
-    subprocess.run(
-        args=[
-            sys.executable,
-            "-m",
-            "build",
-            "--outdir",
-            out_dir,
-            *[fmt.build_arg() for fmt in [dist_fmt, *additional_dist_fmts]],
-        ],
-        env=env,
-        stdout=output,
-        stderr=output,
-        check=True,
-    )
+    for fmt in [dist_fmt, *additional_dist_fmts]:
+        subprocess.run(
+            args=[sys.executable, "-m", "build", "--outdir", out_dir, *fmt.build_args],
+            env=fmt.add_build_env(env),
+            stdout=output,
+            stderr=output,
+            check=True,
+        )
 
     for dist in os.listdir(out_dir):
-        built = DIST_DIR / dist
+        built = dist_dir / dist
         shutil.move(os.path.join(out_dir, dist), built)
         yield built
 
 
 def main(
+    dist_dir: Path,
     *additional_dist_formats: Format,
     verbosity: int = 0,
     embed_docs: bool = False,
     clean_docs: bool = False,
-    pex_output_file: Optional[Path] = DIST_DIR / "pex",
-    scie_dest_dir: Optional[Path] = None,
+    pex_output_file: Optional[Path] = None,
+    scie_choice: ScieChoice | None = None,
     markdown_hash_table_file: Optional[Path] = None,
     serve: bool = False
 ) -> None:
@@ -249,9 +292,10 @@ def main(
         print(f"sha256: {sha256}")
         print(f"  size: {size}")
 
-    if scie_dest_dir:
-        print(f"Building Pex scies to `{scie_dest_dir}` ...")
-        for scie, platform in build_pex_scies(scie_dest_dir, verbosity, env=env):
+    if scie_choice:
+        scies = "scies" if scie_choice is ScieChoice.ALL else "scie"
+        print(f"Building Pex {scies} to `{dist_dir}` ...")
+        for scie, platform in build_pex_scies(dist_dir, scie_choice, verbosity, env=env):
             hash_table[scie] = describe_file(scie)
             print(f"  Built Pex scie for {platform.name} at `{scie}`")
 
@@ -266,11 +310,12 @@ def main(
 
     if additional_dist_formats:
         print(
-            f"Building additional distribution formats to `{DIST_DIR}`: "
+            f"Building additional distribution formats to `{dist_dir}`: "
             f'{", ".join(f"{i + 1}.) {fmt}" for i, fmt in enumerate(additional_dist_formats))} ...'
         )
         built = list(
             build_pex_dists(
+                dist_dir,
                 additional_dist_formats[0],
                 *additional_dist_formats[1:],
                 verbose=verbosity > 0,
@@ -282,19 +327,40 @@ def main(
             print(f"  {dist_path}")
 
     if clean_docs:
-        shutil.rmtree(DIST_DIR / "docs", ignore_errors=True)
+        shutil.rmtree(dist_dir / "docs", ignore_errors=True)
 
     if serve:
         server = HTTPServer(("", 0), SimpleHTTPRequestHandler)
         host, port = server.server_address
 
-        print(f"Serving Pex distributions from `{DIST_DIR}` at http://{host}:{port} ...")
+        print(f"Serving Pex distributions from `{dist_dir}` at http://{host}:{port} ...")
 
-        os.chdir(DIST_DIR)
+        os.chdir(dist_dir)
         try:
             server.serve_forever()
         except KeyboardInterrupt:
             print(f"Server shut down in response to keyboard interrupt.")
+
+
+class ScieChoice(Enum):
+    ALL = "all"
+    CURRENT = "current"
+
+
+class HandleScies(Action):
+    def __init__(self, *args, **kwargs):
+        kwargs["nargs"] = 0
+        super().__init__(*args, **kwargs)
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        scie_choice = None
+        if option_string == "--scie":
+            scie_choice = ScieChoice.CURRENT
+        elif option_string == "--scies":
+            scie_choice = ScieChoice.ALL
+        elif option_string:
+            raise ArgumentError(self, f"Unknown option {option_string}")
+        setattr(namespace, self.dest, scie_choice)
 
 
 if __name__ == "__main__":
@@ -318,7 +384,7 @@ if __name__ == "__main__":
         "--additional-format",
         dest="additional_formats",
         choices=list(Format),
-        type=Format,
+        type=Format.for_name,
         action="append",
         help="Package Pex in additional formats.",
     )
@@ -329,22 +395,28 @@ if __name__ == "__main__":
         help="Do not build the Pex PEX.",
     )
     parser.add_argument(
+        "-d",
+        "--dist-dir",
+        default=DEFAULT_DIST_DIR,
+        type=Path,
+        help="Build packages to this directory.",
+    )
+    parser.add_argument(
         "--pex-output-file",
-        default=DIST_DIR / "pex",
+        default=None,
         type=Path,
-        help="Build the Pex PEX at this path.",
+        help="Build the Pex PEX at this path (default: --dist-dir / 'pex').",
     )
     parser.add_argument(
+        "--scie",
         "--scies",
-        default=False,
-        action="store_true",
-        help="Build PEX scies.",
-    )
-    parser.add_argument(
-        "--scie-dest-dir",
-        default=DIST_DIR,
-        type=Path,
-        help="Build the Pex scies in this dir.",
+        dest="scies",
+        default=None,
+        action=HandleScies,
+        help=(
+            "Build PEX scies. Passing --scie builds the PEX scie for the current platform and "
+            "passing --scies builds PEX scies for all supported platforms."
+        ),
     )
     parser.add_argument(
         "--gen-md-table-of-hash-and-size",
@@ -361,12 +433,13 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(
+        args.dist_dir,
         *(args.additional_formats or ()),
         verbosity=args.verbosity,
         embed_docs=args.embed_docs,
         clean_docs=args.clean_docs,
-        pex_output_file=None if args.no_pex else args.pex_output_file,
-        scie_dest_dir=args.scie_dest_dir if args.scies else None,
+        pex_output_file=None if args.no_pex else (args.pex_output_file or args.dist_dir / "pex"),
+        scie_choice=args.scies,
         markdown_hash_table_file=args.gen_md_table_of_hash_and_size,
         serve=args.serve
     )

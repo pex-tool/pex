@@ -6,12 +6,13 @@ import os
 
 from pex.cache.dirs import CacheDir
 from pex.dist_metadata import Distribution
+from pex.installed_wheel import InstalledWheel
 from pex.interpreter import PythonInterpreter
-from pex.pep_376 import InstalledWheel
+from pex.pep_427 import reinstall_venv
 from pex.pex_info import PexInfo
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import Virtualenv
-from testing import PY38, ensure_python_venv, run_pex_command, subprocess
+from testing import PY39, ensure_python_venv, run_pex_command, subprocess
 
 if TYPE_CHECKING:
     from typing import Any, Container, List
@@ -20,8 +21,8 @@ if TYPE_CHECKING:
 def test_data_files(tmpdir):
     # type: (Any) -> None
 
-    venv = ensure_python_venv(PY38)
-    py38 = venv.interpreter.binary
+    venv = ensure_python_venv(PY39, tmpdir=tmpdir)
+    py39 = venv.interpreter.binary
     pip = venv.bin_path("pip")
 
     pex_file = os.path.join(str(tmpdir), "pex.file")
@@ -37,7 +38,7 @@ def test_data_files(tmpdir):
             "--runtime-pex-root",
             pex_root,
         ],
-        python=py38,
+        python=py39,
     ).assert_success()
 
     pex_info = PexInfo.from_pex(pex_file)
@@ -48,9 +49,11 @@ def test_data_files(tmpdir):
     )
 
     pex_venv = Virtualenv.create(
-        os.path.join(str(tmpdir), "pex.venv"), interpreter=PythonInterpreter.from_binary(py38)
+        os.path.join(str(tmpdir), "pex.venv"), interpreter=PythonInterpreter.from_binary(py39)
     )
-    installed = list(InstalledWheel.load(nbconvert_dist.location).reinstall_venv(pex_venv))
+    installed = list(
+        reinstall_venv(installed_wheel=InstalledWheel.load(nbconvert_dist.location), venv=pex_venv)
+    )
     assert installed
 
     # Single out one known data file to check
@@ -62,7 +65,7 @@ def test_data_files(tmpdir):
     # Pip.
     subprocess.check_call(args=[pip, "install", "--no-deps", "--no-compile", "nbconvert==6.4.2"])
     subprocess.check_call(args=[pip, "uninstall", "-y", "setuptools", "wheel", "pip"])
-    pip_venv = Virtualenv.enclosing(py38)
+    pip_venv = Virtualenv.enclosing(py39)
     assert pip_venv is not None
 
     def recursive_listing(
@@ -77,10 +80,8 @@ def test_data_files(tmpdir):
             if f not in exclude
         )
 
-    # We exclude the REQUESTED .dist-info metadata file which Pip installs, but we currently do not.
-    # This file is not required as originally spelled out in PEP-376
-    # (https://peps.python.org/pep-0376/#one-dist-info-directory-per-installed-distribution):
-    # "The METADATA, RECORD and INSTALLER files are mandatory, while REQUESTED may be missing."
-    # This remains true in the modern spec as well. See:
-    # https://packaging.python.org/en/latest/specifications/recording-installed-packages/#the-dist-info-directory
-    assert recursive_listing(pip_venv, exclude={"REQUESTED"}) == recursive_listing(pex_venv)
+    # We exclude the original-whl-info.json .pex-info metadata file since it's Pex-proprietary
+    # metadata to support wheel round-tripping.
+    assert recursive_listing(pip_venv) == recursive_listing(
+        pex_venv, exclude=["original-whl-info.json"]
+    )

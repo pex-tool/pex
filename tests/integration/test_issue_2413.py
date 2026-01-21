@@ -5,6 +5,7 @@ from __future__ import absolute_import
 
 import glob
 import os.path
+import sys
 from textwrap import dedent
 
 import pytest
@@ -78,9 +79,17 @@ def test_venv_with_installs(
     )
 
 
+@pytest.mark.skipif(
+    sys.version_info[:5] == (3, 14, 0, "beta", 1),
+    reason=(
+        "Tox is broken under PI 3.14 beta 1. See:\n"
+        "+ https://github.com/tox-dev/tox/issues/3523\n"
+        "+ https://github.com/python/cpython/issues/133653\n"
+    ),
+)
 def test_bdist_pex_under_tox(
     tmpdir,  # type: Any
-    pex_project_dir,  # type: str
+    pex_wheel,  # type: str
 ):
     # type: (...) -> None
 
@@ -138,7 +147,7 @@ def test_bdist_pex_under_tox(
                     {{envpython}} setup.py bdist_pex \
                         --bdist-dir=dist --pex-args=--disable-cache --bdist-all
                 """
-            ).format(pex=pex_project_dir)
+            ).format(pex=pex_wheel)
         )
 
     subprocess.check_call(args=[tox, "-e", "bundle"], cwd=project_dir)

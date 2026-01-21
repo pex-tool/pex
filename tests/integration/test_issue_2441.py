@@ -55,7 +55,9 @@ EXPECTED_ERROR_FOOTER = """\
 def test_invalid_metadata_error_messages_under_old_pip(tmpdir):
     # type: (Any) -> None
 
-    run_pex3("lock", "create", "mlflow==1.27.0", "--intransitive").assert_failure(
+    run_pex3(
+        "lock", "create", "mlflow==1.27.0", "--intransitive", "--no-avoid-downloads"
+    ).assert_failure(
         expected_error_re=r"^{header_lead_in} .*/{expected_wheel}:\n{footer}$".format(
             header_lead_in=re.escape(EXPECTED_ERROR_HEADER_LEAD_IN),
             expected_wheel=re.escape(EXPECTED_WHEEL),

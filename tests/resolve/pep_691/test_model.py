@@ -6,8 +6,8 @@ from collections import defaultdict
 
 import pytest
 
+from pex.artifact_url import Fingerprint
 from pex.resolve.pep_691.model import File
-from pex.resolve.resolved_requirement import Fingerprint
 from pex.sorted_tuple import SortedTuple
 from pex.typing import TYPE_CHECKING
 
@@ -72,7 +72,7 @@ def test_select_fingerpint_none_guaranteed():
             ),
         )
         for one, two in sorted(
-            itertools.combinations(set(hashlib.algorithms_guaranteed) - {"sha256"}, 2)
+            itertools.combinations(sorted(set(hashlib.algorithms_guaranteed) - {"sha256"}), 2)
         )
     ],
 )

@@ -22,7 +22,7 @@ from pex.compatibility import shlex_quote
 from pex.os import MAC, WINDOWS
 from pex.result import Error, Ok, Result
 from pex.subprocess import subprocess_daemon_kwargs
-from pex.typing import TYPE_CHECKING, Generic, cast
+from pex.typing import TYPE_CHECKING, Generic, cast, overload
 from pex.variables import ENV, Variables
 from pex.version import __version__
 
@@ -30,6 +30,7 @@ if TYPE_CHECKING:
     from typing import (
         IO,
         Any,
+        ContextManager,
         Dict,
         Iterable,
         Iterator,
@@ -42,6 +43,7 @@ if TYPE_CHECKING:
     )
 
     import attr  # vendor:skip
+    from typing_extensions import Literal
 else:
     from pex.third_party import attr
 
@@ -150,6 +152,11 @@ class Command(object):
         # type: (ArgumentParser) -> None
         pass
 
+    @classmethod
+    def supports_unknown_args(cls):
+        # type: () -> bool
+        return False
+
     options = attr.ib()  # type: Namespace
     passthrough_args = attr.ib(default=None)  # type: Optional[Tuple[str, ...]]
 
@@ -175,6 +182,38 @@ class OutputMixin(object):
     def is_stdout(options):
         # type: (Namespace) -> bool
         return options.output == "-" or not options.output
+
+    @overload
+    @classmethod
+    @contextmanager
+    def output(
+        cls,
+        options,  # type: Namespace
+    ):
+        # type: (...) -> ContextManager[IO[str]]
+        pass
+
+    @overload
+    @classmethod
+    @contextmanager
+    def output(
+        cls,
+        options,  # type: Namespace
+        binary,  # type: Literal[False]
+    ):
+        # type: (...) -> ContextManager[IO[str]]
+        pass
+
+    @overload
+    @classmethod
+    @contextmanager
+    def output(
+        cls,
+        options,  # type: Namespace
+        binary,  # type: Literal[True]
+    ):
+        # type: (...) -> ContextManager[IO[bytes]]
+        pass
 
     @classmethod
     @contextmanager
@@ -462,7 +501,17 @@ class Main(Generic["_C"]):
             passthrough_args = tuple(args[passthrough_divide + 1 :])
             args = args[:passthrough_divide]
 
-        options = parser.parse_args(args=args)
+        options, unknown_args = parser.parse_known_args(args=args)
         with global_environment(options):
             command_type = cast("Type[_C]", options.command_type)
+            if unknown_args and not command_type.supports_unknown_args():
+                parser.error(
+                    "Unrecognized arguments: {args}".format(
+                        args=" ".join(shlex_quote(arg) for arg in unknown_args)
+                    )
+                )
+            if passthrough_args:
+                unknown_args.extend(passthrough_args)
+            if unknown_args:
+                passthrough_args = tuple(unknown_args)
             yield command_type(options, passthrough_args)

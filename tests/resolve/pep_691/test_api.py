@@ -12,12 +12,12 @@ except ImportError:
 
 import pytest
 
+from pex.artifact_url import ArtifactURL, Fingerprint
 from pex.fetcher import URLFetcher
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.resolve.pep_691.api import Client
 from pex.resolve.pep_691.model import Endpoint, File, Meta, Project
-from pex.resolve.resolved_requirement import ArtifactURL, Fingerprint
 from pex.sorted_tuple import SortedTuple
 from pex.typing import TYPE_CHECKING
 

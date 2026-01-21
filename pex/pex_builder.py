@@ -33,10 +33,11 @@ from pex.enum import Enum
 from pex.executables import chmod_plus_x, create_sh_python_redirector_shebang
 from pex.finders import get_entry_point_from_console_script, get_script_from_distributions
 from pex.fs import safe_rename, safe_symlink
+from pex.installed_wheel import InstalledWheel
 from pex.interpreter import PythonInterpreter
 from pex.layout import Layout
 from pex.orderedset import OrderedSet
-from pex.pep_376 import InstalledWheel
+from pex.os import WINDOWS
 from pex.pex import PEX
 from pex.pex_info import PexInfo
 from pex.sh_boot import create_sh_boot_script
@@ -46,7 +47,7 @@ from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper
 
 if TYPE_CHECKING:
-    from typing import Dict, Optional
+    from typing import Dict, Iterable, Optional
 
 # N.B.: __file__ will be relative when this module is loaded from a "" `sys.path` entry under
 # Python 2.7. This can occur in test scenarios; so we ensure the __file__ is resolved to an absolute
@@ -164,7 +165,9 @@ class PEXBuilder(object):
         self._chroot = chroot or Chroot(path or safe_mkdtemp())
         self._pex_info = pex_info or PexInfo.default()
         self._preamble = preamble or ""
-        self._copy_mode = copy_mode
+        self._copy_mode = (
+            CopyMode.LINK if ((copy_mode is CopyMode.SYMLINK) and WINDOWS) else copy_mode
+        )
 
         self._shebang = self._interpreter.identity.hashbang()
         self._header = None  # type: Optional[str]
@@ -447,6 +450,11 @@ class PEXBuilder(object):
         self.add_distribution(distribution, fingerprint=fingerprint)
         self.add_requirement(distribution.as_requirement())
 
+    @property
+    def distributions(self):
+        # type: () -> Iterable[Distribution]
+        return self._distributions.values()
+
     def _precompile_source(self):
         vendored_dir = os.path.join(self._pex_info.bootstrap, "pex/vendor/_vendored")
         source_relpaths = [
@@ -467,10 +475,7 @@ class PEXBuilder(object):
     def _prepare_code(self):
         chroot_path = self._chroot.path()
         self._pex_info.code_hash = CacheHelper.pex_code_hash(
-            chroot_path,
-            exclude_dirs=tuple(
-                os.path.join(chroot_path, d) for d in (layout.BOOTSTRAP_DIR, layout.DEPS_DIR)
-            ),
+            chroot_path, exclude_dirs=(layout.BOOTSTRAP_DIR, layout.DEPS_DIR)
         )
         self._pex_info.pex_hash = hashlib.sha1(self._pex_info.dump().encode("utf-8")).hexdigest()
         self._chroot.write(self._pex_info.dump().encode("utf-8"), PexInfo.PATH, label="manifest")
@@ -543,7 +548,11 @@ class PEXBuilder(object):
         # NB: We use pip here in the builder, but that's only at build time, and
         # although we don't use pyparsing directly, packaging.markers, which we
         # do use at runtime, does.
-        root_module_names = ["appdirs", "attr", "colors", "packaging", "pkg_resources", "pyparsing"]
+        root_module_names = ["appdirs", "attr", "colors", "packaging", "pyparsing"]
+        for vendor_spec in vendor.iter_vendor_specs():
+            if vendor_spec.key == "setuptools":
+                root_module_names.append("pkg_resources")
+
         prepared_sources = vendor.vendor_runtime(
             chroot=self._chroot,
             dest_basedir=self._pex_info.bootstrap,
@@ -606,7 +615,7 @@ class PEXBuilder(object):
         self,
         path,  # type: str
         bytecode_compile=True,  # type: bool
-        deterministic_timestamp=False,  # type: bool
+        deterministic=False,  # type: bool
         layout=Layout.ZIPAPP,  # type: Layout.Value
         compress=True,  # type: bool
         check=Check.NONE,  # type: Check.Value
@@ -620,7 +629,7 @@ class PEXBuilder(object):
 
         :param path: The path where the PEX should be stored.
         :param bytecode_compile: If True, precompile .py files into .pyc files.
-        :param deterministic_timestamp: If True, will use our hardcoded time for zipfile timestamps.
+        :param deterministic: If True, will use our hardcoded time for zipfile timestamps.
         :param layout: The layout to use for the PEX.
         :param compress: Whether to compress zip entries when building to a layout that uses zip
                          files.
@@ -650,14 +659,14 @@ class PEXBuilder(object):
         elif layout == Layout.PACKED:
             self._build_packedapp(
                 dirname=tmp_pex,
-                deterministic_timestamp=deterministic_timestamp,
+                deterministic=deterministic,
                 compress=compress,
                 bytecode_compile=bytecode_compile,
             )
         else:
             self._build_zipapp(
                 filename=tmp_pex,
-                deterministic_timestamp=deterministic_timestamp,
+                deterministic=deterministic,
                 compress=compress,
                 bytecode_compile=bytecode_compile,
             )
@@ -711,7 +720,7 @@ class PEXBuilder(object):
     def _build_packedapp(
         self,
         dirname,  # type: str
-        deterministic_timestamp=False,  # type: bool
+        deterministic=False,  # type: bool
         compress=True,  # type: bool
         bytecode_compile=False,  # type: bool
     ):
@@ -751,7 +760,7 @@ class PEXBuilder(object):
                 if not atomic_bootstrap_zip_dir.is_finalized():
                     self._chroot.zip(
                         os.path.join(atomic_bootstrap_zip_dir.work_dir, pex_info.bootstrap),
-                        deterministic_timestamp=deterministic_timestamp,
+                        deterministic=deterministic,
                         exclude_file=is_pyc_temporary_file if bytecode_compile else is_pyc_file,
                         strip_prefix=pex_info.bootstrap,
                         labels=("bootstrap",),
@@ -786,10 +795,10 @@ class PEXBuilder(object):
                             if not atomic_zip_dir.is_finalized():
                                 self._chroot.zip(
                                     os.path.join(atomic_zip_dir.work_dir, location),
-                                    deterministic_timestamp=deterministic_timestamp,
-                                    exclude_file=is_pyc_temporary_file
-                                    if bytecode_compile
-                                    else is_pyc_file,
+                                    deterministic=deterministic,
+                                    exclude_file=(
+                                        is_pyc_temporary_file if bytecode_compile else is_pyc_file
+                                    ),
                                     strip_prefix=os.path.join(pex_info.internal_cache, location),
                                     labels=(location,),
                                     compress=compress,
@@ -799,7 +808,7 @@ class PEXBuilder(object):
     def _build_zipapp(
         self,
         filename,  # type: str
-        deterministic_timestamp=False,  # type: bool
+        deterministic=False,  # type: bool
         compress=True,  # type: bool
         bytecode_compile=False,  # type: bool
     ):
@@ -813,7 +822,7 @@ class PEXBuilder(object):
             self._chroot.zip(
                 filename,
                 mode="a",
-                deterministic_timestamp=deterministic_timestamp,
+                deterministic=deterministic,
                 # When configured with a `copy_mode` of `CopyMode.SYMLINK`, we symlink distributions
                 # as pointers to installed wheel directories in <PEX_ROOT>/installed_wheels/...
                 # Since those installed wheels reside in a shared cache, they can be in-use by other

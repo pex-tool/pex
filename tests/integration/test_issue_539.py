@@ -41,7 +41,7 @@ def test_abi3_resolution():
         ).wait()
         wheel_dir = os.path.join(td, ".wheels")
         pip.spawn_build_wheels(
-            wheel_dir=wheel_dir, distributions=glob.glob(os.path.join(download_dir, "*"))
+            wheel_dir=wheel_dir, requirements=glob.glob(os.path.join(download_dir, "*"))
         ).wait()
 
         cryptography_pex = os.path.join(td, "cryptography.pex")

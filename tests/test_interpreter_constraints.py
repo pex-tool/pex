@@ -1,5 +1,8 @@
 # Copyright 2022 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+from __future__ import absolute_import
+
 import itertools
 import sys
 from textwrap import dedent
@@ -15,22 +18,42 @@ from pex.interpreter_constraints import (
     Lifecycle,
     UnsatisfiableError,
 )
+from pex.interpreter_implementation import InterpreterImplementation
+from pex.interpreter_selection_strategy import InterpreterSelectionStrategy
 from pex.pex_warnings import PEXWarning
+from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.typing import TYPE_CHECKING
-from testing import PY38, ensure_python_interpreter
 
 if TYPE_CHECKING:
     from typing import List, Tuple
 
 
-def test_parse():
-    py38 = PythonInterpreter.from_binary(ensure_python_interpreter(PY38))
+try:
+    from unittest.mock import Mock  # type: ignore[import]
+except ImportError:
+    from mock import Mock  # type: ignore[import]
 
-    assert py38 in InterpreterConstraint.parse("==3.8.*")
-    assert py38 in InterpreterConstraint.parse("CPython==3.8.*")
-    assert py38 in InterpreterConstraint.parse("==3.8.*", default_interpreter="CPython")
-    assert py38 not in InterpreterConstraint.parse("==3.8.*", default_interpreter="PyPy")
-    assert py38 not in InterpreterConstraint.parse("PyPy==3.8.*")
+
+def test_parse(py39):
+    # type: (PythonInterpreter) -> None
+
+    assert py39 in InterpreterConstraint.parse("==3.9.*")
+
+    assert py39 in InterpreterConstraint.parse("CPython==3.9.*")
+
+    assert py39 not in InterpreterConstraint.parse("CPython+t==3.9.*")
+    assert py39 not in InterpreterConstraint.parse("CPython[free-threaded]==3.9.*")
+
+    assert py39 in InterpreterConstraint.parse("CPython-t==3.9.*")
+    assert py39 in InterpreterConstraint.parse("CPython[gil]==3.9.*")
+
+    assert py39 in InterpreterConstraint.parse(
+        "==3.9.*", default_interpreter_implementation=InterpreterImplementation.CPYTHON
+    )
+    assert py39 not in InterpreterConstraint.parse(
+        "==3.9.*", default_interpreter_implementation=InterpreterImplementation.PYPY
+    )
+    assert py39 not in InterpreterConstraint.parse("PyPy==3.9.*")
 
     with pytest.raises(
         UnsatisfiableError, match="The interpreter constraint ==3.8.*,==3.9.* is unsatisfiable."
@@ -82,7 +105,9 @@ def test_parse():
 
 def iter_compatible_versions(*requires_python):
     # type: (*str) -> List[Tuple[int, int, int]]
-    return list(interpreter_constraints.iter_compatible_versions(list(requires_python)))
+    return list(
+        interpreter_constraints.iter_compatible_versions(map(SpecifierSet, requires_python))
+    )
 
 
 def test_iter_compatible_versions_none():
@@ -166,7 +191,11 @@ def test_iter_compatible_versions_non_eol():
     ) == list(
         interpreter_constraints.iter_compatible_versions(
             [
-                "=={major}.{minor}.*".format(major=python_version.major, minor=python_version.minor)
+                SpecifierSet(
+                    "=={major}.{minor}.*".format(
+                        major=python_version.major, minor=python_version.minor
+                    )
+                )
                 for python_version in (oldest_python_version, newest_python_version)
             ],
             max_patch=max_patch,
@@ -175,4 +204,61 @@ def test_iter_compatible_versions_non_eol():
         "Expected the oldest python version to always be EOL and thus iterate its versions exactly "
         "and the newest python version to be non-EOL and iterate its versions past its patch all "
         "the way to the max patch."
+    )
+
+
+def assert_selected(
+    expected_version,  # type: str
+    other_version,  # type: str
+    strategy,  # type: InterpreterSelectionStrategy.Value
+):
+    # type: (...) -> None
+
+    def mock_interpreter(version):
+        interp = Mock()
+        interp.version = tuple(int(v) for v in version.split("."))
+        return interp
+
+    expected = mock_interpreter(expected_version)
+    other = mock_interpreter(other_version)
+    assert (
+        strategy.select([expected, other]) == expected
+    ), "{other_version} was selected instead of {expected_version}".format(
+        other_version=other_version, expected_version=expected_version
+    )
+
+
+def test_interpreter_selection_strategy():
+    # type: () -> None
+
+    assert_selected(
+        expected_version="2.7.0",
+        other_version="3.6.0",
+        strategy=InterpreterSelectionStrategy.OLDEST,
+    )
+    assert_selected(
+        expected_version="3.5.0",
+        other_version="3.6.0",
+        strategy=InterpreterSelectionStrategy.OLDEST,
+    )
+    assert_selected(
+        expected_version="3.6.1",
+        other_version="3.6.0",
+        strategy=InterpreterSelectionStrategy.OLDEST,
+    )
+
+    assert_selected(
+        expected_version="3.6.0",
+        other_version="2.7.0",
+        strategy=InterpreterSelectionStrategy.NEWEST,
+    )
+    assert_selected(
+        expected_version="3.6.0",
+        other_version="3.5.0",
+        strategy=InterpreterSelectionStrategy.NEWEST,
+    )
+    assert_selected(
+        expected_version="3.6.1",
+        other_version="3.6.0",
+        strategy=InterpreterSelectionStrategy.NEWEST,
     )

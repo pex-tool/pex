@@ -20,9 +20,10 @@ from pex.interpreter_constraints import (
     InterpreterConstraints,
     UnsatisfiableInterpreterConstraintsError,
 )
+from pex.interpreter_selection_strategy import InterpreterSelectionStrategy
 from pex.layout import Layout
 from pex.orderedset import OrderedSet
-from pex.os import safe_execv
+from pex.os import WINDOWS, safe_execv
 from pex.pex_info import PexInfo
 from pex.sysconfig import SCRIPT_DIR, script_name
 from pex.targets import LocalInterpreter
@@ -217,6 +218,7 @@ def _select_path_interpreter(
     interpreter_constraints=None,  # type: Optional[InterpreterConstraints]
     preferred_interpreter=None,  # type: Optional[PythonInterpreter]
     interpreter_test=None,  # type: Optional[InterpreterTest]
+    interpreter_selection_strategy=InterpreterSelectionStrategy.OLDEST,  # type: InterpreterSelectionStrategy.Value
 ):
     # type: (...) -> Optional[PythonInterpreter]
 
@@ -242,13 +244,14 @@ def _select_path_interpreter(
         # Always prefer continuing with the current interpreter when possible to avoid re-exec
         # overhead.
         return current_interpreter
-    # TODO: Allow the selection strategy to be parameterized:
-    #   https://github.com/pex-tool/pex/issues/430
-    return PythonInterpreter.latest_release_of_min_compatible_version(candidate_interpreters)
+    return interpreter_selection_strategy.select(candidate_interpreters)
 
 
-def find_compatible_interpreter(interpreter_test=None):
-    # type: (Optional[InterpreterTest]) -> PythonInterpreter
+def find_compatible_interpreter(
+    interpreter_test=None,  # type: Optional[InterpreterTest]
+    interpreter_selection_strategy=InterpreterSelectionStrategy.OLDEST,  # type: InterpreterSelectionStrategy.Value
+):
+    # type: (...) -> PythonInterpreter
 
     interpreter_constraints = interpreter_test.interpreter_constraints if interpreter_test else None
 
@@ -294,12 +297,14 @@ def find_compatible_interpreter(interpreter_test=None):
                         interpreter_constraints=interpreter_constraints,
                         preferred_interpreter=preferred_interpreter,
                         interpreter_test=interpreter_test,
+                        interpreter_selection_strategy=interpreter_selection_strategy,
                     )
                 else:
                     target = _select_path_interpreter(
                         valid_basenames=(os.path.basename(ENV.PEX_PYTHON),),
                         interpreter_constraints=interpreter_constraints,
                         interpreter_test=interpreter_test,
+                        interpreter_selection_strategy=interpreter_selection_strategy,
                     )
             except UnsatisfiableInterpreterConstraintsError as e:
                 raise e.with_preamble(
@@ -323,6 +328,7 @@ def find_compatible_interpreter(interpreter_test=None):
                     interpreter_constraints=interpreter_constraints,
                     preferred_interpreter=preferred_interpreter,
                     interpreter_test=interpreter_test,
+                    interpreter_selection_strategy=interpreter_selection_strategy,
                 )
             except UnsatisfiableInterpreterConstraintsError as e:
                 raise e.with_preamble(
@@ -362,6 +368,7 @@ def find_compatible_interpreter(interpreter_test=None):
 
 def maybe_reexec_pex(
     interpreter_test,  # type: InterpreterTest
+    interpreter_selection_strategy=InterpreterSelectionStrategy.OLDEST,  # type: InterpreterSelectionStrategy.Value
     python_args=(),  # type: Sequence[str]
 ):
     # type: (...) -> Union[None, NoReturn]
@@ -379,6 +386,8 @@ def maybe_reexec_pex(
     constraints against these interpreters.
 
     :param interpreter_test: Optional test to verify selected interpreters can boot a given PEX.
+    :param interpreter_selection_strategy: Strategy to use to select amongst multiple candidate PEX
+                                           boot interpreters.
     :param python_args: Any args to pass to python when re-execing.
     """
 
@@ -397,12 +406,12 @@ def maybe_reexec_pex(
         return None
 
     try:
-        target = find_compatible_interpreter(interpreter_test=interpreter_test)
+        target = find_compatible_interpreter(
+            interpreter_test=interpreter_test,
+            interpreter_selection_strategy=interpreter_selection_strategy,
+        )
     except UnsatisfiableInterpreterConstraintsError as e:
         die(str(e))
-
-    os.environ.pop("PEX_PYTHON", None)
-    os.environ.pop("PEX_PYTHON_PATH", None)
 
     if interpreter_test.pex_info.inherit_path == InheritPath.FALSE:
         # Now that we've found a compatible Python interpreter, make sure we resolve out of any
@@ -585,7 +594,8 @@ def ensure_venv(
                             copy_mode = copy_mode or (
                                 CopyMode.SYMLINK
                                 if (
-                                    pex.layout != Layout.LOOSE
+                                    not WINDOWS
+                                    and pex.layout != Layout.LOOSE
                                     and not pex_info.venv_site_packages_copies
                                 )
                                 else CopyMode.LINK
@@ -595,7 +605,7 @@ def ensure_venv(
                                 virtualenv,
                                 pex,
                                 bin_path=pex_info.venv_bin_path,
-                                python=os.path.join(
+                                shebang_python=os.path.join(
                                     venv_dirs.short_dir,
                                     "venv",
                                     SCRIPT_DIR,
@@ -668,16 +678,26 @@ def bootstrap_pex(
         interpreter_test = InterpreterTest(entry_point=entry_point, pex_info=pex_info)
         if not (ENV.PEX_UNZIP or ENV.PEX_TOOLS) and pex_info.venv:
             try:
-                target = find_compatible_interpreter(interpreter_test=interpreter_test)
+                target = find_compatible_interpreter(
+                    interpreter_test=interpreter_test,
+                    interpreter_selection_strategy=pex_info.interpreter_selection_strategy,
+                )
             except UnsatisfiableInterpreterConstraintsError as e:
                 die(str(e))
             venv_pex = _bootstrap_venv(entry_point, interpreter=target)
             venv_pex.execv(python_args=python_args, additional_args=sys.argv[1:])
         else:
-            maybe_reexec_pex(interpreter_test=interpreter_test, python_args=python_args)
+            maybe_reexec_pex(
+                interpreter_test=interpreter_test,
+                interpreter_selection_strategy=pex_info.interpreter_selection_strategy,
+                python_args=python_args,
+            )
             from . import pex
 
-            return pex.PEX(entry_point).execute()
+            try:
+                return pex.PEX(entry_point).execute()
+            except pex.PEX.Error as e:
+                return e
 
 
 def _activate_pex(

@@ -31,7 +31,7 @@ class Pyenv(object):
         with TRACER.timed("Searching for pyenv root...", V=3):
             pyenv_root = os.environ.get("PYENV_ROOT", "")
             if not pyenv_root:
-                for path_entry in os.environ.get("PATH", "").split(os.pathsep):
+                for path_entry in os.environ.get("PATH", os.defpath).split(os.pathsep):
                     pyenv_exe = os.path.join(path_entry, "pyenv.bat" if WINDOWS else "pyenv")
                     if is_exe(pyenv_exe):
                         try:

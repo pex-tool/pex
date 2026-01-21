@@ -1,18 +1,16 @@
 # Copyright 2022 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-import itertools
 import os.path
 
 import pytest
 
+from pex.artifact_url import VCS, ArtifactURL
 from pex.compatibility import safe_commonpath
 from pex.dist_metadata import Requirement
 from pex.pip.version import PipVersion, PipVersionValue
-from pex.requirements import VCS
 from pex.resolve.locked_resolve import VCSArtifact
 from pex.resolve.lockfile import json_codec
-from pex.resolve.resolved_requirement import ArtifactURL
 from pex.resolve.resolver_configuration import ResolverVersion
 from pex.sorted_tuple import SortedTuple
 from pex.typing import TYPE_CHECKING
@@ -43,6 +41,10 @@ def has_ssh_access():
             "PasswordAuthentication=no",
             "-o",
             "NumberOfPasswordPrompts=0",
+            "-o",
+            "ConnectTimeout={timeout}".format(
+                timeout=os.environ.get("_PEX_TEST_GITHUB_SSH_TIMEOUT", "1")
+            ),
             "git@github.com",
         ],
         stdout=subprocess.PIPE,
@@ -77,8 +79,7 @@ class PipParameters(object):
             "ansicolors @ {vcs_url}".format(vcs_url=VCS_URL), VCS_URL, id="direct-reference"
         ),
         pytest.param(
-            *itertools.repeat("{vcs_url}#egg=ansicolors".format(vcs_url=VCS_URL), 2),
-            id="pip-proprietary"
+            "{vcs_url}#egg=ansicolors".format(vcs_url=VCS_URL), VCS_URL, id="pip-proprietary"
         ),
     ],
 )
@@ -116,9 +117,14 @@ def test_redacted_requirement_handling(
         lock,
         "--indent",
         "2",
+        "--pip-log",
+        os.path.join(str(tmpdir), "pip.log"),
     ).assert_success()
     lockfile = json_codec.load(lock)
-    assert SortedTuple([Requirement.parse("ansicolors")]) == lockfile.requirements
+    assert (
+        SortedTuple([attr.evolve(Requirement.parse("ansicolors"), url=expected_url)])
+        == lockfile.requirements
+    )
 
     assert 1 == len(lockfile.locked_resolves)
     locked_resolve = lockfile.locked_resolves[0]
@@ -133,6 +139,10 @@ def test_redacted_requirement_handling(
     assert isinstance(artifact, VCSArtifact)
     assert VCS.Git is artifact.vcs
     assert ArtifactURL.parse(expected_url) == artifact.url
+    if pip_parameters.pip_version is not PipVersion.VENDORED:
+        assert "c965f5b9103c5bd32a1572adb8024ebe83278fb0" == artifact.commit_id
+    else:
+        assert artifact.commit_id is None, "Vendored Pip does not log resolution of commit ids."
 
     pex_root = os.path.join(str(tmpdir), "pex_root")
     result = run_pex_command(

@@ -9,23 +9,53 @@ import subprocess
 import sys
 from textwrap import dedent
 
-from pex.common import Chroot, is_pyc_dir, is_pyc_file, safe_mkdtemp, touch
+from pex.common import Chroot, is_pyc_dir, is_pyc_file, open_zip, safe_mkdtemp, touch
+from pex.exceptions import production_assert
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Iterable, Iterator, Optional, Sequence, Set, Text, Tuple, Union
+    from typing import Iterable, Iterator, List, Optional, Sequence, Set, Text, Tuple, Union
 
     from pex.interpreter import PythonInterpreter
 
 _PACKAGE_COMPONENTS = __name__.split(".")
 
 
+class EnclosingZip(collections.namedtuple("EnclosingZip", ["path", "entries"])):
+    pass
+
+
+class VendorRoot(collections.namedtuple("VendorRoot", ["path", "enclosing_zip"])):
+    pass
+
+
 def _root():
+    # type: () -> VendorRoot
+
     path = os.path.dirname(os.path.abspath(__file__))
     for _ in _PACKAGE_COMPONENTS:
         path = os.path.dirname(path)
-    return path
+
+    if os.path.isdir(path):
+        return VendorRoot(path, enclosing_zip=None)
+
+    import zipfile
+
+    enclosing_zip = path
+    while not zipfile.is_zipfile(enclosing_zip):
+        parent = os.path.dirname(enclosing_zip)
+        production_assert(
+            parent != enclosing_zip,
+            "Expected to find enclosing PEX or .whl zip for vendor root: {root}",
+            root=path,
+        )
+        enclosing_zip = parent
+
+    with open_zip(enclosing_zip) as zf:
+        return VendorRoot(
+            path, enclosing_zip=EnclosingZip(path=enclosing_zip, entries=frozenset(zf.namelist()))
+        )
 
 
 class VendorSpec(
@@ -49,7 +79,7 @@ class VendorSpec(
     case of pex, which is a py2.py3 platform-agnostic wheel, vendored libraries should be as well.
     """
 
-    ROOT = _root()
+    ROOT, _ENCLOSING_ZIP = _root()
 
     _VENDOR_DIR = "_vendored"
 
@@ -122,15 +152,30 @@ class VendorSpec(
 
     @property
     def _subpath_components(self):
+        # type: () -> List[str]
         return [self._VENDOR_DIR, self.import_path]
 
     @property
     def relpath(self):
-        return os.path.join(*(_PACKAGE_COMPONENTS + self._subpath_components))
+        # type: () -> str
+        return self._relpath()
+
+    def _relpath(self, sep=os.sep):
+        # type: (str) -> str
+        return sep.join(_PACKAGE_COMPONENTS + self._subpath_components)
 
     @property
     def target_dir(self):
         return os.path.join(self.ROOT, self.relpath)
+
+    @property
+    def exists(self):
+        # type: () -> bool
+        if self._ENCLOSING_ZIP:
+            prefix = self.ROOT[len(self._ENCLOSING_ZIP.path) + len(os.sep) :]
+            target_dir = prefix + "/" + self._relpath("/") + "/"
+            return target_dir in self._ENCLOSING_ZIP.entries
+        return os.path.isdir(self.target_dir)
 
     def prepare(self):
         return self.requirement
@@ -191,20 +236,40 @@ class VendorSpec(
 #     Automated update of Pip's vendored certifi's cacert.pem to that from certifi 2024.12.14.
 # 7.) https://github.com/pex-tool/pip/commit/6476fc578af434f379f245019c0f0d90da4ea883
 #     Automated update of Pip's vendored certifi's cacert.pem to that from certifi 2025.1.31.
+# 8.) https://github.com/pex-tool/pip/commit/0f4a71cca9ef0f686faf5fc9f89b1070cbe38598
+#     Automated update of Pip's vendored certifi's cacert.pem to that from certifi 2025.4.26.
+# 9.) https://github.com/pex-tool/pip/commit/098dc9ab34428f2af5ff5a0c9816ca3fc1511ea5
+#     Automated update of Pip's vendored certifi's cacert.pem to that from certifi 2025.6.15.
+# 10.) https://github.com/pex-tool/pip/commit/c91ae3c016c772b391dbd5dc5bdee3c9974ac0c7
+#     Automated update of Pip's vendored certifi's cacert.pem to that from certifi 2025.7.9.
+# 11.) https://github.com/pex-tool/pip/commit/6e5e5a40c9fc8622f5a3e4c9b173b018bf089cb9
+#     Automated update of Pip's vendored certifi's cacert.pem to that from certifi 2025.7.14.
+# 12.) https://github.com/pex-tool/pip/commit/21a4058f77f9864151510b725419206a2e5645ae
+#     Automated update of Pip's vendored certifi's cacert.pem to that from certifi 2025.8.3.
+# 13.) https://github.com/pex-tool/pip/commit/cef23bb7153ec49037d963e84fcad0f08880fbc5
+#     Automated update of Pip's vendored certifi's cacert.pem to that from certifi 2025.10.5.
+# 14.) https://github.com/pex-tool/pip/commit/c7cb62f1602c6c16e23ac0b4d3867818555eb7a7
+#     Automated update of Pip's vendored certifi's cacert.pem to that from certifi 2025.11.12.
+# 15.) https://github.com/pex-tool/pip/commit/31398c4540a9277d73a9c80ca2c653d82470b46e
+#     Automated update of Pip's vendored certifi's cacert.pem to that from certifi 2026.1.4.
 PIP_SPEC = VendorSpec.git(
     repo="https://github.com/pex-tool/pip",
-    commit="6476fc578af434f379f245019c0f0d90da4ea883",
+    commit="31398c4540a9277d73a9c80ca2c653d82470b46e",
     project_name="pip",
     rewrite=False,
 )
 
 
-def iter_vendor_specs(filter_requires_python=None):
-    # type: (Optional[Union[Tuple[int, int], PythonInterpreter]]) -> Iterator[VendorSpec]
+def iter_vendor_specs(
+    filter_requires_python=None,  # type: Optional[Union[Tuple[int, int], PythonInterpreter]]
+    filter_exists=True,  # type: bool
+):
+    # type: (...) -> Iterator[VendorSpec]
     """Iterate specifications for code vendored by pex.
 
     :param filter_requires_python: An optional interpreter (or its major and minor version) to
                                    tailor the vendor specs to.
+    :param filter_exists: Whether to exclude vendor specs whose vendored content is not present.
     :return: An iterator over specs of all vendored code.
     """
     python_major_minor = None  # type: Optional[Tuple[int, int]]
@@ -219,8 +284,8 @@ def iter_vendor_specs(filter_requires_python=None):
     yield VendorSpec.pinned("appdirs", "1.4.4")
 
     # We use this for a better @dataclass that is also Python2.7 and PyPy compatible.
-    # N.B.: The `[testenv:typecheck]` section in `tox.ini` should have its deps list updated to
-    # reflect this attrs version.
+    # N.B.: The `[dependency-groups] mypy` section in `pyproject.toml` should have its deps list
+    # updated to reflect this attrs version.
     # This vcs version gets us the fix in https://github.com/python-attrs/attrs/pull/909
     # which is not yet released.
     yield VendorSpec.git(
@@ -243,32 +308,40 @@ def iter_vendor_specs(filter_requires_python=None):
         yield VendorSpec.pinned(
             "packaging", "21.3", import_path="packaging_21_3", constraints=("pyparsing<3.0.8",)
         )
-    if not python_major_minor or python_major_minor >= (3, 7):
-        # Modern packaging for everyone else.
-        # N.B.: We can't upgrade past 24.0 without re-working marker evaluation for
-        # AbbreviatedPlatform since modern versions of packaging unconditionally assume the
-        # `python_full_version` marker will always be populated.
+    if not python_major_minor or python_major_minor == (3, 7):
+        # The last version to support 3.7.
         yield VendorSpec.pinned("packaging", "24.0", import_path="packaging_24_0")
+    if not python_major_minor or python_major_minor >= (3, 8):
+        # Modern packaging for everyone else.
+        yield VendorSpec.pinned("packaging", "25.0", import_path="packaging_25_0")
+
+    # N.B.: All vendored items below are optional and may not be present in Pex distributions
+    # targeting newer Pythons.
 
     # We use toml to read pyproject.toml when building sdists from local source projects.
     # The toml project provides compatibility back to Python 2.7, but is frozen in time in 2020
-    # with bugs - notably no support for heterogeneous lists. We add the more modern tomli/tomli-w
-    # for other Pythons.
+    # with bugs - notably no support for heterogeneous lists. We add the more modern tomli for
+    # other Pythons and just use tomllib for Python 3.11+.
     if not python_major_minor or python_major_minor < (3, 7):
-        yield VendorSpec.pinned("toml", "0.10.2")
-    if not python_major_minor or python_major_minor >= (3, 7):
-        yield VendorSpec.pinned("tomli", "2.0.1")
-        yield VendorSpec.pinned("tomli-w", "1.0.0")
+        vendored_toml = VendorSpec.pinned("toml", "0.10.2")
+        if not filter_exists or vendored_toml.exists:
+            yield vendored_toml
+    if not python_major_minor or (3, 7) <= python_major_minor < (3, 11):
+        vendored_tomli = VendorSpec.pinned("tomli", "2.0.1")
+        if not filter_exists or vendored_tomli.exists:
+            yield vendored_tomli
 
-    # We shell out to pip at buildtime to resolve and install dependencies.
-    yield PIP_SPEC
+    # We shell out to pip at build-time to resolve and install dependencies.
+    if not python_major_minor or python_major_minor < (3, 12):
+        if not filter_exists or PIP_SPEC.exists:
+            yield PIP_SPEC
 
-    # We expose this to pip at buildtime for legacy builds, but we also use pkg_resources via
+    # We expose this to pip at build-time for legacy builds, but we also use pkg_resources via
     # pex.third_party at runtime to inject pkg_resources style namespace packages if needed.
     # N.B.: 44.0.0 is the last setuptools version compatible with Python 2 and we use a fork of that
     # with patches needed to support Pex on the v44.0.0/patches/pex-2.x branch.
     pex_tool_setuptools_commit = "3acb925dd708430aeaf197ea53ac8a752f7c1863"
-    yield VendorSpec.git(
+    vendored_setuptools = VendorSpec.git(
         repo="https://github.com/pex-tool/setuptools",
         commit=pex_tool_setuptools_commit,
         project_name="setuptools",
@@ -300,6 +373,9 @@ def iter_vendor_specs(filter_requires_python=None):
             ).format(commit=pex_tool_setuptools_commit),
         ],
     )
+    if not python_major_minor or python_major_minor < (3, 12):
+        if not filter_exists or vendored_setuptools.exists:
+            yield vendored_setuptools
 
 
 def vendor_runtime(
@@ -307,7 +383,6 @@ def vendor_runtime(
     dest_basedir,  # type: str
     label,  # type: str
     root_module_names,  # type: Iterable[str]
-    include_dist_info=(),  # type: Iterable[str]
 ):
     # type: (...) -> Set[str]
     """Includes portions of vendored distributions in a chroot.
@@ -320,7 +395,6 @@ def vendor_runtime(
     :param dest_basedir: The prefix to store the vendored code under in the ``chroot``.
     :param label: The chroot label for the vendored code fileset.
     :param root_module_names: The names of the root vendored modules to include in the chroot.
-    :param include_dist_info: Include the .dist-info dirs associated with these root module names.
     :returns: The set of absolute paths of the source files that were vendored.
     :raise: :class:`ValueError` if any of the given ``root_module_names`` could not be found amongst
             the vendored code and added to the chroot.
@@ -359,12 +433,7 @@ def vendor_runtime(
                     vendor_module_names[name] = True
                     TRACER.log("Vendoring {} from {} @ {}".format(name, spec, spec.target_dir), V=3)
 
-                dirs[:] = packages + [
-                    d
-                    for project in include_dist_info
-                    for d in dirs
-                    if d.startswith(project) and d.endswith(".dist-info")
-                ]
+                dirs[:] = packages
                 files[:] = modules
 
             # We copy over sources and data only; no pyc files.

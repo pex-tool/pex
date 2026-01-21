@@ -5,7 +5,6 @@ from __future__ import absolute_import
 
 import itertools
 import os
-from abc import abstractmethod
 from collections import OrderedDict, defaultdict
 
 from pex import pex_warnings
@@ -16,7 +15,7 @@ from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.pep_427 import InstallableType
 from pex.pep_503 import ProjectName
 from pex.pip.version import PipVersionValue
-from pex.resolve.lockfile.model import Lockfile
+from pex.resolve.resolver_configuration import PipConfiguration
 from pex.sorted_tuple import SortedTuple
 from pex.targets import AbbreviatedPlatform, Target, Targets
 from pex.typing import TYPE_CHECKING
@@ -238,27 +237,11 @@ class ResolveResult(object):
 
 
 class Resolver(object):
-    @abstractmethod
-    def is_default_repos(self):
-        # type: () -> bool
+    @property
+    def pip_configuration(self):
+        # type: () -> PipConfiguration
         raise NotImplementedError()
 
-    def use_system_time(self):
-        # type: () -> bool
-        raise NotImplementedError()
-
-    @abstractmethod
-    def resolve_lock(
-        self,
-        lock,  # type: Lockfile
-        targets=Targets(),  # type: Targets
-        pip_version=None,  # type: Optional[PipVersionValue]
-        result_type=InstallableType.INSTALLED_WHEEL_CHROOT,  # type: InstallableType.Value
-    ):
-        # type: (...) -> ResolveResult
-        raise NotImplementedError()
-
-    @abstractmethod
     def resolve_requirements(
         self,
         requirements,  # type: Iterable[str]
@@ -267,6 +250,9 @@ class Resolver(object):
         transitive=None,  # type: Optional[bool]
         extra_resolver_requirements=None,  # type: Optional[Tuple[Requirement, ...]]
         result_type=InstallableType.INSTALLED_WHEEL_CHROOT,  # type: InstallableType.Value
+        constraint_files=None,  # type: Optional[Iterable[str]]
+        compile=False,  # type: bool
+        ignore_errors=False,  # type: bool
     ):
         # type: (...) -> ResolveResult
         raise NotImplementedError()

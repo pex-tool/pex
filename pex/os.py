@@ -6,6 +6,7 @@ from __future__ import absolute_import
 import os
 import sys
 
+from pex import pex_root
 from pex.enum import Enum
 from pex.typing import TYPE_CHECKING
 
@@ -35,7 +36,9 @@ class _CurrentOs(object):
 
 class Os(Enum["Os.Value"]):
     class Value(Enum.Value):
-        pass
+        def path_join(self, *components):
+            # type: (*str) -> str
+            return ("\\" if self is Os.WINDOWS else "/").join(components)
 
     LINUX = Value("linux")
     MACOS = Value("macos")
@@ -58,16 +61,26 @@ if WINDOWS:
 
     def safe_execv(argv):
         # type: (Union[List[str], Tuple[str, ...]]) -> NoReturn
+
         import subprocess
         import sys
 
-        sys.exit(subprocess.call(args=argv))
+        from pex import atexit
+
+        atexit.perform_exit()
+        with pex_root.preserve_fallback():
+            sys.exit(subprocess.call(args=argv))
 
 else:
 
     def safe_execv(argv):
         # type: (Union[List[str], Tuple[str, ...]]) -> NoReturn
-        os.execv(argv[0], argv)
+
+        from pex import atexit
+
+        atexit.perform_exit()
+        with pex_root.preserve_fallback() as env:
+            os.execve(argv[0], argv, env)
 
 
 if WINDOWS:

@@ -8,11 +8,12 @@ from argparse import Namespace, _ActionsContainer
 from textwrap import dedent
 
 from pex import docs
+from pex.cache.dirs import CacheDir
 from pex.commands.command import try_open
-from pex.docs.server import SERVER_NAME, LaunchError, LaunchResult
-from pex.docs.server import launch as launch_docs_server
+from pex.http.server import LaunchError, LaunchResult, Server
 from pex.result import Error, try_
 from pex.typing import TYPE_CHECKING
+from pex.version import __version__
 
 if TYPE_CHECKING:
     from typing import Optional, Union
@@ -23,6 +24,12 @@ else:
 
 
 logger = logging.getLogger(__name__)
+
+
+server = Server(
+    name="Pex v{version} docs HTTP server".format(version=__version__),
+    cache_dir=CacheDir.DOCS.path("server", __version__),
+)
 
 
 def register_open_options(parser):
@@ -80,15 +87,15 @@ def serve_html_docs(
         )
 
     try:
-        result = launch_docs_server(html_docs, port=STANDARD_PORT)
+        result = server.launch(html_docs, port=STANDARD_PORT)
     except LaunchError:
         try:
-            result = launch_docs_server(html_docs, port=0)
+            result = server.launch(html_docs, port=0)
         except LaunchError as e:
             with open(e.log) as fp:
                 for line in fp:
                     logger.log(logging.ERROR, line.rstrip())
-            return Error("Failed to launch {server}.".format(server=SERVER_NAME))
+            return Error("Failed to launch {server}.".format(server=server.name))
 
     if open_browser:
         try_(try_open(result.server_info.url, open_program=config.browser, suppress_stderr=True))

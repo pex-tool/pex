@@ -12,19 +12,20 @@ from subprocess import CalledProcessError
 
 from pex import toml
 from pex.atomic_directory import atomic_directory
-from pex.cache.dirs import CacheDir, UnzipDir
+from pex.cache.dirs import CacheDir
 from pex.common import pluralize, safe_mkdtemp, safe_open
 from pex.compatibility import shlex_quote
 from pex.dist_metadata import NamedEntryPoint, parse_entry_point
 from pex.enum import Enum
-from pex.exceptions import production_assert
+from pex.exceptions import reportable_unexpected_error_msg
 from pex.executables import chmod_plus_x
 from pex.fetcher import URLFetcher
 from pex.hashing import Sha256
-from pex.layout import Layout
+from pex.interpreter_implementation import InterpreterImplementation
 from pex.os import is_exe
 from pex.pep_440 import Version
 from pex.pex import PEX
+from pex.pex_info import PexInfo
 from pex.result import Error, try_
 from pex.scie.model import (
     File,
@@ -38,14 +39,15 @@ from pex.scie.model import (
 )
 from pex.sysconfig import SysPlatform
 from pex.third_party.packaging.specifiers import SpecifierSet
+from pex.third_party.packaging.utils import parse_wheel_filename
 from pex.third_party.packaging.version import InvalidVersion
 from pex.tracer import TRACER
-from pex.typing import TYPE_CHECKING, cast
+from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper
 from pex.variables import ENV, Variables
 
 if TYPE_CHECKING:
-    from typing import Any, Dict, Iterator, List, Optional, Union, cast
+    from typing import Any, Dict, Iterator, List, Optional, Union
 
     import attr  # vendor:skip
 else:
@@ -67,7 +69,7 @@ class Manifest(object):
 
 
 SCIENCE_RELEASES_URL = "https://github.com/a-scie/lift/releases"
-MIN_SCIENCE_VERSION = Version("0.12.2")
+MIN_SCIENCE_VERSION = Version("0.17.2")
 SCIENCE_REQUIREMENT = SpecifierSet("~={min_version}".format(min_version=MIN_SCIENCE_VERSION))
 
 
@@ -81,8 +83,8 @@ def _science_binary_url(suffix=""):
     )
 
 
-PTEX_VERSION = "1.5.1"
-SCIE_JUMP_VERSION = "1.6.1"
+PTEX_VERSION = "1.7.0"
+SCIE_JUMP_VERSION = "1.9.2"
 
 
 class Filenames(Enum["Filenames.Value"]):
@@ -105,6 +107,19 @@ class Filenames(Enum["Filenames.Value"]):
 Filenames.seal()
 
 
+def _is_free_threaded_pex(pex_info):
+    # type: (PexInfo) -> bool
+    for ic in pex_info.interpreter_constraints:
+        if ic.implementation is InterpreterImplementation.CPYTHON_FREE_THREADED:
+            return True
+    for distribution in pex_info.distributions:
+        _, _, _, tags = parse_wheel_filename(os.path.basename(distribution))
+        for tag in tags:
+            if tag.abi.startswith(("cp", "abi3")) and "t" in tag.abi:
+                return True
+    return False
+
+
 def create_manifests(
     configuration,  # type: ScieConfiguration
     name,  # type: str
@@ -114,13 +129,61 @@ def create_manifests(
     # type: (...) -> Iterator[Manifest]
 
     pex_info = pex.pex_info(include_env_overrides=False)
-    pex_root = "{scie.bindings}/pex_root"
+    if pex_info.pex_hash is None:
+        raise ValueError(
+            reportable_unexpected_error_msg(
+                "PEX at {pex} is unexpectedly missing a `pex_hash` in its PEX-INFO.", pex=pex.path()
+            )
+        )
+    pex_hash = pex_info.pex_hash
 
     def create_commands(platform):
         # type: (SysPlatform.Value) -> Iterator[Dict[str, Any]]
+
         entrypoints = configuration.options.busybox_entrypoints
         if entrypoints:
-            pex_entry_point = parse_entry_point(pex_info.entry_point)
+            pex_entrypoint_env_passthrough = (
+                configuration.options.pex_entrypoint_env_passthrough is True
+            )
+        else:
+            pex_entrypoint_env_passthrough = (
+                configuration.options.pex_entrypoint_env_passthrough is not False
+            )
+
+        if configuration.options.custom_entrypoint:
+            env = {}  # type: Dict[str, Any]
+
+            replace = {}
+            if pex_info.venv:
+                replace["VIRTUAL_ENV"] = "{scie.bindings.configure:VIRTUAL_ENV}"
+            for env_name, env_value in configuration.options.custom_entrypoint.env:
+                replace[env_name] = env_value
+            for env_name, resource_path in configuration.options.bind_resource_paths:
+                replace[env_name] = "{{scie.bindings.configure:BIND_RESOURCE_{env_name}}}".format(
+                    env_name=env_name
+                )
+            if replace:
+                env["replace"] = replace
+
+            if not pex_entrypoint_env_passthrough:
+                env["remove_exact"] = [
+                    "PEX_INTERPRETER",
+                    "PEX_MODULE",
+                    "PEX_SCRIPT",
+                    "PEX_VENV",
+                ]
+
+            yield {
+                "env": env,
+                "exe": configuration.options.custom_entrypoint.exe,
+                "args": configuration.options.custom_entrypoint.args,
+            }
+            return
+
+        if entrypoints:
+            pex_entry_point = (
+                parse_entry_point(pex_info.entry_point) if pex_info.entry_point else None
+            )
 
             def default_env(named_entry_point):
                 # type: (...) -> Dict[str, str]
@@ -146,17 +209,28 @@ def create_manifests(
             def create_cmd(named_entry_point):
                 # type: (NamedEntryPoint) -> Dict[str, Any]
 
+                remove_exact = ["PEX_VENV"]
+                replace = {
+                    "__PEX_EXE__": "{scie}",
+                    "__PEX_ENTRY_POINT__": "{scie.bindings.configure:PEX}",
+                }
+                env = {
+                    "default": default_env(named_entry_point),
+                    "remove_exact": remove_exact,
+                    "replace": replace,
+                }
+
+                if pex_info.venv:
+                    replace["VIRTUAL_ENV"] = "{scie.bindings.configure:VIRTUAL_ENV}"
+
                 if (
-                    configuration.options.busybox_pex_entrypoint_env_passthrough
-                    and named_entry_point.entry_point == pex_entry_point
+                    not pex_entrypoint_env_passthrough
+                    or named_entry_point.entry_point != pex_entry_point
                 ):
-                    env = {"default": default_env(named_entry_point), "remove_exact": ["PEX_VENV"]}
-                else:
-                    env = {
-                        "default": default_env(named_entry_point),
-                        "replace": {"PEX_MODULE": str(named_entry_point.entry_point)},
-                        "remove_exact": ["PEX_INTERPRETER", "PEX_SCRIPT", "PEX_VENV"],
-                    }
+                    remove_exact.append("PEX_INTERPRETER")
+                    remove_exact.append("PEX_SCRIPT")
+                    replace["PEX_MODULE"] = str(named_entry_point.entry_point)
+
                 return {
                     "name": named_entry_point.name,
                     "env": env,
@@ -164,11 +238,12 @@ def create_manifests(
                     "args": args(named_entry_point, "{scie.bindings.configure:PEX}"),
                 }
 
-            if pex_info.venv and not configuration.options.busybox_pex_entrypoint_env_passthrough:
+            console_scripts = entrypoints.console_scripts_manifest.collect(pex)
+            if pex_info.venv and not pex_entrypoint_env_passthrough:
                 # N.B.: Executing the console script directly instead of bouncing through the PEX
                 # __main__.py using PEX_SCRIPT saves ~10ms of re-exec overhead in informal testing; so
                 # it's worth specializing here.
-                for named_entry_point in entrypoints.console_scripts_manifest.collect(pex):
+                for named_entry_point in console_scripts:
                     yield {
                         "name": named_entry_point.name,
                         "env": {
@@ -179,27 +254,59 @@ def create_manifests(
                                 "PEX_SCRIPT",
                                 "PEX_VENV",
                             ],
+                            "replace": {"VIRTUAL_ENV": "{scie.bindings.configure:VIRTUAL_ENV}"},
                         },
-                        "exe": "{scie.bindings.configure:PYTHON}",
-                        "args": args(
-                            named_entry_point,
+                        "exe": (
                             "{scie.bindings.configure:VENV_BIN_DIR_PLUS_SEP}"
-                            + platform.binary_name(named_entry_point.name),
+                            + platform.binary_name(named_entry_point.name)
                         ),
+                        "args": args(named_entry_point),
                     }
             else:
-                for named_entry_point in entrypoints.console_scripts_manifest.collect(pex):
+                for named_entry_point in console_scripts:
                     yield create_cmd(named_entry_point)
             for named_entry_point in entrypoints.ad_hoc_entry_points:
                 yield create_cmd(named_entry_point)
+        elif pex_info.script and pex_info.venv and not pex_entrypoint_env_passthrough:
+            cmd = {
+                "env": {
+                    "default": pex_info.inject_env,
+                    "remove_exact": [
+                        "PEX_INTERPRETER",
+                        "PEX_MODULE",
+                        "PEX_SCRIPT",
+                        "PEX_VENV",
+                    ],
+                    "replace": {"VIRTUAL_ENV": "{scie.bindings.configure:VIRTUAL_ENV}"},
+                }
+            }  # type: Dict[str, Any]
+            script = "{scie.bindings.configure:VENV_BIN_DIR_PLUS_SEP}" + platform.binary_name(
+                pex_info.script
+            )
+            if pex_info.inject_python_args:
+                cmd["exe"] = "{scie.bindings.configure:PYTHON}"
+                cmd["args"] = list(pex_info.inject_python_args)
+                cmd["args"].append(script)
+                cmd["args"].extend(pex_info.inject_args)
+            else:
+                cmd["exe"] = script
+                cmd["args"] = pex_info.inject_args
+            yield cmd
         else:
-            yield {
+            cmd = {
                 "env": {
                     "remove_exact": ["PEX_VENV"],
+                    "replace": {
+                        "__PEX_EXE__": "{scie}",
+                        "__PEX_ENTRY_POINT__": "{scie.bindings.configure:PEX}",
+                    },
                 },
                 "exe": "{scie.bindings.configure:PYTHON}",
                 "args": ["{scie.bindings.configure:PEX}"],
             }
+            if pex_info.venv:
+                cmd["env"]["replace"]["VIRTUAL_ENV"] = "{scie.bindings.configure:VIRTUAL_ENV}"
+            yield cmd
 
     # Try to give the PEX the extracted filename expected by the user. This should work in almost
     # all cases save for the Pex PEX.
@@ -210,9 +317,14 @@ def create_manifests(
         pex_name = Filenames.PEX.name
         pex_key = None
 
-    lift = {
+    scie_jump_config = {"version": SCIE_JUMP_VERSION}
+    if configuration.options.assets_base_url:
+        scie_jump_config["base_url"] = "/".join((configuration.options.assets_base_url, "jump"))
+
+    lift_template = {
         "name": name,
-        "scie_jump": {"version": SCIE_JUMP_VERSION},
+        "load_dotenv": configuration.options.load_dotenv,
+        "scie_jump": scie_jump_config,
         "files": [
             {"name": Filenames.CONFIGURE_BINDING.name},
             dict(name=pex_name, is_executable=True, **({"key": pex_key} if pex_key else {})),
@@ -220,18 +332,19 @@ def create_manifests(
     }  # type: Dict[str, Any]
 
     if configuration.options.style is ScieStyle.LAZY:
-        lift["ptex"] = {
+        ptex_config = lift_template["ptex"] = {
             "id": Filenames.PTEX.name,
             "version": PTEX_VERSION,
             "argv1": "{scie.env.PEX_BOOTSTRAP_URLS={scie.lift}}",
         }
+        if configuration.options.assets_base_url:
+            ptex_config["base_url"] = "/".join((configuration.options.assets_base_url, "ptex"))
 
     configure_binding = {
         "env": {
             "remove_exact": ["PATH"],
             "remove_re": ["PEX_.*", "PYTHON.*"],
             "replace": {
-                "PEX_ROOT": pex_root,
                 "PEX_INTERPRETER": "1",
                 # We can get a warning about too-long script shebangs, but this is not
                 # relevant since we above run the PEX via python and not via shebang.
@@ -243,21 +356,44 @@ def create_manifests(
     }
 
     configure_binding_args = [Filenames.PEX.placeholder, Filenames.CONFIGURE_BINDING.placeholder]
+    pbs_free_threaded = _is_free_threaded_pex(pex_info) or configuration.options.pbs_free_threaded
     for interpreter in configuration.interpreters:
+        lift = lift_template.copy()
+
+        if configuration.options.base:
+            lift["base"] = configuration.options.base
+        elif pex_info.pex_root_set:
+            lift["base"] = CacheDir.SCIES.path(
+                "base", os=interpreter.platform.os, pex_root=pex_info.raw_pex_root
+            )
+
         manifest_path = os.path.join(
             safe_mkdtemp(),
             interpreter.platform.qualified_file_name("{name}-lift.toml".format(name=name)),
         )
 
+        version_str = interpreter.version_str
+        if Provider.PythonBuildStandalone is interpreter.provider:
+            if configuration.options.pbs_debug:
+                version_str += "d"
+            if pbs_free_threaded:
+                version_str += "t"
+
         interpreter_config = {
             "id": "python-distribution",
             "provider": interpreter.provider.value,
-            "version": interpreter.version_str,
+            "version": version_str,
             "lazy": configuration.options.style is ScieStyle.LAZY,
         }
         if interpreter.release:
             interpreter_config["release"] = interpreter.release
-        if Provider.PythonBuildStandalone is interpreter.provider:
+        if configuration.options.assets_base_url:
+            interpreter_config["base_url"] = "/".join(
+                (configuration.options.assets_base_url, "providers", str(interpreter.provider))
+            )
+        if Provider.PythonBuildStandalone is interpreter.provider and not (
+            configuration.options.pbs_debug or pbs_free_threaded
+        ):
             interpreter_config.update(
                 flavor=(
                     "install_only_stripped"
@@ -266,25 +402,24 @@ def create_manifests(
                 )
             )
 
-        # N.B.: For the venv case, we let the configure-binding calculate the installed PEX dir
-        # (venv dir) at runtime since it depends on the interpreter executing the venv PEX.
+        extra_configure_binding_args = []  # type: List[str]
         if pex_info.venv:
-            extra_configure_binding_args = ["--venv-bin-dir", interpreter.platform.venv_bin_dir]
-        else:
-            extra_configure_binding_args = ["--installed-pex-dir"]
-            if pex.layout is Layout.LOOSE:
-                extra_configure_binding_args.append(Filenames.PEX.placeholder)
-            else:
-                production_assert(pex_info.pex_hash is not None)
-                pex_hash = cast(str, pex_info.pex_hash)
-                extra_configure_binding_args.append(
-                    UnzipDir.create(pex_hash, pex_root=pex_root).path
-                )
+            extra_configure_binding_args.extend(
+                ("--venv-bin-dir", interpreter.platform.venv_bin_dir)
+            )
+        for name, value in configuration.options.bind_resource_paths:
+            extra_configure_binding_args.append("--bind-resource-path")
+            extra_configure_binding_args.append("{name}={value}".format(name=name, value=value))
+        extra_configure_binding_args.append(pex_hash)
 
         if use_platform_suffix is True or (
             use_platform_suffix is None and interpreter.platform is not SysPlatform.CURRENT
         ):
-            lift["platforms"] = [interpreter.platform.value]
+            lift["platforms"] = [
+                {"platform": interpreter.platform.os_arch, "libc": str(interpreter.platform.libc)}
+                if interpreter.platform.libc
+                else interpreter.platform.os_arch
+            ]
 
         with safe_open(manifest_path, "wb") as fp:
             toml.dump(
@@ -364,7 +499,7 @@ def _path_science():
     return None
 
 
-def _ensure_science(
+def ensure_science(
     url_fetcher=None,  # type: Optional[URLFetcher]
     science_binary=None,  # type: Optional[Union[File, Url]]
     env=ENV,  # type: Variables
@@ -447,7 +582,7 @@ def build(
 ):
     # type: (...) -> Iterator[ScieInfo]
 
-    science = _ensure_science(
+    science = ensure_science(
         url_fetcher=url_fetcher,
         science_binary=configuration.options.science_binary,
         env=env,
@@ -496,8 +631,15 @@ def build(
         for hash_algorithm in configuration.options.hash_algorithms:
             args.extend(["--hash", hash_algorithm])
         args.append(manifest.path)
+
+        environ = os.environ.copy()
+        if url_fetcher:
+            environ.update(url_fetcher.network_env())
+
         with open(os.devnull, "wb") as devnull:
-            process = subprocess.Popen(args=args, stdout=devnull, stderr=subprocess.PIPE)
+            process = subprocess.Popen(
+                args=args, env=environ, stdout=devnull, stderr=subprocess.PIPE
+            )
             _, stderr = process.communicate()
             if process.returncode != 0:
                 saved_manifest = os.path.relpath(

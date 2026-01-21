@@ -50,6 +50,13 @@ PlatformNamingStyle.seal()
 
 
 @attr.s(frozen=True)
+class Command(object):
+    exe = attr.ib()  # type: str
+    args = attr.ib(default=())  # type: Tuple[str, ...]
+    env = attr.ib(default=())  # type: Tuple[Tuple[str, str], ...]
+
+
+@attr.s(frozen=True)
 class ConsoleScript(object):
     name = attr.ib()  # type: str
     project_name = attr.ib(default=None)  # type: Optional[ProjectName]
@@ -295,17 +302,24 @@ class ScieOptions(object):
     style = attr.ib(default=ScieStyle.LAZY)  # type: ScieStyle.Value
     naming_style = attr.ib(default=None)  # type: Optional[PlatformNamingStyle.Value]
     scie_only = attr.ib(default=False)  # type: bool
+    load_dotenv = attr.ib(default=False)  # type: bool
+    bind_resource_paths = attr.ib(default=())  # type: Tuple[Tuple[str, str], ...]
+    custom_entrypoint = attr.ib(default=None)  # type: Optional[Command]
     busybox_entrypoints = attr.ib(default=None)  # type: Optional[BusyBoxEntryPoints]
-    busybox_pex_entrypoint_env_passthrough = attr.ib(default=False)  # type: bool
+    pex_entrypoint_env_passthrough = attr.ib(default=None)  # type: Optional[bool]
     platforms = attr.ib(default=())  # type: Tuple[SysPlatform.Value, ...]
     pbs_release = attr.ib(default=None)  # type: Optional[str]
     pypy_release = attr.ib(default=None)  # type: Optional[str]
     python_version = attr.ib(
         default=None
     )  # type: Optional[Union[Tuple[int, int], Tuple[int, int, int]]]
+    pbs_free_threaded = attr.ib(default=False)  # type: bool
+    pbs_debug = attr.ib(default=False)  # type: bool
     pbs_stripped = attr.ib(default=False)  # type: bool
     hash_algorithms = attr.ib(default=())  # type: Tuple[str, ...]
     science_binary = attr.ib(default=None)  # type: Optional[Union[File, Url]]
+    assets_base_url = attr.ib(default=None)  # type: Optional[Url]
+    base = attr.ib(default=None)  # type: Optional[str]
 
     def create_configuration(self, targets):
         # type: (Targets) -> ScieConfiguration
@@ -368,18 +382,26 @@ class ScieConfiguration(object):
             is_aarch64 = "arm64" in platform_str or "aarch64" in platform_str
             is_armv7l = "armv7l" in platform_str or "armv8l" in platform_str
             is_ppc64le = "ppc64le" in platform_str
+            is_riscv64 = "riscv64" in platform_str
             is_s390x = "s390x" in platform_str
             is_x86_64 = "amd64" in platform_str or "x86_64" in platform_str
-            if not is_aarch64 ^ is_armv7l ^ is_ppc64le ^ is_s390x ^ is_x86_64:
+            if not is_aarch64 ^ is_armv7l ^ is_ppc64le ^ is_riscv64 ^ is_s390x ^ is_x86_64:
                 continue
 
-            if "linux" in platform_str:
+            if "musllinux" in platform_str:
+                if is_aarch64:
+                    scie_platform = SysPlatform.MUSL_LINUX_AARCH64
+                else:
+                    scie_platform = SysPlatform.MUSL_LINUX_X86_64
+            elif "linux" in platform_str:
                 if is_aarch64:
                     scie_platform = SysPlatform.LINUX_AARCH64
                 elif is_armv7l:
                     scie_platform = SysPlatform.LINUX_ARMV7L
                 elif is_ppc64le:
                     scie_platform = SysPlatform.LINUX_PPC64LE
+                elif is_riscv64:
+                    scie_platform = SysPlatform.LINUX_RISCV64
                 elif is_s390x:
                     scie_platform = SysPlatform.LINUX_S390X
                 else:

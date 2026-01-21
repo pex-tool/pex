@@ -16,7 +16,7 @@ from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from typing import Any, DefaultDict, List, Mapping, Optional, Tuple
+    from typing import Any, DefaultDict, List, Mapping, Optional, Text, Tuple
 
     import attr  # vendor:skip
 else:
@@ -37,8 +37,8 @@ class InvalidMetadataError(ValueError):
 class MetadataBlock(object):
     source = attr.ib()  # type: str
     start_line = attr.ib()  # type: int
-    type = attr.ib()  # type: str
-    content = attr.ib()  # type: Tuple[str, ...]
+    type = attr.ib()  # type: Text
+    content = attr.ib()  # type: Tuple[Text, ...]
 
     def create_metadata_error(self, problem_clause):
         # type: (str) -> InvalidMetadataError
@@ -65,13 +65,13 @@ class MetadataBlock(object):
 
 @attr.s
 class ParseState(object):
-    start_type = attr.ib(default="", init=False)  # type: str
+    start_type = attr.ib(default="", init=False)  # type: Text
     start_line = attr.ib(default=0, init=False)  # type: int
     end_line = attr.ib(default=0, init=False)  # type: int
 
     def reset(
         self,
-        start_type="",  # type: str
+        start_type="",  # type: Text
         start_line=0,  # type: int
     ):
         # type: (...) -> None
@@ -95,7 +95,7 @@ class Code(object):
     @classmethod
     def parse(
         cls,
-        code,  # type: str
+        code,  # type: Text
         line_count=None,  # type: Optional[int]
     ):
         # type: (...) -> Code
@@ -139,15 +139,15 @@ class Code(object):
 
 
 def parse_metadata_blocks(
-    script,  # type: str
+    script,  # type: Text
     source=_UNSPECIFIED_SOURCE,  # type: str
 ):
-    # type: (...) -> Mapping[str, MetadataBlock]
+    # type: (...) -> Mapping[Text, MetadataBlock]
 
     lines = script.splitlines()
     code = Code.parse(script, line_count=len(lines))
 
-    metadata_blocks = OrderedDict()  # type: OrderedDict[str, List[MetadataBlock]]
+    metadata_blocks = OrderedDict()  # type: OrderedDict[Text, List[MetadataBlock]]
     parse_state = ParseState()
 
     def add_metadata_block():
@@ -231,7 +231,7 @@ class ScriptMetadata(object):
     @classmethod
     def parse(
         cls,
-        script,  # type: str
+        script,  # type: Text
         source=_UNSPECIFIED_SOURCE,  # type: str
     ):
         # type: (...) -> ScriptMetadata

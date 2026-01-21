@@ -7,8 +7,10 @@ import hashlib
 import os
 from collections import defaultdict
 
+from pex.artifact_url import ArtifactURL, Fingerprint
 from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import Distribution, Requirement
+from pex.exceptions import production_assert
 from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.interpreter import PythonInterpreter
 from pex.jobs import iter_map_parallel
@@ -18,9 +20,9 @@ from pex.pep_503 import ProjectName
 from pex.pip.tool import PackageIndexConfiguration
 from pex.requirements import LocalProjectRequirement
 from pex.resolve.configured_resolver import ConfiguredResolver
-from pex.resolve.locked_resolve import Artifact, FileArtifact, LockedRequirement, LockedResolve
+from pex.resolve.locked_resolve import FileArtifact, LockedRequirement, LockedResolve
 from pex.resolve.requirement_configuration import RequirementConfiguration
-from pex.resolve.resolved_requirement import ArtifactURL, Fingerprint, Pin
+from pex.resolve.resolved_requirement import Pin
 from pex.resolve.resolver_configuration import PipConfiguration
 from pex.resolve.resolvers import (
     ResolvedDistribution,
@@ -33,11 +35,11 @@ from pex.result import try_
 from pex.sorted_tuple import SortedTuple
 from pex.targets import Targets
 from pex.tracer import TRACER
-from pex.typing import TYPE_CHECKING
+from pex.typing import TYPE_CHECKING, cast
 from pex.util import CacheHelper
 
 if TYPE_CHECKING:
-    from typing import DefaultDict, Dict, Iterable, List, Tuple
+    from typing import DefaultDict, Dict, List, Sequence, Tuple
 
 
 def _fingerprint_dist(dist_path):
@@ -47,8 +49,8 @@ def _fingerprint_dist(dist_path):
 
 def resolve_from_dists(
     targets,  # type: Targets
-    sdists,  # type: Iterable[str]
-    wheels,  # type: Iterable[str]
+    sdists,  # type: Sequence[str]
+    wheels,  # type: Sequence[str]
     requirement_configuration,  # type: RequirementConfiguration
     pip_configuration=PipConfiguration(),  # type: PipConfiguration
     compile=False,  # type: bool
@@ -68,9 +70,6 @@ def resolve_from_dists(
         if isinstance(direct_requirement, LocalProjectRequirement):
             local_projects.append(direct_requirement)
 
-    source_paths = [local_project.path for local_project in local_projects] + list(
-        sdists
-    )  # type: List[str]
     with TRACER.timed("Fingerprinting pre-resolved wheels"):
         fingerprinted_wheels = tuple(
             FingerprintedDistribution(
@@ -92,27 +91,33 @@ def resolve_from_dists(
         fingerprinted_wheels and InstallableType.INSTALLED_WHEEL_CHROOT is result_type
     )
     with TRACER.timed("Preparing pre-resolved distributions"):
-        if source_paths or resolve_installed_wheel_chroots:
+        if sdists or local_projects or resolve_installed_wheel_chroots:
             package_index_configuration = PackageIndexConfiguration.create(
                 pip_version=pip_configuration.version,
                 resolver_version=pip_configuration.resolver_version,
-                indexes=pip_configuration.repos_configuration.indexes,
-                find_links=pip_configuration.repos_configuration.find_links,
+                repos_configuration=pip_configuration.repos_configuration,
                 network_configuration=pip_configuration.network_configuration,
-                password_entries=pip_configuration.repos_configuration.password_entries,
                 use_pip_config=pip_configuration.use_pip_config,
                 extra_pip_requirements=pip_configuration.extra_requirements,
                 keyring_provider=pip_configuration.keyring_provider,
             )
+            build_requests = [
+                BuildRequest.for_file(target=target, source_path=sdist)
+                for sdist in sdists
+                for target in unique_targets
+            ]
+            build_requests.extend(
+                BuildRequest.for_directory(target=target, source_path=local_project.path)
+                for local_project in local_projects
+                for target in unique_targets
+            )
             build_and_install = BuildAndInstallRequest(
-                build_requests=[
-                    BuildRequest.create(target=target, source_path=source_path)
-                    for source_path in source_paths
-                    for target in unique_targets
-                ],
+                build_requests=build_requests,
                 install_requests=[
                     InstallRequest(
-                        target=target, wheel_path=wheel.location, fingerprint=wheel.fingerprint
+                        download_target=target,
+                        wheel_path=wheel.location,
+                        fingerprint=wheel.fingerprint,
                     )
                     for wheel in fingerprinted_wheels
                     for target in unique_targets
@@ -162,7 +167,7 @@ def resolve_from_dists(
     with TRACER.timed("Sub-setting pre-resolved wheels"):
         root_requirements = OrderedSet()  # type: OrderedSet[Requirement]
         locked_requirements = []  # type: List[LockedRequirement]
-        resolved_dist_by_file_artifact = {}  # type: Dict[Artifact, ResolvedDistribution]
+        resolved_dist_by_file_artifact = {}  # type: Dict[FileArtifact, ResolvedDistribution]
         for resolved_dist in resolved_dists:
             file_artifact = FileArtifact(
                 url=ArtifactURL.parse(resolved_dist.distribution.location),
@@ -207,8 +212,10 @@ def resolve_from_dists(
                     dependency_configuration=dependency_configuration,
                 )
             )
-            for artifact in resolved.downloadable_artifacts:
-                resolved_dists_subset.add(resolved_dist_by_file_artifact[artifact.artifact])
+            for downloadable_artifact in resolved.downloadable_artifacts:
+                production_assert(isinstance(downloadable_artifact.artifact, FileArtifact))
+                file_artifact = cast(FileArtifact, downloadable_artifact.artifact)
+                resolved_dists_subset.add(resolved_dist_by_file_artifact[file_artifact])
 
     return ResolveResult(
         dependency_configuration=dependency_configuration,

@@ -155,10 +155,10 @@ def test_setproctitle(
         assert (
             os.path.join(
                 variables.venv_dir(
-                    pex_file,
                     pex_info.pex_root,
                     pex_info.pex_hash,
                     has_interpreter_constraints=False,
+                    pex_file=pex_file,
                 ),
                 "pex",
             )
@@ -175,4 +175,8 @@ def test_setproctitle(
     setproctitle_pex_file = os.path.join(str(tmpdir), "pex.file.titled")
     exe, args = grab_ps(setproctitle_pex_file, "setproctitle")
     assert_expected_python(exe)
-    assert "{pex_file} --some arguments here".format(pex_file=setproctitle_pex_file) == args
+
+    assert args.startswith(setproctitle_pex_file)
+    args_suffix = args[len(setproctitle_pex_file + " ") :]
+    assert args_suffix
+    assert "--some arguments here".startswith(args_suffix)

@@ -20,9 +20,10 @@ from pex.interpreter import PythonInterpreter
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pex_info import PexInfo
+from pex.pip.version import PipVersion
 from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper
-from testing import IS_PYPY, PY_VER, built_wheel, make_env, run_pex_command, subprocess
+from testing import IS_PYPY, PY39, PY311, PY_VER, built_wheel, make_env, run_pex_command, subprocess
 from testing.cli import run_pex3
 from testing.lock import index_lock_artifacts
 from testing.pytest_utils.tmp import Tempdir, TempdirFactory
@@ -176,6 +177,7 @@ def requests_lock_findlinks(
         "create",
         "--style",
         "strict",
+        "--no-avoid-downloads",
         "--no-pypi",
         "-f",
         find_links_repo,
@@ -280,10 +282,19 @@ def test_unavailable_artifacts(
     )
 
 
+@pytest.mark.skipif(
+    not all(
+        PipVersion.DEFAULT.requires_python_applies(Version(version)) for version in (PY39, PY311)
+    ),
+    reason=(
+        "Test requires running against Python 3.9 and Python 3.11 with the current default "
+        "`--pip-version`."
+    ),
+)
 def test_multiplatform(
     tmpdir,  # type: Tempdir
-    py38,  # type: PythonInterpreter
-    py310,  # type: PythonInterpreter
+    py39,  # type: PythonInterpreter
+    py311,  # type: PythonInterpreter
 ):
     # type: (...) -> None
 
@@ -298,7 +309,7 @@ def test_multiplatform(
         "--interpreter-constraint",
         # N.B.: Ensure the lock covers 3.8 and 3.10, which we use below to build a multiplatform
         # PEX.
-        ">=3.8,!=3.9.*,<3.11",
+        ">=3.9,!=3.10.*,<3.12",
         "requests[security]==2.25.1",
         "-o",
         requests_lock_universal,
@@ -308,9 +319,9 @@ def test_multiplatform(
     run_pex_command(
         args=[
             "--python",
-            py38.binary,
+            py39.binary,
             "--python",
-            py310.binary,
+            py311.binary,
             "--lock",
             requests_lock_universal,
             "requests[security]",
@@ -320,8 +331,8 @@ def test_multiplatform(
     ).assert_success()
 
     check_command = [pex_file, "-c", "import requests"]
-    py38.execute(check_command)
-    py310.execute(check_command)
+    py39.execute(check_command)
+    py311.execute(check_command)
 
 
 def test_issue_1413_portable_find_links(tmpdir):
@@ -475,8 +486,9 @@ def test_issue_1717_transitive_extras(
         *expected_project_names  # type: str
     ):
         # type: (...) -> None
-        assert set(expected_project_names) == {
-            ProjectNameAndVersion.from_filename(d).project_name for d in pex_info.distributions
+        assert set(map(ProjectName, expected_project_names)) == {
+            ProjectNameAndVersion.from_filename(d).canonicalized_project_name
+            for d in pex_info.distributions
         }
 
     # N.B.: Pex 2.1.78 only works on CPython 3.10 and older and PyPy 3.7 and older.

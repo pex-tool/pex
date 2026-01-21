@@ -14,8 +14,8 @@ import sys
 from contextlib import contextmanager
 from textwrap import dedent
 
-from pex import pex_warnings
-from pex.common import can_write_dir, die, safe_mkdtemp
+from pex import pex_root, pex_warnings
+from pex.common import die
 from pex.inherit_path import InheritPath
 from pex.orderedset import OrderedSet
 from pex.typing import TYPE_CHECKING, Generic, overload
@@ -660,16 +660,10 @@ class Variables(object):
 
     @PEX_ROOT.validator
     def _ensure_writeable_pex_root(self, raw_pex_root):
-        pex_root = os.path.realpath(os.path.expanduser(raw_pex_root))
-        if not can_write_dir(pex_root):
-            tmp_root = os.path.realpath(safe_mkdtemp())
-            pex_warnings.warn(
-                "PEX_ROOT is configured as {pex_root} but that path is un-writeable, "
-                "falling back to a temporary PEX_ROOT of {tmp_root} which will hurt "
-                "performance.".format(pex_root=pex_root, tmp_root=tmp_root)
-            )
-            pex_root = self._environ["PEX_ROOT"] = tmp_root
-        return pex_root
+        writeable_pex_root, is_fallback = pex_root.ensure_writeable(raw_pex_root)
+        if is_fallback:
+            self._environ["PEX_ROOT"] = writeable_pex_root
+        return writeable_pex_root
 
     @property
     def PEX_PATH(self):
@@ -819,10 +813,10 @@ def unzip_dir(
 
 
 def venv_dir(
-    pex_file,  # type: str
     pex_root,  # type: str
     pex_hash,  # type: str
     has_interpreter_constraints,  # type: bool
+    pex_file=None,  # type: Optional[str]
     interpreter=None,  # type: Optional[PythonInterpreter]
     pex_path=(),  # type: Tuple[str, ...]
     expand_pex_root=True,  # type: bool
@@ -898,13 +892,18 @@ def venv_dir(
 
     def warn(message):
         # type: (str) -> None
+
+        if not pex_file:
+            return
+
         from pex.pex_info import PexInfo
 
         pex_warnings.configure_warnings(ENV, PexInfo.from_pex(pex_file))
         pex_warnings.warn(message)
 
     if (
-        ENV.PEX_PYTHON
+        pex_file
+        and ENV.PEX_PYTHON
         and not precise_pex_python
         and not re.match(r".*[^\d][\d]+\.[\d]+$", ENV.PEX_PYTHON)
     ):
@@ -928,7 +927,7 @@ def venv_dir(
                 )
             )
         )
-    if not interpreter_path and ENV.PEX_PYTHON_PATH:
+    if pex_file and not interpreter_path and ENV.PEX_PYTHON_PATH:
         warn(
             dedent(
                 """\

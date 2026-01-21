@@ -195,5 +195,5 @@ def load_build_system(
             build_backend=build_system_table.build_backend,
             backend_path=build_system_table.backend_path,
             extra_requirements=extra_requirements,
-            use_system_time=resolver.use_system_time(),
+            use_system_time=resolver.pip_configuration.build_configuration.use_system_time,
         )

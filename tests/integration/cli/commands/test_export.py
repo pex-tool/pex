@@ -11,6 +11,7 @@ from textwrap import dedent
 
 import pytest
 
+from pex.artifact_url import ArtifactURL, Fingerprint
 from pex.dist_metadata import Requirement
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
@@ -18,14 +19,14 @@ from pex.pip.version import PipVersion
 from pex.resolve.locked_resolve import (
     Artifact,
     LocalProjectArtifact,
+    LockConfiguration,
     LockedRequirement,
     LockedResolve,
-    LockStyle,
     VCSArtifact,
 )
 from pex.resolve.lockfile import json_codec
 from pex.resolve.lockfile.model import Lockfile
-from pex.resolve.resolved_requirement import ArtifactURL, Fingerprint, Pin
+from pex.resolve.resolved_requirement import Pin
 from pex.resolve.resolver_configuration import ResolverVersion
 from pex.sorted_tuple import SortedTuple
 from pex.typing import TYPE_CHECKING
@@ -42,10 +43,7 @@ else:
 
 UNIVERSAL_ANSICOLORS = Lockfile(
     pex_version="42",
-    style=LockStyle.UNIVERSAL,
-    requires_python=SortedTuple(),
-    target_systems=SortedTuple(),
-    elide_unused_requires_dist=False,
+    configuration=LockConfiguration.universal(),
     pip_version=PipVersion.DEFAULT,
     resolver_version=ResolverVersion.PIP_2020,
     requirements=SortedTuple([Requirement.parse("ansicolors")]),

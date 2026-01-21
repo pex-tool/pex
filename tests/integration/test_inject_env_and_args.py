@@ -1,12 +1,15 @@
 # Copyright 2022 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+from __future__ import absolute_import, print_function
+
 import hashlib
 import json
 import os.path
 import re
 import signal
 import socket
+import sys
 from contextlib import closing
 from textwrap import dedent
 
@@ -145,10 +148,7 @@ def test_inject_args(
 
 
 @pytest.mark.skipif(
-    PY_VER < (3, 7) or PY_VER >= (3, 12),
-    reason=(
-        "Uvicorn only supports Python 3.7+ and pre-built wheels are only available through 3.11."
-    ),
+    PY_VER < (3, 8), reason="The version of uvicorn tested only supports Python 3.8+."
 )
 @parametrize_execution_mode_args
 def test_complex(
@@ -194,7 +194,7 @@ def test_complex(
         args=[
             "-D",
             src,
-            "uvicorn[standard]==0.18.3",
+            "uvicorn==0.33",
             "-c",
             "uvicorn",
             "--inject-args",
@@ -288,18 +288,80 @@ def test_pyuwsgi(
         + execution_mode_args
     ).assert_success()
 
+    pidfile = os.path.join(str(tmpdir), "pid")
     stderr_read_fd, stderr_write_fd = os.pipe()
-    process = subprocess.Popen(args=[pex, "--http-socket", "127.0.0.1:0"], stderr=stderr_write_fd)
+    try:
+        process = subprocess.Popen(
+            args=[pex, "--http-socket", "127.0.0.1:0", "--pidfile", pidfile], stderr=stderr_write_fd
+        )
+    finally:
+        os.close(stderr_write_fd)
+
+    def cleanup(port):
+        # type: (Optional[str]) -> None
+        if port:
+            try:
+                with open(pidfile) as fp:
+                    os.kill(int(fp.read()), signal.SIGTERM)
+            except (IOError, OSError, ValueError) as e:
+                print(
+                    "Failed to kill pyuwsgi server listening on port {port}: {err}".format(
+                        port=port, err=e
+                    ),
+                    file=sys.stderr,
+                )
+        process.kill()
+
     port = None  # type: Optional[str]
-    with os.fdopen(stderr_read_fd, "r") as stderr_fp:
-        for line in stderr_fp:
-            match = re.search(r"bound to TCP address 127.0.0.1:(?P<port>\d+)", line)
-            if match:
-                port = match.group("port")
-                break
-    assert port is not None, "Could not determine uwsgi server port."
-    with URLFetcher().get_body_stream("http://127.0.0.1:{port}".format(port=port)) as fp:
-        assert b"I am app 1" == fp.read()
-    process.send_signal(signal.SIGINT)
-    process.kill()
-    os.close(stderr_write_fd)
+    try:
+        with os.fdopen(stderr_read_fd, "r") as stderr_fp:
+            for line in stderr_fp:
+                match = re.search(r"bound to TCP address 127.0.0.1:(?P<port>\d+)", line)
+                if match:
+                    port = match.group("port")
+                    break
+        assert port is not None, "Could not determine uwsgi server port."
+        with URLFetcher().get_body_stream("http://127.0.0.1:{port}".format(port=port)) as fp:
+            assert b"I am app 1" == fp.read()
+        process.send_signal(signal.SIGINT)
+    finally:
+        cleanup(port)
+
+
+@parametrize_execution_mode_args
+def test_env_placeholder_replacement(
+    tmpdir,  # type: Any
+    execution_mode_args,  # type: List[str]
+):
+    # type: (...) -> None
+
+    pex = os.path.join(str(tmpdir), "pex")
+    with open(os.path.join(str(tmpdir), "exe.py"), "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                import json
+                import sys
+
+
+                json.dump(sys.argv[1:], sys.stdout)
+                """
+            )
+        )
+    run_pex_command(
+        args=[
+            "--exe",
+            fp.name,
+            "--inject-args",
+            "{pex.env.FOO} {pex.env.BAZ}",
+            "--inject-args",
+            "{pex.env.SPAM}",
+            "-o",
+            pex,
+        ]
+        + execution_mode_args
+    ).assert_success()
+
+    assert ["bar", "", ""] == json.loads(
+        subprocess.check_output(args=[pex], env=make_env(FOO="bar", BAZ=None, SPAM=""))
+    )

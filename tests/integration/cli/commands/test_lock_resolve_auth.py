@@ -83,7 +83,9 @@ def ansicolors_and_pip_find_links_directory(
 
     requirements = ["ansicolors==1.1.8"]
     if PipVersion.DEFAULT is not PipVersion.VENDORED:
-        requirements.extend(map(str, PipVersion.DEFAULT.requirements))
+        requirements.extend(
+            map(str, PipVersion.DEFAULT.requirements + PipVersion.DEFAULT.build_system_requires)
+        )
 
     run_pex_command(
         args=(
@@ -160,6 +162,7 @@ def secured_ansicolors_lock(
             "--no-pypi",
             "--find-links",
             secured_lock.repo_url_with_credentials,
+            "--no-avoid-downloads",
             "ansicolors",
             "--indent",
             "2",

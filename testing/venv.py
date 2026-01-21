@@ -24,8 +24,8 @@ def assert_venv_site_packages_copy_mode(
     site_packages_dir = os.path.realpath(Virtualenv(venv_dir).site_packages_dir)
     for root, dirs, files in os.walk(site_packages_dir):
         # Metadata files are always copied for inscrutable historical reasons; so we skip
-        # checking those.
-        dirs[:] = [d for d in dirs if not d.endswith(".dist-info")]
+        # checking those. In addition, we generate .pex-info metadata ourselves.
+        dirs[:] = [d for d in dirs if not d.endswith((".dist-info", ".pex-info"))]
         for f in files:
             if f == "PEX_EXTRA_SYS_PATH.pth":
                 continue

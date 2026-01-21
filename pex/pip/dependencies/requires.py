@@ -1,7 +1,7 @@
 # Copyright 2024 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-from __future__ import absolute_import, print_function
+from __future__ import absolute_import
 
 import logging
 import sys
@@ -10,13 +10,38 @@ logger = logging.getLogger(__name__)
 
 
 def patch():
-    from pip._vendor.pkg_resources import Requirement  # type: ignore[import]
+    from pip._vendor.pkg_resources import Requirement
 
     from pex.common import pluralize
     from pex.dist_metadata import Requirement as PexRequirement
+    from pex.pep_508 import MarkerEnvironment
     from pex.pip.dependencies import PatchContext
+    from pex.resolve.target_system import UniversalTarget
+    from pex.typing import TYPE_CHECKING
 
-    dependency_configuration = PatchContext.load_dependency_configuration()
+    if TYPE_CHECKING:
+        from typing import Dict, Optional, Sequence
+
+    patch_context = PatchContext.load()
+    dependency_configuration = patch_context.dependency_configuration
+    target = patch_context.target
+
+    marker_environment = None  # type: Optional[Dict[str, str]]
+    if isinstance(target, MarkerEnvironment):
+        marker_environment = target.as_dict()
+
+    def are_exhaustive(
+        universal_target,  # type: UniversalTarget
+        overrides,  # type: Sequence[Requirement]
+    ):
+        # type: (...) -> bool
+
+        markers = [override.marker for override in overrides if override.marker]
+        if len(markers) < len(overrides):
+            # We have at least one override without a marker; i.e.: the override always applies.
+            return True
+
+        return universal_target.are_exhaustive(markers=markers)
 
     def create_requires(orig_requires):
         def requires(self, *args, **kwargs):
@@ -37,7 +62,17 @@ def patch():
                         )
                     )
                     continue
-                overrides = dependency_configuration.overrides_for(requirement)
+
+                overrides = list(dependency_configuration.overrides_for(requirement))
+                if marker_environment:
+                    overrides = [
+                        override
+                        for override in overrides
+                        if not override.marker or override.marker.evaluate(marker_environment)
+                    ]
+                elif overrides and not are_exhaustive(patch_context.target, overrides):
+                    overrides.append(req)
+
                 if overrides:
                     logger.debug(
                         "[{type}: patched {orig_requires}] Overrode {dep} from {dist} with "
@@ -69,7 +104,7 @@ def patch():
         setattr(dist_type, requires_dists_function_name, patched)
 
     try:
-        from pip._vendor.pkg_resources import Distribution  # type: ignore[import]
+        from pip._vendor.pkg_resources import Distribution
 
         patch_requires_dists(Distribution, "requires")
     except ImportError:
@@ -85,7 +120,7 @@ def patch():
     # this patch. See discussion here: https://github.com/pypa/pip/pull/11685/files#r1929802395
     if sys.version_info[:2] >= (3, 11):
         try:
-            from pip._internal.metadata.importlib import Distribution  # type: ignore[import]
+            from pip._internal.metadata.importlib import Distribution
 
             patch_requires_dists(Distribution, "iter_dependencies")
         except ImportError:

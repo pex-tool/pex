@@ -8,6 +8,7 @@ import pytest
 from pex import targets
 from pex.interpreter import PythonInterpreter
 from pex.pip.version import PipVersion, PipVersionValue
+from pex.targets import Target
 from pex.typing import TYPE_CHECKING
 from testing import IntegResults, run_pex_command
 
@@ -52,6 +53,7 @@ def incompatible_pip_version():
 def expected_incompatible_pip_message(
     incompatible_pip_version,  # type: PipVersionValue
     warning,  # type: bool
+    target,  # type: Target
 ):
     # type: (...) -> str
     header = (
@@ -69,7 +71,7 @@ def expected_incompatible_pip_message(
             header=header,
             pip_version=incompatible_pip_version,
             python_req=incompatible_pip_version.requires_python,
-            target=targets.current(),
+            target=target,
         )
     )
 
@@ -80,7 +82,10 @@ def test_incompatible_resolve_warning(incompatible_pip_version):
     result = pex_execute_cowsay("--pip-version", str(incompatible_pip_version))
     result.assert_success()
     assert (
-        expected_incompatible_pip_message(incompatible_pip_version, warning=True) in result.error
+        expected_incompatible_pip_message(
+            incompatible_pip_version, warning=True, target=result.target
+        )
+        in result.error
     ), result.error
     assert "Moo!" in result.output, result.output
 
@@ -93,5 +98,7 @@ def test_incompatible_resolve_error(incompatible_pip_version):
     )
     result.assert_failure()
     assert result.error.endswith(
-        expected_incompatible_pip_message(incompatible_pip_version, warning=False)
+        expected_incompatible_pip_message(
+            incompatible_pip_version, warning=False, target=result.target
+        )
     ), result.error

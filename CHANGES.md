@@ -1,14 +1,1084 @@
 # Release Notes
 
-## 2.33.8
+## 2.85.2
 
-This release makes running a PEX using venv-execution and sh-bootstrapping (that is, build with `--sh-boot --venv`) more likely to behave identically with a cold or warm `PEX_ROOT` cache. This includes running with `PEX_PYTHON=...`,  `PEX_PYTHON_PATH=...`, `PEX_PATH=...`, `PEX_VENV=...` and `PEX_IGNORE_RCFILES=...`.
+This release makes running a PEX using venv-execution and sh-bootstrapping (that is, build with
+`--sh-boot --venv`) more likely to behave identically with a cold or warm `PEX_ROOT` cache. This
+includes running with `PEX_PYTHON=...`,  `PEX_PYTHON_PATH=...`, `PEX_PATH=...`, `PEX_VENV=...` and
+`PEX_IGNORE_RCFILES=...`.
 
 * Avoid fast-path in `--sh-boot` script for more variables. (#2729)
 
+## 2.85.1
+
+This release upgrades the floor of `science` to 0.17.2 to pick up better handling for CPython 3.9
+which was dropped in new [PBS][PBS] releases at the end of 2025.
+
+* Upgrade science to 0.17.2 (#3081)
+
+## 2.85.0
+
+This release introduces a new `--interpreter-selection-strategy` option for use when building PEXes
+that use `--interpreter-constraint`s. When multiple interpreters satisfy the specified
+`--interpreter-constraint`s, the `--interpreter-selection-strategy` allows you to direct Pex to
+select the `oldest` (the default and the existing behavior) or the `newest`. In either case, the
+highest available patch version will be selected from amongst multiple interpeters with the same
+major and minor versions.
+
+* Support an `--interpreter-selection-strategy` option. (#3080)
+
+## 2.84.0
+
+This release causes `pex ...` to emit the output path of the generated PEX (and / or scies) on
+STDOUT. If `--seed verbose` is set, then the output path of the PEX is included in the new
+`"seeded_from"` field.
+
+* Emit PEX output path to stdout. (#3079)
+
+## 2.83.0
+
+This release adds support for templating `{platform}` in PEX file names. When this substitution
+token is found, it is replaced with the most specific platform tag(s) of wheels in the PEX. For
+example:
+```console
+:; python -mpex ansicolors -o "ansicolors-{platform}.pex"
+
+:; ./ansicolors-py2.py3-none-any.pex
+Pex 2.83.0 hermetic environment with 1 requirement and 1 activated distribution.
+Python 3.14.2 (main, Dec  5 2025, 14:39:48) [GCC 15.2.0] on linux
+Type "help", "pex", "copyright", "credits" or "license" for more information.
+>>> pex()
+Running from PEX file: ./ansicolors-py2.py3-none-any.pex
+Requirements:
+  ansicolors
+Activated Distributions:
+  ansicolors-1.1.8-py2.py3-none-any.whl
+>>>
+
+:; python -mpex \
+    --complete-platform package/complete-platforms/linux-x86_64.json \
+    --complete-platform package/complete-platforms/macos-aarch64.json ansible \
+    -o "ansible-{platform}.pex"
+
+:; ./ansible-cp314-cp314-macosx_11_0_arm64.manylinux2014_x86_64.pex
+Pex 2.83.0 hermetic environment with 1 requirement and 10 activated distributions.
+Python 3.14.2 (main, Dec  5 2025, 14:39:48) [GCC 15.2.0] on linux
+Type "help", "pex", "copyright", "credits" or "license" for more information.
+>>> pex()
+Running from PEX file: ./ansible-cp314-cp314-macosx_11_0_arm64.manylinux2014_x86_64.pex
+Requirements:
+  ansible
+Activated Distributions:
+  ansible-13.2.0-py3-none-any.whl
+  ansible_core-2.20.1-py3-none-any.whl
+  jinja2-3.1.6-py3-none-any.whl
+  markupsafe-3.0.3-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl
+  pyyaml-6.0.3-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl
+  cryptography-46.0.3-cp311-abi3-manylinux_2_34_x86_64.whl
+  cffi-2.0.0-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.whl
+  pycparser-2.23-py3-none-any.whl
+  packaging-25.0-py3-none-any.whl
+  resolvelib-1.2.1-py3-none-any.whl
+>>>
+```
+
+* Support a `{platform}` placeholder in PEX file names. (#3078)
+
+## 2.82.1
+
+This release fixes `pex3 scie create --dest-dir` to work when the specified PEX is a local file
+path. Previously `--dest-dir` only worked when the specified PEX was an URL.
+
+* Fix `pex3 scie create --dest-dir` handling. (#3076)
+
+## 2.82.0
+
+This release adds support for resource path bindings to plain PEXes as a follow-on to adding
+resource binding support for PEX scies in the 2.81.0 release. Resource paths are bound to
+environment variables with `--bind-resource-path`. Additionally, the existing `--inject-args` option
+now supports replacement of `{pex.env.<env var name>}` placeholders with the corresponding
+environment variable value. Notably, the combination of these features allows passing the paths of
+files contained in a PEX to third party scripts without extra shim code.
+
+* Support passing PEX file paths to 3rd party scripts.  (#3074)
+
+## 2.81.0
+
+This release adds the ability to set a custom scie entrypoint for PEX scies using `--scie-exe`,
+`--scie-args` and `--scie-env`, as well as bind resource paths to environment variables using
+`--scie-bind-resource-path`. The combination of these new features allows broad flexibility
+defining a PEX scie's boot command.
+
+Additionally, the `pex3 scie create` command gains the ability to use a URL for the PEX to convert
+to a scie and optionally specify a size (via `#size=<expected size>`) and / or fingerprint (via
+`#<algorithm>=<expected fingerprint>`) to verify the download against.
+
+* Support converting existing Pants PEXes to performant scies. (#3072)
+
+## 2.80.0
+
+This release adds the `pex3 scie create` tool for creating scies from existing PEX files. This
+works for PEXes created by Pex 2.1.25 (released on January 21st, 2021) and newer.
+
+* Add a `pex3 scie create` command. (#3070)
+
+## 2.79.0
+
+This release adds the `CPython[free-threaded]` alias for `CPython+t` and the `CPython[gil]` alias
+for `CPython-t` when writing interpreter constraints.
+
+* Add `CPython[{free-threaded,gil}]` aliases for `CPython{+,-}t`. (#3068)
+
+## 2.78.0
+
+This release adds support for the `CPython+t` implementation name in interpreter constraints to
+allow constraining selected interpreters to CPython interpreters built with free-threading support.
+The existing `CPython` implementation selects from either classic GIL enabled `CPython` interpreters
+or CPython free-threaded interpreters as was the case previously. The `CPython-t` implementation
+name can be used to require classic GIL-only CPython interpreters.
+-
+* Support `CPython+t` in ICs to select free-threaded CPython. (#3067)
+
+## 2.77.3
+
+This release updates vendored Pip's vendored certifi's cacert.pem to that from certifi 2026.1.4.
+
+* Update vendored Pip's CA cert bundle. (#3065)
+
+## 2.77.2
+
+This release fixes venv creation from PEXes to avoid declaring false collisions in `__init__.py`
+files when the venv uses Python 3.9 or greater.
+
+* Compare ASTs of colliding venv `__init__.py`. (#3063)
+
+## 2.77.1
+
+This release fixes a very old bug where the Pex PEX (or any other PEX created with
+`--no-strip-pex-env`) would, in fact, strip `PEX_PYTHON` and `PEX_PYTHON_PATH`.
+
+* Fix `PEX_PYTHON{,_PATH}` stripping on Pex re-exec. (#3062)
+
+## 2.77.0
+
+This release has no fixes or new features per-se, but just changes the set of distributions that
+Pex releases to PyPI. Previously Pex released an sdist and a universal (`py2.py3-none-any`) `.whl`.
+Pex now releases two wheels in addition to the sdist. The `py3.py312-none-any.whl` targets
+Python>=3.12 and has un-needed vendored libraries elided making it bith a smaller `.whl` and less
+prone to false-positive security scan issues since unused vendored code is now omitted. The other
+wheel carries the same contents as prior and supports creating PEXes for Python 2.7 and
+Python>=3.5,<3.12.
+
+* Split Pex `.whl` into two `.whl`s. (#3057)
+
+## 2.76.1
+
+This release fixes bootstrapping of Pips specified via `--pip-version` to respect Pex Pip
+configuration options (like custom indexes) under Python 3.12 and newer.
+
+* Fix Pip bootstrap to respect Pip config for Python >= 3.12. (#3054)
+
+## 2.76.0
+
+This release adds support for `--no-scie-pex-entrypoint-env-passthrough` to trigger direct execution
+of `--venv` PEX scie script entrypoints. This performance optimization mirrors the existing default
+`--no-scie-busybox-pex-entrypoint-env-passthrough` for busybox scies, but must be selected by 
+passing `--no-scie-pex-entrypoint-env-passthrough` explicitly. In addition, the `VIRTUAL_ENV` env
+var is now guaranteed to be set for all `--venv` PEX scies.
+
+* Add scie support for direct exec of venv scripts. (#3053)
+
+## 2.75.2
+
+This release updates vendored Pip's vendored certifi's cacert.pem to that from certifi 2025.11.12.
+
+* Update vendored Pip's CA cert bundle. (#3052)
+
+## 2.75.1
+
+This release fixes Pex handling of wheels with bad RECORDs that record files that do not exist in
+the `.whl` file.
+
+* Warn when non-existent files in RECORD, but proceed. (#3051)
+
+## 2.75.0
+
+This release adds supoort for `--scie-load-dotenv` to enable `.env` file loading in PEX scies.
+
+* Support scie-jump `.env` loading with `--scie-load-dotenv`. (#3046)
+
+## 2.74.3
+
+This release fixes a bug gracefully handling a request for `--validate-entry-point` when no
+`--entry-point` was given.
+
+* Error for missing entry point under `--validate-entry-point`. (#3048)
+
+## 2.74.2
+
+This release fixes building PEXes from direct URL requirements. Previously, the direct URL
+requirement would be recorded incorrectly in PEX-INFO metadata leading to a failure to boot.
+
+* Fix `str(req)` of direct URLs with known versions. (#3043)
+
+## 2.74.1
+
+This release upgrades the floor of `science` to 0.17.1 and `scie-jump` to 1.9.2 to fix a regression
+in the breadth of Linux platforms `--scie {eager,lazy}` PEX scies were compatible with.
+
+* Upgrade science to 0.17.1 & scie-jump to 1.9.2. (#3038)
+
+## 2.74.0
+
+This release adds support for setting custom PEX-INFO `build_properties` metadata via
+`--build-property`, `--build-properties` and `--record-git-state`.
+
+* Support custom PEX-INFO `build_properties`. (#3036)
+
+## 2.73.1
+
+This release fixes `--lock` and `--pylock` subsetting of direct reference and VCS requirements.
+Previously, just the project name was matched when subsetting but now the normalized URL is matched.
+The previous behavior could lead to subsets succeeding that should have otherwise failed. The new
+behavior can lead to a subset failing when URLs differ, but both URLs point to the same content.
+Although this too is a bug, it should be a much narrower use case in the wild; so this should be an
+improvement.
+
+* Fix URL requirement `--lock` & `--pylock` subsetting. (#3034)
+
+## 2.73.0
+
+This release upgrades the floor of `science` to 0.17.0 and `scie-jump` to 1.9.1 to pick up support
+for producing PEX scies for Linux aarch64 & x86_64 that link against glibc. Previously the embedded
+interpreter would link against glibc but the `scie-jump` at the PEX scie tip was a musl libc static
+binary and this could cause problems in those areas where glibc and musl diverge.
+
+* Upgrade science to 0.17.0 & scie-jump to 1.9.1. (#3033)
+
+## 2.72.2
+
+This release fixes a regression introduced in the Pex 2.60.0 release when installing wheels with
+`*.data/` entries whose top-level name matches a top-level package in the wheel. This regression
+only affected default `--venv` mode PEXes which populate site-packages using symlinks.
+
+* Fix `--venv` (using symlinks) for some wheels. (#3031)
+
+## 2.72.1
+
+This release fixes Pex lock resolves (`--lock` and `--pylock`) to allow exceptions for `--no-wheel`
+and `--no-build` as a follow-on to the 2.71.1 release fix that enabled the same for Pip resolves.
+
+* Allow exceptions for `--no-{wheel,build}` with locks. (#3028)
+
+## 2.72.0
+
+This release adds support for building foreign platform musl Linux PEX scies and dogfoods this to
+add musl Linux aarch64 & x86_64 Pex PEX scies to the Pex release.
+
+* Support targeting foreign platform musl scies. (#3025)
+
+## 2.71.1
+
+This release fixes Pex to allow blanket disallowing builds but making targeted exceptions and
+vice-versa. The underlying Pip machinery has always supported this, but Pex just got in the way for
+no reason.
+
+* Allow exceptions for `--no-wheel` & `--no-build`. (#3023)
+
+## 2.71.0
+
+This release upgrades the floor of `science` to 0.16.0 to pick up support for generating PEX scies
+for musl Linux aarch64.
+
+* Upgrade `science` to 0.16.0. (#3020)
+
+## 2.70.0
+
+This release adds a feature for Pex developers. If you want to experiment with a new version of Pip
+you can now specify `_PEX_PIP_VERSION=adhoc _PEX_PIP_ADHOC_REQUIREMENT=...`. N.B.: This feature is
+for Pex development only.
+
+* Support adhoc Pip versions in development. (#3011)
+
+## 2.69.2
+
+This release fixes handling of scoped repos. Previously, validation against duplicate scopes was too
+aggressive and disallowed multiple un-named indexes and find-links repositories.
+
+* Allow multiple un-named indexes and find-links repos. (#3009)
+
+## 2.69.1
+
+This release fixes `--venv-repository` handling of top-level requirements that specify pre-releases.
+Such resolves now imply `--pre`.
+
+* Root reqs that specify prereleases imply `--pre`. (#3004)
+
+## 2.69.0
+
+This release adds a `pexec` console script as an alias for `pex3 run`.
+
+* Add `pexec` script as a `pex3 run` alias. (#3001)
+
+## 2.68.3
+
+This release fixes Pex to handle installing a wider variety of whls violating various PyPA specs.
+
+* Handle two cases of bad whl metadata. (#2999)
+
+## 2.68.2
+
+This release bumps the floor of `science` to 0.15.1 to ensure least surprise with no bad
+`--scie-hash-alg` choices presented by the underlying science tool used to build Pex `--scie`s.
+
+* Upgrade `science` to 0.15.1. (#2995)
+
+## 2.68.1
+
+This release fixes a regression extracting sdists on some Pythons older than 3.12.
+
+* Fix sdist tar extraction filtering for old Pythons. (#2992)
+
+## 2.68.0
+
+This release adds support for `--project` pointing to local project sdist or wheel paths in addition
+to the already supported local project directory path. The wheel case can be particularly useful
+when building a project wheel out of band is very much faster than letting Pex obtain the project
+metadata via a PEP-517 `prepare_metadata_for_build_wheel` call or via a wheel build via Pip, which
+is what Pex falls back to.
+
+* Support `--project` pointing at sdists and whls. (#2989)
+
+## 2.67.3
+
+This release brings Pex into compliance with sdist archive features as specified in
+https://packaging.python.org/en/latest/specifications/source-distribution-format/#source-distribution-archive-features.
+
+* Implement tar extraction data filtering. (#2987)
+
+## 2.67.2
+
+This release fixes a bug resolving editable projects from `--venv-repository`s.
+
+* Fix resolve of editables from `--venv-repository`s. (#2984)
+
+## 2.67.1
+
+This release fixes a bug subsetting `--venv-repository` resolves when top-level requirements
+had version specifiers; e.g.: `thing>2`.
+
+* Fix `--venv-repository` subsetting. (#2981)
+
+## 2.67.0
+
+This release adds support for specifying multiple `--venv-repository`s when building a PEX. This
+allows creating multi-platform PEXes from multiple venvs that all satisfy a resolve, but for
+different interpreters.
+
+* Multi-platform PEXes via multiple `--venv-repository`s. (#2977)
+
+## 2.66.1
+
+This release improves upon the local project directory hashing fix in [2.61.1](#2611) by
+avoiding the hashing altogether unless creating a lock, where the resulting fingerprint is
+needed.
+
+* Avoid fingerprinting local projects. (#2975)
+
+## 2.66.0
+
+This release adds support for `--pip-version 25.3`.
+
+* Add support for `--pip-version 25.3`. (#2968)
+
+## 2.65.0
+
+This release adds support for PEX scies using CPython free-threaded builds. Most such scies should
+be able to auto-detect when a free-threaded CPython is needed, but new `--scie-pbs-free-threaded`
+and `--scie-pbs-debug` options have been added to explicitly request the desired PBS CPython build
+as well.
+
+* Support free-threaded PEX scies. (#2967)
+
+## 2.64.1
+
+This release is a follow-up to 2.64.0 to fix a regression in locks for credentialed VCS
+requirements.
+
+* Fix redaction of VCS URL credentials in locks. (#2964)
+
+## 2.64.0
+
+This release adds support for `--avoid-downloads` / `--no-avoid-downloads` to `pex3 lock create`. By
+default, when available, Pex now locks in `--avoid-downloads` mode using
+`pip install --dry-run --ignore-installed --report` to power lock generation instead of
+`pip download`. This saves time generating the lock at the expense of having to spend time
+downloading distributions later when using the lock to create a PEX or venv. This new lock mode
+produces byte-wise identical locks and is available for all Pip versions Pex supports save for
+vendored Pip (`--pip-version {vendored,20.3.4-patched}`).
+
+* Use Pip `--report` to avoid `pex3 lock create` downloads. (#2962)
+
+## 2.63.0
+
+This release adds population of a `pex` script to venvs created with `pex3 venv create`. This allows
+for executing Python in the activated venv via `/path/to/venv/pex ...` instead of 
+`source /path/to/venv/bin/activate && python ...`.
+
+* Include `pex` script in `pex3 venv create`. (#2960)
+
+## 2.62.1
+
+This release improves performance when creating venvs by eliminating an un-necessary re-hash of
+wheel files already installed in the Pex cache.
+
+* Avoid re-hashing wheels when re-installing. (#2958)
+
+## 2.62.0
+
+This release brings full support for universal lock splitting. You can now declare conflicting
+top-level requirements for different (marker) environments and these will be isolated in separate
+lock resolves in the same universal lock file. These split resolves are performed in parallel and
+the appropriate split lock is later selected automatically when building a PEX or a venv from the
+lock.
+
+As part of this work, locks also filter wheels more faithfully. If you supply interpreter
+constraints that constrain to CPython, the resulting lock will now only contain `cp`
+platform-specific wheels (and, for example, not PyPy wheels).
+
+* Complete support for universal lock splitting. (#2940)
+
+## 2.61.1
+
+This release fixes a long-standing bug hashing local project directories when building PEXes. Pex
+now hashes the content of an exploded sdist for the local project just like it does when hashing
+local projects for a lock.
+
+* Fix local project directory hashing. (#2954)
+
+## 2.61.0
+
+This release adds support for the Python 3.15 series early. Pex runs on 3.15.0a1, can produce scies
+for 3.15.0a1, etc.
+
+* Officially begin supporting Python 3.15. (#2952)
+
+## 2.60.2
+
+This release fixes a regression in the Pex 2.60.0 release when installing wheels with
+`*.data/{purelib,platlib}` entries.
+
+* Fix handling of whl `*.data/` dirs. (#2946)
+
+## 2.60.1
+
+This release fixes a backwards compatiility break in 2.60.0 where modern `pex-tools` would fail to
+work on PEXes built with Pex prior to 2.60.
+
+* Fix installed wheel re-installation for old PEXes. (#2943)
+
+## 2.60.0
+
+This release adds support for `--no-pre-install-wheels` to both the `--pex-repository` and
+`--venv-repository` resolvers, meaning all forms of Pex resolution (including Pip, `--lock`,
+`--pylock` and `--pre-resolved-dists`) now support this option.
+
+In addition, adding this support improved the fidelity of `pex-tools repository extract` such that
+extracted wheels are bytewise identical to the original wheel the PEX was built with. This fidelity
+also extends to wheels extracted from `--pex-repository` PEXes and wheels extracted from venvs
+created from PEXes.
+
+* Implement `.whl` packing from chroots and venvs. (#2925)
+
+## 2.59.5
+
+This release optimizes `--venv-repository` installed wheel caching to only store one copy per
+unique wheel even when that wheel is resolved from multiple `--venv-repository`s.
+
+This release also updates vendored Pip's vendored certifi's cacert.pem to that from certifi
+2025.10.5.
+
+* Do not hash installed scripts from `--venv-repository`. (#2935)
+* Update vendored Pip's CA cert bundle. (#2934)
+
+## 2.59.4
+
+This release fixes a bug in `--venv-repository` resolution that would lead to resolution failure
+when the same wheel (that has console script entry points) is installed in multiple venvs and those
+venvs are used as `--venv-repository` resolve sources.
+
+* Fix `--venv-repository` wheel cache copy-pasta bug. (#2932)
+
+## 2.59.3
+
+This release fixes `--venv-repository` to work with venvs that have installed wheels with
+non-conformant `WHEEL` metadata. Notably, from wheels built with maturin that have a compressed tag
+set; e.g.: `hf-xet-1.1.10-cp37-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl`.
+
+* Stabilize non-conformant WHEEL Tag metadata. (#2927)
+
+## 2.59.2
+
+This release fixes two bugs handling split universal resolves. Previously, when a universal resolve
+was split by markers other than `python_version` and `python_full_version` and no interpreter
+constraints were specified, locking would fail. Additionally, when a split lock had differing
+transitive dependencies in splits, lock sub-setting would fail. Both issues are now corrected.
+
+* Fix split universal lock corner cases. (#2922)
+
+## 2.59.1
+
+This release fixes a regression in VCS URL handling introduced by Pex 2.38.0 when VCS URLs included
+user info in the authority.
+
+* Fix `pex3 lock create/export` for VCS URLs with userinfo (#2918)
+
+## 2.59.0
+
+This release adds support for a `--venv-repository` resolution source. This allows creating a PEX
+from a pre-existing venv. By default, all installed venv distributions are included in the PEX, but
+by specifying requirements, the venv can be subset. The `--venv-repository` source is also supported
+by `pex3 venv create` allowing subsetting an existing venv directly into a new venv as well.
+
+* Add support for `--venv-repository` resolver. (#2916)
+
+## 2.58.1
+
+This release fixes a bug building source distributions from locks of local project directories when
+the local project uses the `uv_build` backend.
+
+* Fix sdist build of local projects using `uv_build`. (#2914)
+
+## 2.58.0
+
+This release adds `--derive-sources-from-requirements-files` to allow for scoping requirement
+sources via the structure of requirements files. If any requirements files are specified that 
+contain `-f` / `--find-links`, `-i` / `--index-url`, or `--extra-index-url` options,
+`--derive-sources-from-requirements-files` will automatically map these repos as the `--source` for
+the requirements (if any) declared in the same requirements file.
+
+* Introduce `--derive-sources-from-requirements-files`. (#2909)
+
+## 2.57.0
+
+This release adds support for project name regexes to `--source` scopes for repos. For example, the
+PyTorch example given in the 2.56.0 release notes can now be shortened to:
+```console
+pex3 lock create \
+    --style universal \
+    --target-system linux \
+    --target-system mac \
+    --elide-unused-requires-dist \
+    --interpreter-constraint "CPython==3.13.*" \
+    --index pytorch=https://download.pytorch.org/whl/cu129 \
+    --source "pytorch=^torch(vision)?$; sys_platform != 'darwin'" \
+    --source "pytorch=^nvidia-.*; sys_platform != 'darwin'" \
+    --indent 2 \
+    -o lock.json \
+    torch \
+    torchvision
+```
+
+* Support regexes for `--source` project matching. (#2906)
+
+## 2.56.0
+
+This release adds support for scoping `--index` and `--find-links` repos to only be used to resolve
+certain projects, environments or a combination of the two. For example, to use the piwheels index
+but restrict its use to resolves targeting armv7l machines, you can now say:
+`--index piwheels=https://www.piwheels.org/simple --source piwheels=platform_machine == 'armv7l'`.
+See the `--help` output for `--index` and `--find-links` for more syntax details.
+
+Additionally, `--style universal` locks have been made aware of top-level inputs that can split the
+lock resolve and such resolves are pre-split and performed in parallel to allow locking for multiple
+non-overlapping universes at once. Splits can be caused by some scoped repos setups as well locks
+with multiple differing top-level requirements for the same project. For example, the following will
+create a universal lock with two locked resolves, one locking cowsay 5.0 for Python 2 and one
+locking cowsay 6.0 for Python 3:
+```console
+pex3 lock create \
+  --style universal \
+  --indent 2 \
+  -o lock.json
+  "cowsay<6; python_version < '3'" \
+  "cowsay==6; python_version >= '3'"
+```
+
+An important use case for this new set of features is creating a universal lock for PyTorch for
+CUDA enabled Linux and Mac by adding the appropriate pytorch index appropriately scoped.
+For example, this lock will contain two locked resolves, one for Mac sourced purely from PyPI and
+one for CUDA 12.9 enabled Linux partially sourced from the PyTorch index for CUDA 12.9:
+```console
+pex3 lock create \
+    --style universal \
+    --target-system linux \
+    --target-system mac \
+    --elide-unused-requires-dist \
+    --interpreter-constraint "CPython==3.13.*" \
+    --index pytorch=https://download.pytorch.org/whl/cu129 \
+    --source "pytorch=torch; sys_platform != 'darwin'" \
+    --source "pytorch=torchvision; sys_platform != 'darwin'" \
+    --source "pytorch=nvidia-cublas-cu12; sys_platform != 'darwin'" \
+    --source "pytorch=nvidia-cuda-cupti-cu12; sys_platform != 'darwin'" \
+    --source "pytorch=nvidia-cuda-nvrtc-cu12; sys_platform != 'darwin'" \
+    --source "pytorch=nvidia-cuda-runtime-cu12; sys_platform != 'darwin'" \
+    --source "pytorch=nvidia-cudnn-cu11; sys_platform != 'darwin'" \
+    --source "pytorch=nvidia-cudnn-cu12; sys_platform != 'darwin'" \
+    --source "pytorch=nvidia-cufft-cu12; sys_platform != 'darwin'" \
+    --source "pytorch=nvidia-cufile-cu12; sys_platform != 'darwin'" \
+    --source "pytorch=nvidia-curand-cu12; sys_platform != 'darwin'" \
+    --source "pytorch=nvidia-cusolver-cu12; sys_platform != 'darwin'" \
+    --source "pytorch=nvidia-cusparse-cu12; sys_platform != 'darwin'" \
+    --source "pytorch=nvidia-cusparselt-cu12; sys_platform != 'darwin'" \
+    --source "pytorch=nvidia-nccl-cu12; sys_platform != 'darwin'" \
+    --source "pytorch=nvidia-nvjitlink-cu12; sys_platform != 'darwin'" \
+    --source "pytorch=nvidia-nvtx-cu12; sys_platform != 'darwin'" \
+    --indent 2 \
+    -o lock.json \
+    torch \
+    torchvision
+```
+
+* Support scopes for `--index` and `--find-links`. (#2903)
+
+## 2.55.2
+
+This release improves Pex `--pylock` handling interoperability by accepting the minimum possible
+dependency information likely to be provided; namely, the dependency `name`.
+
+* More robust `pylock.toml` dependency handling. (#2901)
+
+## 2.55.1
+
+This release fixes a bug present since the inception of `pex3 lock create --style universal`
+support. Previously, if the universal lock was created with `--interpreter-constraint`s, the
+Python implementation information was discarded; so, for example, even with
+`--interpreter-constraint CPython==3.13.*`, the lock resolve would consider PyPy in-play.
+
+* Respect `--interpreter-constraint` impl in locks. (#2898)
+
+## 2.55.0
+
+This release adds support for `--override <project name>=<requirement>` wherever
+`--override <requirement>` is currently accepted. This can be useful when you need to supply a
+patch to an existing published project and would prefer to depend on wheels you pre-build instead
+of using a VCS source dependency `--override`, which can be slow to build.
+
+* Support dependency replacement with `--override`. (#2894)
+
+## 2.54.2
+
+This release fixes `pex3 lock create` when multiple `--index` are configured and they provide the
+same wheel file name, but with different contents. This is a reality in the PyTorch ecosystem, for
+example, prior to any fixes the [WheelNext][WheelNext] project may bring.
+
+* Fix `pex3 lock create` for dup wheels with different hashes. (#2890)
+
+[WheelNext]: https://wheelnext.dev/
+
+## 2.54.1
+
+This release fixes `--pylock` handling to tolerate locked packages with no artifacts and just warn
+(if PEX warnings are enabled) that the package is being skipped for lack of artifacts.
+
+* Handle `pylock.toml` packages with no artifacts. (#2888)
+
+## 2.54.0
+
+This release adds a Pex PEX scie for riscv64.
+
+* Add a Pex PEX scie for riscv64. (#2883)
+
+## 2.53.0
+
+This release adds support to `pex3 run` for `--with-requirements` to complement `--with` for
+specifying additional run requirements via a requirements file. In addition, `--constraints`
+can now be specified to constrain versions with a constraints file.
+
+* Support `-r` & `--constraints` in `pex3 run`. (#2879)
+
+## 2.52.1
+
+This release fixes some cases of creating PEXes from a `--pylock` when no requirements are
+specified.
+
+* Fix `--pylock` with no reqs roots calculation. (#2878)
+
+## 2.52.0
+
+This release adds `pex3 run --locked {auto,require}` support for both local and remote scripts. In
+either case a sibling `pylock.<script name>.toml` and then a sibling `pylock.toml` are searched for
+and, if found, are subsetted with PEP-723 script requirements or explicit `--with` or `--from`
+requirements if present.
+
+* Support sibling script locks in `pex3 run`. (#2870)
+
+## 2.51.1
+
+This release fixes a bug in Pex's HTTP server used for serving `pex --docs` and `pex3 docs` when
+running on Python 2.7.
+
+Also, `pylock.toml` subsets are now fixed to fully honor subset requirement specifiers and markers.
+
+* Fix HTTP Server for Python 2.7. (#2871)
+* Fix pylock.toml subsetting. (#2872)
+
+## 2.51.0
+
+This release augments `pex3 run` with the ability to run both local and remote scripts as well as
+augmenting the run environment with additional requirements specified via `--with`.
+
+* Support running both local & remote scripts. (#2861)
+
+## 2.50.4
+
+This release fixes a bug introduced by #2828 that would assign PEX scies a `SCIE_BASE` of the
+current user's `PEX_ROOT` at PEX scie build time. PEX scies now only get a custom `SCIE_BASE`
+when `--scie-base` or `--runtime-pex-root` are specified when building the PEX scie.
+
+* Fix PEX scie `--runtime-pex-root` handling. (#2866)
+
+## 2.50.3
+
+This release fixes handling of cycles both when exporting Pex lock files to PEP-751 `pylock.toml`
+format as well as when creating PEXes from `--pylock` locks with cycles. This should complete the
+cycle-handling fix work started in #2835 by @pimdh.
+
+* Fix `pylock.toml` cycle handling. (#2863)
+
+## 2.50.2
+
+This release fixes creating `--scie {eager,lazy}` PEX scies when no specific `--scie-pbs-release` is
+specified by upgrading to `science` 0.12.9.
+
+Pex's vendored Pip's vendored certifi's cacert.pem is also updated to that from certifi 2025.8.3
+(Good luck parsing that!).
+
+* Update vendored Pip's CA cert bundle. (#2857)
+* Fix CPython scies with no `--scie-pbs-release`. (#2859)
+
+## 2.50.1
+
+This release fixes `pex3 run` handling of local project directory requirements. For example, you
+can now `pex3 run . -V` in the Pex project directory successfully.
+
+* Fix `pex3 run` for local projects. (#2854)
+
+## 2.50.0
+
+This release introduces the `pex.build_backend.wrap` build backend useable for embedding console
+script locks in your project distributions for use by tools like `pex3 run` (see: #2841). Pex
+dogfoods this backend to embed its own console script lock for its extras.
+
+* Introduce `pex.build_backend.wrap` build backend. (#2850)
+
+## 2.49.0
+
+This release adds support for `--pip-version 25.2`
+
+* Add support for `--pip-version 25.2`. (#2849)
+
+## 2.48.2
+
+This release brings a fix for Pex entry-point parsing. Previously, entry-points specifying an extra
+like `blackd = blackd:patched_main [d]` would be parsed as having the extra as part of the module or
+object reference leading to errors when executing the entry point.
+
+* Fix Pex entry-point parsing. (#2846)
+
+## 2.48.1
+
+This release fixes the failure mode of `pex3 run --locked require`. Previously, subsequent runs
+with `--locked auto` would not fall back to using no lock, but instead error with a malformed venv
+from the failed run prior.
+
+* Fix `pex3 run --locked require` failure mode. (#2843)
+
+## 2.48.0
+
+This release adds support for `pex3 run` akin to `pipx run` and `uvx`. By default,
+`pex3 run <tool>` will look for an embedded [PEP-751 `pylock.toml`][PEP-751] in the wheel or sdist
+`<tool>` is resolved from and, if found, use that lock to create the tool venv from. More
+information is available in the `pex3 run --help` output for the `--locked` option. See the thread
+here for the embedded lock idea and ongoing discussion:
+https://discuss.python.org/t/pre-pep-add-ability-to-install-a-package-with-reproducible-dependencies
+
+* Add `pex3 run`. (#2841)
+
+## 2.47.0
+
+Support for Python PI. Pex started testing against Python 3.14 on October 26th, 2024 and now
+officially advertises support with the 3.14.0rc1 release candidate just published.
+
+* Support Python PI. (#2838)
+
+## 2.46.3
+
+This release brings a fix from @pimdh for `--pylock` handling that allows Pex to work with
+`pylock.toml` locks containing dependency cycles.
+
+* Handle cyclic dependencies in pylock.toml (#2835)
+
+## 2.46.2
+
+This release updates vendored Pip's vendored certifi's cacert.pem to that from certifi 2025.7.14 and
+fixes the default scie base when `--runtime-pex-root` is used to be a `pex3 cache` managed
+directory.
+
+* Update vendored Pip's CA cert bundle. (#2831)
+* Re-organize default `--runtime-pex-root` scie base. (#2830)
+
+## 2.46.1
+
+This release follows up on 2.45.3 to ensure `--venv` PEXes also participate in temporary `PEX_ROOT`
+cleanup. Previously these leaked the temporary `PEX_ROOT`.
+
+* Fix `--venv` PEXes to clean fallback `PEX_ROOT`. (#2826)
+
+## 2.46.0
+
+This release adds support for setting a custom `--scie-base` when building PEX scies. The default
+scie base is the same as used by the scie-jump natively; e.g. `~/.cache/nce` on Linux. When
+specifying a custom `--runtime-pex-root`, the scie base now will live under it in the `scie-base`
+directory. To specify a custom scie base, `--scie-base` can be used, and it will trump all these
+defaults.
+
+* Add `--scie-base` to control the PEX scie cache dir. (#2828)
+
+## 2.45.3
+
+This release fixes a bug introduced in 2.45.2 by #2820 that would cause a temporary `PEX_ROOT` (
+these are created when the default `PEX_ROOT` directory is not writeable) to be cleaned up too
+early, leading to PEX boot failures.
+
+* Do not clean fallback `PEX_ROOT` prematurely. (#2823)
+
+## 2.45.2
+
+This release fixes a long-standing temporary directory resource leak when running PEXes built with
+`--no-pre-install-wheels`.
+
+* Fix temp dir leak on boot of `--no-pre-install-wheels` PEX. (#2820)
+
+## 2.45.1
+
+This release updates vendored Pip's vendored certifi's cacert.pem to that from certifi 2025.7.9.
+
+* Update vendored Pip's CA cert bundle. (#2816)
+
+## 2.45.0
+
+This release adds support for `--scie-assets-base-url` if you've used `science download ...` to set
+up a local repository for `ptex`, `scie-jump` and science interpreter providers.
+
+This release also fixes PEX scie creation to use either of `--proxy` or `--cert` if set when
+building scies. Previously, these options were only honored when downloading the `science` binary
+itself but not when running it subsequently to build scies.
+
+Finally, PEX scies built on Windows for Linux or Mac now should work more often. That said, Windows
+is still not officially supported!
+
+* Add `--scie-assets-base-url` & honor `--{proxy,cert}`. (#2811)
+
+## 2.44.0
+
+This release expands PEX scie support on Windows to more cases by changing how the `PEX_ROOT` is
+handled for PEX scies on all operating systems. Previously, the `PEX_ROOT` was constrained to be
+in a special location inside the scie `nce` cache direcgtory structure. Now PEX scies install their
+PEXes inside the normal system `PEX_ROOT` like other PEXes do. This leads to shorted PEX cache paths
+that work on more Windows systems in particular.
+
+All that said, Windows is still not officially supported!
+
+* Let PEX scies install PEXes in the `PEX_ROOT`. (#2807)
+
+## 2.43.1
+
+This release fixes PEP-723 script metadata parsing handling of the file encoding of the script.
+
+* Fix PEP-723 script parsing file encoding handling. (#2806)
+
+## 2.43.0
+
+This release adds support for `pex3 wheel [--lock|--pylock] [requirements args] ...`. This
+allows resolving and building wheels that satisfy a resolve directly or through a lock. Foreign
+targets via `--platform` and `--complete-platform` are supported as well as sub-setting when a lock
+is used. This compliments `pex3 download` introduced in Pex 2.41.0.
+
+* Add pex3 wheel for resolving & building wheels. (#2803)
+
+## 2.42.2
+
+This release is a follow-up to 2.42.1 that again attempts a fix for missing `License-Expression`
+METADATA in Pex distributions.
+
+* Really fix `License-Expression` METADATA field. (#2800)
+
+## 2.42.1
+
+This release just fixes missing `License-Expression` METADATA in Pex distributions.
+
+* Fix missing `License-Expression` METADATA field. (#2798)
+
+## 2.42.0
+
+This release expands `--platform` support to Windows. Windows is still not officially
+supported though!
+
+* Add `--platform` support for Windows. (#2794)
+
+## 2.41.1
+
+This release fixes `pex3 download` to require a `-d` / `--dest-dir` be set.
+
+* Require `--dest-dir` is set for `pex3 download`. (#2793)
+
+## 2.41.0
+
+This release adds support for `pex3 download [--lock|--pylock] [requirements args] ...`. This
+allows downloading distributions that satisfy a resolve directly or through a lock. Foreign targets
+via `--platform` and `--complete-platform` are supported as well as sub-setting when a lock is
+used.
+
+* Add `pex3 download`. (#2791)
+
+## 2.40.3
+
+This release updates vendored Pip's vendored certifi's cacert.pem to that from certifi 2025.6.15.
+
+* Update vendored Pip's CA cert bundle. (#2787)
+
+## 2.40.2
+
+This relase fixes Pex to work in more scenarios on Windows. Windows is still not officially
+supported though!
+
+* Fix some Windows cross-drive issues. (#2781)
+
+## 2.40.1
+
+This release fixes `pex --pylock` for locked sdist and wheel artifacts whose locked URL path
+basename does not match the optional sdist or wheel `name` field when present. Notably, this fixes
+interop with `uv` which appears to use the `name` field to store the normalized name of the wheel
+when the wheel name is not normalized already in the index URL basename.
+
+* Fix `--pylock` handling of sdist and wheel `name`. (#2775)
+
+## 2.40.0
+
+This release fills out `--pylock` support with `--pylock-extra` and `--pylock-group` to have Pex
+resolve extras and dependency groups defined for a PEP-751 lock. This support only works when Pex
+is run under Python 3.8 or newer.
+
+* Support PEP-751 extras and dependency groups. (#2770)
+
+## 2.39.0
+
+This release adds support for `pex --pylock` and `pex3 venv create --pylock` for building PEXes and
+venvs from [pylock.toml][PEP-751] locks. In both cases PEX supports subsetting the lock if it
+provides `dependencies` metadata for its locked packages, but this metadata is optional in the spec;
+so your mileage may vary. If the metadata is not available and was required, Pex will let you know
+with an appropriate error post-resolve and pre-building the final PEX or venv.
+
+* Add support for `pex --pylock`. (#2766)
+
+## 2.38.1
+
+This release fixes a long-standing bug parsing requirements files that included other requirements
+files.
+
+* Fix requirement file includes relative path handling. (#2764)
+
+## 2.38.0
+
+This release adds support for `pex3 lock export --format pep-751` to export Pex locks in the new
+[pylock.toml][PEP-751] format. `pex3 lock export-subset` also supports `pylock.toml` and both
+forms of export respect universal locks, leveraging the optional [marker][PEP-751-marker] package
+field to make packages installable or not based on the environment the exported lock is used to
+install in.
+
+This release does _not_ include support for building PEXes using PEP-751 locks. Add your concrete
+use case to [#2756](https://github.com/pex-tool/pex/issues/2756) if you have one.
+
+* Add `pex3 lock export --format pep-751` support. (#2760)
+
+[PEP-751]: https://packaging.python.org/en/latest/specifications/pylock-toml/#pylock-toml-spec
+[PEP-751-marker]: https://packaging.python.org/en/latest/specifications/pylock-toml/#packages-marker
+
+## 2.37.0
+
+This release fixes a bug in lock file generation for `--pip-version` >= 25.1 that would omit some
+abi3 wheels from locks.
+
+In addition, support for the latest Pip 25.1.1 bugfix release is also added.
+
+* Fix lock support for `--pip-version` >= 25.1. (#2754)
+
+## 2.36.1
+
+This release fixes a few issues with creating Pex locks when source requirements were involved.
+
+Previously, locking VCS requirements would fail for projects with non-normalized project names,
+e.g.: PySocks vs its normalized form of pysocks.
+
+Additionally, locking would fail when the requirements were specified at least in part via
+requirements files (`-r` / `--requirements`) and there was either a local project or a VCS
+requirement contained in the requirements files.
+
+* Fix Pex locking for source requirements. (#2750)
+
+## 2.36.0
+
+This release brings support for creating PEXes that target Android. The Pip 25.1 upgrade in Pex
+2.34.0 brought support for resolving Android platform-specific wheels and this releases upgrade
+of Pex's vendored packaging to 25.0 brings support for Pex properly dealing with those Android
+platform-specific wheels when packaging PEXes and when booting up from a PEX.
+
+* Upgrade to latest packaging for Python 3.8+. (#2748)
+
+## 2.35.0
+
+This release adds support for the `--resume-retries` option available in Pip 25.1. If you configure
+Pex to use Pip 25.1 or newer, it will now try to resume incomplete downloads 3 times by default.
+
+* Add support for `--resume-retries` in Pip 25.1. (#2746)
+
+## 2.34.0
+
+This release adds support for `--pip-version 25.1` as well as `--pip-version latest-compatible`. The
+`latest-compatible` version will be the latest `--pip-version` supported by Pex compatible with the
+current interpreter running Pex.
+
+* Add support for `--pip-version 25.1`. (#2744)
+
+## 2.33.10
+
+This release follows up on the PEX scie argv0 fix in #2738 to further ensure the argv0 of a PEX scie
+is the absolute path of the scie. In addition, a regression for PEX scies with no entry point is
+fixed, allowing such PEX scies to be used as `--python` targets in Pex invocations.
+
+* Fix PEX scie argv0 to be the scie absolute path. (#2741)
+* Fix entrypoint-less PEX scies used as `--python`. (#2742)
+
+## 2.33.9
+
+Fix argv0 in PEX scies to point to the scie itself instead of the unpacked PEX in the nce cache.
+
+* Fix argv0 in PEX scies to point to the scie itself. (#2738)
+
+## 2.33.8
+
+This release only upgrades the Pex PEX scies from Python 3.13.1 to 3.13.3.
+
+The main thrust of the release is to kick the tires on Pex's new build system which is powered by
+`uv` + `dev-cmd` and make sure all the action machinery is still working properly.
+
 ## 2.33.7
 
-This release fixes `PEX_TOOLS=1 ./path/to/pex` for PEXes using venv-execution and sh-bootstrapping (that is, built with `--sh-boot --venv=... --include-tools` ). Previously, the `PEX_TOOLS=1` was ignored if the venv already existed in the `PEX_ROOT` (for instance, if the PEX had already been run).
+This release fixes `PEX_TOOLS=1 ./path/to/pex` for PEXes using venv-execution and sh-bootstrapping
+(that is, built with `--sh-boot --venv=... --include-tools` ). Previously, the `PEX_TOOLS=1` was
+ignored if the venv already existed in the `PEX_ROOT` (for instance, if the PEX had already been
+run).
 
 * Avoid fast-path in `--sh-boot` script when `PEX_TOOLS=1`. (#2726)
 

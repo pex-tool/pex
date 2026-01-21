@@ -8,10 +8,12 @@ from textwrap import dedent
 import pytest
 
 from pex.common import safe_open
+from pex.compatibility import PY2
 from pex.inherit_path import InheritPath
+from pex.interpreter import PythonInterpreter
 from pex.orderedset import OrderedSet
 from pex.typing import TYPE_CHECKING, cast
-from testing import make_env, run_pex_command, subprocess
+from testing import make_env, run_pex_command
 
 if TYPE_CHECKING:
     from typing import Any, List
@@ -50,17 +52,17 @@ def execute_sys_path_dump_pex(
 ):
     # type: (...) -> OrderedSet[str]
 
-    return OrderedSet(
-        os.path.realpath(entry)
-        for entry in cast(
-            "List[str]",
-            json.loads(
-                subprocess.check_output(
-                    args=[pex] + list(additional_args), env=make_env(**additional_env)
-                )
-            ),
-        )
+    interpreter = PythonInterpreter.get()
+    if PY2:
+        # Under Python 2 venvs (created by Pex via Virtualenv 16.7.12), the venv interpreter
+        # can fail to resolve stdlib weakref internals. We side-step by just resolving out
+        # of the venv since this test is aimed squarely at PYTHONPATH isolation.
+        interpreter = interpreter.resolve_base_interpreter()
+
+    _, stdout, _ = interpreter.execute(
+        args=[pex] + list(additional_args), env=make_env(**additional_env)
     )
+    return OrderedSet(os.path.realpath(entry) for entry in cast("List[str]", json.loads(stdout)))
 
 
 def read_additional_sys_path(

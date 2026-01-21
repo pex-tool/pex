@@ -53,7 +53,8 @@ def test_venv_symlink_site_packages(
             "--seed",
             "-o",
             pex,
-        ]
+        ],
+        use_pex_whl_venv=sys.version_info[0] == 3,
     )
     result.assert_success()
     venv_pex_path = str(result.output.strip())

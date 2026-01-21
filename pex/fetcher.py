@@ -229,6 +229,8 @@ class URLFetcher(object):
 
         self._timeout = network_configuration.timeout
         self._max_retries = network_configuration.retries
+        self._proxy = network_configuration.proxy  # type: Optional[str]
+        self._cert = network_configuration.cert  # type: Optional[str]
 
         proxies = None  # type: Optional[Dict[str, str]]
         if network_configuration.proxy:
@@ -246,6 +248,18 @@ class URLFetcher(object):
             password_entries
         )
         self._handlers = tuple(handlers)
+
+    def network_env(self):
+        # type: () -> Dict[str, str]
+        env = {}  # type: Dict[str, str]
+        if self._proxy:
+            env.update(
+                ("{protocol}_proxy".format(protocol=protocol), self._proxy)
+                for protocol in ("http", "https")
+            )
+        if self._cert:
+            env["SSL_CERT_DIR" if os.path.isdir(self._cert) else "SSL_CERT_FILE"] = self._cert
+        return env
 
     @contextmanager
     def get_body_stream(

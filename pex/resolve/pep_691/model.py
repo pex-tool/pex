@@ -5,9 +5,9 @@ from __future__ import absolute_import
 
 import hashlib
 
+from pex.artifact_url import ArtifactURL, Fingerprint
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
-from pex.resolve.resolved_requirement import ArtifactURL, Fingerprint
 from pex.sorted_tuple import SortedTuple
 from pex.typing import TYPE_CHECKING
 

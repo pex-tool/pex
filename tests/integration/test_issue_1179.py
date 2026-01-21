@@ -7,7 +7,6 @@ from textwrap import dedent
 import pytest
 
 from pex.pip.version import PipVersion
-from pex.targets import LocalInterpreter
 from testing import run_pex_command
 
 
@@ -39,7 +38,7 @@ def test_pip_2020_resolver_engaged():
                 boto3 1.15.6 requires botocore<1.19.0,>=1.18.6 but 1 incompatible dist was resolved:
                     botocore-1.19.63-py2.py3-none-any.whl
             """.format(
-                target=LocalInterpreter.create().render_description()
+                target=results.target.render_description()
             )
         )
         in results.error

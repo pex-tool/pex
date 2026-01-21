@@ -11,36 +11,53 @@ from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import Requirement
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
-from pex.requirements import LocalProjectRequirement, parse_requirement_strings
-from pex.resolve.locked_resolve import Resolved
+from pex.requirements import (
+    LocalProjectRequirement,
+    URLRequirement,
+    VCSRequirement,
+    parse_requirement_strings,
+)
+from pex.resolve.locked_resolve import LockedResolve, Resolved
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import BuildConfiguration
 from pex.result import Error
 from pex.targets import Target, Targets
 from pex.tracer import TRACER
-from pex.typing import TYPE_CHECKING
+from pex.typing import TYPE_CHECKING, Generic
 
 if TYPE_CHECKING:
-    from typing import Dict, Iterable, List, Optional, Text, Tuple, Union
+    from typing import Dict, Iterable, List, Optional, Text, Tuple, TypeVar, Union
 
     import attr  # vendor:skip
 
     from pex.requirements import ParsedRequirement
+
+    Source = TypeVar("Source")
 else:
     from pex.third_party import attr
 
 
-@attr.s(frozen=True)
-class Subset(object):
-    target = attr.ib()  # type: Target
-    resolved = attr.ib()  # type: Resolved
+class Subset(Generic["Source"]):
+    def __init__(
+        self,
+        target,  # type: Target
+        resolved,  # type: Resolved[Source]
+    ):
+        # type: (...) -> None
+        self.target = target
+        self.resolved = resolved
 
 
-@attr.s(frozen=True)
-class SubsetResult(object):
-    requirements = attr.ib()  # type: Tuple[ParsedRequirement, ...]
-    subsets = attr.ib()  # type: Tuple[Subset, ...]
+class SubsetResult(Generic["Source"]):
+    def __init__(
+        self,
+        requirements,  # type: Tuple[ParsedRequirement, ...]
+        subsets,  # type: Tuple[Subset[Source], ...]
+    ):
+        # type: (...) -> None
+        self.requirements = requirements
+        self.subsets = subsets
 
 
 def subset(
@@ -53,7 +70,7 @@ def subset(
     include_all_matches=False,  # type: bool
     dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
 ):
-    # type: (...) -> Union[SubsetResult, Error]
+    # type: (...) -> Union[SubsetResult[LockedResolve], Error]
 
     with TRACER.timed("Parsing requirements"):
         parsed_requirements = tuple(
@@ -66,6 +83,7 @@ def subset(
             )
         )
         missing_local_projects = []  # type: List[Text]
+        missing_url_requirements = []  # type: List[Tuple[Text, Optional[Requirement]]]
         requirements_to_resolve = OrderedSet()  # type: OrderedSet[Requirement]
         for parsed_requirement in parsed_requirements:
             if isinstance(parsed_requirement, LocalProjectRequirement):
@@ -73,9 +91,27 @@ def subset(
                     os.path.abspath(parsed_requirement.path)
                 )
                 if local_project_requirement:
-                    requirements_to_resolve.add(local_project_requirement)
+                    requirements_to_resolve.add(
+                        attr.evolve(local_project_requirement, editable=parsed_requirement.editable)
+                    )
                 else:
                     missing_local_projects.append(parsed_requirement.line.processed_text)
+            elif isinstance(parsed_requirement, (URLRequirement, VCSRequirement)):
+                if parsed_requirement.requirement in lock.requirements:
+                    requirements_to_resolve.add(parsed_requirement.requirement)
+                    continue
+
+                # TODO(John Sirois): We could do better here and resolve the URL and compare its
+                #  hash with the equivalent item in the lock. In particular this would allow
+                #  differing VCS refs pointing to the same content in the end to be used as subset
+                #  requirements.
+                existing = None
+                for root_requirement in lock.requirements:
+                    if root_requirement.project_name == parsed_requirement.project_name:
+                        existing = root_requirement
+                        break
+
+                missing_url_requirements.append((parsed_requirement.line.processed_text, existing))
             else:
                 requirements_to_resolve.add(parsed_requirement.requirement)
         if missing_local_projects:
@@ -95,8 +131,28 @@ def subset(
                     project=missing_local_projects[0],
                 )
             )
+        if missing_url_requirements:
+            missing_requirements = []  # type: List[str]
+            for index, (missing, existing) in enumerate(missing_url_requirements, start=1):
+                missing_requirements.append(
+                    "{index}. {missing}".format(index=index, missing=missing)
+                )
+                if existing:
+                    missing_requirements.append(
+                        "   locked version is: {existing}".format(existing=existing)
+                    )
 
-    resolved_by_target = OrderedDict()  # type: OrderedDict[Target, Resolved]
+            return Error(
+                "Found {count} URL {requirements} not present in the lock at {lock}:\n"
+                "{missing}".format(
+                    count=len(missing_url_requirements),
+                    requirements=pluralize(missing_url_requirements, "requirement"),
+                    lock=lock.source,
+                    missing="\n".join(missing_requirements),
+                )
+            )
+
+    resolved_by_target = OrderedDict()  # type: OrderedDict[Target, Resolved[LockedResolve]]
     errors_by_target = {}  # type: Dict[Target, Iterable[Error]]
 
     with TRACER.timed(
@@ -105,9 +161,15 @@ def subset(
         )
     ):
         for target in targets.unique_targets():
-            resolveds = []
+            resolveds = []  # type: List[Resolved[LockedResolve]]
             errors = []
             for locked_resolve in lock.locked_resolves:
+                # TODO(John Sirois): Handle --style universal subsets where target applicability
+                #  needs to be looser. Maybe a custom Target type?:
+                #  + requirement_applies
+                #  + requires_python_applies
+                #  + tags / wheel_applies -> may need to invert iter_compatible_artifacts into
+                #    target to filter compatible artifacts.
                 resolve_result = locked_resolve.resolve(
                     target,
                     requirements_to_resolve,
@@ -125,6 +187,17 @@ def subset(
                     resolveds.append(resolve_result)
                 else:
                     errors.append(resolve_result)
+
+            if len(resolveds) > 1:
+                # We may have a split universal resolve; in which case we want to apply split
+                # markers to winnow down to the appropriate locked resolves.
+                marker_environment = target.marker_environment.as_dict()
+                resolveds = [
+                    resolved
+                    for resolved in resolveds
+                    if not resolved.source.marker
+                    or resolved.source.marker.evaluate(marker_environment)
+                ]
 
             if resolveds:
                 resolved_by_target[target] = Resolved.most_specific(resolveds)
@@ -147,10 +220,10 @@ def subset(
             )
         )
 
-    return SubsetResult(
+    return SubsetResult[LockedResolve](
         requirements=parsed_requirements,
         subsets=tuple(
-            Subset(target=target, resolved=resolved)
+            Subset[LockedResolve](target=target, resolved=resolved)
             for target, resolved in resolved_by_target.items()
         ),
     )

@@ -6,6 +6,7 @@ from __future__ import absolute_import, print_function
 import functools
 import itertools
 import os.path
+import re
 import sys
 from argparse import Action, ArgumentError, ArgumentParser, ArgumentTypeError, _ActionsContainer
 from collections import OrderedDict, deque
@@ -14,6 +15,7 @@ from operator import attrgetter
 
 from pex import dependency_configuration, pex_warnings
 from pex.argparse import HandleBoolAction
+from pex.artifact_url import Fingerprint
 from pex.build_system import pep_517
 from pex.cli.command import BuildTimeCommand
 from pex.commands.command import JsonMixin, OutputMixin
@@ -30,11 +32,12 @@ from pex.dist_metadata import (
 )
 from pex.enum import Enum
 from pex.exceptions import production_assert
+from pex.installed_wheel import InstalledWheel
 from pex.interpreter import PythonInterpreter
 from pex.orderedset import OrderedSet
 from pex.os import is_exe, safe_execv
-from pex.pep_376 import InstalledWheel, Record
-from pex.pep_427 import InstallableType
+from pex.pep_376 import InstalledFile, Record
+from pex.pep_427 import InstallableType, reinstall_venv
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pip.version import PipVersionValue
@@ -42,17 +45,17 @@ from pex.requirements import LocalProjectRequirement
 from pex.resolve import project, requirement_options, resolver_options, target_options
 from pex.resolve.config import finalize as finalize_resolve_config
 from pex.resolve.configured_resolver import ConfiguredResolver
-from pex.resolve.lock_resolver import resolve_from_lock
+from pex.resolve.lock_resolver import resolve_from_pex_lock
 from pex.resolve.locked_resolve import (
+    FileArtifact,
     LocalProjectArtifact,
     LockConfiguration,
     LockedResolve,
     LockStyle,
     Resolved,
-    TargetSystem,
     VCSArtifact,
 )
-from pex.resolve.lockfile import json_codec, requires_dist
+from pex.resolve.lockfile import json_codec, pep_751, requires_dist
 from pex.resolve.lockfile.create import create
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.lockfile.subset import subset
@@ -68,12 +71,13 @@ from pex.resolve.lockfile.updater import (
 )
 from pex.resolve.path_mappings import PathMappings
 from pex.resolve.requirement_configuration import RequirementConfiguration
-from pex.resolve.resolved_requirement import Fingerprint, Pin
+from pex.resolve.resolved_requirement import Pin
 from pex.resolve.resolver_configuration import LockRepositoryConfiguration, PipConfiguration
 from pex.resolve.resolver_options import parse_lockfile
 from pex.resolve.resolvers import Resolver
 from pex.resolve.script_metadata import ScriptMetadataApplication, apply_script_metadata
 from pex.resolve.target_configuration import InterpreterConstraintsNotSatisfied, TargetConfiguration
+from pex.resolve.target_system import TargetSystem, UniversalTarget
 from pex.result import Error, Ok, Result, try_
 from pex.sorted_tuple import SortedTuple
 from pex.targets import LocalInterpreter, Target, Targets
@@ -83,7 +87,21 @@ from pex.venv.virtualenv import InvalidVirtualenvError, Virtualenv
 from pex.version import __version__
 
 if TYPE_CHECKING:
-    from typing import IO, Dict, Iterable, List, Mapping, Optional, Set, Text, Tuple, Union
+    from typing import (
+        IO,
+        Deque,
+        Dict,
+        Iterable,
+        Iterator,
+        List,
+        Mapping,
+        Optional,
+        Sequence,
+        Set,
+        Text,
+        Tuple,
+        Union,
+    )
 
     import attr  # vendor:skip
 
@@ -110,7 +128,7 @@ class ExportFormat(Enum["ExportFormat.Value"]):
 
     PIP = Value("pip")
     PIP_NO_HASHES = Value("pip-no-hashes")
-    PEP_665 = Value("pep-665")
+    PEP_751 = Value("pep-751")
 
 
 ExportFormat.seal()
@@ -285,7 +303,10 @@ class SyncTarget(object):
             if distribution.metadata.type is MetadataType.DIST_INFO:
                 to_unlink.extend(
                     os.path.realpath(os.path.join(distribution.location, installed_file.path))
-                    for installed_file in Record.read(distribution.iter_metadata_lines("RECORD"))
+                    for installed_file in Record.read(
+                        lines=distribution.iter_metadata_lines("RECORD")
+                    )
+                    if isinstance(installed_file, InstalledFile)
                 )
             elif distribution.metadata.type is MetadataType.EGG_INFO:
                 installed_files = distribution.metadata.files.metadata_file_rel_path(
@@ -339,8 +360,8 @@ class SyncTarget(object):
 
         if to_install:
             for distribution in to_install:
-                for src, dst in InstalledWheel.load(distribution.location).reinstall_venv(
-                    self.venv
+                for src, dst in reinstall_venv(
+                    installed_wheel=InstalledWheel.load(distribution.location), venv=self.venv
                 ):
                     TRACER.log("Installed {src} -> {dst}".format(src=src, dst=dst))
             for script in self.venv.rewrite_scripts():
@@ -403,7 +424,7 @@ class LockUpdateRequest(object):
                 lock_file=self._lock_file_path,
                 missing_platforms="\n".join(
                     sorted(
-                        "+ {platform}".format(platform=locked_resolve.platform_tag)
+                        "+ {platform}".format(platform=locked_resolve.target_platform)
                         for locked_resolve in self._lock_updater.lock_file.locked_resolves
                     )
                 ),
@@ -459,6 +480,169 @@ class LockingConfiguration(object):
         return None
 
 
+@attr.s(frozen=True)
+class LockfileSubset(object):
+    root_requirements = attr.ib()  # type: Iterable[Requirement]
+    constraints = attr.ib()  # type: Iterable[Constraint]
+    locked_resolves = attr.ib()  # type: Sequence[LockedResolve]
+
+
+@attr.s(frozen=True)
+class RootRequirement(object):
+    project_name = attr.ib()  # type: ProjectName
+    requirements = attr.ib()  # type: Tuple[Requirement, ...]
+
+    def select(self, project_name_and_version):
+        # type: (ProjectNameAndVersion) -> Tuple[Requirement, ...]
+        return tuple(
+            requirement
+            for requirement in self.requirements
+            if project_name_and_version in requirement
+        )
+
+    def __str__(self):
+        # type: () -> str
+        return " or ".join("'{req}'".format(req=requirement) for requirement in self.requirements)
+
+
+@attr.s(frozen=True)
+class RootRequirements(object):
+    @classmethod
+    def create(cls, requirements):
+        # type: (Iterable[Requirement]) -> RootRequirements
+
+        requirements_by_project_name = (
+            OrderedDict()
+        )  # type: OrderedDict[ProjectName, OrderedSet[Requirement]]
+        for requirement in requirements:
+            requirements_by_project_name.setdefault(requirement.project_name, OrderedSet()).add(
+                requirement
+            )
+
+        return cls(
+            root_requirements=tuple(
+                RootRequirement(project_name=project_name, requirements=tuple(reqs))
+                for project_name, reqs in requirements_by_project_name.items()
+            )
+        )
+
+    _root_requirements = attr.ib()  # type: Tuple[RootRequirement, ...]
+
+    def iter_requirements(self):
+        # type: () -> Iterator[Requirement]
+        for root_requirement in self._root_requirements:
+            for requirement in root_requirement.requirements:
+                yield requirement
+
+    def __iter__(self):
+        # type: () -> Iterator[RootRequirement]
+        return iter(self._root_requirements)
+
+
+def subset_locked_resolve(
+    locked_resolve,  # type: LockedResolve
+    root_requirements,  # type: RootRequirements
+    constraint_by_project_name,  # type: Mapping[ProjectName, Constraint]
+    lock_file_description,  # type: str
+    universal_target=None,  # type: Optional[UniversalTarget]
+):
+    # type: (...) -> Union[LockedResolve, Error]
+
+    available = {
+        locked_req.pin.project_name: (
+            ProjectNameAndVersion(locked_req.pin.project_name.raw, locked_req.pin.version.raw),
+            locked_req,
+        )
+        for locked_req in locked_resolve.locked_requirements
+    }
+    retain = set()
+    to_resolve = deque(root_requirements)  # type: Deque[Union[RootRequirement, Requirement]]
+    while to_resolve:
+        req = to_resolve.popleft()
+        if req.project_name in retain:
+            continue
+        retain.add(req.project_name)
+
+        dep = available.get(req.project_name)
+        if not dep:
+            return Error(
+                "There is no lock entry for {project} in {lock_file} to satisfy the "
+                "{transitive}{req} requirement.".format(
+                    project=req.project_name,
+                    lock_file=lock_file_description,
+                    transitive="" if isinstance(req, RootRequirement) else "transitive ",
+                    req=(req if isinstance(req, RootRequirement) else "'{req}'".format(req=req)),
+                )
+            )
+
+        pnav, locked_req = dep
+        if isinstance(req, RootRequirement):
+            reqs = req.select(pnav)
+            if not reqs:
+                return Error(
+                    "The locked version of {project} in {lock_file} is {version} which "
+                    "does not satisfy the {req} requirement.".format(
+                        project=pnav.project_name,
+                        lock_file=lock_file_description,
+                        version=pnav.version,
+                        req=req,
+                    )
+                )
+        elif pnav not in req:
+            production_assert(
+                isinstance(req, RootRequirement),
+                "Transitive requirements in a lock should always match existing lock "
+                "entries. Found {project} {version} in {lock_file}, which does not satisfy "
+                "transitive requirement '{req}' found in the same lock.",
+                project=pnav.project_name,
+                version=pnav.version,
+                lock_file=lock_file_description,
+                req=req,
+            )
+            return Error(
+                "The locked version of {project} in {lock_file} is {version} which does "
+                "not satisfy the '{req}' requirement.".format(
+                    project=pnav.project_name,
+                    lock_file=lock_file_description,
+                    version=pnav.version,
+                    req=req,
+                )
+            )
+        elif (
+            req.project_name in constraint_by_project_name
+            and pnav not in constraint_by_project_name[req.project_name]
+        ):
+            return Error(
+                "The locked version of {project} in {lock_file} is {version} which does "
+                "not satisfy the '{constraint}' constraint.".format(
+                    project=pnav.project_name,
+                    lock_file=lock_file_description,
+                    version=pnav.version,
+                    constraint=constraint_by_project_name[req.project_name],
+                )
+            )
+        else:
+            reqs = (req,)
+
+        for req in reqs:
+            to_resolve.extend(
+                requires_dist.filter_dependencies(
+                    req,
+                    locked_req,
+                    universal_target=universal_target,
+                )
+            )
+
+    return attr.evolve(
+        locked_resolve,
+        locked_requirements=SortedTuple(
+            locked_requirement
+            for locked_requirement in locked_resolve.locked_requirements
+            if locked_requirement.pin.project_name in retain
+        ),
+    )
+
+
 class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
     """Operate on PEX lock files."""
 
@@ -505,7 +689,8 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             options_group,
             project_help=(
                 "Add the transitive dependencies of the local project at the specified path to "
-                "the lock but do not lock project itself."
+                "the lock but do not lock project itself. The path can be that of a project "
+                "directory, a project sdist or a pre-built project wheel."
             ),
         )
         dependency_configuration.register(options_group)
@@ -513,7 +698,8 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         resolver_options.register(
             cls._create_resolver_options_group(parser),
             include_pex_repository=False,
-            include_lock=False,
+            include_pex_lock=False,
+            include_pylock=False,
             include_pre_resolved=False,
         )
 
@@ -541,7 +727,19 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
     @classmethod
     def _add_lock_options(cls, parser):
         # type: (_ActionsContainer) -> None
-        resolver_options.register_lock_options(parser)
+        resolver_options.register_pex_lock_options(parser)
+        parser.add_argument(
+            "--avoid-downloads",
+            "--no-avoid-downloads",
+            dest="avoid_downloads",
+            default=True,
+            action=HandleBoolAction,
+            help=(
+                "When locking, prefer not downloading distributions unless necessary. This can "
+                "save time locking, although the downloads will need to happen later when using "
+                "the lock."
+            ),
+        )
 
     @classmethod
     def _add_create_arguments(cls, create_parser):
@@ -645,10 +843,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             default=ExportFormat.PIP,
             choices=ExportFormat.values(),
             type=ExportFormat.for_value,
-            help=(
-                "The format to export the lock to. Currently only the Pip requirements file "
-                "formats (using `--hash` or bare) are supported."
-            ),
+            help="The format to export the lock to.",
         )
         export_parser.add_argument(
             "--sort-by",
@@ -656,6 +851,17 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             choices=ExportSortBy.values(),
             type=ExportSortBy.for_value,
             help="How to sort the requirements in the export (if supported).",
+        )
+        export_parser.add_argument(
+            "--include-dependency-info",
+            "--no-include-dependency-info",
+            dest="include_dependency_info",
+            action=HandleBoolAction,
+            default=True,
+            help=(
+                "When exporting with `--format pep-751`, whether or not to include the optional "
+                "`dependencies` list information."
+            ),
         )
         cls._add_lockfile_option(
             export_parser, verb="export", positional=lockfile_option_positional
@@ -667,7 +873,8 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         resolver_options.register(
             resolver_options_parser,
             include_pex_repository=False,
-            include_lock=False,
+            include_pex_lock=False,
+            include_pylock=False,
             include_pre_resolved=False,
         )
 
@@ -751,22 +958,6 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             ),
         )
 
-        update_parser.add_argument(
-            "--fingerprint-mismatch",
-            default=FingerprintMismatch.ERROR,
-            choices=FingerprintMismatch.values(),
-            type=FingerprintMismatch.for_value,
-            help=(
-                "What to do when a lock update would result in at least one artifact fingerprint "
-                "changing: {ignore!r} the mismatch and use the new fingerprint, {warn!r} about the "
-                "mismatch but use the new fingerprint anyway or {error!r} and refuse to use the "
-                "new mismatching fingerprint".format(
-                    ignore=FingerprintMismatch.IGNORE,
-                    warn=FingerprintMismatch.WARN,
-                    error=FingerprintMismatch.ERROR,
-                )
-            ),
-        )
         cls._add_lockfile_option(update_parser, verb="update")
         cls._add_lock_options(update_parser)
         cls.add_json_options(update_parser, entity="lock", include_switch=False)
@@ -775,7 +966,8 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         resolver_options.register(
             resolver_options_parser,
             include_pex_repository=False,
-            include_lock=False,
+            include_pex_lock=False,
+            include_pylock=False,
             include_pre_resolved=False,
         )
 
@@ -809,6 +1001,22 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 "the report is to STDOUT and the exit code is zero. If a value of {check!r} is "
                 "passed, the report is to STDERR and the exit code is non-zero.".format(
                     check=DryRunStyle.CHECK
+                )
+            ),
+        )
+        update_parser.add_argument(
+            "--fingerprint-mismatch",
+            default=FingerprintMismatch.ERROR,
+            choices=FingerprintMismatch.values(),
+            type=FingerprintMismatch.for_value,
+            help=(
+                "What to do when a lock update would result in at least one artifact fingerprint "
+                "changing: {ignore!r} the mismatch and use the new fingerprint, {warn!r} about the "
+                "mismatch but use the new fingerprint anyway or {error!r} and refuse to use the "
+                "new mismatching fingerprint".format(
+                    ignore=FingerprintMismatch.IGNORE,
+                    warn=FingerprintMismatch.WARN,
+                    error=FingerprintMismatch.ERROR,
                 )
             ),
         )
@@ -1003,13 +1211,9 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             requirement_configuration = script_metadata_application.requirement_configuration
             target_configuration = script_metadata_application.target_configuration
         if self.options.style == LockStyle.UNIVERSAL:
-            lock_configuration = LockConfiguration(
-                style=LockStyle.UNIVERSAL,
-                requires_python=tuple(
-                    str(interpreter_constraint.requires_python)
-                    for interpreter_constraint in target_configuration.interpreter_constraints
-                ),
-                target_systems=tuple(self.options.target_systems),
+            lock_configuration = LockConfiguration.universal(
+                interpreter_constraints=target_configuration.interpreter_constraints,
+                systems=self.options.target_systems,
                 elide_unused_requires_dist=self.options.elide_unused_requires_dist,
             )
         elif self.options.target_systems:
@@ -1064,6 +1268,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                     targets=targets,
                     pip_configuration=pip_configuration,
                     dependency_configuration=dependency_config,
+                    avoid_downloads=self.options.avoid_downloads,
                 )
             )
         )
@@ -1104,25 +1309,94 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             with self.output(self.options) as output:
                 dump_with_terminating_newline(out=output)
 
+    def _check_pylock_toml_output_name(self):
+        if not self.options.output:
+            return
+
+        output_filename = os.path.basename(self.options.output)
+        if re.match(r"^pylock\.([^.]+\.)?toml$", output_filename):
+            return
+
+        pex_warnings.warn(
+            (
+                "The specified pylock.toml export filename is {output_filename} which violates "
+                "the spec.\n"
+                "This may lead to issues using the exported lock with a lock installer later.\n"
+                "See: https://packaging.python.org/en/latest/specifications/pylock-toml/#file-name"
+            ).format(output_filename=output_filename)
+        )
+
     def _export(self, requirement_configuration=RequirementConfiguration()):
         # type: (RequirementConfiguration) -> Result
-        supported_formats = ExportFormat.PIP, ExportFormat.PIP_NO_HASHES
-        if self.options.format not in supported_formats:
-            return Error(
-                "Only the Pip lock formats are supported currently. "
-                "Choose one of: {choices}".format(choices=" or ".join(map(str, supported_formats)))
-            )
 
         lockfile_path, lock_file = self._load_lockfile()
+
         pip_configuration = resolver_options.create_pip_configuration(
             self.options, use_system_time=False
         )
         targets = target_options.configure(
             self.options, pip_configuration=pip_configuration
         ).resolve_targets()
-        target = targets.require_unique_target(
-            purpose="exporting a lock in the {pip!r} format".format(pip=ExportFormat.PIP)
+        target = try_(
+            targets.require_unique_target(
+                purpose="exporting a lock in the {format!r} format".format(
+                    format=self.options.format
+                )
+            )
         )
+
+        if self.options.format is ExportFormat.PEP_751 and lock_file.configuration.universal_target:
+            self._check_pylock_toml_output_name()
+
+            if len(lock_file.locked_resolves) > 1 or requirement_configuration.has_requirements:
+                lock_subset = try_(
+                    self._create_subset(
+                        lockfile_path,
+                        lock_file,
+                        requirement_configuration=(
+                            requirement_configuration
+                            if requirement_configuration.has_requirements
+                            else RequirementConfiguration(
+                                requirements=map(str, lock_file.requirements)
+                            )
+                        ),
+                    )
+                )
+                marker_environment = target.marker_environment.as_dict()
+                locked_resolves = [
+                    locked_resolve
+                    for locked_resolve in lock_subset.locked_resolves
+                    if not locked_resolve.marker
+                    or locked_resolve.marker.evaluate(marker_environment)
+                ]
+                count = len(locked_resolves)
+                production_assert(
+                    count == 1,
+                    msg=(
+                        "Expected {target} to select one subset from {lock}, but found {count} "
+                        "locked resolve that applies."
+                    ),
+                    target=target.render_description(),
+                    lock=lockfile_path,
+                    count=count,
+                )
+                lock_subset = attr.evolve(lock_subset, locked_resolves=[locked_resolves[0]])
+            else:
+                lock_subset = LockfileSubset(
+                    root_requirements=lock_file.requirements,
+                    constraints=lock_file.constraints,
+                    locked_resolves=[lock_file.locked_resolves[0]],
+                )
+
+            with self.output(self.options, binary=True) as toml_output:
+                pep_751.convert(
+                    root_requirements=lock_subset.root_requirements,
+                    locked_resolve=lock_subset.locked_resolves[0],
+                    universal_target=lock_file.configuration.universal_target,
+                    output=toml_output,
+                    include_dependency_info=self.options.include_dependency_info,
+                )
+            return Ok()
 
         with TRACER.timed("Selecting locks for {target}".format(target=target)):
             subset_result = try_(
@@ -1150,11 +1424,37 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                     lockfile=lock_file.source,
                     pip=ExportFormat.PIP,
                     target=target,
-                    platform=resolved.source.platform_tag,
+                    platform=resolved.source.target_platform,
                 )
             )
         else:
             resolved = subset_result.subsets[0].resolved
+
+        if self.options.format is ExportFormat.PEP_751:
+            self._check_pylock_toml_output_name()
+            root_requirements = tuple(lock_file.requirements)
+            if subset_result.requirements:
+                reqs = []
+                for parsed_requirement in subset_result.requirements:
+                    if isinstance(parsed_requirement, LocalProjectRequirement):
+                        reqs.append(
+                            lock_file.local_project_requirement_mapping[
+                                os.path.abspath(parsed_requirement.path)
+                            ]
+                        )
+                    else:
+                        reqs.append(parsed_requirement.requirement)
+                root_requirements = tuple(reqs)
+
+            with self.output(self.options, binary=True) as toml_output:
+                pep_751.convert(
+                    root_requirements=root_requirements,
+                    locked_resolve=resolved.source,
+                    subset=resolved.downloadable_artifacts,
+                    output=toml_output,
+                    include_dependency_info=self.options.include_dependency_info,
+                )
+            return Ok()
 
         requirement_by_pin = {}  # type: Dict[Pin, str]
         fingerprints_by_pin = OrderedDict()  # type: OrderedDict[Pin, List[Fingerprint]]
@@ -1168,30 +1468,50 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             warnings.append("{type} {requirement!r}".format(type=type_, requirement=requirement))
             return requirement
 
-        for downloaded_artifact in resolved.downloadable_artifacts:
-            if isinstance(downloaded_artifact.artifact, LocalProjectArtifact):
-                requirement_by_pin[downloaded_artifact.pin] = add_warning(
+        for downloadable_artifact in resolved.downloadable_artifacts:
+            production_assert(
+                isinstance(
+                    downloadable_artifact.artifact,
+                    (FileArtifact, LocalProjectArtifact, VCSArtifact),
+                ),
+                "Pex locks should only contain fingerprinted artifacts.\n"
+                "Have un-fingerprinted artifact {url} of type {type}.",
+                url=downloadable_artifact.artifact.url,
+                type=type(downloadable_artifact.artifact),
+            )
+            artifact = cast(
+                "Union[FileArtifact, LocalProjectArtifact, VCSArtifact]",
+                downloadable_artifact.artifact,
+            )
+
+            production_assert(
+                downloadable_artifact.version is not None,
+                "Pex locks should always have pins for all downloaded artifacts.",
+            )
+            pin = Pin(
+                project_name=downloadable_artifact.project_name,
+                version=cast(Version, downloadable_artifact.version),
+            )
+            if isinstance(artifact, LocalProjectArtifact):
+                requirement_by_pin[pin] = add_warning(
                     "local project requirement",
                     requirement="{project_name} @ file://{directory}".format(
-                        project_name=downloaded_artifact.pin.project_name,
-                        directory=downloaded_artifact.artifact.directory,
+                        project_name=downloadable_artifact.project_name,
+                        directory=artifact.directory,
                     ),
                 )
-            elif isinstance(downloaded_artifact.artifact, VCSArtifact):
-                requirement_by_pin[downloaded_artifact.pin] = add_warning(
+            elif isinstance(artifact, VCSArtifact):
+                requirement_by_pin[pin] = add_warning(
                     "VCS requirement",
-                    requirement=downloaded_artifact.artifact.as_unparsed_requirement(
-                        downloaded_artifact.pin.project_name
+                    requirement=artifact.as_unparsed_requirement(
+                        downloadable_artifact.project_name
                     ),
                 )
             else:
-                requirement_by_pin[downloaded_artifact.pin] = "{project_name}=={version}".format(
-                    project_name=downloaded_artifact.pin.project_name,
-                    version=downloaded_artifact.pin.version.raw,
+                requirement_by_pin[pin] = "{project_name}=={version}".format(
+                    project_name=pin.project_name, version=pin.version.raw
                 )
-            fingerprints_by_pin.setdefault(downloaded_artifact.pin, []).append(
-                downloaded_artifact.artifact.fingerprint
-            )
+            fingerprints_by_pin.setdefault(pin, []).append(artifact.fingerprint)
 
         if self.options.format is ExportFormat.PIP and warnings:
             print(
@@ -1208,17 +1528,17 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 ),
                 file=sys.stderr,
             )
-        with self.output(self.options) as output:
+        with self.output(self.options) as requirements_txt_output:
             pins = fingerprints_by_pin.keys()  # type: Iterable[Pin]
             if self.options.sort_by == ExportSortBy.PROJECT_NAME:
                 pins = sorted(pins, key=attrgetter("project_name.normalized"))
             for pin in pins:
                 requirement = requirement_by_pin[pin]
                 if self.options.format is ExportFormat.PIP_NO_HASHES:
-                    print(requirement, file=output)
+                    print(requirement, file=requirements_txt_output)
                 else:
                     fingerprints = fingerprints_by_pin[pin]
-                    output.write(
+                    requirements_txt_output.write(
                         "{requirement} \\\n"
                         "  {hashes}\n".format(
                             requirement=requirement,
@@ -1307,10 +1627,13 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             )
         return requirement_by_local_project_requirement
 
-    def _subset(self):
-        # type: () -> Result
-
-        lockfile_path, lock_file = self._load_lockfile()
+    def _create_subset(
+        self,
+        lockfile_path,  # type: str
+        lock_file,  # type: Lockfile
+        requirement_configuration=RequirementConfiguration(),  # type: RequirementConfiguration
+    ):
+        # type: (...) -> Union[LockfileSubset, Error]
 
         pip_configuration = resolver_options.create_pip_configuration(
             self.options, use_system_time=False
@@ -1318,9 +1641,8 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         target_configuration = target_options.configure(
             self.options, pip_configuration=pip_configuration
         )
-        requirement_configuration = requirement_options.configure(self.options)
         script_metadata_application = None  # type: Optional[ScriptMetadataApplication]
-        if self.options.scripts:
+        if hasattr(self.options, "scripts") and self.options.scripts:
             script_metadata_application = apply_script_metadata(
                 self.options.scripts, requirement_configuration, target_configuration
             )
@@ -1329,13 +1651,13 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         locking_configuration = LockingConfiguration(
             requirement_configuration,
             target_configuration=target_configuration,
-            lock_configuration=lock_file.lock_configuration(),
+            lock_configuration=lock_file.configuration,
             script_metadata_application=script_metadata_application,
         )
         targets = try_(
             self._resolve_targets(
                 action="creating",
-                style=lock_file.style,
+                style=lock_file.configuration.style,
                 target_configuration=locking_configuration.target_configuration,
             )
         )
@@ -1370,14 +1692,14 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 ],
             )
         )
-        root_requirements = {
+        root_requirements = RootRequirements.create(
             (
                 local_project_requirements[req]
                 if isinstance(req, LocalProjectRequirement)
                 else req.requirement
             )
             for req in parsed_requirements
-        }
+        )
 
         constraint_by_project_name = OrderedDict(
             (constraint.requirement.project_name, constraint.requirement.as_constraint())
@@ -1387,100 +1709,65 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         )
 
         resolve_subsets = []  # type: List[LockedResolve]
-        for locked_resolve in lock_file.locked_resolves:
-            available = {
-                locked_req.pin.project_name: (
-                    ProjectNameAndVersion(
-                        locked_req.pin.project_name.raw, locked_req.pin.version.raw
-                    ),
-                    locked_req,
+        errors = []  # type: List[Error]
+        for index, locked_resolve in enumerate(lock_file.locked_resolves, start=0):
+            if len(lock_file.locked_resolves) == 1:
+                lock_file_description = lockfile_path
+            else:
+                lock_file_description = "locked resolve {index} (0-based) of {lock_file}".format(
+                    index=index, lock_file=lockfile_path
                 )
-                for locked_req in locked_resolve.locked_requirements
-            }
-            retain = set()
-            to_resolve = deque(root_requirements)
-            while to_resolve:
-                req = to_resolve.popleft()
-                if req.project_name in retain:
-                    continue
-                retain.add(req.project_name)
-                dep = available.get(req.project_name)
-                if not dep:
-                    return Error(
-                        "There is no lock entry for {project} in {lock_file} to satisfy the "
-                        "{transitive}'{req}' requirement.".format(
-                            project=req.project_name,
-                            lock_file=lockfile_path,
-                            transitive="" if req in root_requirements else "transitive ",
-                            req=req,
-                        )
-                    )
-                elif dep:
-                    pnav, locked_req = dep
-                    if pnav not in req:
-                        production_assert(
-                            req in root_requirements,
-                            "Transitive requirements in a lock should always match existing lock "
-                            "entries. Found {project} {version} in {lock_file}, which does not "
-                            "satisfy transitive requirement '{req}' found in the same lock.".format(
-                                project=pnav.project_name,
-                                version=pnav.version,
-                                lock_file=lockfile_path,
-                                req=req,
-                            ),
-                        )
-                        return Error(
-                            "The locked version of {project} in {lock_file} is {version} which "
-                            "does not satisfy the '{req}' requirement.".format(
-                                project=pnav.project_name,
-                                lock_file=lockfile_path,
-                                version=pnav.version,
-                                req=req,
-                            )
-                        )
-                    elif (
-                        req.project_name in constraint_by_project_name
-                        and pnav not in constraint_by_project_name[req.project_name]
-                    ):
-                        return Error(
-                            "The locked version of {project} in {lock_file} is {version} which "
-                            "does not satisfy the '{constraint}' constraint.".format(
-                                project=pnav.project_name,
-                                lock_file=lockfile_path,
-                                version=pnav.version,
-                                constraint=constraint_by_project_name[req.project_name],
-                            )
-                        )
-                    to_resolve.extend(
-                        requires_dist.filter_dependencies(
-                            req,
-                            locked_req,
-                            requires_python=lock_file.requires_python,
-                            target_systems=lock_file.target_systems,
-                        )
-                    )
 
-            resolve_subsets.append(
-                attr.evolve(
-                    locked_resolve,
-                    locked_requirements=SortedTuple(
-                        locked_requirement
-                        for locked_requirement in locked_resolve.locked_requirements
-                        if locked_requirement.pin.project_name in retain
-                    ),
+            result = subset_locked_resolve(
+                locked_resolve,
+                root_requirements,
+                constraint_by_project_name,
+                lock_file_description=lock_file_description,
+                universal_target=lock_file.configuration.universal_target,
+            )
+            if isinstance(result, LockedResolve):
+                resolve_subsets.append(result)
+            else:
+                errors.append(result)
+
+        if not resolve_subsets:
+            if len(errors) == 1:
+                return errors[0]
+            return Error(
+                "Failed to subset any of the {count} locked resolves contained in {lock_file}:\n"
+                "{errors}".format(
+                    count=len(lock_file.locked_resolves),
+                    lock_file=lockfile_path,
+                    errors="\n".join(str(error) for error in errors),
                 )
             )
 
+        return LockfileSubset(
+            root_requirements=tuple(root_requirements.iter_requirements()),
+            constraints=constraint_by_project_name.values(),
+            locked_resolves=resolve_subsets,
+        )
+
+    def _subset(self):
+        # type: () -> Result
+
+        lockfile_path, lock_file = self._load_lockfile()
+        requirement_configuration = requirement_options.configure(self.options)
+        lock_subset = try_(
+            self._create_subset(
+                lockfile_path, lock_file, requirement_configuration=requirement_configuration
+            )
+        )
         self._dump_lockfile(
             attr.evolve(
                 lock_file,
-                locked_resolves=SortedTuple(resolve_subsets),
+                locked_resolves=SortedTuple(lock_subset.locked_resolves),
                 constraints=(
-                    SortedTuple(constraint_by_project_name.values(), key=str)
-                    if constraint_by_project_name
+                    SortedTuple(lock_subset.constraints, key=str)
+                    if lock_subset.constraints
                     else lock_file.constraints
                 ),
-                requirements=SortedTuple(root_requirements, key=str),
+                requirements=SortedTuple(lock_subset.root_requirements, key=str),
             )
         )
         return Ok()
@@ -1504,6 +1791,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             use_pip_config=pip_configuration.use_pip_config,
             dependency_configuration=dependency_config,
             pip_log=resolver_options.get_pip_log(self.options),
+            avoid_downloads=self.options.avoid_downloads,
         )
 
         target_configuration = target_options.configure(
@@ -1511,7 +1799,9 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         )
         targets = try_(
             self._resolve_targets(
-                action="updating", style=lock_file.style, target_configuration=target_configuration
+                action="updating",
+                style=lock_file.configuration.style,
+                target_configuration=target_configuration,
             )
         )
 
@@ -1528,23 +1818,17 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         )
 
         with TRACER.timed("Selecting locks to update"):
+            update_targets = (
+                Targets.from_target(LocalInterpreter.create(targets.interpreter))
+                if lock_file.configuration.style is LockStyle.UNIVERSAL
+                else targets
+            )
             locked_resolve_count = len(lock_file.locked_resolves)
-            if lock_file.style is LockStyle.UNIVERSAL and locked_resolve_count != 1:
-                return Error(
-                    "The lock at {path} contains {count} locked resolves; so it "
-                    "cannot be updated as a universal lock which requires exactly one locked "
-                    "resolve.".format(path=lock_file_path, count=locked_resolve_count)
-                )
             if locked_resolve_count == 1:
                 locked_resolve = lock_file.locked_resolves[0]
-                update_targets = (
-                    [LocalInterpreter.create(targets.interpreter)]
-                    if lock_file.style is LockStyle.UNIVERSAL
-                    else targets.unique_targets()
-                )
                 update_requests = [
                     ResolveUpdateRequest(target=target, locked_resolve=locked_resolve)
-                    for target in update_targets
+                    for target in update_targets.unique_targets()
                 ]
             else:
                 # N.B.: With 1 locked resolve in the lock file we're updating, there is no ambiguity
@@ -1562,7 +1846,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
 
                 subset_result = try_(
                     subset(
-                        targets=targets,
+                        targets=update_targets,
                         lock=lock_file,
                         network_configuration=pip_configuration.network_configuration,
                         build_configuration=lock_file.build_configuration(),
@@ -1576,7 +1860,10 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                     )
                     for resolved_subset in subset_result.subsets
                 ]
-        if getattr(self.options, "strict", False) and lock_file.style is not LockStyle.UNIVERSAL:
+        if (
+            getattr(self.options, "strict", False)
+            and lock_file.configuration.style is not LockStyle.UNIVERSAL
+        ):
             missing_updates = set(lock_file.locked_resolves) - {
                 update_request.locked_resolve for update_request in update_requests
             }
@@ -1590,7 +1877,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                         lock_file=lock_file_path,
                         missing_platforms="\n".join(
                             sorted(
-                                "+ {platform}".format(platform=locked_resolve.platform_tag)
+                                "+ {platform}".format(platform=locked_resolve.target_platform)
                                 for locked_resolve in missing_updates
                             )
                         ),
@@ -1940,10 +2227,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             original_lock_file = try_(parse_lockfile(self.options, lock_file_path=lock_file_path))
             lock_file = attr.evolve(
                 original_lock_file,
-                style=lock_configuration.style,
-                requires_python=SortedTuple(lock_configuration.requires_python),
-                target_systems=SortedTuple(lock_configuration.target_systems),
-                elide_unused_requires_dist=lock_configuration.elide_unused_requires_dist,
+                configuration=lock_configuration,
                 pip_version=pip_configuration.version,
                 resolver_version=pip_configuration.resolver_version,
                 allow_prereleases=pip_configuration.allow_prereleases,
@@ -2011,6 +2295,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                     targets=targets,
                     pip_configuration=pip_configuration,
                     dependency_configuration=dependency_config,
+                    avoid_downloads=self.options.avoid_downloads,
                 )
             )
             if self.options.dry_run:
@@ -2094,18 +2379,16 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         lock_file = try_(parse_lockfile(self.options, lock_file_path=lock_file_path))
         target = LocalInterpreter.create(sync_target.venv.interpreter)
         resolve_result = try_(
-            resolve_from_lock(
+            resolve_from_pex_lock(
                 targets=Targets.from_target(target),
                 lock=lock_file,
                 resolver=ConfiguredResolver(pip_configuration),
                 requirements=requirement_configuration.requirements,
                 requirement_files=requirement_configuration.requirement_files,
                 constraint_files=requirement_configuration.constraint_files,
-                indexes=pip_configuration.repos_configuration.indexes,
-                find_links=pip_configuration.repos_configuration.find_links,
+                repos_configuration=pip_configuration.repos_configuration,
                 resolver_version=pip_configuration.resolver_version,
                 network_configuration=pip_configuration.network_configuration,
-                password_entries=pip_configuration.repos_configuration.password_entries,
                 build_configuration=pip_configuration.build_configuration,
                 transitive=pip_configuration.transitive,
                 max_parallel_jobs=pip_configuration.max_jobs,
@@ -2114,6 +2397,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 extra_pip_requirements=pip_configuration.extra_requirements,
                 keyring_provider=pip_configuration.keyring_provider,
                 result_type=InstallableType.INSTALLED_WHEEL_CHROOT,
+                dependency_configuration=dependency_config,
             )
         )
         return sync_target.sync(

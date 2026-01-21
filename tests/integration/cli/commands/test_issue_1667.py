@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 )
 def test_interpreter_constraints_range_coverage(
     tmpdir,  # type: Any
-    py38,  # type: PythonInterpreter
+    py39,  # type: PythonInterpreter
 ):
     # type: (...) -> None
 
@@ -53,7 +53,7 @@ def test_interpreter_constraints_range_coverage(
         "--interpreter-constraint",
         ">=3.7,<3.11",
         "--python-path",
-        py38.binary,
+        py39.binary,
         "--constraints",
         constraints,
         "ipython",
@@ -94,6 +94,6 @@ def test_interpreter_constraints_range_coverage(
         with open(comm_channel) as fp:
             assert fp.read().startswith(pex_root)
 
-    assert_pex_works(py38.binary)
+    assert_pex_works(py39.binary)
     if (3, 7) <= sys.version_info[:2] < (3, 11):
         assert_pex_works(sys.executable)

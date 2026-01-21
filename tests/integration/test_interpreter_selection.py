@@ -2,6 +2,7 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
+import subprocess
 import sys
 from textwrap import dedent
 
@@ -9,21 +10,20 @@ import pytest
 
 from pex.common import safe_open, temporary_dir
 from pex.interpreter import PythonInterpreter
-from pex.interpreter_constraints import InterpreterConstraints
+from pex.interpreter_constraints import InterpreterConstraint, InterpreterConstraints
 from pex.pex_info import PexInfo
-from pex.typing import TYPE_CHECKING
+from pex.pip.version import PipVersion
 from testing import (
-    PY38,
     PY39,
     PY310,
+    PY311,
     ensure_python_interpreter,
     make_env,
     run_pex_command,
     run_simple_pex,
 )
-
-if TYPE_CHECKING:
-    from typing import Any
+from testing.pip import skip_if_only_vendored_pip_supported
+from testing.pytest_utils.tmp import Tempdir
 
 
 def test_interpreter_constraints_to_pex_info_py2():
@@ -120,17 +120,17 @@ def test_interpreter_resolution_with_multiple_constraint_options(
 def test_interpreter_resolution_with_pex_python_path():
     # type: () -> None
 
-    py38 = ensure_python_interpreter(PY38)
     py39 = ensure_python_interpreter(PY39)
+    py310 = ensure_python_interpreter(PY310)
 
     with temporary_dir() as td:
         pexrc_path = os.path.join(td, ".pexrc")
         with open(pexrc_path, "w") as pexrc:
-            pexrc.write("PEX_PYTHON_PATH={}".format(os.pathsep.join([py38, py39])))
+            pexrc.write("PEX_PYTHON_PATH={}".format(os.pathsep.join([py39, py310])))
 
         # constraints to build pex cleanly; PPP + pex_bootstrapper.py
         # will use these constraints to override sys.executable on pex re-exec
-        interpreter_constraint = "==3.8.*" if sys.version_info[:2] == (3, 9) else "==3.9.*"
+        interpreter_constraint = "==3.9.*" if sys.version_info[:2] == (3, 10) else "==3.10.*"
 
         pex_out_path = os.path.join(td, "pex.pex")
         res = run_pex_command(
@@ -148,55 +148,53 @@ def test_interpreter_resolution_with_pex_python_path():
         stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload)
 
         assert rc == 0
-        if sys.version_info[:2] == (3, 9):
-            assert py38 in stdout.decode("utf-8")
-        else:
+        if sys.version_info[:2] == (3, 10):
             assert py39 in stdout.decode("utf-8")
+        else:
+            assert py310 in stdout.decode("utf-8")
 
 
 def test_interpreter_constraints_honored_without_ppp_or_pp(tmpdir):
-    # type: (Any) -> None
+    # type: (Tempdir) -> None
     # Create a pex with interpreter constraints, but for not the default interpreter in the path.
 
-    py310_path = ensure_python_interpreter(PY310)
-    py38_path = ensure_python_interpreter(PY38)
+    py311_path = ensure_python_interpreter(PY311)
+    py39_path = ensure_python_interpreter(PY39)
 
-    pex_out_path = os.path.join(str(tmpdir), "pex.pex")
+    pex_out_path = tmpdir.join("pex.pex")
     env = make_env(
         PEX_IGNORE_RCFILES="1",
         PATH=os.pathsep.join(
             [
-                os.path.dirname(py38_path),
-                os.path.dirname(py310_path),
+                os.path.dirname(py39_path),
+                os.path.dirname(py311_path),
             ]
         ),
     )
     res = run_pex_command(
-        ["--disable-cache", "--interpreter-constraint===%s" % PY310, "-o", pex_out_path], env=env
+        ["--disable-cache", "--interpreter-constraint===%s" % PY311, "-o", pex_out_path], env=env
     )
     res.assert_success()
-
-    # We want to try to run that pex with no environment variables set
-    stdin_payload = b"import sys; print(sys.executable); sys.exit(0)"
 
     stdout, rc = run_simple_pex(
         pex_out_path,
         args=["-c", "import sys; print('.'.join(map(str, sys.version_info[:2])))"],
         env=env,
+        stderr=None,
     )
     assert rc == 0
 
     # If the constraints are honored, it will have run python3.10 and not python3.7
     # Without constraints, we would expect it to use python3.7 as it is the minimum interpreter
     # in the PATH.
-    assert b"3.10\n" == stdout
+    assert b"3.11\n" == stdout
 
 
 def test_interpreter_resolution_pex_python_path_precedence_over_pex_python(tmpdir):
-    # type: (Any) -> None
+    # type: (Tempdir) -> None
 
-    pexrc_path = os.path.join(str(tmpdir), ".pexrc")
-    ppp = os.pathsep.join(os.path.dirname(ensure_python_interpreter(py)) for py in (PY38, PY39))
+    pexrc_path = tmpdir.join(".pexrc")
+    ppp = os.pathsep.join(os.path.dirname(ensure_python_interpreter(py)) for py in (PY39, PY310))
     with open(pexrc_path, "w") as pexrc:
         # set both PPP and PP
         pexrc.write(
@@ -205,19 +203,19 @@ def test_interpreter_resolution_pex_python_path_precedence_over_pex_python(tmpdi
                 PEX_PYTHON_PATH={ppp}
                 PEX_PYTHON={pp}
                 """.format(
-                    ppp=ppp, pp=ensure_python_interpreter(PY310)
+                    ppp=ppp, pp=ensure_python_interpreter(PY311)
                 )
             )
         )
 
-    pex_out_path = os.path.join(str(tmpdir), "pex.pex")
+    pex_out_path = tmpdir.join("pex.pex")
     run_pex_command(
         [
             "--disable-cache",
             "--rcfile",
             pexrc_path,
             "--interpreter-constraint",
-            ">=3.8,<3.10",
+            ">=3.9,<3.11",
             "-o",
             pex_out_path,
         ]
@@ -248,7 +246,7 @@ def test_interpreter_resolution_pex_python_path_precedence_over_pex_python(tmpdi
         )
     stdout, rc = run_simple_pex(pex_out_path, print_python_version_command)
     assert rc == 0
-    assert b"3.8\n" == stdout
+    assert b"3.9\n" == stdout
 
 
 def test_plain_pex_exec_no_ppp_no_pp_no_constraints():
@@ -295,8 +293,8 @@ def test_pex_exec_with_pex_python_path_only():
 
 
 def test_pex_exec_with_pex_python_path_and_pex_python_but_no_constraints(tmpdir):
-    # type: (Any) -> None
-    pexrc_path = os.path.join(str(tmpdir), ".pexrc")
+    # type: (Tempdir) -> None
+    pexrc_path = tmpdir.join(".pexrc")
     with open(pexrc_path, "w") as pexrc:
         # set both PPP and PP
         pexrc.write(
@@ -312,7 +310,7 @@ def test_pex_exec_with_pex_python_path_and_pex_python_but_no_constraints(tmpdir)
             )
         )
 
-    pex_out_path = os.path.join(str(tmpdir), "pex.pex")
+    pex_out_path = tmpdir.join("pex.pex")
     res = run_pex_command(["--disable-cache", "--rcfile", pexrc_path, "-o", pex_out_path])
     res.assert_success()
 
@@ -327,13 +325,13 @@ def test_pex_exec_with_pex_python_path_and_pex_python_but_no_constraints(tmpdir)
 
 def test_pex_python():
     # type: () -> None
-    py38 = ensure_python_interpreter(PY38)
     py39 = ensure_python_interpreter(PY39)
-    env = make_env(PATH=os.pathsep.join([os.path.dirname(py38), os.path.dirname(py39)]))
+    py310 = ensure_python_interpreter(PY310)
+    env = make_env(PATH=os.pathsep.join([os.path.dirname(py39), os.path.dirname(py310)]))
     with temporary_dir() as td:
         pexrc_path = os.path.join(td, ".pexrc")
         with open(pexrc_path, "w") as pexrc:
-            pexrc.write("PEX_PYTHON={}".format(py38))
+            pexrc.write("PEX_PYTHON={}".format(py39))
 
         # test PEX_PYTHON with valid constraints
         pex_out_path = os.path.join(td, "pex.pex")
@@ -343,7 +341,7 @@ def test_pex_python():
                 "--rcfile",
                 pexrc_path,
                 "--interpreter-constraint",
-                ">=3.8,<3.10",
+                ">=3.9,<3.11",
                 "-o",
                 pex_out_path,
             ],
@@ -354,7 +352,7 @@ def test_pex_python():
         stdin_payload = b"import sys; print(sys.executable); sys.exit(0)"
         stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload, env=env)
         assert rc == 0
-        assert py38 in stdout.decode("utf-8")
+        assert py39 in stdout.decode("utf-8")
 
         # test PEX_PYTHON with incompatible constraints
         py310 = ensure_python_interpreter(PY310)
@@ -395,8 +393,9 @@ def test_pex_python():
         assert py310 in stdout.decode("utf-8")
 
 
+@skip_if_only_vendored_pip_supported
 def test_interpreter_selection_using_os_environ_for_bootstrap_reexec(
-    tmpdir,  # type: Any
+    tmpdir,  # type: Tempdir
     pex_project_dir,  # type: str
 ):
     # type: (...) -> None
@@ -406,7 +405,7 @@ def test_interpreter_selection_using_os_environ_for_bootstrap_reexec(
     More details on the nature of the bug can be found at:
     https://github.com/pex-tool/pex/pull/441
     """
-    td = os.path.join(str(tmpdir), "tester_project")
+    td = tmpdir.join("tester_project")
     pexrc_path = os.path.join(td, ".pexrc")
 
     # Select pexrc interpreter versions based on test environment.
@@ -485,6 +484,8 @@ def test_interpreter_selection_using_os_environ_for_bootstrap_reexec(
     res = run_pex_command(
         [
             "--disable-cache",
+            "--pip-version",
+            PipVersion.LATEST_COMPATIBLE.value,
             pex_project_dir,
             td,
             "-e",
@@ -500,3 +501,102 @@ def test_interpreter_selection_using_os_environ_for_bootstrap_reexec(
     # Ensure that child pex used the proper interpreter as specified by its pexrc.
     correct_interpreter_path = ensure_python_interpreter(child_pex_interpreter_version)
     assert correct_interpreter_path in stdout.decode("utf-8")
+
+
+def test_free_threaded_cpython_selection(
+    tmpdir,  # type: Tempdir
+    py311,  # type: PythonInterpreter
+):
+    # type: (...) -> None
+
+    assert py311.free_threaded is False
+
+    py314t_scie = tmpdir.join("py314t")
+    run_pex_command(
+        args=[
+            "--interpreter-constraint",
+            "CPython==3.14.*",
+            "--scie-pbs-free-threaded",
+            "--scie",
+            "eager",
+            "--scie-only",
+            "-o",
+            py314t_scie,
+        ]
+    ).assert_success()
+    py314t = PythonInterpreter.from_binary(
+        str(
+            subprocess.check_output(args=[py314t_scie, "-c", "import sys; print(sys.executable)"])
+            .decode("utf-8")
+            .strip()
+        )
+    )
+    assert (
+        py314t.free_threaded is True
+    ), "Expected coercion of free-threading via `--scie-pbs-free-threaded` to work."
+
+    run_pex_command(
+        args=[
+            "--interpreter-constraint",
+            "CPython+t==3.14.*",
+            "--python-path",
+            os.path.dirname(py314t.binary),
+            "--scie",
+            "eager",
+            "--scie-only",
+            "-o",
+            py314t_scie,
+        ],
+    ).assert_success()
+    py314t = PythonInterpreter.from_binary(
+        str(
+            subprocess.check_output(args=[py314t_scie, "-c", "import sys; print(sys.executable)"])
+            .decode("utf-8")
+            .strip()
+        )
+    )
+    assert (
+        py314t.free_threaded is True
+    ), "Expected selection of free-threading via `--interpreter-constraint` to work."
+
+    assert py311 in InterpreterConstraint.parse(">=3.11")
+    assert py314t in InterpreterConstraint.parse(">=3.11")
+
+    assert py311 in InterpreterConstraint.parse("CPython")
+    assert py314t in InterpreterConstraint.parse("CPython")
+
+    assert py311 in InterpreterConstraint.parse("CPython>=3.11")
+    assert py314t in InterpreterConstraint.parse("CPython>=3.11")
+
+    assert py311 not in InterpreterConstraint.parse("CPython+t")
+    assert py311 not in InterpreterConstraint.parse("CPython[free-threaded]")
+    assert py314t in InterpreterConstraint.parse("CPython+t")
+    assert py314t in InterpreterConstraint.parse("CPython[free-threaded]")
+
+    assert py311 in InterpreterConstraint.parse("CPython-t")
+    assert py311 in InterpreterConstraint.parse("CPython[gil]")
+    assert py314t not in InterpreterConstraint.parse("CPython-t")
+    assert py314t not in InterpreterConstraint.parse("CPython[gil]")
+
+    assert py311 not in InterpreterConstraint.parse("CPython+t>=3.11")
+    assert py311 not in InterpreterConstraint.parse("CPython[free-threaded]>=3.11")
+    assert py314t in InterpreterConstraint.parse("CPython+t>=3.11")
+    assert py314t in InterpreterConstraint.parse("CPython[free-threaded]>=3.11")
+
+    assert py311 in InterpreterConstraint.parse("CPython-t>=3.11")
+    assert py311 in InterpreterConstraint.parse("CPython[gil]>=3.11")
+    assert py314t not in InterpreterConstraint.parse("CPython-t>=3.11")
+    assert py314t not in InterpreterConstraint.parse("CPython[gil]>=3.11")
+
+    assert py311 not in InterpreterConstraint.parse("PyPy>=3.11")
+    assert py314t not in InterpreterConstraint.parse("PyPy>=3.11")
+
+    assert py311 not in InterpreterConstraint.parse("CPython+t<3.12")
+    assert py311 not in InterpreterConstraint.parse("CPython[free-threaded]<3.12")
+    assert py314t not in InterpreterConstraint.parse("CPython+t<3.12")
+    assert py314t not in InterpreterConstraint.parse("CPython[free-threaded]<3.12")
+
+    assert py311 not in InterpreterConstraint.parse("CPython-t<3.11")
+    assert py311 not in InterpreterConstraint.parse("CPython[gil]<3.11")
+    assert py314t not in InterpreterConstraint.parse("CPython-t>=3.11")
+    assert py314t not in InterpreterConstraint.parse("CPython[gil]>=3.11")

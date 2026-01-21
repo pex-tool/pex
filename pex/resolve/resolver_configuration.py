@@ -3,17 +3,16 @@
 
 from __future__ import absolute_import
 
-import itertools
-
 from pex import pex_warnings
-from pex.auth import PasswordEntry
 from pex.enum import Enum
 from pex.jobs import DEFAULT_MAX_JOBS
 from pex.network_configuration import NetworkConfiguration
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pip.version import PipVersion, PipVersionValue
+from pex.resolve.package_repository import ReposConfiguration
 from pex.typing import TYPE_CHECKING
+from pex.venv.virtualenv import Virtualenv
 
 if TYPE_CHECKING:
     from typing import Callable, FrozenSet, Iterable, Optional, Tuple, Union
@@ -24,9 +23,6 @@ if TYPE_CHECKING:
     from pex.result import Error
 else:
     from pex.third_party import attr
-
-
-PYPI = "https://pypi.org/simple"
 
 
 class ResolverVersion(Enum["ResolverVersion.Value"]):
@@ -58,32 +54,6 @@ class ResolverVersion(Enum["ResolverVersion.Value"]):
 
 
 ResolverVersion.seal()
-
-
-@attr.s(frozen=True)
-class ReposConfiguration(object):
-    @classmethod
-    def create(
-        cls,
-        indexes=(),  # type: Iterable[str]
-        find_links=(),  # type: Iterable[str]
-    ):
-        # type: (...) -> ReposConfiguration
-        password_entries = []
-        for url in itertools.chain(indexes, find_links):
-            password_entry = PasswordEntry.maybe_extract_from_url(url)
-            if password_entry:
-                password_entries.append(password_entry)
-
-        return cls(
-            indexes=tuple(indexes),
-            find_links=tuple(find_links),
-            password_entries=tuple(password_entries),
-        )
-
-    indexes = attr.ib(default=(PYPI,))  # type: Tuple[str, ...]
-    find_links = attr.ib(default=())  # type: Tuple[str, ...]
-    password_entries = attr.ib(default=())  # type: Tuple[PasswordEntry, ...]
 
 
 @attr.s(frozen=True)
@@ -131,20 +101,6 @@ class BuildConfiguration(object):
                 "Cannot both disallow builds and disallow wheels. Please allow one of these or "
                 "both so that some distributions can be resolved."
             )
-        if not self.allow_builds and self.only_builds:
-            raise self.Error(
-                "Builds were disallowed, but the following project names are configured to only "
-                "allow building: {only_builds}".format(
-                    only_builds=", ".join(sorted(map(str, self.only_builds)))
-                )
-            )
-        if not self.allow_wheels and self.only_wheels:
-            raise self.Error(
-                "Resolving wheels was disallowed, but the following project names are configured "
-                "to only allow resolving pre-built wheels: {only_wheels}".format(
-                    only_wheels=", ".join(sorted(map(str, self.only_wheels)))
-                )
-            )
 
         contradictory_only = self.only_builds.intersection(self.only_wheels)
         if contradictory_only:
@@ -176,10 +132,14 @@ class BuildConfiguration(object):
 
     def allow_build(self, project_name):
         # type: (ProjectName) -> bool
+        if project_name in self.only_builds:
+            return True
         return self.allow_builds and project_name not in self.only_wheels
 
     def allow_wheel(self, project_name):
         # type: (ProjectName) -> bool
+        if project_name in self.only_wheels:
+            return True
         return self.allow_wheels and project_name not in self.only_builds
 
 
@@ -204,6 +164,11 @@ class PipConfiguration(object):
     use_pip_config = attr.ib(default=False)  # type: bool
     extra_requirements = attr.ib(default=())  # type Tuple[Requirement, ...]
     keyring_provider = attr.ib(default=None)  # type: Optional[str]
+
+    @property
+    def pip_configuration(self):
+        # type: () -> PipConfiguration
+        return self
 
 
 @attr.s(frozen=True)
@@ -245,9 +210,43 @@ class LockRepositoryConfiguration(object):
 
 
 @attr.s(frozen=True)
+class PylockRepositoryConfiguration(object):
+    lock_file_path = attr.ib()  # type: str
+    extras = attr.ib()  # type: FrozenSet[str]
+    dependency_groups = attr.ib()  # type: FrozenSet[str]
+    pip_configuration = attr.ib()  # type: PipConfiguration
+
+    @property
+    def repos_configuration(self):
+        # type: () -> ReposConfiguration
+        return self.pip_configuration.repos_configuration
+
+    @property
+    def network_configuration(self):
+        # type: () -> NetworkConfiguration
+        return self.pip_configuration.network_configuration
+
+
+@attr.s(frozen=True)
 class PreResolvedConfiguration(object):
     sdists = attr.ib()  # type: Tuple[str, ...]
     wheels = attr.ib()  # type: Tuple[str, ...]
+    pip_configuration = attr.ib()  # type: PipConfiguration
+
+    @property
+    def repos_configuration(self):
+        # type: () -> ReposConfiguration
+        return self.pip_configuration.repos_configuration
+
+    @property
+    def network_configuration(self):
+        # type: () -> NetworkConfiguration
+        return self.pip_configuration.network_configuration
+
+
+@attr.s(frozen=True)
+class VenvRepositoryConfiguration(object):
+    venvs = attr.ib()  # type: Tuple[Virtualenv, ...]
     pip_configuration = attr.ib()  # type: PipConfiguration
 
     @property

@@ -17,19 +17,16 @@ def test_symlinked_home(tmpdir):
     real_home = tmpdir.join("a", "b", "c")
     symlinked_home = tmpdir.join("lnk")
     safe_symlink(real_home, symlinked_home)
+    env = make_env(HOME=symlinked_home, XDG_CACHE_HOME=None, PEX_ROOT=None)
 
     pex = tmpdir.join("pex")
-    run_pex_command(
-        args=["cowsay==5.0", "-c", "cowsay", "-o", pex], env=make_env(HOME=symlinked_home)
-    ).assert_success()
+    run_pex_command(args=["cowsay==5.0", "-c", "cowsay", "-o", pex], env=env).assert_success()
 
     def test_pex():
         # type: () -> None
         assert (
             "5.0"
-            == subprocess.check_output(args=[pex, "--version"], env=make_env(HOME=symlinked_home))
-            .decode("utf-8")
-            .strip()
+            == subprocess.check_output(args=[pex, "--version"], env=env).decode("utf-8").strip()
         )
 
     test_pex()

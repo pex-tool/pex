@@ -1,8 +1,7 @@
 # Copyright 2024 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-from pex.requirements import ArchiveScheme
-from pex.resolve.resolved_requirement import ArtifactURL, Fingerprint
+from pex.artifact_url import ArchiveScheme, ArtifactURL, Fingerprint
 
 
 def test_artifact_url_escaping():

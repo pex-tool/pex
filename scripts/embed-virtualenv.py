@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 
+import os
 import subprocess
 import sys
 from pathlib import Path
 
 import httpx
+
+from pex.util import named_temporary_file
 
 VIRTUALENV_16_7_12_RELEASE_SHA = "fdfec65ff031997503fb409f365ee3aeb4c2c89f"
 
@@ -26,9 +29,12 @@ def main() -> None:
         "GET",
         f"https://raw.githubusercontent.com/pypa/virtualenv/"
         f"{VIRTUALENV_16_7_12_RELEASE_SHA}/virtualenv.py",
-    ) as response, out_path.open("wb") as out_fp:
+    ) as response, named_temporary_file(
+        dir=out_path.parent, prefix=f"{out_path.name}.", suffix=".downloading"
+    ) as out_fp:
         for chunk in response.iter_bytes():
             out_fp.write(chunk)
+        os.rename(out_fp.name, out_path)
 
 
 if __name__ == "__main__":

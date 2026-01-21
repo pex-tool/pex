@@ -123,10 +123,10 @@ def __maybe_run_venv__(
     from pex.variables import venv_dir
 
     venv_root_dir = venv_dir(
-        pex_file=pex,
         pex_root=pex_root,
         pex_hash=pex_hash,
         has_interpreter_constraints=has_interpreter_constraints,
+        pex_file=pex,
         pex_path=pex_path,
     )
     venv_pex = os.path.join(venv_root_dir, "pex")
@@ -191,8 +191,16 @@ def boot(
             if os.path.isfile(pex_exe):
                 sys.argv[0] = pex_exe
 
+    overridden_entry_point = os.environ.get("__PEX_ENTRY_POINT__", None)
     sys.path[0] = os.path.abspath(sys.path[0])
-    sys.path.insert(0, os.path.abspath(os.path.join(entry_point, bootstrap_dir)))
+    sys.path.insert(
+        0, os.path.abspath(os.path.join(overridden_entry_point or entry_point, bootstrap_dir))
+    )
+
+    if overridden_entry_point and overridden_entry_point != entry_point:
+        # This PEX has already been installed out of band; so we short-circuit to execute the
+        # pre-installed PEX.
+        __re_exec__(sys.executable, python_args, overridden_entry_point)
 
     venv_dir = None  # type: Optional[str]
     if not installed_from:

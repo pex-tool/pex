@@ -11,22 +11,23 @@ from __future__ import absolute_import, print_function
 import itertools
 import json
 import os
-import shlex
 import sys
-from argparse import Action, ArgumentDefaultsHelpFormatter, ArgumentError, ArgumentParser
+from argparse import Action, ArgumentDefaultsHelpFormatter, ArgumentParser
 from textwrap import TextWrapper
 
-from pex import dependency_configuration, pex_warnings, repl, scie
-from pex.argparse import HandleBoolAction
+from pex import build_properties, dependency_configuration, pex_warnings, repl, scie
+from pex.argparse import HandleBoolAction, InjectArgAction, InjectEnvAction
+from pex.build_properties import BuildProperties
 from pex.commands.command import (
     GlobalConfigurationError,
     global_environment,
     register_global_arguments,
 )
 from pex.common import CopyMode, die, is_pyc_dir, is_pyc_file
+from pex.compatibility import commonpath
 from pex.dependency_configuration import DependencyConfiguration
 from pex.dependency_manager import DependencyManager
-from pex.dist_metadata import Requirement
+from pex.dist_metadata import Distribution, Requirement
 from pex.docs.command import serve_html_docs
 from pex.enum import Enum
 from pex.fetcher import URLFetcher
@@ -34,10 +35,10 @@ from pex.inherit_path import InheritPath
 from pex.interpreter_constraints import InterpreterConstraints
 from pex.layout import Layout, ensure_installed
 from pex.orderedset import OrderedSet
-from pex.os import WINDOWS
+from pex.pep_425 import RankedTag
 from pex.pep_427 import InstallableType
 from pex.pep_723 import ScriptMetadata
-from pex.pex import PEX
+from pex.pex import PEX, validate_entry_point
 from pex.pex_bootstrapper import ensure_venv
 from pex.pex_builder import Check, PEXBuilder
 from pex.pex_info import PexInfo
@@ -62,7 +63,7 @@ from pex.result import Error, ResultError, catch, try_
 from pex.scie import ScieConfiguration
 from pex.targets import Targets
 from pex.tracer import TRACER
-from pex.typing import TYPE_CHECKING, cast
+from pex.typing import TYPE_CHECKING
 from pex.variables import ENV, Variables
 from pex.venv.bin_path import BinPath
 from pex.version import __version__
@@ -139,7 +140,12 @@ def configure_clp_pex_resolution(parser):
     )
 
     resolver_options.register(
-        group, include_pex_repository=True, include_lock=True, include_pre_resolved=True
+        group,
+        include_pex_repository=True,
+        include_pex_lock=True,
+        include_pylock=True,
+        include_pre_resolved=True,
+        include_venv_repository=True,
     )
 
     group.add_argument(
@@ -160,6 +166,8 @@ def configure_clp_pex_options(parser):
         "PEX output options",
         "Tailor the behavior of the emitted .pex file if -o is specified.",
     )
+
+    build_properties.register_options(group)
 
     group.add_argument(
         "--include-tools",
@@ -538,16 +546,22 @@ def configure_clp_pex_entry_points(parser):
         "`from a.b.c import m` during validation.",
     )
 
-    class InjectEnvAction(Action):
-        def __call__(self, parser, namespace, value, option_str=None):
-            components = value.split("=", 1)
-            if len(components) != 2:
-                raise ArgumentError(
-                    self,
-                    "Environment variable values must be of the form `name=value`. "
-                    "Given: {value}".format(value=value),
-                )
-            self.default.append(tuple(components))
+    group.add_argument(
+        "--bind-resource-path",
+        dest="bind_resource_paths",
+        default=[],
+        action=InjectEnvAction,
+        help=(
+            "Specifies an environment variable to bind the path of a resource in the PEX to in the "
+            "form `<env var name>=<resource rel path>`. For example "
+            "`WINDOWS_X64_CONSOLE_TRAMPOLINE=pex/windows/stubs/uv-trampoline-x86_64-console.exe` "
+            "would lookup the path of the `pex/windows/stubs/uv-trampoline-x86_64-console.exe` "
+            "file on the `sys.path` and bind its absolute path to the "
+            "WINDOWS_X64_CONSOLE_TRAMPOLINE environment variable. N.B.: resource paths must use "
+            "the Unix path separator of `/`. These will be converted to the runtime host path "
+            "separator as needed."
+        ),
+    )
 
     group.add_argument(
         "--inject-env",
@@ -556,11 +570,6 @@ def configure_clp_pex_entry_points(parser):
         action=InjectEnvAction,
         help="Environment variables to freeze in to the application environment.",
     )
-
-    class InjectArgAction(Action):
-        def __call__(self, parser, namespace, value, option_str=None):
-            self.default.extend(shlex.split(value, posix=not WINDOWS))
-
     group.add_argument(
         "--inject-python-args",
         dest="inject_python_args",
@@ -572,13 +581,16 @@ def configure_clp_pex_entry_points(parser):
             "warnings."
         ),
     )
-
     group.add_argument(
         "--inject-args",
         dest="inject_args",
         default=[],
         action=InjectArgAction,
-        help="Command line arguments to the application to freeze in.",
+        help=(
+            "Command line arguments to the application to freeze in. Arguments that have "
+            "`{pex.env.<env var name>}` placeholders will have them replaced with the "
+            "corresponding environment variable value if set and '' otherwise."
+        ),
     )
 
 
@@ -753,7 +765,8 @@ def configure_clp_sources(parser):
         parser,
         project_help=(
             "Add the local project at the specified path to the generated .pex file along with "
-            "its transitive dependencies."
+            "its transitive dependencies. The path can be that of a project directory, a project"
+            "sdist or a pre-built project wheel."
         ),
     )
 
@@ -796,6 +809,16 @@ class PositionalArgumentFromFileParser(object):
 
 def configure_clp():
     # type: () -> PositionalArgumentFromFileParser
+
+    prog = sys.argv[0]
+    if os.path.isabs(prog):
+        entries = os.environ.get("PATH", os.defpath).split(os.pathsep)
+        entries.append(os.getcwd())
+        for entry in entries:
+            if os.path.isabs(entry) and entry == commonpath((entry, prog)):
+                prog = os.path.relpath(prog, entry)
+                break
+
     usage = (
         "%(prog)s [-o OUTPUT.PEX] [options] [-- arg1 arg2 ...]\n\n"
         "%(prog)s builds a PEX (Python Executable) file based on the given specifications: "
@@ -805,7 +828,7 @@ def configure_clp():
         "with an @ symbol. These files must contain one argument per line."
     )
 
-    parser = ArgumentParser(usage=usage, formatter_class=ArgumentDefaultsHelpFormatter)
+    parser = ArgumentParser(prog=prog, usage=usage, formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument("-V", "--version", action="version", version=__version__)
 
     configure_clp_pex_resolution(parser)
@@ -818,8 +841,14 @@ def configure_clp():
         "--output-file",
         dest="pex_name",
         default=None,
-        help="The name of the generated .pex file: Omitting this will run PEX "
-        "immediately and not save it to a file.",
+        help=(
+            "The name of the generated .pex file: Omitting this will run PEX "
+            "immediately and not save it to a file. If the name contains the {platform} "
+            "placeholder, the most-specific platform tags supported by the PEX will be "
+            "substituted. For example, for a multi-platform Linux x86-64, Mac ARM PEX containing "
+            "platform-specific wheels, `-o 'example-{platform}.pex'` might expand to a PEX "
+            "filename of `example-cp314-cp314-macosx_11_0_arm64.manylinux2014_x86_64.pex`"
+        ),
     )
 
     parser.add_argument(
@@ -969,6 +998,7 @@ def build_pex(
 
     pex_info = pex_builder.info
     pex_info.inject_python_args = options.inject_python_args
+    pex_info.bind_resource_paths = dict(options.bind_resource_paths)
     pex_info.inject_env = dict(options.inject_env)
     pex_info.inject_args = options.inject_args
     pex_info.venv = bool(options.venv)
@@ -985,8 +1015,10 @@ def build_pex(
     pex_info.pex_root = options.runtime_pex_root
     pex_info.strip_pex_env = options.strip_pex_env
     pex_info.interpreter_constraints = interpreter_constraints
+    pex_info.interpreter_selection_strategy = options.interpreter_selection_strategy
     pex_info.deps_are_wheel_files = not options.pre_install_wheels
     pex_info.max_install_jobs = options.max_install_jobs
+    pex_info.build_properties = BuildProperties.from_options(options)
 
     dependency_config = dependency_configuration.configure(options)
     if dependency_config.overridden and isinstance(
@@ -1294,6 +1326,45 @@ def main(args=None):
         die(str(e))
 
 
+def calculate_pex_tag(
+    targets,  # type: Targets
+    distributions,  # type: Iterable[Distribution]
+):
+    # type: (...) -> str
+
+    interpreters = set()  # type: Set[str]
+    abis = set()  # type: Set[str]
+    platforms = set()  # type: Set[str]
+    for target in targets.unique_targets():
+        best_match_tag = None  # type: Optional[RankedTag]
+        best_match_tag_interpreters = []  # type: List[str]
+        best_match_tag_abi = "none"  # type: str
+        best_match_tag_platform_lcd = "any"  # type: str
+        for whl in distributions:
+            wheel_applies = target.wheel_applies(whl)
+            if not wheel_applies or not wheel_applies.best_match:
+                continue
+            best_match_tag = wheel_applies.best_match.select_higher_rank(best_match_tag)
+            if best_match_tag == wheel_applies.best_match:
+                best_match_tag_interpreters = [tag.interpreter for tag in wheel_applies.tags]
+                best_match_tag_abi = best_match_tag.tag.abi
+                best_match_tag_platform_lcd = sorted(
+                    (tag for tag in wheel_applies.tags),
+                    key=lambda tag: target.supported_tags.rank(tag)
+                    or target.supported_tags.lowest_rank,
+                )[-1].platform
+        if best_match_tag:
+            interpreters.update(best_match_tag_interpreters)
+            abis.add(best_match_tag_abi)
+            platforms.add(best_match_tag_platform_lcd)
+
+    return "{interpreter}-{abi}-{platform}".format(
+        interpreter=".".join(sorted(interpreters)),
+        abi=".".join(sorted(abis)),
+        platform=".".join(sorted(platforms)),
+    )
+
+
 def do_main(
     options,  # type: Namespace
     requirement_configuration,  # type: RequirementConfiguration
@@ -1303,6 +1374,11 @@ def do_main(
     cmdline,  # type: List[str]
     env,  # type: Dict[str, str]
 ):
+    if options.validate_ep and not options.entry_point:
+        raise ValueError(
+            "You requested `--validate-entry-point` but specified no `--entry-point` to validate."
+        )
+
     scie_options = scie.extract_options(options)
     if scie_options and not options.pex_name:
         raise ValueError(
@@ -1338,11 +1414,16 @@ def do_main(
     pex = PEX(
         pex_builder.path(),
         interpreter=interpreter,
-        verify_entry_point=options.validate_ep,
     )
+    if options.validate_ep and options.entry_point:
+        validate_entry_point(pex, options.entry_point)
 
     pex_file = options.pex_name
     if pex_file is not None:
+        if "{platform}" in pex_file:
+            pex_file = pex_file.format(
+                platform=calculate_pex_tag(targets, pex_builder.distributions)
+            )
         log("Saving PEX file to {pex_file}".format(pex_file=pex_file), V=options.verbosity)
         if options.sh_boot:
             with TRACER.timed("Creating /bin/sh boot script"):
@@ -1356,18 +1437,20 @@ def do_main(
         pex_builder.build(
             pex_file,
             bytecode_compile=options.compile,
-            deterministic_timestamp=not options.use_system_time,
+            deterministic=not options.use_system_time,
             layout=options.layout,
             compress=options.compress,
             check=options.check,
         )
-        if options.seed != Seed.NONE:
+        if options.seed is not Seed.NONE:
             seed_info = seed_cache(
-                options,
                 PEX(pex_file, interpreter=interpreter),
                 verbose=options.seed == Seed.VERBOSE,
             )
             print(seed_info)
+        else:
+            print(pex_file)
+
         if scie_configuration:
             url_fetcher = URLFetcher(
                 network_configuration=resolver_configuration.network_configuration,
@@ -1385,10 +1468,12 @@ def do_main(
                         ),
                         V=options.verbosity,
                     )
-                if scie_configuration.options.scie_only and os.path.realpath(
-                    pex_file
-                ) != os.path.realpath(scie_info.file):
-                    os.unlink(pex_file)
+                    if scie_configuration.options.scie_only and os.path.realpath(
+                        pex_file
+                    ) != os.path.realpath(scie_info.file):
+                        os.unlink(pex_file)
+                    elif options.seed is Seed.NONE:
+                        print(os.path.relpath(scie_info.file))
     else:
         if not _compatible_with_current_platform(interpreter, targets.platforms):
             log("WARNING: attempting to run PEX with incompatible platforms!", V=1)
@@ -1407,22 +1492,26 @@ def do_main(
 
 
 def seed_cache(
-    options,  # type: Namespace
     pex,  # type: PEX
     verbose=False,  # type : bool
 ):
     # type: (...) -> str
 
-    pex_path = cast(str, options.pex_name)
+    pex_path = pex.path()
     with TRACER.timed("Seeding local caches for {}".format(pex_path)):
         pex_info = pex.pex_info()
         pex_root = pex_info.pex_root
 
         def create_verbose_info(final_pex_path):
             # type: (str) -> Dict[str, str]
-            return dict(pex_root=pex_root, python=pex.interpreter.binary, pex=final_pex_path)
+            return dict(
+                seeded_from=pex_path,
+                pex_root=pex_root,
+                python=pex.interpreter.binary,
+                pex=final_pex_path,
+            )
 
-        if options.venv:
+        if pex.pex_info(include_env_overrides=False).venv:
             with TRACER.timed("Creating venv from {}".format(pex_path)):
                 with ENV.patch(PEX=os.path.realpath(os.path.expanduser(pex_path))):
                     venv_pex = ensure_venv(pex)

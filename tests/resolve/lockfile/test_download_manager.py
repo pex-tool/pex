@@ -8,12 +8,12 @@ from io import BytesIO
 import pytest
 
 from pex import hashing
+from pex.artifact_url import ArtifactURL, Fingerprint
 from pex.cache.dirs import CacheDir
 from pex.hashing import Sha1Fingerprint, Sha256Fingerprint
 from pex.pep_503 import ProjectName
 from pex.resolve.locked_resolve import FileArtifact
 from pex.resolve.lockfile.download_manager import DownloadedArtifact, DownloadManager
-from pex.resolve.resolved_requirement import ArtifactURL, Fingerprint
 from pex.result import Error, catch
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV, Variables
@@ -155,7 +155,16 @@ def test_storage_version_downgrade_v0(tmpdir):
         assert "bar" == fp.read()
 
     with open(DownloadedArtifact.metadata_filename(str(tmpdir))) as fp:
-        assert dict(algorithm="sha256", hexdigest="baz", filename="foo", version=1) == json.load(fp)
+        assert (
+            dict(
+                algorithm="sha256",
+                hexdigest="baz",
+                filename="foo",
+                subdirectory=None,
+                version=DownloadedArtifact._METADATA_VERSION,
+            )
+            == json.load(fp)
+        )
 
 
 def test_fingerprint_checking(

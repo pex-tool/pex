@@ -10,23 +10,24 @@ import re
 import shutil
 import sys
 from textwrap import dedent
-from typing import Optional
+from typing import Dict, Optional
 
 import pytest
 
 from pex.cache.dirs import CacheDir
-from pex.common import safe_open
+from pex.common import safe_mkdir, safe_open
 from pex.executables import chmod_plus_x, is_script
 from pex.fetcher import URLFetcher
 from pex.layout import Layout
 from pex.orderedset import OrderedSet
-from pex.os import is_exe
+from pex.os import WINDOWS, is_exe
+from pex.pip.version import PipVersion
 from pex.scie import ScieStyle
-from pex.sysconfig import SysPlatform
-from pex.targets import LocalInterpreter
+from pex.sysconfig import SCRIPT_DIR, SysPlatform
 from pex.typing import TYPE_CHECKING
 from pex.version import __version__
 from testing import IS_PYPY, PY_VER, make_env, run_pex_command, subprocess
+from testing.pip import skip_if_only_vendored_pip_supported
 from testing.pytest_utils.tmp import Tempdir
 from testing.scie import skip_if_no_provider
 
@@ -78,15 +79,37 @@ def test_basic(
                 message=re.escape(
                     "You selected `--scie {style}`, but none of the selected targets have "
                     "compatible interpreters that can be embedded to form a scie:\n"
-                    "{target}".format(
-                        style=scie_style, target=LocalInterpreter.create().render_description()
-                    )
+                    "{target}".format(style=scie_style, target=result.target.render_description())
                 )
             ),
             re_flags=re.DOTALL | re.MULTILINE,
         )
         return
-    if PY_VER == (3, 8) or PY_VER >= (3, 14):
+    if PY_VER == (3, 8) and not IS_PYPY:
+        result.assert_failure(
+            expected_error_re=r".*{message}$".format(
+                message=re.escape(
+                    "No released assets available for Python 3.8 in the latest "
+                    "PythonBuildStandalone release. Support for Python 3.8 was dropped in the "
+                    "20241205 release. Try specifying an older PythonBuildStandalone release.\n"
+                )
+            ),
+            re_flags=re.DOTALL | re.MULTILINE,
+        )
+        return
+    if PY_VER == (3, 9) and not IS_PYPY:
+        result.assert_failure(
+            expected_error_re=r".*{message}$".format(
+                message=re.escape(
+                    "No released assets available for Python 3.9 in the latest "
+                    "PythonBuildStandalone release. Support for Python 3.9 was dropped in the "
+                    "20251120 release. Try specifying an older PythonBuildStandalone release.\n"
+                )
+            ),
+            re_flags=re.DOTALL | re.MULTILINE,
+        )
+        return
+    if PY_VER >= (3, 16):
         result.assert_failure(
             expected_error_re=(
                 r".*"
@@ -161,16 +184,25 @@ def test_multiple_platforms(tmpdir):
                 pex,
                 "--scie",
                 "lazy",
+                # N.B.: This is the last PBS release to support Python 3.9.
+                "--scie-pbs-release",
+                "20251031",
                 "--platform",
                 "linux-aarch64-cp-39-cp39",
+                "--platform",
+                "musllinux-aarch64-cp-315-cp315",
                 "--platform",
                 "linux-armv7l-cp-311-cp311",
                 "--platform",
                 "linux-ppc64le-cp-312-cp312",
                 "--platform",
+                "linux-riscv64-cp-313-cp313",
+                "--platform",
                 "linux-s390x-cp-313-cp313",
                 "--platform",
                 "linux-x86_64-cp-310-cp310",
+                "--platform",
+                "musllinux-x86_64-cp-314-cp314",
                 "--platform",
                 "macosx-10.9-arm64-cp-311-cp311",
                 "--platform",
@@ -181,10 +213,13 @@ def test_multiple_platforms(tmpdir):
 
     python_version_by_platform = {
         SysPlatform.LINUX_AARCH64: "3.9",
+        SysPlatform.MUSL_LINUX_AARCH64: "3.15",
         SysPlatform.LINUX_ARMV7L: "3.11",
         SysPlatform.LINUX_PPC64LE: "3.12",
+        SysPlatform.LINUX_RISCV64: "3.13",
         SysPlatform.LINUX_S390X: "3.13",
         SysPlatform.LINUX_X86_64: "3.10",
+        SysPlatform.MUSL_LINUX_X86_64: "3.14",
         SysPlatform.MACOS_AARCH64: "3.11",
         SysPlatform.MACOS_X86_64: "3.12",
     }
@@ -195,7 +230,6 @@ def test_multiple_platforms(tmpdir):
         expected_platforms,  # type: Iterable[SysPlatform.Value]
     ):
         # type: (...) -> None
-
         all_output_files = set(
             path
             for path in os.listdir(output_dir)
@@ -240,10 +274,13 @@ def test_multiple_platforms(tmpdir):
         output_dir=all_platforms_output_dir,
         expected_platforms=(
             SysPlatform.LINUX_AARCH64,
+            SysPlatform.MUSL_LINUX_AARCH64,
             SysPlatform.LINUX_ARMV7L,
             SysPlatform.LINUX_PPC64LE,
+            SysPlatform.LINUX_RISCV64,
             SysPlatform.LINUX_S390X,
             SysPlatform.LINUX_X86_64,
+            SysPlatform.MUSL_LINUX_X86_64,
             SysPlatform.MACOS_AARCH64,
             SysPlatform.MACOS_X86_64,
         ),
@@ -260,7 +297,7 @@ def test_multiple_platforms(tmpdir):
             "--scie-platform",
             str(SysPlatform.LINUX_AARCH64),
             "--scie-platform",
-            str(SysPlatform.LINUX_X86_64),
+            str(SysPlatform.MUSL_LINUX_X86_64),
         ],
     )
     assert_platforms(
@@ -268,7 +305,7 @@ def test_multiple_platforms(tmpdir):
         expected_platforms=(
             SysPlatform.CURRENT,
             SysPlatform.LINUX_AARCH64,
-            SysPlatform.LINUX_X86_64,
+            SysPlatform.MUSL_LINUX_X86_64,
         ),
     )
 
@@ -313,7 +350,7 @@ def test_specified_science_binary(tmpdir):
 
     local_science_binary = os.path.join(str(tmpdir), "science")
     with open(local_science_binary, "wb") as write_fp, URLFetcher().get_body_stream(
-        "https://github.com/a-scie/lift/releases/download/v0.12.2/{binary}".format(
+        "https://github.com/a-scie/lift/releases/download/v0.17.2/{binary}".format(
             binary=SysPlatform.CURRENT.qualified_binary_name("science")
         )
     ) as read_fp:
@@ -357,7 +394,7 @@ def test_specified_science_binary(tmpdir):
         cached_science_binaries
     ), "Expected the local science binary to be used but not cached."
     assert (
-        "0.12.2"
+        "0.17.2"
         == subprocess.check_output(args=[local_science_binary, "--version"]).decode("utf-8").strip()
     )
 
@@ -374,38 +411,39 @@ def test_custom_lazy_urls(tmpdir):
             "--scie",
             "lazy",
             "--scie-pbs-release",
-            "20221002",
+            "20250529",
             "--scie-python-version",
-            "3.10.7",
+            "3.10.17",
         ],
     ).assert_success()
 
-    assert b"3.10.7\n" == subprocess.check_output(args=[scie, "-c", PRINT_VERSION_SCRIPT])
+    assert b"3.10.17\n" == subprocess.check_output(args=[scie, "-c", PRINT_VERSION_SCRIPT])
 
     pex_bootstrap_urls = os.path.join(str(tmpdir), "pex_bootstrap_urls.json")
 
-    def make_20221002_3_10_7_file(platform):
+    def make_20250529_3_10_17_file(platform):
         # type: (str) -> str
-        return "cpython-3.10.7+20221002-{platform}-install_only.tar.gz".format(platform=platform)
+        return "cpython-3.10.17+20250529-{platform}-install_only.tar.gz".format(platform=platform)
 
-    def make_20240415_3_10_14_url(platform):
+    def make_20250818_3_10_18_url(platform):
         # type: (str) -> str
         return (
-            "https://github.com/astral-sh/python-build-standalone/releases/download/20240415/"
-            "cpython-3.10.14+20240415-{platform}-install_only.tar.gz".format(platform=platform)
+            "https://github.com/astral-sh/python-build-standalone/releases/download/20250818/"
+            "cpython-3.10.18+20250818-{platform}-install_only.tar.gz".format(platform=platform)
         )
 
     with open(pex_bootstrap_urls, "w") as fp:
         json.dump(
             {
                 "ptex": {
-                    make_20221002_3_10_7_file(platform): make_20240415_3_10_14_url(platform)
+                    make_20250529_3_10_17_file(platform): make_20250818_3_10_18_url(platform)
                     for platform in (
                         "aarch64-apple-darwin",
                         "x86_64-apple-darwin",
                         "aarch64-unknown-linux-gnu",
                         "armv7-unknown-linux-gnueabihf",
                         "ppc64le-unknown-linux-gnu",
+                        "riscv64-unknown-linux-gnu",
                         "s390x-unknown-linux-gnu",
                         "x86_64-unknown-linux-gnu",
                     )
@@ -434,6 +472,8 @@ def test_custom_lazy_urls(tmpdir):
         expected_platform = "armv7-unknown-linux-gnueabihf"
     elif SysPlatform.CURRENT is SysPlatform.LINUX_PPC64LE:
         expected_platform = "ppc64le-unknown-linux-gnu"
+    elif SysPlatform.CURRENT is SysPlatform.LINUX_RISCV64:
+        expected_platform = "riscv64-unknown-linux-gnu"
     elif SysPlatform.CURRENT is SysPlatform.LINUX_S390X:
         expected_platform = "s390x-unknown-linux-gnu"
     elif SysPlatform.CURRENT is SysPlatform.LINUX_X86_64:
@@ -447,13 +487,14 @@ def test_custom_lazy_urls(tmpdir):
     assert re.match(
         r"^.*Population of work directory failed: The tar\.gz destination .*{expected_file_name} "
         r"of size \d+ had unexpected hash: [a-f0-9]{{64}}$.*".format(
-            expected_file_name=re.escape(make_20221002_3_10_7_file(expected_platform))
+            expected_file_name=re.escape(make_20250529_3_10_17_file(expected_platform))
         ),
         stderr.decode("utf-8"),
         flags=re.DOTALL | re.MULTILINE,
     ), stderr.decode("utf-8")
 
 
+@skip_if_only_vendored_pip_supported
 def test_pex_pex_scie(
     tmpdir,  # type: Any
     pex_project_dir,  # type: Any
@@ -463,6 +504,8 @@ def test_pex_pex_scie(
     pex = os.path.join(str(tmpdir), "pex")
     run_pex_command(
         args=[
+            "--pip-version",
+            PipVersion.LATEST_COMPATIBLE.value,
             pex_project_dir,
             "-c",
             "pex",
@@ -1235,3 +1278,139 @@ def test_scie_eager_no_ptex(tmpdir):
 
     assert_ptex(expect_included=False, lazy=False)
     assert_ptex(expect_included=True, lazy=True)
+
+
+@skip_if_no_provider
+@pytest.mark.skipif(
+    IS_PYPY or sys.version_info[:2] < (3, 13),
+    reason="Free-threaded CPython is only available for Python >=3.13.",
+)
+def test_free_threaded_scie_requested(tmpdir):
+    # type: (Tempdir) -> None
+
+    def build_and_run_scie(*extra_args):
+        # type: (*str) -> Dict[str, Any]
+
+        scie = tmpdir.join("scie")
+        run_pex_command(
+            args=["--scie", "eager", "--scie-only", "-o", scie] + list(extra_args)
+        ).assert_success()
+        data = json.loads(
+            subprocess.check_output(
+                args=[
+                    scie,
+                    "-c",
+                    dedent(
+                        """\
+                        import json
+                        import sys
+                        import sysconfig
+
+
+                        json.dump(
+                            {
+                                "debug": sysconfig.get_config_var("Py_DEBUG"),
+                                "free-threaded": sysconfig.get_config_var("Py_GIL_DISABLED"),
+                            },
+                            sys.stdout,
+                        )
+                        """
+                    ),
+                ]
+            )
+        )
+        assert isinstance(data, dict)
+        return data
+
+    assert {"debug": 0, "free-threaded": 0} == build_and_run_scie()
+    assert {"debug": 0, "free-threaded": 1} == build_and_run_scie("--scie-pbs-free-threaded")
+    if not WINDOWS:
+        assert {"debug": 1, "free-threaded": 0} == build_and_run_scie("--scie-pbs-debug")
+        assert {"debug": 1, "free-threaded": 1} == build_and_run_scie(
+            "--scie-pbs-debug", "--scie-pbs-free-threaded"
+        )
+
+
+@skip_if_no_provider
+@pytest.mark.skipif(
+    IS_PYPY or sys.version_info[:2] < (3, 13),
+    reason="Free-threaded CPython is only available for Python >=3.13.",
+)
+def test_free_threaded_scie_auto_detected(tmpdir):
+    # type: (Tempdir) -> None
+
+    # N.B.: We need to run Pex with a free-threaded Python to get a free-threaded psutil wheel.
+    free_threaded_python = tmpdir.join("pythont")
+    run_pex_command(
+        args=[
+            "--scie",
+            "eager",
+            "--scie-only",
+            "--scie-pbs-free-threaded",
+            "-o",
+            free_threaded_python,
+        ]
+    ).assert_success()
+
+    scie = tmpdir.join("scie")
+    run_pex_command(
+        args=["--scie", "eager", "psutil", "--scie-only", "-o", scie],
+        python=free_threaded_python,
+        use_pex_whl_venv=False,
+    ).assert_success()
+
+    assert (
+        b"1"
+        == subprocess.check_output(
+            args=[
+                scie,
+                "-c",
+                "import psutil, sysconfig; print(sysconfig.get_config_var('Py_GIL_DISABLED'))",
+            ]
+        ).strip()
+    )
+
+
+@skip_if_no_provider
+def test_bind_resource_path(tmpdir):
+    # type: (Tempdir) -> None
+
+    fortune = tmpdir.join("fortune")
+    resources = tmpdir.join("resources")
+    with open(
+        os.path.join(safe_mkdir(os.path.join(resources, "fortunes")), "fortune-file"), "w"
+    ) as fp:
+        fp.write(
+            dedent(
+                """\
+                A day for firm decisions!!!!!  Or is it?
+                %
+                """
+            )
+        )
+
+    run_pex_command(
+        args=[
+            "fortune==1.1.1",
+            "-c",
+            "fortune",
+            "-D",
+            resources,
+            "--venv",
+            "--scie",
+            "eager",
+            "--scie-only",
+            "--scie-bind-resource-path",
+            "FORTUNE_FILE=fortunes/fortune-file",
+            "--scie-exe",
+            "{{scie.env.VIRTUAL_ENV}}{sep}{bin_dir}{sep}fortune".format(
+                sep=os.sep, bin_dir=SCRIPT_DIR
+            ),
+            "--scie-args",
+            "{scie.env.FORTUNE_FILE}",
+            "-o",
+            fortune,
+        ]
+    ).assert_success()
+
+    assert b"A day for firm decisions!!!!!  Or is it?\n" == subprocess.check_output(args=[fortune])

@@ -1,8 +1,9 @@
 # Copyright 2022 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+from __future__ import absolute_import, print_function
+
 import json
-import os
 
 import pytest
 
@@ -10,27 +11,32 @@ from pex.interpreter import PythonInterpreter
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.resolve.lockfile import json_codec
-from pex.typing import TYPE_CHECKING
 from testing import PY_VER, run_pex_command
 from testing.cli import run_pex3
-
-if TYPE_CHECKING:
-    from typing import Any
+from testing.pytest_utils.tmp import Tempdir
 
 
 @pytest.mark.skipif(
     PY_VER < (3, 6), reason="opentelemetry-instrumentation-httpx<0.31 requires python >= 3.6"
 )
 def test_prereleases(
-    tmpdir,  # type: Any
+    tmpdir,  # type: Tempdir
     py310,  # type: PythonInterpreter
 ):
     # type: (...) -> None
 
-    lockfile = os.path.join(str(tmpdir), "lock")
+    constraints_txt = tmpdir.join("constraints.txt")
+    with open(constraints_txt, "w") as fp:
+        # N.B.: httpx released an incompatible pre-release itself (1.0.dev1) on 7/2/2025.
+        # This constraint avoids that.
+        print("httpx<1", file=fp)
+
+    lockfile = tmpdir.join("lock")
     run_pex3(
         "lock",
         "create",
+        "--constraints",
+        constraints_txt,
         "opentelemetry-instrumentation-httpx[instruments]<0.31",
         "--pre",
         "-o",

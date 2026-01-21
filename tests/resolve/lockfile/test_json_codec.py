@@ -8,17 +8,24 @@ from textwrap import dedent
 
 import pytest
 
+from pex.artifact_url import ArtifactURL, Fingerprint
 from pex.compatibility import PY2
 from pex.dist_metadata import Constraint, Requirement
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pip.version import PipVersion
-from pex.resolve.locked_resolve import Artifact, LockedRequirement, LockedResolve, LockStyle
+from pex.resolve.locked_resolve import (
+    Artifact,
+    LockConfiguration,
+    LockedRequirement,
+    LockedResolve,
+    LockStyle,
+)
 from pex.resolve.lockfile import json_codec
 from pex.resolve.lockfile.json_codec import ParseError, PathMappingError
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.path_mappings import PathMapping, PathMappings
-from pex.resolve.resolved_requirement import ArtifactURL, Fingerprint, Pin
+from pex.resolve.resolved_requirement import Pin
 from pex.resolve.resolver_configuration import BuildConfiguration, ResolverVersion
 from pex.sorted_tuple import SortedTuple
 from pex.third_party.packaging import tags
@@ -38,9 +45,7 @@ def test_roundtrip(tmpdir):
 
     lockfile = Lockfile.create(
         pex_version="1.2.3",
-        style=LockStyle.STRICT,
-        requires_python=(),
-        target_systems=(),
+        lock_configuration=LockConfiguration(style=LockStyle.STRICT),
         pip_version=PipVersion.VENDORED,
         resolver_version=ResolverVersion.PIP_2020,
         requirements=(

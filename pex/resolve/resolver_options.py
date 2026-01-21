@@ -5,54 +5,43 @@ from __future__ import absolute_import
 
 import glob
 import os
+import sys
 import tempfile
 from argparse import Action, ArgumentError, ArgumentTypeError, Namespace, _ActionsContainer
+from collections import OrderedDict, defaultdict
 
 from pex import pex_warnings
 from pex.argparse import HandleBoolAction
+from pex.common import pluralize
 from pex.dist_metadata import Requirement, is_sdist, is_wheel
 from pex.fetcher import initialize_ssl_context
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
+from pex.os import is_exe
 from pex.pep_503 import ProjectName
 from pex.pip.version import PipVersion, PipVersionValue
 from pex.resolve.lockfile import json_codec
 from pex.resolve.lockfile.model import Lockfile
+from pex.resolve.package_repository import PYPI, Repo, ReposConfiguration, Scope
 from pex.resolve.path_mappings import PathMapping, PathMappings
 from pex.resolve.resolver_configuration import (
-    PYPI,
     BuildConfiguration,
     LockRepositoryConfiguration,
     PexRepositoryConfiguration,
     PipConfiguration,
     PipLog,
     PreResolvedConfiguration,
-    ReposConfiguration,
+    PylockRepositoryConfiguration,
     ResolverVersion,
+    VenvRepositoryConfiguration,
 )
 from pex.result import Error
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
+from pex.venv.virtualenv import InvalidVirtualenvError, Virtualenv
 
 if TYPE_CHECKING:
-    from typing import List, Optional, Union
-
-
-class _ManylinuxAction(Action):
-    def __init__(self, *args, **kwargs):
-        kwargs["nargs"] = "?"
-        super(_ManylinuxAction, self).__init__(*args, **kwargs)
-
-    def __call__(self, parser, namespace, value, option_str=None):
-        if option_str.startswith("--no"):
-            setattr(namespace, self.dest, None)
-        elif value.startswith("manylinux"):
-            setattr(namespace, self.dest, value)
-        else:
-            raise ArgumentTypeError(
-                "Please specify a manylinux standard; ie: --manylinux=manylinux1. "
-                "Given {}".format(value)
-            )
+    from typing import DefaultDict, Iterable, List, Mapping, Optional, Tuple, Union
 
 
 class _HandleTransitiveAction(Action):
@@ -64,20 +53,80 @@ class _HandleTransitiveAction(Action):
         setattr(namespace, self.dest, option_str == "--transitive")
 
 
+class _ResolveVenvAction(Action):
+    def __init__(self, *args, **kwargs):
+        kwargs["nargs"] = "?"
+        super(_ResolveVenvAction, self).__init__(*args, default=[], **kwargs)
+
+    def __call__(self, parser, namespace, value, option_str=None):
+        venvs = getattr(namespace, self.dest)
+        if value:
+            if not os.path.exists(value):
+                raise ArgumentError(
+                    argument=self,
+                    message=(
+                        "The {option} {value} does not point to an existing path.".format(
+                            option=option_str, value=value
+                        )
+                    ),
+                )
+
+            venv = None  # type: Optional[Virtualenv]
+            if is_exe(value):
+                venv = Virtualenv.enclosing(value)
+            else:
+                try:
+                    venv = Virtualenv(value)
+                except InvalidVirtualenvError:
+                    pass
+            if not venv:
+                raise ArgumentError(
+                    argument=self,
+                    message=(
+                        "The {option} {value} is not a valid virtual environment interpreter "
+                        "path.".format(option=option_str, value=value)
+                    ),
+                )
+            venvs.append(venv)
+        else:
+            current_venv = Virtualenv.enclosing(python=sys.executable)
+            if not current_venv:
+                try:
+                    current_venv = Virtualenv(venv_dir=".")
+                except InvalidVirtualenvError:
+                    raise ArgumentError(
+                        argument=self,
+                        message=(
+                            "The {option} option was requested but Pex is not currently running "
+                            "from a venv to use as the implicit {option} nor is the current "
+                            "directory a venv.\n"
+                            "You'll need to specify the path to a virtual environment directory or "
+                            "virtual environment interpreter as an argument.".format(
+                                option=option_str
+                            )
+                        ),
+                    )
+            venvs.append(current_venv)
+
+
 def register(
     parser,  # type: _ActionsContainer
     include_pex_repository=False,  # type: bool
-    include_lock=False,  # type: bool
+    include_pex_lock=False,  # type: bool
+    include_pylock=False,  # type: bool
     include_pre_resolved=False,  # type: bool
+    include_venv_repository=False,  # type: bool
 ):
     # type: (...) -> None
     """Register resolver configuration options with the given parser.
 
     :param parser: The parser to register resolver configuration options with.
     :param include_pex_repository: Whether to include the `--pex-repository` option.
-    :param include_lock: Whether to include the `--lock` option.
+    :param include_pex_lock: Whether to include the `--lock` / `--pex-lock` option.
+    :param include_pylock: Whether to include the `--pylock` / `--pep-751-lock` option.
     :param include_pre_resolved: Whether to include the `--pre-resolved-dist` and
                                  `--pre-resolved-dists` options.
+    :param include_venv_repository: Whether to include the `--venv-repository` option.
     """
 
     default_resolver_configuration = PipConfiguration()
@@ -100,11 +149,15 @@ def register(
         "--pip-version",
         dest="pip_version",
         default=str(PipVersion.DEFAULT),
-        choices=["latest", "vendored"] + [str(value) for value in PipVersion.values()],
+        choices=["latest", "latest-compatible", "vendored"]
+        + [str(value) for value in PipVersion.values()],
         help=(
             "The version of Pip to use for resolving dependencies. The `latest` version refers to "
             "the latest version in this list ({latest}) which is not necessarily the latest Pip "
-            "version released on PyPI.".format(latest=PipVersion.LATEST)
+            "version released on PyPI. The `latest-compatible` version refers to the latest "
+            "version of Pip in this list compatible with the current interpreter.".format(
+                latest=PipVersion.LATEST
+            )
         ),
     )
     parser.add_argument(
@@ -178,9 +231,13 @@ def register(
     repository_types = 0
     if include_pex_repository:
         repository_types += 1
-    if include_lock:
+    if include_pex_lock:
+        repository_types += 1
+    if include_pylock:
         repository_types += 1
     if include_pre_resolved:
+        repository_types += 1
+    if include_venv_repository:
         repository_types += 1
 
     repository_choice = parser.add_mutually_exclusive_group() if repository_types > 1 else parser
@@ -196,9 +253,10 @@ def register(
                 "--find-links repos or a --lock file."
             ),
         )
-    if include_lock:
+    if include_pex_lock:
         repository_choice.add_argument(
             "--lock",
+            "--pex-lock",
             dest="lock",
             metavar="FILE",
             default=None,
@@ -209,7 +267,40 @@ def register(
                 "specified, will install the entire lock."
             ),
         )
-        register_lock_options(parser)
+        register_pex_lock_options(parser)
+    if include_pylock:
+        repository_choice.add_argument(
+            "--pylock",
+            "--pep-751-lock",
+            dest="pylock",
+            metavar="FILE",
+            default=None,
+            type=str,
+            help=(
+                "Resolve requirements from the given PEP-751 lock file instead of from --index "
+                "servers, --find-links repos or a --pex-repository. If no requirements are "
+                "specified, will install the entire lock. If requirements are specified an attempt "
+                "will be made to subset the lock which may fail if the lock does not include "
+                "dependencies information, which is optional in PEP-751."
+            ),
+        )
+        parser.add_argument(
+            "--pylock-extra",
+            dest="pylock_extras",
+            default=[],
+            type=str,
+            action="append",
+            help="The extras to include when resolving from the `--pylock` lock.",
+        )
+        parser.add_argument(
+            "--pylock-group",
+            "--pylock-dependency-group",
+            dest="pylock_dependency_groups",
+            default=[],
+            type=str,
+            action="append",
+            help="The dependency groups to include when resolving from the `--pylock` lock.",
+        )
     if include_pre_resolved:
         repository_choice.add_argument(
             "--pre-resolved-dist",
@@ -225,6 +316,23 @@ def register(
                 "found in the given directory to the PEX, building wheels from any sdists first. "
                 "This option can be used to add a pre-resolved dependency set to a PEX. By "
                 "default, Pex will ensure the dependencies added form a closure."
+            ),
+        )
+    if include_venv_repository:
+        repository_choice.add_argument(
+            "--venv-repository",
+            dest="venv_repositories",
+            action=_ResolveVenvAction,
+            help=(
+                "Resolve requirements from the given virtual environment instead of from "
+                "--index servers, --find-links repos or a --lock file. The virtual environment to "
+                "resolve from can be specified as the path to the venv or the path of its"
+                "interpreter. If no value is specified, the current active venv is used. Multiple "
+                "virtual environments may be specified via multiple --venv-repository options and "
+                "the resolve will be the combined results. Each virtual environment will be "
+                "resolved from individually and must contain the full transitive closure of "
+                "requirements. This allows for creating a multi-platform PEX by specifying "
+                "multiple virtual environments; say one for Python 3.12 and one for Python 3.13."
             ),
         )
 
@@ -435,7 +543,7 @@ def get_use_pip_config_value(options):
     return os.environ.get("_PEX_USE_PIP_CONFIG", "False").lower() in ("1", "true")
 
 
-def register_lock_options(parser):
+def register_pex_lock_options(parser):
     # type: (_ActionsContainer) -> None
     """Register lock options with the given parser.
 
@@ -482,21 +590,64 @@ def register_repos_options(parser):
         "-f",
         "--find-links",
         "--repo",
-        metavar="PATH/URL",
+        metavar="(NAME=)PATH/URL",
         action="append",
         dest="find_links",
         type=str,
-        help="Additional repository path (directory or URL) to look for requirements.",
+        default=[],
+        help=(
+            "Additional repository path (directory or URL) to look for requirements. If the "
+            "repository should only be used as a source for a subset of distributions, you can "
+            "associate a name to refer to it by in `--source` mappings by using "
+            "`<name>=<path or url>` syntax, where the name cannot itself contain `=`. For example; "
+            "`local=/mnt/share/py/find-links` or `internal=https://dev.corp.internal/py-repo`."
+        ),
     )
     parser.add_argument(
         "-i",
         "--index",
         "--index-url",
-        metavar="URL",
+        metavar="(NAME=)URL",
         action="append",
         dest="indexes",
         type=str,
-        help="Additional cheeseshop indices to use to satisfy requirements.",
+        default=[],
+        help=(
+            "Additional cheeseshop indices to use to satisfy requirements. If the index should "
+            "only be used as a source for a subset of distributions, you can associate a name to "
+            "refer to it by in `--source` mappings by using `<name>=<url>` syntax, where the name "
+            "itself cannot contain `=`. For example; internal=https://dev.corp.internal/py-simple`."
+        ),
+    )
+    parser.add_argument(
+        "--source",
+        metavar="NAME=SCOPE",
+        action="append",
+        dest="repo_scopes",
+        type=str,
+        default=[],
+        help=(
+            "Defines a limited scope to use a named find links repo or index in. A source takes "
+            "the form `<name>=<scope>` where name is as defined for `--find-links` and `--index`; "
+            "namely a string not containing `=`. The scope can be a project name; e.g.: "
+            "`internal=torch` to resolve the `torch` project from the `internal` repo, a project "
+            "name and marker; e.g.: `internal=torch; sys_platform != 'darwin'` to resolve the "
+            "`torch` project from the `internal` repo unless targeting macOS, or just a marker; "
+            "e.g.: `piwheels=platform_machine == 'armv7l' to resolve from the `piwheels` repo "
+            "whenever 32bit arm machines are being targeted. N.B. wherever you use a project name "
+            "in a scope, you can use a regex instead."
+        ),
+    )
+    parser.add_argument(
+        "--derive-sources-from-requirements-files",
+        dest="derive_scopes_from_requirements_files",
+        action=HandleBoolAction,
+        default=False,
+        help=(
+            "If any requirements files are specified that contain `-f` / `--find-links`, `-i` / "
+            "`--index-url`, or `--extra-index-url` options, automatically map these repos as the "
+            "`--source` for the requirements (if any) declared in that same requirements file."
+        ),
     )
 
 
@@ -513,6 +664,15 @@ def register_network_options(parser):
         default=default_network_configuration.retries,
         type=int,
         help="Maximum number of retries each connection should attempt.",
+    )
+    parser.add_argument(
+        "--resume-retries",
+        default=default_network_configuration.resume_retries,
+        type=int,
+        help=(
+            "Maximum attempts to resume or restart an incomplete download. N.B.: This only takes "
+            "effect when using Pip 25.1 or newer."
+        ),
     )
     parser.add_argument(
         "--timeout",
@@ -579,6 +739,8 @@ if TYPE_CHECKING:
         PexRepositoryConfiguration,
         PipConfiguration,
         PreResolvedConfiguration,
+        PylockRepositoryConfiguration,
+        VenvRepositoryConfiguration,
     ]
 
 
@@ -607,11 +769,20 @@ def configure(
             pex_repository=pex_repository, pip_configuration=pip_configuration
         )
 
-    lock = getattr(options, "lock", None)
-    if lock:
+    pex_lock = getattr(options, "lock", None)
+    if pex_lock:
         return LockRepositoryConfiguration(
-            parse_lock=lambda: parse_lockfile(options, lock_file_path=lock),
-            lock_file_path=lock,
+            parse_lock=lambda: parse_lockfile(options, lock_file_path=pex_lock),
+            lock_file_path=pex_lock,
+            pip_configuration=pip_configuration,
+        )
+
+    pylock = getattr(options, "pylock", None)
+    if pylock:
+        return PylockRepositoryConfiguration(
+            lock_file_path=pylock,
+            extras=frozenset(options.pylock_extras),
+            dependency_groups=frozenset(options.pylock_dependency_groups),
             pip_configuration=pip_configuration,
         )
 
@@ -635,6 +806,18 @@ def configure(
                     sdists.append(dist)
         return PreResolvedConfiguration(
             sdists=tuple(sdists), wheels=tuple(wheels), pip_configuration=pip_configuration
+        )
+
+    venvs = getattr(options, "venv_repositories", None)
+    if venvs:
+        return VenvRepositoryConfiguration(venvs=tuple(venvs), pip_configuration=pip_configuration)
+
+    if pylock:
+        return PylockRepositoryConfiguration(
+            lock_file_path=pylock,
+            extras=frozenset(options.pylock_extras),
+            dependency_groups=frozenset(options.pylock_dependency_groups),
+            pip_configuration=pip_configuration,
         )
 
     return pip_configuration
@@ -661,6 +844,8 @@ def create_pip_configuration(
     pip_version = None  # type: Optional[PipVersionValue]
     if options.pip_version == "latest":
         pip_version = PipVersion.LATEST
+    elif options.pip_version == "latest-compatible":
+        pip_version = PipVersion.LATEST_COMPATIBLE
     elif options.pip_version == "vendored":
         pip_version = PipVersion.VENDORED
     elif options.pip_version:
@@ -702,17 +887,107 @@ def create_pip_configuration(
     )
 
 
+def _parse_repo_scope(repo_scope):
+    # type: (str) -> Tuple[str, Scope]
+
+    def create_invalid_error(footer=None):
+        # type: (Optional[str]) -> Exception
+        error_msg_lines = ["Invalid --source value: {source}".format(source=repo_scope)]
+        if footer:
+            error_msg_lines.append(footer)
+        return InvalidConfigurationError(os.linesep.join(error_msg_lines))
+
+    name, _, scope = repo_scope.partition("=")
+    if not scope:
+        raise create_invalid_error("A source must be of the form `<name>=<scope>`.")
+    try:
+        return name, Scope.parse(scope)
+    except ValueError as e:
+        raise create_invalid_error(str(e))
+
+
+def _parse_package_repositories(
+    package_repository_type,  # type: str
+    scopes_by_name,  # type: Mapping[str, Iterable[Scope]]
+    repositories,  # type: Iterable[str]
+):
+    # type: (...) -> Tuple[OrderedSet[Repo], OrderedDict[str, Repo]]
+
+    named = OrderedDict()  # type: OrderedDict[str, List[str]]
+    unnamed_repositories = OrderedSet()  # type: OrderedSet[Repo]
+    for repository in repositories:
+        name, _, location = repository.partition("=")
+        if name in scopes_by_name:
+            named.setdefault(name, []).append(location)
+        else:
+            unnamed_repositories.add(Repo(repository))
+
+    duplicate_names = [name for name, repos in named.items() if len(repos) > 1]
+    if duplicate_names:
+        raise InvalidConfigurationError(
+            "The following names are being re-used across multiple {package_repositories}: "
+            "{duplicate_names}\n"
+            "{package_repository} names must be unique.".format(
+                package_repositories=pluralize(2, package_repository_type),
+                duplicate_names=" ".join(sorted(duplicate_names)),
+                package_repository=package_repository_type.capitalize(),
+            )
+        )
+
+    named_repositories = OrderedDict()  # type: OrderedDict[str, Repo]
+    for name, locations in named.items():
+        named_repositories[name] = Repo(locations[0], scopes=tuple(scopes_by_name[name]))
+    return unnamed_repositories, named_repositories
+
+
 def create_repos_configuration(options):
     # type: (Namespace) -> ReposConfiguration
     """Creates a repos configuration from options registered by `register_repos_options`.
 
     :param options: The Pip resolver configuration options.
     """
-    indexes = OrderedSet(
-        ([PYPI] if options.pypi else []) + (options.indexes or [])
-    )  # type: OrderedSet[str]
-    find_links = OrderedSet(options.find_links or ())  # type: OrderedSet[str]
-    return ReposConfiguration.create(indexes=tuple(indexes), find_links=tuple(find_links))
+    indexes = OrderedSet(([Repo(PYPI)] if options.pypi else []))  # type: OrderedSet[Repo]
+    scopes_by_name = defaultdict(OrderedSet)  # type: DefaultDict[str, OrderedSet[Scope]]
+    for repo_scope in options.repo_scopes:
+        name, scope = _parse_repo_scope(repo_scope)
+        scopes_by_name[name].add(scope)
+
+    if not scopes_by_name:
+        indexes.update(Repo(index) for index in options.indexes)
+        return ReposConfiguration.create(
+            indexes=tuple(indexes),
+            find_links=tuple(Repo(find_links_repo) for find_links_repo in options.find_links),
+            derive_scopes_from_requirements_files=options.derive_scopes_from_requirements_files,
+        )
+
+    unnamed_indexes, named_indexes = _parse_package_repositories(
+        "index", scopes_by_name, options.indexes
+    )
+    unnamed_find_links, named_find_links = _parse_package_repositories(
+        "find links repository", scopes_by_name, options.find_links
+    )
+
+    duplicate_names = set(named_indexes).intersection(named_find_links)
+    if duplicate_names:
+        raise InvalidConfigurationError(
+            "The following names are being re-used across indexes and find links repos: "
+            "{duplicate_names}\n"
+            "Package repository names must be unique.".format(
+                duplicate_names=" ".join(sorted(duplicate_names))
+            )
+        )
+
+    indexes.update(unnamed_indexes)
+    indexes.update(named_indexes.values())
+
+    find_links = unnamed_find_links
+    find_links.update(named_find_links.values())
+
+    return ReposConfiguration.create(
+        indexes=tuple(indexes),
+        find_links=tuple(find_links),
+        derive_scopes_from_requirements_files=options.derive_scopes_from_requirements_files,
+    )
 
 
 def create_network_configuration(options):

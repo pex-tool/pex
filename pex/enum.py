@@ -1,7 +1,7 @@
 # Copyright 2021 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-from __future__ import absolute_import, print_function
+from __future__ import absolute_import
 
 import sys
 import weakref
@@ -11,6 +11,7 @@ from functools import total_ordering
 from _weakref import ReferenceType
 
 from pex.exceptions import production_assert
+from pex.lang import qualified_name
 from pex.typing import TYPE_CHECKING, Generic, cast
 
 if TYPE_CHECKING:
@@ -71,9 +72,13 @@ class Enum(Generic["_V"]):
             )
             return _get_or_create, (module, enum_type, type(self).__name__, self.value)
 
-        def __init__(self, value):
-            # type: (str) -> None
-            values = Enum.Value._values_by_type[type(self)]
+        def __init__(
+            self,
+            value,  # type: str
+            enum_type=None,  # type: Optional[Type[Enum.Value]]
+        ):
+            # type: (...) -> None
+            values = Enum.Value._values_by_type[enum_type or type(self)]
             self.value = value
             self.ordinal = len(values)
             values.append(weakref.ref(self))
@@ -152,7 +157,6 @@ class Enum(Generic["_V"]):
             "Expected Enum subclass {cls} to have a type parameter that is a subclass of "
             "`Enum.Value`. Instead found {type_var} was of type: {enum_value_type}",
             cls=cls,
-            name=cls.__name__,
             type_var=cls.type_var,
             enum_value_type=enum_value_type,
         )
@@ -181,25 +185,3 @@ class Enum(Generic["_V"]):
                 value, type(value), ", ".join(map(repr, cls.values()))
             )
         )
-
-
-def qualified_name(item):
-    # type: (Any) -> str
-    """Attempt to produce the fully qualified name for an item.
-
-    If the item is a type, method, property or function, its fully qualified name is returned as
-    best as can be determined. Otherwise, the fully qualified name of the type of the given item is
-    returned.
-
-    :param item: The item to identify.
-    :return: The fully qualified name of the given item.
-    """
-    if isinstance(item, property):
-        item = item.fget
-    if not hasattr(item, "__name__"):
-        item = type(item)
-    return "{module}.{type}".format(
-        module=getattr(item, "__module__", "<unknown module>"),
-        # There is no __qualname__ in Python 2.7; so we do the best we can.
-        type=getattr(item, "__qualname__", item.__name__),
-    )

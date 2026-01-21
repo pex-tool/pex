@@ -15,6 +15,7 @@ from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import Distribution, Requirement, is_wheel
 from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.inherit_path import InheritPath
+from pex.installed_wheel import InstalledWheel
 from pex.interpreter import PythonInterpreter
 from pex.layout import ensure_installed, identify_layout
 from pex.orderedset import OrderedSet
@@ -26,6 +27,7 @@ from pex.third_party.packaging import specifiers
 from pex.third_party.packaging.tags import Tag
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
+from pex.whl import repacked_whl
 
 if TYPE_CHECKING:
     from typing import (
@@ -57,13 +59,29 @@ def _import_pkg_resources():
     except ImportError:
         from pex import third_party
 
-        third_party.install(expose=["setuptools"])
+        third_party.install(expose_if_available=["setuptools"])
         try:
             import pkg_resources  # vendor:skip
 
             return pkg_resources, True
         except ImportError:
             return None, False
+
+
+def _fd_lt(
+    self,  # type: FingerprintedDistribution
+    other,  # type: FingerprintedDistribution
+):
+    # type: (...) -> bool
+    if self.project_name.normalized < other.project_name.normalized:
+        return True
+
+    # Since we want to rank higher versions higher (earlier) we need to reverse the natural
+    # ordering of Version in Distribution which is least to greatest.
+    if self.distribution.metadata.version >= other.distribution.metadata.version:
+        return True
+
+    return self.fingerprint < other.fingerprint
 
 
 @attr.s(frozen=True)
@@ -77,9 +95,7 @@ class _RankedDistribution(object):
     # The attr project type stub file simply misses this.
     _fd_cmp = attr.cmp_using(  # type: ignore[attr-defined]
         eq=FingerprintedDistribution.__eq__,
-        # Since we want to rank higher versions higher (earlier) we need to reverse the natural
-        # ordering of Version in Distribution which is least to greatest.
-        lt=FingerprintedDistribution.__ge__,
+        lt=_fd_lt,
     )
 
     @classmethod
@@ -291,12 +307,7 @@ class PEXEnvironment(object):
 
     def iter_distributions(self, result_type_wheel_file=False):
         # type: (bool) -> Iterator[FingerprintedDistribution]
-        if result_type_wheel_file:
-            if not self._pex_info.deps_are_wheel_files:
-                raise ResolveError(
-                    "Cannot resolve .whl files from PEX at {pex}; its dependencies are in the "
-                    "form of pre-installed wheel chroots.".format(pex=self.source_pex)
-                )
+        if result_type_wheel_file and self._pex_info.deps_are_wheel_files:
             with TRACER.timed(
                 "Searching dependency cache: {cache}".format(
                     cache=os.path.join(self.source_pex, self._pex_info.internal_cache)
@@ -320,10 +331,17 @@ class PEXEnvironment(object):
             ):
                 for distribution_name, fingerprint in self._pex_info.distributions.items():
                     dist_path = os.path.join(internal_cache, distribution_name)
-                    yield FingerprintedDistribution(
-                        distribution=Distribution.load(dist_path),
-                        fingerprint=fingerprint,
-                    )
+                    if result_type_wheel_file:
+                        yield repacked_whl(
+                            installed_wheel=dist_path,
+                            distribution_name=distribution_name,
+                            fingerprint=fingerprint,
+                            use_system_time=True,
+                        )
+                    else:
+                        yield FingerprintedDistribution(
+                            distribution=Distribution.load(dist_path), fingerprint=fingerprint
+                        )
 
     def _update_candidate_distributions(self, distribution_iter):
         # type: (Iterable[FingerprintedDistribution]) -> None
@@ -685,7 +703,7 @@ class PEXEnvironment(object):
                     else:
                         rendered_contains = (
                             "\n    But this pex had no {project_name!r} distributions.".format(
-                                project_name=requirement.project_name
+                                project_name=requirement.project_name.raw
                             )
                         )
                     items.append(
@@ -768,10 +786,10 @@ class PEXEnvironment(object):
                 current_interpreter = PythonInterpreter.get()
                 pex_warnings.warn(
                     "The legacy `pkg_resources` package cannot be imported by the "
-                    "{interpreter} {version} interpreter at {path}.\n"
+                    "{implementation} {version} interpreter at {path}.\n"
                     "The following distributions need `pkg_resources` to load some legacy "
                     "namespace packages and may fail to work properly:\n{dists}".format(
-                        interpreter=current_interpreter.identity.interpreter,
+                        implementation=current_interpreter.identity.implementation,
                         version=current_interpreter.python,
                         path=current_interpreter.binary,
                         dists=dists,
@@ -803,22 +821,25 @@ class PEXEnvironment(object):
             if dist.location in sys.path:
                 continue
             with TRACER.timed("Activating %s" % dist, V=2):
-                if self._pex_info.inherit_path == InheritPath.FALLBACK:
-                    # Prepend location to sys.path.
-                    #
-                    # This ensures that bundled versions of libraries will be used before system-installed
-                    # versions, in case something is installed in both, helping to favor hermeticity in
-                    # the case of non-hermetic PEX files (i.e. those with inherit_path=True).
-                    #
-                    # If the path is not already in sys.path, site.addsitedir will append (not prepend)
-                    # the path to sys.path. But if the path is already in sys.path, site.addsitedir will
-                    # leave sys.path unmodified, but will do everything else it would do. This is not part
-                    # of its advertised contract (which is very vague), but has been verified to be the
-                    # case by inspecting its source for both cpython 2.7 and cpython 3.7.
-                    sys.path.insert(0, dist.location)
-                else:
-                    sys.path.append(dist.location)
+                for entry in InstalledWheel.load(dist.location).iter_sys_path_entries():
+                    if self._pex_info.inherit_path == InheritPath.FALLBACK:
+                        # Prepend location to sys.path.
+                        #
+                        # This ensures that bundled versions of libraries will be used before
+                        # system-installed versions, in case something is installed in both, helping
+                        # to favor hermeticity in the case of non-hermetic PEX files (i.e. those
+                        # with inherit_path=True).
+                        #
+                        # If the path is not already in sys.path, site.addsitedir will append (not
+                        # prepend) the path to sys.path. But if the path is already in sys.path,
+                        # site.addsitedir will leave sys.path unmodified, but will do everything
+                        # else it would do. This is not part of its advertised contract (which is
+                        # very vague), but has been verified to be the case by inspecting its source
+                        # for both cpython 2.7 and cpython 3.7.
+                        sys.path.insert(0, entry)
+                    else:
+                        sys.path.append(entry)
 
-                with TRACER.timed("Adding sitedir", V=2):
-                    site.addsitedir(dist.location)
+                    with TRACER.timed("Adding sitedir", V=2):
+                        site.addsitedir(entry)
         return resolved

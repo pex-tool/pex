@@ -8,27 +8,42 @@ import os.path
 import tempfile
 
 import pytest
-from _pytest.config import hookimpl  # type: ignore[import]
 
 import testing
 from pex.interpreter import PythonInterpreter
 from pex.platforms import Platform
 from pex.typing import TYPE_CHECKING
-from testing import PY27, PY38, PY39, PY310, ensure_python_interpreter
+from testing import PY27, PY39, PY310, PY311, ensure_python_interpreter, pex_dist
 from testing.pytest_utils import tmp, track_status_hook
 
 if TYPE_CHECKING:
-    from typing import Iterator
+    from typing import Iterator, List
 
-    from _pytest.fixtures import FixtureRequest  # type: ignore[import]
-    from _pytest.nodes import Item  # type: ignore[import]
-    from _pytest.reports import TestReport  # type: ignore[import]
+    from _pytest.fixtures import FixtureRequest
 
 
 @pytest.fixture(scope="session")
 def pex_project_dir():
     # type: () -> str
     return testing.pex_project_dir()
+
+
+@pytest.fixture(scope="session")
+def pex_wheel():
+    # type: () -> str
+    return pex_dist.wheel()
+
+
+@pytest.fixture(scope="session")
+def pex_wheels():
+    # type: () -> List[str]
+    return pex_dist.wheels()
+
+
+@pytest.fixture(scope="session")
+def pex_requires_python():
+    # type: () -> str
+    return pex_dist.requires_python()
 
 
 @pytest.fixture(scope="session")
@@ -101,12 +116,6 @@ def py27():
 
 
 @pytest.fixture
-def py38():
-    # type: () -> PythonInterpreter
-    return PythonInterpreter.from_binary(ensure_python_interpreter(PY38))
-
-
-@pytest.fixture
 def py39():
     # type: () -> PythonInterpreter
     return PythonInterpreter.from_binary(ensure_python_interpreter(PY39))
@@ -116,3 +125,9 @@ def py39():
 def py310():
     # type: () -> PythonInterpreter
     return PythonInterpreter.from_binary(ensure_python_interpreter(PY310))
+
+
+@pytest.fixture
+def py311():
+    # type: () -> PythonInterpreter
+    return PythonInterpreter.from_binary(ensure_python_interpreter(PY311))

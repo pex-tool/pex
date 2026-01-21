@@ -13,20 +13,21 @@
           "artifacts": [
             {
               "algorithm": "sha256",
-              "hash": "6e2dcd475ce8b80522e51d923d10c7871e45f20918e027ab682f94f1c6351688",
-              "url": "https://files.pythonhosted.org/packages/01/9e/8be43078a171381953cfee33c07c0d628594b5dbfc5157847b85022c2c1b/psutil-6.1.0-cp36-abi3-macosx_10_9_x86_64.whl"
+              "hash": "40c65f4ad79ff6badff3f6a3ca0ceaf8b431b97102a0f48ada7fd6a1bf8910a0",
+              "url": "https://www.piwheels.org/simple/psutil/psutil-6.0.0-cp313-abi3-linux_armv7l.whl"
             }
           ],
           "project_name": "psutil",
           "requires_dists": [],
           "requires_python": "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*,>=2.7",
-          "version": "6.1.0"
+          "version": "6.0.0"
         }
       ],
+      "marker": null,
       "platform_tag": [
-        "cp313",
-        "cp313",
-        "macosx_13_0_x86_64"
+        "cp314",
+        "cp314",
+        "manylinux_2_36_armv7l"
       ]
     },
     {
@@ -35,20 +36,21 @@
           "artifacts": [
             {
               "algorithm": "sha256",
-              "hash": "0895b8414afafc526712c498bd9de2b063deaac4021a3b3c34566283464aff8e",
-              "url": "https://files.pythonhosted.org/packages/1d/cb/313e80644ea407f04f6602a9e23096540d9dc1878755f3952ea8d3d104be/psutil-6.1.0-cp36-abi3-macosx_11_0_arm64.whl"
+              "hash": "da8bdfeef4403c66ba6cc54ff866c5f571bcf15a55a92f91929da4bb90ba90ce",
+              "url": "https://gitlab.com/api/v4/projects/56254198/packages/pypi/files/da8bdfeef4403c66ba6cc54ff866c5f571bcf15a55a92f91929da4bb90ba90ce/psutil-7.0.0-cp36-abi3-manylinux_2_31_riscv64.manylinux_2_35_riscv64.whl"
             }
           ],
           "project_name": "psutil",
           "requires_dists": [],
-          "requires_python": "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*,>=2.7",
-          "version": "6.1.0"
+          "requires_python": ">=3.6",
+          "version": "7.0.0"
         }
       ],
+      "marker": null,
       "platform_tag": [
-        "cp313",
-        "cp313",
-        "macosx_14_0_arm64"
+        "cp314",
+        "cp314",
+        "manylinux_2_41_riscv64"
       ]
     },
     {
@@ -57,20 +59,21 @@
           "artifacts": [
             {
               "algorithm": "sha256",
-              "hash": "d905186d647b16755a800e7263d43df08b790d709d575105d419f8b6ef65423a",
-              "url": "https://files.pythonhosted.org/packages/27/c2/d034856ac47e3b3cdfa9720d0e113902e615f4190d5d1bdb8df4b2015fb2/psutil-6.1.0-cp36-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"
+              "hash": "bc31fa00f1fbc3c3802141eede66f3a2d51d89716a194bf2cd6fc68310a19880",
+              "url": "https://files.pythonhosted.org/packages/68/3a/9f93cff5c025029a36d9a92fef47220ab4692ee7f2be0fba9f92813d0cb8/psutil-7.1.3-cp36-abi3-macosx_11_0_arm64.whl"
             }
           ],
           "project_name": "psutil",
           "requires_dists": [],
-          "requires_python": "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*,>=2.7",
-          "version": "6.1.0"
+          "requires_python": ">=3.6",
+          "version": "7.1.3"
         }
       ],
+      "marker": null,
       "platform_tag": [
-        "cp313",
-        "cp313",
-        "manylinux_2_36_aarch64"
+        "cp314",
+        "cp314",
+        "macosx_15_0_arm64"
       ]
     },
     {
@@ -79,19 +82,20 @@
           "artifacts": [
             {
               "algorithm": "sha256",
-              "hash": "498c6979f9c6637ebc3a73b3f87f9eb1ec24e1ce53a7c5173b8508981614a90b",
-              "url": "https://files.pythonhosted.org/packages/58/4d/8245e6f76a93c98aab285a43ea71ff1b171bcd90c9d238bf81f7021fb233/psutil-6.1.0-cp36-abi3-manylinux_2_12_x86_64.manylinux2010_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+              "hash": "3bb428f9f05c1225a558f53e30ccbad9930b11c3fc206836242de1091d3e7dd3",
+              "url": "https://files.pythonhosted.org/packages/ce/b1/5f49af514f76431ba4eea935b8ad3725cdeb397e9245ab919dbc1d1dc20f/psutil-7.1.3-cp36-abi3-manylinux2010_x86_64.manylinux_2_12_x86_64.manylinux_2_28_x86_64.whl"
             }
           ],
           "project_name": "psutil",
           "requires_dists": [],
-          "requires_python": "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*,>=2.7",
-          "version": "6.1.0"
+          "requires_python": ">=3.6",
+          "version": "7.1.3"
         }
       ],
+      "marker": null,
       "platform_tag": [
-        "cp313",
-        "cp313",
+        "cp314",
+        "cp314",
         "manylinux_2_36_x86_64"
       ]
     },
@@ -101,20 +105,90 @@
           "artifacts": [
             {
               "algorithm": "sha256",
-              "hash": "c59e010395f3441b27f29b000ea1da2b20a60ac0435295c32bafc24895cd5f21",
-              "url": "https://www.piwheels.org/simple/psutil/psutil-6.1.0-cp36-abi3-linux_armv7l.whl"
+              "hash": "56d974e02ca2c8eb4812c3f76c30e28836fffc311d55d979f1465c1feeb2b68b",
+              "url": "https://files.pythonhosted.org/packages/e0/95/992c8816a74016eb095e73585d747e0a8ea21a061ed3689474fabb29a395/psutil-7.1.3-cp36-abi3-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl"
             }
           ],
           "project_name": "psutil",
           "requires_dists": [],
-          "requires_python": "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*,>=2.7",
-          "version": "6.1.0"
+          "requires_python": ">=3.6",
+          "version": "7.1.3"
         }
       ],
+      "marker": null,
       "platform_tag": [
-        "cp313",
-        "cp313",
-        "manylinux_2_36_armv7l"
+        "cp314",
+        "cp314",
+        "manylinux_2_36_aarch64"
+      ]
+    },
+    {
+      "locked_requirements": [
+        {
+          "artifacts": [
+            {
+              "algorithm": "sha256",
+              "hash": "2bdbcd0e58ca14996a42adf3621a6244f1bb2e2e528886959c72cf1e326677ab",
+              "url": "https://files.pythonhosted.org/packages/ef/94/46b9154a800253e7ecff5aaacdf8ebf43db99de4a2dfa18575b02548654e/psutil-7.1.3-cp36-abi3-macosx_10_9_x86_64.whl"
+            }
+          ],
+          "project_name": "psutil",
+          "requires_dists": [],
+          "requires_python": ">=3.6",
+          "version": "7.1.3"
+        }
+      ],
+      "marker": null,
+      "platform_tag": [
+        "cp314",
+        "cp314",
+        "macosx_15_0_x86_64"
+      ]
+    },
+    {
+      "locked_requirements": [
+        {
+          "artifacts": [
+            {
+              "algorithm": "sha256",
+              "hash": "0cbc867fb16816958a5c477bf98c411dc4b0d00541cfa030918418fffe717354",
+              "url": "https://pex-tool.github.io/packaging/simple-index/psutil/psutil-7.1.3-cp36-abi3-musllinux_1_2_aarch64.whl"
+            }
+          ],
+          "project_name": "psutil",
+          "requires_dists": [],
+          "requires_python": ">=3.6",
+          "version": "7.1.3"
+        }
+      ],
+      "marker": null,
+      "platform_tag": [
+        "cp314",
+        "cp314",
+        "musllinux_1_2_aarch64"
+      ]
+    },
+    {
+      "locked_requirements": [
+        {
+          "artifacts": [
+            {
+              "algorithm": "sha256",
+              "hash": "e025cd386b38eec63b9a030ac119db6c25e75cb2f70d5380a00f9474a60607b3",
+              "url": "https://pex-tool.github.io/packaging/simple-index/psutil/psutil-7.1.3-cp36-abi3-musllinux_1_2_x86_64.whl"
+            }
+          ],
+          "project_name": "psutil",
+          "requires_dists": [],
+          "requires_python": ">=3.6",
+          "version": "7.1.3"
+        }
+      ],
+      "marker": null,
+      "platform_tag": [
+        "cp314",
+        "cp314",
+        "musllinux_1_2_x86_64"
       ]
     }
   ],
@@ -122,8 +196,8 @@
   "only_wheels": [],
   "overridden": [],
   "path_mappings": {},
-  "pex_version": "2.26.0",
-  "pip_version": "24.3.1",
+  "pex_version": "2.71.1",
+  "pip_version": "25.3",
   "prefer_older_binary": false,
   "requirements": [
     "psutil>=5.3"

@@ -11,12 +11,14 @@ from pex import targets
 from pex.cache.dirs import CacheDir
 from pex.common import safe_open
 from pex.layout import DEPS_DIR, Layout
+from pex.pip.version import PipVersion
 from pex.resolve.pex_repository_resolver import resolve_from_pex
 from pex.targets import Targets
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
 from pex.venv.virtualenv import Virtualenv
 from testing import make_env, run_pex_command, subprocess
+from testing.pip import skip_if_only_vendored_pip_supported
 
 if TYPE_CHECKING:
     from typing import Any, List, Text
@@ -28,6 +30,7 @@ if TYPE_CHECKING:
 @pytest.mark.parametrize(
     "execution_mode_args", [pytest.param([], id="UNZIPPED"), pytest.param(["--venv"], id="VENV")]
 )
+@skip_if_only_vendored_pip_supported
 def test_import_from_pex(
     tmpdir,  # type: Any
     layout,  # type: Layout.Value
@@ -68,6 +71,8 @@ def test_import_from_pex(
             pex_root,
             "-D",
             src,
+            "--pip-version",
+            PipVersion.LATEST_COMPATIBLE.value,
             "ansicolors==1.1.8",
             # Add pex to verify that it will shadow bootstrap pex
             pex_project_dir,

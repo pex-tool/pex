@@ -19,25 +19,29 @@ import pytest
 
 from pex.atomic_directory import atomic_directory
 from pex.common import open_zip, safe_mkdir, safe_mkdtemp, safe_rmtree, safe_sleep, temporary_dir
+from pex.compatibility import to_unicode
 from pex.dist_metadata import Distribution
-from pex.enum import Enum
 from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
+from pex.interpreter_implementation import InterpreterImplementation
 from pex.os import LINUX, MAC, WINDOWS
-from pex.pep_427 import install_wheel_chroot
+from pex.pep_427 import install_wheel_chroot, install_wheel_interpreter
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
 from pex.pip.installation import get_pip
+from pex.pip.version import PipVersion, PipVersionValue
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.sysconfig import SCRIPT_DIR, script_name
+from pex.targets import LocalInterpreter
 from pex.typing import TYPE_CHECKING, cast
-from pex.util import named_temporary_file
+from pex.util import CacheHelper, named_temporary_file
 from pex.venv.virtualenv import InstallationChoice, Virtualenv
 
 # Explicitly re-export subprocess to enable a transparent substitution in tests that supports
 # executing PEX files directly on Windows.
 from testing import subprocess as subprocess
+from testing.pytest_utils.tmp import Tempdir
 
 try:
     from unittest import mock
@@ -226,6 +230,7 @@ class WheelBuilder(object):
         self,
         source_dir,  # type: str
         interpreter=None,  # type: Optional[PythonInterpreter]
+        pip_version=None,  # type: Optional[PipVersionValue]
         wheel_dir=None,  # type: Optional[str]
         verify=True,  # type: bool
     ):
@@ -234,15 +239,18 @@ class WheelBuilder(object):
         self._source_dir = source_dir
         self._wheel_dir = wheel_dir or safe_mkdtemp()
         self._interpreter = interpreter or PythonInterpreter.get()
+        self._pip_version = pip_version or PipVersion.DEFAULT
+        self._resolver = ConfiguredResolver.version(self._pip_version)
         self._verify = verify
 
     def bdist(self):
         # type: () -> str
         get_pip(
             interpreter=self._interpreter,
-            resolver=ConfiguredResolver.default(),
+            version=self._pip_version,
+            resolver=self._resolver,
         ).spawn_build_wheels(
-            distributions=[self._source_dir],
+            requirements=[self._source_dir],
             wheel_dir=self._wheel_dir,
             interpreter=self._interpreter,
             verify=self._verify,
@@ -319,7 +327,7 @@ def make_bdist(
 def install_wheel(wheel):
     # type: (str) -> Distribution
     install_dir = os.path.join(safe_mkdtemp(), os.path.basename(wheel))
-    install_wheel_chroot(wheel_path=wheel, destination=install_dir)
+    install_wheel_chroot(wheel=wheel, destination=install_dir)
     return Distribution.load(install_dir)
 
 
@@ -394,9 +402,30 @@ def re_exact(text):
 class IntegResults(object):
     """Convenience object to return integration run results."""
 
+    cmd = attr.ib()  # type: Tuple[str, ...]
     output = attr.ib()  # type: Text
     error = attr.ib()  # type: Text
     return_code = attr.ib()  # type: int
+
+    @property
+    def exe(self):
+        # type: () -> str
+        return self.cmd[0]
+
+    @property
+    def interpreter(self):
+        # type: () -> PythonInterpreter
+        return PythonInterpreter.from_binary(self.exe)
+
+    @property
+    def target(self):
+        # type: () -> LocalInterpreter
+        return LocalInterpreter.create(self.exe)
+
+    @property
+    def pex(self):
+        # type: () -> PEX
+        return PEX(self.exe)
 
     def assert_success(
         self,
@@ -405,11 +434,9 @@ class IntegResults(object):
         re_flags=0,  # type: int
     ):
         # type: (...) -> None
-        assert (
-            self.return_code == 0
-        ), "integration test failed: return_code={}, output={}, error={}".format(
-            self.return_code, self.output, self.error
-        )
+        assert self.return_code == 0, to_unicode(
+            "integration test failed: return_code={return_code}, output={output}, error={error}"
+        ).format(return_code=self.return_code, output=self.output, error=self.error)
         self.assert_output(expected_output_re, expected_error_re, re_flags)
 
     def assert_failure(
@@ -429,27 +456,30 @@ class IntegResults(object):
         re_flags=0,  # type: int
     ):
         if expected_output_re:
-            assert re.match(
-                expected_output_re, self.output, flags=re_flags
-            ), "Failed to match re: {re!r} against:\n{output}".format(
-                re=expected_output_re, output=self.output
-            )
+            assert re.match(expected_output_re, self.output, flags=re_flags), to_unicode(
+                "Failed to match re: {re!r} against:\n{output}"
+            ).format(re=expected_output_re, output=self.output)
         if expected_error_re:
-            assert re.match(
-                expected_error_re, self.error, flags=re_flags
-            ), "Failed to match re: {re!r} against:\n{output}".format(
-                re=expected_error_re, output=self.error
-            )
+            assert re.match(expected_error_re, self.error, flags=re_flags), to_unicode(
+                "Failed to match re: {re!r} against:\n{output}"
+            ).format(re=expected_error_re, output=self.error)
 
 
 def create_pex_command(
     args=None,  # type: Optional[Iterable[str]]
     python=None,  # type: Optional[str]
-    quiet=False,  # type: bool
+    quiet=None,  # type: Optional[bool]
+    pex_module="pex",  # type: str
+    use_pex_whl_venv=True,  # type: bool
 ):
     # type: (...) -> List[str]
-    cmd = [python or sys.executable, "-mpex"]
-    if not quiet:
+    python_exe = python or sys.executable
+    cmd = [
+        installed_pex_wheel_venv_python(python_exe) if use_pex_whl_venv else python_exe,
+        "-m",
+        pex_module,
+    ]
+    if pex_module == "pex" and not quiet:
         cmd.append("-v")
     if args:
         cmd.extend(args)
@@ -460,8 +490,10 @@ def run_pex_command(
     args,  # type: Iterable[str]
     env=None,  # type: Optional[Dict[str, str]]
     python=None,  # type: Optional[str]
-    quiet=False,  # type: bool
+    quiet=None,  # type: Optional[bool]
     cwd=None,  # type: Optional[str]
+    pex_module="pex",  # type: str
+    use_pex_whl_venv=True,  # type: bool
 ):
     # type: (...) -> IntegResults
     """Simulate running pex command for integration testing.
@@ -470,12 +502,16 @@ def run_pex_command(
     generated pex.  This is useful for testing end to end runs with specific command line arguments
     or env options.
     """
-    cmd = create_pex_command(args, python=python, quiet=quiet)
+    cmd = create_pex_command(
+        args, python=python, quiet=quiet, pex_module=pex_module, use_pex_whl_venv=use_pex_whl_venv
+    )
     process = Executor.open_process(
         cmd=cmd, env=env, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
     )
     output, error = process.communicate()
-    return IntegResults(output.decode("utf-8"), error.decode("utf-8"), process.returncode)
+    return IntegResults(
+        tuple(cmd), output.decode("utf-8"), error.decode("utf-8"), process.returncode
+    )
 
 
 def run_simple_pex(
@@ -492,7 +528,7 @@ def run_simple_pex(
         blocking=False,
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
+        stderr=kwargs.pop("stderr", subprocess.STDOUT),
         **kwargs
     )
     stdout, _ = process.communicate(input=stdin)
@@ -540,11 +576,11 @@ def bootstrap_python_installer(dest):
 # support use of pyenv-win which does not build from source, just running released installers
 # instead.
 PY27 = "2.7.18"
-PY38 = "3.8.10"
 PY39 = "3.9.13"
 PY310 = "3.10.7"
+PY311 = "3.11.13"
 
-ALL_PY_VERSIONS = (PY27, PY38, PY39, PY310)
+ALL_PY_VERSIONS = (PY27, PY39, PY310, PY311)
 _ALL_PY_VERSIONS_TO_VERSION_INFO = {
     version: tuple(map(int, version.split("."))) for version in ALL_PY_VERSIONS
 }
@@ -645,6 +681,7 @@ def ensure_python_distribution(version):
 
             env = os.environ.copy()
             env["PYENV_ROOT"] = pyenv_root
+            env["CFLAGS"] = "-std=c11"
             if sys.platform.lower().startswith("linux"):
                 env["CONFIGURE_OPTS"] = "--enable-shared"
                 # The pyenv builder detects `--enable-shared` and sets up `RPATH` via
@@ -671,10 +708,11 @@ def ensure_python_venv(
     version,  # type: str
     latest_pip=True,  # type: bool
     system_site_packages=False,  # type: bool
+    tmpdir=None,  # type: Optional[Tempdir]
 ):
     # type: (...) -> Virtualenv
     pyenv_distribution = ensure_python_distribution(version)
-    venv = safe_mkdtemp()
+    venv = tmpdir.join("{version}.venv".format(version=version)) if tmpdir else safe_mkdtemp()
     if _ALL_PY_VERSIONS_TO_VERSION_INFO[version][0] == 3:
         args = [pyenv_distribution.binary, "-m", "venv", venv]
         if system_site_packages:
@@ -697,20 +735,9 @@ def ensure_python_interpreter(version):
     return ensure_python_distribution(version).binary
 
 
-class InterpreterImplementation(Enum["InterpreterImplementation.Value"]):
-    class Value(Enum.Value):
-        pass
-
-    CPython = Value("CPython")
-    PyPy = Value("PyPy")
-
-
-InterpreterImplementation.seal()
-
-
 def find_python_interpreter(
     version=(),  # type: Tuple[int, ...]
-    implementation=InterpreterImplementation.CPython,  # type: InterpreterImplementation.Value
+    implementation=InterpreterImplementation.CPYTHON,  # type: InterpreterImplementation.Value
 ):
     # type: (...) -> Optional[str]
     for pyenv_version, penv_version_info in _ALL_PY_VERSIONS_TO_VERSION_INFO.items():
@@ -720,7 +747,7 @@ def find_python_interpreter(
     for interpreter in PythonInterpreter.iter():
         if version != interpreter.version[: len(version)]:
             continue
-        if implementation != InterpreterImplementation.for_value(interpreter.identity.interpreter):
+        if implementation is not interpreter.identity.implementation:
             continue
         return interpreter.binary
 
@@ -810,6 +837,7 @@ def run_commands_with_jitter(
     path_argument,  # type: str
     extra_env=None,  # type: Optional[Mapping[str, str]]
     delay=2.0,  # type: float
+    dest=None,  # type: Optional[str]
 ):
     # type: (...) -> List[str]
     """Runs the commands with tactics that attempt to introduce randomness in outputs.
@@ -820,18 +848,16 @@ def run_commands_with_jitter(
     Additionally, a delay is inserted between executions. By default, this delay is 2s to ensure zip
     precision is stressed. See: https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT.
     """
-    td = safe_mkdtemp()
-    pex_root = os.path.join(td, "pex_root")
+    dest_dir = dest or safe_mkdtemp()
+    pex_root = os.path.join(dest_dir, "pex_root")
 
     paths = []
     for index, command in enumerate(commands):
-        path = os.path.join(td, str(index))
+        path = os.path.join(dest_dir, str(index))
         cmd = list(command) + [path_argument, path]
 
-        # Note that we change the `PYTHONHASHSEED` to ensure that there are no issues resulting
-        # from the random seed, such as data structures, as Tox sets this value by default.
-        # See:
-        # https://tox.readthedocs.io/en/latest/example/basic.html#special-handling-of-pythonhashseed
+        # Note that we change the `PYTHONHASHSEED` to ensure we're impervious to data structure
+        # changes that may result.
         env = make_env(PEX_ROOT=pex_root, PYTHONHASHSEED=(index * 497) + 4)
         if extra_env:
             env.update(extra_env)
@@ -852,6 +878,7 @@ def run_command_with_jitter(
     extra_env=None,  # type: Optional[Mapping[str, str]]
     delay=2.0,  # type: float
     count=3,  # type: int
+    dest=None,  # type: Optional[str]
 ):
     # type: (...) -> List[str]
     """Runs the command `count` times in an attempt to introduce randomness.
@@ -868,6 +895,7 @@ def run_command_with_jitter(
         path_argument=path_argument,
         extra_env=extra_env,
         delay=delay,
+        dest=dest,
     )
 
 
@@ -876,7 +904,7 @@ def pex_project_dir():
     try:
         return os.environ["_PEX_TEST_PROJECT_DIR"]
     except KeyError:
-        sys.exit("Pex tests must be run via tox.")
+        sys.exit("Pex tests must be run via testing/bin/runtests.py.")
 
 
 class NonDeterministicWalk:
@@ -911,3 +939,25 @@ class NonDeterministicWalk:
             return x
         rotate_by = self._counter[counter_key] % len(x)
         return x[-rotate_by:] + x[:-rotate_by]
+
+
+def installed_pex_wheel_venv_python(python):
+    # type: (str) -> str
+
+    from testing.pex_dist import wheel
+
+    interpreter = PythonInterpreter.from_binary(python)
+    pex_wheel = wheel(LocalInterpreter.create(interpreter=interpreter))
+    pex_venv_dir = os.path.join(
+        PEX_TEST_DEV_ROOT, "pex_venvs", "0", str(interpreter.identity), CacheHelper.hash(pex_wheel)
+    )
+    with atomic_directory(pex_venv_dir) as atomic_dir:
+        if not atomic_dir.is_finalized():
+            venv = Virtualenv.create_atomic(atomic_dir, interpreter=interpreter)
+            install_wheel_interpreter(pex_wheel, venv.interpreter)
+            for _ in venv.rewrite_scripts(
+                python=venv.interpreter.binary.replace(atomic_dir.work_dir, atomic_dir.target_dir)
+            ):
+                # Just ensure the re-writing iterator is driven to completion.
+                pass
+    return Virtualenv(pex_venv_dir).interpreter.binary

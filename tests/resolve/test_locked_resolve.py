@@ -6,13 +6,13 @@ from textwrap import dedent
 import pytest
 
 from pex import targets
+from pex.artifact_url import VCS, ArtifactURL, Fingerprint
 from pex.dist_metadata import Requirement
 from pex.interpreter import PythonInterpreter
 from pex.pep_425 import CompatibilityTags, TagRank
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pep_508 import MarkerEnvironment
-from pex.requirements import VCS
 from pex.resolve import abbreviated_platforms
 from pex.resolve.locked_resolve import (
     Artifact,
@@ -26,7 +26,7 @@ from pex.resolve.locked_resolve import (
     VCSArtifact,
     _ResolvedArtifact,
 )
-from pex.resolve.resolved_requirement import ArtifactURL, Fingerprint, PartialArtifact, Pin
+from pex.resolve.resolved_requirement import PartialArtifact, Pin
 from pex.resolve.resolver_configuration import BuildConfiguration
 from pex.result import Error, try_
 from pex.sorted_tuple import SortedTuple
@@ -46,9 +46,9 @@ def current_target():
 
 
 @pytest.fixture
-def py37_target(py38):
+def py39_target(py39):
     # type: (PythonInterpreter) -> Target
-    return LocalInterpreter.create(py38)
+    return LocalInterpreter.create(py39)
 
 
 @pytest.fixture
@@ -123,7 +123,7 @@ def ansicolors_simple():
 
 
 def assert_resolved(
-    result,  # type: Union[Resolved, Error]
+    result,  # type: Union[Resolved[LockedResolve], Error]
     *downloadable_artifacts  # type: DownloadableArtifact
 ):
     # type: (...) -> None
@@ -264,7 +264,7 @@ def ansicolors_exotic():
 
 
 def assert_error(
-    result,  # type: Union[Resolved, Error]
+    result,  # type: Union[Resolved[LockedResolve], Error]
     expected_error_message,  # type: str
 ):
     assert Error(expected_error_message.strip()) == result
@@ -434,7 +434,7 @@ def test_wheel_tag_mismatch(
 
 
 def test_requires_python_mismatch(
-    py37_target,  # type: Target
+    py39_target,  # type: Target
     py310_target,  # type: Target
 ):
     # type: (...) -> None
@@ -471,7 +471,7 @@ def test_requires_python_mismatch(
     )
 
     assert_resolved(
-        locked_resolve.resolve(py37_target, [req("ansicolors==1.1.7")]),
+        locked_resolve.resolve(py39_target, [req("ansicolors==1.1.7")]),
         DownloadableArtifact.create(
             pin=pin("ansicolors", "1.1.7"),
             artifact=artifact(
@@ -832,18 +832,17 @@ def test_resolved():
 
         locked_resolve = LockedResolve.create(
             resolved_requirements=(),
-            dist_metadatas=(),
+            project_metadatas=(),
             fingerprinter=DevNullFingerprinter(),
         )
-        assert Resolved(
+        assert Resolved[LockedResolve](
             target_specificity=expected_target_specificity,
             downloadable_artifacts=downloadable_artifacts,
             source=locked_resolve,
-        ) == Resolved.create(
+        ) == locked_resolve.create_resolved_artifacts(
             target=target,
             direct_requirements=direct_requirements,
             resolved_artifacts=resolved_artifacts,
-            source=locked_resolve,
         )
 
     # For tag ranks of 1, 2, 1 should rank 100% target specific (best match) and 2 should rank 0%
@@ -918,8 +917,8 @@ def test_locked_requirement_mixed_artifacts_issue_2150():
     vcs_artifact = VCSArtifact(
         url=ArtifactURL.parse("git+https://host/a/project"),
         fingerprint=Fingerprint(algorithm="sha1", hash="bar"),
-        verified=False,
         vcs=VCS.Git,
+        verified=False,
     )
     local_project_artifact = LocalProjectArtifact(
         url=ArtifactURL.parse("file:///tmp/project"),
@@ -958,8 +957,8 @@ def test_locked_resolve_same_pins_mixed_primary_artifacts_issue_2150():
         VCSArtifact(
             url=ArtifactURL.parse("git+https://host/a/project"),
             fingerprint=Fingerprint(algorithm="sha1", hash="bar"),
-            verified=False,
             vcs=VCS.Git,
+            verified=False,
         ),
     )
     local_project_artifact_requirement = LockedRequirement.create(

@@ -3,15 +3,17 @@
 
 import os.path
 
+from pex.pip.version import PipVersion
 from pex.typing import TYPE_CHECKING
 from testing import (
-    PY38,
+    PY39,
     ensure_python_interpreter,
     make_env,
     pex_project_dir,
     run_pex_command,
     subprocess,
 )
+from testing.pip import skip_if_only_vendored_pip_supported
 
 if TYPE_CHECKING:
     from typing import Any
@@ -24,17 +26,27 @@ def assert_venv_runtime_env_vars_ignored_during_create(
     # type: (...) -> None
 
     pex_pex = os.path.join(str(tmpdir), "pex.pex")
-    args = [pex_project_dir(), "-c", "pex", "-o", pex_pex, "--no-strip-pex-env", "--disable-cache"]
+    args = [
+        "--pip-version",
+        PipVersion.LATEST_COMPATIBLE.value,
+        pex_project_dir(),
+        "-c",
+        "pex",
+        "-o",
+        pex_pex,
+        "--no-strip-pex-env",
+        "--disable-cache",
+    ]
     if pex_venv:
         args.append("--venv")
     run_pex_command(args=args).assert_success()
 
-    py38 = ensure_python_interpreter(PY38)
+    py39 = ensure_python_interpreter(PY39)
     pex_root = os.path.join(str(tmpdir), "pex_root")
     lock = os.path.join(str(tmpdir), "lock.json")
     subprocess.check_call(
         args=[
-            py38,
+            py39,
             pex_pex,
             "lock",
             "create",
@@ -49,7 +61,7 @@ def assert_venv_runtime_env_vars_ignored_during_create(
     ansicolors_path = (
         subprocess.check_output(
             args=[
-                py38,
+                py39,
                 pex_pex,
                 "--pex-root",
                 pex_root,
@@ -68,6 +80,7 @@ def assert_venv_runtime_env_vars_ignored_during_create(
     assert ansicolors_path.startswith(pex_root)
 
 
+@skip_if_only_vendored_pip_supported
 def test_venv_runtime_env_vars_ignored_during_create_nested(tmpdir):
     # type: (Any) -> None
 
@@ -76,5 +89,6 @@ def test_venv_runtime_env_vars_ignored_during_create_nested(tmpdir):
     assert_venv_runtime_env_vars_ignored_during_create(tmpdir, pex_venv=False)
 
 
+@skip_if_only_vendored_pip_supported
 def test_venv_runtime_env_vars_ignored_during_create_top_level(tmpdir):
     assert_venv_runtime_env_vars_ignored_during_create(tmpdir, pex_venv=True)

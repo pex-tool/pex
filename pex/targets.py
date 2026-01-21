@@ -5,8 +5,11 @@ from __future__ import absolute_import
 
 import os
 
-from pex.dist_metadata import Distribution, Requirement
-from pex.interpreter import PythonInterpreter, calculate_binary_name
+from pex.dist_metadata import Constraint, Distribution
+from pex.dist_metadata import requires_python as dist_requires_python
+from pex.interpreter import PythonInterpreter
+from pex.interpreter_implementation import InterpreterImplementation
+from pex.interpreter_selection_strategy import InterpreterSelectionStrategy
 from pex.orderedset import OrderedSet
 from pex.pep_425 import CompatibilityTags, RankedTag
 from pex.pep_508 import MarkerEnvironment
@@ -30,6 +33,22 @@ class RequiresPythonError(Exception):
 
 @attr.s(frozen=True)
 class WheelEvaluation(object):
+    @classmethod
+    def select_best_match(cls, evals):
+        # type: (Iterable[WheelEvaluation]) -> Optional[WheelEvaluation]
+        match = None  # type: Optional[WheelEvaluation]
+        for wheel_eval in evals:
+            if not wheel_eval.applies:
+                continue
+            if match is None:
+                match = wheel_eval
+            elif wheel_eval.best_match and (
+                wheel_eval.best_match.select_higher_rank(match.best_match) == wheel_eval.best_match
+            ):
+                match = wheel_eval
+        return match
+
+    wheel = attr.ib()  # type: str
     tags = attr.ib()  # type: Tuple[Tag, ...]
     best_match = attr.ib()  # type: Optional[RankedTag]
     requires_python = attr.ib()  # type: Optional[SpecifierSet]
@@ -48,14 +67,25 @@ class Target(object):
     id = attr.ib()  # type: str
     platform = attr.ib()  # type: Platform
     marker_environment = attr.ib()  # type: MarkerEnvironment
+    implementation = attr.ib(init=False)  # type: Optional[InterpreterImplementation.Value]
+
+    def __attrs_post_init__(self):
+        interpreter_implementation = None  # type: Optional[InterpreterImplementation.Value]
+        for interpreter_impl in InterpreterImplementation.values():
+            if interpreter_impl.value == self.marker_environment.platform_python_implementation:
+                interpreter_implementation = interpreter_impl
+                break
+        object.__setattr__(self, "implementation", interpreter_implementation)
 
     def binary_name(self, version_components=2):
         # type: (int) -> str
-        return calculate_binary_name(
-            platform_python_implementation=self.marker_environment.platform_python_implementation,
-            python_version=self.python_version[:version_components]
-            if self.python_version and version_components > 0
-            else None,
+        interpreter_implementation = self.implementation or InterpreterImplementation.CPYTHON
+        return interpreter_implementation.calculate_binary_name(
+            version=(
+                self.python_version[:version_components]
+                if self.python_version and version_components > 0
+                else None
+            )
         )
 
     @property
@@ -145,7 +175,7 @@ class Target(object):
 
     def requirement_applies(
         self,
-        requirement,  # type: Requirement
+        requirement,  # type: Constraint
         extras=(),  # type: Iterable[str]
     ):
         # type: (...) -> bool
@@ -170,20 +200,27 @@ class Target(object):
         return False
 
     def wheel_applies(self, wheel):
-        # type: (Distribution) -> WheelEvaluation
-        wheel_tags = CompatibilityTags.from_wheel(wheel.location)
+        # type: (Union[str, Distribution]) -> WheelEvaluation
+
+        wheel_tags = CompatibilityTags.from_wheel(wheel)
         ranked_tag = self.supported_tags.best_match(wheel_tags)
+        requires_python = (
+            wheel.metadata.requires_python
+            if isinstance(wheel, Distribution)
+            else dist_requires_python(wheel)
+        )
+        wheel_location = wheel.location if isinstance(wheel, Distribution) else wheel
+
         return WheelEvaluation(
+            wheel=wheel_location,
             tags=tuple(wheel_tags),
             best_match=ranked_tag,
-            requires_python=wheel.metadata.requires_python,
+            requires_python=requires_python,
             applies=(
                 ranked_tag is not None
                 and (
-                    not wheel.metadata.requires_python
-                    or self.requires_python_applies(
-                        wheel.metadata.requires_python, source=wheel.location
-                    )
+                    not requires_python
+                    or self.requires_python_applies(requires_python, source=wheel_location)
                 )
             ),
         )
@@ -193,6 +230,7 @@ class Target(object):
         return str(self.platform.tag)
 
     def render_description(self):
+        # type: () -> str
         raise NotImplementedError()
 
     def __repr__(self):
@@ -204,8 +242,15 @@ class Target(object):
 class LocalInterpreter(Target):
     @classmethod
     def create(cls, interpreter=None):
-        # type: (Optional[PythonInterpreter]) -> LocalInterpreter
-        python_interpreter = interpreter or PythonInterpreter.get()
+        # type: (Optional[Union[str, PythonInterpreter]]) -> LocalInterpreter
+
+        if not interpreter:
+            python_interpreter = PythonInterpreter.get()
+        elif isinstance(interpreter, PythonInterpreter):
+            python_interpreter = interpreter
+        else:
+            python_interpreter = PythonInterpreter.from_binary(interpreter)
+
         return cls(
             id=python_interpreter.binary.replace(os.sep, ".").lstrip("."),
             platform=python_interpreter.platform,
@@ -247,6 +292,7 @@ class LocalInterpreter(Target):
         return self.interpreter.binary
 
     def render_description(self):
+        # type: () -> str
         return "{platform} interpreter at {path}".format(
             platform=self.interpreter.platform.tag, path=self.interpreter.binary
         )
@@ -269,6 +315,7 @@ class AbbreviatedPlatform(Target):
         return self.platform.supported_tags
 
     def render_description(self):
+        # type: () -> str
         return "abbreviated platform {platform}".format(platform=self.platform.tag)
 
 
@@ -311,6 +358,7 @@ class CompletePlatform(Target):
         return self._supported_tags
 
     def render_description(self):
+        # type: () -> str
         return "complete platform {platform}".format(platform=self.platform.tag)
 
 
@@ -327,15 +375,23 @@ class Targets(object):
             return cls(interpreters=(target.get_interpreter(),))
 
     interpreters = attr.ib(default=())  # type: Tuple[PythonInterpreter, ...]
+    interpreter_selection_strategy = attr.ib(
+        default=InterpreterSelectionStrategy.OLDEST
+    )  # type: InterpreterSelectionStrategy.Value
     complete_platforms = attr.ib(default=())  # type: Tuple[CompletePlatform, ...]
     platforms = attr.ib(default=())  # type: Tuple[Optional[Platform], ...]
+
+    @property
+    def is_empty(self):
+        # type: () -> bool
+        return not self.interpreters and not self.complete_platforms and not self.platforms
 
     @property
     def interpreter(self):
         # type: () -> Optional[PythonInterpreter]
         if not self.interpreters:
             return None
-        return PythonInterpreter.latest_release_of_min_compatible_version(self.interpreters)
+        return self.interpreter_selection_strategy.select(self.interpreters)
 
     def unique_targets(self, only_explicit=False):
         # type: (bool) -> OrderedSet[Target]
@@ -391,7 +447,7 @@ class Targets(object):
 
     def require_at_most_one_target(self, purpose):
         # type: (str) -> Union[Optional[Target], Error]
-        resolved_targets = self.unique_targets(only_explicit=False)
+        resolved_targets = self.unique_targets(only_explicit=True)
         if len(resolved_targets) > 1:
             return Error(
                 "At most a single target is required for {purpose}.\n"

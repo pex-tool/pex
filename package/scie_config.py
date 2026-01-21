@@ -6,12 +6,12 @@ from __future__ import annotations
 import base64
 import json
 import pkgutil
-import platform
 from collections import Counter
 from dataclasses import dataclass
 from typing import Any
 
-import toml
+from pex import toml
+from pex.sysconfig import SysPlatform
 
 
 @dataclass(frozen=True)
@@ -26,16 +26,21 @@ class PlatformConfig:
         default_python_version: str
     ) -> PlatformConfig:
         return cls(
-            name=name,
+            platform=SysPlatform.parse(name),
             pbs_release=platform_data.get("pbs-release", default_pbs_release),
             python_version=platform_data.get("python-version", default_python_version),
             required=platform_data.get("required", True),
         )
 
-    name: str
+    platform: SysPlatform.Value
     pbs_release: str
     python_version: str
     required: bool = True
+
+    @property
+    def name(self):
+        # type:() -> str
+        return str(self.platform)
 
 
 @dataclass(frozen=True)
@@ -75,25 +80,12 @@ class ScieConfig:
     extra_lock_args: tuple[str, ...] = ()
 
     def current_platform(self) -> PlatformConfig:
-        system = platform.system().lower()
-        if system == "darwin":
-            system = "macos"
-        machine = platform.machine().lower()
-        if machine in ("aarch64", "arm64"):
-            plat = f"{system}-aarch64"
-        elif machine in ("armv7l", "armv8l"):
-            plat = f"{system}-armv7l"
-        elif machine in ("amd64", "x86_64"):
-            plat = f"{system}-x86_64"
-        else:
-            raise ValueError(f"Unexpected platform.machine(): {platform.machine()}")
-
         for platform_config in self.platforms:
-            if platform_config.name == plat:
+            if platform_config.platform is SysPlatform.CURRENT:
                 return platform_config
         raise KeyError(
-            f"This scie configuration does not contain an entry for platform {plat!r}, only the "
-            f"following platforms are defined: "
+            f"This scie configuration does not contain an entry for platform "
+            f"{SysPlatform.CURRENT!r}, only the following platforms are defined: "
             f"{', '.join(platform_config.name for platform_config in self.platforms)}"
         )
 

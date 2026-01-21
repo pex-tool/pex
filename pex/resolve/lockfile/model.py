@@ -5,19 +5,13 @@ from __future__ import absolute_import, print_function
 
 import os
 
-from pex.dependency_configuration import DependencyConfiguration
+from pex.dependency_configuration import DependencyConfiguration, Override
 from pex.dist_metadata import Constraint, Requirement
 from pex.orderedset import OrderedSet
 from pex.pep_503 import ProjectName
 from pex.pip.version import PipVersion, PipVersionValue
 from pex.requirements import LocalProjectRequirement
-from pex.resolve.locked_resolve import (
-    LocalProjectArtifact,
-    LockConfiguration,
-    LockedResolve,
-    LockStyle,
-    TargetSystem,
-)
+from pex.resolve.locked_resolve import LocalProjectArtifact, LockConfiguration, LockedResolve
 from pex.resolve.lockfile import requires_dist
 from pex.resolve.resolved_requirement import Pin
 from pex.resolve.resolver_configuration import BuildConfiguration, ResolverVersion
@@ -40,21 +34,18 @@ class Lockfile(object):
     def create(
         cls,
         pex_version,  # type: str
-        style,  # type: LockStyle.Value
-        requires_python,  # type: Iterable[str]
-        target_systems,  # type: Iterable[TargetSystem.Value]
+        lock_configuration,  # type: LockConfiguration
         requirements,  # type: Iterable[Union[Requirement, ParsedRequirement]]
         constraints,  # type: Iterable[Constraint]
         allow_prereleases,  # type: bool
         build_configuration,  # type: BuildConfiguration
         transitive,  # type: bool
         excluded,  # type: Iterable[Requirement]
-        overridden,  # type: Iterable[Requirement]
+        overridden,  # type: Iterable[Override]
         locked_resolves,  # type: Iterable[LockedResolve]
         source=None,  # type: Optional[str]
         pip_version=None,  # type: Optional[PipVersionValue]
         resolver_version=None,  # type: Optional[ResolverVersion.Value]
-        elide_unused_requires_dist=False,  # type: bool
     ):
         # type: (...) -> Lockfile
 
@@ -80,12 +71,13 @@ class Lockfile(object):
                 requirement = Requirement.parse(
                     "{project_name}{extras}=={version}{marker}".format(
                         project_name=pin.project_name,
-                        extras="[{extras}]".format(extras=",".join(req.extras))
-                        if req.extras
-                        else "",
+                        extras=(
+                            "[{extras}]".format(extras=",".join(req.extras)) if req.extras else ""
+                        ),
                         version=pin.version,
                         marker="; {marker}".format(marker=req.marker) if req.marker else "",
-                    )
+                    ),
+                    editable=req.editable,
                 )
                 # N.B.: We've already mapped all available local projects above, but the user may
                 # have supplied the local project requirement with more specific constraints (
@@ -95,14 +87,11 @@ class Lockfile(object):
             return req.requirement
 
         resolve_requirements = OrderedSet(extract_requirement(req) for req in requirements)
-
         pip_ver = pip_version or PipVersion.DEFAULT
+
         return cls(
             pex_version=pex_version,
-            style=style,
-            requires_python=SortedTuple(requires_python),
-            target_systems=SortedTuple(target_systems),
-            elide_unused_requires_dist=elide_unused_requires_dist,
+            configuration=lock_configuration,
             pip_version=pip_ver,
             resolver_version=resolver_version or ResolverVersion.default(pip_ver),
             requirements=SortedTuple(resolve_requirements, key=str),
@@ -124,10 +113,12 @@ class Lockfile(object):
                     requires_dist.remove_unused_requires_dist(
                         resolve_requirements,
                         locked_resolve,
-                        requires_python=requires_python,
-                        target_systems=target_systems,
+                        universal_target=lock_configuration.universal_target,
+                        dependency_configuration=DependencyConfiguration.create(
+                            excluded=excluded, overridden=overridden
+                        ),
                     )
-                    if elide_unused_requires_dist
+                    if lock_configuration.elide_unused_requires_dist
                     else locked_resolve
                 )
                 for locked_resolve in locked_resolves
@@ -137,10 +128,7 @@ class Lockfile(object):
         )
 
     pex_version = attr.ib()  # type: str
-    style = attr.ib()  # type: LockStyle.Value
-    requires_python = attr.ib()  # type: SortedTuple[str]
-    target_systems = attr.ib()  # type: SortedTuple[TargetSystem.Value]
-    elide_unused_requires_dist = attr.ib()  # type: bool
+    configuration = attr.ib()  # type: LockConfiguration
     pip_version = attr.ib()  # type: PipVersionValue
     resolver_version = attr.ib()  # type: ResolverVersion.Value
     requirements = attr.ib()  # type: SortedTuple[Requirement]
@@ -156,19 +144,10 @@ class Lockfile(object):
     use_system_time = attr.ib()  # type: bool
     transitive = attr.ib()  # type: bool
     excluded = attr.ib()  # type: SortedTuple[Requirement]
-    overridden = attr.ib()  # type: SortedTuple[Requirement]
+    overridden = attr.ib()  # type: SortedTuple[Override]
     locked_resolves = attr.ib()  # type: SortedTuple[LockedResolve]
     local_project_requirement_mapping = attr.ib(eq=False)  # type: Mapping[str, Requirement]
     source = attr.ib(default=None, eq=False)  # type: Optional[str]
-
-    def lock_configuration(self):
-        # type: () -> LockConfiguration
-        return LockConfiguration(
-            style=self.style,
-            requires_python=self.requires_python,
-            target_systems=self.target_systems,
-            elide_unused_requires_dist=self.elide_unused_requires_dist,
-        )
 
     def build_configuration(self):
         # type: () -> BuildConfiguration

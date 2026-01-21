@@ -9,10 +9,8 @@ import re
 
 import pytest
 
-from pex.atomic_directory import AtomicDirectory
-from pex.common import ZipFileEx
-from pex.compatibility import PY2
-from pex.enum import Enum, qualified_name
+from pex.enum import Enum
+from pex.lang import qualified_name
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -106,46 +104,6 @@ def test_comparable():
         ),
     ):
         assert Op.SUB > Color.RED
-
-
-def test_qualified_name():
-    # type: () -> None
-
-    expected_str_type = "{module}.str".format(module="__builtin__" if PY2 else "builtins")
-    assert expected_str_type == qualified_name(str), "Expected builtin types to be handled."
-    assert expected_str_type == qualified_name(
-        "foo"
-    ), "Expected non-callable objects to be identified via their types."
-
-    assert "pex.enum.qualified_name" == qualified_name(
-        qualified_name
-    ), "Expected functions to be handled"
-
-    assert "pex.atomic_directory.AtomicDirectory" == qualified_name(
-        AtomicDirectory
-    ), "Expected custom types to be handled."
-    expected_prefix = "pex.atomic_directory." if PY2 else "pex.atomic_directory.AtomicDirectory."
-    assert expected_prefix + "finalize" == qualified_name(
-        AtomicDirectory.finalize
-    ), "Expected methods to be handled."
-    assert expected_prefix + "work_dir" == qualified_name(
-        AtomicDirectory.work_dir
-    ), "Expected @property to be handled."
-
-    expected_prefix = "pex.common." if PY2 else "pex.common.ZipFileEx."
-    assert expected_prefix + "zip_entry_from_file" == qualified_name(
-        ZipFileEx.zip_entry_from_file
-    ), "Expected @classmethod to be handled."
-
-    class Test(object):
-        @staticmethod
-        def static():
-            pass
-
-    expected_prefix = "test_enum." if PY2 else "test_enum.test_qualified_name.<locals>.Test."
-    assert expected_prefix + "static" == qualified_name(
-        Test.static
-    ), "Expected @staticmethod to be handled."
 
 
 def test_pickle_identity_preserved():

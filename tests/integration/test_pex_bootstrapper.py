@@ -1,5 +1,8 @@
 # Copyright 2021 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+from __future__ import absolute_import
+
 import json
 import os.path
 import re
@@ -11,17 +14,22 @@ import pytest
 from pex.cache.dirs import CacheDir, InterpreterDir
 from pex.common import safe_open
 from pex.compatibility import commonpath
+from pex.dist_metadata import ProjectNameAndVersion
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import InterpreterConstraint
+from pex.pep_425 import CompatibilityTags
+from pex.pep_440 import Version
+from pex.pep_503 import ProjectName
 from pex.pex import PEX
 from pex.pex_bootstrapper import ensure_venv
 from pex.pex_info import PexInfo
+from pex.third_party.packaging.tags import Tag
 from pex.typing import TYPE_CHECKING
 from pex.venv.installer import CollisionError
 from pex.venv.virtualenv import Virtualenv
 from testing import (
-    PY38,
     PY39,
+    PY310,
     PY_VER,
     ensure_python_interpreter,
     make_env,
@@ -227,12 +235,29 @@ def test_ensure_venv_namespace_packages(tmpdir):
         commonpath(list(package_file_installed_wheel_dirs))
     ), "Expected contributing wheel content to be symlinked from the installed wheel cache."
     assert {
-        "twitter.common.{package}-0.3.11-py{py_major}-none-any.whl".format(
-            package=p, py_major=venv_symlinks.interpreter.version[0]
+        (
+            ProjectName("twitter.common.{package}".format(package=p)),
+            Version("0.3.11"),
+            CompatibilityTags(
+                tuple(
+                    [
+                        Tag(
+                            "py{py_major}".format(py_major=venv_symlinks.interpreter.version[0]),
+                            "none",
+                            "any",
+                        )
+                    ]
+                )
+            ),
         )
         for p in ("decorators", "exceptions", "lang", "metrics", "quantity")
     } == {
-        os.path.basename(d) for d in package_file_installed_wheel_dirs
+        (
+            ProjectNameAndVersion.from_filename(d).canonicalized_project_name,
+            ProjectNameAndVersion.from_filename(d).canonicalized_version,
+            CompatibilityTags.from_wheel(d),
+        )
+        for d in package_file_installed_wheel_dirs
     }, "Expected 5 unique contributing wheels."
 
 
@@ -303,7 +328,7 @@ def test_boot_compatible_issue_1020_no_ic(tmpdir):
     assert_boot(sys.executable)
 
     other_interpreter = (
-        ensure_python_interpreter(PY39) if PY_VER != (3, 9) else ensure_python_interpreter(PY38)
+        ensure_python_interpreter(PY310) if PY_VER != (3, 10) else ensure_python_interpreter(PY39)
     )
     assert_boot(other_interpreter)
 
@@ -311,7 +336,7 @@ def test_boot_compatible_issue_1020_no_ic(tmpdir):
 def test_boot_compatible_issue_1020_ic_min_compatible_build_time_hole(tmpdir):
     # type: (Any) -> None
     other_interpreter = PythonInterpreter.from_binary(
-        ensure_python_interpreter(PY39) if PY_VER != (3, 9) else ensure_python_interpreter(PY38)
+        ensure_python_interpreter(PY310) if PY_VER != (3, 10) else ensure_python_interpreter(PY39)
     )
     current_interpreter = PythonInterpreter.get()
 
@@ -332,14 +357,14 @@ def test_boot_compatible_issue_1020_ic_min_compatible_build_time_hole(tmpdir):
             "--python-path",
             max_interpreter.binary,
             "--interpreter-constraint",
-            "{python}=={major}.{minor}.*".format(
-                python=max_interpreter.identity.interpreter,
+            "{implementation}=={major}.{minor}.*".format(
+                implementation=max_interpreter.identity.implementation,
                 major=min_interpreter.version[0],
                 minor=min_interpreter.version[1],
             ),
             "--interpreter-constraint",
-            "{python}=={major}.{minor}.*".format(
-                python=max_interpreter.identity.interpreter,
+            "{implementation}=={major}.{minor}.*".format(
+                implementation=max_interpreter.identity.implementation,
                 major=max_interpreter.version[0],
                 minor=max_interpreter.version[1],
             ),
@@ -372,16 +397,16 @@ def test_boot_compatible_issue_1020_ic_min_compatible_build_time_hole(tmpdir):
 
 def test_boot_resolve_fail(
     tmpdir,  # type: Any
-    py38,  # type: PythonInterpreter
     py39,  # type: PythonInterpreter
     py310,  # type: PythonInterpreter
+    py311,  # type: PythonInterpreter
 ):
     # type: (...) -> None
 
     pex = os.path.join(str(tmpdir), "pex")
-    run_pex_command(args=["--python", py38.binary, "psutil==5.9.0", "-o", pex]).assert_success()
+    run_pex_command(args=["--python", py39.binary, "psutil==5.9.0", "-o", pex]).assert_success()
 
-    pex_python_path = os.pathsep.join((py39.binary, py310.binary))
+    pex_python_path = os.pathsep.join((py310.binary, py311.binary))
     process = subprocess.Popen(
         args=[py39.binary, pex, "-c", ""],
         env=make_env(PEX_PYTHON_PATH=pex_python_path),
@@ -394,29 +419,29 @@ def test_boot_resolve_fail(
         r"^Failed to find compatible interpreter on path {pex_python_path}.\n"
         r"\n"
         r"Examined the following interpreters:\n"
-        r"1\.\)\s+{py39_exe} {py39_req}\n"
-        r"2\.\)\s+{py310_exe} {py310_req}\n"
+        r"1\.\)\s+{py310_exe} {py310_req}\n"
+        r"2\.\)\s+{py311_exe} {py311_req}\n"
         r"\n"
         r"No interpreter compatible with the requested constraints was found:\n"
-        r"\n"
-        r"  A distribution for psutil could not be resolved for {py39_exe}.\n"
-        r"  Found 1 distribution for psutil that does not apply:\n"
-        r"  1\.\) The wheel tags for psutil 5\.9\.0 are .+ which do not match the supported tags "
-        r"of {py39_exe}:\n"
-        r"  cp39-cp39-.+\n"
-        r"  ... \d+ more ...\n"
         r"\n"
         r"  A distribution for psutil could not be resolved for {py310_exe}.\n"
         r"  Found 1 distribution for psutil that does not apply:\n"
         r"  1\.\) The wheel tags for psutil 5\.9\.0 are .+ which do not match the supported tags "
         r"of {py310_exe}:\n"
         r"  cp310-cp310-.+\n"
+        r"  ... \d+ more ...\n"
+        r"\n"
+        r"  A distribution for psutil could not be resolved for {py311_exe}.\n"
+        r"  Found 1 distribution for psutil that does not apply:\n"
+        r"  1\.\) The wheel tags for psutil 5\.9\.0 are .+ which do not match the supported tags "
+        r"of {py311_exe}:\n"
+        r"  cp311-cp311-.+\n"
         r"  ... \d+ more ...".format(
             pex_python_path=re.escape(pex_python_path),
-            py39_exe=py39.binary,
-            py39_req=InterpreterConstraint.exact_version(py39),
             py310_exe=py310.binary,
             py310_req=InterpreterConstraint.exact_version(py310),
+            py311_exe=py311.binary,
+            py311_req=InterpreterConstraint.exact_version(py311),
         ),
     )
     assert pattern.match(error), "Got error:\n{error}\n\nExpected pattern\n{pattern}".format(

@@ -10,7 +10,7 @@ TYPE_CHECKING = False
 
 if TYPE_CHECKING:
     from types import CodeType
-    from typing import Any, Dict, Iterable, List, NoReturn, Optional, Tuple
+    from typing import Any, Dict, Iterable, List, Mapping, NoReturn, Optional, Tuple, Union
 
 _PY2_EXEC_FUNCTION = """
 def exec_function(ast, globals_map):
@@ -55,11 +55,42 @@ else:
         os.execv(argv[0], argv)
 
 
+class Error(str):
+    pass
+
+
+def _resolve_resource_path(
+    name,  # type: str
+    resource,  # type: str
+):
+    # type: (...) -> Union[str, Error]
+
+    rel_path = os.path.normpath(os.path.join(*resource.split("/")))
+    if os.path.isabs(resource) or rel_path.startswith(os.pardir):
+        return Error(
+            "The following resource binding spec is invalid: {name}={resource}\n"
+            "The resource path {resource} must be relative to the `sys.path`.".format(
+                name=name, resource=resource
+            )
+        )
+
+    for entry in sys.path:
+        value = os.path.join(entry, rel_path)
+        if os.path.isfile(value):
+            return value
+
+    return Error(
+        "There was no resource file {resource} found on the `sys.path` corresponding to "
+        "the given resource binding spec `{name}={resource}`".format(resource=resource, name=name)
+    )
+
+
 def boot(
     shebang_python,  # type: str
     venv_bin_dir,  # type: str
     bin_path,  # type: str
     strip_pex_env,  # type: bool
+    bind_resource_paths,  # type: Iterable[Tuple[str, str]]
     inject_env,  # type: Iterable[Tuple[str, str]]
     inject_args,  # type: List[str]
     entry_point,  # type: Optional[str]
@@ -114,7 +145,7 @@ def boot(
         argv.extend(sys.argv)
         safe_execv(argv)
 
-    pex_file = os.environ.get("PEX", None)
+    pex_file = os.environ.get("__PEX_EXE__") or os.environ.get("PEX")
     if pex_file:
         pex_file_path = os.path.realpath(pex_file)
         if os.path.isfile(pex_file_path):
@@ -167,24 +198,34 @@ def boot(
             "__PEX_UNVENDORED__",
             # These are _not_ used at runtime, but are present under testing / CI and
             # simplest to add an exception for here and not warn about in CI runs.
+            "_PEX_CACHE_WINDOWS_STUBS_DIR",
             "_PEX_FETCH_WINDOWS_STUBS_BEARER",
+            "_PEX_HTTP_SERVER_TIMEOUT",
             "_PEX_PEXPECT_TIMEOUT",
             "_PEX_PIP_VERSION",
+            "_PEX_PIP_ADHOC_VERSION",
+            "_PEX_PIP_ADHOC_REQUIRES_PYTHON",
+            "_PEX_PIP_ADHOC_BUILD_SYSTEM_REQUIRES",
+            "_PEX_PIP_ADHOC_REQUIREMENT",
             "_PEX_REQUIRES_PYTHON",
             "_PEX_TEST_DEV_ROOT",
+            "_PEX_TEST_POS_ARGS",
             "_PEX_TEST_PROJECT_DIR",
             "_PEX_USE_PIP_CONFIG",
             # This is used by Pex's Pip to inject runtime patches dynamically.
             "_PEX_PIP_RUNTIME_PATCHES_PACKAGE",
-            # These are used by Pex's Pip venv to provide foreign platform support and work
-            # around https://github.com/pypa/pip/issues/10050.
+            # These are used by Pex's Pip venv to provide foreign platform support, universal lock
+            # support and work around https://github.com/pypa/pip/issues/10050.
+            "_PEX_INTERPRETER_IMPLEMENTATION",
             "_PEX_PATCHED_MARKERS_FILE",
             "_PEX_PATCHED_TAGS_FILE",
             # These are used by Pex's Pip venv to implement universal locks.
             "_PEX_PYTHON_VERSIONS_FILE",
-            "_PEX_TARGET_SYSTEMS_FILE",
+            "_PEX_UNIVERSAL_TARGET_FILE",
             # This is used to implement Pex --exclude and --override support.
             "_PEX_DEP_CONFIG_FILE",
+            # This is used to implement --source support.
+            "_PEX_REPOS_CONFIG_FILE",
             # This is used as an experiment knob for atomic_directory locking.
             "_PEX_FILE_LOCK_STYLE",
             # This is used in the scie binding command for ZIPAPP PEXes.
@@ -193,6 +234,10 @@ def boot(
             "PEX_BOOTSTRAP_URLS",
             # This is used to support `pex3 cache {prune,purge}`.
             "_PEX_CACHE_ACCESS_LOCK",
+            # This is used to support cleanup of temporary PEX_ROOTs on exit.
+            "_PEX_ROOT_FALLBACK",
+            # This is used to support concurrent Pex test suite runs.
+            "_PEX_LOCKED_PROJECT_DIR",
         )
     ]
     if ignored_pex_env_vars:
@@ -246,6 +291,40 @@ def boot(
 
     for name, value in inject_env:
         os.environ.setdefault(name, value)
+
+    for name, resource in bind_resource_paths:
+        resource_path = _resolve_resource_path(name, resource)
+        if isinstance(resource_path, Error):
+            sys.exit(resource_path)
+        os.environ[name] = resource_path
+
+    class Namespace(object):
+        def __init__(
+            self,
+            seed=(),  # type: Union[Mapping[str, Any], Iterable[Tuple[str, Any]]]
+            safe=False,  # type: bool
+            **kwargs  # type: Any
+        ):
+            # type: (...) -> None
+            self.__dict__.update(seed)
+            self.__dict__.update(kwargs)
+            self._safe = safe
+
+        def __getattr__(self, key):
+            # type: (str) -> Any
+            return self._value(key)
+
+        def __getitem__(self, key):
+            # type: (str) -> Any
+            return self._value(key)
+
+        def _value(self, key):
+            # type: (str) -> Any
+            if self._safe:
+                return self.__dict__.get(key, "")
+            return self.__dict__[key]
+
+    replacements = Namespace(env=Namespace(os.environ, safe=True))
 
     pex_script = pex_overrides.get("PEX_SCRIPT") if pex_overrides else script
     if pex_script:
@@ -331,7 +410,7 @@ def boot(
             sys.exit(0)
 
     if not is_exec_override:
-        sys.argv[1:1] = inject_args
+        sys.argv[1:1] = [arg.format(pex=replacements) for arg in inject_args]
 
     module_name, _, function = entry_point.partition(":")
     if not function:
