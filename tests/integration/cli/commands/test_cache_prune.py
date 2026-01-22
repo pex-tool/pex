@@ -178,7 +178,17 @@ def create_ansicolors_pex(
     pex = tmpdir.join("ansicolors.pex")
     write_app_py(tmpdir.join("src", "app.py"))
     run_pex_command(
-        args=["ansicolors==1.1.8", "-D", "src", "-m" "app", "-o", pex] + list(extra_args),
+        args=[
+            "ansicolors==1.1.8",
+            "-D",
+            "src",
+            "-m" "app",
+            "-o",
+            pex,
+            "--pip-log",
+            tmpdir.join("pip.log"),
+        ]
+        + list(extra_args),
         cwd=tmpdir.path,
         use_pex_whl_venv=False,
     ).assert_success()
@@ -557,7 +567,7 @@ def test_pip_prune(
 
     create_ansicolors_pex(tmpdir, "--pip-version", str(pip1))
     create_ansicolors_pex(tmpdir, "--pip-version", str(pip2))
-    create_ansicolors_pex(tmpdir, "--pip-version", str(pip3), "--no-wheel")
+    create_ansicolors_pex(tmpdir, "--pip-version", str(pip3), "--no-wheel", "--only-wheel", "wheel")
 
     pips_by_version = {pip_dir.version: pip_dir for pip_dir in PipPexDir.iter_all()}
     assert {pip1, pip2, pip3}.issubset(pips_by_version)
