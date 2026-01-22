@@ -71,7 +71,6 @@ class ConfiguredResolver(Resolver):
             ignore_errors=ignore_errors,
             verify_wheels=True,
             pip_version=pip_version or self._pip_configuration.version,
-            pip_log=self._pip_configuration.log,
             resolver=self,
             use_pip_config=self._pip_configuration.use_pip_config,
             extra_pip_requirements=(

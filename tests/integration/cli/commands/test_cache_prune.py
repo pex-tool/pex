@@ -178,17 +178,7 @@ def create_ansicolors_pex(
     pex = tmpdir.join("ansicolors.pex")
     write_app_py(tmpdir.join("src", "app.py"))
     run_pex_command(
-        args=[
-            "ansicolors==1.1.8",
-            "-D",
-            "src",
-            "-m" "app",
-            "-o",
-            pex,
-            "--pip-log",
-            tmpdir.join("pip.log"),
-        ]
-        + list(extra_args),
+        args=["ansicolors==1.1.8", "-D", "src", "-m" "app", "-o", pex] + list(extra_args),
         cwd=tmpdir.path,
         use_pex_whl_venv=False,
     ).assert_success()
