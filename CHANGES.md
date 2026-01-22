@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.85.3
+
+This release upgrades vendored `packaginged for Python>=3.8 to the latest release; bringing some bug
+fixes and performance improvements.
+
+* Upgrade vendored `packaging` to 26.0 for Python>=3.8. (#3083)
+
 ## 2.85.2
 
 This release makes running a PEX using venv-execution and sh-bootstrapping (that is, build with

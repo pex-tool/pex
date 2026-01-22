@@ -557,7 +557,7 @@ def test_pip_prune(
 
     create_ansicolors_pex(tmpdir, "--pip-version", str(pip1))
     create_ansicolors_pex(tmpdir, "--pip-version", str(pip2))
-    create_ansicolors_pex(tmpdir, "--pip-version", str(pip3), "--no-wheel")
+    create_ansicolors_pex(tmpdir, "--pip-version", str(pip3), "--no-wheel", "--only-wheel", "wheel")
 
     pips_by_version = {pip_dir.version: pip_dir for pip_dir in PipPexDir.iter_all()}
     assert {pip1, pip2, pip3}.issubset(pips_by_version)

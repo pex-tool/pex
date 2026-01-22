@@ -175,8 +175,8 @@ def test_invalid_group_bad_req(project_dir1):
         ValueError,
         match=re.escape(
             "Invalid [dependency-group] entry 'bad-req'.\n"
-            "Item 1: 'meaning-of-life=42', is an invalid dependency specifier: Expected end or "
-            "semicolon (after name and no valid version specifier)\n"
+            "Item 1: 'meaning-of-life=42', is an invalid dependency specifier: Expected semicolon "
+            "(after name with no version specifier) or end\n"
             "    meaning-of-life=42\n"
             "                   ^"
         ),

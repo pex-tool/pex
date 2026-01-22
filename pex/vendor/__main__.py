@@ -45,7 +45,6 @@ from pex.common import (
     safe_open,
     safe_rmtree,
 )
-from pex.pep_427 import ZipMetadata
 from pex.typing import TYPE_CHECKING
 from pex.vendor import VendorSpec, iter_vendor_specs
 
@@ -491,7 +490,7 @@ def vendorize(root_dir, vendor_specs, prefix, update):
     # Import all code needed below now before we move any vendored bits it depends on temporarily
     # back to the prefix site-packages dir.
     from pex.dist_metadata import ProjectNameAndVersion, Requirement
-    from pex.pep_427 import InstallableWheel, InstallPaths, install_wheel_chroot
+    from pex.pep_427 import InstallableWheel, InstallPaths, ZipMetadata, install_wheel_chroot
     from pex.wheel import Wheel
 
     for vendor_spec in vendor_specs:

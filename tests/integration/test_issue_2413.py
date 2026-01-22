@@ -74,6 +74,9 @@ def test_venv_with_installs(
         expected_projects.append(ProjectName("setuptools"))
     if install_wheel is not InstallationChoice.NO:
         expected_projects.append(ProjectName("wheel"))
+        if venv.interpreter.version[:2] >= (3, 9):
+            # Wheel 0.46.2, which is compatible with Python>=3.9, de-vendored packaging.
+            expected_projects.append(ProjectName("packaging"))
     assert frozenset(expected_projects) == frozenset(
         dist.metadata.project_name for dist in venv.iter_distributions(rescan=True)
     )
