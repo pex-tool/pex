@@ -196,6 +196,7 @@ def _vendored_installation(
             targets=Targets.from_target(LocalInterpreter.create(interpreter)),
             pip_version=PipVersion.VENDORED,
             extra_resolver_requirements=(),
+            transitive=True,
         ).distributions:
             yield resolved_distribution.distribution.location
 
@@ -389,6 +390,7 @@ def _resolved_installation(
                 targets=targets,
                 extra_resolver_requirements=(),
                 pip_version=PipVersion.VENDORED,
+                transitive=True,
             ).distributions:
                 yield resolved_distribution.distribution.location
 
