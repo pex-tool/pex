@@ -29,6 +29,7 @@ from pex.cache.dirs import (
 from pex.cli.commands.cache.du import DiskUsage
 from pex.common import environment_as, safe_open
 from pex.os import WINDOWS
+from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pex_info import PexInfo
 from pex.pip.version import PipVersion, PipVersionValue
@@ -276,10 +277,17 @@ def assert_installed_wheels(
 
 def expected_pip_wheels():
     # type: () -> Iterable[str]
+
     if PipVersion.DEFAULT is PipVersion.VENDORED:
         return "pip", "setuptools"
-    else:
-        return "pip", "setuptools", "wheel"
+
+    # N.B.: wheel 0.46.3 de-vendored packaging.
+    if not PipVersion.DEFAULT.wheel_version or Version(PipVersion.DEFAULT.wheel_version) >= Version(
+        "0.46.3"
+    ):
+        return "pip", "setuptools", "wheel", "packaging"
+
+    return "pip", "setuptools", "wheel"
 
 
 def expected_pip_wheels_plus(*names):

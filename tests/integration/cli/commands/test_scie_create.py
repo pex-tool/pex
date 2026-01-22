@@ -289,10 +289,10 @@ def test_pex_url(tmpdir):
         "eager",
         "-d",
         dest,
-        "https://github.com/pex-tool/pex/releases/download/v2.80.0/pex",
+        "https://github.com/pex-tool/pex/releases/download/v2.85.3/pex",
     ).assert_success()
     assert (
-        "2.80.0"
+        "2.85.3"
         == subprocess.check_output(args=[os.path.join(dest, "pex"), "-V"]).decode("utf-8").strip()
     )
 
