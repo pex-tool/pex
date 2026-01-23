@@ -2,7 +2,7 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
-from argparse import ArgumentParser
+from argparse import ArgumentParser, Namespace
 from contextlib import contextmanager
 from tempfile import NamedTemporaryFile
 
@@ -17,6 +17,8 @@ from pex.bin.pex import (
 from pex.common import safe_copy, temporary_dir
 from pex.compatibility import to_bytes
 from pex.interpreter import PythonInterpreter
+from pex.pex_builder import PEXBuilder
+from pex.pip.version import PipVersion
 from pex.resolve import requirement_options, resolver_options, target_options
 from pex.resolve.resolver_configuration import PipConfiguration
 from pex.typing import TYPE_CHECKING
@@ -100,6 +102,18 @@ def test_clp_prereleases():
 
 def test_clp_prereleases_resolver():
     # type: () -> None
+
+    def build_prerelease_pex(pex_options):
+        # type: (Namespace) -> PEXBuilder
+        target_config = target_options.configure(pex_options, pip_configuration=PipConfiguration())
+        return build_pex(
+            requirement_configuration=requirement_options.configure(pex_options),
+            resolver_configuration=resolver_options.configure(pex_options),
+            interpreter_constraints=target_config.interpreter_constraints,
+            targets=target_config.resolve_targets(),
+            options=pex_options,
+        )
+
     with built_wheel(name="prerelease-dep", version="1.2.3b1") as prerelease_dep, built_wheel(
         name="transitive-dep", install_reqs=["prerelease-dep"]
     ) as transitive_dep, built_wheel(
@@ -123,15 +137,20 @@ def test_clp_prereleases_resolver():
         )
         assert not options.allow_prereleases
 
-        with pytest.raises(SystemExit):
-            target_config = target_options.configure(options, pip_configuration=PipConfiguration())
-            build_pex(
-                requirement_configuration=requirement_options.configure(options),
-                resolver_configuration=resolver_options.configure(options),
-                interpreter_constraints=target_config.interpreter_constraints,
-                targets=target_config.resolve_targets(),
-                options=options,
-            )
+        if PipVersion.DEFAULT > PipVersion.v25_3:
+            # N.B.: Pip 26 (via vendoring packaging 26), comes in line with the spec which says that
+            # if the only available version that satisfies the version specifier is a pre-release it
+            # should be used by default.
+            # See:
+            # + https://packaging.python.org/en/latest/specifications/version-specifiers/#handling-of-pre-releases
+            # + https://github.com/pypa/packaging/pull/872
+            # + https://github.com/pypa/pip/pull/13746
+            assert (
+                len(build_prerelease_pex(options).info.distributions) == 3
+            ), "Should have resolved deps"
+        else:
+            with pytest.raises(SystemExit):
+                build_prerelease_pex(options)
 
         # When we specify `--pre`, allow_prereleases is True
         options = parser.parse_args(
@@ -155,16 +174,9 @@ def test_clp_prereleases_resolver():
         #     dep==1.2.3b1, dep
         #
         # With a correct behavior the assert line is reached and pex_builder object created.
-        target_config = target_options.configure(options, pip_configuration=PipConfiguration())
-        pex_builder = build_pex(
-            requirement_configuration=requirement_options.configure(options),
-            resolver_configuration=resolver_options.configure(options),
-            interpreter_constraints=target_config.interpreter_constraints,
-            targets=target_config.resolve_targets(),
-            options=options,
-        )
-        assert pex_builder is not None
-        assert len(pex_builder.info.distributions) == 3, "Should have resolved deps"
+        assert (
+            len(build_prerelease_pex(options).info.distributions) == 3
+        ), "Should have resolved deps"
 
 
 def test_clp_pex_options():
