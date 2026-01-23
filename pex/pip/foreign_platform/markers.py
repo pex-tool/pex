@@ -45,11 +45,12 @@ def patch():
         lhs,  # type: Any
         op,  # type: Any
         rhs,  # type: Any
+        **kwargs  # type: Any
     ):
         # type: (...) -> Any
         evaluation_environment.raise_if_missing(lhs)
         evaluation_environment.raise_if_missing(rhs)
-        return original_eval_op(lhs, op, rhs)
+        return original_eval_op(lhs, op, rhs, **kwargs)
 
     markers._eval_op = _eval_op
 
