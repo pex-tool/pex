@@ -7,9 +7,11 @@ import itertools
 from collections import OrderedDict, defaultdict
 
 from pex.common import pluralize
+from pex.compatibility import ConfigParser
 from pex.dist_metadata import Distribution, NamedEntryPoint
 from pex.enum import Enum
 from pex.finders import get_entry_point_from_console_script
+from pex.namespace import Namespace
 from pex.pep_503 import ProjectName
 from pex.pex import PEX
 from pex.platforms import PlatformSpec
@@ -297,12 +299,90 @@ class File(str):
     pass
 
 
+class ResourceBinding(str):
+    pass
+
+
+class DesktopFileParser(ConfigParser):
+    _DESKTOP_ENTRY_SECTION = "Desktop Entry"
+
+    @classmethod
+    def create(cls, desktop_file=None):
+        # type: (Optional[str]) -> DesktopFileParser
+
+        parser = DesktopFileParser()
+        if desktop_file:
+            parser.read(desktop_file)
+        if not parser.has_section(cls._DESKTOP_ENTRY_SECTION):
+            parser.add_section(cls._DESKTOP_ENTRY_SECTION)
+        return parser
+
+    # N.B.: This ensures key casing is preserved, which is required by XDG.
+    def optionxform(self, key):
+        # type: (str) -> str
+        return key
+
+    def ensure_set(
+        self,
+        option,  # type: str
+        default,  # type: str
+    ):
+        # type: (...) -> None
+        if not self.has_option(self._DESKTOP_ENTRY_SECTION, option):
+            self.set(self._DESKTOP_ENTRY_SECTION, option, default)
+
+
+@attr.s(frozen=True)
+class DesktopApp(object):
+    @classmethod
+    def create(
+        cls,
+        desktop_file=None,  # type: Optional[str]
+        icon=None,  # type: Optional[str]
+        resource_bindings=(),  # type: Tuple[str, ...]
+    ):
+        # type: (...) -> DesktopApp
+        if icon and resource_bindings:
+            bindings = Namespace(
+                env=Namespace({binding: "" for binding in resource_bindings}, safe=True)
+            )
+            if icon != icon.format(scie=bindings):
+                return DesktopApp(desktop_file=desktop_file, icon=ResourceBinding(icon))
+        return DesktopApp(desktop_file=desktop_file, icon=File(icon) if icon else None)
+
+    desktop_file = attr.ib()  # type: Optional[str]
+    icon = attr.ib()  # type: Optional[Union[File, ResourceBinding]]
+
+    def __attrs_post_init__(self):
+        if not self.desktop_file and not self.icon:
+            raise ValueError("A DesktopApp must define a desktop_file, and icon, or both.")
+
+    def generate_desktop_file(
+        self,
+        app_name,  # type: str
+        path,  # type: str
+    ):
+        # type: (...) -> None
+
+        parser = DesktopFileParser.create(self.desktop_file)
+        parser.ensure_set("Version", default="1.0")
+        parser.ensure_set("Type", default="Application")
+        parser.ensure_set("Name", default=app_name)
+        parser.ensure_set("Exec", default="{exe}")
+        if self.icon:
+            parser.ensure_set("Icon", default="{icon}")
+
+        with open(path, "w") as fp:
+            parser.write(fp)
+
+
 @attr.s(frozen=True)
 class ScieOptions(object):
     style = attr.ib(default=ScieStyle.LAZY)  # type: ScieStyle.Value
     naming_style = attr.ib(default=None)  # type: Optional[PlatformNamingStyle.Value]
     scie_only = attr.ib(default=False)  # type: bool
     load_dotenv = attr.ib(default=False)  # type: bool
+    desktop_app = attr.ib(default=None)  # type: Optional[DesktopApp]
     bind_resource_paths = attr.ib(default=())  # type: Tuple[Tuple[str, str], ...]
     custom_entrypoint = attr.ib(default=None)  # type: Optional[Command]
     busybox_entrypoints = attr.ib(default=None)  # type: Optional[BusyBoxEntryPoints]

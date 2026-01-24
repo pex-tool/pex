@@ -1458,6 +1458,7 @@ def do_main(
                 handle_file_urls=True,
             )
             with TRACER.timed("Building scie(s)"):
+                unlink_pex_file = False
                 for scie_info in scie.build(
                     configuration=scie_configuration, pex_file=pex_file, url_fetcher=url_fetcher
                 ):
@@ -1471,12 +1472,14 @@ def do_main(
                     if scie_configuration.options.scie_only and os.path.realpath(
                         pex_file
                     ) != os.path.realpath(scie_info.file):
-                        os.unlink(pex_file)
+                        unlink_pex_file = True
                     if options.seed is Seed.NONE:
                         if os.getcwd() == commonpath((os.getcwd(), scie_info.file)):
                             print(os.path.relpath(scie_info.file))
                         else:
                             print(scie_info.file)
+                if unlink_pex_file:
+                    os.unlink(pex_file)
     else:
         if not _compatible_with_current_platform(interpreter, targets.platforms):
             log("WARNING: attempting to run PEX with incompatible platforms!", V=1)

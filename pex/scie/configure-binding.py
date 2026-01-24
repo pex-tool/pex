@@ -3,7 +3,6 @@
 
 from __future__ import print_function
 
-import importlib
 import json
 import os
 import sys
@@ -15,14 +14,13 @@ from argparse import ArgumentParser
 TYPE_CHECKING = False
 
 if TYPE_CHECKING:
-    from typing import Iterable, List, Optional, Tuple
+    from typing import Optional
 
 
 def write_bindings(
     env_file,  # type: str
     pex,  # type: str
     venv_bin_dir=None,  # type: Optional[str]
-    bound_resource_paths=(),  # type: Tuple[Tuple[str, str], ...]
 ):
     # type: (...) -> None
 
@@ -32,8 +30,6 @@ def write_bindings(
         if venv_bin_dir:
             print("VIRTUAL_ENV=" + os.path.dirname(venv_bin_dir), file=fp)
             print("VENV_BIN_DIR_PLUS_SEP=" + venv_bin_dir + os.path.sep, file=fp)
-        for env_name, resource_path in bound_resource_paths:
-            print("BIND_RESOURCE_" + env_name + "=" + resource_path, file=fp)
 
 
 class PexDirNotFound(Exception):
@@ -58,62 +54,39 @@ def find_pex_dir(pex_hash):
     raise PexDirNotFound()
 
 
-class ResourceBindingError(Exception):
-    pass
-
-
-def imported_file(
-    module_name,  # type: str
-    resource_name,  # type: str
+def prompt_install(
+    desktop_file,  # type: str
+    icon=None,  # type: Optional[str]
 ):
-    # type: (...) -> str
-    try:
-        path = importlib.import_module(module_name).__file__
-    except ImportError as e:
-        raise ResourceBindingError(
-            "Failed to bind resource {resource}: {err}".format(resource=resource_name, err=e)
-        )
-    if path is None:
-        raise ResourceBindingError(
-            "Failed to bind path of resource {resource}: it exists but {module} has no __file__ "
-            "attribute.".format(resource=resource_name, module=module_name)
-        )
-    return path
+    # type: (...) -> None
 
+    if sys.version_info[0] == 2:
+        from Tkinter import tkMessageBox as messagebox  # type: ignore[import]
+    else:
+        from tkinter import messagebox as messagebox
 
-def bind_resource_paths(bindings):
-    # type: (Iterable[str]) -> Tuple[Tuple[str, str], ...]
+    scie_name = os.path.basename(os.environ["SCIE_ARGV0"])
+    if not messagebox.askyesno(
+        title="Create Desktop Entry",
+        message="Install a desktop entry?",
+        detail="This will make it easier to launch {app_name}.".format(app_name=scie_name),
+    ):
+        return
 
-    resource_paths = []  # type: List[Tuple[str, str]]
-    for spec in bindings:
-        try:
-            name, resource = spec.split("=")
-        except ValueError:
-            raise ResourceBindingError(
-                "The following resource binding spec is invalid: {spec}\n"
-                "It must be in the form `<env var name>=<resource rel path>`.".format(spec=spec)
+    scie_path = os.environ["SCIE"]
+    xdg_data_home = os.environ.get("XDG_DATA_HOME", os.path.join("~", ".local", "share"))
+    with open(desktop_file) as in_fp, open(
+        os.path.expanduser(
+            os.path.join(
+                xdg_data_home, "applications", "{app_name}.desktop".format(app_name=scie_name)
             )
-
-        rel_path = os.path.normpath(os.path.join(*resource.split("/")))
-        if os.path.isabs(resource) or rel_path.startswith(os.pardir):
-            raise ResourceBindingError(
-                "The following resource binding spec is invalid: {spec}\n"
-                "The resource path {resource} must be relative to the `sys.path`.".format(
-                    spec=spec, resource=resource
-                )
-            )
-
-        for entry in sys.path:
-            value = os.path.join(entry, rel_path)
-            if os.path.isfile(value):
-                resource_paths.append((name, value))
-                break
-        else:
-            raise ResourceBindingError(
-                "There was no resource file {resource} found on the `sys.path` corresponding to "
-                "the given resource binding spec `{spec}`".format(resource=resource, spec=spec)
-            )
-    return tuple(resource_paths)
+        ),
+        "w",
+    ) as out_fp:
+        fmt_dict = dict(name=scie_name, exe=scie_path)
+        if icon:
+            fmt_dict.update(icon=icon)
+        out_fp.write(in_fp.read().format(**fmt_dict))
 
 
 if __name__ == "__main__":
@@ -124,16 +97,8 @@ if __name__ == "__main__":
         help="The PEX hash.",
     )
     parser.add_argument("--venv-bin-dir", help="The platform-specific venv bin dir name.")
-    parser.add_argument(
-        "--bind-resource-path",
-        dest="bind_resource_paths",
-        default=[],
-        action="append",
-        help=(
-            "An environment variable name to bind the path of a Python resource to in the form "
-            "`<name>=<resource>`."
-        ),
-    )
+    parser.add_argument("--desktop-file", help="An optional application .desktop file.")
+    parser.add_argument("--icon", help="An optional application icon file.")
     options = parser.parse_args()
 
     pex_hash = options.pex_hash[0]
@@ -149,15 +114,12 @@ if __name__ == "__main__":
             )
         )
 
-    try:
-        bound_resource_paths = bind_resource_paths(options.bind_resource_paths)
-    except ResourceBindingError as e:
-        sys.exit(str(e))
+    if options.desktop_file:
+        prompt_install(desktop_file=options.desktop_file, icon=options.icon)
 
     write_bindings(
         env_file=os.environ["SCIE_BINDING_ENV"],
         pex=pex,
         venv_bin_dir=os.path.join(pex, options.venv_bin_dir) if options.venv_bin_dir else None,
-        bound_resource_paths=bound_resource_paths,
     )
     sys.exit(0)

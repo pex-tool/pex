@@ -22,6 +22,7 @@ from pex.globals import Globals
 from pex.inherit_path import InheritPath
 from pex.interpreter import PythonIdentity, PythonInterpreter
 from pex.layout import Layout
+from pex.namespace import Namespace
 from pex.orderedset import OrderedSet
 from pex.os import safe_execv
 from pex.pex_info import PexInfo
@@ -623,32 +624,6 @@ class PEX(object):  # noqa: T000
 
         for name, resource in self._pex_info.bind_resource_paths.items():
             os.environ[name] = self._resolve_resource_path(name, resource)
-
-        class Namespace(object):
-            def __init__(
-                self,
-                seed=(),  # type: Union[Mapping[str, Any], Iterable[Tuple[str, Any]]]
-                safe=False,  # type: bool
-                **kwargs  # type: Any
-            ):
-                # type: (...) -> None
-                self.__dict__.update(seed)
-                self.__dict__.update(kwargs)
-                self._safe = safe
-
-            def __getattr__(self, key):
-                # type: (str) -> Any
-                return self._value(key)
-
-            def __getitem__(self, key):
-                # type: (str) -> Any
-                return self._value(key)
-
-            def _value(self, key):
-                # type: (str) -> Any
-                if self._safe:
-                    return self.__dict__.get(key, "")
-                return self.__dict__[key]
 
         replacements = Namespace(env=Namespace(os.environ, safe=True))
 

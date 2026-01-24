@@ -17,6 +17,7 @@ from pex.scie.model import (
     BusyBoxEntryPoints,
     Command,
     ConsoleScriptsManifest,
+    DesktopApp,
     File,
     InterpreterDistribution,
     PlatformNamingStyle,
@@ -113,6 +114,35 @@ def register_options(
             "Have the scie launcher load `.env` files and apply the loaded env vars to the PEX "
             "scie environment. See the 'load_dotenv' docs here for more on the `.env` loading "
             "specifics: https://github.com/a-scie/jump/blob/main/docs/packaging.md#optional-fields"
+        ),
+    )
+    parser.add_argument(
+        "--scie-desktop-file",
+        dest="desktop_file",
+        default=None,
+        type=str,
+        metavar="FILE",
+        help=(
+            "A .desktop file to use to construct a Linux desktop application from the scie. Three "
+            "placeholders will be substituted if present: `{name}` will be replaced with the "
+            "basename of the deployed PEX scie, `{exe}` will be replaced with the path of the PEX "
+            "scie executable and `{icon}` will be replaced with the path of `--scie-icon`. If the "
+            "`Name` key is missing, it will be populated with the `{name}` substitute, if the "
+            "`Exec` key is missing, it will be populated with an appropriate value that will "
+            "launch the scie and if `--scie-icon` is specified but the `Icon` key is missing, it "
+            "will be populated with the `{icon}` substitute."
+        ),
+    )
+    parser.add_argument(
+        "--scie-icon",
+        dest="icon",
+        default=None,
+        type=str,
+        metavar="FILE or RESOURCE",
+        help=(
+            "An icon file to use to construct a Linux desktop application from the scie. To bind a "
+            "resource as the icon file you can use the `--scie-bind-resource-path` mechanism and a "
+            "{scie.env} placeholder for the icon path."
         ),
     )
     parser.add_argument(
@@ -400,6 +430,13 @@ def render_options(options):
         args.append("--scie-only")
     if options.load_dotenv:
         args.append("--scie-load-dotenv")
+    if options.desktop_app:
+        if options.desktop_app.desktop_file:
+            args.append("--scie-desktop-file")
+            args.append(options.desktop_app.desktop_file)
+        if options.desktop_app.icon:
+            args.append("--scie-icon")
+            args.append(options.desktop_app.icon)
     for name, value in options.bind_resource_paths:
         args.append("--scie-bind-resource-path")
         args.append("{name}={value}".format(name=name, value=value))
@@ -541,12 +578,23 @@ def extract_options(options):
     if options.assets_base_url:
         assets_base_url = Url(options.assets_base_url)
 
+    bind_resource_paths = tuple(options.scie_bind_resource_paths)
+
+    desktop_app = None  # type: Optional[DesktopApp]
+    if options.desktop_file or options.icon:
+        desktop_app = DesktopApp.create(
+            desktop_file=options.desktop_file,
+            icon=options.icon,
+            resource_bindings=tuple(binding[0] for binding in bind_resource_paths),
+        )
+
     return ScieOptions(
         style=options.scie_style,
         naming_style=options.naming_style,
         scie_only=options.scie_only,
         load_dotenv=options.scie_load_dotenv,
-        bind_resource_paths=tuple(options.scie_bind_resource_paths),
+        desktop_app=desktop_app,
+        bind_resource_paths=bind_resource_paths,
         custom_entrypoint=custom_entrypoint,
         busybox_entrypoints=busybox_entrypoints,
         pex_entrypoint_env_passthrough=options.scie_pex_entrypoint_env_passthrough,
