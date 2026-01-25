@@ -391,6 +391,9 @@ def create_manifests(
         if interpreter.platform.os is Os.LINUX:
             if configuration.options.desktop_app:
                 files.append({"name": Filenames.DESKTOP_FILE.name})
+                configure_binding["env"]["replace"][
+                    "CONFIGURE_DESKTOP_INSTALL"
+                ] = "{scie.env.PEX_DESKTOP_INSTALL}"
             if configuration.options.desktop_app and isinstance(
                 configuration.options.desktop_app.icon, File
             ):
@@ -449,6 +452,8 @@ def create_manifests(
             extra_configure_binding_args.extend(
                 ("--desktop-file", Filenames.DESKTOP_FILE.placeholder)
             )
+            if not configuration.options.desktop_app.prompt_install:
+                extra_configure_binding_args.append("--no-prompt-desktop-install")
         if (
             interpreter.platform.os is Os.LINUX
             and configuration.options.desktop_app

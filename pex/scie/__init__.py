@@ -4,10 +4,10 @@
 from __future__ import absolute_import
 
 import os.path
-from argparse import Namespace, _ActionsContainer
+from argparse import Action, Namespace, _ActionsContainer
 
 from pex.argparse import HandleBoolAction, InjectArgAction, InjectEnvAction
-from pex.compatibility import urlparse
+from pex.compatibility import string, urlparse
 from pex.dist_metadata import NamedEntryPoint
 from pex.fetcher import URLFetcher
 from pex.orderedset import OrderedSet
@@ -48,6 +48,16 @@ __all__ = (
     "register_options",
     "render_options",
 )
+
+
+class HandleDesktopFileAction(Action):
+    def __init__(self, *args, **kwargs):
+        kwargs["nargs"] = "?"
+        kwargs["default"] = None
+        super(HandleDesktopFileAction, self).__init__(*args, **kwargs)
+
+    def __call__(self, parser, namespace, value, option_str=None):
+        setattr(namespace, self.dest, value or True)
 
 
 def register_options(
@@ -119,18 +129,17 @@ def register_options(
     parser.add_argument(
         "--scie-desktop-file",
         dest="desktop_file",
-        default=None,
-        type=str,
-        metavar="FILE",
+        action=HandleDesktopFileAction,
         help=(
-            "A .desktop file to use to construct a Linux desktop application from the scie. Three "
-            "placeholders will be substituted if present: `{name}` will be replaced with the "
-            "basename of the deployed PEX scie, `{exe}` will be replaced with the path of the PEX "
-            "scie executable and `{icon}` will be replaced with the path of `--scie-icon`. If the "
-            "`Name` key is missing, it will be populated with the `{name}` substitute, if the "
-            "`Exec` key is missing, it will be populated with an appropriate value that will "
-            "launch the scie and if `--scie-icon` is specified but the `Icon` key is missing, it "
-            "will be populated with the `{icon}` substitute."
+            "With no arguments, generates a .desktop file that will be prompted for install when "
+            "the PEX scie is first run. A template .desktop file argument is supported and three "
+            "placeholders will be substituted if present in the template file: `{name}` will be "
+            "replaced with the basename of the deployed PEX scie, `{exe}` will be replaced with "
+            "the path of the PEX scie executable and `{icon}` will be replaced with the path of "
+            "the `--scie-icon` option. If the `Name` key is missing, it will be populated with the "
+            "`{name}` substitute, if the `Exec` key is missing, it will be populated with an "
+            "appropriate value that will launch the scie and if `--scie-icon` is specified but the "
+            "`Icon` key is missing, it will be populated with the `{icon}` substitute."
         ),
     )
     parser.add_argument(
@@ -143,6 +152,24 @@ def register_options(
             "An icon file to use to construct a Linux desktop application from the scie. To bind a "
             "resource as the icon file you can use the `--scie-bind-resource-path` mechanism and a "
             "{scie.env} placeholder for the icon path."
+        ),
+    )
+    parser.add_argument(
+        "--scie-prompt-desktop-install",
+        "--no-scie-prompt-desktop-install",
+        dest="scie_prompt_desktop_install",
+        default=True,
+        type=bool,
+        action=HandleBoolAction,
+        help=(
+            "When the scie is configure as a Linux desktop application via `--scie-desktop-file` "
+            "or `--scie-icon`, cause the PEX scie to prompt for desktop install by default. If the "
+            "`PEX_DESKTOP_INSTALL` environment variable is set at runtime, it will override this "
+            "option as follows: Values of `1` or `true` (case insensitive) will force a desktop "
+            "install with no prompt, values of `0` or `false` (case insensitive) will skip a "
+            "desktop install with no prompt, a value of `prompt` (case insensitive) will force "
+            "a desktop install prompt and a value of `uninstall` (case insensitive) will uninstall "
+            "any pre-existing installed desktop entry."
         ),
     )
     parser.add_argument(
@@ -433,7 +460,8 @@ def render_options(options):
     if options.desktop_app:
         if options.desktop_app.desktop_file:
             args.append("--scie-desktop-file")
-            args.append(options.desktop_app.desktop_file)
+            if isinstance(options.desktop_app.desktop_file, string):
+                args.append(options.desktop_app.desktop_file)
         if options.desktop_app.icon:
             args.append("--scie-icon")
             args.append(options.desktop_app.icon)
@@ -583,9 +611,10 @@ def extract_options(options):
     desktop_app = None  # type: Optional[DesktopApp]
     if options.desktop_file or options.icon:
         desktop_app = DesktopApp.create(
-            desktop_file=options.desktop_file,
+            desktop_file=options.desktop_file if isinstance(options.desktop_file, string) else None,
             icon=options.icon,
             resource_bindings=tuple(binding[0] for binding in bind_resource_paths),
+            prompt_install=options.scie_prompt_desktop_install,
         )
 
     return ScieOptions(

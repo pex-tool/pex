@@ -340,6 +340,7 @@ class DesktopApp(object):
         desktop_file=None,  # type: Optional[str]
         icon=None,  # type: Optional[str]
         resource_bindings=(),  # type: Tuple[str, ...]
+        prompt_install=True,  # type: bool
     ):
         # type: (...) -> DesktopApp
         if icon and resource_bindings:
@@ -347,15 +348,20 @@ class DesktopApp(object):
                 env=Namespace({binding: "" for binding in resource_bindings}, safe=True)
             )
             if icon != icon.format(scie=bindings):
-                return DesktopApp(desktop_file=desktop_file, icon=ResourceBinding(icon))
-        return DesktopApp(desktop_file=desktop_file, icon=File(icon) if icon else None)
+                return DesktopApp(
+                    desktop_file=desktop_file,
+                    icon=ResourceBinding(icon),
+                    prompt_install=prompt_install,
+                )
+        return DesktopApp(
+            desktop_file=desktop_file,
+            icon=File(icon) if icon else None,
+            prompt_install=prompt_install,
+        )
 
     desktop_file = attr.ib()  # type: Optional[str]
     icon = attr.ib()  # type: Optional[Union[File, ResourceBinding]]
-
-    def __attrs_post_init__(self):
-        if not self.desktop_file and not self.icon:
-            raise ValueError("A DesktopApp must define a desktop_file, and icon, or both.")
+    prompt_install = attr.ib(default=True)  # type: bool
 
     def generate_desktop_file(
         self,

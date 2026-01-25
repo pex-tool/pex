@@ -3,6 +3,7 @@
 
 from __future__ import print_function
 
+import errno
 import json
 import os
 import sys
@@ -54,7 +55,51 @@ def find_pex_dir(pex_hash):
     raise PexDirNotFound()
 
 
-def prompt_install(
+def _desktop_install_path(app_name):
+    # type: (str) -> str
+    return os.path.join(
+        os.path.expanduser(os.environ.get("XDG_DATA_HOME", os.path.join("~", ".local", "share"))),
+        "applications",
+        "{app_name}.desktop".format(app_name=app_name),
+    )
+
+
+def desktop_install(
+    app_name,  # type: str
+    desktop_file,  # type: str
+    icon=None,  # type: Optional[str]
+):
+    # type: (...) -> None
+
+    desktop_install_path = _desktop_install_path(app_name)
+    os.makedirs(os.path.dirname(desktop_install_path))
+    with open(desktop_file) as in_fp, open(desktop_install_path, "w") as out_fp:
+        fmt_dict = dict(name=app_name, exe=os.environ["SCIE"])
+        if icon:
+            fmt_dict.update(icon=icon)
+        out_fp.write(in_fp.read().format(**fmt_dict))
+
+
+class UninstallError(Exception):
+    pass
+
+
+def desktop_uninstall(app_name):
+    # type: (str) -> None
+    desktop_install_path = _desktop_install_path(app_name)
+    try:
+        os.unlink(desktop_install_path)
+    except OSError as e:
+        if e.errno != errno.ENOENT:
+            raise UninstallError(
+                "Failed to uninstall {desktop_file}: {err}".format(
+                    desktop_file=desktop_install_path, err=e
+                )
+            )
+
+
+def prompt_desktop_install(
+    app_name,  # type: str
     desktop_file,  # type: str
     icon=None,  # type: Optional[str]
 ):
@@ -65,28 +110,12 @@ def prompt_install(
     else:
         from tkinter import messagebox as messagebox
 
-    scie_name = os.path.basename(os.environ["SCIE_ARGV0"])
-    if not messagebox.askyesno(
+    if messagebox.askyesno(
         title="Create Desktop Entry",
         message="Install a desktop entry?",
-        detail="This will make it easier to launch {app_name}.".format(app_name=scie_name),
+        detail="This will make it easier to launch {app_name}.".format(app_name=app_name),
     ):
-        return
-
-    scie_path = os.environ["SCIE"]
-    xdg_data_home = os.environ.get("XDG_DATA_HOME", os.path.join("~", ".local", "share"))
-    with open(desktop_file) as in_fp, open(
-        os.path.expanduser(
-            os.path.join(
-                xdg_data_home, "applications", "{app_name}.desktop".format(app_name=scie_name)
-            )
-        ),
-        "w",
-    ) as out_fp:
-        fmt_dict = dict(name=scie_name, exe=scie_path)
-        if icon:
-            fmt_dict.update(icon=icon)
-        out_fp.write(in_fp.read().format(**fmt_dict))
+        desktop_install(app_name=app_name, desktop_file=desktop_file, icon=icon)
 
 
 if __name__ == "__main__":
@@ -99,6 +128,16 @@ if __name__ == "__main__":
     parser.add_argument("--venv-bin-dir", help="The platform-specific venv bin dir name.")
     parser.add_argument("--desktop-file", help="An optional application .desktop file.")
     parser.add_argument("--icon", help="An optional application icon file.")
+    parser.add_argument(
+        "--no-prompt-desktop-install",
+        dest="prompt_desktop_install",
+        default=True,
+        action="store_false",
+        help=(
+            "If a `--desktop-file` is passed, always install it without prompting unless the "
+            "CONFIGURE_DESKTOP_INSTALL env var is set and directs otherwise."
+        ),
+    )
     options = parser.parse_args()
 
     pex_hash = options.pex_hash[0]
@@ -115,7 +154,22 @@ if __name__ == "__main__":
         )
 
     if options.desktop_file:
-        prompt_install(desktop_file=options.desktop_file, icon=options.icon)
+        scie_name = os.path.basename(os.environ["SCIE_ARGV0"])
+        override_install_desktop_file = os.environ.get("CONFIGURE_DESKTOP_INSTALL", "").lower()
+        if override_install_desktop_file == "prompt" or (
+            not override_install_desktop_file and options.prompt_desktop_install
+        ):
+            prompt_desktop_install(
+                app_name=scie_name, desktop_file=options.desktop_file, icon=options.icon
+            )
+        elif override_install_desktop_file in ("1", "true") or (
+            not override_install_desktop_file and not options.prompt_desktop_install
+        ):
+            desktop_install(
+                app_name=scie_name, desktop_file=options.desktop_file, icon=options.icon
+            )
+        elif override_install_desktop_file == "uninstall":
+            desktop_uninstall(app_name=scie_name)
 
     write_bindings(
         env_file=os.environ["SCIE_BINDING_ENV"],
