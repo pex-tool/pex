@@ -3,7 +3,7 @@
 
 from __future__ import print_function
 
-import importlib
+import errno
 import json
 import os
 import sys
@@ -15,14 +15,13 @@ from argparse import ArgumentParser
 TYPE_CHECKING = False
 
 if TYPE_CHECKING:
-    from typing import Iterable, List, Optional, Tuple
+    from typing import Optional
 
 
 def write_bindings(
     env_file,  # type: str
     pex,  # type: str
     venv_bin_dir=None,  # type: Optional[str]
-    bound_resource_paths=(),  # type: Tuple[Tuple[str, str], ...]
 ):
     # type: (...) -> None
 
@@ -32,8 +31,6 @@ def write_bindings(
         if venv_bin_dir:
             print("VIRTUAL_ENV=" + os.path.dirname(venv_bin_dir), file=fp)
             print("VENV_BIN_DIR_PLUS_SEP=" + venv_bin_dir + os.path.sep, file=fp)
-        for env_name, resource_path in bound_resource_paths:
-            print("BIND_RESOURCE_" + env_name + "=" + resource_path, file=fp)
 
 
 class PexDirNotFound(Exception):
@@ -58,62 +55,67 @@ def find_pex_dir(pex_hash):
     raise PexDirNotFound()
 
 
-class ResourceBindingError(Exception):
+def _desktop_install_path(app_name):
+    # type: (str) -> str
+    return os.path.join(
+        os.path.expanduser(os.environ.get("XDG_DATA_HOME", os.path.join("~", ".local", "share"))),
+        "applications",
+        "{app_name}.desktop".format(app_name=app_name),
+    )
+
+
+def desktop_install(
+    app_name,  # type: str
+    desktop_file,  # type: str
+    icon=None,  # type: Optional[str]
+):
+    # type: (...) -> None
+
+    desktop_install_path = _desktop_install_path(app_name)
+    os.makedirs(os.path.dirname(desktop_install_path))
+    with open(desktop_file) as in_fp, open(desktop_install_path, "w") as out_fp:
+        fmt_dict = dict(name=app_name, exe=os.environ["SCIE"])
+        if icon:
+            fmt_dict.update(icon=icon)
+        out_fp.write(in_fp.read().format(**fmt_dict))
+
+
+class UninstallError(Exception):
     pass
 
 
-def imported_file(
-    module_name,  # type: str
-    resource_name,  # type: str
-):
-    # type: (...) -> str
+def desktop_uninstall(app_name):
+    # type: (str) -> None
+    desktop_install_path = _desktop_install_path(app_name)
     try:
-        path = importlib.import_module(module_name).__file__
-    except ImportError as e:
-        raise ResourceBindingError(
-            "Failed to bind resource {resource}: {err}".format(resource=resource_name, err=e)
-        )
-    if path is None:
-        raise ResourceBindingError(
-            "Failed to bind path of resource {resource}: it exists but {module} has no __file__ "
-            "attribute.".format(resource=resource_name, module=module_name)
-        )
-    return path
-
-
-def bind_resource_paths(bindings):
-    # type: (Iterable[str]) -> Tuple[Tuple[str, str], ...]
-
-    resource_paths = []  # type: List[Tuple[str, str]]
-    for spec in bindings:
-        try:
-            name, resource = spec.split("=")
-        except ValueError:
-            raise ResourceBindingError(
-                "The following resource binding spec is invalid: {spec}\n"
-                "It must be in the form `<env var name>=<resource rel path>`.".format(spec=spec)
-            )
-
-        rel_path = os.path.normpath(os.path.join(*resource.split("/")))
-        if os.path.isabs(resource) or rel_path.startswith(os.pardir):
-            raise ResourceBindingError(
-                "The following resource binding spec is invalid: {spec}\n"
-                "The resource path {resource} must be relative to the `sys.path`.".format(
-                    spec=spec, resource=resource
+        os.unlink(desktop_install_path)
+    except OSError as e:
+        if e.errno != errno.ENOENT:
+            raise UninstallError(
+                "Failed to uninstall {desktop_file}: {err}".format(
+                    desktop_file=desktop_install_path, err=e
                 )
             )
 
-        for entry in sys.path:
-            value = os.path.join(entry, rel_path)
-            if os.path.isfile(value):
-                resource_paths.append((name, value))
-                break
-        else:
-            raise ResourceBindingError(
-                "There was no resource file {resource} found on the `sys.path` corresponding to "
-                "the given resource binding spec `{spec}`".format(resource=resource, spec=spec)
-            )
-    return tuple(resource_paths)
+
+def prompt_desktop_install(
+    app_name,  # type: str
+    desktop_file,  # type: str
+    icon=None,  # type: Optional[str]
+):
+    # type: (...) -> None
+
+    if sys.version_info[0] == 2:
+        from Tkinter import tkMessageBox as messagebox  # type: ignore[import]
+    else:
+        from tkinter import messagebox as messagebox
+
+    if messagebox.askyesno(
+        title="Create Desktop Entry",
+        message="Install a desktop entry?",
+        detail="This will make it easier to launch {app_name}.".format(app_name=app_name),
+    ):
+        desktop_install(app_name=app_name, desktop_file=desktop_file, icon=icon)
 
 
 if __name__ == "__main__":
@@ -124,14 +126,16 @@ if __name__ == "__main__":
         help="The PEX hash.",
     )
     parser.add_argument("--venv-bin-dir", help="The platform-specific venv bin dir name.")
+    parser.add_argument("--desktop-file", help="An optional application .desktop file.")
+    parser.add_argument("--icon", help="An optional application icon file.")
     parser.add_argument(
-        "--bind-resource-path",
-        dest="bind_resource_paths",
-        default=[],
-        action="append",
+        "--no-prompt-desktop-install",
+        dest="prompt_desktop_install",
+        default=True,
+        action="store_false",
         help=(
-            "An environment variable name to bind the path of a Python resource to in the form "
-            "`<name>=<resource>`."
+            "If a `--desktop-file` is passed, always install it without prompting unless the "
+            "CONFIGURE_DESKTOP_INSTALL env var is set and directs otherwise."
         ),
     )
     options = parser.parse_args()
@@ -149,15 +153,27 @@ if __name__ == "__main__":
             )
         )
 
-    try:
-        bound_resource_paths = bind_resource_paths(options.bind_resource_paths)
-    except ResourceBindingError as e:
-        sys.exit(str(e))
+    if options.desktop_file:
+        scie_name = os.path.basename(os.environ["SCIE_ARGV0"])
+        override_install_desktop_file = os.environ.get("CONFIGURE_DESKTOP_INSTALL", "").lower()
+        if override_install_desktop_file == "prompt" or (
+            not override_install_desktop_file and options.prompt_desktop_install
+        ):
+            prompt_desktop_install(
+                app_name=scie_name, desktop_file=options.desktop_file, icon=options.icon
+            )
+        elif override_install_desktop_file in ("1", "true") or (
+            not override_install_desktop_file and not options.prompt_desktop_install
+        ):
+            desktop_install(
+                app_name=scie_name, desktop_file=options.desktop_file, icon=options.icon
+            )
+        elif override_install_desktop_file == "uninstall":
+            desktop_uninstall(app_name=scie_name)
 
     write_bindings(
         env_file=os.environ["SCIE_BINDING_ENV"],
         pex=pex,
         venv_bin_dir=os.path.join(pex, options.venv_bin_dir) if options.venv_bin_dir else None,
-        bound_resource_paths=bound_resource_paths,
     )
     sys.exit(0)

@@ -22,7 +22,7 @@ from pex.executables import chmod_plus_x
 from pex.fetcher import URLFetcher
 from pex.hashing import Sha256
 from pex.interpreter_implementation import InterpreterImplementation
-from pex.os import is_exe
+from pex.os import Os, is_exe
 from pex.pep_440 import Version
 from pex.pex import PEX
 from pex.pex_info import PexInfo
@@ -102,6 +102,9 @@ class Filenames(Enum["Filenames.Value"]):
     PTEX = Filename("ptex")
     PEX = Filename("pex")
     CONFIGURE_BINDING = Filename("configure-binding.py")
+    RESOURCE_BINDING = Filename("resource-binding.py")
+    DESKTOP_FILE = Filename(".desktop")
+    ICON = Filename("icon")
 
 
 Filenames.seal()
@@ -159,7 +162,7 @@ def create_manifests(
             for env_name, env_value in configuration.options.custom_entrypoint.env:
                 replace[env_name] = env_value
             for env_name, resource_path in configuration.options.bind_resource_paths:
-                replace[env_name] = "{{scie.bindings.configure:BIND_RESOURCE_{env_name}}}".format(
+                replace[env_name] = "{{scie.bindings.resources:BIND_RESOURCE_{env_name}}}".format(
                     env_name=env_name
                 )
             if replace:
@@ -321,14 +324,17 @@ def create_manifests(
     if configuration.options.assets_base_url:
         scie_jump_config["base_url"] = "/".join((configuration.options.assets_base_url, "jump"))
 
+    base_files = [{"name": Filenames.CONFIGURE_BINDING.name}]  # type: List[Dict[str, Any]]
+    if configuration.options.bind_resource_paths:
+        base_files.append({"name": Filenames.RESOURCE_BINDING.name})
+    base_files.append(
+        dict(name=pex_name, is_executable=True, **({"key": pex_key} if pex_key else {}))
+    )
+
     lift_template = {
         "name": name,
         "load_dotenv": configuration.options.load_dotenv,
         "scie_jump": scie_jump_config,
-        "files": [
-            {"name": Filenames.CONFIGURE_BINDING.name},
-            dict(name=pex_name, is_executable=True, **({"key": pex_key} if pex_key else {})),
-        ],
     }  # type: Dict[str, Any]
 
     if configuration.options.style is ScieStyle.LAZY:
@@ -340,25 +346,60 @@ def create_manifests(
         if configuration.options.assets_base_url:
             ptex_config["base_url"] = "/".join((configuration.options.assets_base_url, "ptex"))
 
-    configure_binding = {
-        "env": {
-            "remove_exact": ["PATH"],
-            "remove_re": ["PEX_.*", "PYTHON.*"],
-            "replace": {
-                "PEX_INTERPRETER": "1",
-                # We can get a warning about too-long script shebangs, but this is not
-                # relevant since we above run the PEX via python and not via shebang.
-                "PEX_EMIT_WARNINGS": "0",
-            },
-        },
-        "name": "configure",
-        "exe": "#{python-distribution:python}",
-    }
+    extra_bindings = []  # type: List[Dict[str, Any]]
 
+    def configuration_binding(
+        name,  # type: str
+        **kwargs  # type: Any
+    ):
+        # type: (...) -> Dict[str, Any]
+        return dict(
+            {
+                "env": {
+                    "remove_exact": ["PATH"],
+                    "remove_re": ["PEX_.*", "PYTHON.*"],
+                    "replace": {
+                        "PEX_INTERPRETER": "1",
+                        # We can get a warning about too-long script shebangs, but this is not
+                        # relevant since we above run the PEX via python and not via shebang.
+                        "PEX_EMIT_WARNINGS": "0",
+                    },
+                },
+                "name": name,
+                "exe": "#{python-distribution:python}",
+            },
+            **kwargs
+        )
+
+    if configuration.options.bind_resource_paths:
+        bind_resources_args = [Filenames.PEX.placeholder, Filenames.RESOURCE_BINDING.placeholder]
+        for name, value in configuration.options.bind_resource_paths:
+            bind_resources_args.append("--bind-resource-path")
+            bind_resources_args.append("{name}={value}".format(name=name, value=value))
+        extra_bindings.append(configuration_binding(name="resources", args=bind_resources_args))
+
+    configure_binding = configuration_binding(name="configure")
+    for env_name, resource_path in configuration.options.bind_resource_paths:
+        configure_binding["env"]["replace"][
+            env_name
+        ] = "{{scie.bindings.resources:BIND_RESOURCE_{env_name}}}".format(env_name=env_name)
     configure_binding_args = [Filenames.PEX.placeholder, Filenames.CONFIGURE_BINDING.placeholder]
+
     pbs_free_threaded = _is_free_threaded_pex(pex_info) or configuration.options.pbs_free_threaded
     for interpreter in configuration.interpreters:
-        lift = lift_template.copy()
+        files = []  # type: List[Dict[str, Any]]
+        if interpreter.platform.os is Os.LINUX:
+            if configuration.options.desktop_app:
+                files.append({"name": Filenames.DESKTOP_FILE.name})
+                configure_binding["env"]["replace"][
+                    "CONFIGURE_DESKTOP_INSTALL"
+                ] = "{scie.env.PEX_DESKTOP_INSTALL}"
+            if configuration.options.desktop_app and isinstance(
+                configuration.options.desktop_app.icon, File
+            ):
+                files.append({"name": Filenames.ICON.name})
+        files.extend(base_files)
+        lift = dict(lift_template, files=files)
 
         if configuration.options.base:
             lift["base"] = configuration.options.base
@@ -407,9 +448,25 @@ def create_manifests(
             extra_configure_binding_args.extend(
                 ("--venv-bin-dir", interpreter.platform.venv_bin_dir)
             )
-        for name, value in configuration.options.bind_resource_paths:
-            extra_configure_binding_args.append("--bind-resource-path")
-            extra_configure_binding_args.append("{name}={value}".format(name=name, value=value))
+        if interpreter.platform.os is Os.LINUX and configuration.options.desktop_app:
+            extra_configure_binding_args.extend(
+                ("--desktop-file", Filenames.DESKTOP_FILE.placeholder)
+            )
+            if not configuration.options.desktop_app.prompt_install:
+                extra_configure_binding_args.append("--no-prompt-desktop-install")
+        if (
+            interpreter.platform.os is Os.LINUX
+            and configuration.options.desktop_app
+            and configuration.options.desktop_app.icon
+        ):
+            extra_configure_binding_args.extend(
+                (
+                    "--icon",
+                    Filenames.ICON.placeholder
+                    if isinstance(configuration.options.desktop_app.icon, File)
+                    else configuration.options.desktop_app.icon,
+                )
+            )
         extra_configure_binding_args.append(pex_hash)
 
         if use_platform_suffix is True or (
@@ -428,12 +485,15 @@ def create_manifests(
                         lift,
                         interpreters=[interpreter_config],
                         commands=list(create_commands(interpreter.platform)),
-                        bindings=[
-                            dict(
-                                configure_binding,
-                                args=configure_binding_args + extra_configure_binding_args,
-                            )
-                        ],
+                        bindings=(
+                            [
+                                dict(
+                                    configure_binding,
+                                    args=configure_binding_args + extra_configure_binding_args,
+                                )
+                            ]
+                            + extra_bindings
+                        ),
                     )
                 },
                 fp,
@@ -608,7 +668,7 @@ def build(
         if PlatformNamingStyle.PARENT_DIR is naming_style:
             dest_dir = os.path.join(dest_dir, manifest.interpreter.platform.value)
         args.extend(
-            [
+            (
                 "lift",
                 "--file",
                 "{name}={pex_file}".format(name=Filenames.PEX.name, pex_file=pex_file),
@@ -619,11 +679,45 @@ def build(
                         os.path.dirname(__file__), "configure-binding.py"
                     ),
                 ),
-                "build",
-                "--dest-dir",
-                dest_dir,
-            ]
+            )
         )
+        if configuration.options.bind_resource_paths:
+            args.extend(
+                (
+                    "--file",
+                    "{name}={resource_binding}".format(
+                        name=Filenames.RESOURCE_BINDING.name,
+                        resource_binding=os.path.join(
+                            os.path.dirname(__file__), "resource-binding.py"
+                        ),
+                    ),
+                )
+            )
+        if manifest.interpreter.platform.os is Os.LINUX and configuration.options.desktop_app:
+            desktop_file = os.path.join(safe_mkdtemp(), "{app_name}.desktop".format(app_name=name))
+            configuration.options.desktop_app.generate_desktop_file(name, desktop_file)
+            args.extend(
+                (
+                    "--file",
+                    "{name}={desktop_file}".format(
+                        name=Filenames.DESKTOP_FILE.name, desktop_file=desktop_file
+                    ),
+                )
+            )
+        if (
+            manifest.interpreter.platform.os is Os.LINUX
+            and configuration.options.desktop_app
+            and isinstance(configuration.options.desktop_app.icon, File)
+        ):
+            args.extend(
+                (
+                    "--file",
+                    "{name}={icon}".format(
+                        name=Filenames.ICON.name, icon=configuration.options.desktop_app.icon
+                    ),
+                )
+            )
+        args.extend(("build", "--dest-dir", dest_dir))
         if use_platform_suffix is not None:
             args.append(
                 "--use-platform-suffix" if use_platform_suffix else "--no-use-platform-suffix"
