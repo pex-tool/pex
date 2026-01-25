@@ -1,5 +1,15 @@
 # Release Notes
 
+## 2.86.0
+
+This release adds support for Linux PEX scies installing themselves with a desktop entry on first
+run. This is enabled via either of `--scie-icon` or `--scie-desktop-file`. By default, the end-user
+is prompted to approve a desktop install but this can be bypassed at build time with
+`--no-scie-prompt-desktop-install` or at runtime using the `PEX_DESKTOP_INSTALL` environment
+variable.
+
+* Add PEX scie Linux .desktop install support. (#3087)
+
 ## 2.85.3
 
 This release upgrades vendored `packaginged for Python>=3.8 to the latest release; bringing some bug
