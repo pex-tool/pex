@@ -1,7 +1,7 @@
 # Copyright 2020 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-from __future__ import absolute_import
+from __future__ import absolute_import, print_function
 
 import os
 from textwrap import dedent
@@ -612,3 +612,19 @@ def test_parse_requirements_from_url_no_fetcher():
         "Problem resolving requirements file: The source is a url but no fetcher was supplied to "
         "resolve its contents with.".format(EXAMPLE_PYTHON_REQUIREMENTS_URL)
     ) == str(exec_info.value)
+
+
+def test_url_requirement_constraints_issue_3089(tmpdir):
+    # type: (Tempdir) -> None
+
+    with open(tmpdir.join("constraint.txt"), "w") as fp:
+        print("cowsay @ git+https://github.com/VaasuDevanS/cowsay-python@v5.0", file=fp)
+
+    assert [
+        Constraint(
+            line=DUMMY_LINE,
+            requirement=Requirement.parse(
+                "cowsay @ git+https://github.com/VaasuDevanS/cowsay-python@v5.0"
+            ),
+        )
+    ] == normalize_results(parse_requirement_file(fp.name, is_constraints=True))
