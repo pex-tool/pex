@@ -1,5 +1,13 @@
 # Release Notes
 
+## 2.86.1
+
+This release fixes a bug in constraints file requirement parsing. Previously, Pex tried to validate
+constraints beyond its own needs, anticipating Pip's needs, leading to a failure to handle direct
+reference URL requirements, including VCS requirements.
+
+* Fix constraints file parsing for URL requirements. (#3090)
+
 ## 2.86.0
 
 This release adds support for Linux PEX scies installing themselves with a desktop entry on first
