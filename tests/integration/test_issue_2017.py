@@ -89,6 +89,7 @@ def test_statically_linked_musl_libc_cpython_support(
     run_pex_command(
         args=["fortune==1.1.1", "-c", "fortune", "--pip-version", str(pip_version), "-o", pex],
         python=statically_linked_musl_libc_cpython,
+        use_pex_whl_venv=False,
     ).assert_success()
 
     fortune_db = os.path.join(str(tmpdir), "fortunes")
