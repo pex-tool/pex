@@ -778,12 +778,17 @@ def parse_requirements(
                 logical_line, basepath=os.path.dirname(source.origin) if source.is_file else None
             )
             if source.is_constraints:
-                if not isinstance(requirement, PyPIRequirement) or requirement.requirement.extras:
+                if (
+                    not isinstance(requirement, (PyPIRequirement, URLRequirement, VCSRequirement))
+                    or requirement.requirement.extras
+                ):
                     raise ParseError(
                         logical_line,
-                        "Constraint files do not support VCS, URL or local project requirements"
-                        "and they do not support requirements with extras. Search for 'We are also "
-                        "changing our support for Constraints Files' here: "
+                        "Constraint files do not support local project requirements and they "
+                        "do not support requirements with extras; see:"
+                        "https://pip.pypa.io/en/stable/user_guide/#constraints-files. If you are "
+                        "using --pip-version vendored or a very old --pip-version, search for 'We "
+                        "are also changing our support for Constraints Files' here: "
                         "https://pip.pypa.io/en/stable/user_guide/"
                         "#changes-to-the-pip-dependency-resolver-in-20-3-2020.",
                     )
