@@ -29,7 +29,7 @@ def musl_libc_capable_pip_versions():
     for version in PipVersion.values():
         if not version.requires_python_applies():
             continue
-        if version is PipVersion.VENDORED or version >= PipVersion.v24_2:
+        if version >= PipVersion.v24_2:
             yield version
 
 
@@ -65,9 +65,8 @@ def statically_linked_musl_libc_cpython(shared_integration_test_tmpdir):
 @pytest.mark.skipif(
     not MUSL_LIBC_CAPABLE_PIP_VERSIONS,
     reason=(
-        "Although Pex's vendored Pip is patched to handle statically linked musl libc CPython, no "
-        "version of Pip Pex supports handles these Pythons until Pip 24.2 and none of these "
-        "versions are supported by the current interpreter."
+        "No version of Pip Pex supports handles statically linked musl libc CPython until Pip 24.2 "
+        "and none of these versions are supported by the current interpreter."
     ),
 )
 @pytest.mark.skipif(
@@ -89,6 +88,7 @@ def test_statically_linked_musl_libc_cpython_support(
     run_pex_command(
         args=["fortune==1.1.1", "-c", "fortune", "--pip-version", str(pip_version), "-o", pex],
         python=statically_linked_musl_libc_cpython,
+        use_pex_whl_venv=False,
     ).assert_success()
 
     fortune_db = os.path.join(str(tmpdir), "fortunes")
