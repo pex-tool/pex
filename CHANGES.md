@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.87.0
+
+This release adds support for `--pip-version 26.0`.
+
+* Add support for `--pip-version 26.0`. (#3091)
+
 ## 2.86.1
 
 This release fixes a bug in constraints file requirement parsing. Previously, Pex tried to validate
