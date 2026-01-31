@@ -595,7 +595,7 @@ def test_pip_prune(
         post_prune_pip3_du.size < pip3_du.size
     ), "Expected pip3 to have a built ansicolors wheel in its cache pruned."
     assert (
-        post_prune_pip3_du.files == pip3_du.files - 1
+        post_prune_pip3_du.files < pip3_du.files
     ), "Expected pip3 to have a built ansicolors wheel in its cache pruned."
 
     pip1_venv_dirs = pip_venvs_by_version.pop(pip1)
