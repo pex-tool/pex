@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.88.0
+
+This release adds support for `--pip-version 26.0.1`.
+
+* Add support for `--pip-version 26.0.1`. (#3098)
+
 ## 2.87.0
 
 This release adds support for `--pip-version 26.0`.
