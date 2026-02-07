@@ -76,7 +76,7 @@ def desktop_install(
     scie_exe,  # type: str
     icon=None,  # type: Optional[str]
 ):
-    # type: (...) -> str
+    # type: (...) -> None
 
     try:
         os.makedirs(os.path.dirname(desktop_install_path))
@@ -102,24 +102,19 @@ def desktop_install(
             fmt_dict.update(icon=icon)
         out_fp.write(in_fp.read().format(**fmt_dict))
 
-    return desktop_install_path
-
 
 class UninstallError(Exception):
     pass
 
 
-def desktop_uninstall(app_name):
+def desktop_uninstall(desktop_file):
     # type: (str) -> None
-    desktop_install_path = _desktop_install_path(app_name)
     try:
-        os.unlink(desktop_install_path)
+        os.unlink(desktop_file)
     except OSError as e:
         if e.errno != errno.ENOENT:
             raise UninstallError(
-                "Failed to uninstall {desktop_file}: {err}".format(
-                    desktop_file=desktop_install_path, err=e
-                )
+                "Failed to uninstall {desktop_file}: {err}".format(desktop_file=desktop_file, err=e)
             )
 
 
@@ -132,29 +127,27 @@ def prompt_desktop_install(
     scie_exe,  # type: str
     icon=None,  # type: Optional[str]
 ):
-    # type: (...) -> Optional[str]
+    # type: (...) -> None
 
     if sys.version_info[0] == 2:
         from Tkinter import tkMessageBox as messagebox  # type: ignore[import]
     else:
         from tkinter import messagebox as messagebox
 
-    if not messagebox.askyesno(
+    if messagebox.askyesno(
         title="Create Desktop Entry",
         message="Install a desktop entry?",
         detail="This will make it easier to launch {app_name}.".format(app_name=app_name),
     ):
-        return None
-
-    return desktop_install(
-        app_name=app_name,
-        desktop_file=desktop_file,
-        desktop_install_path=desktop_install_path,
-        scie_jump=scie_jump,
-        scie_lift=scie_lift,
-        scie_exe=scie_exe,
-        icon=icon,
-    )
+        desktop_install(
+            app_name=app_name,
+            desktop_file=desktop_file,
+            desktop_install_path=desktop_install_path,
+            scie_jump=scie_jump,
+            scie_lift=scie_lift,
+            scie_exe=scie_exe,
+            icon=icon,
+        )
 
 
 if __name__ == "__main__":
@@ -203,7 +196,7 @@ if __name__ == "__main__":
         if override_install_desktop_file == "prompt" or (
             not override_install_desktop_file and options.prompt_desktop_install
         ):
-            desktop_file = prompt_desktop_install(
+            prompt_desktop_install(
                 app_name=options.scie_name,
                 desktop_file=options.desktop_file,
                 desktop_install_path=desktop_install_path,
@@ -215,7 +208,7 @@ if __name__ == "__main__":
         elif override_install_desktop_file in ("1", "true") or (
             not override_install_desktop_file and not options.prompt_desktop_install
         ):
-            desktop_file = desktop_install(
+            desktop_install(
                 app_name=options.scie_name,
                 desktop_file=options.desktop_file,
                 desktop_install_path=desktop_install_path,
@@ -225,7 +218,7 @@ if __name__ == "__main__":
                 icon=options.icon,
             )
         elif override_install_desktop_file == "uninstall":
-            desktop_uninstall(app_name=options.scie_name)
+            desktop_uninstall(desktop_file=desktop_install_path)
 
     write_bindings(
         env_file=os.environ["SCIE_BINDING_ENV"],
