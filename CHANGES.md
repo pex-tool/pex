@@ -1,5 +1,14 @@
 # Release Notes
 
+## 2.89.0
+
+This release exports the path of the installed `.desktop` file as the `DESKTOP_FILE` environment
+variable for commands in `--scie-icon` and `--scie-desktop-file` PEX scies. The `DESKTOP_FILE`
+path may not exist, but if it does it can be used to implement desktop application uninstallation
+in the PEX scie application code.
+
+* Export `DESKTOP_FILE` for PEX scie .desktop apps. (#3100)
+
 ## 2.88.1
 
 This release fixes `.desktop` files installed by `--scie-icon` and `--scie-desktop-file` PEX scies
