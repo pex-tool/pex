@@ -374,7 +374,7 @@ class DesktopApp(object):
         parser.ensure_set("Version", default="1.0")
         parser.ensure_set("Type", default="Application")
         parser.ensure_set("Name", default=app_name)
-        parser.ensure_set("Exec", default="{exe}")
+        parser.ensure_set("Exec", default="{default_exec}")
         if self.icon:
             parser.ensure_set("Icon", default="{icon}")
 
