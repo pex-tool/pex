@@ -1,5 +1,13 @@
 # Release Notes
 
+## 2.88.1
+
+This release fixes `.desktop` files installed by `--scie-icon` and `--scie-desktop-file` PEX scies
+to be more robust. They now work even if the original PEX scie they were installed by is (re)moved
+as well as properly handling a `SCIE_BASE` with spaces in the path.
+
+* Fix `.desktop` files installed by PEX scies. (#3099)
+
 ## 2.88.0
 
 This release adds support for `--pip-version 26.0.1`.

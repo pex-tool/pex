@@ -69,7 +69,7 @@ class Manifest(object):
 
 
 SCIENCE_RELEASES_URL = "https://github.com/a-scie/lift/releases"
-MIN_SCIENCE_VERSION = Version("0.17.2")
+MIN_SCIENCE_VERSION = Version("0.18.1")
 SCIENCE_REQUIREMENT = SpecifierSet("~={min_version}".format(min_version=MIN_SCIENCE_VERSION))
 
 
@@ -84,7 +84,7 @@ def _science_binary_url(suffix=""):
 
 
 PTEX_VERSION = "1.7.0"
-SCIE_JUMP_VERSION = "1.9.2"
+SCIE_JUMP_VERSION = "1.11.2"
 
 
 class Filenames(Enum["Filenames.Value"]):
@@ -125,7 +125,7 @@ def _is_free_threaded_pex(pex_info):
 
 def create_manifests(
     configuration,  # type: ScieConfiguration
-    name,  # type: str
+    app_name,  # type: str
     pex,  # type: PEX
     use_platform_suffix=None,  # type: Optional[bool]
 ):
@@ -332,7 +332,7 @@ def create_manifests(
     )
 
     lift_template = {
-        "name": name,
+        "name": app_name,
         "load_dotenv": configuration.options.load_dotenv,
         "scie_jump": scie_jump_config,
     }  # type: Dict[str, Any]
@@ -410,7 +410,7 @@ def create_manifests(
 
         manifest_path = os.path.join(
             safe_mkdtemp(),
-            interpreter.platform.qualified_file_name("{name}-lift.toml".format(name=name)),
+            interpreter.platform.qualified_file_name("{name}-lift.toml".format(name=app_name)),
         )
 
         version_str = interpreter.version_str
@@ -450,7 +450,16 @@ def create_manifests(
             )
         if interpreter.platform.os is Os.LINUX and configuration.options.desktop_app:
             extra_configure_binding_args.extend(
-                ("--desktop-file", Filenames.DESKTOP_FILE.placeholder)
+                (
+                    "--desktop-file",
+                    Filenames.DESKTOP_FILE.placeholder,
+                    "--scie-name",
+                    app_name,
+                    "--scie-jump",
+                    "{scie.jump}",
+                    "--scie-lift",
+                    "{scie.lift}",
+                )
             )
             if not configuration.options.desktop_app.prompt_install:
                 extra_configure_binding_args.append("--no-prompt-desktop-install")
