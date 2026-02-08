@@ -42,7 +42,8 @@ def test_pkg_resource_early_import_on_pex_path():
         run_pex_command(
             [
                 "autopep8==1.6.0",
-                "setuptools",
+                # N.B.: pkg_resources was removed from setuptools in the 82.0.0 release.
+                "setuptools<82",
                 "-D",
                 src_dir,
                 "--entry-point",
