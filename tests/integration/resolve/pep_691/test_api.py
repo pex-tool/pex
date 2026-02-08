@@ -53,11 +53,11 @@ def test_invalid_json():
     # type: () -> None
 
     assert_error(
-        url="https://example.org",
+        url="https://docs.pex-tool.org",
         content_type="application/vnd.pypi.simple.v1+json",
         expected_exception_type=Client.Error,
         prefix=(
-            "PEP-691 API request to https://example.org for application/vnd.pypi.simple.v1+json "
+            "PEP-691 API request to https://docs.pex-tool.org for application/vnd.pypi.simple.v1+json "
             "returned invalid JSON: "
         ),
     )
