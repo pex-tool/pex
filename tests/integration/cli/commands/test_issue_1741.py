@@ -30,6 +30,9 @@ def test_prereleases(
         # N.B.: httpx released an incompatible pre-release itself (1.0.dev1) on 7/2/2025.
         # This constraint avoids that.
         print("httpx<1", file=fp)
+        # N.B.: pkg_resources was removed from setuptools in the 82.0.0 release and is used by
+        # opentelemetry.instrumentation.dependencies.
+        print("setuptools<82", file=fp)
 
     lockfile = tmpdir.join("lock")
     run_pex3(

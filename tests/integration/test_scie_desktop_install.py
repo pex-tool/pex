@@ -271,3 +271,66 @@ def test_desktop_file(tmpdir):
     assert_desktop_entry(
         scie_base=tmpdir.join("nce-space"), xdg_data_home=safe_mkdir(tmpdir.join("XDG DATA HOME"))
     )
+
+
+@skip_if_no_provider
+@pytest.mark.skipif(not IS_LINUX, reason="PEX scie desktop installs are only supported for Linux.")
+def test_desktop_file_env_var(tmpdir):
+    # type: (Tempdir) -> None
+
+    pex_root = tmpdir.join("pex-root")
+    icon = tmpdir.join("file.ico")
+    icon_contents = "42"
+    with open(icon, "w") as fp:
+        fp.write(icon_contents)
+
+    exe = tmpdir.join("exe.py")
+    with open(exe, "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                import os
+                import sys
+
+
+                desktop_file = os.environ["DESKTOP_FILE"]
+                if sys.argv[1:] == ["--uninstall"]:
+                    os.unlink(desktop_file)
+                else:
+                    print(desktop_file)
+                """
+            )
+        )
+
+    scie = tmpdir.join("example")
+    run_pex_command(
+        args=[
+            "--runtime-pex-root",
+            pex_root,
+            "--exe",
+            exe,
+            "--scie",
+            "eager",
+            "--scie-only",
+            "--scie-icon",
+            icon,
+            "--no-scie-prompt-desktop-install",
+            "-o",
+            scie,
+        ]
+    ).assert_success()
+
+    xdg_data_home = safe_mkdir(tmpdir.join("XDG_DATA_HOME"))
+    installed_desktop_file = os.path.join(xdg_data_home, "applications", "example.desktop")
+    assert not os.path.isfile(installed_desktop_file)
+
+    scie_base = tmpdir.join("nce")
+    env = make_env(SCIE_BASE=scie_base, XDG_DATA_HOME=xdg_data_home)
+    assert (
+        installed_desktop_file
+        == subprocess.check_output(args=[scie], env=env).decode("utf-8").strip()
+    )
+    assert os.path.isfile(installed_desktop_file)
+
+    subprocess.check_call(args=[scie, "--uninstall"], env=env)
+    assert not os.path.isfile(installed_desktop_file)

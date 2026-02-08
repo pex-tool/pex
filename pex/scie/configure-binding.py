@@ -22,6 +22,7 @@ def write_bindings(
     env_file,  # type: str
     pex,  # type: str
     venv_bin_dir=None,  # type: Optional[str]
+    desktop_file=None,  # type: Optional[str]
 ):
     # type: (...) -> None
 
@@ -31,6 +32,8 @@ def write_bindings(
         if venv_bin_dir:
             print("VIRTUAL_ENV=" + os.path.dirname(venv_bin_dir), file=fp)
             print("VENV_BIN_DIR_PLUS_SEP=" + venv_bin_dir + os.path.sep, file=fp)
+        if desktop_file:
+            print("DESKTOP_FILE=" + desktop_file, file=fp)
 
 
 class PexDirNotFound(Exception):
@@ -67,14 +70,13 @@ def _desktop_install_path(app_name):
 def desktop_install(
     app_name,  # type: str
     desktop_file,  # type: str
+    desktop_install_path,  # type: str
     scie_jump,  # type: str
     scie_lift,  # type: str
     scie_exe,  # type: str
     icon=None,  # type: Optional[str]
 ):
     # type: (...) -> None
-
-    desktop_install_path = _desktop_install_path(app_name)
 
     try:
         os.makedirs(os.path.dirname(desktop_install_path))
@@ -105,23 +107,21 @@ class UninstallError(Exception):
     pass
 
 
-def desktop_uninstall(app_name):
+def desktop_uninstall(desktop_file):
     # type: (str) -> None
-    desktop_install_path = _desktop_install_path(app_name)
     try:
-        os.unlink(desktop_install_path)
+        os.unlink(desktop_file)
     except OSError as e:
         if e.errno != errno.ENOENT:
             raise UninstallError(
-                "Failed to uninstall {desktop_file}: {err}".format(
-                    desktop_file=desktop_install_path, err=e
-                )
+                "Failed to uninstall {desktop_file}: {err}".format(desktop_file=desktop_file, err=e)
             )
 
 
 def prompt_desktop_install(
     app_name,  # type: str
     desktop_file,  # type: str
+    desktop_install_path,  # type: str
     scie_jump,  # type: str
     scie_lift,  # type: str
     scie_exe,  # type: str
@@ -142,6 +142,7 @@ def prompt_desktop_install(
         desktop_install(
             app_name=app_name,
             desktop_file=desktop_file,
+            desktop_install_path=desktop_install_path,
             scie_jump=scie_jump,
             scie_lift=scie_lift,
             scie_exe=scie_exe,
@@ -187,7 +188,9 @@ if __name__ == "__main__":
             )
         )
 
+    desktop_install_path = None  # type: Optional[str]
     if options.desktop_file:
+        desktop_install_path = _desktop_install_path(options.scie_name)
         exe = os.environ["SCIE"]
         override_install_desktop_file = os.environ.get("CONFIGURE_DESKTOP_INSTALL", "").lower()
         if override_install_desktop_file == "prompt" or (
@@ -196,6 +199,7 @@ if __name__ == "__main__":
             prompt_desktop_install(
                 app_name=options.scie_name,
                 desktop_file=options.desktop_file,
+                desktop_install_path=desktop_install_path,
                 scie_jump=options.scie_jump,
                 scie_lift=options.scie_lift,
                 scie_exe=exe,
@@ -207,17 +211,19 @@ if __name__ == "__main__":
             desktop_install(
                 app_name=options.scie_name,
                 desktop_file=options.desktop_file,
+                desktop_install_path=desktop_install_path,
                 scie_jump=options.scie_jump,
                 scie_lift=options.scie_lift,
                 scie_exe=exe,
                 icon=options.icon,
             )
         elif override_install_desktop_file == "uninstall":
-            desktop_uninstall(app_name=options.scie_name)
+            desktop_uninstall(desktop_file=desktop_install_path)
 
     write_bindings(
         env_file=os.environ["SCIE_BINDING_ENV"],
         pex=pex,
         venv_bin_dir=os.path.join(pex, options.venv_bin_dir) if options.venv_bin_dir else None,
+        desktop_file=desktop_install_path,
     )
     sys.exit(0)

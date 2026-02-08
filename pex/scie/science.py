@@ -165,6 +165,8 @@ def create_manifests(
                 replace[env_name] = "{{scie.bindings.resources:BIND_RESOURCE_{env_name}}}".format(
                     env_name=env_name
                 )
+            if configuration.options.desktop_app:
+                replace["DESKTOP_FILE"] = "{scie.bindings.configure:DESKTOP_FILE}"
             if replace:
                 env["replace"] = replace
 
@@ -234,6 +236,9 @@ def create_manifests(
                     remove_exact.append("PEX_SCRIPT")
                     replace["PEX_MODULE"] = str(named_entry_point.entry_point)
 
+                if configuration.options.desktop_app:
+                    replace["DESKTOP_FILE"] = "{scie.bindings.configure:DESKTOP_FILE}"
+
                 return {
                     "name": named_entry_point.name,
                     "env": env,
@@ -294,6 +299,8 @@ def create_manifests(
             else:
                 cmd["exe"] = script
                 cmd["args"] = pex_info.inject_args
+            if configuration.options.desktop_app:
+                cmd["env"]["replace"]["DESKTOP_FILE"] = "{scie.bindings.configure:DESKTOP_FILE}"
             yield cmd
         else:
             cmd = {
@@ -309,6 +316,8 @@ def create_manifests(
             }
             if pex_info.venv:
                 cmd["env"]["replace"]["VIRTUAL_ENV"] = "{scie.bindings.configure:VIRTUAL_ENV}"
+            if configuration.options.desktop_app:
+                cmd["env"]["replace"]["DESKTOP_FILE"] = "{scie.bindings.configure:DESKTOP_FILE}"
             yield cmd
 
     # Try to give the PEX the extracted filename expected by the user. This should work in almost
