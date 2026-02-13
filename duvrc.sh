@@ -10,7 +10,9 @@ CACHE_TAG="${CACHE_TAG:-latest}"
 
 BASE_INPUT=(
   "${ROOT}/docker/base/Dockerfile"
-  "${ROOT}/docker/base/install_pythons.sh"
+  "${ROOT}/docker/base/install_additional_tools.sh"
+  "${ROOT}/docker/base/install_pyenv_pythons.sh"
+  "${ROOT}/docker/base/install_uv_pythons.sh"
 )
 base_hash=$(cat "${BASE_INPUT[@]}" | git hash-object -t blob --stdin)
 
