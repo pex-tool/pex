@@ -129,7 +129,7 @@ def _process_diagnostic():
     # type: () -> str
     return (
         "login: {user} uid: {uid} gid: {gid}\n"
-        "effective: uid: {euid} uid: {egid}\n"
+        "effective: uid: {euid} gid: {egid}\n"
         "groups: {groups}"
     ).format(
         user=os.getlogin(),
