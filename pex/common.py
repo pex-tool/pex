@@ -125,6 +125,56 @@ def pluralize(
         return noun + "s"
 
 
+def _process_diagnostic():
+    # type: () -> str
+    return (
+        "login: {user} uid: {uid} gid: {gid}\n"
+        "effective: uid: {euid} uid: {egid}\n"
+        "groups: {groups}"
+    ).format(
+        user=os.getlogin(),
+        uid=os.getuid(),
+        euid=os.geteuid(),
+        gid=os.getgid(),
+        egid=os.getegid(),
+        groups=os.getgroups(),
+    )
+
+
+def _path_diagnostic(path):
+    # type: (Text) -> Text
+
+    path_type = "<unknown path type>"
+    if os.path.isdir(path):
+        path_type = "dir"
+    elif os.path.isfile(path):
+        path_type = "file"
+
+    try:
+        os_stat = os.stat(path)
+
+        mode = oct(os_stat.st_mode)
+        if hasattr(stat, "filemode"):
+            mode = "{mode} ({human_mode})".format(
+                mode=mode, human_mode=stat.filemode(os_stat.st_mode)  # type: ignore[attr-defined]
+            )
+
+        return (
+            "{path_type} ok? {path!r}:\n"
+            "    mode: {mode} owner: {uid} group: {gid}\n"
+            "    {stat}".format(
+                path_type=path_type,
+                path=path,
+                mode=mode,
+                uid=os_stat.st_uid,
+                gid=os_stat.st_gid,
+                stat=os_stat,
+            )
+        )
+    except OSError as e:
+        return "{path_type} err {path!r}:\n    {err}".format(path_type=path_type, path=path, err=e)
+
+
 def safe_copy(source, dest, overwrite=False):
     # type: (Text, Text, bool) -> None
     def do_copy():
@@ -157,7 +207,20 @@ def safe_copy(source, dest, overwrite=False):
                 # See also https://github.com/pex-tool/pex/issues/850 where this was discovered.
                 do_copy()
             else:
-                raise
+                raise OSError(
+                    e.errno,
+                    "Failed to link {src} -> {dst}: {strerror}\n"
+                    "{process_diagnostic}\n"
+                    "{src_diagnostic}\n"
+                    "{dst_diagnostic}".format(
+                        src=source,
+                        dst=dest,
+                        strerror=e.strerror,
+                        process_diagnostic=_process_diagnostic(),
+                        src_diagnostic=_path_diagnostic(source),
+                        dst_diagnostic=_path_diagnostic(os.path.dirname(dest)),
+                    ),
+                )
     elif os.path.exists(dest):
         if overwrite:
             do_copy()

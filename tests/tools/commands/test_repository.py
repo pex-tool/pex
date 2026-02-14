@@ -52,6 +52,7 @@ def pex(tmpdir):
                 import os
                 import sys
 
+                # To prove we can.
                 import requests
 
 
@@ -59,7 +60,6 @@ def pex(tmpdir):
                     with open(os.path.join(os.path.dirname(__file__), "data", "url.txt")) as fp:
                         url = fp.read().strip()
                     print("Fetching from {} ...".format(url))
-                    print(requests.get(url).text, file=sys.stderr)
                 """
             )
         )

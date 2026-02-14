@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.89.1
+
+This release adds better diagnostics for certain Pex filesystem interaction errors.
+
+* Add `safe_copy` failure diagnostic message. (#3103)
+
 ## 2.89.0
 
 This release exports the path of the installed `.desktop` file as the `DESKTOP_FILE` environment
