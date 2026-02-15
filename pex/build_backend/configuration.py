@@ -79,7 +79,7 @@ class Plugin(object):
 
     _modify_sdist = attr.ib()  # type: Optional[Callable[[Text], None]]
     _modify_wheel = attr.ib()  # type: Optional[Callable[[Text, Text], None]]
-    _modify_editable = attr.ib()  # type: Optional[Callable[[Text, Text], None]]
+    _modify_editable = attr.ib()  # type: Optional[Callable[[Text, Optional[Text]], None]]
 
     @property
     def modifies_sdists(self):
