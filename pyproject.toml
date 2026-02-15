@@ -200,6 +200,11 @@ vendor = [
 ]
 
 [tool.uv]
+cache-keys = [
+  { file = "pex/docs/html/index.html" },
+  { file = "pex/windows/stubs/*.exe" },
+]
+
 # This is used to force past a <2 upper bound in blacks deps, and it turns out black works just fine
 # with this version of tomli.
 override-dependencies = ["tomli==2.2.1; python_version >= '3.8'"]

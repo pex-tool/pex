@@ -169,3 +169,42 @@ def build_wheel(
         zf.writestr(record_zinfo, get_csv_bytes())
 
     return wheel_name
+
+
+def build_editable(
+    wheel_directory,  # type: str
+    config_settings=None,  # type: Optional[Dict[str, Any]]
+    metadata_directory=None,  # type: Optional[str]
+):
+    # type: (...) -> str
+
+    wheel_name = cast(
+        str,
+        _CONFIG.build_backend.build_editable(  # type: ignore[attr-defined]
+            wheel_directory, config_settings, metadata_directory
+        ),
+    )
+
+    plugins = tuple(plugin for plugin in _CONFIG.plugins if plugin.modifies_editable)
+    if not plugins:
+        return wheel_name
+
+    if not metadata_directory:
+        entries = glob.glob(os.path.join(wheel_directory, "*.dist-info"))
+        if len(entries) > 1:
+            raise BuildError(
+                "Calling `{backend}.build_editable` produced an wheel with unexpected contents.\n"
+                "Expected expected one top-level <project>-<version>.dist-info directory but found "
+                "{count}:\n"
+                "{entries}".format(
+                    backend=_CONFIG.delegate_build_backend,
+                    count=len(entries),
+                    entries="\n".join(entries),
+                )
+            )
+        metadata_directory = entries[0] if entries else None
+
+    for plugin in plugins:
+        plugin.modify_editable(wheel_dir=wheel_directory, dist_info_dir=metadata_directory)
+
+    return wheel_name

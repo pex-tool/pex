@@ -147,3 +147,25 @@ def modify_wheel(
             if vendor_spec.key in ("pip", "setuptools", "toml", "tomli"):
                 shutil.rmtree(os.path.join(wheel_dir, vendor_spec.relpath))
                 print("Removed un-needed vendored library", vendor_spec.relpath, file=sys.stderr)
+
+
+PEX_DIR = os.path.abspath(os.path.join(__file__, "..", "..", ".."))
+
+
+def modify_editable(
+    wheel_dir,  # type: str
+    dist_info_dir=None,  # type: Optional[str]
+):
+    # type: (...) -> None
+    for stub in windows.fetch_all_stubs(PEX_DIR):
+        print("Embedded Windows script stub", stub.path, file=sys.stderr)
+    if INCLUDE_DOCS:
+        out_dir = os.path.join(PEX_DIR, "pex", "docs")
+        subprocess.check_call(
+            args=[
+                sys.executable,
+                os.path.join("scripts", "build-docs.py"),
+                "--clean-html",
+                out_dir,
+            ]
+        )

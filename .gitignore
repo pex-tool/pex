@@ -11,6 +11,7 @@ __pycache__/
 /.mypy_cache/
 /dist/
 /docs/_static_dynamic/
+/pex/docs/html/
 /pex/windows/stubs/
 /docker/cache/.env
 
