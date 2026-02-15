@@ -115,7 +115,7 @@ class Plugin(object):
     def modify_editable(
         self,
         wheel_dir,  # type: Text
-        dist_info_dir,  # type: Text
+        dist_info_dir=None,  # type: Optional[Text]
     ):
         # type: (...) -> Any
         if self._modify_editable:

@@ -191,9 +191,9 @@ def build_editable(
 
     if not metadata_directory:
         entries = glob.glob(os.path.join(wheel_directory, "*.dist-info"))
-        if len(entries) != 1:
+        if len(entries) > 1:
             raise BuildError(
-                "Calling `{backend}.build_wheel` produced an wheel with unexpected contents.\n"
+                "Calling `{backend}.build_editable` produced an wheel with unexpected contents.\n"
                 "Expected expected one top-level <project>-<version>.dist-info directory but found "
                 "{count}:\n"
                 "{entries}".format(
@@ -202,7 +202,7 @@ def build_editable(
                     entries="\n".join(entries),
                 )
             )
-        metadata_directory = entries[0]
+        metadata_directory = entries[0] if entries else None
 
     for plugin in plugins:
         plugin.modify_editable(wheel_dir=wheel_directory, dist_info_dir=metadata_directory)

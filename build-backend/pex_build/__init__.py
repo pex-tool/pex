@@ -154,7 +154,7 @@ PEX_DIR = os.path.abspath(os.path.join(__file__, "..", "..", ".."))
 
 def modify_editable(
     wheel_dir,  # type: str
-    dist_info_dir,  # type: str
+    dist_info_dir=None,  # type: Optional[str]
 ):
     # type: (...) -> None
     for stub in windows.fetch_all_stubs(PEX_DIR):
