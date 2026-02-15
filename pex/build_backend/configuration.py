@@ -50,21 +50,36 @@ class Plugin(object):
                 "The `modify_wheel` attribute of pex.build_backend.wrap plugin {plugin} must be a "
                 "callable but given {value} of type {type}.".format(
                     plugin=qualified_name(plugin),
-                    value=modify_sdist,
-                    type=type(modify_sdist).__name__,
+                    value=modify_wheel,
+                    type=type(modify_wheel).__name__,
                 )
             )
 
-        if not modify_sdist and not modify_wheel:
+        modify_editable = getattr(plugin, "modify_editable", None)
+        if modify_editable and not callable(modify_editable):
             raise ConfigurationError(
-                "The pex.build_backend.wrap plugin {plugin} must define a `modify_sdist` function, "
-                "a `modify_wheel` or both; it has neither.".format(plugin=qualified_name(plugin))
+                "The `modify_editable` attribute of pex.build_backend.wrap plugin {plugin} must be "
+                "a callable but given {value} of type {type}.".format(
+                    plugin=qualified_name(plugin),
+                    value=modify_editable,
+                    type=type(modify_editable).__name__,
+                )
             )
 
-        return cls(modify_sdist=modify_sdist, modify_wheel=modify_wheel)
+        if not modify_sdist and not modify_wheel and not modify_editable:
+            raise ConfigurationError(
+                "The pex.build_backend.wrap plugin {plugin} must define at least one plugin "
+                "function: `modify_sdist`, `modify_wheel` or `modify_editable`; "
+                "it has none.".format(plugin=qualified_name(plugin))
+            )
+
+        return cls(
+            modify_sdist=modify_sdist, modify_wheel=modify_wheel, modify_editable=modify_editable
+        )
 
     _modify_sdist = attr.ib()  # type: Optional[Callable[[Text], None]]
     _modify_wheel = attr.ib()  # type: Optional[Callable[[Text, Text], None]]
+    _modify_editable = attr.ib()  # type: Optional[Callable[[Text, Text], None]]
 
     @property
     def modifies_sdists(self):
@@ -90,6 +105,21 @@ class Plugin(object):
         # type: (...) -> Any
         if self._modify_wheel:
             return self._modify_wheel(wheel_dir, dist_info_dir_relpath)
+        return None
+
+    @property
+    def modifies_editable(self):
+        # type: () -> bool
+        return self._modify_editable is not None
+
+    def modify_editable(
+        self,
+        wheel_dir,  # type: Text
+        dist_info_dir,  # type: Text
+    ):
+        # type: (...) -> Any
+        if self._modify_editable:
+            return self._modify_editable(wheel_dir, dist_info_dir)
         return None
 
 
