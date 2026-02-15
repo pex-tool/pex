@@ -296,14 +296,15 @@ class InvalidPlugin(object):
     pass
 
 
-def test_load_config_plugin_neither(write_config):
+def test_load_config_plugin_none(write_config):
     # type: (WriteConfig) -> None
 
     with pytest.raises(
         ConfigurationError,
         match=re.escape(
-            "The pex.build_backend.wrap plugin test_configuration.InvalidPlugin must define a "
-            "`modify_sdist` function, a `modify_wheel` or both; it has neither."
+            "The pex.build_backend.wrap plugin test_configuration.InvalidPlugin must define at "
+            "least one plugin function: `modify_sdist`, `modify_wheel` or `modify_editable`; "
+            "it has none."
         ),
     ):
         write_config(
