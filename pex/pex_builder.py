@@ -13,7 +13,7 @@ from zipimport import ZipImportError
 
 from pex import layout, pex_warnings
 from pex.atomic_directory import atomic_directory
-from pex.cache.dirs import CacheDir
+from pex.cache.dirs import BootstrapZipDir, PackedWheelDir
 from pex.common import (
     Chroot,
     CopyMode,
@@ -736,24 +736,13 @@ class PEXBuilder(object):
                 safe_mkdir(os.path.dirname(dest))
                 safe_copy(os.path.realpath(os.path.join(self._chroot.chroot, f)), dest)
 
-        # Pex historically only supported compressed zips in packed layout, so we don't disturb the
-        # old cache structure for those zips and instead just use a subdir for un-compressed zips.
-        # This works for our two zip caches (we'll have no collisions with legacy compressed zips)
-        # since the bootstrap zip has a known name that is not "un-compressed" and "un-compressed"
-        # is not a valid wheel name either.
-        def zip_cache_dir(path):
-            # type: (str) -> str
-            if compress:
-                return path
-            return os.path.join(path, "un-compressed")
-
         # Zip up the bootstrap which is constant for a given version of Pex.
         if pex_info.bootstrap_hash is None:
             raise AssertionError(
                 "Expected bootstrap_hash to be populated for {}.".format(self._pex_info)
             )
-        cached_bootstrap_zip_dir = zip_cache_dir(
-            CacheDir.BOOTSTRAP_ZIPS.path(pex_info.bootstrap_hash, pex_root=pex_info.pex_root)
+        cached_bootstrap_zip_dir = BootstrapZipDir.create(
+            pex_info.bootstrap_hash, compress=compress, pex_root=pex_info.pex_root
         )
         with TRACER.timed("Zipping PEX .bootstrap/ code."):
             with atomic_directory(cached_bootstrap_zip_dir) as atomic_bootstrap_zip_dir:
@@ -788,8 +777,8 @@ class PEXBuilder(object):
                         for path in self._chroot.filesets[location]:
                             safe_copy(os.path.join(self._chroot.chroot, path), dest)
                     else:
-                        cached_installed_wheel_zip_dir = zip_cache_dir(
-                            CacheDir.PACKED_WHEELS.path(fingerprint, pex_root=pex_info.pex_root)
+                        cached_installed_wheel_zip_dir = PackedWheelDir.create(
+                            fingerprint, compress, pex_root=pex_info.pex_root
                         )
                         with atomic_directory(cached_installed_wheel_zip_dir) as atomic_zip_dir:
                             if not atomic_zip_dir.is_finalized():

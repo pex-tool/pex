@@ -14,10 +14,12 @@ from datetime import datetime, timedelta
 from pex.cache.dirs import (
     AtomicCacheDir,
     BootstrapDir,
+    BootstrapZipDir,
     BuiltWheelDir,
     CacheDir,
     DownloadDir,
     InstalledWheelDir,
+    PackedWheelDir,
     VenvDirs,
 )
 from pex.cache.prunable import Prunable
@@ -103,14 +105,14 @@ def _prune_cache_dir(
 
     if isinstance(cache_dir, InstalledWheelDir):
         paths_to_prune.append(os.path.dirname(cache_dir.path))
-        prune_if_exists(CacheDir.PACKED_WHEELS.path(cache_dir.install_hash))
+        paths_to_prune.extend(PackedWheelDir.iter(cache_dir.install_hash))
         for additional_dir in additional_cache_dirs_by_project_name_and_version.get(
             (cache_dir.project_name, cache_dir.version), ()
         ):
             prune_if_exists(additional_dir)
     elif isinstance(cache_dir, BootstrapDir):
         paths_to_prune.append(cache_dir.path)
-        prune_if_exists(CacheDir.BOOTSTRAP_ZIPS.path(cache_dir.bootstrap_hash))
+        paths_to_prune.extend(BootstrapZipDir.iter(cache_dir.bootstrap_hash))
     else:
         paths_to_prune.append(cache_dir.path)
 

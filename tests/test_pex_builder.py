@@ -244,8 +244,18 @@ def test_pex_builder_setuptools_script(tmpdir):
     )
 
 
-def test_pex_builder_packed(tmpdir):
-    # type: (Any) -> None
+@pytest.mark.parametrize(
+    "compress",
+    [
+        pytest.param(True, id="--compress"),
+        pytest.param(False, id="--no-compress"),
+    ],
+)
+def test_pex_builder_packed(
+    tmpdir,  # type: Any
+    compress,  # type: bool
+):
+    # type: (...) -> None
 
     pex_root = os.path.join(str(tmpdir), "pex_root")
     pex_app = os.path.join(str(tmpdir), "app.pex")
@@ -257,7 +267,7 @@ def test_pex_builder_packed(tmpdir):
         pb.add_source(source_file, "a.file")
         pb.add_dist_location(dist.location)
         pb.set_script("shell_script")
-        pb.build(pex_app, layout=Layout.PACKED)
+        pb.build(pex_app, layout=Layout.PACKED, compress=compress)
 
     assert "hello world from shell script\n" == subprocess.check_output(
         args=[os.path.join(pex_app, "__main__.py")]
@@ -267,7 +277,7 @@ def test_pex_builder_packed(tmpdir):
     assert zipfile.is_zipfile(spread_dist_bootstrap)
 
     cached_bootstrap_zip = CacheDir.BOOTSTRAP_ZIPS.path(
-        pb.info.bootstrap_hash, pb.info.bootstrap, pex_root=pex_root
+        pb.info.bootstrap_hash, "defN" if compress else "stor", pb.info.bootstrap, pex_root=pex_root
     )
     assert zipfile.is_zipfile(cached_bootstrap_zip)
 
@@ -290,7 +300,9 @@ def test_pex_builder_packed(tmpdir):
     spread_dist_zip = os.path.join(pex_app, pb.info.internal_cache, location)
     assert zipfile.is_zipfile(spread_dist_zip)
 
-    cached_dist_zip = CacheDir.PACKED_WHEELS.path(sha, location, pex_root=pex_root)
+    cached_dist_zip = CacheDir.PACKED_WHEELS.path(
+        sha, "defN" if compress else "stor", location, pex_root=pex_root
+    )
     assert zipfile.is_zipfile(cached_dist_zip)
 
     assert filecmp.cmp(spread_dist_zip, cached_dist_zip, shallow=False)
