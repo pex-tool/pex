@@ -94,7 +94,7 @@ class CacheDir(Enum["CacheDir.Value"]):
 
     BOOTSTRAP_ZIPS = Value(
         "bootstrap_zips",
-        version=0,
+        version=1,
         name="Packed Bootstraps",
         description="PEX runtime bootstrap code, zipped up for `--layout packed` PEXes.",
     )
@@ -168,7 +168,7 @@ class CacheDir(Enum["CacheDir.Value"]):
 
     PACKED_WHEELS = Value(
         "packed_wheels",
-        version=0,
+        version=1,
         name="Packed Wheels",
         description=(
             "The same content as {installed_wheels!r}, but zipped up for `--layout packed` "
@@ -575,6 +575,82 @@ class BootstrapDir(AtomicCacheDir):
         # type: (...) -> None
         super(BootstrapDir, self).__init__(path)
         self.bootstrap_hash = bootstrap_hash
+
+
+class BootstrapZipDir(AtomicCacheDir):
+    @classmethod
+    def iter(
+        cls,
+        bootstrap_hash,  # type: str
+        pex_root=ENV,  # type: Union[str, Variables]
+    ):
+        # type: (...) -> Iterator[BootstrapZipDir]
+
+        for path in glob.glob(CacheDir.BOOTSTRAP_ZIPS.path(bootstrap_hash, "*", pex_root=pex_root)):
+            compress = os.path.basename(path) == "defN"
+            yield cls(path=path, bootstrap_hash=bootstrap_hash, compress=compress)
+
+    @classmethod
+    def create(
+        cls,
+        bootstrap_hash,  # type: str
+        compress=True,  # type: bool
+        pex_root=ENV,  # type: Union[str, Variables]
+    ):
+        # type: (...) -> BootstrapZipDir
+        bootstrap_zip_dir = CacheDir.BOOTSTRAP_ZIPS.path(
+            bootstrap_hash, "defN" if compress else "stor", pex_root=pex_root
+        )
+        return cls(path=bootstrap_zip_dir, bootstrap_hash=bootstrap_hash, compress=compress)
+
+    def __init__(
+        self,
+        path,  # type: str
+        bootstrap_hash,  # type: str
+        compress,  # type: bool
+    ):
+        # type: (...) -> None
+        super(BootstrapZipDir, self).__init__(path)
+        self.bootstrap_hash = bootstrap_hash
+        self.compress = compress
+
+
+class PackedWheelDir(AtomicCacheDir):
+    @classmethod
+    def iter(
+        cls,
+        fingerprint,  # type: str
+        pex_root=ENV,  # type: Union[str, Variables]
+    ):
+        # type: (...) -> Iterator[PackedWheelDir]
+
+        for path in glob.glob(CacheDir.PACKED_WHEELS.path(fingerprint, "*", pex_root=pex_root)):
+            compress = os.path.basename(path) == "defN"
+            yield cls(path=path, fingerprint=fingerprint, compress=compress)
+
+    @classmethod
+    def create(
+        cls,
+        fingerprint,  # type: str
+        compress=True,  # type: bool
+        pex_root=ENV,  # type: Union[str, Variables]
+    ):
+        # type: (...) -> PackedWheelDir
+        packed_wheel_dir = CacheDir.PACKED_WHEELS.path(
+            fingerprint, "defN" if compress else "stor", pex_root=pex_root
+        )
+        return cls(path=packed_wheel_dir, fingerprint=fingerprint, compress=compress)
+
+    def __init__(
+        self,
+        path,  # type: str
+        fingerprint,  # type: str
+        compress,  # type: bool
+    ):
+        # type: (...) -> None
+        super(PackedWheelDir, self).__init__(path)
+        self.fingerprint = fingerprint
+        self.compress = compress
 
 
 class UserCodeDir(AtomicCacheDir):
