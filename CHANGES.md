@@ -1,5 +1,13 @@
 # Release Notes
 
+## 2.90.1
+
+This release fixes a Pex caching bug when creating `--layout packed` PEXes and alternating between
+the default (`--compress`) and `--no-compress`. Previously this could lead errors building the
+packed PEX which necessitated clearing the PEX cache.
+
+* Fix `--layout packed` bootstrap and wheel caches. (#3106)
+
 ## 2.90.0
 
 This release adds support for wrapping PEP-660 `build_editable` to `pex_build.setuptools.build`
