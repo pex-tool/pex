@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.90.2
+
+This release also updates vendored Pip's vendored certifi's cacert.pem to that from
+certifi 2026.2.25.
+
+* Update vendored Pip's CA cert bundle. (#3108)
+
 ## 2.90.1
 
 This release fixes a Pex caching bug when creating `--layout packed` PEXes and alternating between
