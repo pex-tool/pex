@@ -188,6 +188,7 @@ class Virtualenv(object):
         install_setuptools=InstallationChoice.NO,  # type: InstallationChoice.Value
         install_wheel=InstallationChoice.NO,  # type: InstallationChoice.Value
         other_installs=(),  # type: Iterable[str]
+        cwd=None,  # type: Optional[str]
     ):
         # type: (...) -> Virtualenv
 
@@ -275,7 +276,7 @@ class Virtualenv(object):
                 if prompt:
                     args.extend(["--prompt", prompt])
                     custom_prompt = prompt
-                interpreter.execute(args=args, env=env)
+                interpreter.execute(args=args, env=env, cwd=cwd)
                 # Modern virtualenv provides a pyvenv.cfg; so we provide one on 16.7.12's behalf
                 # since users might expect one. To ward off any confusion for readers of the emitted
                 # pyvenv.cfg file, we add a bespoke created-by field to help make it clear that Pex
@@ -314,7 +315,7 @@ class Virtualenv(object):
             if prompt and py_major_minor >= (3, 6):
                 args.extend(["--prompt", prompt])
                 custom_prompt = prompt
-            interpreter.execute(args=args, env=env)
+            interpreter.execute(args=args, env=env, cwd=cwd)
 
         venv = cls(venv_dir, custom_prompt=custom_prompt)
         if use_virtualenv and (
@@ -322,14 +323,14 @@ class Virtualenv(object):
         ):
             # Our vendored virtualenv does not support installing Pip, setuptool or wheel; so we
             # use the ensurepip module / get_pip.py bootstrapping for Pip that `ensure_pip` does.
-            venv.ensure_pip(upgrade=install_pip is InstallationChoice.UPGRADED)
+            venv.ensure_pip(upgrade=install_pip is InstallationChoice.UPGRADED, cwd=cwd)
         if project_upgrades:
             venv.interpreter.execute(
-                args=["-m", "pip", "install", "-U"] + project_upgrades, env=env
+                args=["-m", "pip", "install", "-U"] + project_upgrades, env=env, cwd=cwd
             )
         if project_installs:
             venv.interpreter.execute(
-                args=["-m", "pip", "install"] + list(project_installs), env=env
+                args=["-m", "pip", "install"] + list(project_installs), env=env, cwd=cwd
             )
         return venv
 
@@ -543,13 +544,18 @@ class Virtualenv(object):
                         # N.B.: These lines include the newline already.
                         buffer.write(cast(bytes, line))
 
-    def ensure_pip(self, upgrade=False):
-        # type: (bool) -> str
+    def ensure_pip(
+        self,
+        upgrade=False,  # type: bool
+        cwd=None,  # type: Optional[str]
+    ):
+        # type: (...) -> str
+
         pip_script = self.bin_path("pip")
         if is_exe(pip_script) and not upgrade:
             return pip_script
         try:
-            self._interpreter.execute(args=["-m", "ensurepip", "-U", "--default-pip"])
+            self._interpreter.execute(args=["-m", "ensurepip", "-U", "--default-pip"], cwd=cwd)
         except Executor.NonZeroExit:
             # Early Python 2.7 versions and some system Pythons do not come with ensurepip
             # installed. We fall back to get-pip.py which is available in dedicated versions for
@@ -574,7 +580,7 @@ class Virtualenv(object):
                         os.path.join(atomic_dir.work_dir, os.path.basename(get_pip)), "wb"
                     ) as dst_fp:
                         shutil.copyfileobj(src_fp, dst_fp)
-            self._interpreter.execute(args=[get_pip, "--no-wheel"])
+            self._interpreter.execute(args=[get_pip, "--no-wheel"], cwd=cwd)
         if upgrade:
-            self._interpreter.execute(args=["-m", "pip", "install", "-U", "pip"])
+            self._interpreter.execute(args=["-m", "pip", "install", "-U", "pip"], cwd=cwd)
         return pip_script
