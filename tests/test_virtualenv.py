@@ -15,7 +15,7 @@ def test_local_pip_package(tmpdir):
 
     cwd = tmpdir.join("chroot")
     touch(os.path.join(cwd, "pip", "__init__.py"))
-    venv = tmpdir.join("venv")
+    venv_dir = tmpdir.join("venv")
 
-    venv = Virtualenv.create(venv_dir=venv, cwd=cwd, install_pip=InstallationChoice.UPGRADED)
+    venv = Virtualenv.create(venv_dir=venv_dir, cwd=cwd, install_pip=InstallationChoice.UPGRADED)
     venv.interpreter.execute(args=["-m", "pip", "-V"])
