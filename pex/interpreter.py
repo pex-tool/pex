@@ -1012,12 +1012,10 @@ class PythonInterpreter(object):
         args=None,  # type: Optional[Iterable[str]]
         pythonpath=None,  # type: Optional[Iterable[str]]
         env=None,  # type: Optional[Mapping[str, str]]
+        version=None,  # type: Optional[Tuple[int, int, int]]
     ):
         # type: (...) -> Tuple[Iterable[str], Mapping[str, str]]
         cmd = [binary]
-
-        # Don't add the user site directory to `sys.path`.
-        cmd.append("-s")
 
         env = cls._sanitized_environment(env=env)
         pythonpath = list(pythonpath or ())
@@ -1027,7 +1025,19 @@ class PythonInterpreter(object):
             # If we're being forced into interactive mode, we don't want that to apply to any
             # Pex internal interpreter executions ever.
             env.pop("PYTHONINSPECT", None)
+
+            # Don't add the user site directory to `sys.path`.
+            cmd.append("-s")
+
+            # Don't add CWD to `sys.path`
+            if version and version >= (3, 11):
+                cmd.append("-P")
+        elif version and version[:2] >= (3, 4):
+            cmd.append("-I")
         else:
+            # Don't add the user site directory to `sys.path`.
+            cmd.append("-s")
+
             # Turn off reading of PYTHON* environment variables.
             cmd.append("-E")
 
@@ -1629,7 +1639,11 @@ class PythonInterpreter(object):
                 env_copy.update(_PYTHON_HOST_PLATFORM=pep425_compatible_platform)
 
         return self._create_isolated_cmd(
-            self.binary, args=args, pythonpath=pythonpath, env=env_copy
+            self.binary,
+            args=args,
+            pythonpath=pythonpath,
+            env=env_copy,
+            version=self.version,
         )
 
     def execute(
