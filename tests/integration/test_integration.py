@@ -1693,7 +1693,9 @@ def test_venv_mode(
 ):
     # type: (...) -> None
     other_interpreter_version = PY310 if sys.version_info[:2] == (3, 9) else PY39
-    other_interpreter = ensure_python_interpreter(other_interpreter_version)
+    other_interpreter = PythonInterpreter.from_binary(
+        ensure_python_interpreter(other_interpreter_version)
+    )
 
     pex_file, args = isort_pex_args
     run_pex_command(
@@ -1704,23 +1706,48 @@ def test_venv_mode(
             "--python",
             sys.executable,
             "--python",
-            other_interpreter,
+            other_interpreter.binary,
             "--venv",
         ],
         quiet=True,
     ).assert_success()
 
     def run_isort_pex(pex_python=None):
-        # type: (Optional[str]) -> str
+        # type: (Optional[PythonInterpreter]) -> PythonInterpreter
         pex_root = str(tmpdir)
         args = [pex_file] if pex_python else [sys.executable, pex_file]
         stdout = subprocess.check_output(
-            args=args + ["-c", "import sys; print(sys.executable)"],
-            env=make_env(PEX_ROOT=pex_root, PEX_INTERPRETER=1, PEX_PYTHON=pex_python),
-        )
-        pex_interpreter = cast(str, stdout.decode("utf-8").strip())
+            args=args
+            + [
+                "-c",
+                dedent(
+                    """\
+                    import json
+                    import os.path
+                    import sys
 
-        with ENV.patch(PEX_PYTHON=pex_python):
+
+                    json.dump(
+                        {
+                            "venv_prefix": sys.prefix,
+                            "python_exe_relpath": os.path.relpath(sys.executable, sys.prefix)
+                        },
+                        sys.stdout
+                    )
+                    """
+                ),
+            ],
+            env=make_env(
+                PEX_ROOT=pex_root,
+                PEX_INTERPRETER=1,
+                PEX_PYTHON=pex_python.binary if pex_python else None,
+            ),
+        )
+        data = json.loads(stdout)
+        actual_venv_prefix = os.path.realpath(cast(str, data["venv_prefix"]))
+        python_exe_relpath = cast(str, data["python_exe_relpath"])
+
+        with ENV.patch(PEX_PYTHON=pex_python.binary if pex_python else None):
             pex_info = PexInfo.from_pex(pex_file)
             pex_hash = pex_info.pex_hash
             assert pex_hash is not None
@@ -1730,8 +1757,8 @@ def test_venv_mode(
                 has_interpreter_constraints=False,
                 pex_file=pex_file,
             )
-        assert expected_venv_home == safe_commonpath([pex_interpreter, expected_venv_home])
-        return pex_interpreter
+        assert expected_venv_home == safe_commonpath([actual_venv_prefix, expected_venv_home])
+        return PythonInterpreter.from_binary(os.path.join(actual_venv_prefix, python_exe_relpath))
 
     isort_pex_interpreter1 = run_isort_pex()
     assert isort_pex_interpreter1 == run_isort_pex()

@@ -15,7 +15,7 @@ from argparse import ArgumentParser
 TYPE_CHECKING = False
 
 if TYPE_CHECKING:
-    from typing import Optional
+    from typing import Iterable, Optional
 
 
 def write_bindings(
@@ -40,10 +40,13 @@ class PexDirNotFound(Exception):
     pass
 
 
-def find_pex_dir(pex_hash):
-    # type: (str) -> str
+def find_pex_dir(
+    pex_hash,  # type: str
+    search_path,  # type: Iterable[str]
+):
+    # type: (...) -> str
 
-    for entry in sys.path:
+    for entry in search_path:
         pex_info = os.path.join(entry, "PEX-INFO")
         if not os.path.exists(pex_info):
             continue
@@ -177,14 +180,18 @@ if __name__ == "__main__":
 
     pex_hash = options.pex_hash[0]
 
+    search_path = [sys.prefix] if options.venv_bin_dir else sys.path
     try:
-        pex = find_pex_dir(pex_hash)
+        pex = find_pex_dir(pex_hash, search_path)
     except PexDirNotFound:
         sys.exit(
-            "Failed to determine installed PEX (pex_hash: {pex_hash}) directory using sys.path:\n"
-            "    {sys_path}".format(
+            "Failed to determine installed PEX (pex_hash: {pex_hash}) directory using search "
+            "path:\n"
+            "    {search_path}".format(
                 pex_hash=pex_hash,
-                sys_path=os.linesep.join("    {entry}".format(entry=entry) for entry in sys.path),
+                search_path=os.linesep.join(
+                    "    {entry}".format(entry=entry) for entry in search_path
+                ),
             )
         )
 

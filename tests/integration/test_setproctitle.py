@@ -110,7 +110,7 @@ def test_setproctitle(
         # type: (Text) -> None
         expected = PythonInterpreter.get().resolve_base_interpreter()
         actual = PythonInterpreter.from_binary(str(exe)).resolve_base_interpreter()
-        python_framework = sysconfig.get_config_var("PYTHONFRAMEWORKINSTALLDIR")
+        python_framework = sysconfig.get_config_vars().get("PYTHONFRAMEWORKINSTALLDIR")
         if IS_MAC and expected != actual and python_framework:
             # Mac framework Python distributions have two Python binaries (starred) as well as
             # several symlinks. The layout looks like so:
@@ -151,7 +151,7 @@ def test_setproctitle(
         # <PEX_ROOT>/venvs/<venv long dir>/bin/python -sE <PEX_ROOT>/venvs/<venv long dir>/pex
         # <args...>
         python_args, installed_location, rest = args.split(" ", 2)
-        assert "-sE" == python_args
+        assert ("-I" if sys.version_info[:2] >= (3, 4) else "-sE") == python_args
         assert (
             os.path.join(
                 variables.venv_dir(
