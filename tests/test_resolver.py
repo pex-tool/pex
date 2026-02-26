@@ -489,8 +489,8 @@ def test_issues_851():
     assert "contextlib2" in resolved_project_to_version
 
 
-def test_issues_892():
-    # type: () -> None
+def test_issues_892(pex_project_dir):
+    # type: (str) -> None
     python27 = ensure_python_interpreter(PY27)
     program = dedent(
         """\
@@ -503,7 +503,7 @@ def test_issues_892():
         # This puts python3.10 stdlib on PYTHONPATH.
         os.environ['PYTHONPATH'] = os.pathsep.join(sys.path)
 
-
+        sys.path.append({pex_project_dir!r})
         from pex import resolver
         from pex.interpreter import PythonInterpreter
         from pex.targets import Targets
@@ -516,7 +516,7 @@ def test_issues_892():
         )
         print('Resolved: {{}}'.format(result))
         """
-    ).format(python27=python27)
+    ).format(pex_project_dir=pex_project_dir, python27=python27)
 
     python310 = ensure_python_interpreter(PY310)
     cmd, process = PythonInterpreter.from_binary(python310).open_process(
