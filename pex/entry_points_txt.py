@@ -25,6 +25,7 @@ def install_scripts(
     entry_points,  # type: EntryPoints
     interpreter=None,  # type: Optional[PythonInterpreter]
     overwrite=True,  # type: bool
+    hermetic_scripts=False,  # type: bool
 ):
     # type: (...) -> Iterator[Tuple[Text, Text]]
 
@@ -35,7 +36,13 @@ def install_scripts(
         raise AssertionError(reportable_unexpected_error_msg())
 
     script_src = entry_points.source
-    shebang = interpreter.shebang() if interpreter else "#!python"
+    if interpreter:
+        args = None  # type: Optional[str]
+        if hermetic_scripts:
+            args = "-I" if interpreter.version[:2] >= (3, 4) else "-sE"
+        shebang = interpreter.shebang(args=args)
+    else:
+        shebang = "#!python"
     for named_entry_point, gui in itertools.chain.from_iterable(
         ((value, gui) for value in entry_points.get(key, {}).values())
         for key, gui in (("console_scripts", False), ("gui_scripts", True))

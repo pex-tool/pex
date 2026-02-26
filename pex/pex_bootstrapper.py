@@ -477,7 +477,7 @@ def _bootstrap(entry_point):
 @attr.s(frozen=True)
 class VenvPex(object):
     venv_dir = attr.ib()  # type: str
-    hermetic_scripts = attr.ib(default=True)  # type: bool
+    hermetic_script_args = attr.ib(default=None)  # type: Optional[str]
     pex = attr.ib(init=False)  # type: str
     python = attr.ib(init=False)  # type: str
 
@@ -498,8 +498,8 @@ class VenvPex(object):
         # type: (...) -> List[str]
         argv = [self.python]
         argv.extend(python_args)
-        if self.hermetic_scripts:
-            argv.append("-sE")
+        if self.hermetic_script_args:
+            argv.append(self.hermetic_script_args)
         argv.append(self.pex)
         argv.extend(additional_args)
         return argv
@@ -638,7 +638,10 @@ def ensure_venv(
                             break
     if record_access:
         cache_access.record_access(venv_dir)
-    return VenvPex(venv_dir, hermetic_scripts=pex_info.venv_hermetic_scripts)
+    hermetic_script_args = None  # type: Optional[str]
+    if pex_info.venv_hermetic_scripts:
+        hermetic_script_args = "-I" if pex.interpreter.version[:2] >= (3, 4) else "-sE"
+    return VenvPex(venv_dir, hermetic_script_args=hermetic_script_args)
 
 
 # NB: This helper is used by the PEX bootstrap __main__.py as well as the __pex__/__init__.py

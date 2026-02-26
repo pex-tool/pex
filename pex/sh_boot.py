@@ -174,7 +174,7 @@ def create_sh_boot_script(
         python_args.extend(args[1:])
     venv_python_args = python_args[:]
     if pex_info.venv_hermetic_scripts:
-        venv_python_args.append("-sE")
+        venv_python_args.append("-I" if interpreter.version[:2] >= (3, 4) else "-sE")
 
     python_names = tuple(
         _calculate_applicable_binary_names(

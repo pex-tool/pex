@@ -95,7 +95,7 @@ def boot(
     inject_args,  # type: List[str]
     entry_point,  # type: Optional[str]
     script,  # type: Optional[str]
-    hermetic_re_exec,  # type: bool
+    hermetic_re_exec,  # type: Optional[str]
 ):
     # type: (...) -> None
 
@@ -141,7 +141,7 @@ def boot(
         os.environ[current_interpreter_blessed_env_var] = "1"
         argv = [python]
         if hermetic_re_exec:
-            argv.append("-sE")
+            argv.append(hermetic_re_exec)
         argv.extend(sys.argv)
         safe_execv(argv)
 

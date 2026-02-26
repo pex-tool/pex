@@ -198,7 +198,9 @@ class Provenance(object):
         # type: (bool) -> str
 
         shebang_argv = [self.target_python]
-        python_args = _script_python_args(hermetic=hermetic_scripts)
+        python_args = _script_python_args(
+            hermetic=hermetic_scripts, interpreter=self._target_python
+        )
         if python_args:
             shebang_argv.append(python_args)
         return "#!{shebang}".format(shebang=" ".join(shebang_argv))
@@ -294,9 +296,16 @@ class Provenance(object):
         pex_warnings.warn(message)
 
 
-def _script_python_args(hermetic):
-    # type: (bool) -> Optional[str]
-    return "-sE" if hermetic else None
+def _script_python_args(
+    hermetic,  # type: bool
+    interpreter,  # type: PythonInterpreter
+):
+    # type: (...) -> Optional[str]
+    if not hermetic:
+        return None
+    if interpreter.version[:2] >= (3, 4):
+        return "-I"
+    return "-sE"
 
 
 def _populate_flat_deps(
@@ -527,6 +536,7 @@ def _populate_venv_deps(
                 venv=venv,
                 copy_mode=copy_mode,
                 rel_extra_path=rel_extra_path,
+                hermetic_scripts=hermetic_scripts,
             ):
                 yield src, dst
         except InstalledWheel.LoadError:
@@ -566,7 +576,8 @@ def _populate_venv_deps(
 
     # 3. Re-write any (console) scripts to use the venv Python.
     for script in venv.rewrite_scripts(
-        python=venv_python, python_args=_script_python_args(hermetic=hermetic_scripts)
+        python=venv_python,
+        python_args=_script_python_args(hermetic=hermetic_scripts, interpreter=venv.interpreter),
     ):
         TRACER.log("Re-writing {}".format(script))
 
@@ -682,7 +693,9 @@ def install_pex_main(
                 inject_args=list(pex_info.inject_args),
                 entry_point=pex_info.entry_point,
                 script=pex_info.script,
-                hermetic_re_exec=pex_info.venv_hermetic_scripts,
+                hermetic_re_exec=_script_python_args(
+                    hermetic=pex_info.venv_hermetic_scripts, interpreter=venv.interpreter
+                ),
             )
         )
     chmod_plus_x(fp.name)

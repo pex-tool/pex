@@ -595,6 +595,7 @@ def reinstall_venv(
     venv,  # type: Virtualenv
     copy_mode=CopyMode.LINK,  # type: CopyMode.Value
     rel_extra_path=None,  # type: Optional[str]
+    hermetic_scripts=False,  # type: bool
 ):
     # type: (...) -> Iterator[Tuple[Text, Text]]
     """Re-installs the installed wheel in a venv.
@@ -615,6 +616,7 @@ def reinstall_venv(
         copy_mode=copy_mode,
         rel_extra_path=rel_extra_path,
         compile=False,
+        hermetic_scripts=hermetic_scripts,
     ):
         yield src, dst
 
@@ -684,6 +686,7 @@ def install_wheel_interpreter(
     rel_extra_path=None,  # type: Optional[str]
     compile=True,  # type: bool
     requested=True,  # type: bool
+    hermetic_scripts=False,  # type: bool
 ):
     # type: (...) -> Tuple[Tuple[Text, Text], ...]
 
@@ -703,6 +706,7 @@ def install_wheel_interpreter(
         compile=compile,
         requested=requested,
         record_entry_info=True,
+        hermetic_scripts=hermetic_scripts,
     )
 
 
@@ -830,6 +834,7 @@ def install_wheel(
     record_entry_info=False,  # type: bool
     normalize_file_stat=False,  # type: bool
     re_hash=False,  # type: bool
+    hermetic_scripts=False,  # type: bool
 ):
     # type: (...) -> Tuple[Tuple[Text, Text], ...]
 
@@ -1036,6 +1041,8 @@ def install_wheel(
                     first_line = in_fp.readline()
                     if first_line and re.match(br"^#!pythonw?", first_line):
                         _, _, shebang_args = first_line.partition(b" ")
+                        if hermetic_scripts and not shebang_args:
+                            shebang_args = b"-I" if interpreter.version[:2] >= (3, 4) else b"-sE"
                         encoding_line = ""
                         next_line = in_fp.readline()
                         # See: https://peps.python.org/pep-0263/
@@ -1084,9 +1091,15 @@ def install_wheel(
         safe_rmtree(data_dir)
 
     if compile:
+        if interpreter:
+            python = interpreter.binary
+            python_version = interpreter.version[:2]
+        else:
+            python = sys.executable
+            python_version = sys.version_info[:2]
         args = [
-            interpreter.binary if interpreter else sys.executable,
-            "-sE",
+            python,
+            "-I" if python_version >= (3, 4) else "-sE",
             "-m",
             "compileall",
         ]  # type: List[Text]
@@ -1112,7 +1125,11 @@ def install_wheel(
 
     if install_entry_point_scripts:
         for script_src, script_abspath in install_scripts(
-            install_paths.scripts, entry_points, interpreter, overwrite=False
+            install_paths.scripts,
+            entry_points,
+            interpreter,
+            overwrite=False,
+            hermetic_scripts=hermetic_scripts,
         ):
             installed_files.append(create_installed_file(path=script_abspath, dest_dir=dest))
             provenance.append((script_src, script_abspath))

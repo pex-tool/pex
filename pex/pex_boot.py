@@ -111,14 +111,12 @@ def __maybe_run_venv__(
     pex_root,  # type: str
     pex_hash,  # type: str
     has_interpreter_constraints,  # type: bool
-    hermetic_venv_scripts,  # type: bool
     pex_path,  # type: Tuple[str, ...]
     python_args,  # type: List[str]
 ):
     # type: (...) -> Optional[str]
 
     from pex.os import is_exe
-    from pex.sysconfig import SCRIPT_DIR, script_name
     from pex.tracer import TRACER
     from pex.variables import venv_dir
 
@@ -136,9 +134,11 @@ def __maybe_run_venv__(
         return venv_root_dir
 
     TRACER.log("Executing venv PEX for {pex} at {venv_pex}".format(pex=pex, venv_pex=venv_pex))
-    venv_python = os.path.join(venv_root_dir, SCRIPT_DIR, script_name("python"))
-    if hermetic_venv_scripts:
-        __re_exec__(venv_python, python_args, "-sE", venv_pex)
+    with open(venv_pex) as fp:
+        shebang = fp.readline()
+    venv_python, _, extra_python_args = shebang[2:].strip().partition(" ")
+    if extra_python_args:
+        __re_exec__(venv_python, python_args, extra_python_args, venv_pex)
     else:
         __re_exec__(venv_python, python_args, venv_pex)
 
@@ -148,7 +148,6 @@ def boot(
     pex_root,  # type: str
     pex_hash,  # type: str
     has_interpreter_constraints,  # type: bool
-    hermetic_venv_scripts,  # type: bool
     pex_path,  # type: Tuple[str, ...]
     is_venv,  # type: bool
     inject_python_args,  # type: Tuple[str, ...]
@@ -215,7 +214,6 @@ def boot(
                 pex_root=pex_root,
                 pex_hash=pex_hash,
                 has_interpreter_constraints=has_interpreter_constraints,
-                hermetic_venv_scripts=hermetic_venv_scripts,
                 pex_path=ENV.PEX_PATH or pex_path,
                 python_args=python_args,
             )
