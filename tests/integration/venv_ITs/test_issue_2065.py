@@ -149,6 +149,6 @@ def test_venv_pex_script_non_hermetic(
         )
     )
     assert "injected:ambient" == instrumented["PYTHONPATH"]
-    assert sorted(baseline["sys.path"] + [os.path.join(cwd, "injected")]) == sorted(
-        instrumented["sys.path"]
-    )
+    assert sorted(
+        map(os.path.realpath, baseline["sys.path"] + [os.path.join(cwd, "injected")])
+    ) == sorted(map(os.path.realpath, instrumented["sys.path"]))
