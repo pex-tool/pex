@@ -15,7 +15,7 @@ from fileinput import FileInput
 from textwrap import dedent
 
 from pex.atomic_directory import AtomicDirectory, atomic_directory
-from pex.common import safe_mkdir, safe_open
+from pex.common import safe_mkdir, safe_mkdtemp, safe_open
 from pex.compatibility import get_stdout_bytes_buffer, safe_commonpath
 from pex.dist_metadata import Distribution, find_distributions
 from pex.enum import Enum
@@ -188,7 +188,7 @@ class Virtualenv(object):
         install_setuptools=InstallationChoice.NO,  # type: InstallationChoice.Value
         install_wheel=InstallationChoice.NO,  # type: InstallationChoice.Value
         other_installs=(),  # type: Iterable[str]
-        cwd=None,  # type: Optional[str]
+        cwd=None,  # type: Optional[str]  # N.B.: For tests.
     ):
         # type: (...) -> Virtualenv
 
@@ -259,6 +259,11 @@ class Virtualenv(object):
                 ),
                 V=3,
             )
+
+        if interpreter.version < (3, 4):
+            # N.B.: This isolates the venv creation process from PWD on older Pythons without -I or
+            # -P support.
+            cwd = safe_mkdtemp()
 
         custom_prompt = None  # type: Optional[str]
         if use_virtualenv:
