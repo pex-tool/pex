@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.90.3
+
+This release follows up on #3109 in 2.90.2 and extends better isolation to `--venv` script shebangs
+when emitting hermetic scripts (the default; only subverted by `--non-hermetic-venv-scripts`).
+
+* Use more isolation in venv scripts when available. (#3110)
+
 ## 2.90.2
 
 This release fixes bugs resulting from imperfect isolation of Python interpreters by Pex. In
