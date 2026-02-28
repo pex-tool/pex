@@ -37,10 +37,7 @@ def install_scripts(
 
     script_src = entry_points.source
     if interpreter:
-        args = None  # type: Optional[str]
-        if hermetic_scripts:
-            args = "-I" if interpreter.version[:2] >= (3, 4) else "-sE"
-        shebang = interpreter.shebang(args=args)
+        shebang = interpreter.shebang(args=interpreter.hermetic_args if hermetic_scripts else None)
     else:
         shebang = "#!python"
     for named_entry_point, gui in itertools.chain.from_iterable(

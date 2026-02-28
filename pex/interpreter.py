@@ -1436,6 +1436,11 @@ class PythonInterpreter(object):
         """Return any extra paths adjoined to the `sys.path` via the .pth mechanism."""
         return self.identity.extras_paths
 
+    @property
+    def hermetic_args(self):
+        # type: () -> str
+        return "-I" if self.version[:2] >= (3, 4) else "-sE"
+
     class BaseInterpreterResolutionError(Exception):
         """Indicates the base interpreter for a virtual environment could not be resolved."""
 

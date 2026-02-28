@@ -10,7 +10,6 @@ import os.path
 import re
 import shutil
 import subprocess
-import sys
 import time
 import zipfile
 
@@ -1042,7 +1041,7 @@ def install_wheel(
                     if first_line and re.match(br"^#!pythonw?", first_line):
                         _, _, shebang_args = first_line.partition(b" ")
                         if hermetic_scripts and not shebang_args:
-                            shebang_args = b"-I" if interpreter.version[:2] >= (3, 4) else b"-sE"
+                            shebang_args = interpreter.hermetic_args.encode("utf-8")
                         encoding_line = ""
                         next_line = in_fp.readline()
                         # See: https://peps.python.org/pep-0263/
@@ -1091,15 +1090,10 @@ def install_wheel(
         safe_rmtree(data_dir)
 
     if compile:
-        if interpreter:
-            python = interpreter.binary
-            python_version = interpreter.version[:2]
-        else:
-            python = sys.executable
-            python_version = sys.version_info[:2]
+        compile_target = interpreter or PythonInterpreter.get()
         args = [
-            python,
-            "-I" if python_version >= (3, 4) else "-sE",
+            compile_target.binary,
+            compile_target.hermetic_args,
             "-m",
             "compileall",
         ]  # type: List[Text]

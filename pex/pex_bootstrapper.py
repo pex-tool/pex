@@ -638,10 +638,12 @@ def ensure_venv(
                             break
     if record_access:
         cache_access.record_access(venv_dir)
-    hermetic_script_args = None  # type: Optional[str]
-    if pex_info.venv_hermetic_scripts:
-        hermetic_script_args = "-I" if pex.interpreter.version[:2] >= (3, 4) else "-sE"
-    return VenvPex(venv_dir, hermetic_script_args=hermetic_script_args)
+    return VenvPex(
+        venv_dir,
+        hermetic_script_args=(
+            pex.interpreter.hermetic_args if pex_info.venv_hermetic_scripts else None
+        ),
+    )
 
 
 # NB: This helper is used by the PEX bootstrap __main__.py as well as the __pex__/__init__.py
