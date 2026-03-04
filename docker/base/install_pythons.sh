@@ -13,8 +13,8 @@ DEADSNAKES_VERSIONS=(
   "3.7 {dev,venv,distutils}=3.7.17"
   "3.8 {dev,venv,distutils}=3.8.20"
   "3.9 {dev,venv,distutils}=3.9.25"
-  "3.10 {dev,venv,distutils}=3.10.19"
-  "3.11 {dev,venv,distutils}=3.11.14"
+  "3.10 {dev,venv,distutils}=3.10.20"
+  "3.11 {dev,venv,distutils}=3.11.15"
   "3.13 {dev,venv}=3.13.12"
   "3.14 {dev,venv}=3.14.3"
   "3.15 {dev,venv}=3.15.0~a6"
@@ -27,7 +27,7 @@ for entry in "${DEADSNAKES_VERSIONS[@]}"; do
   DEBIAN_FRONTEND=noninteractive apt install --yes $(eval echo python${version}-${packages})
 done
 add-apt-repository --yes --remove --ppa deadsnakes
-DEBIAN_FRONTEND=noninteractive apt remove --yes software-properties-common
+DEBIAN_FRONTEND=noninteractive apt remove --yes software-properties-common python3.12
 DEBIAN_FRONTEND=noninteractive apt autoremove --yes
 
 export PYENV_ROOT="/pyenv"
@@ -36,6 +36,7 @@ PYENV_VERSIONS=(
   2.7.18
   3.5.10
   3.6.15
+  3.12.13
   pypy2.7-7.3.20
   pypy3.5-7.0.0
   pypy3.6-7.3.3
