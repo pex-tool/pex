@@ -40,7 +40,7 @@ from pex.dist_metadata import (
 from pex.exceptions import production_assert
 from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.installed_wheel import InstalledWheel
-from pex.jobs import Raise, SpawnedJob, execute_parallel, iter_map_parallel
+from pex.jobs import Job, Raise, SpawnedJob, execute_parallel, iter_map_parallel
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.pep_425 import CompatibilityTags
@@ -1060,6 +1060,28 @@ class WheelBuilder(object):
         # type: (BuildRequest) -> SpawnedJob[BuildResult]
         source_path, editable = build_request.prepare()
         build_result = build_request.result(source_path)
+
+        def spawn_build_wheel():
+            # type: () -> SpawnedJob[BuildResult]
+            build_job = get_pip(
+                interpreter=build_request.target.get_interpreter(),
+                version=self._pip_version,
+                resolver=self._resolver,
+                extra_requirements=(
+                    self._package_index_configuration.extra_pip_requirements
+                    if self._package_index_configuration is not None
+                    else ()
+                ),
+            ).spawn_build_wheels(
+                requirements=[source_path],
+                wheel_dir=build_result.build_dir,
+                package_index_configuration=self._package_index_configuration,
+                interpreter=build_request.target.get_interpreter(),
+                build_configuration=self._build_configuration,
+                verify=self._verify_wheels,
+            )
+            return SpawnedJob.wait(job=build_job, result=build_result)
+
         if editable:
             if not self._resolver:
                 raise BuildError(
@@ -1067,36 +1089,29 @@ class WheelBuilder(object):
                     "Cannot build: {project}".format(project=source_path)
                 )
 
+            def maybe_spawn_build_wheel(err):
+                # type: (Job.Error) -> SpawnedJob[BuildResult]
+                if pep_517.is_hook_unavailable_error(err):
+                    return spawn_build_wheel()
+                raise err
+
             # N.B.: We're forced to do this ourselves because Pip refuses to honor its
             # otherwise apparently supported `pip wheel -e ...` CLI interface. Pip ignores -e and
             # silently builds a full wheel :/.
             # See: https://github.com/pypa/pip/issues/12414
-            return pep_517.spawn_build_editable(
-                project_directory=source_path,
-                wheel_dir=build_result.build_dir,
-                target=build_request.target,
-                resolver=self._resolver,
-                pip_version=self._pip_version,
-            ).map(lambda _: build_result)
+            return (
+                pep_517.spawn_build_editable(
+                    project_directory=source_path,
+                    wheel_dir=build_result.build_dir,
+                    target=build_request.target,
+                    resolver=self._resolver,
+                    pip_version=self._pip_version,
+                )
+                .map(lambda _: build_result)
+                .or_else(maybe_spawn_build_wheel)
+            )
 
-        build_job = get_pip(
-            interpreter=build_request.target.get_interpreter(),
-            version=self._pip_version,
-            resolver=self._resolver,
-            extra_requirements=(
-                self._package_index_configuration.extra_pip_requirements
-                if self._package_index_configuration is not None
-                else ()
-            ),
-        ).spawn_build_wheels(
-            requirements=[source_path],
-            wheel_dir=build_result.build_dir,
-            package_index_configuration=self._package_index_configuration,
-            interpreter=build_request.target.get_interpreter(),
-            build_configuration=self._build_configuration,
-            verify=self._verify_wheels,
-        )
-        return SpawnedJob.wait(job=build_job, result=build_result)
+        return spawn_build_wheel()
 
     def build_wheels(
         self,
