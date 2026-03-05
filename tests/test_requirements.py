@@ -13,6 +13,7 @@ from pex.common import environment_as, safe_open, touch
 from pex.compatibility import urlparse
 from pex.dist_metadata import Requirement
 from pex.fetcher import URLFetcher
+from pex.pep_503 import ProjectName
 from pex.requirements import (
     Constraint,
     FindLinks,
@@ -209,6 +210,7 @@ def local_req(
     extras=None,  # type: Optional[Iterable[str]]
     marker=None,  # type: Optional[str]
     editable=False,  # type: bool
+    project_name=None,  # type: Optional[str]
 ):
     # type: (...) -> LocalProjectRequirement
     return LocalProjectRequirement(
@@ -217,6 +219,7 @@ def local_req(
         extras=extras,
         marker=MarkerWithEq.wrap(marker),
         editable=editable,
+        project_name=ProjectName(project_name) if project_name else None,
     )
 
 
@@ -406,7 +409,7 @@ def test_parse_requirements_stress(tmpdir):
         req(project_name="SomeProject", specifier="==5.4", marker="python_version < '2.7'"),
         req(project_name="SomeProject", marker="sys_platform == 'win32'"),
         url_req(project_name="SomeProject", url="https://example.com/somewhere/over/here"),
-        local_req(path=tmpdir.join("somewhere", "over", "here")),
+        local_req(path=tmpdir.join("somewhere", "over", "here"), project_name="SomeProject"),
         req(project_name="FooProject", specifier=">=1.2"),
         vcs_req(
             vcs=VCS.Git,

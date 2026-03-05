@@ -161,6 +161,7 @@ def test_storage_version_downgrade_v0(tmpdir):
                 hexdigest="baz",
                 filename="foo",
                 subdirectory=None,
+                editable=False,
                 version=DownloadedArtifact._METADATA_VERSION,
             )
             == json.load(fp)

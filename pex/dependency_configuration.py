@@ -8,11 +8,11 @@ import re
 from argparse import Namespace, _ActionsContainer
 from collections import defaultdict
 
-from pex.dist_metadata import Distribution, Requirement, RequirementParseError
+from pex.dist_metadata import Distribution, Requirement
 from pex.orderedset import OrderedSet
 from pex.pep_503 import ProjectName
 from pex.pex_info import PexInfo
-from pex.requirements import LocalProjectRequirement, parse_requirement_string
+from pex.requirements import LocalProjectRequirement, ParseError, parse_requirement_string
 from pex.targets import Target
 from pex.typing import TYPE_CHECKING
 
@@ -57,7 +57,7 @@ class Override(object):
                 )
         try:
             parsed_requirement = parse_requirement_string(raw_requirement)
-        except RequirementParseError as e:
+        except ParseError as e:
             raise cls.InvalidError(
                 "Invalid override requirement {raw_requirement!r}: {err}".format(
                     raw_requirement=raw_requirement, err=e
