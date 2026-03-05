@@ -316,6 +316,10 @@ def spawn_build_editable(
         if e.exitcode != _HOOK_UNAVAILABLE_EXIT_CODE:
             raise e
 
+    # N.B.: Although it's not clear the spec mandates this, ensure the dist dir exists before
+    # handing it to the back end. See: https://github.com/pex-tool/pex/issues/2913 for prior
+    # motivation from the `build_sdist` hook case.
+    safe_mkdir(wheel_dir)
     return try_(
         _invoke_build_hook(
             project_directory,
