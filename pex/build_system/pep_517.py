@@ -289,3 +289,41 @@ def spawn_prepare_metadata(
         )
     )
     return spawned_job.map(lambda _: DistMetadata.load(build_dir, MetadataType.DIST_INFO))
+
+
+def spawn_build_editable(
+    project_directory,  # type: str
+    wheel_dir,  # type: str
+    target,  # type: Target
+    resolver,  # type: Resolver
+    pip_version=None,  # type: Optional[PipVersionValue]
+):
+    # type: (...) -> SpawnedJob[None]
+
+    extra_requirements = []
+    spawned_job = try_(
+        _invoke_build_hook(
+            project_directory,
+            target,
+            resolver,
+            hook_method="get_requires_for_build_editable",
+            pip_version=pip_version,
+        )
+    )
+    try:
+        extra_requirements.extend(spawned_job.await_result())
+    except Job.Error as e:
+        if e.exitcode != _HOOK_UNAVAILABLE_EXIT_CODE:
+            raise e
+
+    return try_(
+        _invoke_build_hook(
+            project_directory,
+            target,
+            resolver,
+            hook_method="build_editable",
+            hook_args=[wheel_dir],
+            hook_extra_requirements=extra_requirements,
+            pip_version=pip_version,
+        )
+    )

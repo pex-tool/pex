@@ -597,6 +597,7 @@ def _parse_requirement_line(
                 extras=extras,
                 marker=marker,
                 editable=editable,
+                project_name=ProjectName(project_name) if project_name else None,
             )
         try:
             requirement = parse_requirement_from_dist(

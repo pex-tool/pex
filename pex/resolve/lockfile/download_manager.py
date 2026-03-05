@@ -12,16 +12,19 @@ from pex.atomic_directory import atomic_directory
 from pex.cache.dirs import DownloadDir
 from pex.common import safe_mkdtemp, safe_rmtree
 from pex.fs.lock import FileLockStyle
+from pex.hashing import Sha256
 from pex.pep_503 import ProjectName
 from pex.resolve.locked_resolve import (
     Artifact,
     FileArtifact,
+    LocalProjectArtifact,
+    UnFingerprintedArtifact,
     UnFingerprintedLocalProjectArtifact,
-    UnFingerprintedVCSArtifact,
 )
 from pex.result import Error, ResultError, try_
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, Generic
+from pex.util import CacheHelper
 from pex.variables import ENV, Variables
 
 if TYPE_CHECKING:
@@ -31,14 +34,14 @@ if TYPE_CHECKING:
 
     from pex.hashing import Hasher, HintedDigest
 
-    _A = TypeVar("_A", bound=Artifact)
+    _A = TypeVar("_A", bound=UnFingerprintedArtifact)
 else:
     from pex.third_party import attr
 
 
 @attr.s(frozen=True)
 class DownloadedArtifact(object):
-    _METADATA_VERSION = 2
+    _METADATA_VERSION = 3
 
     class LoadError(Exception):
         pass
@@ -56,6 +59,7 @@ class DownloadedArtifact(object):
         legacy_fingerprint,  # type: hashing.Sha1Fingerprint
         fingerprint,  # type: hashing.Fingerprint
         subdirectory=None,  # type: Optional[str]
+        editable=False,  # type: bool
     ):
         # type: (...) -> None
 
@@ -71,6 +75,7 @@ class DownloadedArtifact(object):
                     hexdigest=fingerprint,
                     filename=filename,
                     subdirectory=subdirectory,
+                    editable=editable,
                     version=cls._METADATA_VERSION,
                 ),
                 fp,
@@ -105,6 +110,7 @@ class DownloadedArtifact(object):
                         algorithm=str(metadata["algorithm"]), hexdigest=str(metadata["hexdigest"])
                     ),
                     subdirectory=metadata["subdirectory"],
+                    editable=metadata["editable"],
                 )
         except (OSError, IOError) as e:
             raise cls.LoadError(
@@ -116,6 +122,7 @@ class DownloadedArtifact(object):
     path = attr.ib()  # type: str
     fingerprint = attr.ib()  # type: hashing.Fingerprint
     subdirectory = attr.ib(default=None)  # type: Optional[str]
+    editable = attr.ib(default=False)  # type: bool
 
 
 class DownloadManager(Generic["_A"]):
@@ -136,9 +143,16 @@ class DownloadManager(Generic["_A"]):
     ):
         # type: (...) -> DownloadedArtifact
 
-        if hasattr(artifact, "fingerprint"):
+        if isinstance(artifact, UnFingerprintedLocalProjectArtifact) and artifact.editable:
+            digest = Sha256()  # type: ignore[unreachable]
+            CacheHelper.dir_hash(artifact.directory, digest=digest)
+            return DownloadedArtifact(
+                artifact.directory, fingerprint=digest.hexdigest(), editable=True
+            )
+        elif hasattr(artifact, "fingerprint"):
+            fingerprint = getattr(artifact, "fingerprint")
             download_dir = DownloadDir.create(
-                file_hash=artifact.fingerprint.hash, pex_root=self._pex_root
+                file_hash=fingerprint.hash, pex_root=self._pex_root
             )  # type: str
             with atomic_directory(download_dir, lock_style=self._file_lock_style) as atomic_dir:
                 if atomic_dir.is_finalized():
@@ -173,12 +187,6 @@ class DownloadManager(Generic["_A"]):
     ):
         # type: (...) -> None
 
-        # The locking process will have pre-calculated some artifact fingerprints ahead of
-        # time; these will be marked as verified and can be trusted.
-        perform_hash_check = not artifact.verified and not isinstance(
-            artifact, (UnFingerprintedLocalProjectArtifact, UnFingerprintedVCSArtifact)
-        )
-
         legacy_internal_fingerprint = hashing.Sha1()  # Legacy internal
         internal_fingerprint = hashing.Sha256()  # Internal
         digests = [
@@ -187,7 +195,9 @@ class DownloadManager(Generic["_A"]):
         ]  # type: List[HintedDigest]
 
         check = None  # type: Optional[Hasher]
-        if perform_hash_check:
+        # The locking process will have pre-calculated some artifact fingerprints ahead of
+        # time; these will be marked as verified and can be trusted.
+        if not artifact.verified and isinstance(artifact, Artifact):
             # For the rest (E.G.: PyPI URLs with embedded fingerprints), we distrust and
             # establish our own fingerprint. This will mostly be wasted effort since we
             # share the same hash algorithm as PyPI currently, but it will serve to upgrade
@@ -211,6 +221,9 @@ class DownloadManager(Generic["_A"]):
             )
 
         if check:
+            assert isinstance(
+                artifact, Artifact
+            ), "We assured artifacts that need a check had a fingerprint above."
             actual_hash = check.hexdigest()
             if artifact.fingerprint.hash != actual_hash:
                 raise ResultError(
@@ -233,6 +246,11 @@ class DownloadManager(Generic["_A"]):
             # N.B.: Pip already accounts for subdirectory when it creates source zips from VCS
             # requirements; so we elide unless the archive was a directly downloaded file artifact.
             subdirectory=artifact.subdirectory if isinstance(artifact, FileArtifact) else None,
+            editable=(
+                artifact.editable
+                if isinstance(artifact, (LocalProjectArtifact, UnFingerprintedLocalProjectArtifact))
+                else False
+            ),
         )
 
     def save(

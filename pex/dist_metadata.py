@@ -901,10 +901,13 @@ class Requirement(Constraint):
         cls,
         project_name,  # type: ProjectName
         path,  # type: Text
+        editable=False,  # type: bool
     ):
         # type: (...) -> Requirement
         return cls.parse(
-            "{project_name} @ file://{path}".format(project_name=project_name, path=path)
+            "{editable}{project_name} @ file://{path}".format(
+                editable="-e " if editable else "", project_name=project_name, path=path
+            )
         )
 
     @classmethod
@@ -931,7 +934,11 @@ class Requirement(Constraint):
         # type: () -> None
         super(Requirement, self).__attrs_post_init__()
 
-        parts = [self.name]
+        parts = []
+        if self.editable:
+            parts.append("-e ")
+
+        parts.append(self.name)
         if self.extras:
             parts.append("[{extras}]".format(extras=",".join(sorted(self.extras))))
 

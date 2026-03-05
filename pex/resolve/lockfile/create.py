@@ -274,7 +274,8 @@ class LockError(Exception):
 
 def _prepare_project_directory(build_request):
     # type: (BuildRequest) -> Tuple[Target, str]
-    return build_request.target, build_request.prepare()
+    project_path, _ = build_request.prepare()
+    return build_request.target, project_path
 
 
 @attr.s(frozen=True)
