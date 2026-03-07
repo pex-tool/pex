@@ -193,6 +193,7 @@ def test_create_local(
         pex_project_dir,
         "-o",
         lock,
+        use_pex_whl_venv=False
     ).assert_success()
     result = run_pex_command(args=["--lock", lock, "-c", "pex", "--", "-V"], quiet=True)
     result.assert_success()
