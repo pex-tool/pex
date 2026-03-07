@@ -6,6 +6,7 @@ from __future__ import absolute_import
 from argparse import Namespace, _ActionsContainer
 
 from pex.orderedset import OrderedSet
+from pex.requirements import LocalProjectRequirement, ParseError, parse_requirement_string
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.typing import TYPE_CHECKING
 
@@ -26,6 +27,19 @@ def register(
     """
     if include_positional_requirements:
         parser.add_argument("requirements", nargs="*", help="Requirements to add to the pex")
+    parser.add_argument(
+        "-e",
+        "--editable",
+        dest="editable_requirements",
+        metavar="REQUIREMENT",
+        default=[],
+        type=str,
+        action="append",
+        help=(
+            "Add the given requirement as editable. The requirement should be a path to a local "
+            "project or else a direct reference to a local directory URL."
+        ),
+    )
     parser.add_argument(
         "-r",
         "--requirement",
@@ -56,6 +70,10 @@ def register(
     )
 
 
+class InvalidConfigurationError(Exception):
+    """Indicates an invalid requirements configuration."""
+
+
 def configure(
     options,  # type: Namespace
     additional_requirements=(),  # type: Iterable[str]
@@ -63,10 +81,35 @@ def configure(
     # type: (...) -> RequirementConfiguration
     """Creates a requirement configuration from options registered by `register`."""
 
+    requirements = OrderedSet(getattr(options, "requirements", ()))  # type: OrderedSet[str]
+    for editable_requirement in options.editable_requirements:
+        try:
+            parsed_requirement = parse_requirement_string(editable_requirement)
+        except ParseError:
+            raise InvalidConfigurationError(
+                "Only local project directories can be resolved as editable; "
+                "given {editable_requirement} which does not point to a local Python project "
+                "directory.".format(editable_requirement=editable_requirement)
+            )
+        if not isinstance(parsed_requirement, LocalProjectRequirement):
+            raise InvalidConfigurationError(
+                "Only local project directories can be resolved as editable; "
+                "given: {editable_requirement}".format(editable_requirement=editable_requirement)
+            )
+        if parsed_requirement.editable:
+            raise InvalidConfigurationError(
+                "Given nested editable requirement. "
+                "Remove the nested editable flag: {editable_requirement}".format(
+                    editable_requirement=editable_requirement
+                )
+            )
+        requirements.add(
+            "-e {editable_requirement}".format(editable_requirement=editable_requirement)
+        )
+    requirements.update(additional_requirements)
+
     return RequirementConfiguration(
-        requirements=OrderedSet(
-            getattr(options, "requirements", []) + list(additional_requirements)
-        ),
+        requirements=tuple(requirements),
         requirement_files=options.requirement_files,
         constraint_files=options.constraint_files,
     )
