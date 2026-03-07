@@ -191,7 +191,7 @@ def _create_sdist(
     return local_project, sdist
 
 
-def _create_sdists(
+def _create_dists(
     projects,  # type: Iterable[LocalProjectRequirement]
     target,  # type: LocalInterpreter
     pip_configuration,  # type: PipConfiguration
@@ -202,31 +202,45 @@ def _create_sdists(
     # TODO(John Sirois): Parallelize.
     for local_project in projects:
         dist_dir = CacheDir.RUN.path(
-            "local-projects", hashlib.sha1(local_project.path.encode("utf-8")).hexdigest()
+            "local-projects",
+            hashlib.sha1(
+                json.dumps(
+                    {"path": local_project.path, "editable": local_project.editable}, sort_keys=True
+                ).encode("utf-8")
+            ).hexdigest(),
         )
 
         if refresh:
             safe_rmtree(dist_dir)
         with atomic_directory(dist_dir) as atomic_dir:
             if not atomic_dir.is_finalized():
-                try_(
-                    pep_517.build_sdist(
+                if local_project.editable:
+                    pep_517.spawn_build_editable(
                         project_directory=local_project.path,
-                        dist_dir=dist_dir,
+                        wheel_dir=dist_dir,
                         target=target,
                         resolver=ConfiguredResolver(pip_configuration),
                         pip_version=pip_configuration.version,
+                    ).await_result()
+                else:
+                    try_(
+                        pep_517.build_sdist(
+                            project_directory=local_project.path,
+                            dist_dir=dist_dir,
+                            target=target,
+                            resolver=ConfiguredResolver(pip_configuration),
+                            pip_version=pip_configuration.version,
+                        )
                     )
-                )
 
-        sdists = glob.glob(os.path.join(dist_dir, "*.tar.gz"))
+        dists = glob.glob(os.path.join(dist_dir, "*.whl" if local_project.editable else "*.tar.gz"))
         production_assert(
-            len(sdists) == 1,
-            "Expected build of {path} to produce 1 sdist, found: {sdists}",
+            len(dists) == 1,
+            "Expected build of {path} to produce 1 dist, found: {dists}",
             path=local_project.path,
-            sdists=", ".join(sdists),
+            sdists=", ".join(dists),
         )
-        yield local_project, sdists[0]
+        yield local_project, dists[0]
 
 
 @attr.s(frozen=True)
@@ -277,18 +291,19 @@ class RunConfig(object):
         elif self.requirement:
             requirement = self.requirement.requirement
 
-        local_project_to_sdist = dict(
-            _create_sdists(
+        local_project_to_dist = dict(
+            _create_dists(
                 projects=local_projects,
                 target=target,
                 pip_configuration=pip_configuration,
                 refresh=refresh,
             )
         )
-
-        for local_project, sdist in local_project_to_sdist.items():
-            project_name = DistMetadata.load(sdist).project_name
-            local_project_req = Requirement.local(project_name=project_name, path=sdist)
+        for local_project, dist in local_project_to_dist.items():
+            project_name = DistMetadata.load(dist).project_name
+            local_project_req = Requirement.local(
+                project_name=project_name, path=dist, editable=local_project.editable
+            )
             if self.entry_point == local_project:
                 entry_point = project_name.raw
                 requirement = local_project_req

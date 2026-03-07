@@ -16,6 +16,7 @@ from collections import OrderedDict, defaultdict
 
 from pex import sdist, targets
 from pex.atomic_directory import AtomicDirectory, atomic_directory
+from pex.build_system import pep_517
 from pex.cache.dirs import BuiltWheelDir, CacheDir
 from pex.common import (
     open_zip,
@@ -39,7 +40,7 @@ from pex.dist_metadata import (
 from pex.exceptions import production_assert
 from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.installed_wheel import InstalledWheel
-from pex.jobs import Raise, SpawnedJob, execute_parallel, iter_map_parallel
+from pex.jobs import Job, Raise, SpawnedJob, execute_parallel, iter_map_parallel
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.pep_425 import CompatibilityTags
@@ -309,7 +310,9 @@ class _PipSession(object):
             if isinstance(requirement, LocalProjectRequirement):
                 for request in self.requests:
                     yield BuildRequest.for_directory(
-                        target=request.target, source_path=requirement.path
+                        target=request.target,
+                        source_path=requirement.path,
+                        editable=requirement.editable,
                     )
 
     def generate_reports(self, max_parallel_jobs=None):
@@ -646,6 +649,7 @@ class BuildRequest(object):
             source_path=source_path,
             fingerprint=fingerprint,
             subdirectory=subdirectory,
+            editable=False,
         )
 
     @classmethod
@@ -654,6 +658,7 @@ class BuildRequest(object):
         target,  # type: Union[DownloadTarget, Target]
         source_path,  # type: str
         subdirectory=None,  # type: Optional[str]
+        editable=False,  # type: bool
     ):
         # type: (...) -> BuildRequest
         download_target = _as_download_target(target)
@@ -662,12 +667,14 @@ class BuildRequest(object):
             source_path=source_path,
             fingerprint=None,
             subdirectory=subdirectory,
+            editable=editable,
         )
 
     download_target = attr.ib(converter=_as_download_target)  # type: DownloadTarget
     source_path = attr.ib()  # type: str
     fingerprint = attr.ib()  # type: Optional[str]
     subdirectory = attr.ib()  # type: Optional[str]
+    editable = attr.ib()  # type: bool
 
     @property
     def target(self):
@@ -675,12 +682,12 @@ class BuildRequest(object):
         return self.download_target.target
 
     def prepare(self):
-        # type: () -> str
+        # type: () -> Tuple[str, bool]
 
         if os.path.isdir(self.source_path):
             if self.subdirectory:
-                return os.path.join(self.source_path, self.subdirectory)
-            return self.source_path
+                return os.path.join(self.source_path, self.subdirectory), self.editable
+            return self.source_path, self.editable
 
         extract_dir = os.path.join(safe_mkdtemp(), "project")
         if is_zip_sdist(self.source_path):
@@ -698,10 +705,10 @@ class BuildRequest(object):
             project_directory = os.path.join(extract_dir, listing[0])
             if self.subdirectory:
                 project_directory = os.path.join(project_directory, self.subdirectory)
-            return project_directory
+            return project_directory, False
 
         if is_tar_sdist(self.source_path):
-            return sdist.extract_tarball(self.source_path, dest_dir=extract_dir)
+            return sdist.extract_tarball(self.source_path, dest_dir=extract_dir), False
 
         raise BuildError(
             "Unexpected archive type for sdist {project}".format(project=self.source_path)
@@ -826,7 +833,9 @@ class BuildResult(object):
                         target=self.request.target.render_description(),
                     )
                 )
-        return InstallRequest.create(self.request.target, wheel_path, was_built_locally=True)
+        return InstallRequest.create(
+            self.request.target, wheel_path, was_built_locally=True, editable=self.request.editable
+        )
 
 
 @attr.s(frozen=True)
@@ -837,6 +846,7 @@ class InstallRequest(object):
         target,  # type: Union[DownloadTarget, Target]
         wheel_path,  # type: str
         was_built_locally=False,  # type: bool
+        editable=False,  # type: bool
     ):
         # type: (...) -> InstallRequest
         fingerprint = _fingerprint_file(wheel_path)
@@ -845,12 +855,14 @@ class InstallRequest(object):
             wheel_path=wheel_path,
             fingerprint=fingerprint,
             was_built_locally=was_built_locally,
+            editable=editable,
         )
 
     download_target = attr.ib(converter=_as_download_target)  # type: DownloadTarget
     wheel_path = attr.ib()  # type: str
     fingerprint = attr.ib()  # type: str
     was_built_locally = attr.ib(default=False)  # type: bool
+    editable = attr.ib(default=False)  # type: bool
 
     @property
     def target(self):
@@ -1046,26 +1058,60 @@ class WheelBuilder(object):
 
     def _spawn_wheel_build(self, build_request):
         # type: (BuildRequest) -> SpawnedJob[BuildResult]
-        source_path = build_request.prepare()
+        source_path, editable = build_request.prepare()
         build_result = build_request.result(source_path)
-        build_job = get_pip(
-            interpreter=build_request.target.get_interpreter(),
-            version=self._pip_version,
-            resolver=self._resolver,
-            extra_requirements=(
-                self._package_index_configuration.extra_pip_requirements
-                if self._package_index_configuration is not None
-                else ()
-            ),
-        ).spawn_build_wheels(
-            requirements=[source_path],
-            wheel_dir=build_result.build_dir,
-            package_index_configuration=self._package_index_configuration,
-            interpreter=build_request.target.get_interpreter(),
-            build_configuration=self._build_configuration,
-            verify=self._verify_wheels,
-        )
-        return SpawnedJob.wait(job=build_job, result=build_result)
+
+        def spawn_build_wheel():
+            # type: () -> SpawnedJob[BuildResult]
+            build_job = get_pip(
+                interpreter=build_request.target.get_interpreter(),
+                version=self._pip_version,
+                resolver=self._resolver,
+                extra_requirements=(
+                    self._package_index_configuration.extra_pip_requirements
+                    if self._package_index_configuration is not None
+                    else ()
+                ),
+            ).spawn_build_wheels(
+                requirements=[source_path],
+                wheel_dir=build_result.build_dir,
+                package_index_configuration=self._package_index_configuration,
+                interpreter=build_request.target.get_interpreter(),
+                build_configuration=self._build_configuration,
+                verify=self._verify_wheels,
+            )
+            return SpawnedJob.wait(job=build_job, result=build_result)
+
+        if editable:
+            if not self._resolver:
+                raise BuildError(
+                    "A resolver is required to build an local editable project.\n"
+                    "Cannot build: {project}".format(project=source_path)
+                )
+
+            def maybe_spawn_build_wheel(err):
+                # type: (Job.Error) -> SpawnedJob[BuildResult]
+                if pep_517.is_hook_unavailable_error(err):
+                    return spawn_build_wheel()
+                raise err
+
+            # N.B.: We're forced to do this ourselves because Pip refuses to honor its
+            # otherwise apparently supported `pip wheel -e ...` CLI interface. Pip ignores -e and
+            # silently builds a full wheel :/.
+            # See: https://github.com/pypa/pip/issues/12414
+            return (
+                pep_517.spawn_build_editable(
+                    project_directory=source_path,
+                    wheel_dir=build_result.build_dir,
+                    target=build_request.target,
+                    resolver=self._resolver,
+                    pip_version=self._pip_version,
+                )
+                .map(lambda _: build_result)
+                .or_else(maybe_spawn_build_wheel)
+            )
+
+        return spawn_build_wheel()
 
     def build_wheels(
         self,
@@ -1685,6 +1731,7 @@ class LocalDistribution(object):
     fingerprint = attr.ib()  # type: str
     download_target = attr.ib(factory=DownloadTarget.current)  # type: DownloadTarget
     subdirectory = attr.ib(default=None)  # type: Optional[str]
+    editable = attr.ib(default=False)  # type: bool
 
     @property
     def target(self):
@@ -1917,6 +1964,7 @@ def download_requests(
                     path=request.source_path,
                     fingerprint=fingerprint,
                     subdirectory=request.subdirectory,
+                    editable=request.editable,
                 )
             )
 

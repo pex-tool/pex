@@ -8,10 +8,11 @@ import re
 from argparse import Namespace, _ActionsContainer
 from collections import defaultdict
 
-from pex.dist_metadata import Distribution, Requirement, RequirementParseError
+from pex.dist_metadata import Distribution, Requirement
 from pex.orderedset import OrderedSet
 from pex.pep_503 import ProjectName
 from pex.pex_info import PexInfo
+from pex.requirements import LocalProjectRequirement, ParseError, parse_requirement_string
 from pex.targets import Target
 from pex.typing import TYPE_CHECKING
 
@@ -55,13 +56,29 @@ class Override(object):
                     "{err}".format(raw_project_name=raw_project_name, override=override, err=e)
                 )
         try:
-            requirement = Requirement.parse(raw_requirement)
-        except RequirementParseError as e:
+            parsed_requirement = parse_requirement_string(raw_requirement)
+        except ParseError as e:
             raise cls.InvalidError(
                 "Invalid override requirement {raw_requirement!r}: {err}".format(
                     raw_requirement=raw_requirement, err=e
                 )
             )
+        if isinstance(parsed_requirement, LocalProjectRequirement):
+            if not parsed_requirement.project_name:
+                raise cls.InvalidError(
+                    "Cannot override using a local project requirement unless you specify the "
+                    "project name with a direct reference; e.g.:\n"
+                    "{editable}<project name>{extras} @ {path}".format(
+                        editable="-e " if parsed_requirement.editable else "",
+                        extras="[{extras}]".format(extras=",".join(parsed_requirement.extras))
+                        if parsed_requirement.extras
+                        else "",
+                        path=parsed_requirement.path,
+                    )
+                )
+            requirement = parsed_requirement.as_requirement()
+        else:
+            requirement = parsed_requirement.requirement
 
         return cls(project_name=project_name or requirement.project_name, requirement=requirement)
 

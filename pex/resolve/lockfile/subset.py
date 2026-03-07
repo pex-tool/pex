@@ -94,6 +94,8 @@ def subset(
                     requirements_to_resolve.add(
                         attr.evolve(local_project_requirement, editable=parsed_requirement.editable)
                     )
+                elif parsed_requirement.project_name:
+                    requirements_to_resolve.add(parsed_requirement.as_requirement())
                 else:
                     missing_local_projects.append(parsed_requirement.line.processed_text)
             elif isinstance(parsed_requirement, (URLRequirement, VCSRequirement)):
@@ -119,7 +121,8 @@ def subset(
                 "Found {count} local project {requirements} not present in the lock at {lock}:\n"
                 "{missing}\n"
                 "\n"
-                "Perhaps{for_example} you meant to use `--project {project}`?".format(
+                "Perhaps{for_example} you meant to use a direct reference like "
+                "`<project name> @ {project}` or `--project {project}`?".format(
                     count=len(missing_local_projects),
                     requirements=pluralize(missing_local_projects, "requirement"),
                     lock=lock.source,

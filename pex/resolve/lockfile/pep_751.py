@@ -726,6 +726,14 @@ class Package(object):
         # type: () -> bool
         return self.artifact_is_wheel or len(self.additional_wheels) > 0
 
+    @property
+    def editable(self):
+        # type: () -> bool
+        return (
+            isinstance(self.artifact, UnFingerprintedLocalProjectArtifact)
+            and self.artifact.editable
+        )
+
     def iter_wheels(self):
         # type: () -> Iterator[FileArtifact]
         if self.artifact_is_wheel:
@@ -757,7 +765,15 @@ class Package(object):
 
     def as_requirement(self):
         # type: () -> Requirement
-        return Requirement.parse(self.as_unparsed_requirement())
+        return Requirement.parse(
+            self.as_unparsed_requirement(),
+            editable=(
+                isinstance(
+                    self.artifact, (LocalProjectArtifact, UnFingerprintedLocalProjectArtifact)
+                )
+                and self.artifact.editable
+            ),
+        )
 
     def as_parsed_requirement(self):
         # type: () -> ParsedRequirement
@@ -1410,7 +1426,9 @@ class Pylock(object):
                         os.path.join(os.path.dirname(pylock_toml_path), directory)
                     )
                 local_project_requirement_mapping[directory] = Requirement.local(
-                    project_name=package.project_name, path=directory
+                    project_name=package.project_name,
+                    path=directory,
+                    editable=package.artifact.editable,
                 )
             packages.append(package)
 

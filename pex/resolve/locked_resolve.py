@@ -378,7 +378,9 @@ class UnFingerprintedVCSArtifact(UnFingerprintedArtifact):
 
 @attr.s(frozen=True)
 class RankedArtifact(object):
-    artifact = attr.ib()  # type: Union[FileArtifact, LocalProjectArtifact, VCSArtifact]
+    artifact = (
+        attr.ib()
+    )  # type: Union[FileArtifact, LocalProjectArtifact, UnFingerprintedLocalProjectArtifact, VCSArtifact]
     rank = attr.ib()  # type: TagRank
 
 
@@ -455,12 +457,16 @@ class _ResolveRequest(object):
         target_platform,  # type: str
         requirement,  # type: Requirement
         dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
+        overridden=False,  # type: bool
     ):
         # type: (...) -> _ResolveRequest
         return cls(
             target_platform=target_platform,
             required_by=(requirement,),
             requirement=requirement,
+            extras=requirement.extras,
+            editable=requirement.editable,
+            overridden=overridden,
             dependency_configuration=dependency_configuration,
         )
 
@@ -468,6 +474,8 @@ class _ResolveRequest(object):
     required_by = attr.ib()  # type: Tuple[Requirement, ...]
     requirement = attr.ib()  # type: Requirement
     extras = attr.ib(default=())  # type: Iterable[str]
+    editable = attr.ib(default=False)  # type: bool
+    overridden = attr.ib(default=False)  # type: bool
     dependency_configuration = attr.ib(
         default=DependencyConfiguration()
     )  # type: DependencyConfiguration
@@ -523,6 +531,8 @@ class _ResolveRequest(object):
                 required_by=self.required_by + (requires_dist,),
                 requirement=requires_dist,
                 extras=self.requirement.extras,
+                editable=self.requirement.editable,
+                overridden=override is not None,
                 dependency_configuration=self.dependency_configuration,
             )
 
@@ -538,7 +548,7 @@ class _ResolvedArtifact(object):
 
     @property
     def artifact(self):
-        # type: () -> Union[FileArtifact, LocalProjectArtifact, VCSArtifact]
+        # type: () -> Union[FileArtifact, LocalProjectArtifact, UnFingerprintedLocalProjectArtifact, VCSArtifact]
         return self.ranked_artifact.artifact
 
     @property
@@ -828,24 +838,44 @@ class LockedResolve(object):
         # 1. Gather all required projects and their requirers.
         required = OrderedDict()  # type: OrderedDict[ProjectName, List[_ResolveRequest]]
         to_be_resolved = deque()  # type: Deque[_ResolveRequest]
+        overridden = {}  # type: Dict[ProjectName, ArtifactURL]
 
         def request_resolve(requests):
             # type: (Iterable[_ResolveRequest]) -> None
-            to_be_resolved.extend(
-                request
-                for request in requests
-                if not request.excluded
-                and target.requirement_applies(request.requirement, extras=request.extras)
-            )
+            for request in requests:
+                if request.excluded:
+                    continue
+                if not target.requirement_applies(request.requirement, extras=request.extras):
+                    continue
+                to_be_resolved.append(request)
+                if request.overridden and request.editable and request.requirement.url:
+                    overridden[request.project_name] = ArtifactURL.parse(request.requirement.url)
 
         resolved = {}  # type: Dict[ProjectName, Set[str]]
 
-        request_resolve(
-            _ResolveRequest.root(
-                self.target_platform, requirement, dependency_configuration=dependency_configuration
+        root_requests = []  # type: List[_ResolveRequest]
+        for requirement in requirements:
+            override = dependency_configuration.overridden_by(requirement, target=target)
+            if override:
+                TRACER.log(
+                    "Root requirement {requirement} from {platform} lock "
+                    "overridden by {override}.".format(
+                        requirement=requirement,
+                        platform=self.target_platform,
+                        override=override,
+                    )
+                )
+                requirement = override
+            root_requests.append(
+                _ResolveRequest.root(
+                    self.target_platform,
+                    requirement,
+                    dependency_configuration=dependency_configuration,
+                    overridden=override is not None,
+                )
             )
-            for requirement in requirements
-        )
+
+        request_resolve(root_requests)
         while to_be_resolved:
             resolve_request = to_be_resolved.popleft()
             project_name = resolve_request.project_name
@@ -878,6 +908,23 @@ class LockedResolve(object):
             reasons = []  # type: List[str]
             compatible_artifacts = []  # type: List[_ResolvedArtifact]
             for locked_requirement in repository[project_name]:
+                local_editable_override = overridden.get(project_name)
+                if local_editable_override:
+                    compatible_artifacts.append(
+                        _ResolvedArtifact(
+                            ranked_artifact=RankedArtifact(
+                                artifact=UnFingerprintedLocalProjectArtifact(
+                                    url=local_editable_override,
+                                    verified=True,
+                                    directory=local_editable_override.path,
+                                    editable=True,
+                                ),
+                                rank=TagRank.highest_natural(),
+                            ),
+                            locked_requirement=locked_requirement,
+                        )
+                    )
+                    continue
 
                 def attributed_reason(reason):
                     # type: (str) -> str

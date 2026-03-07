@@ -485,6 +485,7 @@ def _resolve_from_subset_result(
                             source_path=downloaded_artifact.path,
                             fingerprint=downloaded_artifact.fingerprint,
                             subdirectory=downloaded_artifact.subdirectory,
+                            editable=downloaded_artifact.editable,
                         )
                     )
     with TRACER.timed(

@@ -172,6 +172,7 @@ class Projects(object):
                                 source_path=project_archive.path,
                                 fingerprint=fingerprint,
                                 subdirectory=project_archive.subdirectory,
+                                editable=False,
                             )
                         )
 

@@ -682,7 +682,9 @@ class BootstrapPip(object):
                 cmd.extend(["--constraint", constraint_file])
 
         if requirements:
-            cmd.extend(requirements)
+            # N.B.: `pip download` accepts -e|--editable in requirements files but not as arguments;
+            # so we strip editable here and deal with building editables at a higher layer.
+            cmd.extend(re.sub(r"^(-e|--editable)\s*", "", req, 1) for req in requirements)
 
         foreign_platform_observer = foreign_platform.patch(target)
         if (

@@ -901,10 +901,12 @@ class Requirement(Constraint):
         cls,
         project_name,  # type: ProjectName
         path,  # type: Text
+        editable=False,  # type: bool
     ):
         # type: (...) -> Requirement
         return cls.parse(
-            "{project_name} @ file://{path}".format(project_name=project_name, path=path)
+            "{project_name} @ file://{path}".format(project_name=project_name, path=path),
+            editable=editable,
         )
 
     @classmethod
