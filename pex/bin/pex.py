@@ -862,7 +862,7 @@ def configure_clp():
     )
 
     configure_clp_sources(parser)
-    requirement_options.register(parser)
+    requirement_options.register(parser, include_short_editable_switch=False)
     dependency_configuration.register(parser)
 
     parser.add_argument(

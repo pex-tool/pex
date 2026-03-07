@@ -11,12 +11,13 @@ from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Iterable
+    from typing import Iterable, List
 
 
 def register(
     parser,  # type: _ActionsContainer
     include_positional_requirements=True,  # type: bool
+    include_short_editable_switch=True,  # type: bool
 ):
     # type: (...) -> None
     """Register resolve requirement configuration options with the given parser.
@@ -24,12 +25,19 @@ def register(
     :param parser: The parser to register requirement configuration options with.
     :param include_positional_requirements: `True` to include a requirements option to gather
                                             positional args as extra requirements.
+    :param include_short_editable_switch: `True` to include a `-e` switch for the `--editable`
+                                          option.
     """
     if include_positional_requirements:
         parser.add_argument("requirements", nargs="*", help="Requirements to add to the pex")
+
+    editable_flags = []  # type: List[str]
+    if include_short_editable_switch:
+        editable_flags.append("-e")
+    editable_flags.append("--editable")
+
     parser.add_argument(
-        "-e",
-        "--editable",
+        *editable_flags,
         dest="editable_requirements",
         metavar="REQUIREMENT",
         default=[],
@@ -38,7 +46,7 @@ def register(
         help=(
             "Add the given requirement as editable. The requirement should be a path to a local "
             "project or else a direct reference to a local directory URL."
-        ),
+        )
     )
     parser.add_argument(
         "-r",
