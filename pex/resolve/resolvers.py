@@ -24,6 +24,8 @@ if TYPE_CHECKING:
     from typing import DefaultDict, Iterable, List, Optional, Tuple
 
     import attr  # vendor:skip
+
+    from pex.requirements import ParsedRequirement
 else:
     from pex.third_party import attr
 
@@ -244,7 +246,7 @@ class Resolver(object):
 
     def resolve_requirements(
         self,
-        requirements,  # type: Iterable[str]
+        requirements,  # type: Iterable[ParsedRequirement]
         targets=Targets(),  # type: Targets
         pip_version=None,  # type: Optional[PipVersionValue]
         transitive=None,  # type: Optional[bool]

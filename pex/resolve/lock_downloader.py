@@ -20,6 +20,7 @@ from pex.pip.local_project import digest_local_project
 from pex.pip.tool import PackageIndexConfiguration
 from pex.pip.vcs import digest_vcs_archive
 from pex.pip.version import PipVersionValue
+from pex.requirements import parse_requirement_string
 from pex.resolve.downloads import ArtifactDownloader
 from pex.resolve.locked_resolve import (
     DownloadableArtifact,
@@ -122,7 +123,7 @@ class VCSArtifactDownloadManager(DownloadManager[VCSArtifact]):
         requirement = artifact.as_unparsed_requirement(project_name)
         downloaded_vcs = resolver.download(
             targets=Targets.from_target(self._target),
-            requirements=[requirement],
+            requirements=[parse_requirement_string(requirement)],
             transitive=False,
             repos_configuration=self._repos_configuration,
             resolver_version=self._resolver_version,

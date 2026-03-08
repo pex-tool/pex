@@ -8,9 +8,9 @@ from textwrap import dedent
 
 import pytest
 
-from pex.dist_metadata import Requirement
 from pex.interpreter_constraints import InterpreterConstraints
 from pex.pep_723 import ScriptMetadata
+from pex.requirements import parse_requirement_string, parse_requirement_strings
 from pex.resolve import script_metadata
 from pex.resolve.resolvers import Unsatisfiable
 from pex.resolve.target_configuration import InterpreterConfiguration, TargetConfiguration
@@ -45,7 +45,7 @@ def test_single(script):
         tuple(
             [
                 ScriptMetadata(
-                    dependencies=tuple([Requirement.parse("cowsay==5.0")]),
+                    dependencies=tuple([parse_requirement_string("cowsay==5.0")]),
                     requires_python=SpecifierSet(">=3.8"),
                     source=script,
                 )
@@ -54,7 +54,9 @@ def test_single(script):
         == result.scripts
     )
     assert result.requirement_configuration.requirements is not None
-    assert ["cowsay==5.0"] == list(result.requirement_configuration.requirements)
+    assert [parse_requirement_string("cowsay==5.0")] == list(
+        result.requirement_configuration.requirements
+    )
     assert (
         InterpreterConstraints.parse(">=3.8")
         == result.target_configuration.interpreter_configuration.interpreter_constraints
@@ -96,18 +98,18 @@ def test_multiple(
     )
     assert (
         ScriptMetadata(
-            dependencies=tuple([Requirement.parse("cowsay==5.0")]),
+            dependencies=tuple([parse_requirement_string("cowsay==5.0")]),
             requires_python=SpecifierSet(">=3.8"),
             source=script,
         ),
         ScriptMetadata(
-            dependencies=tuple([Requirement.parse("ansicolors==1.1.8")]),
+            dependencies=tuple([parse_requirement_string("ansicolors==1.1.8")]),
             requires_python=SpecifierSet("<3.14"),
             source=script2,
         ),
     ) == result.scripts
     assert result.requirement_configuration.requirements is not None
-    assert ["cowsay==5.0", "ansicolors==1.1.8"] == list(
+    assert list(parse_requirement_strings(("cowsay==5.0", "ansicolors==1.1.8"))) == list(
         result.requirement_configuration.requirements
     )
     assert (

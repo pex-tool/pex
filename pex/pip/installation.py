@@ -26,6 +26,7 @@ from pex.pex import PEX
 from pex.pex_bootstrapper import ensure_venv
 from pex.pip.tool import BootstrapPip, PackageIndexConfiguration, Pip, PipVenv
 from pex.pip.version import PipVersion, PipVersionValue
+from pex.requirements import as_parsed_requirement
 from pex.resolve.resolver_configuration import PipConfiguration
 from pex.resolve.resolvers import Resolver
 from pex.result import Error, try_
@@ -40,6 +41,7 @@ if TYPE_CHECKING:
     from typing import Callable, Dict, Iterable, Iterator, Optional, Tuple, Union
 
     import attr  # vendor:skip
+
 else:
     from pex.third_party import attr
 
@@ -192,7 +194,7 @@ def _vendored_installation(
             yield location
 
         for resolved_distribution in extra_requirement_resolver.resolve_requirements(
-            requirements=tuple(map(str, extra_requirements)),
+            requirements=tuple(map(as_parsed_requirement, extra_requirements)),
             targets=Targets.from_target(LocalInterpreter.create(interpreter)),
             pip_version=PipVersion.VENDORED,
             extra_resolver_requirements=(),
@@ -344,7 +346,7 @@ def _resolved_installation(
     targets = Targets.from_target(LocalInterpreter.create(interpreter))
 
     requirements_by_project_name = OrderedDict(
-        (req.project_name, str(req)) for req in version.requirements
+        (req.project_name, as_parsed_requirement(req)) for req in version.requirements
     )
 
     # Allow user-specified extra requirements to override Pip requirements (setuptools and wheel).
@@ -363,14 +365,14 @@ def _resolved_installation(
                     pip_version=version.version, existing_req=existing_req, extra_req=extra_req
                 )
             )
-        requirements_by_project_name[extra_req.project_name] = str(extra_req)
+        requirements_by_project_name[extra_req.project_name] = as_parsed_requirement(extra_req)
 
     if not resolver:
         raise ValueError(
             "A resolver is required to install {requirements} for Pip {version}: {reqs}".format(
                 requirements=pluralize(requirements_by_project_name, "requirement"),
                 version=version,
-                reqs=" ".join(requirements_by_project_name.values()),
+                reqs=" ".join(map(str, requirements_by_project_name.values())),
             )
         )
 
@@ -397,7 +399,7 @@ def _resolved_installation(
     else:
         resolve_distribution_locations = _bootstrap_pip(
             version,
-            requirements_by_project_name.values(),
+            pip_requirements=map(str, requirements_by_project_name.values()),
             pip_configuration=resolver.pip_configuration,
             interpreter=interpreter,
         )

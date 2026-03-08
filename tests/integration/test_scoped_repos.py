@@ -19,6 +19,7 @@ from pex.enum import Enum
 from pex.http.server import Server
 from pex.os import LINUX, MAC, WINDOWS
 from pex.pip.version import PipVersion
+from pex.requirements import as_parsed_requirement
 from pex.typing import TYPE_CHECKING
 from testing import (
     IS_MAC,
@@ -546,12 +547,15 @@ def test_scoped_marker(
         # N.B.: We need to make sure we have the Pip bootstrap we need when in pure find-links mode.
         if PipVersion.DEFAULT is PipVersion.VENDORED:
             requirements = [
-                str(PipVersion.VENDORED.setuptools_requirement),
-                str(PipVersion.VENDORED.wheel_requirement),
+                as_parsed_requirement(PipVersion.VENDORED.setuptools_requirement),
+                as_parsed_requirement(PipVersion.VENDORED.wheel_requirement),
             ]
         else:
             requirements = list(
-                map(str, PipVersion.DEFAULT.requirements + PipVersion.DEFAULT.build_system_requires)
+                map(
+                    as_parsed_requirement,
+                    PipVersion.DEFAULT.requirements + PipVersion.DEFAULT.build_system_requires,
+                )
             )
         downloaded = resolver.download(requirements=requirements)
         for dist in downloaded.local_distributions:

@@ -23,6 +23,7 @@ from pex.pep_425 import CompatibilityTags
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
+from pex.requirements import parse_requirement_string
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.targets import LocalInterpreter, Targets
 from pex.typing import TYPE_CHECKING
@@ -286,7 +287,7 @@ def test_osx_platform_intel_issue_523():
     with yield_pex_builder(interpreter=bad_interpreter()) as pb, temporary_filename() as pex_file:
         for resolved_dist in resolver.resolve(
             targets=Targets(interpreters=(pb.interpreter,)),
-            requirements=["psutil==5.4.3"],
+            requirements=[parse_requirement_string("psutil==5.4.3")],
             resolver=ConfiguredResolver.default(),
         ).distributions:
             pb.add_dist_location(resolved_dist.distribution.location)
@@ -354,7 +355,7 @@ def test_activate_extras_issue_615():
     with yield_pex_builder() as pb:
         for resolved_dist in resolver.resolve(
             targets=Targets(interpreters=(pb.interpreter,)),
-            requirements=["pex[requests]==1.6.3"],
+            requirements=[parse_requirement_string("pex[requests]==1.6.3")],
             resolver=ConfiguredResolver.default(),
         ).distributions:
             for direct_req in resolved_dist.direct_requirements:
@@ -378,7 +379,7 @@ def test_activate_extras_issue_615():
 
 def assert_namespace_packages_warning(distribution, version, expected_warning):
     # type: (str, str, bool) -> None
-    requirement = "{}=={}".format(distribution, version)
+    requirement = parse_requirement_string("{}=={}".format(distribution, version))
     pb = PEXBuilder()
     for resolved_dist in resolver.resolve(
         requirements=[requirement],

@@ -13,6 +13,7 @@ from pex.pep_427 import InstallableType
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pip.version import PipVersion
+from pex.requirements import as_parsed_requirement, parse_requirement_string
 from pex.resolve.locked_resolve import FileArtifact
 from pex.resolve.lockfile import json_codec
 from pex.resolve.lockfile.model import Lockfile
@@ -42,9 +43,9 @@ def find_links(shared_integration_test_tmpdir):
             # distribution online to allow the current Pip version to bootstrap itself if needed.
             result = find_links_repo.resolver.resolve_requirements(
                 [
-                    "ansicolors==1.1.8",
-                    str(pip_version.setuptools_requirement),
-                    str(pip_version.wheel_requirement),
+                    parse_requirement_string("ansicolors==1.1.8"),
+                    as_parsed_requirement(pip_version.setuptools_requirement),
+                    as_parsed_requirement(pip_version.wheel_requirement),
                 ],
                 result_type=InstallableType.WHEEL_FILE,
             )

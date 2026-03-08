@@ -11,13 +11,19 @@ from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Iterable, List
+    from typing import Iterable
+
+    import attr  # vendor:skip
+
+    from pex.requirements import ParsedRequirement
+else:
+    from pex.third_party import attr
 
 
 def register(
     parser,  # type: _ActionsContainer
     include_positional_requirements=True,  # type: bool
-    include_short_editable_switch=True,  # type: bool
+    include_editable_requirements=True,  # type: bool
 ):
     # type: (...) -> None
     """Register resolve requirement configuration options with the given parser.
@@ -25,29 +31,24 @@ def register(
     :param parser: The parser to register requirement configuration options with.
     :param include_positional_requirements: `True` to include a requirements option to gather
                                             positional args as extra requirements.
-    :param include_short_editable_switch: `True` to include a `-e` switch for the `--editable`
-                                          option.
+    :param include_editable_requirements: `True` to support editable requirements.
     """
     if include_positional_requirements:
         parser.add_argument("requirements", nargs="*", help="Requirements to add to the pex")
-
-    editable_flags = []  # type: List[str]
-    if include_short_editable_switch:
-        editable_flags.append("-e")
-    editable_flags.append("--editable")
-
-    parser.add_argument(
-        *editable_flags,
-        dest="editable_requirements",
-        metavar="REQUIREMENT",
-        default=[],
-        type=str,
-        action="append",
-        help=(
-            "Add the given requirement as editable. The requirement should be a path to a local "
-            "project or else a direct reference to a local directory URL."
+    if include_editable_requirements:
+        parser.add_argument(
+            "-e",
+            "--editable",
+            dest="editable_requirements",
+            metavar="REQUIREMENT",
+            default=[],
+            type=str,
+            action="append",
+            help=(
+                "Add the given requirement as editable. The requirement should be a path to a local "
+                "project or else a direct reference to a local directory URL."
+            ),
         )
-    )
     parser.add_argument(
         "-r",
         "--requirement",
@@ -89,8 +90,22 @@ def configure(
     # type: (...) -> RequirementConfiguration
     """Creates a requirement configuration from options registered by `register`."""
 
-    requirements = OrderedSet(getattr(options, "requirements", ()))  # type: OrderedSet[str]
-    for editable_requirement in options.editable_requirements:
+    requirements = OrderedSet()  # type: OrderedSet[ParsedRequirement]
+
+    def add_requirements(reqs):
+        # type: (Iterable[str]) -> None
+        for req in reqs:
+            try:
+                requirements.add(parse_requirement_string(req))
+            except ParseError as e:
+                raise InvalidConfigurationError(
+                    "Given an invalid requirement string of {requirement}: {err}".format(
+                        requirement=req, err=e
+                    )
+                )
+
+    add_requirements(getattr(options, "requirements", ()))
+    for editable_requirement in getattr(options, "editable_requirements", ()):
         try:
             parsed_requirement = parse_requirement_string(editable_requirement)
         except ParseError:
@@ -111,13 +126,11 @@ def configure(
                     editable_requirement=editable_requirement
                 )
             )
-        requirements.add(
-            "-e {editable_requirement}".format(editable_requirement=editable_requirement)
-        )
-    requirements.update(additional_requirements)
+        requirements.add(attr.evolve(parsed_requirement, editable=True))
+    add_requirements(additional_requirements)
 
     return RequirementConfiguration(
-        requirements=tuple(requirements),
+        requirements=requirements,
         requirement_files=options.requirement_files,
         constraint_files=options.constraint_files,
     )

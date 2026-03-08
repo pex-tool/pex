@@ -12,6 +12,7 @@ from pex.cache.dirs import CacheDir
 from pex.common import safe_open
 from pex.layout import DEPS_DIR, Layout
 from pex.pip.version import PipVersion
+from pex.requirements import parse_requirement_string
 from pex.resolve.pex_repository_resolver import resolve_from_pex
 from pex.targets import Targets
 from pex.typing import TYPE_CHECKING
@@ -110,7 +111,7 @@ def test_import_from_pex(
             for resolved_distribution in resolve_from_pex(
                 targets=Targets.from_target(targets.current()),
                 pex=pex,
-                requirements=["ansicolors==1.1.8"],
+                requirements=[parse_requirement_string("ansicolors==1.1.8")],
             ).distributions
         ]
 

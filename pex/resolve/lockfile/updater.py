@@ -16,7 +16,7 @@ from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
-from pex.requirements import PyPIRequirement, URLRequirement, VCSRequirement
+from pex.requirements import PyPIRequirement, URLRequirement, VCSRequirement, as_parsed_requirement
 from pex.resolve.locked_resolve import (
     Artifact,
     FileArtifact,
@@ -355,7 +355,9 @@ class ResolveUpdater(object):
 
         return cls(
             requirement_configuration=RequirementConfiguration(
-                requirements=[str(req) for req in original_requirements_by_project_name.values()],
+                requirements=tuple(
+                    map(as_parsed_requirement, original_requirements_by_project_name.values())
+                ),
             ),
             original_requirements=tuple(original_requirements_by_project_name.values()),
             update_requirements_by_project_name={update.project_name: update for update in updates},
@@ -400,7 +402,7 @@ class ResolveUpdater(object):
             yield None
             return
 
-        requirements = OrderedSet(map(str, self.original_requirements))
+        requirements = OrderedSet(map(as_parsed_requirement, self.original_requirements))
         constraints = []
         update_constraints_by_project_name = OrderedDict(self.update_constraints_by_project_name)
         for locked_requirement in locked_resolve.locked_requirements:
@@ -421,7 +423,10 @@ class ResolveUpdater(object):
             constraints.append(str(constraint))
 
         # Any update constraints remaining are new requirements to resolve.
-        requirements.update(str(req) for req in update_constraints_by_project_name.values())
+        requirements.update(
+            as_parsed_requirement(constraint.as_requirement())
+            for constraint in update_constraints_by_project_name.values()
+        )
 
         if not constraints:
             yield attr.evolve(self.requirement_configuration, requirements=requirements)
@@ -446,7 +451,8 @@ class ResolveUpdater(object):
                     "\n"
                     "The following lock update constraints could not all be satisfied:\n"
                     "{constraints}\n".format(
-                        requirements="\n".join(requirements), constraints="\n".join(constraints)
+                        requirements="\n".join(map(str, requirements)),
+                        constraints="\n".join(constraints),
                     )
                 )
                 raise e

@@ -15,6 +15,7 @@ from pex.pep_427 import InstallableType
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
 from pex.platforms import Platform
+from pex.requirements import parse_requirement_string, parse_requirement_strings
 from pex.resolve import abbreviated_platforms
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.pex_repository_resolver import resolve_from_pex
@@ -29,11 +30,13 @@ from testing import IS_LINUX, PY27, PY310, ensure_python_interpreter
 if TYPE_CHECKING:
     from typing import DefaultDict, Iterable, Optional, Set
 
+    from pex.requirements import ParsedRequirement
+
 
 def create_pex_repository(
     interpreters=None,  # type: Optional[Iterable[PythonInterpreter]]
     platforms=None,  # type: Optional[Iterable[Platform]]
-    requirements=None,  # type: Optional[Iterable[str]]
+    requirements=None,  # type: Optional[Iterable[ParsedRequirement]]
     requirement_files=None,  # type: Optional[Iterable[str]]
     constraint_files=None,  # type: Optional[Iterable[str]]
     result_type=InstallableType.INSTALLED_WHEEL_CHROOT,  # type: InstallableType.Value
@@ -137,7 +140,7 @@ def pex_repository(
     return create_pex_repository(
         interpreters=[py27, py310],
         platforms=[foreign_platform],
-        requirements=["requests[security,socks]==2.25.1"],
+        requirements=[parse_requirement_string("requests[security,socks]==2.25.1")],
         constraint_files=[constraints_file],
         result_type=request.param,
     )
@@ -151,7 +154,7 @@ def test_resolve_from_pex(
 ):
     # type: (...) -> None
     pex_info = PexInfo.from_pex(pex_repository)
-    direct_requirements = pex_info.requirements
+    direct_requirements = list(parse_requirement_strings(pex_info.requirements))
     assert 1 == len(direct_requirements)
 
     def assert_resolve_result(
@@ -227,7 +230,7 @@ def test_resolve_from_pex_subset(
 
     result = resolve_from_pex(
         pex=pex_repository,
-        requirements=["cffi"],
+        requirements=[parse_requirement_string("cffi")],
         targets=Targets(platforms=(foreign_platform,)),
     )
 
@@ -246,7 +249,7 @@ def test_resolve_from_pex_not_found(
     with pytest.raises(Unsatisfiable) as exec_info:
         resolve_from_pex(
             pex=pex_repository,
-            requirements=["pex"],
+            requirements=[parse_requirement_string("pex")],
             targets=Targets(interpreters=(py310,)),
         )
     assert "A distribution for pex could not be resolved for {py310_exe}.".format(
@@ -256,7 +259,7 @@ def test_resolve_from_pex_not_found(
     with pytest.raises(Unsatisfiable) as exec_info:
         resolve_from_pex(
             pex=pex_repository,
-            requirements=["requests==1.0.0"],
+            requirements=[parse_requirement_string("requests==1.0.0")],
             targets=Targets(interpreters=(py310,)),
         )
     message = str(exec_info.value)
@@ -279,7 +282,7 @@ def test_resolve_from_pex_intransitive(
 
     resolved_distributions = resolve_from_pex(
         pex=pex_repository,
-        requirements=["requests"],
+        requirements=[parse_requirement_string("requests")],
         transitive=False,
         targets=Targets(interpreters=(py27, py310), platforms=(foreign_platform,)),
     ).distributions
@@ -313,7 +316,7 @@ def test_resolve_from_pex_constraints(
     with pytest.raises(Unsatisfiable) as exec_info:
         resolve_from_pex(
             pex=pex_repository,
-            requirements=["requests"],
+            requirements=[parse_requirement_string("requests")],
             constraint_files=[create_constraints_file("urllib3==1.26.2")],
             targets=Targets(interpreters=(py27,)),
         )
@@ -332,7 +335,7 @@ def test_resolve_from_pex_ignore_errors(
     # See test_resolve_from_pex_constraints above for the failure this would otherwise cause.
     result = resolve_from_pex(
         pex=pex_repository,
-        requirements=["requests"],
+        requirements=[parse_requirement_string("requests")],
         constraint_files=[create_constraints_file("urllib3==1.26.2")],
         targets=Targets(interpreters=(py27,)),
         ignore_errors=True,

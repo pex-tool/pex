@@ -260,6 +260,22 @@ class FileArtifact(Artifact):
             for tag in CompatibilityTags.from_wheel(self.filename):
                 yield tag
 
+    def __str__(self):
+        # type: () -> str
+        return (
+            "FileArtifact("
+            'filename="{filename}", '
+            'fingerprint="{fingerprint}", '
+            'url="{url}", '
+            "verified={verified}"
+            ")"
+        ).format(
+            filename=self.filename,
+            fingerprint=self.fingerprint,
+            url=self.url,
+            verified=self.verified,
+        )
+
 
 @attr.s(frozen=True, order=False)
 class LocalProjectArtifact(Artifact):
@@ -271,6 +287,24 @@ class LocalProjectArtifact(Artifact):
         # type: () -> bool
         return True
 
+    def __str__(self):
+        # type: () -> str
+        return (
+            "LocalProjectArtifact("
+            'directory="{directory}", '
+            "editable={editable}, "
+            'fingerprint="{fingerprint}", '
+            'url="{url}", '
+            "verified={verified}"
+            ")"
+        ).format(
+            directory=self.directory,
+            editable=self.editable,
+            fingerprint=self.fingerprint,
+            url=self.url,
+            verified=self.verified,
+        )
+
 
 @attr.s(frozen=True, order=False)
 class UnFingerprintedLocalProjectArtifact(UnFingerprintedArtifact):
@@ -281,6 +315,19 @@ class UnFingerprintedLocalProjectArtifact(UnFingerprintedArtifact):
     def is_source(self):
         # type: () -> bool
         return True
+
+    def __str__(self):
+        # type: () -> str
+        return (
+            "UnFingerprintedLocalProjectArtifact("
+            'directory="{directory}", '
+            "editable={editable}, "
+            'url="{url}", '
+            "verified={verified}"
+            ")"
+        ).format(
+            directory=self.directory, editable=self.editable, url=self.url, verified=self.verified
+        )
 
 
 @attr.s(frozen=True, order=False)
@@ -343,6 +390,26 @@ class VCSArtifact(Artifact):
         # processing. See: https://peps.python.org/pep-0440/#direct-references
         return "{project_name} @ {url}".format(project_name=project_name, url=self.url.raw_url)
 
+    def __str__(self):
+        # type: () -> str
+        return (
+            "VCSArtifact("
+            'vcs="{vcs}", '
+            'requested_revision="{requested_revision}", '
+            'commit_id="{commit_id}", '
+            'fingerprint="{fingerprint}", '
+            'url="{url}", '
+            "verified={verified}"
+            ")"
+        ).format(
+            vcs=self.vcs,
+            requested_revision=self.requested_revision,
+            commit_id=self.commit_id,
+            fingerprint=self.fingerprint,
+            url=self.url,
+            verified=self.verified,
+        )
+
 
 @attr.s(frozen=True, order=False)
 class UnFingerprintedVCSArtifact(UnFingerprintedArtifact):
@@ -373,6 +440,24 @@ class UnFingerprintedVCSArtifact(UnFingerprintedArtifact):
                 if self.subdirectory
                 else ""
             ),
+        )
+
+    def __str__(self):
+        # type: () -> str
+        return (
+            "UnFingerprintedVCSArtifact("
+            'vcs="{vcs}", '
+            'requested_revision="{requested_revision}", '
+            'commit_id="{commit_id}", '
+            'url="{url}", '
+            "verified={verified}"
+            ")"
+        ).format(
+            vcs=self.vcs,
+            requested_revision=self.requested_revision,
+            commit_id=self.commit_id,
+            url=self.url,
+            verified=self.verified,
         )
 
 

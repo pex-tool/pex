@@ -398,7 +398,7 @@ class _PipSession(object):
             ),
         ).spawn_report(
             report_path=report,
-            requirements=request.requirements,
+            requirements=map(str, request.requirements),
             requirement_files=request.requirement_files,
             constraint_files=request.constraint_files,
             allow_prereleases=self.allow_prereleases,
@@ -506,7 +506,7 @@ class _PipSession(object):
             ),
         ).spawn_download_distributions(
             download_dir=download_dir,
-            requirements=request.requirements,
+            requirements=map(str, request.requirements),
             requirement_files=request.requirement_files,
             constraint_files=request.constraint_files,
             allow_prereleases=self.allow_prereleases,
@@ -1082,7 +1082,7 @@ class WheelBuilder(object):
             )
             return SpawnedJob.wait(job=build_job, result=build_result)
 
-        if editable:
+        if self._build_configuration.honor_editable and editable:
             if not self._resolver:
                 raise BuildError(
                     "A resolver is required to build an local editable project.\n"
@@ -1499,7 +1499,7 @@ class BuildAndInstallRequest(object):
 
 
 def _parse_reqs(
-    requirements=None,  # type: Optional[Iterable[str]]
+    requirements=None,  # type: Optional[Iterable[ParsedRequirement]]
     requirement_files=None,  # type: Optional[Iterable[str]]
     network_configuration=None,  # type: Optional[NetworkConfiguration]
 ):
@@ -1512,7 +1512,7 @@ def _parse_reqs(
 
 def resolve(
     targets=Targets(),  # type: Targets
-    requirements=None,  # type: Optional[Iterable[str]]
+    requirements=None,  # type: Optional[Iterable[ParsedRequirement]]
     requirement_files=None,  # type: Optional[Iterable[str]]
     constraint_files=None,  # type: Optional[Iterable[str]]
     allow_prereleases=False,  # type: bool
@@ -1761,7 +1761,7 @@ class ResolveObserver(object):
 
 def download(
     targets=Targets(),  # type: Targets
-    requirements=None,  # type: Optional[Iterable[str]]
+    requirements=None,  # type: Optional[Iterable[ParsedRequirement]]
     requirement_files=None,  # type: Optional[Iterable[str]]
     constraint_files=None,  # type: Optional[Iterable[str]]
     allow_prereleases=False,  # type: bool
@@ -1839,6 +1839,13 @@ def download(
     )
 
 
+def _as_parsed_req_tuple(items):
+    # type: (Optional[Iterable[ParsedRequirement]]) -> Tuple[ParsedRequirement, ...]
+    if not items:
+        return ()
+    return items if isinstance(items, tuple) else tuple(items)
+
+
 def _as_str_tuple(items):
     # type: (Optional[Iterable[str]]) -> Tuple[str, ...]
     if not items:
@@ -1866,7 +1873,9 @@ class DownloadRequest(object):
         )
 
     download_target = attr.ib()  # type: DownloadTarget
-    requirements = attr.ib(default=(), converter=_as_str_tuple)  # type: Tuple[str, ...]
+    requirements = attr.ib(
+        default=(), converter=_as_parsed_req_tuple
+    )  # type: Tuple[ParsedRequirement, ...]
     requirement_files = attr.ib(default=(), converter=_as_str_tuple)  # type: Tuple[str, ...]
     constraint_files = attr.ib(default=(), converter=_as_str_tuple)  # type: Tuple[str, ...]
     provenance = attr.ib(default=None)  # type: Optional[str]

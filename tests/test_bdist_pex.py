@@ -13,6 +13,7 @@ import pytest
 from pex.common import open_zip, safe_mkdtemp, temporary_dir
 from pex.pep_427 import InstallableType
 from pex.pip.version import PipVersion
+from pex.requirements import as_parsed_requirement
 from pex.resolver import resolve
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import InstallationChoice, Virtualenv
@@ -216,7 +217,7 @@ def test_unwriteable_contents():
         wheels.extend(
             fingerprinted_dist.distribution.location
             for fingerprinted_dist in resolve(
-                requirements=[str(PipVersion.VENDORED.wheel_requirement)],
+                requirements=[as_parsed_requirement(PipVersion.VENDORED.wheel_requirement)],
                 result_type=InstallableType.WHEEL_FILE,
             ).distributions
         )

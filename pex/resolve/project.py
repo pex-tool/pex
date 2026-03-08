@@ -87,12 +87,6 @@ class ProjectDirectory(object):
         # type: () -> str
         return self.requirement.path
 
-    @property
-    def requirement_str(self):
-        # type: () -> str
-        # N.B.: Requirements are ASCII text. See: https://peps.python.org/pep-0508/#grammar
-        return str(self.requirement.line.processed_text)
-
 
 @attr.s(frozen=True)
 class ProjectArchive(object):
@@ -134,7 +128,7 @@ class Projects(object):
             resolve_result = resolve(
                 targets=targets,
                 requirement_configuration=RequirementConfiguration(
-                    requirements=[project.requirement_str for project in self.project_directories]
+                    requirements=[project.requirement for project in self.project_directories]
                 ),
                 resolver_configuration=attr.evolve(pip_configuration, transitive=False),
                 compile_pyc=compile_pyc,
@@ -242,7 +236,7 @@ class Projects(object):
             else:
                 source_projects.append(project_archive)
 
-        wheels_to_build = []  # type: List[str]
+        wheels_to_build = []  # type: List[ParsedRequirement]
         prepare_metadata_errors = {}  # type: Dict[str, str]
 
         def spawn_prepare_metadata_func(project):
@@ -291,7 +285,7 @@ class Projects(object):
                         ),
                         V=3,
                     )
-                    wheels_to_build.append(project_directory.path)
+                    wheels_to_build.append(project_directory.requirement)
                 else:
                     prepare_metadata_errors[project_directory.path] = str(error)
 

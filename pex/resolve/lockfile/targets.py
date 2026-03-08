@@ -276,7 +276,7 @@ class Split(object):
         if not self.provenance:
             return requirement_configuration
 
-        requirements = list(str(req) for req in unnamed_requirements)
+        requirements = list(unnamed_requirements)
 
         requirement_files = OrderedSet(
             os.path.realpath(requirement_file)
@@ -309,7 +309,7 @@ class Split(object):
                         # We drop the requirement
                         pass
                 elif parsed_requirement.line.source not in requirement_files:
-                    requirements.append(str(parsed_requirement))
+                    requirements.append(parsed_requirement)
             if requirements_to_comment_out_by_source:
                 new_requirement_files = OrderedSet()  # type: OrderedSet[Text]
                 for source, parsed_requirements in requirements_to_comment_out_by_source.items():
@@ -321,7 +321,7 @@ class Split(object):
                         new_requirement_files.add(source)
                 requirement_files = new_requirement_files
         else:
-            requirements.extend(str(req) for req in self.requirements_by_project_name.values())
+            requirements.extend(self.requirements_by_project_name.values())
 
         return RequirementConfiguration(
             requirements=tuple(requirements),

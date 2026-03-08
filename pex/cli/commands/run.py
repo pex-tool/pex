@@ -40,7 +40,12 @@ from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.os import safe_execv
 from pex.pip.version import PipVersionValue
-from pex.requirements import LocalProjectRequirement, ParseError, parse_requirement_string
+from pex.requirements import (
+    LocalProjectRequirement,
+    ParseError,
+    as_parsed_requirement,
+    parse_requirement_string,
+)
 from pex.resolve import lock_resolver, requirement_options, resolver_options, target_options
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.locked_resolve import FileArtifact, UnFingerprintedLocalProjectArtifact
@@ -54,6 +59,7 @@ from pex.result import Error, Result, ResultError, try_
 from pex.targets import LocalInterpreter, Targets
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
+from pex.util import CacheHelper
 from pex.variables import ENV, venv_dir
 from pex.venv import installer
 from pex.venv.installer import Provenance
@@ -115,7 +121,7 @@ class RunSpec(object):
     entry_point = attr.ib()  # type: str
     is_script = attr.ib()  # type: bool
     pip_configuration = attr.ib()  # type: PipConfiguration
-    run_requirement = attr.ib(default=None)  # type: Optional[Requirement]
+    run_requirement = attr.ib(default=None)  # type: Optional[ParsedRequirement]
     all_requirements = attr.ib(default=RequirementConfiguration())  # type: RequirementConfiguration
     args = attr.ib(default=())  # type: Tuple[str, ...]
     locks = attr.ib(default=())  # type: Tuple[str, ...]
@@ -263,8 +269,8 @@ class RunConfig(object):
     ):
         # type: (...) -> RunSpec
 
-        requirement = None  # type: Optional[Requirement]
-        extra_requirements = OrderedSet()  # type: OrderedSet[Requirement]
+        requirement = None  # type: Optional[ParsedRequirement]
+        extra_requirements = OrderedSet()  # type: OrderedSet[ParsedRequirement]
         local_projects = OrderedSet()  # type: OrderedSet[LocalProjectRequirement]
 
         entry_point = None  # type: Optional[str]
@@ -289,7 +295,7 @@ class RunConfig(object):
         if isinstance(self.requirement, LocalProjectRequirement):
             local_projects.add(self.requirement)
         elif self.requirement:
-            requirement = self.requirement.requirement
+            requirement = self.requirement
 
         local_project_to_dist = dict(
             _create_dists(
@@ -301,8 +307,13 @@ class RunConfig(object):
         )
         for local_project, dist in local_project_to_dist.items():
             project_name = DistMetadata.load(dist).project_name
-            local_project_req = Requirement.local(
-                project_name=project_name, path=dist, editable=local_project.editable
+            local_project_req = as_parsed_requirement(
+                Requirement.local(
+                    project_name=project_name,
+                    path=dist,
+                    editable=local_project.editable,
+                    fragment_parameters=[("sha256", CacheHelper.hash(dist, hasher=hashlib.sha256))],
+                )
             )
             if self.entry_point == local_project:
                 entry_point = project_name.raw
@@ -326,10 +337,10 @@ class RunConfig(object):
             locks.append("pylock.{name}.toml".format(name=name))
             locks.append("pylock.toml")
 
-        requirements = OrderedSet()  # type: OrderedSet[str]
+        requirements = OrderedSet()  # type: OrderedSet[ParsedRequirement]
         if requirement:
-            requirements.add(str(requirement))
-        requirements.update(map(str, extra_requirements))
+            requirements.add(requirement)
+        requirements.update(extra_requirements)
         if self.extra_requirements.requirements:
             requirements.update(self.extra_requirements.requirements)
 
@@ -424,7 +435,7 @@ class Script(object):
         refresh=False,  # type: bool
         locked_choice=LockedChoice.AUTO,  # type: LockedChoice.Value
     ):
-        # type: (...) -> Union[Tuple[str, Iterable[Requirement], LocalInterpreter], Error]
+        # type: (...) -> Union[Tuple[str, Iterable[ParsedRequirement], LocalInterpreter], Error]
 
         script = try_(
             self._resolve_script(pip_configuration, refresh=refresh, locked_choice=locked_choice)
@@ -438,14 +449,11 @@ class Script(object):
         except Unsatisfiable as e:
             return Error(str(e))
 
-        requirements = OrderedSet()  # type: OrderedSet[Requirement]
+        requirements = OrderedSet()  # type: OrderedSet[ParsedRequirement]
         if script_metadata_application.target_does_not_apply(target):
             target = try_(_resolve_local_interpreter(target_configuration, script))
         if script_metadata_application.requirement_configuration.requirements:
-            requirements.update(
-                Requirement.parse(req)
-                for req in script_metadata_application.requirement_configuration.requirements
-            )
+            requirements.update(script_metadata_application.requirement_configuration.requirements)
 
         return script, requirements, target
 
@@ -626,7 +634,7 @@ class Run(CacheAwareMixin, BuildTimeCommand):
 
         downloaded = pip_resolver.download(
             targets=targets,
-            requirements=[str(requirement)],
+            requirements=[requirement],
             constraint_files=run_spec.all_requirements.constraint_files,
             allow_prereleases=pip_configuration.allow_prereleases,
             transitive=False,
@@ -658,7 +666,11 @@ class Run(CacheAwareMixin, BuildTimeCommand):
             index=-1,
             project_name=dist_metadata.project_name,
             artifact=FileArtifact(
-                url=ArtifactURL.parse("file://{path}".format(path=distribution.path)),
+                url=ArtifactURL.parse(
+                    "file://{path}#sha256={hash}".format(
+                        path=distribution.path, hash=distribution.fingerprint
+                    )
+                ),
                 verified=True,
                 fingerprint=Fingerprint(algorithm="sha256", hash=distribution.fingerprint),
                 filename=os.path.basename(distribution.path),

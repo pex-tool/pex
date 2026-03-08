@@ -747,16 +747,21 @@ if TYPE_CHECKING:
 def configure(
     options,  # type: Namespace
     use_system_time=False,  # type: bool
+    honor_editable=True,  # type: bool
 ):
     # type: (...) -> ResolverConfiguration
     """Creates a resolver configuration from options registered by `register`.
 
     :param options: The resolver configuration options.
     :param use_system_time: `False` to attempt use a reproducible timestamp for builds.
+    :param honor_editable: `False` to ignore requirements flagged as editable and build a static
+                           wheel for them instead.
     :raise: :class:`InvalidConfigurationError` if the resolver configuration is invalid.
     """
 
-    pip_configuration = create_pip_configuration(options, use_system_time=use_system_time)
+    pip_configuration = create_pip_configuration(
+        options, use_system_time=use_system_time, honor_editable=honor_editable
+    )
 
     pex_repository = getattr(options, "pex_repository", None)
     if pex_repository:
@@ -826,12 +831,15 @@ def configure(
 def create_pip_configuration(
     options,  # type: Namespace
     use_system_time=False,  # type: bool
+    honor_editable=True,  # type: bool
 ):
     # type: (...) -> PipConfiguration
     """Creates a Pip configuration from options registered by `register`.
 
     :param options: The Pip resolver configuration options.
     :param use_system_time: `False` to attempt use a reproducible timestamp for builds.
+    :param honor_editable: `False` to ignore requirements flagged as editable and build a static
+                           wheel for them instead.
     """
 
     if options.cache_ttl:
@@ -868,6 +876,7 @@ def create_pip_configuration(
         use_pep517=options.use_pep517,
         build_isolation=options.build_isolation,
         use_system_time=use_system_time,
+        honor_editable=honor_editable,
     )
 
     return PipConfiguration(

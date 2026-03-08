@@ -902,10 +902,22 @@ class Requirement(Constraint):
         project_name,  # type: ProjectName
         path,  # type: Text
         editable=False,  # type: bool
+        fragment_parameters=(),  # type: Iterable[Tuple[str, str]]
     ):
         # type: (...) -> Requirement
         return cls.parse(
-            "{project_name} @ file://{path}".format(project_name=project_name, path=path),
+            "{project_name} @ file://{path}{fragment_parameters}".format(
+                project_name=project_name,
+                path=path,
+                fragment_parameters="#{params}".format(
+                    params="&".join(
+                        "{key}={value}".format(key=key, value=value)
+                        for key, value in fragment_parameters
+                    )
+                )
+                if fragment_parameters
+                else "",
+            ),
             editable=editable,
         )
 

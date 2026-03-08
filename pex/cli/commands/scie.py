@@ -263,7 +263,12 @@ class Scie(OutputMixin, BuildTimeCommand):
         if not scie_options:
             return Error("You must specify `--style {eager,lazy}`.")
 
-        resolver_configuration = resolver_options.configure(self.options)
+        resolver_configuration = resolver_options.configure(
+            self.options,
+            # N.B.: Since a scie freezes in whls via freezing in a PEX, there is no point to using
+            # editable whls.
+            honor_editable=False,
+        )
         if os.path.exists(self.options.pex[0]):
             pex_file, pex_info = try_(_extract_pex_info(self.options.pex[0]))
             if self.options.dest_dir and os.path.realpath(

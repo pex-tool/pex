@@ -1689,10 +1689,6 @@ def subset(
             else:
                 missing_local_projects.append(parsed_requirement.line.processed_text)
         elif isinstance(parsed_requirement, (URLRequirement, VCSRequirement)):
-            # TODO(John Sirois): We could do better here and resolve the URL and compare its
-            #  hash with the equivalent item in the lock. In particular this would allow
-            #  differing VCS refs pointing to the same content in the end to be used as subset
-            #  requirements.
             existing = None  # type: Optional[ParsedRequirement]
             for package in pylock.packages:
                 if package.project_name == parsed_requirement.project_name:
@@ -1701,6 +1697,15 @@ def subset(
             if (
                 isinstance(existing, (URLRequirement, VCSRequirement))
                 and parsed_requirement.requirement == existing.requirement
+            ):
+                requirements_to_resolve.add(parsed_requirement.requirement)
+            elif (
+                isinstance(existing, URLRequirement)
+                and existing.url.fingerprints
+                and isinstance(parsed_requirement, URLRequirement)
+                and frozenset(existing.url.fingerprints).intersection(
+                    parsed_requirement.url.fingerprints
+                )
             ):
                 requirements_to_resolve.add(parsed_requirement.requirement)
             else:

@@ -53,6 +53,8 @@ if TYPE_CHECKING:
     )
 
     import attr  # vendor:skip
+
+    from pex.requirements import ParsedRequirement
 else:
     from pex.third_party import attr
 
@@ -116,7 +118,7 @@ def resolve_from_pylock(
     targets,  # type: Targets
     pylock,  # type: Pylock
     resolver,  # type: Resolver
-    requirements=None,  # type: Optional[Iterable[str]]
+    requirements=None,  # type: Optional[Iterable[ParsedRequirement]]
     requirement_files=None,  # type: Optional[Iterable[str]]
     extras=frozenset(),  # type: FrozenSet[str]
     dependency_groups=frozenset(),  # type: FrozenSet[str]
@@ -203,7 +205,7 @@ def download_from_pylock(
     targets,  # type: Targets
     pylock,  # type: Pylock
     resolver,  # type: Resolver
-    requirements=None,  # type: Optional[Iterable[str]]
+    requirements=None,  # type: Optional[Iterable[ParsedRequirement]]
     requirement_files=None,  # type: Optional[Iterable[str]]
     extras=frozenset(),  # type: FrozenSet[str]
     dependency_groups=frozenset(),  # type: FrozenSet[str]
@@ -271,7 +273,7 @@ def resolve_from_pex_lock(
     targets,  # type: Targets
     lock,  # type: Lockfile
     resolver,  # type: Resolver
-    requirements=None,  # type: Optional[Iterable[str]]
+    requirements=None,  # type: Optional[Iterable[ParsedRequirement]]
     requirement_files=None,  # type: Optional[Iterable[str]]
     constraint_files=None,  # type: Optional[Iterable[str]]
     repos_configuration=ReposConfiguration(),  # type: ReposConfiguration
@@ -331,7 +333,7 @@ def download_from_pex_lock(
     targets,  # type: Targets
     lock,  # type: Lockfile
     resolver,  # type: Resolver
-    requirements=None,  # type: Optional[Iterable[str]]
+    requirements=None,  # type: Optional[Iterable[ParsedRequirement]]
     requirement_files=None,  # type: Optional[Iterable[str]]
     constraint_files=None,  # type: Optional[Iterable[str]]
     repos_configuration=ReposConfiguration(),  # type: ReposConfiguration

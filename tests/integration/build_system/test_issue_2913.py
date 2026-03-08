@@ -11,8 +11,6 @@ import pytest
 
 from pex.common import safe_mkdir
 from pex.compatibility import commonpath
-from pex.resolve.lockfile.pep_751 import Pylock
-from pex.result import try_
 from testing import run_pex_command
 from testing.pytest_utils.tmp import Tempdir
 
@@ -30,9 +28,6 @@ def test_uv_build_interop(tmpdir):
     # the project path as . even when the lock file is exported elsewhere than the project root dir.
     pylock_toml = os.path.join(project_dir, "pylock.toml")
     subprocess.check_call(args=["uv", "export", "--output-file", pylock_toml], cwd=project_dir)
-    pylock = try_(Pylock.parse(pylock_toml))
-    assert 1 == len(pylock.packages)
-    pex_package = pylock.packages[0]
 
     pex_root = tmpdir.join("pex-root")
     pex = tmpdir.join("pex")
@@ -55,7 +50,4 @@ def test_uv_build_interop(tmpdir):
         .strip()
     )
 
-    if pex_package.editable:
-        assert project_dir == commonpath((project_dir, uv_pex_file))
-    else:
-        assert pex_root == commonpath((pex_root, uv_pex_file))
+    assert pex_root == commonpath((pex_root, uv_pex_file))

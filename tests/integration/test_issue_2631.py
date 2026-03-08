@@ -19,6 +19,7 @@ from pex.interpreter_constraints import InterpreterConstraint
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pip.version import PipVersion
+from pex.requirements import parse_requirement_string
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.lockfile import json_codec
 from pex.resolve.resolved_requirement import Pin
@@ -79,7 +80,7 @@ def downloaded_wheel(
 
     downloaded = resolver.download(
         targets=Targets.from_target(target),
-        requirements=[requirement],
+        requirements=[parse_requirement_string(requirement)],
         resolver=ConfiguredResolver(
             pip_configuration=PipConfiguration(
                 version=pip_version, resolver_version=ResolverVersion.default(pip_version)
