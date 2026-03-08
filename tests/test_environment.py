@@ -46,6 +46,8 @@ from testing.pytest_utils.tmp import Tempdir
 if TYPE_CHECKING:
     from typing import Any, Callable, Dict, Iterable, Iterator, Optional, Tuple
 
+    from pex.requirements import ParsedRequirement
+
 
 @contextmanager
 def yield_pex_builder(zip_safe=True, interpreter=None):
@@ -195,11 +197,11 @@ def assert_force_local_implicit_ns_packages_issues_598(
 
 
 def get_setuptools_requirement(interpreter=None):
-    # type: (Optional[PythonInterpreter]) -> str
+    # type: (Optional[PythonInterpreter]) -> ParsedRequirement
     # We use a very old version of setuptools to prove the point the user version is what is used
     # here and not the vendored version (when possible). A newer setuptools is needed though to work
     # with python 3.
-    return (
+    return parse_requirement_string(
         "setuptools==1.0"
         if (interpreter or PythonInterpreter.get()).version[0] == 2
         else "setuptools==17.0"

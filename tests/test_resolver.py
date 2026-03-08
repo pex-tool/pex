@@ -624,7 +624,7 @@ def test_resolve_arbitrary_equality_issues_940():
         python_requires=">=2.7,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*",
     )
     resolved_distributions = resolve(
-        requirements=[dist],
+        requirements=[parse_requirement_string(dist)],
         # We need this to allow the invalid version above to sneak by pip wheel metadata
         # verification.
         verify_wheels=False,
