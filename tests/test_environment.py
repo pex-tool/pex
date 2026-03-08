@@ -73,7 +73,7 @@ def assert_force_local_implicit_ns_packages_issues_598(
         if create_ns_packages:
             setup_args.update(namespace_packages=["foo", "foo.bar"])
         if requirements:
-            setup_args.update(install_requires=list(requirements))
+            setup_args.update(install_requires=list(map(str, requirements)))
         setup_args.update(extra_args)
 
         return dedent(
