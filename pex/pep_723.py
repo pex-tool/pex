@@ -11,7 +11,7 @@ from pex import toml
 from pex.common import pluralize
 from pex.compatibility import string
 from pex.dist_metadata import Requirement, RequirementParseError
-from pex.requirements import as_parsed_requirement
+from pex.requirements import LogicalLine, as_parsed_requirement
 from pex.third_party.packaging.specifiers import InvalidSpecifier, SpecifierSet
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
@@ -260,7 +260,9 @@ class ScriptMetadata(object):
         dependencies = []  # type: List[ParsedRequirement]
         for index, req in enumerate(raw_dependencies):
             try:
-                dependencies.append(as_parsed_requirement(Requirement.parse(req)))
+                dependencies.append(
+                    as_parsed_requirement(Requirement.parse(req), line=LogicalLine.from_str(req))
+                )
             except RequirementParseError as e:
                 invalid_dependencies.append(
                     "+ dependencies[{index}] {req!r}: {err}".format(index=index, req=req, err=e)

@@ -37,6 +37,21 @@ else:
 
 @attr.s(frozen=True)
 class LogicalLine(object):
+    @classmethod
+    def from_str(
+        cls,
+        text,  # type: Text
+        source="<string>",  # type: Text
+    ):
+        # type: (...) -> LogicalLine
+        return LogicalLine(
+            raw_text=text,
+            processed_text=text.strip(),
+            source=source,
+            start_line=1,
+            end_line=1,
+        )
+
     raw_text = attr.ib()  # type: Text
     processed_text = attr.ib()  # type: Text
     source = attr.ib()  # type: Text
@@ -828,15 +843,7 @@ def parse_requirement_file(
 
 def parse_requirement_string(requirement):
     # type: (Text) -> ParsedRequirement
-    return _parse_requirement_line(
-        LogicalLine(
-            raw_text=requirement,
-            processed_text=requirement.strip(),
-            source="<string>",
-            start_line=1,
-            end_line=1,
-        )
-    )
+    return _parse_requirement_line(LogicalLine.from_str(requirement))
 
 
 def parse_requirement_strings(requirements):
@@ -852,13 +859,7 @@ def as_parsed_requirement(
     # type: (...) -> ParsedRequirement
 
     requirement_str = str(requirement)
-    logical_line = line or LogicalLine(
-        raw_text=requirement_str,
-        processed_text=requirement_str,
-        source="<parsed requirement>",
-        start_line=1,
-        end_line=1,
-    )
+    logical_line = line or LogicalLine.from_str(requirement_str, source="<parsed requirement>")
     if not requirement.url:
         return PyPIRequirement(line=logical_line, requirement=requirement)
 
