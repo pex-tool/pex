@@ -189,7 +189,7 @@ def test_create_local(
         "lock",
         "create",
         "--pip-version",
-        PipVersion.LATEST_COMPATIBLE.value,
+        "latest-compatible",
         pex_project_dir,
         "-o",
         lock,

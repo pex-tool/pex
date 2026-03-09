@@ -381,6 +381,27 @@ class SpawnedJob(Generic["_T"]):
 
         return Map()
 
+    def or_else(self, func):
+        # type: (Callable[[Job.Error], SpawnedJob[_T]]) -> SpawnedJob[_T]
+
+        class OrElse(SpawnedJob):
+            def await_result(me):
+                # type: () -> _T
+                try:
+                    return self.await_result()
+                except Job.Error as e:
+                    return func(e).await_result()
+
+            def kill(me):
+                # type: () -> None
+                self.kill()
+
+            def __repr__(me):
+                # type: () -> str
+                return "{job}.or_else({func})".format(job=self, func=func)
+
+        return OrElse()
+
 
 # If `cpu_count` fails, we default to 2. This is relatively arbitrary, based on what seems to be
 # common in CI.

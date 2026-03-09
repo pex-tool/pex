@@ -16,6 +16,7 @@ from pex.pep_427 import InstallableType
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pip.version import PipVersion, PipVersionValue
+from pex.requirements import parse_requirement_strings
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.lockfile import json_codec
 from pex.resolve.lockfile.model import Lockfile
@@ -80,7 +81,8 @@ def populate_find_links_repo_initial(
     # N.B.: Since we are setting up a find links repo for offline lock resolves, we grab one
     # distribution online to allow the current Pip version to bootstrap itself if needed.
     result = resolver.resolve_requirements(
-        ["ansicolors==1.1.8", "cowsay==6.0.0"], result_type=InstallableType.WHEEL_FILE
+        list(parse_requirement_strings(("ansicolors==1.1.8", "cowsay==6.0.0"))),
+        result_type=InstallableType.WHEEL_FILE,
     )
     for resolved_distribution in result.distributions:
         find_links_repo.host(resolved_distribution.distribution.location)

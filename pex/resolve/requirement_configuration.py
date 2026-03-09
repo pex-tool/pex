@@ -12,7 +12,6 @@ from pex.requirements import (
     URLRequirement,
     VCSRequirement,
     parse_requirement_file,
-    parse_requirement_strings,
 )
 from pex.typing import TYPE_CHECKING
 
@@ -26,6 +25,13 @@ else:
     from pex.third_party import attr
 
 
+def _as_parsed_req_tuple(items):
+    # type: (Optional[Iterable[ParsedRequirement]]) -> Tuple[ParsedRequirement, ...]
+    if not items:
+        return ()
+    return items if isinstance(items, tuple) else tuple(items)
+
+
 def _as_str_tuple(items):
     # type: (Optional[Iterable[str]]) -> Tuple[str, ...]
     if not items:
@@ -35,15 +41,15 @@ def _as_str_tuple(items):
 
 @attr.s(frozen=True)
 class RequirementConfiguration(object):
-    requirements = attr.ib(default=(), converter=_as_str_tuple)  # type: Tuple[str, ...]
+    requirements = attr.ib(
+        default=(), converter=_as_parsed_req_tuple
+    )  # type: Tuple[ParsedRequirement, ...]
     requirement_files = attr.ib(default=(), converter=_as_str_tuple)  # type: Tuple[str, ...]
     constraint_files = attr.ib(default=(), converter=_as_str_tuple)  # type: Tuple[str, ...]
 
     def parse_requirements(self, network_configuration=None):
         # type: (Optional[NetworkConfiguration]) -> Tuple[ParsedRequirement, ...]
-        parsed_requirements = []  # type: List[ParsedRequirement]
-        if self.requirements:
-            parsed_requirements.extend(parse_requirement_strings(self.requirements))
+        parsed_requirements = list(self.requirements)  # type: List[ParsedRequirement]
         if self.requirement_files:
             fetcher = URLFetcher(network_configuration=network_configuration)
             for requirement_file in self.requirement_files:

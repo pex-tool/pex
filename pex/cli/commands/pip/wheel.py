@@ -9,7 +9,7 @@ from collections import OrderedDict
 
 from pex.cli.command import BuildTimeCommand
 from pex.cli.commands.pip import core
-from pex.cli.commands.pip.core import SourceDist, WheelDist
+from pex.cli.commands.pip.core import LocalProject, SourceDist, WheelDist
 from pex.common import safe_copy, safe_mkdir
 from pex.resolver import BuildRequest
 from pex.result import Ok, Result, try_
@@ -41,30 +41,38 @@ class Wheel(BuildTimeCommand):
         dists = try_(core.download_distributions(configuration))
 
         wheels = OrderedDict()  # type: OrderedDict[str, str]
+        local_projects = []  # type: List[LocalProject]
         sdists = []  # type: List[SourceDist]
         for dist in dists:
             if isinstance(dist, WheelDist):
                 wheels[os.path.basename(dist.path)] = dist.path
+            elif isinstance(dist, LocalProject):
+                local_projects.append(dist)
             else:
                 sdists.append(dist)
 
-        if sdists:
+        if local_projects or sdists:
+            build_requests = []  # type: List[BuildRequest]
+            for target in configuration.resolve_targets().unique_targets():
+                for local_project in local_projects:
+                    build_requests.append(
+                        BuildRequest.for_directory(
+                            target=target,
+                            source_path=local_project.path,
+                            editable=local_project.editable,
+                        )
+                    )
+                for sdist in sdists:
+                    build_requests.append(
+                        BuildRequest.for_file(
+                            target=target,
+                            source_path=sdist.path,
+                            subdirectory=sdist.subdirectory,
+                        )
+                    )
             wheels.update(
                 (os.path.basename(wheel), wheel)
-                for wheel in try_(
-                    core.build_wheels(
-                        configuration,
-                        tuple(
-                            BuildRequest.for_file(
-                                target=target,
-                                source_path=sdist.path,
-                                subdirectory=sdist.subdirectory,
-                            )
-                            for sdist in sdists
-                            for target in configuration.resolve_targets().unique_targets()
-                        ),
-                    )
-                )
+                for wheel in try_(core.build_wheels(configuration, build_requests))
             )
 
         safe_mkdir(self.options.dest_dir)

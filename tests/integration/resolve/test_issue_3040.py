@@ -53,7 +53,7 @@ def test_pip_bootstrap_respects_pip_configuration(
 
     get_pip(
         interpreter=interpreter, resolver=ConfiguredResolver.version(pip_version=pip_version)
-    ).spawn_build_wheels(requirements, wheel_dir=find_links).wait()
+    ).spawn_build_wheels(requirements, wheel_dir=find_links, transitive=True).wait()
 
     dist = safe_mkdir(tmpdir.join("dist"))
     subprocess.check_call(

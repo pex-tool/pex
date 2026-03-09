@@ -37,6 +37,21 @@ else:
 
 @attr.s(frozen=True)
 class LogicalLine(object):
+    @classmethod
+    def from_str(
+        cls,
+        text,  # type: Text
+        source="<string>",  # type: Text
+    ):
+        # type: (...) -> LogicalLine
+        return LogicalLine(
+            raw_text=text,
+            processed_text=text.strip(),
+            source=source,
+            start_line=1,
+            end_line=1,
+        )
+
     raw_text = attr.ib()  # type: Text
     processed_text = attr.ib()  # type: Text
     source = attr.ib()  # type: Text
@@ -597,6 +612,7 @@ def _parse_requirement_line(
                 extras=extras,
                 marker=marker,
                 editable=editable,
+                project_name=ProjectName(project_name) if project_name else None,
             )
         try:
             requirement = parse_requirement_from_dist(
@@ -618,7 +634,7 @@ def _parse_requirement_line(
     # `packaging.requirements.Requirement`) except for the handling of PEP-440 direct url
     # references; which we handled above and won't encounter here.
     try:
-        return PyPIRequirement(line, Requirement.parse(processed_text))
+        return as_parsed_requirement(Requirement.parse(processed_text), line=line)
     except RequirementParseError as e:
         raise ParseError(
             line, "Problem parsing {!r} as a requirement: {}".format(processed_text, e)
@@ -827,18 +843,47 @@ def parse_requirement_file(
 
 def parse_requirement_string(requirement):
     # type: (Text) -> ParsedRequirement
-    return _parse_requirement_line(
-        LogicalLine(
-            raw_text=requirement,
-            processed_text=requirement.strip(),
-            source="<string>",
-            start_line=1,
-            end_line=1,
-        )
-    )
+    return _parse_requirement_line(LogicalLine.from_str(requirement))
 
 
 def parse_requirement_strings(requirements):
     # type: (Iterable[Text]) -> Iterator[ParsedRequirement]
     for requirement in requirements:
         yield parse_requirement_string(requirement)
+
+
+def as_parsed_requirement(
+    requirement,  # type: Requirement
+    line=None,  # type: Optional[LogicalLine]
+):
+    # type: (...) -> ParsedRequirement
+
+    requirement_str = str(requirement)
+    logical_line = line or LogicalLine.from_str(requirement_str, source="<parsed requirement>")
+    if not requirement.url:
+        return PyPIRequirement(line=logical_line, requirement=requirement)
+
+    url = ArtifactURL.parse(requirement.url)
+    if isinstance(url.scheme, VCSScheme):
+        vcs_scheme = url.scheme
+        normalized_url = url.url_info._replace(scheme=vcs_scheme.scheme)
+        _, sep, commit = normalized_url.path.rpartition("@")
+        return VCSRequirement(
+            line=logical_line,
+            vcs=vcs_scheme.vcs,
+            url=normalized_url.geturl(),
+            requirement=requirement,
+            commit=commit,
+        )
+
+    if url.scheme == "file" and os.path.isdir(url.path):
+        return LocalProjectRequirement(
+            line=logical_line,
+            path=url.path,
+            extras=tuple(requirement.extras),
+            marker=requirement.marker,
+            editable=requirement.editable,
+            project_name=requirement.project_name,
+        )
+
+    return URLRequirement(line=logical_line, url=url, requirement=requirement)

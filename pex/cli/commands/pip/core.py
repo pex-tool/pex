@@ -3,6 +3,7 @@
 
 from __future__ import absolute_import
 
+import os.path
 from argparse import Namespace, _ActionsContainer
 
 from pex import dependency_configuration
@@ -94,8 +95,14 @@ class SourceDist(object):
     subdirectory = attr.ib(default=None)  # type: Optional[str]
 
 
+@attr.s(frozen=True)
+class LocalProject(object):
+    path = attr.ib()  # type: str
+    editable = attr.ib()  # type: bool
+
+
 if TYPE_CHECKING:
-    Dist = Union[SourceDist, WheelDist]
+    Dist = Union[LocalProject, SourceDist, WheelDist]
     DownloadedItem = Union[DownloadedArtifact, LocalDistribution]
 
 
@@ -106,13 +113,15 @@ def _to_dists(downloaded_artifacts):
         # type: (DownloadedItem) -> Dist
         if is_wheel(downloaded_artifact.path):
             return WheelDist(downloaded_artifact.path)
+        if os.path.isdir(downloaded_artifact.path):
+            return LocalProject(downloaded_artifact.path, editable=downloaded_artifact.editable)
         return SourceDist(downloaded_artifact.path, subdirectory=downloaded_artifact.subdirectory)
 
     return tuple(map(to_dist, downloaded_artifacts))
 
 
 def download_distributions(configuration):
-    # type: (Configuration) -> Union[Tuple[Union[SourceDist, WheelDist], ...], Error]
+    # type: (Configuration) -> Union[Tuple[Union[LocalProject, SourceDist, WheelDist], ...], Error]
 
     requirement_configuration = configuration.requirement_configuration
     dep_configuration = configuration.dependency_configuration

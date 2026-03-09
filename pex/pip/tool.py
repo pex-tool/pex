@@ -60,6 +60,7 @@ if TYPE_CHECKING:
     )
 
     import attr  # vendor:skip
+
 else:
     from pex.third_party import attr
 

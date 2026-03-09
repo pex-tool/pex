@@ -32,6 +32,8 @@ from pex.pep_427 import InstallableType, InstallableWheel, InstallPaths, install
 from pex.pep_503 import ProjectName
 from pex.pip.version import PipVersion
 from pex.requirements import LocalProjectRequirement
+from pex.requirements import as_parsed_requirement as as_parsed_requirement
+from pex.requirements import parse_requirement_string
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import PipConfiguration
@@ -59,6 +61,8 @@ if TYPE_CHECKING:
     )
 
     import attr  # vendor:skip
+
+    from pex.requirements import ParsedRequirement
 else:
     import pex.third_party.attr as attr
 
@@ -397,11 +401,13 @@ def _resolve_distributions(
                 yield distribution
             else:
                 source_requirement = (
-                    "{project} @ {url}".format(
-                        project=distribution.metadata.project_name, url=editable_project_url
+                    parse_requirement_string(
+                        "{project} @ {url}".format(
+                            project=distribution.metadata.project_name, url=editable_project_url
+                        )
                     )
                     if editable_project_url
-                    else str(distribution.as_requirement())
+                    else as_parsed_requirement(distribution.as_requirement())
                 )
                 result = resolver.resolve_requirements(
                     requirements=[source_requirement],
@@ -556,17 +562,19 @@ def _resolve_from_venv(
             else:
                 venv_distributions.append(distribution_or_error)
     else:
-        sdists_to_resolve = []
+        sdists_to_resolve = []  # type: List[ParsedRequirement]
         for venv_distribution in venv.iter_distributions():
             if venv_distribution.metadata.files.metadata.type is not MetadataType.DIST_INFO:
-                sdists_to_resolve.append(str(venv_distribution.as_requirement()))
+                sdists_to_resolve.append(as_parsed_requirement(venv_distribution.as_requirement()))
             else:
                 editable_project_url = venv_distribution.editable_install_url()
                 if editable_project_url:
                     sdists_to_resolve.append(
-                        "{project_name} @ {url}".format(
-                            project_name=venv_distribution.metadata.project_name,
-                            url=editable_project_url,
+                        parse_requirement_string(
+                            "{project_name} @ {url}".format(
+                                project_name=venv_distribution.metadata.project_name,
+                                url=editable_project_url,
+                            )
                         )
                     )
                 else:

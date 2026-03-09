@@ -9,8 +9,8 @@ from textwrap import dedent
 
 import pytest
 
-from pex.dist_metadata import Requirement
 from pex.pep_723 import InvalidMetadataError, ScriptMetadata
+from pex.requirements import parse_requirement_string
 from pex.third_party.packaging import specifiers
 from testing import PY_VER
 
@@ -106,7 +106,7 @@ def test_parse_nominal():
     # type: () -> None
 
     assert ScriptMetadata(
-        dependencies=tuple([Requirement.parse("ansicolors")])
+        dependencies=tuple([parse_requirement_string("ansicolors")])
     ) == ScriptMetadata.parse(
         dedent(
             """
@@ -128,7 +128,7 @@ def test_parse_nominal():
     )
 
     assert ScriptMetadata(
-        dependencies=tuple([Requirement.parse("cowsay<6")]),
+        dependencies=tuple([parse_requirement_string("cowsay<6")]),
         requires_python=specifiers.SpecifierSet("==2.7.*"),
     ) == ScriptMetadata.parse(
         dedent(
@@ -404,7 +404,9 @@ def test_parse_confounding_string_literals():
         )
     )
 
-    assert ScriptMetadata(dependencies=(Requirement.parse("cowsay"),)) == ScriptMetadata.parse(
+    assert ScriptMetadata(
+        dependencies=(parse_requirement_string("cowsay"),)
+    ) == ScriptMetadata.parse(
         dedent(
             '''\
             print("""

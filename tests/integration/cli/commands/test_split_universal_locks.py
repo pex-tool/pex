@@ -20,6 +20,7 @@ from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pex import PEX
 from pex.pip.version import PipVersion
+from pex.requirements import as_parsed_requirement
 from pex.resolve.lockfile import json_codec
 from pex.resolve.resolved_requirement import Pin
 from pex.resolve.target_system import MarkerEnv, TargetSystem, UniversalTarget
@@ -271,12 +272,15 @@ def test_split_repos_lock(
     # N.B.: We need to make sure we have the Pip bootstrap we need when in pure find-links mode.
     if PipVersion.DEFAULT is PipVersion.VENDORED:
         requirements = [
-            str(PipVersion.VENDORED.setuptools_requirement),
-            str(PipVersion.VENDORED.wheel_requirement),
+            as_parsed_requirement(PipVersion.VENDORED.setuptools_requirement),
+            as_parsed_requirement(PipVersion.VENDORED.wheel_requirement),
         ]
     else:
         requirements = list(
-            map(str, PipVersion.DEFAULT.requirements + PipVersion.DEFAULT.build_system_requires)
+            map(
+                as_parsed_requirement,
+                PipVersion.DEFAULT.requirements + PipVersion.DEFAULT.build_system_requires,
+            )
         )
     downloaded = resolver.download(requirements=requirements)
     for dist in downloaded.local_distributions:

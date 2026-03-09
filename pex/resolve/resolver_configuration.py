@@ -72,6 +72,7 @@ class BuildConfiguration(object):
         use_pep517=None,  # type: Optional[bool]
         build_isolation=True,  # type: bool
         use_system_time=False,  # type: bool
+        honor_editable=True,  # type: bool
     ):
         # type: (...) -> BuildConfiguration
         return cls(
@@ -83,6 +84,7 @@ class BuildConfiguration(object):
             use_pep517=use_pep517,
             build_isolation=build_isolation,
             use_system_time=use_system_time,
+            honor_editable=honor_editable,
         )
 
     allow_builds = attr.ib(default=True)  # type: bool
@@ -93,6 +95,7 @@ class BuildConfiguration(object):
     use_pep517 = attr.ib(default=None)  # type: Optional[bool]
     build_isolation = attr.ib(default=True)  # type: bool
     use_system_time = attr.ib(default=False)  # type: bool
+    honor_editable = attr.ib(default=True)  # type: bool
 
     def __attrs_post_init__(self):
         # type: () -> None

@@ -129,6 +129,10 @@ class Fingerprint(object):
     algorithm = attr.ib()  # type: str
     hash = attr.ib()  # type: str
 
+    def __str__(self):
+        # type: () -> str
+        return "{algorithm}:{hash}".format(algorithm=self.algorithm, hash=self.hash)
+
 
 # These ranks prefer the highest digest size and then use alphabetic order for a tie-break.
 RANKED_ALGORITHMS = tuple(
@@ -268,3 +272,7 @@ class ArtifactURL(object):
     def fingerprint(self):
         # type: () -> Optional[Fingerprint]
         return self.fingerprints[0] if self.fingerprints else None
+
+    def __str__(self):
+        # type: () -> str
+        return self.raw_url

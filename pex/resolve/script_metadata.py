@@ -24,6 +24,8 @@ if TYPE_CHECKING:
 
     import attr  # vendor:skip
 
+    from pex.requirements import ParsedRequirement
+
 else:
     from pex.third_party import attr
 
@@ -57,7 +59,7 @@ def apply_script_metadata(
         requirement_configuration.requirements
         if requirement_configuration and requirement_configuration.requirements
         else ()
-    )  # type: OrderedSet[str]
+    )  # type: OrderedSet[ParsedRequirement]
     requires_python = SpecifierSet()
     for script in scripts:
         with open(script, "rb") as fp:
@@ -84,7 +86,7 @@ def apply_script_metadata(
             fp.seek(0, os.SEEK_SET)
             script_metadata = ScriptMetadata.parse(fp.read().decode(encoding), source=fp.name)
         script_metadatas.append(script_metadata)
-        requirements.update(map(str, script_metadata.dependencies))
+        requirements.update(script_metadata.dependencies)
         requires_python &= script_metadata.requires_python
 
     if isinstance(specifier_sets.as_range(requires_python), UnsatisfiableSpecifierSet):

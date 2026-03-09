@@ -11,10 +11,14 @@ from textwrap import dedent
 
 import pytest
 
+from pex.dist_metadata import ProjectNameAndVersion
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import COMPATIBLE_PYTHON_VERSIONS
 from pex.os import LINUX, MAC, WINDOWS
+from pex.pep_503 import ProjectName
+from pex.venv.virtualenv import InstallationChoice, Virtualenv
 from testing.cli import run_pex3
+from testing.local_project import create as create_local_project
 from testing.pytest_utils.tmp import Tempdir
 
 
@@ -221,3 +225,37 @@ def test_vcs_subdir_via_pex_lock(tmpdir):
         "wheel", "--pip-version", "latest-compatible", "--lock", lock, "-d", dest_dir
     ).assert_success()
     assert [EXPECTED_SDEV_LOGGING_UTILS_WHL] == os.listdir(dest_dir)
+
+
+@pytest.mark.skipif(
+    sys.version_info < (3, 7),
+    reason=(
+        "Modern setuptools (>= 64.0.0) with support for pep-660 build_editable is required, and "
+        "setuptools 64 requires at least Python 3.7."
+    ),
+)
+def test_wheel_editable(tmpdir):
+    # type: (Tempdir) -> None
+
+    local_project = create_local_project(tmpdir.join("project"))
+    dest_dir = tmpdir.join("dest")
+    run_pex3("wheel", "-e", local_project, "ansicolors==1.1.8", "-d", dest_dir).assert_success()
+
+    wheels_by_project_name = {
+        ProjectNameAndVersion.from_filename(whl).canonicalized_project_name: whl
+        for whl in os.listdir(dest_dir)
+    }
+    assert "ansicolors-1.1.8-py2.py3-none-any.whl" == wheels_by_project_name.pop(
+        ProjectName("ansicolors")
+    )
+    local_project_editable_whl = wheels_by_project_name.pop(ProjectName("local_project"))
+    assert not wheels_by_project_name
+
+    venv = Virtualenv.create(
+        tmpdir.join("venv"),
+        install_pip=InstallationChoice.YES,
+        other_installs=[os.path.join(dest_dir, local_project_editable_whl)],
+    )
+    assert b"foo" == subprocess.check_output(args=[venv.bin_path("local-project"), "foo"])
+    local_project.edit_all_caps(True)
+    assert b"FOO" == subprocess.check_output(args=[venv.bin_path("local-project"), "foo"])

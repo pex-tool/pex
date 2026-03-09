@@ -24,11 +24,13 @@ from pex.typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from typing import DefaultDict, Iterable, List, Optional
 
+    from pex.requirements import ParsedRequirement
+
 
 def resolve_from_pex(
     targets,  # type: Targets
     pex,  # type: str
-    requirements=None,  # type: Optional[Iterable[str]]
+    requirements=None,  # type: Optional[Iterable[ParsedRequirement]]
     requirement_files=None,  # type: Optional[Iterable[str]]
     constraint_files=None,  # type: Optional[Iterable[str]]
     network_configuration=None,  # type: Optional[NetworkConfiguration]

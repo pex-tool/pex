@@ -23,6 +23,7 @@ from pex.pep_425 import CompatibilityTags
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
+from pex.requirements import parse_requirement_string
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.targets import LocalInterpreter, Targets
 from pex.typing import TYPE_CHECKING
@@ -44,6 +45,8 @@ from testing.pytest_utils.tmp import Tempdir
 
 if TYPE_CHECKING:
     from typing import Any, Callable, Dict, Iterable, Iterator, Optional, Tuple
+
+    from pex.requirements import ParsedRequirement
 
 
 @contextmanager
@@ -70,7 +73,7 @@ def assert_force_local_implicit_ns_packages_issues_598(
         if create_ns_packages:
             setup_args.update(namespace_packages=["foo", "foo.bar"])
         if requirements:
-            setup_args.update(install_requires=list(requirements))
+            setup_args.update(install_requires=list(map(str, requirements)))
         setup_args.update(extra_args)
 
         return dedent(
@@ -194,11 +197,11 @@ def assert_force_local_implicit_ns_packages_issues_598(
 
 
 def get_setuptools_requirement(interpreter=None):
-    # type: (Optional[PythonInterpreter]) -> str
+    # type: (Optional[PythonInterpreter]) -> ParsedRequirement
     # We use a very old version of setuptools to prove the point the user version is what is used
     # here and not the vendored version (when possible). A newer setuptools is needed though to work
     # with python 3.
-    return (
+    return parse_requirement_string(
         "setuptools==1.0"
         if (interpreter or PythonInterpreter.get()).version[0] == 2
         else "setuptools==17.0"
@@ -286,7 +289,7 @@ def test_osx_platform_intel_issue_523():
     with yield_pex_builder(interpreter=bad_interpreter()) as pb, temporary_filename() as pex_file:
         for resolved_dist in resolver.resolve(
             targets=Targets(interpreters=(pb.interpreter,)),
-            requirements=["psutil==5.4.3"],
+            requirements=[parse_requirement_string("psutil==5.4.3")],
             resolver=ConfiguredResolver.default(),
         ).distributions:
             pb.add_dist_location(resolved_dist.distribution.location)
@@ -354,7 +357,7 @@ def test_activate_extras_issue_615():
     with yield_pex_builder() as pb:
         for resolved_dist in resolver.resolve(
             targets=Targets(interpreters=(pb.interpreter,)),
-            requirements=["pex[requests]==1.6.3"],
+            requirements=[parse_requirement_string("pex[requests]==1.6.3")],
             resolver=ConfiguredResolver.default(),
         ).distributions:
             for direct_req in resolved_dist.direct_requirements:
@@ -378,7 +381,7 @@ def test_activate_extras_issue_615():
 
 def assert_namespace_packages_warning(distribution, version, expected_warning):
     # type: (str, str, bool) -> None
-    requirement = "{}=={}".format(distribution, version)
+    requirement = parse_requirement_string("{}=={}".format(distribution, version))
     pb = PEXBuilder()
     for resolved_dist in resolver.resolve(
         requirements=[requirement],

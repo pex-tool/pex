@@ -11,6 +11,7 @@ from pex import toml
 from pex.common import pluralize
 from pex.compatibility import string
 from pex.dist_metadata import Requirement, RequirementParseError
+from pex.requirements import LogicalLine, as_parsed_requirement
 from pex.third_party.packaging.specifiers import InvalidSpecifier, SpecifierSet
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
@@ -19,6 +20,8 @@ if TYPE_CHECKING:
     from typing import Any, DefaultDict, List, Mapping, Optional, Text, Tuple
 
     import attr  # vendor:skip
+
+    from pex.requirements import ParsedRequirement
 else:
     from pex.third_party import attr
 
@@ -254,10 +257,12 @@ class ScriptMetadata(object):
             )
 
         invalid_dependencies = []  # type: List[str]
-        dependencies = []  # type: List[Requirement]
+        dependencies = []  # type: List[ParsedRequirement]
         for index, req in enumerate(raw_dependencies):
             try:
-                dependencies.append(Requirement.parse(req))
+                dependencies.append(
+                    as_parsed_requirement(Requirement.parse(req), line=LogicalLine.from_str(req))
+                )
             except RequirementParseError as e:
                 invalid_dependencies.append(
                     "+ dependencies[{index}] {req!r}: {err}".format(index=index, req=req, err=e)
@@ -291,7 +296,7 @@ class ScriptMetadata(object):
 
         return cls(dependencies=tuple(dependencies), requires_python=requires_python, source=source)
 
-    dependencies = attr.ib(default=())  # type: Tuple[Requirement, ...]
+    dependencies = attr.ib(default=())  # type: Tuple[ParsedRequirement, ...]
     requires_python = attr.ib(default=SpecifierSet())  # type: SpecifierSet
     source = attr.ib(default=_UNSPECIFIED_SOURCE)  # type: str
 

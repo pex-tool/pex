@@ -40,7 +40,12 @@ from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.os import safe_execv
 from pex.pip.version import PipVersionValue
-from pex.requirements import LocalProjectRequirement, ParseError, parse_requirement_string
+from pex.requirements import (
+    LocalProjectRequirement,
+    ParseError,
+    as_parsed_requirement,
+    parse_requirement_string,
+)
 from pex.resolve import lock_resolver, requirement_options, resolver_options, target_options
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.locked_resolve import FileArtifact, UnFingerprintedLocalProjectArtifact
@@ -54,6 +59,7 @@ from pex.result import Error, Result, ResultError, try_
 from pex.targets import LocalInterpreter, Targets
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
+from pex.util import CacheHelper
 from pex.variables import ENV, venv_dir
 from pex.venv import installer
 from pex.venv.installer import Provenance
@@ -115,7 +121,7 @@ class RunSpec(object):
     entry_point = attr.ib()  # type: str
     is_script = attr.ib()  # type: bool
     pip_configuration = attr.ib()  # type: PipConfiguration
-    run_requirement = attr.ib(default=None)  # type: Optional[Requirement]
+    run_requirement = attr.ib(default=None)  # type: Optional[ParsedRequirement]
     all_requirements = attr.ib(default=RequirementConfiguration())  # type: RequirementConfiguration
     args = attr.ib(default=())  # type: Tuple[str, ...]
     locks = attr.ib(default=())  # type: Tuple[str, ...]
@@ -191,7 +197,7 @@ def _create_sdist(
     return local_project, sdist
 
 
-def _create_sdists(
+def _create_dists(
     projects,  # type: Iterable[LocalProjectRequirement]
     target,  # type: LocalInterpreter
     pip_configuration,  # type: PipConfiguration
@@ -202,31 +208,45 @@ def _create_sdists(
     # TODO(John Sirois): Parallelize.
     for local_project in projects:
         dist_dir = CacheDir.RUN.path(
-            "local-projects", hashlib.sha1(local_project.path.encode("utf-8")).hexdigest()
+            "local-projects",
+            hashlib.sha1(
+                json.dumps(
+                    {"path": local_project.path, "editable": local_project.editable}, sort_keys=True
+                ).encode("utf-8")
+            ).hexdigest(),
         )
 
         if refresh:
             safe_rmtree(dist_dir)
         with atomic_directory(dist_dir) as atomic_dir:
             if not atomic_dir.is_finalized():
-                try_(
-                    pep_517.build_sdist(
+                if local_project.editable:
+                    pep_517.spawn_build_editable(
                         project_directory=local_project.path,
-                        dist_dir=dist_dir,
+                        wheel_dir=dist_dir,
                         target=target,
                         resolver=ConfiguredResolver(pip_configuration),
                         pip_version=pip_configuration.version,
+                    ).await_result()
+                else:
+                    try_(
+                        pep_517.build_sdist(
+                            project_directory=local_project.path,
+                            dist_dir=dist_dir,
+                            target=target,
+                            resolver=ConfiguredResolver(pip_configuration),
+                            pip_version=pip_configuration.version,
+                        )
                     )
-                )
 
-        sdists = glob.glob(os.path.join(dist_dir, "*.tar.gz"))
+        dists = glob.glob(os.path.join(dist_dir, "*.whl" if local_project.editable else "*.tar.gz"))
         production_assert(
-            len(sdists) == 1,
-            "Expected build of {path} to produce 1 sdist, found: {sdists}",
+            len(dists) == 1,
+            "Expected build of {path} to produce 1 dist, found: {dists}",
             path=local_project.path,
-            sdists=", ".join(sdists),
+            sdists=", ".join(dists),
         )
-        yield local_project, sdists[0]
+        yield local_project, dists[0]
 
 
 @attr.s(frozen=True)
@@ -249,8 +269,8 @@ class RunConfig(object):
     ):
         # type: (...) -> RunSpec
 
-        requirement = None  # type: Optional[Requirement]
-        extra_requirements = OrderedSet()  # type: OrderedSet[Requirement]
+        requirement = None  # type: Optional[ParsedRequirement]
+        extra_requirements = OrderedSet()  # type: OrderedSet[ParsedRequirement]
         local_projects = OrderedSet()  # type: OrderedSet[LocalProjectRequirement]
 
         entry_point = None  # type: Optional[str]
@@ -275,20 +295,26 @@ class RunConfig(object):
         if isinstance(self.requirement, LocalProjectRequirement):
             local_projects.add(self.requirement)
         elif self.requirement:
-            requirement = self.requirement.requirement
+            requirement = self.requirement
 
-        local_project_to_sdist = dict(
-            _create_sdists(
+        local_project_to_dist = dict(
+            _create_dists(
                 projects=local_projects,
                 target=target,
                 pip_configuration=pip_configuration,
                 refresh=refresh,
             )
         )
-
-        for local_project, sdist in local_project_to_sdist.items():
-            project_name = DistMetadata.load(sdist).project_name
-            local_project_req = Requirement.local(project_name=project_name, path=sdist)
+        for local_project, dist in local_project_to_dist.items():
+            project_name = DistMetadata.load(dist).project_name
+            local_project_req = as_parsed_requirement(
+                Requirement.local(
+                    project_name=project_name,
+                    path=dist,
+                    editable=local_project.editable,
+                    fragment_parameters=[("sha256", CacheHelper.hash(dist, hasher=hashlib.sha256))],
+                )
+            )
             if self.entry_point == local_project:
                 entry_point = project_name.raw
                 requirement = local_project_req
@@ -311,10 +337,10 @@ class RunConfig(object):
             locks.append("pylock.{name}.toml".format(name=name))
             locks.append("pylock.toml")
 
-        requirements = OrderedSet()  # type: OrderedSet[str]
+        requirements = OrderedSet()  # type: OrderedSet[ParsedRequirement]
         if requirement:
-            requirements.add(str(requirement))
-        requirements.update(map(str, extra_requirements))
+            requirements.add(requirement)
+        requirements.update(extra_requirements)
         if self.extra_requirements.requirements:
             requirements.update(self.extra_requirements.requirements)
 
@@ -409,7 +435,7 @@ class Script(object):
         refresh=False,  # type: bool
         locked_choice=LockedChoice.AUTO,  # type: LockedChoice.Value
     ):
-        # type: (...) -> Union[Tuple[str, Iterable[Requirement], LocalInterpreter], Error]
+        # type: (...) -> Union[Tuple[str, Iterable[ParsedRequirement], LocalInterpreter], Error]
 
         script = try_(
             self._resolve_script(pip_configuration, refresh=refresh, locked_choice=locked_choice)
@@ -423,14 +449,11 @@ class Script(object):
         except Unsatisfiable as e:
             return Error(str(e))
 
-        requirements = OrderedSet()  # type: OrderedSet[Requirement]
+        requirements = OrderedSet()  # type: OrderedSet[ParsedRequirement]
         if script_metadata_application.target_does_not_apply(target):
             target = try_(_resolve_local_interpreter(target_configuration, script))
         if script_metadata_application.requirement_configuration.requirements:
-            requirements.update(
-                Requirement.parse(req)
-                for req in script_metadata_application.requirement_configuration.requirements
-            )
+            requirements.update(script_metadata_application.requirement_configuration.requirements)
 
         return script, requirements, target
 
@@ -611,7 +634,7 @@ class Run(CacheAwareMixin, BuildTimeCommand):
 
         downloaded = pip_resolver.download(
             targets=targets,
-            requirements=[str(requirement)],
+            requirements=[requirement],
             constraint_files=run_spec.all_requirements.constraint_files,
             allow_prereleases=pip_configuration.allow_prereleases,
             transitive=False,
@@ -643,7 +666,11 @@ class Run(CacheAwareMixin, BuildTimeCommand):
             index=-1,
             project_name=dist_metadata.project_name,
             artifact=FileArtifact(
-                url=ArtifactURL.parse("file://{path}".format(path=distribution.path)),
+                url=ArtifactURL.parse(
+                    "file://{path}#sha256={hash}".format(
+                        path=distribution.path, hash=distribution.fingerprint
+                    )
+                ),
                 verified=True,
                 fingerprint=Fingerprint(algorithm="sha256", hash=distribution.fingerprint),
                 filename=os.path.basename(distribution.path),

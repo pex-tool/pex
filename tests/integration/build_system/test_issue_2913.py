@@ -26,20 +26,28 @@ def test_uv_build_interop(tmpdir):
 
     # N.B.: We place the pylock.toml export in the project directory because uv currently exports
     # the project path as . even when the lock file is exported elsewhere than the project root dir.
-    pylock = os.path.join(project_dir, "pylock.toml")
-    subprocess.check_call(args=["uv", "export", "--output-file", pylock], cwd=project_dir)
+    pylock_toml = os.path.join(project_dir, "pylock.toml")
+    subprocess.check_call(args=["uv", "export", "--output-file", pylock_toml], cwd=project_dir)
 
     pex_root = tmpdir.join("pex-root")
     pex = tmpdir.join("pex")
     run_pex_command(
-        args=["--pex-root", pex_root, "--runtime-pex-root", pex_root, "--pylock", pylock, "-o", pex]
+        args=[
+            "--pex-root",
+            pex_root,
+            "--runtime-pex-root",
+            pex_root,
+            "--pylock",
+            pylock_toml,
+            "-o",
+            pex,
+        ]
     ).assert_success()
 
-    assert pex_root == commonpath(
-        (
-            pex_root,
-            subprocess.check_output(args=[pex, "--", "-c", "import uv_pex; print(uv_pex.__file__)"])
-            .decode("utf-8")
-            .strip(),
-        )
+    uv_pex_file = (
+        subprocess.check_output(args=[pex, "--", "-c", "import uv_pex; print(uv_pex.__file__)"])
+        .decode("utf-8")
+        .strip()
     )
+
+    assert pex_root == commonpath((pex_root, uv_pex_file))

@@ -41,7 +41,7 @@ from pex.pep_427 import InstallableType, reinstall_venv
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pip.version import PipVersionValue
-from pex.requirements import LocalProjectRequirement
+from pex.requirements import LocalProjectRequirement, as_parsed_requirement
 from pex.resolve import project, requirement_options, resolver_options, target_options
 from pex.resolve.config import finalize as finalize_resolve_config
 from pex.resolve.configured_resolver import ConfiguredResolver
@@ -1179,7 +1179,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             return requirement_configuration
 
         requirements = OrderedSet(requirement_configuration.requirements)
-        requirements.update(str(req) for req in group_requirements)
+        requirements.update(as_parsed_requirement(req) for req in group_requirements)
         if projects:
             with TRACER.timed(
                 "Collecting requirements from {count} local {projects}".format(
@@ -1187,7 +1187,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 )
             ):
                 requirements.update(
-                    str(req)
+                    as_parsed_requirement(req)
                     for req in projects.collect_requirements(
                         resolver=ConfiguredResolver(pip_configuration),
                         interpreter=targets.interpreter,
@@ -1357,7 +1357,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                             requirement_configuration
                             if requirement_configuration.has_requirements
                             else RequirementConfiguration(
-                                requirements=map(str, lock_file.requirements)
+                                requirements=map(as_parsed_requirement, lock_file.requirements)
                             )
                         ),
                     )
@@ -2212,10 +2212,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
     def _sync(self):
         # type: () -> Result
 
-        resolver_configuration = cast(
-            LockRepositoryConfiguration,
-            resolver_options.configure(self.options, use_system_time=False),
-        )
+        resolver_configuration = resolver_options.configure(self.options, use_system_time=False)
         production_assert(isinstance(resolver_configuration, LockRepositoryConfiguration))
         pip_configuration = resolver_configuration.pip_configuration
         locking_configuration = try_(self._locking_configuration(pip_configuration))

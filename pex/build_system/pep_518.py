@@ -14,6 +14,7 @@ from pex.interpreter import PythonInterpreter
 from pex.pex import PEX
 from pex.pex_bootstrapper import VenvPex, ensure_venv
 from pex.pex_builder import PEXBuilder
+from pex.requirements import parse_requirement_strings
 from pex.resolve.resolvers import Resolver
 from pex.result import Error
 from pex.targets import LocalInterpreter, Target, Targets
@@ -184,7 +185,7 @@ def load_build_system(
     ):
         result = resolver.resolve_requirements(
             targets=Targets.from_target(LocalInterpreter.create(target.get_interpreter())),
-            requirements=build_system_table.requires,
+            requirements=tuple(parse_requirement_strings(build_system_table.requires)),
         )
         return BuildSystem.create(
             interpreter=target.get_interpreter(),

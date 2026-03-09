@@ -42,6 +42,7 @@ from pex.pex import PEX, validate_entry_point
 from pex.pex_bootstrapper import ensure_venv
 from pex.pex_builder import Check, PEXBuilder
 from pex.pex_info import PexInfo
+from pex.requirements import as_parsed_requirement
 from pex.resolve import (
     project,
     requirement_options,
@@ -862,7 +863,7 @@ def configure_clp():
     )
 
     configure_clp_sources(parser)
-    requirement_options.register(parser)
+    requirement_options.register(parser, include_editable_requirements=False)
     dependency_configuration.register(parser)
 
     parser.add_argument(
@@ -1056,7 +1057,7 @@ def build_pex(
     group_requirements = project.get_group_requirements(options)
     if group_requirements:
         requirements = OrderedSet(requirement_configuration.requirements)
-        requirements.update(str(req) for req in group_requirements)
+        requirements.update(as_parsed_requirement(req) for req in group_requirements)
         requirement_configuration = attr.evolve(
             requirement_configuration, requirements=requirements
         )
@@ -1086,7 +1087,7 @@ def build_pex(
             project_dependencies.update(built_project.iter_requirements())
 
         requirements = OrderedSet(requirement_configuration.requirements)
-        requirements.update(str(req) for req in project_dependencies)
+        requirements.update(as_parsed_requirement(req) for req in project_dependencies)
         requirement_configuration = attr.evolve(
             requirement_configuration, requirements=requirements
         )
@@ -1096,7 +1097,7 @@ def build_pex(
             " ".join(
                 itertools.chain.from_iterable(
                     (
-                        requirement_configuration.requirements or (),
+                        map(str, requirement_configuration.requirements or ()),
                         requirement_configuration.requirement_files or (),
                     )
                 )
@@ -1290,7 +1291,10 @@ def main(args=None):
         with global_environment(options) as env:
             try:
                 resolver_configuration = resolver_options.configure(
-                    options, use_system_time=options.use_system_time
+                    options,
+                    use_system_time=options.use_system_time,
+                    # N.B.: Since a PEX freezes in whls, there is no point to using editable whls.
+                    honor_editable=False,
                 )
             except resolver_options.InvalidConfigurationError as e:
                 die(str(e))

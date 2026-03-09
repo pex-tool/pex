@@ -15,6 +15,7 @@ from pex.common import safe_mkdir, safe_mkdtemp
 from pex.dist_metadata import DistMetadata, Distribution, MetadataType
 from pex.jobs import Job, SpawnedJob
 from pex.pip.version import PipVersion, PipVersionValue
+from pex.requirements import as_parsed_requirement, parse_requirement_string
 from pex.resolve.resolvers import Resolver
 from pex.result import Error, try_
 from pex.targets import Target, Targets
@@ -23,6 +24,8 @@ from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     from typing import Any, Dict, Iterable, List, Mapping, Optional, Set, Union
+
+    from pex.requirements import ParsedRequirement
 
 _DEFAULT_BUILD_SYSTEMS = {}  # type: Dict[PipVersionValue, BuildSystem]
 
@@ -41,22 +44,26 @@ def _default_build_system(
             "Building {build_backend} build_backend PEX".format(build_backend=DEFAULT_BUILD_BACKEND)
         ):
             extra_env = {}  # type: Dict[str, str]
-            resolved_reqs = set()  # type: Set[str]
+            resolved_reqs = set()  # type: Set[ParsedRequirement]
             resolved_dists = []  # type: List[Distribution]
             if selected_pip_version is PipVersion.VENDORED:
-                requires = ["setuptools", str(selected_pip_version.wheel_requirement)]
+                setuptools_req = parse_requirement_string("setuptools")
+                requires = [
+                    setuptools_req,
+                    as_parsed_requirement(selected_pip_version.wheel_requirement),
+                ]
                 resolved_dists.extend(
                     Distribution.load(dist_location)
                     for dist_location in third_party.expose_installed_wheels(
                         ["setuptools"], interpreter=target.get_interpreter()
                     )
                 )
-                resolved_reqs.add("setuptools")
+                resolved_reqs.add(setuptools_req)
                 extra_env.update(__PEX_UNVENDORED__="setuptools")
             else:
                 requires = [
-                    str(selected_pip_version.setuptools_requirement),
-                    str(selected_pip_version.wheel_requirement),
+                    as_parsed_requirement(selected_pip_version.setuptools_requirement),
+                    as_parsed_requirement(selected_pip_version.wheel_requirement),
                 ]
             unresolved = [
                 requirement for requirement in requires if requirement not in resolved_reqs
@@ -71,7 +78,7 @@ def _default_build_system(
             build_system = try_(
                 BuildSystem.create(
                     interpreter=target.get_interpreter(),
-                    requires=requires,
+                    requires=map(str, requires),
                     resolved=resolved_dists,
                     build_backend=DEFAULT_BUILD_BACKEND,
                     backend_path=(),
@@ -289,3 +296,45 @@ def spawn_prepare_metadata(
         )
     )
     return spawned_job.map(lambda _: DistMetadata.load(build_dir, MetadataType.DIST_INFO))
+
+
+def spawn_build_editable(
+    project_directory,  # type: str
+    wheel_dir,  # type: str
+    target,  # type: Target
+    resolver,  # type: Resolver
+    pip_version=None,  # type: Optional[PipVersionValue]
+):
+    # type: (...) -> SpawnedJob[None]
+
+    extra_requirements = []
+    spawned_job = try_(
+        _invoke_build_hook(
+            project_directory,
+            target,
+            resolver,
+            hook_method="get_requires_for_build_editable",
+            pip_version=pip_version,
+        )
+    )
+    try:
+        extra_requirements.extend(spawned_job.await_result())
+    except Job.Error as e:
+        if e.exitcode != _HOOK_UNAVAILABLE_EXIT_CODE:
+            raise e
+
+    # N.B.: Although it's not clear the spec mandates this, ensure the dist dir exists before
+    # handing it to the back end. See: https://github.com/pex-tool/pex/issues/2913 for prior
+    # motivation from the `build_sdist` hook case.
+    safe_mkdir(wheel_dir)
+    return try_(
+        _invoke_build_hook(
+            project_directory,
+            target,
+            resolver,
+            hook_method="build_editable",
+            hook_args=[wheel_dir],
+            hook_extra_requirements=extra_requirements,
+            pip_version=pip_version,
+        )
+    )

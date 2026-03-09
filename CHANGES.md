@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.91.0
+
+This release improves editable support by honoring editable requests when creating venvs from
+resolves.
+
+* Honor `-e ...` when creating venvs from resolves. (#3112)
+
 ## 2.90.3
 
 This release follows up on #3109 in 2.90.2 and extends better isolation to `--venv` script shebangs

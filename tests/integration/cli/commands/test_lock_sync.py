@@ -21,6 +21,7 @@ from pex.pep_427 import InstallableType
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pip.version import PipVersion
+from pex.requirements import parse_requirement_strings
 from pex.resolve.locked_resolve import (
     Artifact,
     FileArtifact,
@@ -79,7 +80,7 @@ def session_fixtures(shared_integration_test_tmpdir):
             def host_requirements(*requirements):
                 # type: (*str) -> None
                 result = find_links_repo.resolver.resolve_requirements(
-                    requirements,
+                    requirements=tuple(parse_requirement_strings(requirements)),
                     result_type=InstallableType.WHEEL_FILE,
                 )
                 for resolved_distribution in result.distributions:
