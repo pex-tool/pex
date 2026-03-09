@@ -8,6 +8,7 @@ from argparse import _ActionsContainer
 
 from pex.cli.command import BuildTimeCommand
 from pex.cli.commands.pip import core
+from pex.cli.commands.pip.core import LocalProject
 from pex.common import safe_copy, safe_mkdir
 from pex.result import Ok, Result, try_
 
@@ -35,6 +36,8 @@ class Download(BuildTimeCommand):
 
         safe_mkdir(self.options.dest_dir)
         for dist in dists:
+            if isinstance(dist, LocalProject):
+                continue
             safe_copy(dist.path, os.path.join(self.options.dest_dir, os.path.basename(dist.path)))
 
         return Ok()
