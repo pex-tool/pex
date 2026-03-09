@@ -714,9 +714,15 @@ class BuildRequest(object):
             "Unexpected archive type for sdist {project}".format(project=self.source_path)
         )
 
-    def result(self, source_path=None):
-        # type: (Optional[str]) -> BuildResult
-        return BuildResult.from_request(self, source_path=source_path)
+    def result(
+        self,
+        source_path=None,  # type: Optional[str]
+        honor_editable=False,  # type: bool
+    ):
+        # type: (...) -> BuildResult
+        return BuildResult.from_request(
+            self, source_path=source_path, honor_editable=honor_editable
+        )
 
 
 @attr.s(frozen=True)
@@ -726,6 +732,7 @@ class BuildResult(object):
         cls,
         build_request,  # type: BuildRequest
         source_path=None,  # type: Optional[str]
+        honor_editable=False,  # type: bool
     ):
         # type: (...) -> BuildResult
         if build_request.fingerprint:
@@ -733,6 +740,7 @@ class BuildResult(object):
                 sdist=source_path or build_request.source_path,
                 fingerprint=build_request.fingerprint,
                 target=build_request.target,
+                editable=honor_editable and build_request.editable,
             )
             target_dir = built_wheel.dist_dir
         else:
@@ -1028,8 +1036,8 @@ class WheelBuilder(object):
         self._pip_version = pip_version
         self._resolver = resolver
 
-    @staticmethod
     def _categorize_build_requests(
+        self,
         build_requests,  # type: Iterable[BuildRequest]
         check_compatible=True,  # type: bool
     ):
@@ -1039,7 +1047,9 @@ class WheelBuilder(object):
             OrderedSet
         )  # type: DefaultDict[str, OrderedSet[InstallRequest]]
         for build_request in build_requests:
-            build_result = build_request.result()
+            build_result = build_request.result(
+                honor_editable=self._build_configuration.honor_editable
+            )
             if not build_result.is_built:
                 TRACER.log(
                     "Building {} to {}".format(build_request.source_path, build_result.dist_dir)
@@ -1059,7 +1069,9 @@ class WheelBuilder(object):
     def _spawn_wheel_build(self, build_request):
         # type: (BuildRequest) -> SpawnedJob[BuildResult]
         source_path, editable = build_request.prepare()
-        build_result = build_request.result(source_path)
+        build_result = build_request.result(
+            source_path, honor_editable=self._build_configuration.honor_editable
+        )
 
         def spawn_build_wheel():
             # type: () -> SpawnedJob[BuildResult]

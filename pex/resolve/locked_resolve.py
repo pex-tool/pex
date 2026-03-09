@@ -933,7 +933,12 @@ class LockedResolve(object):
                 if not target.requirement_applies(request.requirement, extras=request.extras):
                     continue
                 to_be_resolved.append(request)
-                if request.overridden and request.editable and request.requirement.url:
+                if (
+                    request.overridden
+                    and request.editable
+                    and build_configuration.honor_editable
+                    and request.requirement.url
+                ):
                     overridden[request.project_name] = ArtifactURL.parse(request.requirement.url)
 
         resolved = {}  # type: Dict[ProjectName, Set[str]]

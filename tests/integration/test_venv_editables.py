@@ -95,7 +95,7 @@ skip_too_old_setuptools = pytest.mark.skipif(
 
 
 @skip_too_old_setuptools
-def test_venv_create(
+def test_venv_create_pip(
     tmpdir,  # type: Tempdir
     local_project,  # type: str
 ):
@@ -110,6 +110,91 @@ def test_venv_create(
     assert b"foo" == subprocess.check_output(args=[local_project_script, "foo"])
 
     run_pex3("venv", "create", "-e", local_project, "-d", venv_dir, "--force").assert_success()
+    assert b"FOO" == subprocess.check_output(args=[local_project_script, "foo"])
+    edit_local_project_all_caps(local_project, all_caps=False)
+    assert b"foo" == subprocess.check_output(args=[local_project_script, "foo"])
+
+
+@pytest.fixture
+def pex_lock(
+    tmpdir,  # type: Tempdir
+    local_project,  # type: str
+):
+    # type: (...) -> str
+    pex_lock = tmpdir.join("lock.json")
+    run_pex3("lock", "create", local_project, "--indent", "2", "-o", pex_lock).assert_success()
+    return pex_lock
+
+
+@skip_too_old_setuptools
+def test_venv_create_pex_lock(
+    tmpdir,  # type: Tempdir
+    pex_lock,  # type: str
+    local_project,  # type: str
+):
+    # type: (...) -> None
+
+    venv_dir = tmpdir.join("venv")
+    run_pex3("venv", "create", "--lock", pex_lock, "-d", venv_dir).assert_success()
+    local_project_script = Virtualenv(venv_dir).bin_path("local-project")
+
+    assert b"foo" == subprocess.check_output(args=[local_project_script, "foo"])
+    edit_local_project_all_caps(local_project, all_caps=True)
+    assert b"foo" == subprocess.check_output(args=[local_project_script, "foo"])
+
+    run_pex3(
+        "venv",
+        "create",
+        "--override=-e local_project @ {local_project}".format(local_project=local_project),
+        "--lock",
+        pex_lock,
+        "-d",
+        venv_dir,
+        "--force",
+    ).assert_success()
+    assert b"FOO" == subprocess.check_output(args=[local_project_script, "foo"])
+    edit_local_project_all_caps(local_project, all_caps=False)
+    assert b"foo" == subprocess.check_output(args=[local_project_script, "foo"])
+
+
+@pytest.fixture
+def pylock(
+    tmpdir,  # type: Tempdir
+    pex_lock,  # type: str
+):
+    # type: (...) -> str
+    pylock = tmpdir.join("pylock.toml")
+    # pep-751
+    run_pex3("lock", "export", "--format", "pep-751", "-o", pylock, pex_lock).assert_success()
+    return pylock
+
+
+@skip_too_old_setuptools
+def test_venv_create_pylock(
+    tmpdir,  # type: Tempdir
+    pylock,  # type: str
+    local_project,  # type: str
+):
+    # type: (...) -> None
+
+    venv_dir = tmpdir.join("venv")
+    run_pex3("venv", "create", "--pylock", pylock, "-d", venv_dir).assert_success()
+    local_project_script = Virtualenv(venv_dir).bin_path("local-project")
+
+    assert b"foo" == subprocess.check_output(args=[local_project_script, "foo"])
+    edit_local_project_all_caps(local_project, all_caps=True)
+    assert b"foo" == subprocess.check_output(args=[local_project_script, "foo"])
+
+    run_pex3(
+        "venv",
+        "create",
+        "--override=-e local_project @ file:{local_project}".format(local_project=local_project),
+        "--pylock",
+        pylock,
+        "-d",
+        venv_dir,
+        "--force",
+    ).assert_success()
     assert b"FOO" == subprocess.check_output(args=[local_project_script, "foo"])
     edit_local_project_all_caps(local_project, all_caps=False)
     assert b"foo" == subprocess.check_output(args=[local_project_script, "foo"])

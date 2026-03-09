@@ -3,6 +3,7 @@
 
 from __future__ import absolute_import
 
+import hashlib
 import os
 import sys
 from collections import OrderedDict, defaultdict, deque
@@ -34,6 +35,7 @@ from pex.resolve.locked_resolve import (
     LockedRequirement,
     LockedResolve,
     Resolved,
+    UnFingerprintedArtifact,
     UnFingerprintedLocalProjectArtifact,
     UnFingerprintedVCSArtifact,
     VCSArtifact,
@@ -53,6 +55,7 @@ from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.toml import InlineTable, TomlDecodeError
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
+from pex.util import CacheHelper
 
 if TYPE_CHECKING:
     from typing import (
@@ -1176,6 +1179,10 @@ class ResolveError(Exception):
     pass
 
 
+if TYPE_CHECKING:
+    _A = TypeVar("_A", bound=UnFingerprintedArtifact)
+
+
 @attr.s(frozen=True)
 class PackageEvaluator(object):
     @classmethod
@@ -1330,6 +1337,46 @@ class PackageEvaluator(object):
 
     def select_best_fit_artifact(self, package):
         # type: (Package) -> Union[FileArtifact, UnFingerprintedLocalProjectArtifact, UnFingerprintedVCSArtifact]
+
+        requirement = (
+            self.requirements_by_project_name.get(package.project_name) or package.as_requirement()
+        )
+        override = self.dependency_configuration.overridden_by(requirement, target=self.target)
+        if override:
+
+            def create_invalid_override_error():
+                # type: () -> ResolveError
+                return ResolveError(
+                    "Only local artifacts or projects can be used to override packages in a "
+                    "pylock.toml. Given: {override}".format(override=override)
+                )
+
+            if not override.url:
+                raise create_invalid_override_error()
+            url = ArtifactURL.parse(override.url)
+            if url.scheme != "file":
+                raise create_invalid_override_error()
+            if os.path.isfile(url.path):
+                return FileArtifact(
+                    filename=url.path,
+                    fingerprint=(
+                        url.fingerprint
+                        or Fingerprint(
+                            algorithm="sha256",
+                            hash=CacheHelper.hash(url.path, hasher=hashlib.sha256),
+                        )
+                    ),
+                    url=url,
+                    verified=True,
+                )
+            elif os.path.isdir(url.path):
+                return UnFingerprintedLocalProjectArtifact(
+                    directory=url.path,
+                    editable=self.build_configuration.honor_editable and override.editable,
+                    url=url,
+                    verified=True,
+                )
+            raise create_invalid_override_error()
 
         if not package.has_wheel or not self.build_configuration.allow_wheel(package.project_name):
             # A source distribution (sdist, directory, archive or vcs).

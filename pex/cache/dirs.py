@@ -3,7 +3,9 @@
 
 from __future__ import absolute_import
 
+import base64
 import glob
+import hashlib
 import os
 
 from pex.common import pluralize, safe_rmtree
@@ -837,6 +839,7 @@ class BuiltWheelDir(AtomicCacheDir):
         fingerprint,  # type: str
         pnav=None,  # type: Optional[ProjectNameAndVersion]
         target=None,  # type: Optional[Target]
+        editable=False,  # type: bool
         pex_root=ENV,  # type: Union[str, Variables]
     ):
         # type: (...) -> BuiltWheelDir
@@ -847,9 +850,15 @@ class BuiltWheelDir(AtomicCacheDir):
         if is_sdist(sdist):
             dist_type = "sdists"
             file_name = os.path.basename(sdist)
+            dist_name = file_name
         else:
-            dist_type = "local_projects"
+            dist_type = "editable_projects" if editable else "local_projects"
             file_name = None
+            dist_name = str(
+                base64.urlsafe_b64encode(hashlib.sha1(sdist.encode("utf-8")).digest())
+                .decode("utf-8")
+                .rstrip("=")
+            )
 
         # For the purposes of building a wheel from source, the product should be uniqued by the
         # wheel name which is unique on the host os up to the python and abi tags. In other words,
@@ -871,9 +880,7 @@ class BuiltWheelDir(AtomicCacheDir):
             abi_tag=interpreter.identity.abi_tag,
             platform_tag=interpreter.identity.platform_tag,
         )
-        sdist_dir = CacheDir.BUILT_WHEELS.path(
-            dist_type, os.path.basename(sdist), pex_root=pex_root
-        )
+        sdist_dir = CacheDir.BUILT_WHEELS.path(dist_type, dist_name, pex_root=pex_root)
         dist_dir = os.path.join(sdist_dir, fingerprint, target_tags)
 
         if is_sdist(sdist):
