@@ -8,7 +8,6 @@ import glob
 import hashlib
 import os
 
-from pex.atomic_directory import atomic_directory
 from pex.common import pluralize, safe_rmtree
 from pex.compatibility import safe_commonpath, string
 from pex.enum import Enum
@@ -280,11 +279,6 @@ class AtomicCacheDir(str):
     ):
         # type: (...) -> None
         self.path = path
-
-    def safe_delete(self):
-        with atomic_directory(self.path) as atomic_dir:
-            if atomic_dir.is_finalized():
-                safe_rmtree(self.path)
 
     def __repr__(self):
         # type: () -> str

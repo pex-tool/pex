@@ -1119,7 +1119,7 @@ class PythonInterpreter(object):
 
         cache_dir = InterpreterDir.create(binary)
         if ignore_cached:
-            cache_dir.safe_delete()
+            safe_rmtree(cache_dir)
         if os.path.isfile(cache_dir.interp_info_file):
             try:
                 with open(cache_dir.interp_info_file, "rb") as fp:
