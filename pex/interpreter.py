@@ -1525,23 +1525,21 @@ class PythonInterpreter(object):
                         resolved = resolved_interpreter
                         break
                     else:
-                        # N.B.: Different patch versions of CPython can have the same `python`
-                        # binary contents and only differ in `libpython.so` and other shared
-                        # libraries and the stdlib. We guard against that case here (i.e.: a
-                        # CPython patch version upgrade or downgrade) by busting the cache as a last
-                        # resort before failing to resolve a base interpreter.
+                        # N.B.: Different patch versions of Python can have the same `python`
+                        # binary contents and only differ in shared libraries and the stdlib. We
+                        # guard against that case here (i.e.: a CPython patch version upgrade or
+                        # downgrade) by busting the cache as a last resort before failing to
+                        # resolve a base interpreter.
+                        #
                         # See: https://github.com/pex-tool/pex/issues/3113
                         maybe_reinstalled_interpreters.append(resolved_interpreter)
             if resolved is None:
-                # interpreter = PythonInterpreter.from_binary(self.binary, ignore_cached=True)
-                # self._identity = interpreter._identity
-                # version = self._identity.version
                 for maybe_reinstalled_interpreter in maybe_reinstalled_interpreters:
-                    maybe_reinstalled_interpreter = PythonInterpreter.from_binary(
+                    re_resolved_interpreter = self.from_binary(
                         maybe_reinstalled_interpreter.binary, ignore_cached=True
                     )
-                    if maybe_reinstalled_interpreter.version == version:
-                        resolved = maybe_reinstalled_interpreter
+                    if re_resolved_interpreter.version == version:
+                        resolved = re_resolved_interpreter
                         break
             if resolved is None:
                 message = [
@@ -1560,7 +1558,7 @@ class PythonInterpreter(object):
                     )
                 )
                 raise self.BaseInterpreterResolutionError("\n".join(message))
-            base_interpreter = resolved_interpreter
+            base_interpreter = resolved
             resolution_path.append(base_interpreter.binary)
         return base_interpreter
 
