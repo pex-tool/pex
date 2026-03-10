@@ -1,5 +1,13 @@
 # Release Notes
 
+## 2.91.1
+
+This release partially fixes an interpreter caching bug for CPython interpreters that have the same
+binary contents across patch versions with variance confined to `libpython`, other shared libraries
+and stdlib code.
+
+* Fix identification of venv interpreters. (#3114)
+
 ## 2.91.0
 
 This release improves editable support by honoring editable requests when creating venvs from
