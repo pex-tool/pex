@@ -641,9 +641,13 @@ class PyenvPythonDistribution(PythonDistribution):
         )
 
 
-def ensure_python_distribution(version):
-    # type: (str) -> PyenvPythonDistribution
-    if version not in ALL_PY_VERSIONS:
+def ensure_python_distribution(
+    version,  # type: str
+    python_version=None,  # type: Optional[str]
+    allow_adhoc_version=False,  # type: bool
+):
+    # type: (...) -> PyenvPythonDistribution
+    if not allow_adhoc_version and version not in ALL_PY_VERSIONS:
         raise ValueError("Please constrain version to one of {}".format(ALL_PY_VERSIONS))
 
     if WINDOWS and _ALL_PY_VERSIONS_TO_VERSION_INFO[version][:2] < (3, 8):
@@ -669,7 +673,7 @@ def ensure_python_distribution(version):
     if WINDOWS:
         python = os.path.join(interpreter_location, "python.exe")
     else:
-        major, minor = version.split(".")[:2]
+        major, minor = (python_version or version).split(".")[:2]
         python = os.path.join(
             interpreter_location, "bin", "python{major}.{minor}".format(major=major, minor=minor)
         )
