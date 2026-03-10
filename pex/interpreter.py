@@ -1091,8 +1091,12 @@ class PythonInterpreter(object):
         return binary
 
     @classmethod
-    def _spawn_from_binary_external(cls, binary):
-        # type: (str) -> SpawnedJob[PythonInterpreter]
+    def _spawn_from_binary_external(
+        cls,
+        binary,  # type: str
+        ignore_cached=False,  # type: bool
+    ):
+        # type: (...) -> SpawnedJob[PythonInterpreter]
 
         def create_interpreter(
             stdout,  # type: bytes
@@ -1114,6 +1118,8 @@ class PythonInterpreter(object):
             return interpreter
 
         cache_dir = InterpreterDir.create(binary)
+        if ignore_cached:
+            cache_dir.safe_delete()
         if os.path.isfile(cache_dir.interp_info_file):
             try:
                 with open(cache_dir.interp_info_file, "rb") as fp:
@@ -1221,8 +1227,12 @@ class PythonInterpreter(object):
         return None
 
     @classmethod
-    def _spawn_from_binary(cls, binary):
-        # type: (str) -> SpawnedJob[PythonInterpreter]
+    def _spawn_from_binary(
+        cls,
+        binary,  # type: str
+        ignore_cached=False,  # type: bool
+    ):
+        # type: (...) -> SpawnedJob[PythonInterpreter]
         canonicalized_binary = cls.canonicalize_path(binary)
         if not os.path.exists(canonicalized_binary):
             raise cls.InterpreterNotFound(
@@ -1231,9 +1241,9 @@ class PythonInterpreter(object):
 
         # N.B.: The cache is written as the last step in PythonInterpreter instance initialization.
         cached_interpreter = cls._PYTHON_INTERPRETER_BY_NORMALIZED_PATH.get(canonicalized_binary)
-        if cached_interpreter is not None:
+        if cached_interpreter is not None and not ignore_cached:
             return SpawnedJob.completed(cached_interpreter)
-        return cls._spawn_from_binary_external(canonicalized_binary)
+        return cls._spawn_from_binary_external(canonicalized_binary, ignore_cached=ignore_cached)
 
     @classmethod
     def from_binary(
@@ -1241,6 +1251,7 @@ class PythonInterpreter(object):
         binary,  # type: str
         pyenv=None,  # type: Optional[Pyenv]
         cwd=None,  # type: Optional[str]
+        ignore_cached=False,  # type: bool
     ):
         # type: (...) -> PythonInterpreter
         """Create an interpreter from the given `binary`.
@@ -1250,6 +1261,8 @@ class PythonInterpreter(object):
                       Auto-detected by default.
         :param cwd: The cwd to use as a base to look for python version files from. The process cwd
                     by default.
+        :param ignore_cached: If the binary has already been identified, ignore the cached
+                              identification and re-identify.
         :return: an interpreter created from the given `binary`.
         """
         python = cls._resolve_pyenv_shim(binary, pyenv=pyenv, cwd=cwd)
@@ -1257,7 +1270,10 @@ class PythonInterpreter(object):
             raise cls.IdentificationError("The pyenv shim at {} is not active.".format(binary))
 
         try:
-            return cast(PythonInterpreter, cls._spawn_from_binary(python).await_result())
+            return cast(
+                PythonInterpreter,
+                cls._spawn_from_binary(python, ignore_cached=ignore_cached).await_result(),
+            )
         except Job.Error as e:
             raise cls.IdentificationError("Failed to identify {}: {}".format(binary, e))
 
@@ -1497,20 +1513,36 @@ class PythonInterpreter(object):
                 if is_exe(candidate_binary_path):
                     yield candidate_binary_path
 
-        def is_same_interpreter(interpreter):
-            # type: (PythonInterpreter) -> bool
-            identity = interpreter._identity
-            return identity.version == version and identity.abi_tag == abi_tag
-
         resolution_path = []  # type: List[str]
         base_interpreter = self
         while base_interpreter.is_venv:
             resolved = None  # type: Optional[PythonInterpreter]
+            maybe_reinstalled_interpreters = []  # type: List[PythonInterpreter]
             for candidate_path in iter_base_candidate_binary_paths(base_interpreter):
                 resolved_interpreter = self.from_binary(candidate_path)
-                if is_same_interpreter(resolved_interpreter):
-                    resolved = resolved_interpreter
-                    break
+                if resolved_interpreter.abi_tag == abi_tag:
+                    if resolved_interpreter.version == version:
+                        resolved = resolved_interpreter
+                        break
+                    else:
+                        # N.B.: Different patch versions of CPython can have the same `python`
+                        # binary contents and only differ in `libpython.so` and other shared
+                        # libraries and the stdlib. We guard against that case here (i.e.: a
+                        # CPython patch version upgrade or downgrade) by busting the cache as a last
+                        # resort before failing to resolve a base interpreter.
+                        # See: https://github.com/pex-tool/pex/issues/3113
+                        maybe_reinstalled_interpreters.append(resolved_interpreter)
+            if resolved is None:
+                # interpreter = PythonInterpreter.from_binary(self.binary, ignore_cached=True)
+                # self._identity = interpreter._identity
+                # version = self._identity.version
+                for maybe_reinstalled_interpreter in maybe_reinstalled_interpreters:
+                    maybe_reinstalled_interpreter = PythonInterpreter.from_binary(
+                        maybe_reinstalled_interpreter.binary, ignore_cached=True
+                    )
+                    if maybe_reinstalled_interpreter.version == version:
+                        resolved = maybe_reinstalled_interpreter
+                        break
             if resolved is None:
                 message = [
                     "Failed to resolve the base interpreter for the virtual environment at "
@@ -1550,6 +1582,11 @@ class PythonInterpreter(object):
     @property
     def python(self):
         return self._identity.python
+
+    @property
+    def abi_tag(self):
+        # type: () -> str
+        return self._identity.abi_tag
 
     @property
     def version(self):
