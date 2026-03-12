@@ -36,7 +36,7 @@ def assert_colors_import_error(
     if python.version[0] == 2:
         assert b"ImportError: No module named colors\n" in stderr, stderr.decode("utf-8")
     else:
-        assert b"ModuleNotFoundError: No module named 'colors'\n" in stderr, stderr.decode("utf-8")
+        assert b"ModuleNotFoundError: No module named 'colors'" in stderr, stderr.decode("utf-8")
 
 
 @pytest.fixture
