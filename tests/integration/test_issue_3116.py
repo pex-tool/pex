@@ -83,5 +83,5 @@ def test_enum_backport_injection_foiled(
 
     safe_rmtree(pex_root)
     assert b"| Bar! |" in subprocess.check_output(
-        args=[interpreter, pex_main, "Bar!"], env=make_env(PYTHONPATH=pythonpath, **extra_env)
+        args=[interpreter, pex_main, "Bar!"], env=make_env(PYTHONPATH=pythonpath)
     )
