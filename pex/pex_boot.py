@@ -190,6 +190,7 @@ def boot(
         # underlying Python environment in the first place.
         if (
             "PYTHONPATH" in os.environ
+            and __SHOULD_EXECUTE__
             and hermetic_boot
             and os.environ.get("PEX_INHERIT_PATH", "false") == "false"
         ):
