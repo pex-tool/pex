@@ -951,7 +951,9 @@ def test_scie_busybox_console_script_inject_python_args(
             in output_lines
         )
         stderr_import_logging = any(line.startswith("import ") for line in output_lines)
-        assert expect_python_verbose is stderr_import_logging, "\n".join(output_lines)
+        assert expect_python_verbose is stderr_import_logging, "\n".join(
+            output_lines[:5] + ["..."] + output_lines[-5:]
+        )
 
     assert_output(
         args=[busybox, "foo-script-ad-hoc"],

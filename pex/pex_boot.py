@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 if sys.version_info >= (3, 10):
 
     def orig_argv():
-        # type: () -> List[str]
+        # type: () -> Optional[List[str]]
         return sys.orig_argv
 
 else:
@@ -24,7 +24,7 @@ else:
         from ctypes import pythonapi
 
         def orig_argv():
-            # type: () -> List[str]
+            # type: () -> Optional[List[str]]
 
             # Under MyPy for Python 3.5, ctypes.POINTER is incorrectly typed. This code is tested
             # to work correctly in practice on all Pythons Pex supports.
@@ -42,8 +42,8 @@ else:
     except ImportError:
         # N.B.: This handles the older PyPy case.
         def orig_argv():
-            # type: () -> List[str]
-            return []
+            # type: () -> Optional[List[str]]
+            return None
 
 
 def __re_exec__(
@@ -147,6 +147,7 @@ def boot(
     bootstrap_dir,  # type: str
     pex_root,  # type: str
     pex_hash,  # type: str
+    hermetic_boot,  # type: bool
     has_interpreter_constraints,  # type: bool
     pex_path,  # type: Tuple[str, ...]
     is_venv,  # type: bool
@@ -175,11 +176,48 @@ def boot(
 
     python_args = list(inject_python_args)  # type: List[str]
     orig_args = orig_argv()
-    if orig_args:
+    if orig_args is not None:
+        orig_python_args = []  # type: List[str]
         for index, arg in enumerate(orig_args[1:], start=1):
             if os.path.exists(arg) and os.path.samefile(entry_point, arg):
-                python_args.extend(orig_args[1:index])
+                orig_python_args = orig_args[1:index]
                 break
+        python_args.extend(orig_python_args)
+
+        # N.B.: This re-exec is shown to cost ~3% of runtime (~30ms) for small, quick zipapp PEXes
+        # on a cold boot; so we avoid the re-exec unless PYTHONPATH is set, which should be the
+        # only common way to pollute the stdlib in a manner that doesn't permanently break the
+        # underlying Python environment in the first place.
+        if (
+            "PYTHONPATH" in os.environ
+            and hermetic_boot
+            and os.environ.get("PEX_INHERIT_PATH", "false") == "false"
+        ):
+            re_exec = False
+            if sys.version_info[:2] >= (3, 4):
+                if "-I" not in orig_python_args:
+                    python_args.append("-I")
+                    re_exec = True
+            else:
+                has_hermetic_args = (
+                    ("-s" in orig_python_args and "-E" in orig_python_args)
+                    or "-sE" in orig_python_args
+                    or "-Es" in orig_python_args
+                )
+                if not has_hermetic_args:
+                    python_args.append("-sE")
+                    re_exec = True
+            if re_exec:
+                args = [sys.executable]
+                args.extend(python_args)
+                args.append(entry_point)
+                args.extend(sys.argv[1:])
+                if os.name == "nt":
+                    import subprocess
+
+                    sys.exit(subprocess.call(args=args))
+                else:
+                    os.execv(args[0], args)
 
     installed_from = os.environ.pop(__INSTALLED_FROM__, None)
     if installed_from:

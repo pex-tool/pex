@@ -344,8 +344,8 @@ def configure_clp_pex_options(parser):
         default=True,
         help=(
             "If --venv is specified, don't rewrite Python script shebangs in the venv to pass "
-            "`-sE` to the interpreter; for example, to enable running the venv PEX itself or its "
-            "Python scripts with a custom `PYTHONPATH`."
+            "`-I` (or `-sE` for older Pythons) to the interpreter; for example, to enable running "
+            "the venv PEX itself or its Python scripts with a custom `PYTHONPATH`."
         ),
     )
 
