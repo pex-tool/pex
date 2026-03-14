@@ -9,13 +9,9 @@ import sys
 
 from pex.common import safe_rmtree
 from pex.interpreter import PythonInterpreter
-from pex.typing import TYPE_CHECKING
 from testing import make_env, run_pex_command
 from testing.cli import run_pex3
 from testing.pytest_utils.tmp import Tempdir
-
-if TYPE_CHECKING:
-    pass
 
 
 def test_enum_backport_injection_foiled(
@@ -42,8 +38,8 @@ def test_enum_backport_injection_foiled(
     interpreter = sys.executable
     extra_env = {}
     if 0 != subprocess.call(args=[sys.executable, "-c", ""], env=make_env(PYTHONPATH=pythonpath)):
-        # N.B.: Injecting enum34 os the sys.path is so insidious! It can foil Python startup on its
-        # own. In particular, when the python interpreter sits in a venv with modern pep-660
+        # N.B.: Injecting `enum34` on the `sys.path` is so insidious that it can foil Python startup
+        # on its own. In particular, when the python interpreter sits in a venv with modern pep-660
         # editables (the Pex test infra case for newer Pythons), those editables `.pth` will fail
         # to load early on interpreter startup. Pex is not in the backtrace there, and we can't help
         # users in that case - Python itself is poisoned. To avoid that case in tests though, we
