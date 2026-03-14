@@ -7,33 +7,59 @@ import os.path
 import subprocess
 import sys
 
+import pytest
+
 from pex.common import safe_rmtree
 from pex.interpreter import PythonInterpreter
-from testing import make_env, run_pex_command
+from pex.layout import Layout
+from testing import IS_PYPY, make_env, run_pex_command
 from testing.cli import run_pex3
 from testing.pytest_utils.tmp import Tempdir
 
 
+@pytest.mark.parametrize(
+    "layout", [pytest.param(layout, id=layout.value) for layout in Layout.values()]
+)
 def test_enum_backport_injection_foiled(
     tmpdir,  # type: Tempdir
     current_interpreter,  # type: PythonInterpreter
+    layout,  # type: Layout.Value
 ):
     # type: (...) -> None
+
+    if IS_PYPY and layout is Layout.ZIPAPP:
+        pytest.skip(
+            reason=(
+                "PyPy imports site when loading a zipapp __main__.py and blows up before we can do "
+                "anything."
+            )
+        )
 
     pythonpath = tmpdir.join("pythonpath")
     run_pex3("venv", "create", "--layout", "flat", "-d", pythonpath, "enum34").assert_success()
 
     pex_root = tmpdir.join("pex-root")
     pex = tmpdir.join("cowsay.pex")
+    pex_main = pex if layout is Layout.ZIPAPP else os.path.join(pex, "pex")
 
     run_pex_command(
-        args=["--runtime-pex-root", pex_root, "cowsay<6", "-c", "cowsay", "-o", pex]
+        args=[
+            "--runtime-pex-root",
+            pex_root,
+            "cowsay<6",
+            "-c",
+            "cowsay",
+            "-o",
+            pex,
+            "--layout",
+            layout.value,
+        ]
     ).assert_success()
 
-    assert b"| Moo! |" in subprocess.check_output(args=[pex, "Moo!"])
+    assert b"| Moo! |" in subprocess.check_output(args=[pex_main, "Moo!"])
 
     safe_rmtree(pex_root)
-    assert b"| Boo! |" in subprocess.check_output(args=[sys.executable, pex, "Boo!"])
+    assert b"| Boo! |" in subprocess.check_output(args=[sys.executable, pex_main, "Boo!"])
 
     interpreter = sys.executable
     extra_env = {}
@@ -52,10 +78,10 @@ def test_enum_backport_injection_foiled(
 
     safe_rmtree(pex_root)
     assert b"| Foo! |" in subprocess.check_output(
-        args=[pex, "Foo!"], env=make_env(PYTHONPATH=pythonpath, **extra_env)
+        args=[pex_main, "Foo!"], env=make_env(PYTHONPATH=pythonpath, **extra_env)
     )
 
     safe_rmtree(pex_root)
     assert b"| Bar! |" in subprocess.check_output(
-        args=[interpreter, pex, "Bar!"], env=make_env(PYTHONPATH=pythonpath)
+        args=[interpreter, pex_main, "Bar!"], env=make_env(PYTHONPATH=pythonpath, **extra_env)
     )
