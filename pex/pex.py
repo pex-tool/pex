@@ -569,8 +569,8 @@ class PEX(object):  # noqa: T000
         """Return the path this PEX was built at."""
         return self._pex
 
-    def execute(self):
-        # type: () -> Any
+    def execute(self, python_args=()):
+        # type: (Sequence[str]) -> Any
         """Execute the PEX.
 
         This function makes assumptions that it is the last function called by the interpreter.
@@ -607,14 +607,14 @@ class PEX(object):  # noqa: T000
                     V=3,
                 )
 
-        result = self._wrap_coverage(self._wrap_profiling, self._execute)
+        result = self._wrap_coverage(self._wrap_profiling, self._execute, python_args)
         if "PYTHONINSPECT" not in os.environ:
             sys.exit(0 if isinstance(result, Globals) else result)
         else:
             return result
 
-    def _execute(self):
-        # type: () -> Any
+    def _execute(self, python_args):
+        # type: (Sequence[str]) -> Any
         force_interpreter = self._vars.PEX_INTERPRETER
 
         self._clean_environment(strip_pex_env=self._pex_info.strip_pex_env)
@@ -629,7 +629,7 @@ class PEX(object):  # noqa: T000
 
         if force_interpreter:
             TRACER.log("PEX_INTERPRETER specified, dropping into interpreter")
-            return self.execute_interpreter()
+            return self.execute_interpreter(python_args)
 
         if not any(
             (
@@ -640,7 +640,7 @@ class PEX(object):  # noqa: T000
             )
         ):
             TRACER.log("No entry point specified, dropping into interpreter")
-            return self.execute_interpreter()
+            return self.execute_interpreter(python_args)
 
         if self._pex_info_overrides.script and self._pex_info_overrides.entry_point:
             return "Cannot specify both script and entry_point for a PEX!"
@@ -663,19 +663,23 @@ class PEX(object):  # noqa: T000
             assert self._pex_info.entry_point
             return self.execute_entry(parse_entry_point(self._pex_info.entry_point))
 
-    def execute_interpreter(self):
-        # type: () -> Any
+    def execute_interpreter(self, python_args):
+        # type: (Sequence[str]) -> Any
 
         # A Python interpreter always inserts the CWD at the head of the sys.path.
         # See https://docs.python.org/3/library/sys.html#sys.path
         sys.path.insert(0, "")
 
         args = sys.argv[1:]
-        python_options = []
+        python_options = list(python_args)
+        called_with_python_options = False
         for index, arg in enumerate(args):
             # Check if the arg is an expected startup arg.
             if arg.startswith("-") and arg not in ("-", "-c", "-m"):
-                python_options.append(arg)
+                # N.B.: In the face of short options that can be combined, this is a naive check.
+                if arg not in python_options:
+                    python_options.append(arg)
+                    called_with_python_options = True
             else:
                 args = args[index:]
                 break
@@ -683,12 +687,11 @@ class PEX(object):  # noqa: T000
             # All the args were python options
             args = []
 
-        # The pex was called with Python interpreter options
-        if python_options:
-            return self.execute_with_options(python_options, args)
+        if called_with_python_options:
+            return self.re_execute_with_options(python_options, args)
 
         if args:
-            # NB: We take care here to setup sys.argv to match how CPython does it for each case.
+            # NB: We take care here to set up sys.argv to match how CPython does it for each case.
             arg = args[0]
             if arg == "-c":
                 content = args[1]
@@ -734,7 +737,7 @@ class PEX(object):  # noqa: T000
             return Globals(pex_repl())
 
     @staticmethod
-    def execute_with_options(
+    def re_execute_with_options(
         python_options,  # type: List[str]
         args,  # List[str]
     ):
@@ -749,7 +752,7 @@ class PEX(object):  # noqa: T000
             return "Unable to resolve PEX __main__ module file: {}".format(main)
 
         python = sys.executable
-        cmdline = [python] + python_options + [main.__file__] + args
+        cmdline = [python] + python_options + [os.path.dirname(main.__file__)] + args
         TRACER.log(
             "Re-executing with Python interpreter options: cmdline={cmdline!r}".format(
                 cmdline=" ".join(cmdline)

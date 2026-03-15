@@ -33,6 +33,7 @@ from pex.enum import Enum
 from pex.executables import chmod_plus_x, create_sh_python_redirector_shebang
 from pex.finders import get_entry_point_from_console_script, get_script_from_distributions
 from pex.fs import safe_rename, safe_symlink
+from pex.inherit_path import InheritPath
 from pex.installed_wheel import InstalledWheel
 from pex.interpreter import PythonInterpreter
 from pex.layout import Layout
@@ -483,12 +484,18 @@ class PEXBuilder(object):
         with open(os.path.join(_ABS_PEX_PACKAGE_DIR, "pex_boot.py")) as fp:
             pex_boot = fp.read()
 
+        is_venv = self._pex_info.venv
+        hermetic_boot = (is_venv and self._pex_info.venv_hermetic_scripts) or (
+            not is_venv and self._pex_info.inherit_path is InheritPath.FALSE
+        )
+
         pex_main = dedent(
             """
             result, should_exit, is_globals = boot(
                 bootstrap_dir={bootstrap_dir!r},
                 pex_root={pex_root!r},
                 pex_hash={pex_hash!r},
+                hermetic_boot={hermetic_boot!r},
                 has_interpreter_constraints={has_interpreter_constraints!r},
                 pex_path={pex_path!r},
                 is_venv={is_venv!r},
@@ -503,9 +510,10 @@ class PEXBuilder(object):
             bootstrap_dir=self._pex_info.bootstrap,
             pex_root=self._pex_info.raw_pex_root,
             pex_hash=self._pex_info.pex_hash,
+            hermetic_boot=hermetic_boot,
             has_interpreter_constraints=bool(self._pex_info.interpreter_constraints),
             pex_path=self._pex_info.pex_path,
-            is_venv=self._pex_info.venv,
+            is_venv=is_venv,
             inject_python_args=self._pex_info.inject_python_args,
         )
         bootstrap = pex_boot + "\n" + pex_main

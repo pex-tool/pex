@@ -752,7 +752,7 @@ def test_execute_interpreter_dashm_module_with_python_options():
         )
         stdout, stderr = process.communicate()
 
-        assert b"" == stderr
+        assert b"" == stderr, stderr
         assert "{} one two\n".format(
             os.path.realpath(os.path.join(pex_chroot, "foo/bar.py"))
         ) == stdout.decode("utf-8")

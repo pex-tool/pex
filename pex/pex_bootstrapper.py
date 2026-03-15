@@ -700,7 +700,7 @@ def bootstrap_pex(
             from . import pex
 
             try:
-                return pex.PEX(entry_point).execute()
+                return pex.PEX(entry_point).execute(python_args=python_args)
             except pex.PEX.Error as e:
                 return e
 

@@ -1,5 +1,13 @@
 # Release Notes
 
+## 2.91.2
+
+This release fixes hermeticity of the Pex boot code against the Python stdlib itself. In some corner
+cases stdlib modules could be loaded from the PYTHONPATH and lead to failure of the Pex boot code
+before reaching its `sys.path` scrubbing code.
+
+* Harden `__main__.py` against non-hermetic stdlib. (#3117)
+
 ## 2.91.1
 
 This release partially fixes an interpreter caching bug for CPython interpreters that have the same
