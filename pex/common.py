@@ -449,7 +449,9 @@ class ZipFileEx(ZipFile):
         #   https://www.forensicswiki.org/wiki/ZIP#External_file_attributes
         if info.external_attr > 0xFFFF:
             attr = info.external_attr >> 16
-            os.chmod(path, attr)
+            # If the archive file was executable, we set the extracted file as executable.
+            if stat.S_ISREG(attr) and attr & 0o111:
+                chmod_plus_x(path)
 
     # Python 3 also takes PathLike[str] for the path arg, but we only ever pass str since we support
     # Python 2.7 and don't use pathlib as a result.
