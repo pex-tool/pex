@@ -39,17 +39,18 @@ def test_zip_file_type_mode(tmpdir):
     directory = safe_mkdir(tmpdir.join("dir"))
     zip_dir = ZipFileType.from_path(directory)
     assert stat.S_ISDIR(zip_dir.deterministic_mode)
-    assert 0o755 & zip_dir.deterministic_mode
+    assert 0o755 == 0o755 & zip_dir.deterministic_mode
 
     regular_file = touch(tmpdir.join("file"))
     zip_reg_file = ZipFileType.from_path(regular_file)
     assert stat.S_ISREG(zip_reg_file.deterministic_mode)
-    assert 0o644 & zip_reg_file.deterministic_mode
+    assert 0o644 == 0o644 & zip_reg_file.deterministic_mode
 
     executable_file = touch(tmpdir.join("exe"))
+    chmod_plus_x(executable_file)
     zip_exe_file = ZipFileType.from_path(executable_file)
     assert stat.S_ISREG(zip_exe_file.deterministic_mode)
-    assert 0o755 & zip_exe_file.deterministic_mode
+    assert 0o755 == 0o755 & zip_exe_file.deterministic_mode
 
 
 def extract_perms(path):
