@@ -4,14 +4,17 @@
 import contextlib
 import errno
 import os
+import stat
 
 import pytest
 
 from pex.common import (
     Chroot,
     ZipFileEx,
+    ZipFileType,
     deterministic_walk,
     open_zip,
+    safe_mkdir,
     safe_open,
     temporary_dir,
     touch,
@@ -19,6 +22,7 @@ from pex.common import (
 from pex.executables import chmod_plus_x
 from pex.typing import TYPE_CHECKING
 from testing import NonDeterministicWalk
+from testing.pytest_utils.tmp import Tempdir
 
 try:
     from unittest import mock
@@ -27,6 +31,25 @@ except ImportError:
 
 if TYPE_CHECKING:
     from typing import Iterator, Tuple
+
+
+def test_zip_file_type_mode(tmpdir):
+    # type: (Tempdir) -> None
+
+    directory = safe_mkdir(tmpdir.join("dir"))
+    zip_dir = ZipFileType.from_path(directory)
+    assert stat.S_ISDIR(zip_dir.deterministic_mode)
+    assert 0o755 & zip_dir.deterministic_mode
+
+    regular_file = touch(tmpdir.join("file"))
+    zip_reg_file = ZipFileType.from_path(regular_file)
+    assert stat.S_ISREG(zip_reg_file.deterministic_mode)
+    assert 0o644 & zip_reg_file.deterministic_mode
+
+    executable_file = touch(tmpdir.join("exe"))
+    zip_exe_file = ZipFileType.from_path(executable_file)
+    assert stat.S_ISREG(zip_exe_file.deterministic_mode)
+    assert 0o755 & zip_exe_file.deterministic_mode
 
 
 def extract_perms(path):

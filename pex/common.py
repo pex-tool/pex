@@ -309,9 +309,9 @@ class ZipFileType(Enum["ZipFileType.Value"]):
     class Value(_ZipFileTypeValue):
         pass
 
-    DIRECTORY = Value("directory", 0o755)
-    EXECUTABLE = Value("executable", 0o755)
-    FILE = Value("file", 0o644)
+    DIRECTORY = Value("directory", stat.S_IFDIR | 0o755)
+    EXECUTABLE = Value("executable", stat.S_IFREG | 0o755)
+    FILE = Value("file", stat.S_IFREG | 0o644)
 
 
 ZipFileType.seal()
