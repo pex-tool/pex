@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.91.3
+
+This release fixes extraction of wheels containing entries with bad permissions. Instead of
+preserving zip entry permissions, just the executable bit is preserved for file entries.
+
+* Extract zip files with current default fs permission. (#3119)
+
 ## 2.91.2
 
 This release fixes hermeticity of the Pex boot code against the Python stdlib itself. In some corner
