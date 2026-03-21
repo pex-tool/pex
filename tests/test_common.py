@@ -49,10 +49,6 @@ def zip_fixture():
         touch(with_x)
         chmod_plus_x(with_x)
 
-        two = os.path.join(target_dir, "with-x")
-        touch(two)
-        chmod_plus_x(two)
-
         assert extract_perms(no_x) != extract_perms(no_w) != extract_perms(with_x)
 
         zip_file = os.path.join(target_dir, "test.zip")
