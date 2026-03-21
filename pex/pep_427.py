@@ -728,6 +728,11 @@ def install_wheel_flat(
     )
 
 
+def _read_record_lines(lines):
+    # type: (Iterable[Text]) -> Iterator[Union[InstalledFile, InstalledDirectory]]
+    return Record.read(lines=(line for line in lines if line))
+
+
 def create_whl(
     wheel,  # type: Union[str, InstallableWheel]
     destination,  # type: str
@@ -777,7 +782,7 @@ def create_whl(
                     file_mode=zip_entry_info.external_attr_as_stat_mode(),
                 )
         else:
-            for installed_file in Record.read(lines=iter(record_data.decode("utf-8").splitlines())):
+            for installed_file in _read_record_lines(record_data.decode("utf-8").splitlines()):
                 path = (
                     installed_file.dir_info.path
                     if isinstance(installed_file, InstalledDirectory)
@@ -891,7 +896,7 @@ def install_wheel(
                 if isinstance(installed_file, InstalledDirectory)
                 else installed_file.path
             )
-            for installed_file in Record.read(lines=iter(record_lines))
+            for installed_file in _read_record_lines(record_lines)
         ):
             prefix = "The RECORD in {whl}".format(whl=os.path.basename(whl))
             suffix = "so wheel re-packing will not be round-trippable."
@@ -960,7 +965,7 @@ def install_wheel(
     provenance = []  # type: List[Tuple[Text, Text]]
     symlinked = set()  # type: Set[Tuple[Text, Text]]
     warned_bad_record = False
-    for installed_file_or_dir in Record.read(lines=iter(record_data.decode("utf-8").splitlines())):
+    for installed_file_or_dir in _read_record_lines(record_data.decode("utf-8").splitlines()):
         if isinstance(installed_file_or_dir, InstalledDirectory):
             installed_files.append(installed_file_or_dir)
             continue
