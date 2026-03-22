@@ -44,23 +44,23 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout Pex
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           # We need branches and tags since package leans on `git describe`. Passing 0 gets us
           # complete history.
           fetch-depth: 0
       - name: Setup Python 3.9
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           # We need to keep Python 3.9 for consistent vendoring.
           python-version: "3.9"
       - name: Setup Python 3.11
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           # We use 3.11 for typecheck.
           python-version: "3.11"
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
       - name: Check Formatting, Lints and Types
         run: uv run dev-cmd -t format-check lint-check requires-python-check typecheck
       - name: Check Enum Types
@@ -143,13 +143,13 @@ jobs:
           docker-images: false
           swap-storage: false
       - name: Checkout Pex
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           # We need branches and tags for some ITs.
           fetch-depth: 0
       # Some ITs need this for VCS URLs of the form git+ssh://git@github.com/...
       - name: Setup SSH Agent
-        uses: webfactory/ssh-agent@v0.9.0
+        uses: webfactory/ssh-agent@e83874834305fe9a4a2997156cb26c5de65a8555
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
         if: env.SSH_PRIVATE_KEY != ''
@@ -184,26 +184,26 @@ jobs:
             pex-test-pos-args: --shard 2/2
     steps:
       - name: Checkout Pex
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           # We need branches and tags for some ITs.
           fetch-depth: 0
           path: repo
       - name: Setup Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "${{ matrix.python-version }}"
       - name: Expose Pythons
         uses: pex-tool/actions/expose-pythons@e22fe0e0fe85e1f7eb5bbfc7674c7cbbf24ae6b5
       - name: Restore Cached Pyenv Interpreters
         id: restore-pyenv-interpreters
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: ${{ env._PEX_TEST_DEV_ROOT }}/pyenv
           key: macos-15-${{ runner.arch }}-pex-test-dev-root-pyenv-v1
       - name: Restore Cached Devpi Server
         id: restore-devpi-server
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: ${{ env._PEX_TEST_DEV_ROOT }}/devpi
           # We're using a key suffix / restore-keys prefix trick here to get an updatable cache.
@@ -212,39 +212,39 @@ jobs:
           restore-keys: macos-15-${{ runner.arch }}-${{ matrix.test-cmd }}-pex-test-dev-root-devpi-v2
       - name: Restore Windows Stubs
         id: restore-windows-stubs
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: ${{ env._PEX_CACHE_WINDOWS_STUBS_DIR }}
           key: macos-15-${{ runner.arch }}-pex-cache-windows-stubs-dir-v1
       # Some ITs need this for VCS URLs of the form git+ssh://git@github.com/...
       - name: Setup SSH Agent
-        uses: webfactory/ssh-agent@v0.9.0
+        uses: webfactory/ssh-agent@e83874834305fe9a4a2997156cb26c5de65a8555
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
         if: env.SSH_PRIVATE_KEY != ''
         with:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
       - name: Run Tests
         run: |
           cd repo
           uv run dev-cmd ${{ matrix.test-cmd }} -- \
             ${{ env._TEST_POS_ARGS }} ${{ matrix.pex-test-pos-args }}
       - name: Cache Pyenv Interpreters
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         if: github.ref == 'refs/heads/main'
         with:
           path: ${{ env._PEX_TEST_DEV_ROOT }}/pyenv
           key: ${{ steps.restore-pyenv-interpreters.outputs.cache-primary-key }}
       - name: Cache Devpi Server
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         if: github.ref == 'refs/heads/main'
         with:
           path: ${{ env._PEX_TEST_DEV_ROOT }}/devpi
           key: ${{ steps.restore-devpi-server.outputs.cache-primary-key }}
       - name: Cache Windows Stubs
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         if: github.ref == 'refs/heads/main'
         with:
           path: ${{ env._PEX_CACHE_WINDOWS_STUBS_DIR }}
@@ -284,20 +284,20 @@ jobs:
             pex-test-pos-args: --shard 3/3 --junit-report ../dist/test-results/integration-3.xml
     steps:
       - name: Checkout Pex
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           # We need branches and tags for some ITs.
           fetch-depth: 0
           path: repo
       - name: Setup Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "${{ matrix.python-version }}"
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
       - name: Restore Cached Devpi Server
         id: restore-devpi-server
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: ${{ env._PEX_TEST_DEV_ROOT }}/devpi
           # We're using a key suffix / restore-keys prefix trick here to get an updatable cache.
@@ -306,13 +306,13 @@ jobs:
           restore-keys: windows-2022-${{ runner.arch }}-${{ matrix.test-cmd }}-pex-test-dev-root-devpi-v2
       - name: Restore Windows Stubs
         id: restore-windows-stubs
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: ${{ env._PEX_CACHE_WINDOWS_STUBS_DIR }}
           key: windows-2022-${{ runner.arch }}-pex-cache-windows-stubs-dir-v1
       # Some ITs need this for VCS URLs of the form git+ssh://git@github.com/...
       - name: Setup SSH Agent
-        uses: webfactory/ssh-agent@v0.9.0
+        uses: webfactory/ssh-agent@e83874834305fe9a4a2997156cb26c5de65a8555
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
         if: env.SSH_PRIVATE_KEY != ''
@@ -340,7 +340,7 @@ jobs:
           --junit-report-suppress-stdio \
           --junit-report-redact "${{ secrets.GITHUB_TOKEN }}" \
           --junit-report-redact "${{ secrets.SSH_PRIVATE_KEY }}"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always() && matrix.artifact-name
         with:
           name: test-results-${{ matrix.artifact-name }}
@@ -348,13 +348,13 @@ jobs:
             dist/test-results/
             .gitignore
       - name: Cache Devpi Server
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         if: github.ref == 'refs/heads/main'
         with:
           path: ${{ env._PEX_TEST_DEV_ROOT }}/devpi
           key: ${{ steps.restore-devpi-server.outputs.cache-primary-key }}
       - name: Cache Windows Stubs
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         if: github.ref == 'refs/heads/main'
         with:
           path: ${{ env._PEX_CACHE_WINDOWS_STUBS_DIR }}
@@ -365,10 +365,10 @@ jobs:
     if: always()
     runs-on: ubuntu-slim
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           merge-multiple: true
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: test-results
           path: |

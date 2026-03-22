@@ -21,19 +21,19 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout Pex (for release-docs event)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         if: github.event_name == 'repository_dispatch'
         with:
           ref: ${{ github.event.client_payload.ref }}
       - name: Checkout Pex (for manual workflow dispatch)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         if: github.event_name == 'workflow_dispatch'
       - name: Setup Python 3.11
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
       - name: Build Doc Site
         if: github.repository_owner == 'pex-tool'
         run: uv run dev-cmd docs -- --linkcheck --pdf --clean-html
