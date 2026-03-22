@@ -4,14 +4,17 @@
 import contextlib
 import errno
 import os
+import stat
 
 import pytest
 
 from pex.common import (
     Chroot,
     ZipFileEx,
+    ZipFileType,
     deterministic_walk,
     open_zip,
+    safe_mkdir,
     safe_open,
     temporary_dir,
     touch,
@@ -19,6 +22,7 @@ from pex.common import (
 from pex.executables import chmod_plus_x
 from pex.typing import TYPE_CHECKING
 from testing import NonDeterministicWalk
+from testing.pytest_utils.tmp import Tempdir
 
 try:
     from unittest import mock
@@ -29,6 +33,26 @@ if TYPE_CHECKING:
     from typing import Iterator, Tuple
 
 
+def test_zip_file_type_mode(tmpdir):
+    # type: (Tempdir) -> None
+
+    directory = safe_mkdir(tmpdir.join("dir"))
+    zip_dir = ZipFileType.from_path(directory)
+    assert stat.S_ISDIR(zip_dir.deterministic_mode)
+    assert 0o755 == 0o755 & zip_dir.deterministic_mode
+
+    regular_file = touch(tmpdir.join("file"))
+    zip_reg_file = ZipFileType.from_path(regular_file)
+    assert stat.S_ISREG(zip_reg_file.deterministic_mode)
+    assert 0o644 == 0o644 & zip_reg_file.deterministic_mode
+
+    executable_file = touch(tmpdir.join("exe"))
+    chmod_plus_x(executable_file)
+    zip_exe_file = ZipFileType.from_path(executable_file)
+    assert stat.S_ISREG(zip_exe_file.deterministic_mode)
+    assert 0o755 == 0o755 & zip_exe_file.deterministic_mode
+
+
 def extract_perms(path):
     # type: (str) -> str
     return oct(os.stat(path).st_mode)
@@ -36,44 +60,76 @@ def extract_perms(path):
 
 @contextlib.contextmanager
 def zip_fixture():
-    # type: () -> Iterator[Tuple[str, str, str, str]]
+    # type: () -> Iterator[Tuple[str, str]]
     with temporary_dir() as target_dir:
-        one = os.path.join(target_dir, "one")
-        touch(one)
+        no_x = os.path.join(target_dir, "no-x")
+        touch(no_x)
 
-        two = os.path.join(target_dir, "two")
-        touch(two)
-        chmod_plus_x(two)
+        no_w = os.path.join(target_dir, "no-w")
+        touch(no_w)
+        os.chmod(no_w, 0o444)
 
-        assert extract_perms(one) != extract_perms(two)
+        with_x = os.path.join(target_dir, "with-x")
+        touch(with_x)
+        chmod_plus_x(with_x)
+
+        assert extract_perms(no_x) != extract_perms(no_w) != extract_perms(with_x)
 
         zip_file = os.path.join(target_dir, "test.zip")
         with contextlib.closing(ZipFileEx(zip_file, "w")) as zf:
-            zf.write(one, "one")
-            zf.write(two, "two")
+            zf.write(no_x, "no-x")
+            zf.write(no_w, "no-w")
+            zf.write(with_x, "with-x")
 
-        yield zip_file, os.path.join(target_dir, "extract"), one, two
+        yield zip_file, os.path.join(target_dir, "extract")
+
+
+def is_writeable(path):
+    # type: (str) -> bool
+    return bool(os.stat(path).st_mode & 0o222)
+
+
+def is_executable(path):
+    # type: (str) -> bool
+    return bool(os.stat(path).st_mode & 0o111)
 
 
 def test_perm_preserving_zipfile_extractall():
     # type: () -> None
-    with zip_fixture() as (zip_file, extract_dir, one, two):
+    with zip_fixture() as (zip_file, extract_dir):
         with contextlib.closing(ZipFileEx(zip_file)) as zf:
             zf.extractall(extract_dir)
 
-            assert extract_perms(one) == extract_perms(os.path.join(extract_dir, "one"))
-            assert extract_perms(two) == extract_perms(os.path.join(extract_dir, "two"))
+            no_x = os.path.join(extract_dir, "no-x")
+            no_w = os.path.join(extract_dir, "no-w")
+            with_x = os.path.join(extract_dir, "with-x")
+
+            assert not is_executable(no_x)
+            assert not is_executable(no_w)
+            assert is_executable(with_x)
+
+            files = [no_x, no_w, with_x]
+            assert all(is_writeable(f) for f in files)
 
 
 def test_perm_preserving_zipfile_extract():
     # type: () -> None
-    with zip_fixture() as (zip_file, extract_dir, one, two):
+    with zip_fixture() as (zip_file, extract_dir):
         with contextlib.closing(ZipFileEx(zip_file)) as zf:
-            zf.extract("one", path=extract_dir)
-            zf.extract("two", path=extract_dir)
+            zf.extract("no-x", path=extract_dir)
+            zf.extract("no-w", path=extract_dir)
+            zf.extract("with-x", path=extract_dir)
 
-            assert extract_perms(one) == extract_perms(os.path.join(extract_dir, "one"))
-            assert extract_perms(two) == extract_perms(os.path.join(extract_dir, "two"))
+            no_x = os.path.join(extract_dir, "no-x")
+            no_w = os.path.join(extract_dir, "no-w")
+            with_x = os.path.join(extract_dir, "with-x")
+
+            assert not is_executable(no_x)
+            assert not is_executable(no_w)
+            assert is_executable(with_x)
+
+            files = [no_x, no_w, with_x]
+            assert all(is_writeable(f) for f in files)
 
 
 def assert_chroot_perms(copyfn):
@@ -98,8 +154,8 @@ def assert_chroot_perms(copyfn):
                 with contextlib.closing(ZipFileEx(zip_path)) as zf:
                     zf.extractall(extract_dir)
 
-                    assert extract_perms(one) == extract_perms(os.path.join(extract_dir, "one"))
-                    assert extract_perms(two) == extract_perms(os.path.join(extract_dir, "two"))
+                    assert not is_executable(os.path.join(extract_dir, "one"))
+                    assert is_executable(os.path.join(extract_dir, "two"))
 
 
 def test_chroot_perms_copy():

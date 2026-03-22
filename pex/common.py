@@ -309,9 +309,9 @@ class ZipFileType(Enum["ZipFileType.Value"]):
     class Value(_ZipFileTypeValue):
         pass
 
-    DIRECTORY = Value("directory", 0o755)
-    EXECUTABLE = Value("executable", 0o755)
-    FILE = Value("file", 0o644)
+    DIRECTORY = Value("directory", stat.S_IFDIR | 0o755)
+    EXECUTABLE = Value("executable", stat.S_IFREG | 0o755)
+    FILE = Value("file", stat.S_IFREG | 0o644)
 
 
 ZipFileType.seal()
@@ -449,7 +449,9 @@ class ZipFileEx(ZipFile):
         #   https://www.forensicswiki.org/wiki/ZIP#External_file_attributes
         if info.external_attr > 0xFFFF:
             attr = info.external_attr >> 16
-            os.chmod(path, attr)
+            # If the archive file was executable, we set the extracted file as executable.
+            if stat.S_ISREG(attr) and attr & 0o111:
+                chmod_plus_x(path)
 
     # Python 3 also takes PathLike[str] for the path arg, but we only ever pass str since we support
     # Python 2.7 and don't use pathlib as a result.
