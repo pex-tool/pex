@@ -965,6 +965,11 @@ def install_wheel(
     provenance = []  # type: List[Tuple[Text, Text]]
     symlinked = set()  # type: Set[Tuple[Text, Text]]
     warned_bad_record = False
+    resolved_install_paths = [
+        (path_name, os.path.realpath(installed_path))
+        for path_name, installed_path in wheel.iter_install_paths_by_name()
+    ]
+    resolved_wheel_location = os.path.realpath(wheel.location)
     for installed_file_or_dir in _read_record_lines(record_data.decode("utf-8").splitlines()):
         if isinstance(installed_file_or_dir, InstalledDirectory):
             installed_files.append(installed_file_or_dir)
@@ -984,7 +989,9 @@ def install_wheel(
             continue
 
         src_file = os.path.normpath(os.path.join(wheel.location, installed_file.path))
-        src_file_realpath = os.path.realpath(src_file)
+        src_file_realpath = os.path.normpath(
+            os.path.join(resolved_wheel_location, installed_file.path)
+        )
         if not os.path.exists(src_file_realpath):
             if not warned_bad_record:
                 pex_warnings.warn(
@@ -997,8 +1004,7 @@ def install_wheel(
             continue
 
         dst_components = None  # type: Optional[Tuple[Text, Text, bool]]
-        for path_name, installed_path in wheel.iter_install_paths_by_name():
-            installed_path = os.path.realpath(installed_path)
+        for path_name, installed_path in resolved_install_paths:
 
             src_path = None  # type: Optional[Text]
             if installed_path == commonpath((installed_path, src_file_realpath)):
