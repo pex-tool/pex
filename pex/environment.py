@@ -222,20 +222,17 @@ class _RequirementKey(object):
     project_name = attr.ib()  # type: ProjectName
     extras = attr.ib()  # type: FrozenSet[str]
 
-    def satisfied_keys(self):
-        # type: () -> Iterator[_RequirementKey]
+    def satisfies(self, requested):
+        # type: (_RequirementKey) -> bool
 
-        # If we resolve a requirement with extras then we've satisfied resolves for the powerset of
-        # the extras.
-        # For example, if we resolve `cake[birthday,wedding]` then we satisfy resolves for:
+        # A resolved requirement satisfies a requested requirement when the project names match
+        # and the resolved extras are a superset of the requested extras.
+        # For example, resolving `cake[birthday,wedding]` satisfies requests for:
         # `cake[]`
         # `cake[birthday]`
         # `cake[wedding]`
         # `cake[birthday,wedding]`
-        items = list(self.extras)
-        for size in range(len(items) + 1):
-            for combination_of_size in itertools.combinations(items, size):
-                yield _RequirementKey(self.project_name, frozenset(combination_of_size))
+        return self.project_name == requested.project_name and requested.extras <= self.extras
 
 
 class PEXEnvironment(object):
@@ -421,7 +418,7 @@ class PEXEnvironment(object):
             return
 
         requirement_key = _RequirementKey.create(requirement)
-        if requirement_key in resolved_dists_by_key:
+        if any(key.satisfies(requirement_key) for key in resolved_dists_by_key):
             return
 
         available_distributions = [
@@ -449,9 +446,7 @@ class PEXEnvironment(object):
                 V=9,
             )
 
-        resolved_dists_by_key.update(
-            (key, resolved_distribution) for key in requirement_key.satisfied_keys()
-        )
+        resolved_dists_by_key[requirement_key] = resolved_distribution
 
         for dep_requirement in dist_metadata.requires_dists(resolved_distribution.distribution):
             override = dependency_configuration.overridden_by(dep_requirement, target=self._target)
