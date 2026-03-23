@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.91.4
+
+This release fixes an extremely inefficient algorithm used when resolving requirements with many
+extras from a `--pex-repository`.
+
+* Fix exponential memory from powerset of requirement extras. (#3123)
+
 ## 2.91.3
 
 This release fixes extraction of wheels containing entries with bad permissions. Instead of
