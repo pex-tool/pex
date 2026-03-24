@@ -229,7 +229,7 @@ def boot(
             if os.path.isfile(pex_exe):
                 sys.argv[0] = pex_exe
 
-    overridden_entry_point = os.environ.get("__PEX_ENTRY_POINT__", None)
+    overridden_entry_point = os.environ.pop("__PEX_ENTRY_POINT__", None)
     sys.path[0] = os.path.abspath(sys.path[0])
     sys.path.insert(
         0, os.path.abspath(os.path.join(overridden_entry_point or entry_point, bootstrap_dir))

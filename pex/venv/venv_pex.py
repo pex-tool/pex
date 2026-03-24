@@ -288,6 +288,11 @@ def boot(
                     # subprocesses is the same as the sys.executable in the parent process.
                     os.environ["__PEX_EXTRA_SYS_PATH__"] = os.environ["PEX_EXTRA_SYS_PATH"]
                 del os.environ[key]
+        # These are set by the scie to point back at itself and its installed PEX. If not
+        # stripped, they leak into processes spawned by the venv entry point and corrupt
+        # their boot by making them think they were launched from the scie.
+        os.environ.pop("__PEX_ENTRY_POINT__", None)
+        os.environ.pop("__PEX_EXE__", None)
 
     for name, value in inject_env:
         os.environ.setdefault(name, value)
