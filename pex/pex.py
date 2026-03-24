@@ -882,6 +882,13 @@ class PEX(object):  # noqa: T000
             env = os.environ.copy()
             self._clean_environment(env=env, strip_pex_env=self._pex_info.strip_pex_env)
 
+        # These are set by the scie to point back at itself and its installed PEX. In
+        # ephemeral run mode (indicated by _PEX_CLI_RUN), they must not propagate to the
+        # child PEX process or they corrupt the child's boot.
+        if "_PEX_CLI_RUN" in env:
+            env.pop("__PEX_ENTRY_POINT__", None)
+            env.pop("__PEX_EXE__", None)
+
         kwargs = dict(subprocess_daemon_kwargs() if setsid else {}, **kwargs)
 
         TRACER.log("PEX.run invoking {}".format(" ".join(self.cmdline(args))))
