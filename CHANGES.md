@@ -2,10 +2,13 @@
 
 ## 2.91.4
 
-This release fixes an extremely inefficient algorithm used when resolving requirements with many
-extras from a `--pex-repository`.
+This release brings 2 performance fixes from @tobni:
+1. An extremely inefficient algorithm used when resolving requirements with many extras from a PEX
+   was replaced with a simpler, faster and easier to understand algorithm.
+2. Cold-cache `--venv` PEX layout times are nearly halved for large PEXes.
 
 * Fix exponential memory from powerset of requirement extras. (#3123)
+* Hoist realpath calls out of per-file loop in `install_wheel`. (#3124)
 
 ## 2.91.3
 
