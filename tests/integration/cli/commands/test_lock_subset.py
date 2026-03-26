@@ -139,7 +139,7 @@ def test_lock_subset_miss(lock):
     # type: (str) -> None
 
     _, original_locked_reqs = index(lock)
-    requests_version = original_locked_reqs[ProjectName("requests")].pin.version
+    requests_version = original_locked_reqs[ProjectName("requests")].pin.version.raw
     run_pex3(
         "lock", "subset", "--lock", lock, "requests!={version}".format(version=requests_version)
     ).assert_failure(
