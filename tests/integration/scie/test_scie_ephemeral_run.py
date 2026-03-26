@@ -9,7 +9,7 @@ import sys
 import pytest
 
 from pex.typing import TYPE_CHECKING
-from testing import make_env, run_pex_command
+from testing import IS_PYPY, make_env, run_pex_command
 from testing.pytest_utils.tmp import Tempdir
 from testing.scie import skip_if_no_provider
 
@@ -37,7 +37,9 @@ def test_scie_ephemeral_run(
         args=[pex_wheel, "-c", "pex", "-o", pex_scie, "--scie", "eager"] + execution_mode_args
     ).assert_success()
 
-    ic = "CPython=={major}.{minor}.*".format(major=sys.version_info[0], minor=sys.version_info[1])
+    ic = "{impl}=={major}.{minor}.*".format(
+        impl="PyPy" if IS_PYPY else "CPython", major=sys.version_info[0], minor=sys.version_info[1]
+    )
 
     # Verify the scie can perform an ephemeral run with `-- -c`.
     output = subprocess.check_output(
