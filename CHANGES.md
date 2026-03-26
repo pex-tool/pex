@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.91.5
+
+This release fixes Pex PEX scie behavior to match Pex.
+
+* Make ephemeral exec, venv repl and scie compatible (#3129)
+
 ## 2.91.4
 
 This release brings 2 performance fixes from @tobni:
