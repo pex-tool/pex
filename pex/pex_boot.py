@@ -229,12 +229,11 @@ def boot(
             if os.path.isfile(pex_exe):
                 sys.argv[0] = pex_exe
 
-    overridden_entry_point = os.environ.get("__PEX_ENTRY_POINT__", None)
+    overridden_pex = os.environ.get("__PEX_EXE__", None)
     sys.path[0] = os.path.abspath(sys.path[0])
-    sys.path.insert(
-        0, os.path.abspath(os.path.join(overridden_entry_point or entry_point, bootstrap_dir))
-    )
+    sys.path.insert(0, os.path.abspath(os.path.join(overridden_pex or entry_point, bootstrap_dir)))
 
+    overridden_entry_point = os.environ.get("__PEX_ENTRY_POINT__", None)
     if overridden_entry_point and overridden_entry_point != entry_point:
         # This PEX has already been installed out of band; so we short-circuit to execute the
         # pre-installed PEX.
