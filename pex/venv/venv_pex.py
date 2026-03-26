@@ -85,12 +85,6 @@ def _resolve_resource_path(
     )
 
 
-def _strip_scie_environment():
-    # type: () -> None
-    os.environ.pop("__PEX_ENTRY_POINT__", None)
-    os.environ.pop("__PEX_EXE__", None)
-
-
 def boot(
     shebang_python,  # type: str
     venv_bin_dir,  # type: str
@@ -334,7 +328,6 @@ def boot(
 
     pex_script = pex_overrides.get("PEX_SCRIPT") if pex_overrides else script
     if pex_script:
-        _strip_scie_environment()
         script_path = os.path.join(venv_bin_dir, pex_script)
         safe_execv([script_path] + sys.argv[1:])
 
@@ -420,8 +413,6 @@ def boot(
         sys.argv[1:1] = [arg.format(pex=replacements) for arg in inject_args]
 
     module_name, _, function = entry_point.partition(":")
-
-    _strip_scie_environment()
     if not function:
         import runpy
 
