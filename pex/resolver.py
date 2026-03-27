@@ -1543,6 +1543,7 @@ def resolve(
     use_pip_config=False,  # type: bool
     extra_pip_requirements=(),  # type: Tuple[Requirement, ...]
     keyring_provider=None,  # type: Optional[str]
+    uploaded_prior_to=None,  # type: Optional[str]
     result_type=InstallableType.INSTALLED_WHEEL_CHROOT,  # type: InstallableType.Value
     dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
 ):
@@ -1638,6 +1639,7 @@ def resolve(
         use_pip_config=use_pip_config,
         extra_pip_requirements=extra_pip_requirements,
         keyring_provider=keyring_provider,
+        uploaded_prior_to=uploaded_prior_to,
     )
 
     requests = tuple(
@@ -1934,6 +1936,7 @@ def download_requests(
     use_pip_config=False,  # type: bool
     extra_pip_requirements=(),  # type: Tuple[Requirement, ...]
     keyring_provider=None,  # type: Optional[str]
+    uploaded_prior_to=None,  # type: Optional[str]
     dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
 ):
     # type: (...) -> Downloaded
@@ -1946,6 +1949,7 @@ def download_requests(
         use_pip_config=use_pip_config,
         extra_pip_requirements=extra_pip_requirements,
         keyring_provider=keyring_provider,
+        uploaded_prior_to=uploaded_prior_to,
     )
 
     build_requests, download_results = _download_internal(
@@ -2021,6 +2025,7 @@ def reports(
     use_pip_config=False,  # type: bool
     extra_pip_requirements=(),  # type: Tuple[Requirement, ...]
     keyring_provider=None,  # type: Optional[str]
+    uploaded_prior_to=None,  # type: Optional[str]
     dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
 ):
     # type: (...) -> Reports
@@ -2033,6 +2038,7 @@ def reports(
         use_pip_config=use_pip_config,
         extra_pip_requirements=extra_pip_requirements,
         keyring_provider=keyring_provider,
+        uploaded_prior_to=uploaded_prior_to,
     )
 
     pip_session = _PipSession(

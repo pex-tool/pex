@@ -167,6 +167,7 @@ class PipConfiguration(object):
     use_pip_config = attr.ib(default=False)  # type: bool
     extra_requirements = attr.ib(default=())  # type Tuple[Requirement, ...]
     keyring_provider = attr.ib(default=None)  # type: Optional[str]
+    uploaded_prior_to = attr.ib(default=None)  # type: Optional[str]
 
     @property
     def pip_configuration(self):

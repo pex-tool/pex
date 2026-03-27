@@ -557,6 +557,7 @@ def _create_lock_pip_download(
             use_pip_config=pip_configuration.use_pip_config,
             extra_pip_requirements=pip_configuration.extra_requirements,
             keyring_provider=pip_configuration.keyring_provider,
+            uploaded_prior_to=pip_configuration.uploaded_prior_to,
             dependency_configuration=dependency_configuration,
         )
     except resolvers.ResolveError as e:
@@ -594,6 +595,7 @@ def _create_lock_pip_reports(
             use_pip_config=pip_configuration.use_pip_config,
             extra_pip_requirements=pip_configuration.extra_requirements,
             keyring_provider=pip_configuration.keyring_provider,
+            uploaded_prior_to=pip_configuration.uploaded_prior_to,
             dependency_configuration=dependency_configuration,
         )
     except resolvers.ResolveError as e:
@@ -634,6 +636,7 @@ def create(
         use_pip_config=pip_configuration.use_pip_config,
         extra_pip_requirements=pip_configuration.extra_requirements,
         keyring_provider=pip_configuration.keyring_provider,
+        uploaded_prior_to=pip_configuration.uploaded_prior_to,
     )
 
     configured_resolver = ConfiguredResolver(pip_configuration=pip_configuration)

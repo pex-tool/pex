@@ -189,6 +189,7 @@ def resolve(
                 use_pip_config=resolver_configuration.use_pip_config,
                 extra_pip_requirements=resolver_configuration.extra_requirements,
                 keyring_provider=resolver_configuration.keyring_provider,
+                uploaded_prior_to=resolver_configuration.uploaded_prior_to,
                 result_type=result_type,
                 dependency_configuration=dependency_configuration,
             )

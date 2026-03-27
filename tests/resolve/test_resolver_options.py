@@ -420,3 +420,13 @@ def test_multiple_unnamed_indexes(parser):
     mac_scoped_repos = repos_configuration.scoped({"sys_platform": "darwin"})
     assert [] == mac_scoped_repos.in_scope_indexes(ProjectName("torch"))
     assert [] == mac_scoped_repos.in_scope_find_links(ProjectName("torch"))
+
+
+def test_resolver_uploaded_prior_to_passthru(parser):
+    # type: (ArgumentParser) -> None
+    resolver_options.register(parser)
+
+    pip_configuration = compute_pip_configuration(
+        parser, args=["--pip-version", "26.0", "--uploaded-prior-to", "2015-10-21"]
+    )
+    assert pip_configuration.uploaded_prior_to == "2015-10-21"

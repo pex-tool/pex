@@ -70,6 +70,7 @@ class PipArgs(object):
     indexes = attr.ib(default=None)  # type: Optional[Sequence[Text]]
     find_links = attr.ib(default=None)  # type: Optional[Iterable[Text]]
     network_configuration = attr.ib(default=None)  # type: Optional[NetworkConfiguration]
+    uploaded_prior_to = attr.ib(default=None)  # type: Optional[str]
 
     def iter(self, version):
         # type: (PipVersionValue) -> Iterator[str]
@@ -123,6 +124,24 @@ class PipArgs(object):
         yield "--timeout"
         yield str(network_configuration.timeout)
 
+        if self.uploaded_prior_to:
+            if version >= PipVersion.v26_0:
+                yield "--uploaded-prior-to"
+                yield self.uploaded_prior_to
+            else:
+                warn_msg = (
+                    "The `--uploaded-prior-to` was set but Pip v{THIS_VERSION} "
+                    "does not support the `--uploaded-prior-to` option (which "
+                    "is only available in Pip v{VERSION_26_0} and later "
+                    "versions).  Consequently, Pex is ignoring the "
+                    "`--uploaded-prior-to` option for this particular Pip "
+                    "invocation.".format(
+                        THIS_VERSION=version,
+                        VERSION_26_0=PipVersion.v26_0,
+                    )
+                )
+                pex_warnings.warn(warn_msg)
+
 
 class PackageIndexConfiguration(object):
     @staticmethod
@@ -160,6 +179,7 @@ class PackageIndexConfiguration(object):
         use_pip_config=False,  # type: bool
         extra_pip_requirements=(),  # type: Tuple[Requirement, ...]
         keyring_provider=None,  # type: Optional[str]
+        uploaded_prior_to=None,  # type: Optional[str]
     ):
         # type: (...) -> PackageIndexConfiguration
         resolver_version = resolver_version or ResolverVersion.default(pip_version)
@@ -178,6 +198,7 @@ class PackageIndexConfiguration(object):
                 indexes=repos_configuration.indexes,
                 find_links=repos_configuration.find_links,
                 network_configuration=network_configuration,
+                uploaded_prior_to=uploaded_prior_to,
             ),
             env=cls._calculate_env(
                 network_configuration=network_configuration, use_pip_config=use_pip_config
