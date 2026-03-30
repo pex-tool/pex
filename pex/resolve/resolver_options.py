@@ -882,6 +882,13 @@ def create_pip_configuration(
             )
         )
 
+    if options.uploaded_prior_to and pip_version < PipVersion.v26_0:
+        raise InvalidConfigurationError(
+            "Pip {pip_version} too old to support --uploaded-prior-to flag added in {version_26_0}".format(
+                pip_version=pip_version, version_26_0=PipVersion.v26_0
+            )
+        )
+
     build_configuration = BuildConfiguration.create(
         allow_wheels=options.allow_wheels,
         only_wheels=options.only_wheels,

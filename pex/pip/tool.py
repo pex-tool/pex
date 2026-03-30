@@ -125,22 +125,8 @@ class PipArgs(object):
         yield str(network_configuration.timeout)
 
         if self.uploaded_prior_to:
-            if version >= PipVersion.v26_0:
-                yield "--uploaded-prior-to"
-                yield self.uploaded_prior_to
-            else:
-                warn_msg = (
-                    "The `--uploaded-prior-to` was set but Pip v{THIS_VERSION} "
-                    "does not support the `--uploaded-prior-to` option (which "
-                    "is only available in Pip v{VERSION_26_0} and later "
-                    "versions).  Consequently, Pex is ignoring the "
-                    "`--uploaded-prior-to` option for this particular Pip "
-                    "invocation.".format(
-                        THIS_VERSION=version,
-                        VERSION_26_0=PipVersion.v26_0,
-                    )
-                )
-                pex_warnings.warn(warn_msg)
+            yield "--uploaded-prior-to"
+            yield self.uploaded_prior_to
 
 
 class PackageIndexConfiguration(object):

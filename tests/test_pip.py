@@ -22,7 +22,7 @@ from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pex_warnings import PEXWarning
 from pex.pip.installation import _PIP, PipInstallation, get_pip
-from pex.pip.tool import PackageIndexConfiguration, Pip, PipArgs
+from pex.pip.tool import PackageIndexConfiguration, Pip
 from pex.pip.version import PipVersion, PipVersionValue
 from pex.resolve import abbreviated_platforms
 from pex.resolve.configured_resolver import ConfiguredResolver
@@ -455,19 +455,6 @@ def test_keyring_provider(
             assert PEXWarning == events[0].category
             message = str(events[0].message).replace("\n", " ")
             assert "does not support the `--keyring-provider` option" in message
-
-
-def test_uploaded_prior_to_warning():
-    # type: () -> None
-    args = PipArgs(uploaded_prior_to="2015-10-21")
-
-    with warnings.catch_warnings(record=True) as events:
-        list(args.iter(PipVersion.v25_1))
-
-        assert len(events) == 1
-        assert PEXWarning == events[0].category
-        message = str(events[0].message).replace("\n", " ")
-        assert "--uploaded-prior-to" in message
 
 
 @applicable_pip_versions
