@@ -107,6 +107,17 @@ class WHEEL(object):
     @property
     def tags(self):
         # type: () -> Tuple[tags.Tag, ...]
+
+        # N.B.: We have seen empty or malformed strings in TAG entries in the wild, and the
+        # tag parsing code in `packaging` chokes on them (see https://github.com/pex-tool/pex/issues/3132).
+        # We filter those out to defend against this bad WHEEL Tag metadata.
+        def safe_parse_tag(tag):
+            # type: (str) -> Tuple[tags.Tag, ...]
+            try:
+                return tuple(sorted(tags.parse_tag(tag), key=lambda tag: str(tag)))
+            except ValueError:
+                return tuple()
+
         return tuple(
             itertools.chain.from_iterable(
                 # N.B.: There should be just 1 tag per Tag entry per items 7 and 11 in
@@ -117,12 +128,8 @@ class WHEEL(object):
                 # a frozenset with unstable order which can cause issues when attempting to
                 # construct stable wheel names from these tags; as such, we do the sort here as a
                 # defense against this style of bad WHEEL Tag metadata.
-                # N.B.: We have seen empty strings in TAG entries in the wild, and the tag parsing
-                # code in `packaging` chokes on them (see https://github.com/pex-tool/pex/issues/3132).
-                # We filter those out to defend against this bad WHEEL Tag metadata.
-                sorted(tags.parse_tag(tag), key=lambda tag: str(tag))
+                safe_parse_tag(tag)
                 for tag in self.metadata.get_all("Tag", ())
-                if tag
             )
         )
 
