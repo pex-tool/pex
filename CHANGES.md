@@ -1,5 +1,19 @@
 # Release Notes
 
+## 2.91.6
+
+This release fixes a crash when encountering empty compatibility tag strings in WHEEL metadata,
+which are not valid, but are nonetheless found in the wild.
+
+* Defend against empty `Tag`s in WHEEL metadata. (#3133)
+
+
+## 2.91.5
+
+This release fixes Pex PEX scie behavior to match Pex.
+
+* Make ephemeral exec, venv repl and scie compatible (#3129)
+
 ## 2.91.4
 
 This release brings 2 performance fixes from @tobni:
@@ -315,7 +329,7 @@ configuration options (like custom indexes) under Python 3.12 and newer.
 
 This release adds support for `--no-scie-pex-entrypoint-env-passthrough` to trigger direct execution
 of `--venv` PEX scie script entrypoints. This performance optimization mirrors the existing default
-`--no-scie-busybox-pex-entrypoint-env-passthrough` for busybox scies, but must be selected by 
+`--no-scie-busybox-pex-entrypoint-env-passthrough` for busybox scies, but must be selected by
 passing `--no-scie-pex-entrypoint-env-passthrough` explicitly. In addition, the `VIRTUAL_ENV` env
 var is now guaranteed to be set for all `--venv` PEX scies.
 
@@ -555,7 +569,7 @@ vendored Pip (`--pip-version {vendored,20.3.4-patched}`).
 ## 2.63.0
 
 This release adds population of a `pex` script to venvs created with `pex3 venv create`. This allows
-for executing Python in the activated venv via `/path/to/venv/pex ...` instead of 
+for executing Python in the activated venv via `/path/to/venv/pex ...` instead of
 `source /path/to/venv/bin/activate && python ...`.
 
 * Include `pex` script in `pex3 venv create`. (#2960)
@@ -685,7 +699,7 @@ the local project uses the `uv_build` backend.
 ## 2.58.0
 
 This release adds `--derive-sources-from-requirements-files` to allow for scoping requirement
-sources via the structure of requirements files. If any requirements files are specified that 
+sources via the structure of requirements files. If any requirements files are specified that
 contain `-f` / `--find-links`, `-i` / `--index-url`, or `--extra-index-url` options,
 `--derive-sources-from-requirements-files` will automatically map these repos as the `--source` for
 the requirements (if any) declared in the same requirements file.

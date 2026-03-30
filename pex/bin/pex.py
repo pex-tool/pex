@@ -1289,6 +1289,11 @@ def main(args=None):
 
     try:
         with global_environment(options) as env:
+            # These are set if we're running from within a Pex PEX scie and already installed.
+            # We clear them to allow recursive use of Pex / PEX.
+            env.pop("__PEX_EXE__", None)
+            env.pop("__PEX_ENTRY_POINT__", None)
+
             try:
                 resolver_configuration = resolver_options.configure(
                     options,
