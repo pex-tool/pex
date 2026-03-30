@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.92.0
+
+This release supports the new [`--uploaded-prior-to`](https://pip.pypa.io/en/stable/user_guide/#filtering-by-upload-time).
+
+* Pass thru `--uploaded-prior-to` on Pip v26.0. (#3131)
+
 ## 2.91.6
 
 This release fixes a crash when encountering empty compatibility tag strings in WHEEL metadata,
