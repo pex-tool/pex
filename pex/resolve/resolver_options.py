@@ -214,7 +214,7 @@ def register(
         default=None,
         help=(
             "Configure Pip to only consider packages uploaded prior to the "
-            "given date time.  Accepts ISO 8601 strings (e.g., "
+            "given date time. Accepts ISO 8601 strings (e.g., "
             "'2023-01-01T00:00:00Z').  Uses local timezone if none "
             "specified. Only effective when installing from indexes that "
             "provide upload-time metadata.  Only available in Pip v26.0 and later. "
@@ -882,7 +882,7 @@ def create_pip_configuration(
             )
         )
 
-    if options.uploaded_prior_to and pip_version < PipVersion.v26_0:
+    if options.uploaded_prior_to and pip_version and pip_version < PipVersion.v26_0:
         raise InvalidConfigurationError(
             "Pip {pip_version} too old to support --uploaded-prior-to flag added in {version_26_0}".format(
                 pip_version=pip_version, version_26_0=PipVersion.v26_0
