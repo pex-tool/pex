@@ -1,12 +1,17 @@
 # Release Notes
 
+## 2.91.7
+
+This release plugs holes in the WHEEL metadata fix in 2.91.6.
+
+* Thread .whl name / platform tag to Wheel parse. (#3137)
+
 ## 2.91.6
 
 This release fixes a crash when encountering empty compatibility tag strings in WHEEL metadata,
 which are not valid, but are nonetheless found in the wild.
 
 * Defend against empty `Tag`s in WHEEL metadata. (#3133)
-
 
 ## 2.91.5
 
