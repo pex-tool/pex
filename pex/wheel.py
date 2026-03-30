@@ -121,7 +121,8 @@ class WHEEL(object):
                 # code in `packaging` chokes on them (see https://github.com/pex-tool/pex/issues/3132).
                 # We filter those out to defend against this bad WHEEL Tag metadata.
                 sorted(tags.parse_tag(tag), key=lambda tag: str(tag))
-                for tag in self.metadata.get_all("Tag", ()) if tag
+                for tag in self.metadata.get_all("Tag", ())
+                if tag
             )
         )
 
