@@ -5,7 +5,9 @@ import os
 
 from pex.pep_440 import Version
 from pex.resolve.lockfile import json_codec
+from pex.resolve.package_repository import PYPI
 from pex.typing import TYPE_CHECKING
+from testing import make_env
 from testing.cli import run_pex3
 
 if TYPE_CHECKING:
@@ -26,6 +28,9 @@ def test_uploaded_prior_to_filters_to_older_version(tmpdir):
         "2023-09-20",
         "-o",
         lock_file,
+        # Bypass devpi in integration tests until upload-time is supported
+        # https://github.com/devpi/devpi/issues/1061
+        env=make_env(PIP_INDEX_URL=PYPI),
     ).assert_success()
 
     lock = json_codec.load(lock_file)
@@ -49,6 +54,7 @@ def test_uploaded_prior_to_far_future_allows_latest(tmpdir):
         "2063-04-05",
         "-o",
         lock_file,
+        env=make_env(PIP_INDEX_URL=PYPI),
     ).assert_success()
 
     lock = json_codec.load(lock_file)
