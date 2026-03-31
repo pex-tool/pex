@@ -225,7 +225,7 @@ def pex_from_lock(lock):
 
 def assert_pex_from_lock(lock):
     # type: (Pylock) -> None
-    pex_from_lock(lock.source).assert_success(
+    pex_from_lock(lock.source.path).assert_success(
         expected_output_re=re.escape(os.linesep.join(("b 1", "a 1")))
     )
 
@@ -302,7 +302,7 @@ def test_dependencies_nominal_lock_not_spec_compliant_ambiguous_install(
         #   https://packaging.python.org/en/latest/specifications/pylock-toml/#installation
         attr.evolve(wheel_b2, marker=B1_DEP_MARKER),
     )
-    result = pex_from_lock(lock.source)
+    result = pex_from_lock(lock.source.path)
     result.assert_failure(
         expected_error_re=re.escape(
             "Failed to resolve compatible artifacts from lock {lock_file} created by {creator} for "

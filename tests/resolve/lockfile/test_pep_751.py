@@ -357,9 +357,7 @@ def test_pylock_parse_sdist_relative_path():
     assert "foo-1.2.3.tar.gz" == package.artifact.filename
     assert (
         ArtifactURL.parse(
-            "file://{lock_path}/dists/foo-1.2.3.tar.gz".format(
-                lock_path=os.path.dirname(pylock.source)
-            )
+            "file://{lock_path}/dists/foo-1.2.3.tar.gz".format(lock_path=pylock.source.parent_dir)
         )
         == package.artifact.url
     )
@@ -590,7 +588,7 @@ def test_pylock_parse_directory():
     assert package.version is None
     assert isinstance(package.artifact, UnFingerprintedLocalProjectArtifact)
     assert package.artifact.verified
-    assert os.path.join(os.path.dirname(pylock.source), "foo") == package.artifact.directory
+    assert os.path.join(pylock.source.parent_dir, "foo") == package.artifact.directory
     assert package.artifact.editable
     assert package.artifact.subdirectory is None
     assert len(package.additional_wheels) == 0
