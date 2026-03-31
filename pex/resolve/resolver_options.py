@@ -882,10 +882,11 @@ def create_pip_configuration(
             )
         )
 
-    if options.uploaded_prior_to and pip_version and pip_version < PipVersion.v26_0:
+    if options.uploaded_prior_to and (pip_version or PipVersion.DEFAULT) < PipVersion.v26_0:
         raise InvalidConfigurationError(
-            "Pip {pip_version} too old to support --uploaded-prior-to flag added in {version_26_0}".format(
-                pip_version=pip_version, version_26_0=PipVersion.v26_0
+            "Pip {pip_version} too old to support `--uploaded-prior-to` flag added in {version_26_0}.".format(
+                pip_version=pip_version if pip_version else "%s (default)" % PipVersion.DEFAULT,
+                version_26_0=PipVersion.v26_0,
             )
         )
 

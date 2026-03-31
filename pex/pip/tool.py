@@ -124,7 +124,14 @@ class PipArgs(object):
         yield "--timeout"
         yield str(network_configuration.timeout)
 
-        if self.uploaded_prior_to:
+        if (
+            self.uploaded_prior_to
+            # We have already thrown a hard error if the requested Pip version
+            # was too old. The silent check here is only relevant if during
+            # pex.pip.installation.compatible_version the version of Pip was
+            # downgraded, in which case a warning has already been issued.
+            and version >= PipVersion.v26_0
+        ):
             yield "--uploaded-prior-to"
             yield self.uploaded_prior_to
 
