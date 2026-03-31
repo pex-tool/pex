@@ -1326,7 +1326,9 @@ class PackageEvaluator(object):
         best_match = None  # type: Optional[RankedTag]
         selected_wheel = None  # type: Optional[FileArtifact]
         for wheel in wheels:
-            wheel_tags = CompatibilityTags.from_wheel(wheel.filename)
+            wheel_tags = CompatibilityTags.from_wheel(
+                wheel.filename, platform_tag=self.target.platform_tag
+            )
             ranked_tag = self.target.supported_tags.best_match(wheel_tags)
             if ranked_tag and (
                 not best_match or ranked_tag == ranked_tag.select_higher_rank(best_match)

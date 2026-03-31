@@ -100,6 +100,12 @@ class Target(object):
         return None
 
     @property
+    def platform_tag(self):
+        # type: () -> Tag
+        """The most specific tag for this target."""
+        return self.supported_tags[0]
+
+    @property
     def supported_tags(self):
         # type: () -> CompatibilityTags
         raise NotImplementedError()
@@ -202,7 +208,7 @@ class Target(object):
     def wheel_applies(self, wheel):
         # type: (Union[str, Distribution]) -> WheelEvaluation
 
-        wheel_tags = CompatibilityTags.from_wheel(wheel)
+        wheel_tags = CompatibilityTags.from_wheel(wheel, platform_tag=self.platform_tag)
         ranked_tag = self.supported_tags.best_match(wheel_tags)
         requires_python = (
             wheel.metadata.requires_python

@@ -39,6 +39,7 @@ from pex.pep_376 import InstalledDirectory, InstalledFile, Record, create_instal
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.sysconfig import SCRIPT_DIR, SysPlatform
+from pex.third_party.packaging.tags import Tag
 from pex.typing import TYPE_CHECKING, cast
 from pex.venv.virtualenv import Virtualenv
 from pex.wheel import Wheel
@@ -480,6 +481,11 @@ class InstallableWheel(object):
         # type: () -> Version
         return self.wheel.version
 
+    @property
+    def tags(self):
+        # type: () -> Tuple[Tag, ...]
+        return self.wheel.tags
+
     def __attrs_post_init__(self):
         # type: () -> None
         is_whl = zipfile.is_zipfile(self.wheel.location)
@@ -870,7 +876,7 @@ def install_wheel(
             # poked on a per-entry basis allowing forging a RECORD entry and its associated file.
             # Only an outer fingerprint of the whole wheel really solves this sort of tampering.
 
-        unpacked_wheel = Wheel.load(dest, project_name=wheel.project_name)
+        unpacked_wheel = Wheel.load(dest, project_name=wheel.project_name, known_tags=wheel.tags)
         wheel = InstallableWheel(
             wheel=unpacked_wheel,
             install_paths=InstallPaths.wheel(dest, wheel=unpacked_wheel),

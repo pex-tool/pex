@@ -125,10 +125,15 @@ def _install_distribution(
     venv_install_paths = InstallPaths.interpreter(
         interpreter,
         project_name=distribution.metadata.project_name,
-        root_is_purelib=WHEEL.from_distribution(distribution).root_is_purelib,
+        root_is_purelib=WHEEL.from_distribution(
+            distribution, platform_tag=venv_distribution.target.platform_tag
+        ).root_is_purelib,
     )
     wheel = InstallableWheel.from_whl(
-        whl=Wheel.from_distribution(distribution), install_paths=venv_install_paths
+        whl=Wheel.from_distribution(
+            distribution, platform_tag=venv_distribution.target.platform_tag
+        ),
+        install_paths=venv_install_paths,
     )
     record_data = wheel.metadata_files.read("RECORD")
     if not record_data:
@@ -219,7 +224,7 @@ def _install_venv_distributions(
         direct_requirements = venv_resolve_result.direct_requirements_by_project_name
         for re_resolved_distribution in venv_resolve_result.re_resolved_distributions:
             wheel_file_name = Wheel.from_distribution(
-                re_resolved_distribution.distribution
+                re_resolved_distribution.distribution, platform_tag=target.platform_tag
             ).wheel_file_name
             if wheel_file_name in seen:
                 continue
@@ -233,7 +238,9 @@ def _install_venv_distributions(
                 ),
             )
         for venv_distribution in venv_resolve_result.venv_distributions:
-            wheel_file_name = Wheel.from_distribution(venv_distribution).wheel_file_name
+            wheel_file_name = Wheel.from_distribution(
+                venv_distribution, platform_tag=target.platform_tag
+            ).wheel_file_name
             if wheel_file_name in seen:
                 continue
 

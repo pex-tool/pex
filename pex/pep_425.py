@@ -4,14 +4,13 @@
 from __future__ import absolute_import
 
 import itertools
-import os.path
 
 from pex.dist_metadata import Distribution, is_wheel
 from pex.orderedset import OrderedSet
 from pex.rank import Rank
 from pex.third_party.packaging.tags import Tag, parse_tag
 from pex.typing import TYPE_CHECKING, cast, overload
-from pex.wheel import WHEEL
+from pex.wheel import WHEEL, parse_tags_from_filename
 
 if TYPE_CHECKING:
     from typing import (
@@ -68,36 +67,21 @@ class CompatibilityTags(object):
     """
 
     @classmethod
-    def from_wheel(cls, wheel):
-        # type: (Union[Text, Distribution]) -> CompatibilityTags
+    def from_wheel(
+        cls,
+        wheel,  # type: Union[Text, Distribution]
+        platform_tag=None,  # type: Optional[Tag]
+    ):
+        # type: (...) -> CompatibilityTags
 
         if isinstance(wheel, Distribution):
             if not is_wheel(wheel.location):
-                return cls(tags=WHEEL.from_distribution(wheel).tags)
-            wheel = wheel.location
+                return cls(tags=WHEEL.from_distribution(wheel, platform_tag=platform_tag).tags)
+            wheel_file_name = wheel.location  # type: Text
+        else:
+            wheel_file_name = wheel
 
-        if not is_wheel(wheel):
-            raise ValueError(
-                "Can only calculate wheel tags from a filename that ends in .whl per "
-                "https://peps.python.org/pep-0427/#file-name-convention, given: {wheel!r}".format(
-                    wheel=wheel
-                )
-            )
-
-        wheel_stem, _ = os.path.splitext(os.path.basename(wheel))
-        # Wheel filename format: https://peps.python.org/pep-0427/#file-name-convention
-        # `{distribution}-{version}(-{build tag})?-{python tag}-{abi tag}-{platform tag}.whl`
-        wheel_components = wheel_stem.rsplit("-", 3)
-        if len(wheel_components) != 4:
-            pattern = "`-{python tag}-{abi tag}-{platform tag}.whl`"
-            raise ValueError(
-                "Can only calculate wheel tags from a filename that ends in {pattern} per "
-                "https://peps.python.org/pep-0427/#file-name-convention, given: {wheel!r}".format(
-                    pattern=pattern, wheel=wheel
-                )
-            )
-
-        return cls(tags=tuple(parse_tag("-".join(wheel_components[-3:]))))
+        return cls(tags=parse_tags_from_filename(wheel_file_name))
 
     @classmethod
     def from_strings(cls, tags):

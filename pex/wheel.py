@@ -16,10 +16,11 @@ from pex.dist_metadata import (
     load_metadata,
     parse_message,
 )
+from pex.exceptions import production_assert
 from pex.orderedset import OrderedSet
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
-from pex.third_party.packaging import tags
+from pex.third_party.packaging.tags import Tag, parse_tag
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
@@ -42,8 +43,12 @@ class WHEEL(object):
     """
 
     @classmethod
-    def from_metadata_files(cls, metadata_files):
-        # type: (MetadataFiles) -> WHEEL
+    def from_metadata_files(
+        cls,
+        metadata_files,  # type: MetadataFiles
+        known_tags=(),  # type: Tuple[Tag, ...]
+    ):
+        # type: (...) -> WHEEL
 
         metadata_bytes = metadata_files.read("WHEEL")
         if not metadata_bytes:
@@ -64,7 +69,46 @@ class WHEEL(object):
         )
 
         metadata = parse_message(normalized_metadata)
-        return cls(files=metadata_files, metadata=metadata)
+
+        try:
+            tags = tuple(
+                itertools.chain.from_iterable(
+                    # N.B.: There should be just 1 tag per Tag entry per items 7 and 11 in
+                    # https://packaging.python.org/en/latest/specifications/binary-distribution-format/#file-contents
+                    # There are wheels in the wild though with WHEEL metadata Tag entries that
+                    # contain compressed tags instead of having the tags expanded to 1 per Tag.
+                    # Although `parse_tag` handles expansion of the compressed tags, it collects
+                    # them in a frozenset with unstable order which can cause issues when attempting
+                    # to construct stable wheel names from these tags; as such, we do the sort here
+                    # as a defense against this style of bad WHEEL Tag metadata.
+                    sorted(parse_tag(tag), key=lambda tag: str(tag))
+                    for tag in metadata.get_all("Tag", ())
+                    # N.B.: We have seen empty Tag entries in the wild (see:
+                    # https://github.com/pex-tool/pex/issues/3132).
+                    if tag
+                )
+            )
+        except ValueError:
+            # N.B.: We have seen malformed Tag entries in the wild (see:
+            # https://github.com/pex-tool/pex/issues/3132); so we fall back to known_tags if
+            # provided instead of relying on a possible mix of good and bad tags.
+            tags = ()
+
+        if not tags:
+            # Some wheels have no (valid) Tag metadata at all, but we know the tags from the wheel
+            # file name or else have other information that led to some known tags that will be at
+            # least a subset of the tags this wheel is compatible with. Use this background
+            # information.
+            tags = known_tags
+
+        production_assert(
+            len(tags) > 0,
+            "Should be able to determine wheel tags for wheel with METADATA at "
+            "{metadata_location}",
+            metadata_location=metadata_files.metadata.location,
+        )
+
+        return cls(files=metadata_files, metadata=metadata, tags=tags)
 
     _CACHE = {}  # type: Dict[Tuple[Text, Optional[ProjectName]], WHEEL]
 
@@ -72,6 +116,7 @@ class WHEEL(object):
     def load(
         cls,
         location,  # type: Text
+        known_tags=(),  # type: Tuple[Tag, ...]
         project_name=None,  # type: Optional[ProjectName]
     ):
         # type: (...) -> WHEEL
@@ -84,47 +129,40 @@ class WHEEL(object):
                 raise WheelMetadataLoadError(
                     "Could not find any metadata in {wheel}.".format(wheel=location)
                 )
-            wheel = cls.from_metadata_files(metadata_files)
+            if not known_tags and location.endswith(".whl"):
+                known_tags = parse_tags_from_filename(location)
+            wheel = cls.from_metadata_files(metadata_files, known_tags=known_tags)
             cls._CACHE[(location, project_name)] = wheel
             if project_name is None:
                 cls._CACHE[(location, wheel.files.metadata.project_name)] = wheel
         return wheel
 
     @classmethod
-    def from_distribution(cls, distribution):
-        # type: (Distribution) -> WHEEL
+    def from_distribution(
+        cls,
+        distribution,  # type: Distribution
+        platform_tag=None,  # type: Optional[Tag]
+    ):
+        # type: (...) -> WHEEL
         location = distribution.metadata.files.metadata.path
         project_name = distribution.metadata.project_name
         wheel = cls._CACHE.get((location, project_name))
         if not wheel:
-            wheel = cls.from_metadata_files(distribution.metadata.files)
+            # N.B.: The wheel filename tags should always be a more accurate set than the platform
+            # tag, which can only be more restrictive.
+            if location.endswith(".whl"):
+                known_tags = parse_tags_from_filename(location)
+            elif platform_tag:
+                known_tags = (platform_tag,)
+            else:
+                known_tags = ()
+            wheel = cls.from_metadata_files(distribution.metadata.files, known_tags=known_tags)
             cls._CACHE[(location, project_name)] = wheel
         return wheel
 
     files = attr.ib()  # type: MetadataFiles
     metadata = attr.ib()  # type: Message
-
-    @property
-    def tags(self):
-        # type: () -> Tuple[tags.Tag, ...]
-        return tuple(
-            itertools.chain.from_iterable(
-                # N.B.: There should be just 1 tag per Tag entry per items 7 and 11 in
-                # https://packaging.python.org/en/latest/specifications/binary-distribution-format/#file-contents
-                # There are wheels in the wild though with WHEEL metadata Tag entries that contain
-                # compressed tags instead of having the tags expanded to 1 per Tag. Although
-                # `tags.parse_tag` handles expansion of the compressed tags, it collects them in
-                # a frozenset with unstable order which can cause issues when attempting to
-                # construct stable wheel names from these tags; as such, we do the sort here as a
-                # defense against this style of bad WHEEL Tag metadata.
-                # N.B.: We have seen empty strings in TAG entries in the wild, and the tag parsing
-                # code in `packaging` chokes on them (see https://github.com/pex-tool/pex/issues/3132).
-                # We filter those out to defend against this bad WHEEL Tag metadata.
-                sorted(tags.parse_tag(tag), key=lambda tag: str(tag))
-                for tag in self.metadata.get_all("Tag", ())
-                if tag
-            )
-        )
+    tags = attr.ib()  # type: Tuple[Tag, ...]
 
     @property
     def root_is_purelib(self):
@@ -154,6 +192,7 @@ class Wheel(object):
         cls,
         location,  # type: str
         metadata_files,  # type: MetadataFiles
+        known_tags,  # type: Tuple[Tag, ...]
         wheel=None,  # type: Optional[WHEEL]
     ):
         # type: (...) -> Wheel
@@ -161,7 +200,7 @@ class Wheel(object):
         if wheel:
             metadata = wheel
         else:
-            metadata = WHEEL.from_metadata_files(metadata_files)
+            metadata = WHEEL.from_metadata_files(metadata_files, known_tags=known_tags)
 
         wheel_metadata_dir = os.path.dirname(metadata_files.metadata.rel_path)
         if not wheel_metadata_dir.endswith(".dist-info"):
@@ -196,21 +235,31 @@ class Wheel(object):
     @classmethod
     def load(
         cls,
-        wheel_path,  # type: str
+        location,  # type: str
         project_name=None,  # type: Optional[ProjectName]
+        known_tags=(),  # type: Tuple[Tag, ...]
     ):
         # type: (...) -> Wheel
 
-        wheel = WHEEL.load(wheel_path, project_name=project_name)
+        known_tags = known_tags or (
+            parse_tags_from_filename(location) if location.endswith(".whl") else ()
+        )
+        wheel = WHEEL.load(location, project_name=project_name, known_tags=known_tags)
         return cls._from_metadata_files(
-            location=wheel_path, metadata_files=wheel.files, wheel=wheel
+            location=location, metadata_files=wheel.files, wheel=wheel, known_tags=known_tags
         )
 
     @classmethod
-    def from_distribution(cls, distribution):
-        # type: (Distribution) -> Wheel
+    def from_distribution(
+        cls,
+        distribution,  # type: Distribution
+        platform_tag=None,  # type: Optional[Tag]
+    ):
+        # type: (...) -> Wheel
         return cls._from_metadata_files(
-            location=distribution.location, metadata_files=distribution.metadata.files
+            location=distribution.location,
+            metadata_files=distribution.metadata.files,
+            known_tags=(platform_tag,) if platform_tag else (),
         )
 
     location = attr.ib()  # type: str
@@ -234,6 +283,11 @@ class Wheel(object):
     def version(self):
         # type: () -> Version
         return self.metadata_files.metadata.version
+
+    @property
+    def tags(self):
+        # type: () -> Tuple[Tag, ...]
+        return self.metadata.tags
 
     @property
     def wheel_prefix(self):
@@ -319,3 +373,30 @@ class Wheel(object):
 
         with open(location, "rb") as fp:
             return fp.read()
+
+
+def parse_tags_from_filename(wheel_file_name):
+    # type: (Text) -> Tuple[Tag, ...]
+
+    if not wheel_file_name.endswith(".whl"):
+        raise ValueError(
+            "Can only calculate wheel tags from a filename that ends in .whl per "
+            "https://peps.python.org/pep-0427/#file-name-convention, given: {wheel!r}".format(
+                wheel=wheel_file_name
+            )
+        )
+
+    wheel_stem, _ = os.path.splitext(os.path.basename(wheel_file_name))
+    # Wheel filename format: https://peps.python.org/pep-0427/#file-name-convention
+    # `{distribution}-{version}(-{build tag})?-{python tag}-{abi tag}-{platform tag}.whl`
+    wheel_components = wheel_stem.rsplit("-", 3)
+    if len(wheel_components) != 4:
+        pattern = "`-{python tag}-{abi tag}-{platform tag}.whl`"
+        raise ValueError(
+            "Can only calculate wheel tags from a filename that ends in {pattern} per "
+            "https://peps.python.org/pep-0427/#file-name-convention, given: {wheel!r}".format(
+                pattern=pattern, wheel=wheel_file_name
+            )
+        )
+
+    return tuple(parse_tag("-".join(wheel_components[-3:])))
