@@ -535,8 +535,26 @@ if TYPE_CHECKING:
 
 
 @attr.s(frozen=True)
+class Source(object):
+    path = attr.ib()  # type: str
+    _realpath = attr.ib(init=False)  # type: str
+
+    def __attrs_post_init__(self):
+        object.__setattr__(self, "_realpath", os.path.realpath(self.path))
+
+    @property
+    def parent_dir(self):
+        # type: () -> str
+        return os.path.dirname(self._realpath)
+
+    def __str__(self):
+        # type: () -> str
+        return self.path
+
+
+@attr.s(frozen=True)
 class ParseContext(object):
-    source = attr.ib()  # type: str
+    source = attr.ib()  # type: Source
     _prefix = attr.ib(init=False)  # type: str
     table = attr.ib(factory=dict)  # type: Mapping[str, Any]
     path = attr.ib(default="")  # type: str
@@ -886,7 +904,7 @@ class PackageIndex(object):
 @attr.s
 class PackageParser(object):
     package_index = attr.ib()  # type: PackageIndex
-    source = attr.ib()  # type: str
+    source = attr.ib()  # type: Source
     created_by = attr.ib()  # type: str
 
     parsed_packages_by_index = attr.ib(factory=dict)  # type: Dict[int, Package]
@@ -912,7 +930,7 @@ class PackageParser(object):
         if not url:
             path = parse_context.get_string("path")
             if not os.path.isabs(path):
-                path = os.path.join(os.path.dirname(self.source), path)
+                path = os.path.join(self.source.parent_dir, path)
             url = "file://{path}".format(path=path)
         return ArtifactURL.parse(url)
 
@@ -1080,7 +1098,7 @@ class PackageParser(object):
 
             path = directory_parse_context.get_string("path")
             if not os.path.isabs(path):
-                path = os.path.normpath(os.path.join(os.path.dirname(self.source), path))
+                path = os.path.normpath(os.path.join(self.source.parent_dir, path))
             subdirectory = directory_parse_context.get_string("subdirectory", default="") or None
             if subdirectory:
                 path = os.path.normpath(os.path.join(path, subdirectory))
@@ -1188,7 +1206,7 @@ class PackageEvaluator(object):
     @classmethod
     def create(
         cls,
-        source,  # type: str
+        source,  # type: Source
         target,  # type: Target
         extras=frozenset(),  # type: FrozenSet[str]
         dependency_groups=frozenset(),  # type: FrozenSet[str]
@@ -1240,7 +1258,7 @@ class PackageEvaluator(object):
             dependency_configuration=dependency_configuration,
         )
 
-    source = attr.ib()  # type: str
+    source = attr.ib()  # type: Source
     target = attr.ib()  # type: Target
     marker_environment = attr.ib()  # type: Mapping[str, Union[str, FrozenSet[str]]]
     requirements_by_project_name = attr.ib(factory=dict)  # type: Mapping[ProjectName, Requirement]
@@ -1429,9 +1447,10 @@ class Pylock(object):
     def parse(cls, pylock_toml_path):
         # type: (str) -> Union[Pylock, Error]
 
-        parse_context = ParseContext(source=pylock_toml_path)
+        source = Source(pylock_toml_path)
+        parse_context = ParseContext(source=source)
         try:
-            parse_context = parse_context.with_table(toml.load(pylock_toml_path))
+            parse_context = parse_context.with_table(toml.load(source.path))
         except TomlDecodeError as e:
             return parse_context.error("Failed to parse TOML", e)
 
@@ -1459,7 +1478,7 @@ class Pylock(object):
         )
         package_index = PackageIndex.create(packages_data)
         package_parser = PackageParser(
-            package_index=package_index, source=pylock_toml_path, created_by=created_by
+            package_index=package_index, source=source, created_by=created_by
         )
 
         local_project_requirement_mapping = {}  # type: Dict[str, Requirement]
@@ -1471,9 +1490,7 @@ class Pylock(object):
             if isinstance(package.artifact, UnFingerprintedLocalProjectArtifact):
                 directory = package.artifact.directory
                 if not os.path.isabs(directory):
-                    directory = os.path.normpath(
-                        os.path.join(os.path.dirname(pylock_toml_path), directory)
-                    )
+                    directory = os.path.normpath(os.path.join(source.parent_dir, directory))
                 local_project_requirement_mapping[directory] = Requirement.local(
                     project_name=package.project_name,
                     path=directory,
@@ -1486,7 +1503,7 @@ class Pylock(object):
             created_by=created_by,
             packages=tuple(packages),
             local_project_requirement_mapping=local_project_requirement_mapping,
-            source=pylock_toml_path,
+            source=source,
             environments=environments,
             requires_python=requires_python,
             extras=extras,
@@ -1499,7 +1516,7 @@ class Pylock(object):
     packages = attr.ib()  # type: Tuple[Package, ...]
 
     local_project_requirement_mapping = attr.ib()  # type: Mapping[str, Requirement]
-    source = attr.ib()  # type: str
+    source = attr.ib()  # type: Source
 
     environments = attr.ib(default=())  # type: Tuple[Marker, ...]
     requires_python = attr.ib(default=SpecifierSet())  # type: SpecifierSet
