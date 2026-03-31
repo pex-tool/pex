@@ -151,7 +151,7 @@ class RunSpec(object):
                     ),
                     "target": {
                         "markers": self.target.marker_environment.as_dict(),
-                        "tag": str(self.target.supported_tags[0]),
+                        "tag": str(self.target.platform_tag),
                     },
                 },
                 sort_keys=True,
