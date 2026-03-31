@@ -9,7 +9,7 @@ import sys
 from textwrap import dedent
 
 import pytest
-from colors import colors
+from colors import colors  # vendor:skip
 
 from pex.common import safe_open
 from pex.pep_440 import Version
