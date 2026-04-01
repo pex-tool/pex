@@ -6,6 +6,13 @@ This release supports Pip's new [`--uploaded-prior-to`](https://pip.pypa.io/en/s
 
 * Support `--uploaded-prior-to` for Pip v26.0 and newer. (#3131)
 
+## 2.91.8
+
+This release fixes handling of `--pylock <relative path>` when the lock contains local project
+dependencies specified via relative path in the lock file.
+
+* Fix `--pylock` relative path handling. (#3140)
+
 ## 2.91.7
 
 This release plugs holes in the WHEEL metadata fix in 2.91.6.
