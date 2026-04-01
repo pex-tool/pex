@@ -76,7 +76,7 @@ def test_uploaded_prior_to_far_future_allows_latest(tmpdir):
     assert Version("6.1") == locked_resolve.locked_requirements[0].pin.version
 
 
-@pytest.mark.skipif(sys.version_info[:2] != (3, 8), reason="3.8 fallback specific behavior")
+@pytest.mark.skipif(sys.version_info <= (3, 8), reason="fallback specific behavior")
 def test_uploaded_prior_to_filters_to_older_version(tmpdir):
     # type: (Any) -> None
 
