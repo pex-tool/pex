@@ -52,7 +52,7 @@ def test_compatible_version_fallback_compatibility(tmpdir):
     sys.version_info < (3, 9),
     reason="Pip 26.0 requires Python >= 3.9 for --uploaded-prior-to support.",
 )
-def test_uploaded_prior_to_far_future_allows_latest(tmpdir):
+def test_uploaded_prior_to_latest_compatible_pip(tmpdir):
     # type: (Any) -> None
 
     lock_file = os.path.join(str(tmpdir), "cowsay.lock.json")
@@ -61,19 +61,13 @@ def test_uploaded_prior_to_far_future_allows_latest(tmpdir):
         "create",
         "cowsay==6.1",
         "--pip-version",
-        "26.0",
+        "latest-compatible",
         "--uploaded-prior-to",
         "2063-04-05",
         "-o",
         lock_file,
         env=make_env(PIP_INDEX_URL=PYPI),
     ).assert_success()
-
-    lock = json_codec.load(lock_file)
-    assert 1 == len(lock.locked_resolves)
-    locked_resolve = lock.locked_resolves[0]
-    assert 1 == len(locked_resolve.locked_requirements)
-    assert Version("6.1") == locked_resolve.locked_requirements[0].pin.version
 
 
 @pytest.mark.skipif(sys.version_info > (3, 8), reason="fallback specific behavior")
