@@ -8,6 +8,7 @@ import sys
 import pytest
 
 from pex.pep_440 import Version
+from pex.pip.version import PipVersion
 from pex.resolve.lockfile import json_codec
 from pex.resolve.package_repository import PYPI
 from pex.typing import TYPE_CHECKING
@@ -19,8 +20,8 @@ if TYPE_CHECKING:
 
 
 @pytest.mark.skipif(
-    sys.version_info < (3, 9),
-    reason="Pip 26.0 requires Python >= 3.9 for --uploaded-prior-to support.",
+    PipVersion.LATEST_COMPATIBLE < PipVersion.v26_0,
+    reason="Pip 26.0 required for --uploaded-prior-to support.",
 )
 def test_compatible_version_fallback_compatibility(tmpdir):
     # type: (Any) -> None
@@ -49,8 +50,7 @@ def test_compatible_version_fallback_compatibility(tmpdir):
 
 
 @pytest.mark.skipif(
-    sys.version_info < (3, 9),
-    reason="Pip 26.0 requires Python >= 3.9 for --uploaded-prior-to support.",
+    PipVersion.LATEST_COMPATIBLE < PipVersion.v26_0, reason="This test needs Pip 26.0 or newer"
 )
 def test_uploaded_prior_to_latest_compatible_pip(tmpdir):
     # type: (Any) -> None
