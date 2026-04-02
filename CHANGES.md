@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.92.0
+
+This release supports Pip's new [`--uploaded-prior-to`](https://pip.pypa.io/en/stable/user_guide/#filtering-by-upload-time).
+
+* Support `--uploaded-prior-to` for Pip v26.0 and newer. (#3131)
+
 ## 2.91.8
 
 This release fixes handling of `--pylock <relative path>` when the lock contains local project

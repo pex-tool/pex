@@ -70,6 +70,7 @@ class PipArgs(object):
     indexes = attr.ib(default=None)  # type: Optional[Sequence[Text]]
     find_links = attr.ib(default=None)  # type: Optional[Iterable[Text]]
     network_configuration = attr.ib(default=None)  # type: Optional[NetworkConfiguration]
+    uploaded_prior_to = attr.ib(default=None)  # type: Optional[str]
 
     def iter(self, version):
         # type: (PipVersionValue) -> Iterator[str]
@@ -123,6 +124,17 @@ class PipArgs(object):
         yield "--timeout"
         yield str(network_configuration.timeout)
 
+        if (
+            self.uploaded_prior_to
+            # We have already thrown a hard error if the requested Pip version
+            # was too old. The silent check here is only relevant if during
+            # pex.pip.installation.compatible_version the version of Pip was
+            # downgraded, in which case a warning has already been issued.
+            and version >= PipVersion.v26_0
+        ):
+            yield "--uploaded-prior-to"
+            yield self.uploaded_prior_to
+
 
 class PackageIndexConfiguration(object):
     @staticmethod
@@ -160,6 +172,7 @@ class PackageIndexConfiguration(object):
         use_pip_config=False,  # type: bool
         extra_pip_requirements=(),  # type: Tuple[Requirement, ...]
         keyring_provider=None,  # type: Optional[str]
+        uploaded_prior_to=None,  # type: Optional[str]
     ):
         # type: (...) -> PackageIndexConfiguration
         resolver_version = resolver_version or ResolverVersion.default(pip_version)
@@ -178,6 +191,7 @@ class PackageIndexConfiguration(object):
                 indexes=repos_configuration.indexes,
                 find_links=repos_configuration.find_links,
                 network_configuration=network_configuration,
+                uploaded_prior_to=uploaded_prior_to,
             ),
             env=cls._calculate_env(
                 network_configuration=network_configuration, use_pip_config=use_pip_config

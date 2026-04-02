@@ -420,3 +420,13 @@ def test_multiple_unnamed_indexes(parser):
     mac_scoped_repos = repos_configuration.scoped({"sys_platform": "darwin"})
     assert [] == mac_scoped_repos.in_scope_indexes(ProjectName("torch"))
     assert [] == mac_scoped_repos.in_scope_find_links(ProjectName("torch"))
+
+
+def test_uploaded_prior_to_requires_pip_26(parser):
+    # type: (ArgumentParser) -> None
+    resolver_options.register(parser)
+
+    with pytest.raises(resolver_options.InvalidConfigurationError):
+        compute_pip_configuration(
+            parser, args=["--pip-version", "25.1", "--uploaded-prior-to", "2015-10-21"]
+        )

@@ -207,6 +207,21 @@ def register(
         ),
     )
 
+    parser.add_argument(
+        "--uploaded-prior-to",
+        dest="uploaded_prior_to",
+        type=str,
+        default=None,
+        help=(
+            "Configure Pip to only consider packages uploaded prior to the "
+            "given date time. Accepts ISO 8601 strings (e.g., "
+            "'2023-01-01T00:00:00Z').  Uses local timezone if none "
+            "specified. Only effective when installing from indexes that "
+            "provide upload-time metadata.  Only available in Pip v26.0 and later. "
+            "See: https://pip.pypa.io/en/stable/user_guide/#filtering-by-upload-time"
+        ),
+    )
+
     register_repos_options(parser)
     register_network_options(parser)
 
@@ -867,6 +882,14 @@ def create_pip_configuration(
             )
         )
 
+    if options.uploaded_prior_to and (pip_version or PipVersion.DEFAULT) < PipVersion.v26_0:
+        raise InvalidConfigurationError(
+            "Pip {pip_version} too old to support `--uploaded-prior-to` flag added in {version_26_0}.".format(
+                pip_version=pip_version if pip_version else "%s (default)" % PipVersion.DEFAULT,
+                version_26_0=PipVersion.v26_0,
+            )
+        )
+
     build_configuration = BuildConfiguration.create(
         allow_wheels=options.allow_wheels,
         only_wheels=options.only_wheels,
@@ -893,6 +916,7 @@ def create_pip_configuration(
         use_pip_config=get_use_pip_config_value(options),
         extra_requirements=tuple(options.extra_pip_requirements),
         keyring_provider=options.keyring_provider,
+        uploaded_prior_to=options.uploaded_prior_to,
     )
 
 
