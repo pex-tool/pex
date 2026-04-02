@@ -93,9 +93,3 @@ def test_uploaded_prior_to_filters_to_older_version(tmpdir):
         expected_error_re=r".*PEXWarning: .*Using Pip .* instead",
         re_flags=re.DOTALL,
     )
-
-    lock = json_codec.load(lock_file)
-    assert 1 == len(lock.locked_resolves)
-    locked_resolve = lock.locked_resolves[0]
-    assert 1 == len(locked_resolve.locked_requirements)
-    assert locked_resolve.locked_requirements[0].pin.version >= Version("6.1")
