@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.92.1
+
+This release fixes a caching bug introduced in #2766 that led to sdists always being rebuilt when
+needed for a PEX.
+
+* Always cache sdist builds. (#3144)
+
 ## 2.92.0
 
 This release supports Pip's new [`--uploaded-prior-to`](https://pip.pypa.io/en/stable/user_guide/#filtering-by-upload-time).

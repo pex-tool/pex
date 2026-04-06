@@ -681,38 +681,50 @@ class BuildRequest(object):
         # type: () -> Target
         return self.download_target.target
 
-    def prepare(self):
-        # type: () -> Tuple[str, bool]
+    def prepare(self, ensure_extracted=False):
+        # type: (bool) -> Tuple[str, bool]
 
-        if os.path.isdir(self.source_path):
-            if self.subdirectory:
-                return os.path.join(self.source_path, self.subdirectory), self.editable
+        if not ensure_extracted and not self.subdirectory:
             return self.source_path, self.editable
 
-        extract_dir = os.path.join(safe_mkdtemp(), "project")
-        if is_zip_sdist(self.source_path):
-            with open_zip(self.source_path) as zf:
-                zf.extractall(extract_dir)
-
-            listing = os.listdir(extract_dir)
-            if len(listing) != 1:
-                raise BuildError(
-                    "Expected one top-level project directory to be extracted from {project}, "
-                    "found {count}: {listing}".format(
-                        project=self.source_path, count=len(listing), listing=", ".join(listing)
-                    )
-                )
-            project_directory = os.path.join(extract_dir, listing[0])
+        if os.path.isdir(self.source_path):
+            project = self.source_path
             if self.subdirectory:
-                project_directory = os.path.join(project_directory, self.subdirectory)
-            return project_directory, False
+                project = os.path.join(project, self.subdirectory)
+            return project, self.editable
 
-        if is_tar_sdist(self.source_path):
-            return sdist.extract_tarball(self.source_path, dest_dir=extract_dir), False
-
-        raise BuildError(
-            "Unexpected archive type for sdist {project}".format(project=self.source_path)
+        # We use `pip wheel ...` to build sdsists but there is no way to pass a subdirectory to
+        # that; so we hand-prepare a loose source subdirectory here that `pip wheel` can handle.
+        extracted_sdist = CacheDir.EXTRACTED_SDISTS.path(
+            self.fingerprint or _fingerprint_file(self.source_path)
         )
+        with atomic_directory(extracted_sdist) as atomic_dir:
+            if not atomic_dir.is_finalized():
+                if is_zip_sdist(self.source_path):
+                    with open_zip(self.source_path) as zf:
+                        zf.extractall(atomic_dir.work_dir)
+                elif is_tar_sdist(self.source_path):
+                    sdist.extract_tarball(self.source_path, dest_dir=atomic_dir.work_dir)
+                else:
+                    raise BuildError(
+                        "Unexpected archive type for sdist {project}".format(
+                            project=self.source_path
+                        )
+                    )
+                listing = os.listdir(atomic_dir.work_dir)
+                if len(listing) != 1:
+                    raise BuildError(
+                        "Expected one top-level project directory to be extracted from {project}, "
+                        "found {count}: {listing}".format(
+                            project=self.source_path, count=len(listing), listing=", ".join(listing)
+                        )
+                    )
+
+        listing = os.listdir(extracted_sdist)
+        project = os.path.join(extracted_sdist, listing[0])
+        if self.subdirectory:
+            project = os.path.join(project, self.subdirectory)
+        return project, False
 
     def result(
         self,
@@ -1074,6 +1086,13 @@ class WheelBuilder(object):
         build_result = build_request.result(
             source_path, honor_editable=self._build_configuration.honor_editable
         )
+        if build_result.is_built:
+            TRACER.log(
+                "Using cached build of {} at {}".format(
+                    build_request.source_path, build_result.dist_dir
+                )
+            )
+            return SpawnedJob.completed(build_result)
 
         def spawn_build_wheel():
             # type: () -> SpawnedJob[BuildResult]

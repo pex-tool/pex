@@ -144,6 +144,16 @@ class CacheDir(Enum["CacheDir.Value"]):
         description="Distributions downloaded when resolving from a Pex lock file.",
     )
 
+    EXTRACTED_SDISTS = Value(
+        "extracted_sdists",
+        version=0,
+        name="Extracted Source Distributions",
+        description=(
+            "Source distributions that have been extracted to expose a Python project subdirectory "
+            "for building wheels from."
+        ),
+    )
+
     INSTALLED_WHEELS = Value(
         "installed_wheels",
         version=2,
