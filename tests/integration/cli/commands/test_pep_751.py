@@ -484,11 +484,11 @@ def test_locks_equivalent_round_trip(
                 # Stress the editable bit for directory packages as well as handling extras.
                 -e {pex_management_req}
 
-                # Stress archive subdirectory handling.
-                git+https://github.com/SerialDev/sdev_py_utils.git@bd4d36a0#egg=sdev_logging_utils&subdirectory=sdev_logging_utils
-
                 # Stress VCS subdirectory handling as well as sdists and wheels (insta-science has
                 # a fair number of transitive deps).
+                git+https://github.com/SerialDev/sdev_py_utils.git@bd4d36a0#egg=sdev_logging_utils&subdirectory=sdev_logging_utils
+
+                # Stress archive subdirectory handling.
                 insta-science @ https://github.com/a-scie/science-installers/archive/refs/tags/python-v0.6.1.zip#subdirectory=python
                 """.format(
                     pex_management_req=pex_management_req
