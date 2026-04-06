@@ -681,14 +681,17 @@ class BuildRequest(object):
         # type: () -> Target
         return self.download_target.target
 
-    def prepare(self):
-        # type: () -> Tuple[str, bool]
+    def prepare(self, ensure_extracted=False):
+        # type: (bool) -> Tuple[str, bool]
 
-        if not self.subdirectory:
+        if not ensure_extracted and not self.subdirectory:
             return self.source_path, self.editable
 
         if os.path.isdir(self.source_path):
-            return os.path.join(self.source_path, self.subdirectory), self.editable
+            project = self.source_path
+            if self.subdirectory:
+                project = os.path.join(project, self.subdirectory)
+            return project, self.editable
 
         # We use `pip wheel ...` to build sdsists but there is no way to pass a subdirectory to
         # that; so we hand-prepare a loose source subdirectory here that `pip wheel` can handle.
@@ -716,8 +719,12 @@ class BuildRequest(object):
                             project=self.source_path, count=len(listing), listing=", ".join(listing)
                         )
                     )
+
         listing = os.listdir(extracted_sdist)
-        return os.path.join(extracted_sdist, listing[0], self.subdirectory), False
+        project = os.path.join(extracted_sdist, listing[0])
+        if self.subdirectory:
+            project = os.path.join(project, self.subdirectory)
+        return project, False
 
     def result(
         self,
