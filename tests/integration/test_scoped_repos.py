@@ -4,6 +4,7 @@
 from __future__ import absolute_import
 
 import os.path
+import platform
 import shutil
 import subprocess
 import sys
@@ -20,6 +21,7 @@ from pex.http.server import Server
 from pex.os import LINUX, MAC, WINDOWS
 from pex.pip.version import PipVersion
 from pex.requirements import as_parsed_requirement
+from pex.resolve.lockfile import json_codec
 from pex.typing import TYPE_CHECKING
 from testing import (
     IS_MAC,
@@ -678,7 +680,7 @@ def create_app_whl(
     tmpdir,  # type: Tempdir
     project_name,  # type: str
     require_ansicolors,  # type: bool
-    current_platform_system,  # type: str
+    current_system_marker,  # type: str
 ):
     # type: (...) -> str
 
@@ -738,8 +740,8 @@ def create_app_whl(
                     ansicolors=(
                         "ansicolors"
                         if require_ansicolors
-                        else "ansicolors; platform_system == '{current}'".format(
-                            current=current_platform_system
+                        else "ansicolors; {current_system_marker}".format(
+                            current_system_marker=current_system_marker
                         )
                     ),
                 )
@@ -757,6 +759,76 @@ def create_app_whl(
             )
         )
     return WheelBuilder(source_dir=project_dir).bdist()
+
+
+def assert_universal_scope_split(
+    tmpdir,  # type: Tempdir
+    marker_name,  # type: str
+    current_system_marker_value,  # type: str
+):
+    # type: (...) -> None
+
+    project_name = "app-{uuid}".format(uuid=uuid.uuid4().hex)
+
+    current_system_marker = "{marker_name} == '{current_system_marker_value}'".format(
+        marker_name=marker_name, current_system_marker_value=current_system_marker_value
+    )
+    other_system_marker = "{marker_name} != '{current_system_marker_value}'".format(
+        marker_name=marker_name, current_system_marker_value=current_system_marker_value
+    )
+
+    current_fl = safe_mkdir(tmpdir.join("current-fl"))
+    shutil.move(
+        create_app_whl(
+            tmpdir,
+            project_name=project_name,
+            require_ansicolors=True,
+            current_system_marker=current_system_marker,
+        ),
+        current_fl,
+    )
+
+    other_fl = safe_mkdir(tmpdir.join("other-fl"))
+    shutil.move(
+        create_app_whl(
+            tmpdir,
+            project_name=project_name,
+            require_ansicolors=False,
+            current_system_marker=current_system_marker,
+        ),
+        other_fl,
+    )
+
+    pex_root = tmpdir.join("pex-root")
+    lock_file = tmpdir.join("lock.json")
+    run_pex3(
+        "lock",
+        "create",
+        "--pex-root",
+        pex_root,
+        "--style",
+        "universal",
+        "--find-links",
+        "current_fl={current_fl}".format(current_fl=current_fl),
+        "--source",
+        "current_fl=app-.*; {current_system_marker}".format(
+            current_system_marker=current_system_marker
+        ),
+        "--find-links",
+        "other_fl={other_fl}".format(other_fl=other_fl),
+        "--source",
+        "other_fl=app-.*; {other_system_marker}".format(other_system_marker=other_system_marker),
+        project_name,
+        "--indent",
+        "2",
+        "-o",
+        lock_file,
+        "--pip-log",
+        tmpdir.join("pip.log"),
+    ).assert_success()
+
+    lock = json_codec.load(lock_file)
+    assert len(lock.locked_resolves) == 2
 
 
 @pytest.fixture
@@ -777,54 +849,14 @@ def test_different_requirements_per_scope(
 ):
     # type: (...) -> None
 
-    project_name = "app-{uuid}".format(uuid=uuid.uuid4().hex)
-
-    current_fl = safe_mkdir(tmpdir.join("current-fl"))
-    shutil.move(
-        create_app_whl(
-            tmpdir,
-            project_name=project_name,
-            require_ansicolors=True,
-            current_platform_system=current_platform_system,
-        ),
-        current_fl,
+    assert_universal_scope_split(
+        tmpdir, marker_name="platform_system", current_system_marker_value=current_platform_system
     )
 
-    other_fl = safe_mkdir(tmpdir.join("other-fl"))
-    shutil.move(
-        create_app_whl(
-            tmpdir,
-            project_name=project_name,
-            require_ansicolors=False,
-            current_platform_system=current_platform_system,
-        ),
-        other_fl,
+
+def test_different_requirements_per_scope_issue_3147(tmpdir):
+    # type: (Tempdir) -> None
+
+    assert_universal_scope_split(
+        tmpdir, marker_name="platform_machine", current_system_marker_value=platform.machine()
     )
-
-    pex_root = tmpdir.join("pex-root")
-    lock_file = tmpdir.join("lock.json")
-    run_pex3(
-        "lock",
-        "create",
-        "--pex-root",
-        pex_root,
-        "--style",
-        "universal",
-        "--find-links",
-        "current_fl={current_fl}".format(current_fl=current_fl),
-        "--source",
-        "current_fl=app-.*; platform_system == '{current}'".format(current=current_platform_system),
-        "--find-links",
-        "other_fl={other_fl}".format(other_fl=other_fl),
-        "--source",
-        "other_fl=app-.*; platform_system != '{current}'".format(current=current_platform_system),
-        project_name,
-        "--indent",
-        "2",
-        "-o",
-        lock_file,
-        "--pip-log",
-        tmpdir.join("pip.log"),
-    ).assert_success()
-
-    run_pex3("lock", "export", "--format", "pep-751", lock_file).assert_success()
