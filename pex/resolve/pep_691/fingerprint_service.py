@@ -33,7 +33,7 @@ else:
 
 
 @attr.s(frozen=True)
-class _FingerprintedURL(object):
+class FingerprintedURL(object):
     url = attr.ib()  # type: str
     fingerprint = attr.ib()  # type: Fingerprint
 
@@ -87,7 +87,7 @@ class FingerprintService(object):
             yield conn
 
     def _iter_cached(self, urls_to_fingerprint):
-        # type: (Iterable[str]) -> Iterator[_FingerprintedURL]
+        # type: (Iterable[str]) -> Iterator[FingerprintedURL]
 
         urls = sorted(urls_to_fingerprint)
         with TRACER.timed("Searching for {count} fingerprints in database".format(count=len(urls))):
@@ -106,12 +106,12 @@ class FingerprintService(object):
                         )
                     ) as cursor:
                         for url, algorithm, hash_ in cursor:
-                            yield _FingerprintedURL(
+                            yield FingerprintedURL(
                                 url=url, fingerprint=Fingerprint(algorithm=algorithm, hash=hash_)
                             )
 
-    def _cache(self, fingerprinted_urls):
-        # type: (Sequence[_FingerprintedURL]) -> None
+    def cache(self, fingerprinted_urls):
+        # type: (Sequence[FingerprintedURL]) -> None
 
         with TRACER.timed(
             "Caching {count} fingerprints in database".format(count=len(fingerprinted_urls))
@@ -219,7 +219,7 @@ class FingerprintService(object):
                 pool.close()
                 pool.join()
 
-        fingerprinted_urls = []  # type: List[_FingerprintedURL]
+        fingerprinted_urls = []  # type: List[FingerprintedURL]
         for result in api_results:
             if isinstance(result, Error):
                 pex_warnings.warn(
@@ -236,9 +236,7 @@ class FingerprintService(object):
                 yield attr.evolve(fingerprinted_artifact, fingerprint=maybe_fingerprint)
                 if maybe_fingerprint:
                     fingerprinted_urls.append(
-                        _FingerprintedURL(
-                            url=file.url.normalized_url, fingerprint=maybe_fingerprint
-                        )
+                        FingerprintedURL(url=file.url.normalized_url, fingerprint=maybe_fingerprint)
                     )
 
         # The remaining artifacts have no fingerprint and no endpoint to fetch the data from; so we
@@ -250,7 +248,7 @@ class FingerprintService(object):
             return
 
         try:
-            self._cache(fingerprinted_urls)
+            self.cache(fingerprinted_urls)
         except sqlite3.DatabaseError as e:
             self._warn_database_error(
                 error=e,
