@@ -161,11 +161,23 @@ def _iter_universal_targets(
             implementations.add(implementation)
             requires_python.add(python_specifier)
         impl = implementations.pop() if len(implementations) == 1 else None
-        yield UniversalTarget(
-            implementation=impl,
-            systems=tuple(systems),
-            requires_python=tuple(requires_python),
+        conflicts = ExtraMarkers.extract_conflicts(
+            tuple(split_markers[marker] for marker in markers)
         )
+        if conflicts:
+            for extra_markers in conflicts:
+                yield UniversalTarget(
+                    implementation=impl,
+                    systems=tuple(systems),
+                    requires_python=tuple(requires_python),
+                    extra_markers=extra_markers,
+                )
+        else:
+            yield UniversalTarget(
+                implementation=impl,
+                systems=tuple(systems),
+                requires_python=tuple(requires_python),
+            )
 
 
 if TYPE_CHECKING:
