@@ -232,6 +232,7 @@ def dir_hash(
     digest,  # type: HintedDigest
     dir_filter=lambda d: True,  # type: Callable[[Text], bool]
     file_filter=lambda f: True,  # type: Callable[[Text], bool]
+    followlinks=True,  # type: bool
 ):
     # type: (...) -> None
     """Digest the contents of a directory in a reproducible manner."""
@@ -240,7 +241,7 @@ def dir_hash(
 
         def iter_files():
             # type: () -> Iterator[Text]
-            for root, dirs, files in os.walk(top, followlinks=True):
+            for root, dirs, files in os.walk(top, followlinks=followlinks):
                 dirs[:] = [
                     d for d in dirs if dir_filter(os.path.relpath(os.path.join(root, d), top))
                 ]
