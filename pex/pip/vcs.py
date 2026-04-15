@@ -176,4 +176,5 @@ def digest_vcs_repo(
         digest=digest,
         dir_filter=_vcs_dir_filter(vcs, project_name),
         file_filter=_vcs_file_filter(vcs),
+        followlinks=False,
     )

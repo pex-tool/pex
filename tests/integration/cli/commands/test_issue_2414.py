@@ -13,9 +13,10 @@ from pex.requirements import parse_requirement_string
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.locked_resolve import LockStyle
 from pex.resolve.locker import Locker, LockResult
+from pex.resolve.pep_691.fingerprint_service import FingerprintedURL, FingerprintService
 from pex.resolve.resolved_requirement import PartialArtifact, Pin, ResolvedRequirement
 from pex.targets import LocalInterpreter
-from pex.typing import TYPE_CHECKING
+from pex.typing import TYPE_CHECKING, cast
 from testing import data
 
 if TYPE_CHECKING:
@@ -23,8 +24,18 @@ if TYPE_CHECKING:
 
 
 @pytest.fixture
-def locker(tmpdir):
-    # type: (Any) -> Locker
+def fingerprint_service(tmpdir):
+    # type: (Any) -> FingerprintService
+    db_dir = os.path.join(str(tmpdir), "fingerprints")
+    return FingerprintService(db_dir=db_dir)
+
+
+@pytest.fixture
+def locker(
+    tmpdir,  # type: Any
+    fingerprint_service,  # type: FingerprintService
+):
+    # type: (...) -> Locker
     download_dir = os.path.join(str(tmpdir), "downloads")
     return Locker(
         target=LocalInterpreter.create(),
@@ -32,6 +43,7 @@ def locker(tmpdir):
         resolver=ConfiguredResolver.default(),
         lock_style=LockStyle.SOURCES,
         download_dir=download_dir,
+        fingerprint_service=fingerprint_service,
         lock_is_via_pip_download=True,
     )
 
@@ -52,10 +64,9 @@ def analyze_log(
 def test_redirects_dont_stomp_original_index_urls(
     pip_version,  # type: str
     locker,  # type: Locker
+    fingerprint_service,  # type: FingerprintService
 ):
     # type: (...) -> None
-
-    analyze_log(locker, "issue-2414.pip-{pip_version}.log".format(pip_version=pip_version))
 
     expected_whl_artifact = PartialArtifact(
         url=ArtifactURL.parse(
@@ -77,6 +88,22 @@ def test_redirects_dont_stomp_original_index_urls(
         ),
         verified=False,
     )
+
+    fingerprint_service.cache(
+        [
+            FingerprintedURL(
+                url=expected_whl_artifact.url.normalized_url,
+                fingerprint=cast(Fingerprint, expected_whl_artifact.fingerprint),
+            ),
+            FingerprintedURL(
+                url=expected_sdist_artifact.url.normalized_url,
+                fingerprint=cast(Fingerprint, expected_sdist_artifact.fingerprint),
+            ),
+        ]
+    )
+
+    analyze_log(locker, "issue-2414.pip-{pip_version}.log".format(pip_version=pip_version))
+
     expected_wheel_requirement = ResolvedRequirement(
         pin=Pin(ProjectName("wheel"), Version("0.43.0")),
         artifact=expected_whl_artifact,

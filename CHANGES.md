@@ -1,5 +1,13 @@
 # Release Notes
 
+## 2.92.2
+
+This release fixes `pex3 lock create --avoid-downloads` hashing of VCS requirements where the VCS
+repository contains symlinks. Previously the hash calculated at lock create time would always
+mismatch the hash calculated at lock use time.
+
+* Fix VCS hashing in the face of symlinks. (#3149)
+
 ## 2.92.1
 
 This release fixes a caching bug introduced in #2766 that led to sdists always being rebuilt when
