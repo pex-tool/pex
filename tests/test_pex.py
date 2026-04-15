@@ -30,8 +30,8 @@ from pex.typing import TYPE_CHECKING
 from pex.util import named_temporary_file
 from pex.version import __version__
 from testing import (
-    PY39,
     PY310,
+    PY311,
     PY_VER,
     WheelBuilder,
     ensure_python_interpreter,
@@ -623,7 +623,7 @@ def test_pex_validate_entry_point_module_should_fail():
 def test_activate_interpreter_different_from_current():
     # type: () -> None
     with temporary_dir() as pex_root:
-        interp_version = PY310 if PY_VER == (3, 9) else PY39
+        interp_version = PY311 if PY_VER == (3, 10) else PY310
         custom_interpreter = PythonInterpreter.from_binary(
             ensure_python_interpreter(interp_version)
         )
