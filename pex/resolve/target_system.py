@@ -5,6 +5,7 @@ from __future__ import absolute_import
 
 import operator
 import sys
+from collections import OrderedDict
 
 from pex import pex_warnings
 from pex.common import pluralize
@@ -290,6 +291,25 @@ class Values(object):
         # type: () -> Dict[str, Any]
         return {"marker_name": self.marker_name, "values": self.values, "inclusive": self.inclusive}
 
+    def as_marker(self):
+        # type: () -> Marker
+
+        op = "==" if self.inclusive else "!="
+
+        def format_clause(value):
+            # type: (str) -> str
+            return "{name} {op} '{value}'".format(name=self.marker_name, op=op, value=value)
+
+        if len(self.values) == 1:
+            return Marker(format_clause(self.values[0]))
+
+        conjunction = " or " if self.inclusive else " and "
+        return Marker(
+            "({values})".format(
+                values=conjunction.join(format_clause(value) for value in self.values)
+            )
+        )
+
     def apply(self, func):
         # type: (Callable[[str], bool]) -> bool
         if len(self.values) == 0:
@@ -516,7 +536,7 @@ class EvalMarkerFunc(object):
 class ExtraMarkersVisitor(MarkerVisitor[str]):
     def __init__(self):
         # type: () -> None
-        self.conflicts = OrderedSet()  # type: OrderedSet[str]
+        self.conflicts = OrderedDict()  # type: OrderedDict[str, Tuple[str, OrderedSet[str], bool]]
         self._marker_values = {}  # type: Dict[str, Tuple[str, OrderedSet[str], bool]]
 
     def visit_op(
@@ -555,7 +575,7 @@ class ExtraMarkersVisitor(MarkerVisitor[str]):
                 name, (context, OrderedSet(), True)
             )
             if not inclusive:
-                self.conflicts.add(
+                conflict = (
                     "The requirement {context} includes {value} for {name} but the requirement "
                     "{requirement} established {name} as an exclusive set with values: "
                     "{values}.".format(
@@ -566,6 +586,10 @@ class ExtraMarkersVisitor(MarkerVisitor[str]):
                         values=" ".join(values),
                     )
                 )
+                _, conflicting_values, _ = self.conflicts.setdefault(
+                    conflict, (name, OrderedSet(), True)
+                )
+                conflicting_values.add(value)
             else:
                 values.add(value)
         elif op_symbol == "!=":
@@ -573,7 +597,7 @@ class ExtraMarkersVisitor(MarkerVisitor[str]):
                 name, (context, OrderedSet(), False)
             )
             if inclusive:
-                self.conflicts.add(
+                conflict = (
                     "The requirement {context} excludes {value} for {name} but the requirement "
                     "{requirement} established {name} as an inclusive set with values: "
                     "{values}.".format(
@@ -584,6 +608,10 @@ class ExtraMarkersVisitor(MarkerVisitor[str]):
                         values=" ".join(values),
                     )
                 )
+                _, conflicting_values, _ = self.conflicts.setdefault(
+                    conflict, (name, OrderedSet(), False)
+                )
+                conflicting_values.add(value)
             else:
                 values.add(value)
         else:
@@ -605,6 +633,38 @@ class ExtraMarkersVisitor(MarkerVisitor[str]):
 
 @attr.s(frozen=True)
 class ExtraMarkers(object):
+    @classmethod
+    def extract_conflicts(cls, markers):
+        # type: (Iterable[Marker]) -> Tuple[ExtraMarkers, ...]
+
+        visitor = ExtraMarkersVisitor()
+        marker_parser = MarkerParser(visitor)
+        for marker in markers:
+            marker_parser.parse(marker, context=str(marker))
+
+        conflicts = []
+        if visitor.conflicts:
+            values_by_marker_name = {
+                values.marker_name: values for values in visitor.marker_values()
+            }
+            for (name, conflicting_vals, inclusive) in visitor.conflicts.values():
+                values = values_by_marker_name[name]
+                conflicts.append(
+                    cls(markers=tuple([values.as_marker()]), marker_values=tuple([values]))
+                )
+                conflicting_values = Values(
+                    marker_name=name,
+                    values=tuple(conflicting_vals),
+                    inclusive=inclusive,
+                )
+                conflicts.append(
+                    cls(
+                        markers=tuple([conflicting_values.as_marker()]),
+                        marker_values=tuple([conflicting_values]),
+                    )
+                )
+        return tuple(conflicts)
+
     @classmethod
     def extract(cls, requirements):
         # type: (Iterable[Tuple[Marker, str]]) -> Optional[ExtraMarkers]
@@ -669,7 +729,16 @@ class MarkerEnv(object):
     @classmethod
     def from_dict(cls, data):
         # type: (Dict[str, Any]) -> MarkerEnv
-        return cls(**data)
+        return cls(
+            extras=SortedTuple(data["extras"]),
+            os_names=SortedTuple(data["os_names"]),
+            platform_systems=SortedTuple(data["platform_systems"]),
+            sys_platforms=SortedTuple(data["sys_platforms"]),
+            platform_python_implementations=SortedTuple(data["platform_python_implementations"]),
+            python_versions=SortedTuple(data["python_versions"]),
+            python_full_versions=SortedTuple(data["python_full_versions"]),
+            extra_markers=ExtraMarkers.from_dict(data["extra_markers"]),
+        )
 
     @classmethod
     def create(
@@ -740,7 +809,16 @@ class MarkerEnv(object):
 
     def as_dict(self):
         # type: () -> Dict[str, Any]
-        return attr.asdict(self)
+        return {
+            "extras": self.extras,
+            "os_names": self.os_names,
+            "platform_systems": self.platform_systems,
+            "sys_platforms": self.sys_platforms,
+            "platform_python_implementations": self.platform_python_implementations,
+            "python_versions": self.python_versions,
+            "python_full_versions": self.python_full_versions,
+            "extra_markers": self.extra_markers.to_dict(),
+        }
 
     def evaluate(self, marker):
         # type: (Marker) -> bool
