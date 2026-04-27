@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.93.0
+
+This release adds support for `--pip-version 26.1`.
+
+* Add support for `--pip-version 26.1`. (#3155)
+
 ## 2.92.3
 
 This release fixes universal lock splits that use extra markers not directly related to
