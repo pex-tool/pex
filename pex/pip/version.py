@@ -480,6 +480,13 @@ class PipVersion(Enum["PipVersionValue"]):
         requires_python=">=3.9,<3.16",
     )
 
+    v26_1 = PipVersionValue(
+        version="26.1",
+        setuptools_version="82.0.1",
+        wheel_version="0.47.0",
+        requires_python=">=3.10,<3.16",
+    )
+
     ADHOC = Adhoc()
 
     VENDORED = v20_3_4_patched
@@ -491,6 +498,7 @@ class PipVersion(Enum["PipVersionValue"]):
             v23_2,  # First to support 3.12.
             v24_1,  # First with 3.8 lower bound and first to support 3.14.
             v25_1,  # First with 3.9 lower bound.
+            v26_1,  # First with 3.10 lower bound.
         )
     )
 
