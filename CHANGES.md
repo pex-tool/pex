@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.93.1
+
+This release updates vendored Pip's vendored certifi's cacert.pem to that from certifi 2026.4.22.
+
+* Update vendored Pip's CA cert bundle. (#3158)
+
 ## 2.93.0
 
 This release adds support for `--pip-version 26.1`.
