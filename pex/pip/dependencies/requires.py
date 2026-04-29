@@ -52,6 +52,8 @@ def patch():
                 try:
                     requirement = PexRequirement.parse(str(req))
                 except RequirementParseError as e:
+                    # The full repr requires expensive parsing of METADATA,
+                    # defer until needed for error handling
                     raise RequirementParseError(str(e), source=repr(self))
                 excluded_by = dependency_configuration.excluded_by(requirement)
                 if excluded_by:
