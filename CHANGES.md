@@ -1,10 +1,14 @@
 # Release Notes
 
+## 2.93.1
+
+ * Defer requirement parse-error source to failure path. (#3159)
+
 ## 2.93.0
 
 This release adds support for `--pip-version 26.1`.
 
-* Add support for `--pip-version 26.1`. (#3155)
+* Add support for `--pip-version 26.1`. (#3158)
 
 ## 2.92.3
 
