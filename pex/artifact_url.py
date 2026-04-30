@@ -8,7 +8,7 @@ import hashlib
 import re
 from collections import defaultdict
 
-from pex import hashing
+from pex import hashing, pex_warnings
 from pex.compatibility import PY3, url_unquote, url_unquote_plus, urlparse
 from pex.dist_metadata import is_wheel
 from pex.enum import Enum
@@ -23,6 +23,7 @@ if TYPE_CHECKING:
         DefaultDict,
         Dict,
         Iterable,
+        Iterator,
         List,
         Mapping,
         Optional,
@@ -134,12 +135,29 @@ class Fingerprint(object):
         return "{algorithm}:{hash}".format(algorithm=self.algorithm, hash=self.hash)
 
 
+# N.B.: "guaranteed" algorithms are not always available locally; even entries in
+# `hashlib.algorithms_available` can fail to construct.
+#
+# See:
+# + https://docs.python.org/3/library/hashlib.html#hashlib.algorithms_available
+# + https://github.com/pex-tool/pex/issues/3163
+def _guaranteed_available_algorithms():
+    # type: () -> Iterator[Tuple[str, int]]
+    for alg in frozenset(hashlib.algorithms_guaranteed) & frozenset(hashlib.algorithms_available):
+        try:
+            digest = hashlib.new(alg)
+        except ValueError as e:
+            pex_warnings.warn(
+                "Will not accept hashlib algorithm {alg} in download URL fingerprints: "
+                "{err}".format(alg=alg, err=e)
+            )
+        else:
+            yield alg, digest.digest_size
+
+
 # These ranks prefer the highest digest size and then use alphabetic order for a tie-break.
 RANKED_ALGORITHMS = tuple(
-    sorted(
-        hashlib.algorithms_guaranteed,
-        key=lambda alg: (-hashlib.new(alg).digest_size, alg),
-    )
+    alg for alg, _ in sorted(_guaranteed_available_algorithms(), key=lambda tup: (-tup[1], tup[0]))
 )
 
 

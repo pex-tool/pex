@@ -1,8 +1,16 @@
 # Release Notes
 
+## 2.93.3
+
+This release fixes an issue running Pex under certain RedHat FIPS mode CPythons.
+
+* Ensure ranked hash algorithms are available. (#3164)
+
 ## 2.93.2
 
- * Defer requirement parse-error source to failure path. (#3159)
+This release speeds up `pex3 lock create`.
+
+* Defer requirement parse-error source to failure path. (#3159)
 
 ## 2.93.1
 
