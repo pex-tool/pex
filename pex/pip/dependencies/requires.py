@@ -14,6 +14,7 @@ def patch():
 
     from pex.common import pluralize
     from pex.dist_metadata import Requirement as PexRequirement
+    from pex.dist_metadata import RequirementParseError
     from pex.pep_508 import MarkerEnvironment
     from pex.pip.dependencies import PatchContext
     from pex.resolve.target_system import UniversalTarget
@@ -48,7 +49,12 @@ def patch():
             modified_requires = []
             orig = orig_requires(self, *args, **kwargs)
             for req in orig:
-                requirement = PexRequirement.parse(str(req), source=repr(self))
+                try:
+                    requirement = PexRequirement.parse(str(req))
+                except RequirementParseError as e:
+                    # The full repr requires expensive parsing of METADATA,
+                    # defer until needed for error handling
+                    raise RequirementParseError(str(e), source=repr(self))
                 excluded_by = dependency_configuration.excluded_by(requirement)
                 if excluded_by:
                     logger.debug(

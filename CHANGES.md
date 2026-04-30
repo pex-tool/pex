@@ -1,5 +1,9 @@
 # Release Notes
 
+## 2.93.2
+
+ * Defer requirement parse-error source to failure path. (#3159)
+
 ## 2.93.1
 
 This release updates vendored Pip's vendored certifi's cacert.pem to that from certifi 2026.4.22.
