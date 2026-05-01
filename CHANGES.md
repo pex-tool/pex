@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.93.4
+
+This release is a follow-on to #3164 that fixes the other spot in the code base susceptible to
+hashlib `guaranteed_algorithms` not being available.
+
+* Ensure hash algorithms are available for PEP-691 lookups. (#3166)
+
 ## 2.93.3
 
 This release fixes an issue running Pex under certain RedHat FIPS mode CPythons.

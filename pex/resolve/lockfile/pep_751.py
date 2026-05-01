@@ -9,7 +9,13 @@ import sys
 from collections import OrderedDict, defaultdict, deque
 
 from pex import pex_warnings, toml
-from pex.artifact_url import RANKED_ALGORITHMS, VCS, ArtifactURL, Fingerprint, VCSScheme
+from pex.artifact_url import (
+    RANKED_GUARANTEED_AVAILABLE_ALGORITHMS,
+    VCS,
+    ArtifactURL,
+    Fingerprint,
+    VCSScheme,
+)
 from pex.common import pluralize
 from pex.compatibility import text, urlparse
 from pex.dependency_configuration import DependencyConfiguration
@@ -914,7 +920,7 @@ class PackageParser(object):
         # type: (ParseContext) -> Fingerprint
 
         hashes = parse_context.get_table("hashes")
-        for algorithm in RANKED_ALGORITHMS:
+        for algorithm in RANKED_GUARANTEED_AVAILABLE_ALGORITHMS:
             hash_value = hashes.get_string(algorithm, default="")
             if hash_value:
                 return Fingerprint(algorithm=algorithm, hash=hash_value)
