@@ -3,9 +3,7 @@
 
 from __future__ import absolute_import
 
-import hashlib
-
-from pex.artifact_url import ArtifactURL, Fingerprint
+from pex.artifact_url import RANKED_GUARANTEED_AVAILABLE_ALGORITHMS, ArtifactURL, Fingerprint
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.sorted_tuple import SortedTuple
@@ -22,9 +20,10 @@ else:
 @attr.s(frozen=True)
 class File(object):
     # These ranks prefer the highest digest size and then use alphabetic order for a tie-break.
+    # See: RANKED_GUARANTEED_AVAILABLE_ALGORITHMS comment.
     _GUARANTEED_HASH_ALGORITHM_DIGEST_RANKS = {
-        algorithm: (-hashlib.new(algorithm).digest_size, algorithm)
-        for algorithm in hashlib.algorithms_guaranteed
+        algorithm: (rank, algorithm)
+        for rank, algorithm in enumerate(RANKED_GUARANTEED_AVAILABLE_ALGORITHMS)
     }
 
     @classmethod
