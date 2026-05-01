@@ -265,7 +265,9 @@ def test_binary_path(
     )
 
     venv = create_pex_venv()
-    returncode, stdout, stderr = execute_venv_pex_interpreter(venv, code=code, PATH=str(tmpdir))
+    returncode, stdout, stderr = execute_venv_pex_interpreter(
+        venv, extra_args=("-c", code), PATH=str(tmpdir)
+    )
     assert 111 == returncode, stdout + stderr
 
     venv_bin_path = create_pex_venv("-f", "--bin-path", "prepend")
