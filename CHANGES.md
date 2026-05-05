@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.94.0
+
+This release adds support for `--pip-version 26.1.1`.
+
+* Add support for `--pip-version 26.1.1`. (#3168)
+
 ## 2.93.4
 
 This release is a follow-on to #3164 that fixes the other spot in the code base susceptible to
