@@ -124,7 +124,7 @@ jobs:
             > "${changelog_tmp}"
           mv "${changelog_tmp}" "${{ steps.prepare-changelog.outputs.changelog-file }}"
       - name: Create ${{ needs.determine-tag.outputs.release-tag }} Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.determine-tag.outputs.release-tag }}
           name: pex ${{ needs.determine-tag.outputs.release-version }}
