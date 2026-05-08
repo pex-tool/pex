@@ -36,7 +36,7 @@ from testing.pytest_utils.tmp import Tempdir
 if TYPE_CHECKING:
     from typing import Any, Dict, List, Tuple
 
-    import attr  # vendor: skip
+    import attr  # vendor:skip
 else:
     from pex.third_party import attr
 
