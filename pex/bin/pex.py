@@ -11,11 +11,12 @@ from __future__ import absolute_import, print_function
 import itertools
 import json
 import os
+import subprocess
 import sys
 from argparse import Action, ArgumentDefaultsHelpFormatter, ArgumentParser
 from textwrap import TextWrapper
 
-from pex import build_properties, dependency_configuration, pex_warnings, repl, scie
+from pex import build_properties, dependency_configuration, pex_warnings, rc, repl, scie
 from pex.argparse import HandleBoolAction, InjectArgAction, InjectEnvAction
 from pex.build_properties import BuildProperties
 from pex.commands.command import (
@@ -32,6 +33,7 @@ from pex.docs.command import serve_html_docs
 from pex.enum import Enum
 from pex.fetcher import URLFetcher
 from pex.inherit_path import InheritPath
+from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import InterpreterConstraints
 from pex.layout import Layout, ensure_installed
 from pex.orderedset import OrderedSet
@@ -349,6 +351,7 @@ def configure_clp_pex_options(parser):
         ),
     )
 
+    rc.register_options(group)
     scie.register_options(group)
 
     group.add_argument(
@@ -1388,6 +1391,16 @@ def do_main(
             "You requested `--validate-entry-point` but specified no `--entry-point` to validate."
         )
 
+    native_runtime_configuration = rc.extract_configuration(
+        options, max_jobs=resolver_configuration.pip_configuration.max_jobs
+    )
+    if native_runtime_configuration and not options.pex_name:
+        raise ValueError(
+            "You must specify `-o`/`--output-file` to use `{native_runtime_configuration}`.".format(
+                native_runtime_configuration=rc.render_options(native_runtime_configuration)
+            )
+        )
+
     scie_options = scie.extract_options(options)
     if scie_options and not options.pex_name:
         raise ValueError(
@@ -1408,6 +1421,15 @@ def do_main(
                     ),
                 )
             )
+
+    if native_runtime_configuration:
+        # N.B.: pexrc would just turn around and re-package installed wheel chroots as whls.
+        options.pre_install_wheels = False
+        # Similarly, loose PEXes will get turned into packed by pexrc.
+        if options.layout == Layout.LOOSE:
+            options.layout = Layout.PACKED
+        # The compression done by pexrc duplicates any compression done here and is faster to boot.
+        options.compress = False
 
     with TRACER.timed("Building pex"):
         pex_builder = build_pex(
@@ -1451,9 +1473,18 @@ def do_main(
             compress=options.compress,
             check=options.check,
         )
+        if native_runtime_configuration:
+            url_fetcher = URLFetcher(
+                network_configuration=resolver_configuration.network_configuration,
+                password_entries=resolver_configuration.repos_configuration.password_entries,
+                handle_file_urls=True,
+            )
+            rc.inject(native_runtime_configuration, pex_file, url_fetcher=url_fetcher)
         if options.seed is not Seed.NONE:
             seed_info = seed_cache(
-                PEX(pex_file, interpreter=interpreter),
+                pex_file,
+                interpreter,
+                native=native_runtime_configuration is not None,
                 verbose=options.seed == Seed.VERBOSE,
             )
             print(seed_info)
@@ -1507,43 +1538,61 @@ def do_main(
 
 
 def seed_cache(
-    pex,  # type: PEX
+    pex_file,  # type: str
+    interpreter,  # type: PythonInterpreter
+    native=False,  # type: bool
     verbose=False,  # type : bool
 ):
-    # type: (...) -> str
+    # type: (...) -> Text
 
-    pex_path = pex.path()
-    with TRACER.timed("Seeding local caches for {}".format(pex_path)):
-        pex_info = pex.pex_info()
-        pex_root = pex_info.pex_root
+    with TRACER.timed("Seeding local caches for {}".format(pex_file)):
+        raw_pex_info = PexInfo.from_pex(pex_file)
+
+        full_pex_info = raw_pex_info.copy()
+        full_pex_info.update(PexInfo.from_env())
+        pex_root = full_pex_info.pex_root
 
         def create_verbose_info(final_pex_path):
-            # type: (str) -> Dict[str, str]
+            # type: (Text) -> Dict[str, Text]
             return dict(
-                seeded_from=pex_path,
+                seeded_from=pex_file,
                 pex_root=pex_root,
-                python=pex.interpreter.binary,
+                python=interpreter.binary,
                 pex=final_pex_path,
             )
 
-        if pex.pex_info(include_env_overrides=False).venv:
-            with TRACER.timed("Creating venv from {}".format(pex_path)):
-                with ENV.patch(PEX=os.path.realpath(os.path.expanduser(pex_path))):
-                    venv_pex = ensure_venv(pex)
+        if native:
+            venv_prefix = (
+                subprocess.check_output(
+                    args=[interpreter.binary, pex_file, "-c", "import sys; print(sys.prefix)"],
+                    env=dict(os.environ, PEX_INTERPRETER="1"),
+                )
+                .decode("utf-8")
+                .strip()
+            )
+            venv_pex_file = os.path.join(venv_prefix, "pex")
+            if verbose:
+                return json.dumps(create_verbose_info(final_pex_path=venv_pex_file))
+            else:
+                return venv_pex_file
+        elif raw_pex_info.venv:
+            with TRACER.timed("Creating venv from {}".format(pex_file)):
+                with ENV.patch(PEX=os.path.realpath(os.path.expanduser(pex_file))):
+                    venv_pex = ensure_venv(PEX(pex_file, interpreter=interpreter))
                     if verbose:
                         return json.dumps(create_verbose_info(final_pex_path=venv_pex.pex))
                     else:
                         return venv_pex.pex
 
-        pex_hash = pex_info.pex_hash
+        pex_hash = raw_pex_info.pex_hash
         if pex_hash is None:
             raise AssertionError(
-                "There was no pex_hash stored in {} for {}.".format(PexInfo.PATH, pex_path)
+                "There was no pex_hash stored in {} for {}.".format(PexInfo.PATH, pex_file)
             )
 
-        with TRACER.timed("Seeding caches for {}".format(pex_path)):
+        with TRACER.timed("Seeding caches for {}".format(pex_file)):
             final_pex_path = os.path.join(
-                ensure_installed(pex=pex_path, pex_root=pex_root, pex_hash=pex_hash), "__main__.py"
+                ensure_installed(pex=pex_file, pex_root=pex_root, pex_hash=pex_hash), "__main__.py"
             )
             if verbose:
                 return json.dumps(create_verbose_info(final_pex_path=final_pex_path))

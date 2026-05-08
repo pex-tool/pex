@@ -37,9 +37,17 @@ if TYPE_CHECKING:
 FABRIC_VERSION = "2.5.0"
 
 
-@pytest.fixture
-def pex(tmpdir):
-    # type: (Tempdir) -> Iterator[str]
+@pytest.fixture(
+    params=[
+        pytest.param([], id="PEX"),
+        pytest.param(["--rc"], id="PEX.rc"),
+    ]
+)
+def pex(
+    request,  # type: Any
+    tmpdir,  # type: Tempdir
+):
+    # type: (...) -> Iterator[str]
 
     pex_path = tmpdir.join("fabric.pex")
 
@@ -69,6 +77,7 @@ def pex(tmpdir):
             pex_path,
             "--include-tools",
         ]
+        + request.param
     ).assert_success()
     yield os.path.realpath(pex_path)
 
