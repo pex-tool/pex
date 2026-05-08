@@ -5,6 +5,7 @@ from __future__ import absolute_import
 
 import json
 import subprocess
+import uuid
 from textwrap import dedent
 
 import pytest
@@ -39,7 +40,7 @@ def test_use_pex_scie_as_interpreter(
     pex = tmpdir.join("pex")
     run_pex_command(args=[pex_wheel, "--scie", "eager", "--scie-only", "-o", pex]).assert_success()
 
-    app = tmpdir.join("test")
+    app = tmpdir.join("test-{uuid}".format(uuid=uuid.uuid4().hex))
     pex_root = tmpdir.join("pex_root")
 
     set_pex_root = tmpdir.join("set_pex_root.py")
