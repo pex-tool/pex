@@ -1350,28 +1350,34 @@ def build_and_execute_pex_with_warnings(*extra_build_args, **extra_runtime_env):
         return cast(bytes, stderr)
 
 
+EXPECTED_WARNING = (
+    b"The following distributions need `pkg_resources` to load some legacy namespace packages and "
+    b"may fail to work properly:"
+)
+
+
 def test_emit_warnings_default():
     # type: () -> None
     stderr = build_and_execute_pex_with_warnings()
-    assert stderr
+    assert EXPECTED_WARNING in stderr
 
 
 def test_no_emit_warnings_2():
     # type: () -> None
     stderr = build_and_execute_pex_with_warnings("--no-emit-warnings")
-    assert not stderr, stderr
+    assert EXPECTED_WARNING not in stderr, stderr
 
 
 def test_no_emit_warnings_emit_env_override():
     # type: () -> None
     stderr = build_and_execute_pex_with_warnings("--no-emit-warnings", PEX_EMIT_WARNINGS="true")
-    assert stderr
+    assert EXPECTED_WARNING in stderr
 
 
 def test_no_emit_warnings_verbose_override():
     # type: () -> None
     stderr = build_and_execute_pex_with_warnings("--no-emit-warnings", PEX_VERBOSE="1")
-    assert stderr
+    assert EXPECTED_WARNING in stderr
 
 
 def test_trusted_host_handling():
