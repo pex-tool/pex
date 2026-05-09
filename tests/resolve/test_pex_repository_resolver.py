@@ -12,20 +12,17 @@ from pex.common import safe_mkdtemp
 from pex.dist_metadata import DistributionType, Requirement
 from pex.interpreter import PythonInterpreter
 from pex.pep_427 import InstallableType
-from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
 from pex.platforms import Platform
 from pex.requirements import parse_requirement_string, parse_requirement_strings
 from pex.resolve import abbreviated_platforms
-from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.pex_repository_resolver import resolve_from_pex
-from pex.resolve.resolver_configuration import PipConfiguration
 from pex.resolve.resolvers import ResolveResult, Unsatisfiable
-from pex.resolver import resolve
 from pex.sysconfig import SysPlatform
 from pex.targets import Targets
-from pex.typing import TYPE_CHECKING, cast
-from testing import IS_LINUX, PY27, PY310, ensure_python_interpreter
+from pex.typing import TYPE_CHECKING
+from testing import IS_LINUX, run_pex_command
+from testing.pytest_utils.tmp import Tempdir
 
 if TYPE_CHECKING:
     from typing import DefaultDict, Iterable, Optional, Set
@@ -34,6 +31,7 @@ if TYPE_CHECKING:
 
 
 def create_pex_repository(
+    tmpdir,  # type: Tempdir
     interpreters=None,  # type: Optional[Iterable[PythonInterpreter]]
     platforms=None,  # type: Optional[Iterable[Platform]]
     requirements=None,  # type: Optional[Iterable[ParsedRequirement]]
@@ -42,24 +40,36 @@ def create_pex_repository(
     result_type=InstallableType.INSTALLED_WHEEL_CHROOT,  # type: InstallableType.Value
 ):
     # type: (...) -> str
-    pex_builder = PEXBuilder()
-    pex_builder.info.deps_are_wheel_files = result_type is InstallableType.WHEEL_FILE
-    for resolved_dist in resolve(
-        targets=Targets(
-            interpreters=tuple(interpreters) if interpreters else (),
-            platforms=tuple(platforms) if platforms else (),
-        ),
-        requirements=requirements,
-        requirement_files=requirement_files,
-        constraint_files=constraint_files,
-        resolver=ConfiguredResolver(PipConfiguration()),
-        result_type=result_type,
-    ).distributions:
-        pex_builder.add_distribution(resolved_dist.distribution)
-        for direct_req in resolved_dist.direct_requirements:
-            pex_builder.add_requirement(direct_req)
-    pex_builder.freeze()
-    return os.path.realpath(cast(str, pex_builder.path()))
+    pex_repository = tmpdir.join("repository.pex")
+    args = [
+        "--pip-version",
+        "latest-compatible",
+        "--resolver-version",
+        "pip-2020-resolver",
+        "--layout",
+        "loose",
+        "-o",
+        pex_repository,
+    ]
+    python = None  # type: Optional[str]
+    for interpreter in interpreters or ():
+        args.append("--python")
+        args.append(interpreter.binary)
+        python = interpreter.binary
+    for platform in platforms or ():
+        args.append("--abbreviated-platform")
+        args.append(str(platform))
+    args.extend(str(req) for req in requirements or ())
+    for requirement_file in requirement_files or ():
+        args.append("-r")
+        args.append(requirement_file)
+    for constraint_file in constraint_files or ():
+        args.append("--constraints")
+        args.append(constraint_file)
+    if result_type == InstallableType.WHEEL_FILE:
+        args.append("--no-pre-install-wheels")
+    run_pex_command(args=args, python=python).assert_success()
+    return pex_repository
 
 
 def create_constraints_file(*requirements):
@@ -71,31 +81,19 @@ def create_constraints_file(*requirements):
     return constraints_file
 
 
-@pytest.fixture(scope="module")
-def py27():
-    # type: () -> PythonInterpreter
-    return PythonInterpreter.from_binary(ensure_python_interpreter(PY27))
-
-
-@pytest.fixture(scope="module")
-def py310():
-    # type: () -> PythonInterpreter
-    return PythonInterpreter.from_binary(ensure_python_interpreter(PY310))
-
-
-@pytest.fixture(scope="module")
+@pytest.fixture
 def macosx():
     # type: () -> Platform
     return abbreviated_platforms.create("macosx-10.13-x86_64-cp-36-m")
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def linux():
     # type: () -> Platform
     return abbreviated_platforms.create("linux-x86_64-cp-36-m", manylinux="manylinux2014")
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def foreign_platform(
     macosx,  # type: Platform
     linux,  # type: Platform
@@ -105,13 +103,13 @@ def foreign_platform(
 
 
 @pytest.fixture(
-    scope="module",
     params=[
         pytest.param(installable_type, id=installable_type.value)
         for installable_type in InstallableType.values()
     ],
 )
 def pex_repository(
+    tmpdir,  # type: Tempdir
     py27,  # type: PythonInterpreter
     py310,  # type: PythonInterpreter
     foreign_platform,  # type: Platform
@@ -138,6 +136,7 @@ def pex_repository(
     )
 
     return create_pex_repository(
+        tmpdir,
         interpreters=[py27, py310],
         platforms=[foreign_platform],
         requirements=[parse_requirement_string("requests[security,socks]==2.25.1")],
