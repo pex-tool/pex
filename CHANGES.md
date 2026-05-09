@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.95.0
+
+Add initial opt-in support for the native PEX runtime provided by [`pexrc`](
+https://github.com/pex-tool/pex.rc) via the `--rc` flag.
+
+* Introduce the `--rc` flag to opt in to a native PEX runtime. (#3171)
+
 ## 2.94.0
 
 This release adds support for `--pip-version 26.1.1`.

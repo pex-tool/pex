@@ -11,12 +11,13 @@ import pytest
 from pex.common import safe_mkdtemp
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import InterpreterConstraint
-from pex.pex_builder import PEXBuilder
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import Virtualenv
+from testing import run_pex_command
+from testing.pytest_utils.tmp import Tempdir
 
 if TYPE_CHECKING:
-    from typing import Any, Dict, Iterable
+    from typing import Any, Dict, Iterable, List
 
     import attr  # vendor:skip
 else:
@@ -32,15 +33,13 @@ class InterpreterTool(object):
     @classmethod
     def create(
         cls,
+        tools_pex,  # type: str
         interpreter,  # type: PythonInterpreter
         *other_interpreters  # type: PythonInterpreter
     ):
         # type: (...) -> InterpreterTool
-        pex_builder = PEXBuilder(interpreter=interpreter)
-        pex_builder.info.includes_tools = True
-        pex_builder.freeze()
         return cls(
-            tools_pex=pex_builder.path(),
+            tools_pex=tools_pex,
             interpreter=interpreter,
             other_interpreters=other_interpreters,
         )
@@ -68,13 +67,19 @@ class InterpreterTool(object):
         return stdout
 
 
-@pytest.fixture
+@pytest.fixture(
+    params=[pytest.param(["--include-tools"], id="PEX"), pytest.param(["--rc"], id="PEX.rc")]
+)
 def interpreter_tool(
+    request,  # type: Any
+    tmpdir,  # type: Any
     py39,  # type: PythonInterpreter
     py311,  # type: PythonInterpreter
 ):
     # type: (...) -> InterpreterTool
-    return InterpreterTool.create(py39, py311)
+    tools_pex = os.path.join(str(tmpdir), "tools.pex")
+    run_pex_command(args=["-o", tools_pex] + request.param, python=py39.binary).assert_success()
+    return InterpreterTool.create(tools_pex, py39, py311)
 
 
 def expected_basic(interpreter):
@@ -158,16 +163,30 @@ def test_verbose_verbose_verbose(
     assert expected == json.loads(output)
 
 
+@pytest.mark.parametrize(
+    "tools_pex_args",
+    [
+        pytest.param(["--include-tools"], id="PEX"),
+        pytest.param(["--rc"], id="PEX.rc"),
+    ],
+)
 def test_verbose_verbose_verbose_venv(
     py310,  # type: PythonInterpreter
+    tools_pex_args,  # type: List[str]
+    tmpdir,  # type: Tempdir
 ):
     # type: (...) -> None
     venv = Virtualenv.create(venv_dir=safe_mkdtemp(), interpreter=py310, force=True)
     assert venv.interpreter.is_venv
 
+    tools_pex = tmpdir.join("tools.pex")
+    run_pex_command(args=["-o", tools_pex] + tools_pex_args).assert_success()
+
     # N.B.: Non-venv-mode PEXes always escape venvs to prevent `sys.path` contamination unless
     # `PEX_INHERIT_PATH` is not "false".
-    output = InterpreterTool.create(venv.interpreter).run("-vvv", PEX_INHERIT_PATH="fallback")
+    output = InterpreterTool.create(tools_pex, venv.interpreter).run(
+        "-vvv", PEX_INHERIT_PATH="fallback"
+    )
 
     expected = expected_verbose_verbose(venv.interpreter)
     expected.update(

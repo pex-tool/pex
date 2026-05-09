@@ -453,7 +453,7 @@ class Repository(JsonMixin, OutputMixin, PEXCommand):
                     """\
                     [build-system]
                     requires = ["setuptools"]
-                    backend = "setuptools.build_meta"
+                    build-backend = "setuptools.build_meta"
                     """
                 )
             )

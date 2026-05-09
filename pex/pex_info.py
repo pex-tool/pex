@@ -545,7 +545,7 @@ class PexInfo(object):
     @property
     def raw_pex_root(self):
         # type: () -> str
-        return cast(str, self._pex_info.get("pex_root", cache_root.path(expand_user=False)))
+        return cast(str, self._pex_info.get("pex_root") or cache_root.path(expand_user=False))
 
     @property
     def pex_root(self):

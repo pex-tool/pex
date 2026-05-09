@@ -8,6 +8,7 @@ import itertools
 import json
 import os
 import signal
+import sys
 from textwrap import dedent
 
 import pytest
@@ -19,6 +20,7 @@ from pex.pip.installation import get_pip
 from pex.pip.version import PipVersion
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.resolver_configuration import BuildConfiguration
+from pex.resolve.target_system import MarkerParser, MarkerVisitor
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.typing import TYPE_CHECKING
 from testing import (
@@ -32,12 +34,33 @@ from testing import (
 from testing.pytest_utils.tmp import Tempdir
 
 if TYPE_CHECKING:
-    from typing import Any, Dict
+    from typing import Any, Dict, List, Tuple
+
+    import attr  # vendor:skip
+else:
+    from pex.third_party import attr
 
 
-@pytest.fixture
-def pex(tmpdir):
-    # type: (Tempdir) -> str
+@pytest.fixture(
+    params=[
+        pytest.param([], id="PEX"),
+        pytest.param(
+            [
+                "--rc",
+                "--compression-method",
+                "deflated",
+                "--layout",
+                "packed",
+            ],
+            id="PEX.rc",
+        ),
+    ]
+)
+def pex(
+    request,  # type: Any
+    tmpdir,  # type: Tempdir
+):
+    # type: (...) -> str
     pex_path = tmpdir.join("example.pex")
 
     src = tmpdir.join("src")
@@ -86,7 +109,8 @@ def pex(tmpdir):
             "-o",
             pex_path,
             "--include-tools",
-        ],
+        ]
+        + request.param,
     ).assert_success()
     return pex_path
 
@@ -101,7 +125,9 @@ def pex_tools_env():
 
 def test_info(pex, pex_tools_env):
     # type: (str, Dict[str, str]) -> None
-    output = subprocess.check_output(args=[pex, "repository", "info"], env=pex_tools_env)
+    output = subprocess.check_output(
+        args=[sys.executable, pex, "repository", "info"], env=pex_tools_env
+    )
     distributions = {}
     for line in output.decode("utf-8").splitlines():
         name, version, location = str(line).split(" ", 2)
@@ -116,7 +142,9 @@ def test_info(pex, pex_tools_env):
 
 def test_info_verbose(pex, pex_tools_env):
     # type: (str, Dict[str, str]) -> None
-    output = subprocess.check_output(args=[pex, "repository", "info", "-v"], env=pex_tools_env)
+    output = subprocess.check_output(
+        args=[sys.executable, pex, "repository", "info", "-v"], env=pex_tools_env
+    )
     infos = {}
     for line in output.decode("utf-8").splitlines():
         info = json.loads(line)
@@ -143,9 +171,73 @@ def test_info_verbose(pex, pex_tools_env):
             "idna<3,>=2.5",
             'pyOpenSSL>=0.14; extra == "security"',
             "urllib3<1.27,>=1.21.1",
-            'win-inet-pton; (sys_platform == "win32" and python_version == "2.7") and extra == "socks"',
         )
-    } == {Requirement.parse(req) for req in requests_info["requires_dists"]}
+    } == {
+        Requirement.parse(req)
+        for req in requests_info["requires_dists"]
+        if "win-inet-pton" not in req
+    }
+
+    @attr.s
+    class ParseData(object):
+        and_count = attr.ib(default=0)  # type: int
+        or_count = attr.ib(default=0)  # type: int
+        ops = attr.ib(factory=list)  # type: List[Tuple[str, str, str]]
+
+    class WinInetPtonVisitor(MarkerVisitor[ParseData]):
+        def visit_and(self, marker, context):
+            context.and_count += 1
+
+        def visit_or(self, marker, context):
+            context.or_count += 1
+
+        def visit_op(self, lhs, op, rhs, marker, context):
+            context.ops.append((str(lhs), str(op), str(rhs)))
+
+    marker_parser = MarkerParser(WinInetPtonVisitor())
+    expected_parse_data = marker_parser.parse(
+        Requirement.parse(
+            'win-inet-pton; (sys_platform == "win32" and python_version == "2.7") and extra == "socks"'
+        ).marker,
+        ParseData(),
+    )
+
+    def assert_parse_data(parse_data):
+        # type: (ParseData) -> None
+
+        assert parse_data.and_count == 2
+        assert parse_data.or_count == 0
+        assert (
+            sorted(
+                [
+                    ("sys_platform", "==", "win32"),
+                    ("python_version", "==", "2.7"),
+                    ("extra", "==", "socks"),
+                ]
+            )
+            == sorted(parse_data.ops)
+        ) or (
+            sorted(
+                [
+                    ("sys_platform", "==", "win32"),
+                    ("python_full_version", "==", "2.7.*"),
+                    ("extra", "==", "socks"),
+                ]
+            )
+            == sorted(parse_data.ops)
+        )
+
+    assert_parse_data(expected_parse_data)
+
+    actual_parse_data = marker_parser.parse(
+        [
+            Requirement.parse(req)
+            for req in requests_info["requires_dists"]
+            if "win-inet-pton" in req
+        ][0].marker,
+        ParseData(),
+    )
+    assert_parse_data(actual_parse_data)
 
 
 def test_extract_deterministic_timestamp(pex, pex_tools_env, tmpdir):
@@ -160,7 +252,8 @@ def test_extract_deterministic_timestamp(pex, pex_tools_env, tmpdir):
 
     deterministic_dists_dir = os.path.join(str(tmpdir), "deterministic-dists")
     subprocess.check_call(
-        args=[pex, "repository", "extract", "-f", deterministic_dists_dir], env=pex_tools_env
+        args=[sys.executable, pex, "repository", "extract", "-f", deterministic_dists_dir],
+        env=pex_tools_env,
     )
     with open_zip(
         os.path.join(deterministic_dists_dir, "requests-2.25.1-py2.py3-none-any.whl")
@@ -172,7 +265,15 @@ def test_extract_deterministic_timestamp(pex, pex_tools_env, tmpdir):
 
     non_deterministic_dists_dir = os.path.join(str(tmpdir), "non_deterministic_dists_dir")
     subprocess.check_call(
-        args=[pex, "repository", "extract", "-f", non_deterministic_dists_dir, "--use-system-time"],
+        args=[
+            sys.executable,
+            pex,
+            "repository",
+            "extract",
+            "-f",
+            non_deterministic_dists_dir,
+            "--use-system-time",
+        ],
         env=pex_tools_env,
     )
     with open_zip(
@@ -186,7 +287,7 @@ def test_extract_deterministic_timestamp(pex, pex_tools_env, tmpdir):
 
 def test_extract_original_timestamp_wheels(pex, pex_tools_env):
     dist_dirs = run_command_with_jitter(
-        args=[pex, "repository", "extract", "--use-system-time"],
+        args=[sys.executable, pex, "repository", "extract", "--use-system-time"],
         path_argument="-f",
         extra_env=pex_tools_env,
         count=3,
@@ -209,7 +310,10 @@ def test_extract_deterministic_timestamp_wheels(pex, pex_tools_env):
     # that extracting wheels from a fixed PEX file is also deterministic.
 
     dist_dirs = run_command_with_jitter(
-        args=[pex, "repository", "extract"], path_argument="-f", extra_env=pex_tools_env, count=3
+        args=[sys.executable, pex, "repository", "extract"],
+        path_argument="-f",
+        extra_env=pex_tools_env,
+        count=3,
     )
     dists_dir1 = dist_dirs.pop()
     dists1 = sorted(os.listdir(dists_dir1))
@@ -244,6 +348,7 @@ def test_extract_lifecycle(pex, pex_tools_env, tmpdir):
     os.mkfifo(pid_file)
     find_links_server = subprocess.Popen(
         args=[
+            sys.executable,
             pex,
             "repository",
             "extract",
@@ -254,14 +359,13 @@ def test_extract_lifecycle(pex, pex_tools_env, tmpdir):
             "--pid-file",
             pid_file,
         ],
-        env=pex_tools_env,
-        stdout=subprocess.PIPE,
+        env=dict(pex_tools_env, PEX_VERBOSE="3"),
     )
     with open(pid_file) as fp:
         pid, port = fp.read().strip().split(":", 1)
     example_sdist_pex = os.path.join(str(tmpdir), "example-sdist.pex")
     find_links_url = "http://localhost:{}".format(port)
-    result = run_pex_command(
+    run_pex_command(
         args=[
             "--no-pypi",
             "--find-links",
@@ -274,8 +378,7 @@ def test_extract_lifecycle(pex, pex_tools_env, tmpdir):
             "-o",
             example_sdist_pex,
         ]
-    )
-    result.assert_success()
+    ).assert_success()
 
     venv = ensure_python_venv(PY310)
     pip = venv.bin_path("pip")

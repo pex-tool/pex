@@ -611,7 +611,7 @@ def ensure_science(
                 url = science_binary or _science_binary_url()
                 TRACER.log("Fetching science binary from {url}...".format(url=url))
                 with open(target_science, "wb") as write_fp, fetcher.get_body_stream(
-                    science_binary or _science_binary_url()
+                    url
                 ) as read_fp:
                     shutil.copyfileobj(read_fp, write_fp)
                 chmod_plus_x(target_science)
@@ -639,7 +639,7 @@ def ensure_science(
                             "match the expected SHA-256 fingerprint recorded in "
                             "{science_sha256_url}.\n"
                             "Expected {expected_sha256} but found {actual_sha256}.".format(
-                                science_binary_url=science_binary,
+                                science_binary_url=url,
                                 science_sha256_url=science_sha256_url,
                                 expected_sha256=expected_sha256,
                                 actual_sha256=actual_sha256,

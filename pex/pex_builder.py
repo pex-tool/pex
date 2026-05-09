@@ -182,6 +182,7 @@ class PEXBuilder(object):
 
     @property
     def interpreter(self):
+        # type: () -> PythonInterpreter
         return self._interpreter
 
     def chroot(self):

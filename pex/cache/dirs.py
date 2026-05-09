@@ -215,6 +215,13 @@ class CacheDir(Enum["CacheDir.Value"]):
         ),
     )
 
+    RC = Value(
+        "rc",
+        version=0,
+        name="Native Runtime Control",
+        description="Tools and cached used when building PEXes with native runtimes via `--rc`.",
+    )
+
     RUN = Value(
         "run",
         version=0,
