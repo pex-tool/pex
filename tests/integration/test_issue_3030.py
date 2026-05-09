@@ -26,6 +26,8 @@ def test_venv_symlinks_data_top_level_matches_wheel_package(
             "--runtime-pex-root",
             pex_root,
             "databricks-connect==15.4.0",
+            "--resolver-version",
+            "pip-2020-resolver",
             "--venv",
             "-o",
             pex,
