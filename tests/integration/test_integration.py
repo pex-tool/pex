@@ -1350,28 +1350,41 @@ def build_and_execute_pex_with_warnings(*extra_build_args, **extra_runtime_env):
         return cast(bytes, stderr)
 
 
+EXPECTED_WARNINGS = (
+    b"The following distributions need `pkg_resources` to load some legacy namespace packages and "
+    b"may fail to work properly:",
+    b"The `pkg_resources` package was loaded from a pex vendored version when "
+    b"declaring namespace packages defined by:",
+)
+
+
+def contains_expected_warnings(data):
+    # type: (bytes) -> bool
+    return any(expected_warning in data for expected_warning in EXPECTED_WARNINGS)
+
+
 def test_emit_warnings_default():
     # type: () -> None
     stderr = build_and_execute_pex_with_warnings()
-    assert stderr
+    assert contains_expected_warnings(stderr)
 
 
 def test_no_emit_warnings_2():
     # type: () -> None
     stderr = build_and_execute_pex_with_warnings("--no-emit-warnings")
-    assert not stderr, stderr
+    assert not contains_expected_warnings(stderr)
 
 
 def test_no_emit_warnings_emit_env_override():
     # type: () -> None
     stderr = build_and_execute_pex_with_warnings("--no-emit-warnings", PEX_EMIT_WARNINGS="true")
-    assert stderr
+    assert contains_expected_warnings(stderr)
 
 
 def test_no_emit_warnings_verbose_override():
     # type: () -> None
     stderr = build_and_execute_pex_with_warnings("--no-emit-warnings", PEX_VERBOSE="1")
-    assert stderr
+    assert contains_expected_warnings(stderr)
 
 
 def test_trusted_host_handling():

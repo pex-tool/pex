@@ -185,8 +185,6 @@ test = [
   "pytest-xdist",
   "python-dateutil",
   "subprocess32",
-
-  {include-group = "devpi-server"},
 ]
 vendor = [
   {include-group = "dev-cmd"},
