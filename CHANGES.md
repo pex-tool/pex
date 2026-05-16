@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.95.1
+
+This release fixes a bug in the `--venv-repository` resolver that ignored extras when determining if
+a requirement had already been resolved.
+
+* Fix `--venv-repository` resolver extras handling. (#3176)
+
 ## 2.95.0
 
 Add initial opt-in support for the native PEX runtime provided by [`pexrc`](
