@@ -31,6 +31,7 @@ from pex.pep_376 import InstalledDirectory, InstalledFile, Record
 from pex.pep_427 import InstallableType, InstallableWheel, InstallPaths, install_wheel_chroot
 from pex.pep_503 import ProjectName
 from pex.pip.version import PipVersion
+from pex.requirement_key import RequirementKey
 from pex.requirements import LocalProjectRequirement
 from pex.requirements import as_parsed_requirement as as_parsed_requirement
 from pex.requirements import parse_requirement_string
@@ -270,6 +271,10 @@ class ResolveRequirement(object):
     requirement = attr.ib()  # type: Requirement
     activated_extras = attr.ib(default=frozenset())  # type: FrozenSet[str]
     required_by = attr.ib(default=None)  # type: ResolveRequirement
+    key = attr.ib(init=False)  # type: RequirementKey
+
+    def __attrs_post_init__(self):
+        object.__setattr__(self, "key", RequirementKey.create(self.requirement))
 
     @property
     def project_name(self):
@@ -372,10 +377,12 @@ def _resolve_distributions(
     to_resolve = deque(
         OrderedSet(ResolveRequirement(requirement) for requirement in requirements)
     )  # type: Deque[ResolveRequirement]
-    resolved = set()  # type: Set[ProjectName]
+    resolved = set()  # type: Set[RequirementKey]
     while to_resolve:
         requirement = to_resolve.popleft()
-        if requirement.project_name in resolved:
+        if requirement.key in resolved:
+            continue
+        if any(requirement_key.satisfies(requirement.key) for requirement_key in resolved):
             continue
 
         if not requirement.applies(target, dependency_configuration):
@@ -391,7 +398,7 @@ def _resolve_distributions(
             )
         elif meets_requirement(distribution, requirement):
             production_assert(distribution.type is DistributionType.INSTALLED)
-            resolved.add(requirement.project_name)
+            resolved.add(requirement.key)
             editable_project_url = distribution.editable_install_url()
             if (
                 not editable_project_url

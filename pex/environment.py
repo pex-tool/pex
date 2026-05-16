@@ -22,6 +22,7 @@ from pex.orderedset import OrderedSet
 from pex.pep_425 import TagRank
 from pex.pep_503 import ProjectName
 from pex.pex_info import PexInfo
+from pex.requirement_key import RequirementKey
 from pex.targets import Target
 from pex.third_party.packaging import specifiers
 from pex.third_party.packaging.tags import Tag
@@ -212,29 +213,6 @@ class ResolveError(Exception):
     """Indicates an error resolving requirements from within a PEX."""
 
 
-@attr.s(frozen=True)
-class _RequirementKey(object):
-    @classmethod
-    def create(cls, requirement):
-        # type: (Requirement) -> _RequirementKey
-        return cls(ProjectName(requirement.name), frozenset(requirement.extras))
-
-    project_name = attr.ib()  # type: ProjectName
-    extras = attr.ib()  # type: FrozenSet[str]
-
-    def satisfies(self, requested):
-        # type: (_RequirementKey) -> bool
-
-        # A resolved requirement satisfies a requested requirement when the project names match
-        # and the resolved extras are a superset of the requested extras.
-        # For example, resolving `cake[birthday,wedding]` satisfies requests for:
-        # `cake[]`
-        # `cake[birthday]`
-        # `cake[wedding]`
-        # `cake[birthday,wedding]`
-        return self.project_name == requested.project_name and requested.extras <= self.extras
-
-
 class PEXEnvironment(object):
     _CACHE = {}  # type: Dict[Tuple[str, str, Target], PEXEnvironment]
 
@@ -401,7 +379,7 @@ class PEXEnvironment(object):
         self,
         requirement,  # type: Requirement
         dependency_configuration,  # type: DependencyConfiguration
-        resolved_dists_by_key,  # type: MutableMapping[_RequirementKey, FingerprintedDistribution]
+        resolved_dists_by_key,  # type: MutableMapping[RequirementKey, FingerprintedDistribution]
         required,  # type: bool
         required_by=None,  # type: Optional[Distribution]
     ):
@@ -417,7 +395,9 @@ class PEXEnvironment(object):
             )
             return
 
-        requirement_key = _RequirementKey.create(requirement)
+        requirement_key = RequirementKey.create(requirement)
+        if requirement_key in resolved_dists_by_key:
+            return
         if any(key.satisfies(requirement_key) for key in resolved_dists_by_key):
             return
 
@@ -645,7 +625,7 @@ class PEXEnvironment(object):
 
         resolved_dists_by_key = (
             OrderedDict()
-        )  # type: OrderedDict[_RequirementKey, FingerprintedDistribution]
+        )  # type: OrderedDict[RequirementKey, FingerprintedDistribution]
         for qualified_req_or_not_found in self._root_requirements_iter(
             reqs, dependency_configuration
         ):
