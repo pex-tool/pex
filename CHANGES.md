@@ -1,5 +1,13 @@
 # Release Notes
 
+## 2.95.2
+
+This release upgrades the minimum version required of the `pexrc` tool to 0.12.5 to satisfy `--rc`
+requests when building PEXes. This new version floor pulls in a fix for non-normalized project name
+handling when reading wheel metadata. See: https://github.com/pex-tool/pex.rc/issues/103.
+
+* Upgrade `pexrc` to 0.12.5. (#3178)
+
 ## 2.95.1
 
 This release fixes a bug in the `--venv-repository` resolver that ignored extras when determining if
