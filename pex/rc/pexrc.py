@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 
 
 PEXRC_RELEASES_URL = "https://github.com/pex-tool/pex.rc/releases"
-MIN_PEXRC_VERSION = Version("0.12.3")
+MIN_PEXRC_VERSION = Version("0.12.5")
 PEXRC_REQUIREMENT = SpecifierSet("~={min_version}".format(min_version=MIN_PEXRC_VERSION))
 
 
