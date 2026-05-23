@@ -620,14 +620,49 @@ def install_pex_main(
 ):
     # type: (...) -> None
 
-    with open(os.path.join(venv.site_packages_dir, "PEX_EXTRA_SYS_PATH.pth"), "w") as fp:
-        # N.B.: .pth import lines must be single lines: https://docs.python.org/3/library/site.html
-        for env_var in "PEX_EXTRA_SYS_PATH", "__PEX_EXTRA_SYS_PATH__":
+    with open(os.path.join(venv.site_packages_dir, "PEX_EXTRA_SYS_PATH.py"), "w") as fp:
+        # See: https://peps.python.org/pep-0829/
+        fp.write(
+            dedent(
+                """\
+                import os
+                import sys
+
+
+                def _extend_sys_path(path_env_var):
+                    path = os.environ.get(path_env_var)
+                    if path:
+                        entries = path.split(os.pathsep)
+                        sys.path.extend(entries)
+                        return entries
+                    return []
+
+
+                def extend_sys_path(legacy=False):
+                    entries = _extend_sys_path("PEX_EXTRA_SYS_PATH")
+                    entries.extend(_extend_sys_path("__PEX_EXTRA_SYS_PATH__"))
+                    debug = os.environ.pop("__PEX_EXTRA_SYS_PATH_DEBUG__", "")
+                    if debug:
+                        import json
+                        with open(debug, "w") as fp:
+                            json.dump({"entries": entries, "legacy": legacy}, fp)
+                """
+            )
+        )
+
+    # Starting with Python 3.15 .start files trump import lines in .path files.
+    # See: https://peps.python.org/pep-0829/#abstract
+    if venv.interpreter.version >= (3, 15):
+        with open(os.path.join(venv.site_packages_dir, "PEX_EXTRA_SYS_PATH.start"), "w") as fp:
+            print("PEX_EXTRA_SYS_PATH:extend_sys_path", file=fp)
+
+    # After ~Python 3.20 .pth import lines will start to raise warnings; so we no longer emit a .pth
+    # compatibility bridge. See: https://peps.python.org/pep-0829/#abstract
+    if venv.interpreter.version < (3, 20):
+        with open(os.path.join(venv.site_packages_dir, "PEX_EXTRA_SYS_PATH.pth"), "w") as fp:
+            # N.B.: .pth import lines must be single lines: https://docs.python.org/3/library/site.html
             print(
-                "import os, sys; "
-                "sys.path.extend("
-                "entry for entry in os.environ.get('{env_var}', '').split({pathsep!r}) if entry"
-                ")".format(env_var=env_var, pathsep=os.pathsep),
+                "import PEX_EXTRA_SYS_PATH; PEX_EXTRA_SYS_PATH.extend_sys_path(legacy=True)",
                 file=fp,
             )
 

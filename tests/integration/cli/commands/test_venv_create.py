@@ -409,12 +409,15 @@ def test_pex_scope_venv(
 
     shutil.rmtree(dest)
     install_srcs()
-    assert_srcs_only(
-        venv.site_packages_dir,
-        # Any venv created from a PEX supports the PEX_EXTRA_SYS_PATH runtime env var via this
-        # `.pth` file.
-        "PEX_EXTRA_SYS_PATH.pth",
-    )
+
+    # Any venv created from a PEX supports the PEX_EXTRA_SYS_PATH runtime env var via these files.
+    extra_srcs = ["PEX_EXTRA_SYS_PATH.py"]
+    if venv.interpreter.version >= (3, 15):
+        extra_srcs.append("PEX_EXTRA_SYS_PATH.start")
+    if venv.interpreter.version < (3, 20):
+        extra_srcs.append("PEX_EXTRA_SYS_PATH.pth")
+
+    assert_srcs_only(venv.site_packages_dir, *extra_srcs)
 
 
 def test_pex_scope_flat(

@@ -172,8 +172,8 @@ def boot(
         if name.startswith(("PEX_", "_PEX_", "__PEX_"))
         and name
         not in (
-            # These are used inside this script / the PEX_EXTRA_SYS_PATH.pth site-packages
-            # file.
+            # These are used inside this script / the PEX_EXTRA_SYS_PATH.{pth,py,start}
+            # site-packages files.
             "_PEX_SHOULD_EXIT_VENV_REEXEC",
             "PEX_EXTRA_SYS_PATH",
             "PEX_VENV_BIN_PATH",
