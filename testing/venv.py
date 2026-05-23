@@ -29,6 +29,8 @@ def assert_venv_site_packages_copy_mode(
         for f in files:
             if f in ("PEX_EXTRA_SYS_PATH.pth", "PEX_EXTRA_SYS_PATH.py", "PEX_EXTRA_SYS_PATH.start"):
                 continue
+            if f.startswith("PEX_EXTRA_SYS_PATH.") and f.endswith(".pyc"):
+                continue
             file_path = os.path.join(root, f)
             if expected_copy_mode is CopyMode.SYMLINK:
                 assert os.path.islink(file_path)
