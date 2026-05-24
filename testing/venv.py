@@ -27,7 +27,9 @@ def assert_venv_site_packages_copy_mode(
         # checking those. In addition, we generate .pex-info metadata ourselves.
         dirs[:] = [d for d in dirs if not d.endswith((".dist-info", ".pex-info"))]
         for f in files:
-            if f == "PEX_EXTRA_SYS_PATH.pth":
+            if f in ("PEX_EXTRA_SYS_PATH.pth", "PEX_EXTRA_SYS_PATH.py", "PEX_EXTRA_SYS_PATH.start"):
+                continue
+            if f.startswith("PEX_EXTRA_SYS_PATH.") and f.endswith(".pyc"):
                 continue
             file_path = os.path.join(root, f)
             if expected_copy_mode is CopyMode.SYMLINK:

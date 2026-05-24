@@ -1,5 +1,15 @@
 # Release Notes
 
+## 2.95.3
+
+This release has `--venv` PEXes using PEP-829 `.start` files to affect `PEX_EXTRA_SYS_PATH`
+`sys.path` mutation instead of `.pth` import lines. Although the `.pth` file is still emitted for
+maximum compatibility with third party code, the `PEX_EXTRA_SYS_PATH.pth` file will no longer be
+emitted for PEX venvs using Python 3.20 and greater. See [PEP-829](https://peps.python.org/pep-0829)
+and the [3.15 notes](https://docs.python.org/3.15/whatsnew/3.15.html#whatsnew315-startup-files).
+
+* Use `PEX_EXTRA_SYS_PATH.start` for Python 3.15 venvs.
+
 ## 2.95.2
 
 This release upgrades the minimum version required of the `pexrc` tool to 0.12.5 to satisfy `--rc`
