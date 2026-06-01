@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.96.0
+
+This release adds support for `--pip-version 26.1.2`.
+
+* Add support for `--pip-version 26.1.2`. (#3182)
+
 ## 2.95.3
 
 This release has `--venv` PEXes using PEP-829 `.start` files to affect `PEX_EXTRA_SYS_PATH`
