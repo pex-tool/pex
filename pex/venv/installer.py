@@ -650,7 +650,7 @@ def install_pex_main(
             )
         )
 
-    # Starting with Python 3.15 .start files trump import lines in .path files.
+    # Starting with Python 3.15 .start files trump import lines in .pth files.
     # See: https://peps.python.org/pep-0829/#abstract
     if venv.interpreter.version >= (3, 15):
         with open(os.path.join(venv.site_packages_dir, "PEX_EXTRA_SYS_PATH.start"), "w") as fp:
