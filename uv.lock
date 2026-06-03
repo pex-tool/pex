@@ -2592,7 +2592,9 @@ dev = [
     { name = "packaging", version = "20.9", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "packaging", version = "25.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "pexpect" },
-    { name = "pip", marker = "python_full_version >= '3.8'" },
+    { name = "pip", version = "24.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.9.*'" },
+    { name = "pip", version = "25.0.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.8.*'" },
+    { name = "pip", version = "26.1.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
     { name = "psutil", version = "6.1.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.6'" },
     { name = "psutil", version = "7.0.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.6'" },
     { name = "pydyf", marker = "python_full_version >= '3.8'" },
@@ -2615,7 +2617,9 @@ dev = [
     { name = "pytest-xdist", version = "3.8.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
     { name = "python-dateutil" },
     { name = "pyyaml", marker = "python_full_version >= '3.8'" },
-    { name = "setuptools", marker = "python_full_version >= '3.8'" },
+    { name = "setuptools", version = "50.3.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.9.*'" },
+    { name = "setuptools", version = "75.3.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.8.*'" },
+    { name = "setuptools", version = "82.0.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
     { name = "sphinx", version = "5.1.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.8' and python_full_version < '3.12'" },
     { name = "sphinx", version = "8.2.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "sphinx-simplepdf", marker = "python_full_version >= '3.8'" },
@@ -2629,7 +2633,9 @@ dev = [
     { name = "types-pyyaml", marker = "python_full_version >= '3.8'" },
     { name = "types-setuptools", marker = "python_full_version >= '3.8'" },
     { name = "types-toml", marker = "python_full_version >= '3.8'" },
-    { name = "wheel", marker = "python_full_version >= '3.8'" },
+    { name = "wheel", version = "0.35.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.9.*'" },
+    { name = "wheel", version = "0.45.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.8.*' or (python_full_version >= '3.10' and python_full_version < '3.12')" },
+    { name = "wheel", version = "0.47.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
 ]
 dev-cmd = [
     { name = "dev-cmd", version = "0.31.3", source = { registry = "https://pypi.org/simple" }, extra = ["old-pythons"], marker = "python_full_version == '3.8.*'" },
@@ -2709,7 +2715,9 @@ mypy = [
     { name = "packaging", version = "20.9", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "packaging", version = "25.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "pexpect" },
-    { name = "pip", marker = "python_full_version >= '3.8'" },
+    { name = "pip", version = "24.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.9.*'" },
+    { name = "pip", version = "25.0.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.8.*'" },
+    { name = "pip", version = "26.1.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
     { name = "psutil", version = "6.1.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.6'" },
     { name = "psutil", version = "7.0.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.6'" },
     { name = "pydyf", marker = "python_full_version >= '3.8'" },
@@ -2731,7 +2739,9 @@ mypy = [
     { name = "pytest-xdist", version = "3.8.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
     { name = "python-dateutil" },
     { name = "pyyaml", marker = "python_full_version >= '3.8'" },
-    { name = "setuptools", marker = "python_full_version >= '3.8'" },
+    { name = "setuptools", version = "50.3.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.9.*'" },
+    { name = "setuptools", version = "75.3.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.8.*'" },
+    { name = "setuptools", version = "82.0.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
     { name = "sphinx", version = "5.1.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.8' and python_full_version < '3.12'" },
     { name = "sphinx", version = "8.2.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "sphinx-simplepdf", marker = "python_full_version >= '3.8'" },
@@ -2745,7 +2755,9 @@ mypy = [
     { name = "types-pyyaml", marker = "python_full_version >= '3.8'" },
     { name = "types-setuptools", marker = "python_full_version >= '3.8'" },
     { name = "types-toml", marker = "python_full_version >= '3.8'" },
-    { name = "wheel", marker = "python_full_version >= '3.8'" },
+    { name = "wheel", version = "0.35.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.9.*'" },
+    { name = "wheel", version = "0.45.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.8.*' or (python_full_version >= '3.10' and python_full_version < '3.12')" },
+    { name = "wheel", version = "0.47.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
 ]
 package = [
     { name = "build", version = "0.5.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.6'" },
@@ -2790,9 +2802,15 @@ vendor = [
     { name = "httpx", marker = "python_full_version >= '3.8'" },
     { name = "libcst", version = "1.1.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.8.*'" },
     { name = "libcst", version = "1.8.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
-    { name = "pip", marker = "python_full_version >= '3.8'" },
-    { name = "setuptools", marker = "python_full_version >= '3.8'" },
-    { name = "wheel", marker = "python_full_version >= '3.8'" },
+    { name = "pip", version = "24.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.9.*'" },
+    { name = "pip", version = "25.0.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.8.*'" },
+    { name = "pip", version = "26.1.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
+    { name = "setuptools", version = "50.3.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.9.*'" },
+    { name = "setuptools", version = "75.3.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.8.*'" },
+    { name = "setuptools", version = "82.0.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
+    { name = "wheel", version = "0.35.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.9.*'" },
+    { name = "wheel", version = "0.45.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.8.*' or (python_full_version >= '3.10' and python_full_version < '3.12')" },
+    { name = "wheel", version = "0.47.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
 ]
 
 [package.metadata]
@@ -2836,7 +2854,8 @@ dev = [
     { name = "packaging", marker = "python_full_version < '3.12'", specifier = "==20.9" },
     { name = "packaging", marker = "python_full_version >= '3.12'", specifier = ">=21" },
     { name = "pexpect" },
-    { name = "pip", marker = "python_full_version >= '3.8'", specifier = "==24.0" },
+    { name = "pip", marker = "python_full_version == '3.8.*' or python_full_version >= '3.10'", specifier = "!=24.0" },
+    { name = "pip", marker = "python_full_version == '3.9.*'", specifier = "==24.0" },
     { name = "psutil" },
     { name = "pydyf", marker = "python_full_version >= '3.8'", specifier = "<0.11.0" },
     { name = "pyflakes", marker = "python_full_version >= '3.8'", specifier = "==2.4.0" },
@@ -2848,7 +2867,8 @@ dev = [
     { name = "pytest-xdist" },
     { name = "python-dateutil" },
     { name = "pyyaml", marker = "python_full_version >= '3.8'" },
-    { name = "setuptools", marker = "python_full_version >= '3.8'", specifier = "==50.3.2" },
+    { name = "setuptools", marker = "python_full_version == '3.8.*' or python_full_version >= '3.10'", specifier = "!=50.3.2" },
+    { name = "setuptools", marker = "python_full_version == '3.9.*'", specifier = "==50.3.2" },
     { name = "sphinx", marker = "python_full_version >= '3.8'" },
     { name = "sphinx-simplepdf", marker = "python_full_version >= '3.8'" },
     { name = "subprocess32" },
@@ -2861,7 +2881,8 @@ dev = [
     { name = "types-pyyaml", marker = "python_full_version >= '3.8'", specifier = "==6.0.12.12" },
     { name = "types-setuptools", marker = "python_full_version >= '3.8'", specifier = "==69.1.0.20240302" },
     { name = "types-toml", marker = "python_full_version >= '3.8'", specifier = "==0.10.5" },
-    { name = "wheel", marker = "python_full_version >= '3.8'", specifier = "==0.35.1" },
+    { name = "wheel", marker = "python_full_version == '3.8.*' or python_full_version >= '3.10'", specifier = "!=0.35.1" },
+    { name = "wheel", marker = "python_full_version == '3.9.*'", specifier = "==0.35.1" },
 ]
 dev-cmd = [{ name = "dev-cmd", extras = ["old-pythons"], marker = "python_full_version >= '3.8'" }]
 devpi-server = [{ name = "devpi-server", marker = "python_full_version >= '3.8'" }]
@@ -2919,7 +2940,8 @@ mypy = [
     { name = "packaging", marker = "python_full_version < '3.12'", specifier = "==20.9" },
     { name = "packaging", marker = "python_full_version >= '3.12'", specifier = ">=21" },
     { name = "pexpect" },
-    { name = "pip", marker = "python_full_version >= '3.8'", specifier = "==24.0" },
+    { name = "pip", marker = "python_full_version == '3.8.*' or python_full_version >= '3.10'", specifier = "!=24.0" },
+    { name = "pip", marker = "python_full_version == '3.9.*'", specifier = "==24.0" },
     { name = "psutil" },
     { name = "pydyf", marker = "python_full_version >= '3.8'", specifier = "<0.11.0" },
     { name = "pygithub", marker = "python_full_version >= '3.8'" },
@@ -2930,7 +2952,8 @@ mypy = [
     { name = "pytest-xdist" },
     { name = "python-dateutil" },
     { name = "pyyaml", marker = "python_full_version >= '3.8'" },
-    { name = "setuptools", marker = "python_full_version >= '3.8'", specifier = "==50.3.2" },
+    { name = "setuptools", marker = "python_full_version == '3.8.*' or python_full_version >= '3.10'", specifier = "!=50.3.2" },
+    { name = "setuptools", marker = "python_full_version == '3.9.*'", specifier = "==50.3.2" },
     { name = "sphinx", marker = "python_full_version >= '3.8'" },
     { name = "sphinx-simplepdf", marker = "python_full_version >= '3.8'" },
     { name = "subprocess32" },
@@ -2943,7 +2966,8 @@ mypy = [
     { name = "types-pyyaml", marker = "python_full_version >= '3.8'", specifier = "==6.0.12.12" },
     { name = "types-setuptools", marker = "python_full_version >= '3.8'", specifier = "==69.1.0.20240302" },
     { name = "types-toml", marker = "python_full_version >= '3.8'", specifier = "==0.10.5" },
-    { name = "wheel", marker = "python_full_version >= '3.8'", specifier = "==0.35.1" },
+    { name = "wheel", marker = "python_full_version == '3.8.*' or python_full_version >= '3.10'", specifier = "!=0.35.1" },
+    { name = "wheel", marker = "python_full_version == '3.9.*'", specifier = "==0.35.1" },
 ]
 package = [{ name = "build" }]
 test = [
@@ -2966,9 +2990,12 @@ vendor = [
     { name = "dev-cmd", extras = ["old-pythons"], marker = "python_full_version >= '3.8'" },
     { name = "httpx", marker = "python_full_version >= '3.8'" },
     { name = "libcst", marker = "python_full_version >= '3.8'" },
-    { name = "pip", marker = "python_full_version >= '3.8'", specifier = "==24.0" },
-    { name = "setuptools", marker = "python_full_version >= '3.8'", specifier = "==50.3.2" },
-    { name = "wheel", marker = "python_full_version >= '3.8'", specifier = "==0.35.1" },
+    { name = "pip", marker = "python_full_version == '3.8.*' or python_full_version >= '3.10'", specifier = "!=24.0" },
+    { name = "pip", marker = "python_full_version == '3.9.*'", specifier = "==24.0" },
+    { name = "setuptools", marker = "python_full_version == '3.8.*' or python_full_version >= '3.10'", specifier = "!=50.3.2" },
+    { name = "setuptools", marker = "python_full_version == '3.9.*'", specifier = "==50.3.2" },
+    { name = "wheel", marker = "python_full_version == '3.8.*' or python_full_version >= '3.10'", specifier = "!=0.35.1" },
+    { name = "wheel", marker = "python_full_version == '3.9.*'", specifier = "==0.35.1" },
 ]
 
 [[package]]
@@ -3197,9 +3224,39 @@ wheels = [
 name = "pip"
 version = "24.0"
 source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version == '3.9.*'",
+]
 sdist = { url = "https://files.pythonhosted.org/packages/94/59/6638090c25e9bc4ce0c42817b5a234e183872a1129735a9330c472cc2056/pip-24.0.tar.gz", hash = "sha256:ea9bd1a847e8c5774a5777bb398c19e80bcd4e2aa16a4b301b718fe6f593aba2", size = 2132709, upload-time = "2024-02-03T09:53:18.999Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/8a/6a/19e9fe04fca059ccf770861c7d5721ab4c2aebc539889e97c7977528a53b/pip-24.0-py3-none-any.whl", hash = "sha256:ba0d021a166865d2265246961bec0152ff124de910c5cc39f1156ce3fa7c69dc", size = 2110226, upload-time = "2024-02-03T09:53:09.575Z" },
+]
+
+[[package]]
+name = "pip"
+version = "25.0.1"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version == '3.8.*'",
+]
+sdist = { url = "https://files.pythonhosted.org/packages/70/53/b309b4a497b09655cb7e07088966881a57d082f48ac3cb54ea729fd2c6cf/pip-25.0.1.tar.gz", hash = "sha256:88f96547ea48b940a3a385494e181e29fb8637898f88d88737c5049780f196ea", size = 1950850, upload-time = "2025-02-09T17:14:04.423Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c9/bc/b7db44f5f39f9d0494071bddae6880eb645970366d0a200022a1a93d57f5/pip-25.0.1-py3-none-any.whl", hash = "sha256:c46efd13b6aa8279f33f2864459c8ce587ea6a1a59ee20de055868d8f7688f7f", size = 1841526, upload-time = "2025-02-09T17:14:01.463Z" },
+]
+
+[[package]]
+name = "pip"
+version = "26.1.2"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.14'",
+    "python_full_version == '3.13.*'",
+    "python_full_version == '3.12.*'",
+    "python_full_version >= '3.10' and python_full_version < '3.12'",
+]
+sdist = { url = "https://files.pythonhosted.org/packages/01/91/47e7d486260f618783899587af63ccf7980fb60245c3e63dd4571c6b57ad/pip-26.1.2.tar.gz", hash = "sha256:f49cd134c61cf2fd75e0ce2676db03e4054504a5a4986d00f8299ae632dc4605", size = 1840799, upload-time = "2026-05-31T17:33:58.56Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5d/95/6b5cb3461ea5673ba0995989746db58eb18b91b54dbf331e72f569540946/pip-26.1.2-py3-none-any.whl", hash = "sha256:382ff9f685ee3bc25864f820aa50505825f10f5458ffff07e30a6d96e5715cab", size = 1813144, upload-time = "2026-05-31T17:33:56.772Z" },
 ]
 
 [[package]]
@@ -3657,7 +3714,9 @@ dependencies = [
     { name = "hupper", marker = "python_full_version >= '3.8'" },
     { name = "plaster", marker = "python_full_version >= '3.8'" },
     { name = "plaster-pastedeploy", marker = "python_full_version >= '3.8'" },
-    { name = "setuptools", marker = "python_full_version >= '3.8'" },
+    { name = "setuptools", version = "50.3.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.9.*'" },
+    { name = "setuptools", version = "75.3.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.8.*'" },
+    { name = "setuptools", version = "82.0.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
     { name = "translationstring", marker = "python_full_version >= '3.8'" },
     { name = "venusian", marker = "python_full_version >= '3.8'" },
     { name = "webob", marker = "python_full_version >= '3.8'" },
@@ -3693,7 +3752,8 @@ dependencies = [
     { name = "dataproperty", marker = "python_full_version >= '3.9'" },
     { name = "mbstrdecoder", marker = "python_full_version >= '3.9'" },
     { name = "pathvalidate", marker = "python_full_version >= '3.9'" },
-    { name = "setuptools", marker = "python_full_version >= '3.9'" },
+    { name = "setuptools", version = "50.3.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.9.*'" },
+    { name = "setuptools", version = "82.0.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
     { name = "tabledata", marker = "python_full_version >= '3.9'" },
     { name = "tcolorpy", marker = "python_full_version >= '3.9'" },
     { name = "typepy", extra = ["datetime"], marker = "python_full_version >= '3.9'" },
@@ -4287,9 +4347,39 @@ wheels = [
 name = "setuptools"
 version = "50.3.2"
 source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version == '3.9.*'",
+]
 sdist = { url = "https://files.pythonhosted.org/packages/a7/e0/30642b9c2df516506d40b563b0cbd080c49c6b3f11a70b4c7a670f13a78b/setuptools-50.3.2.zip", hash = "sha256:ed0519d27a243843b05d82a5e9d01b0b083d9934eaa3d02779a23da18077bd3c", size = 2059552, upload-time = "2020-10-17T16:19:03.628Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/6d/38/c21ef5034684ffc0412deefbb07d66678332290c14bb5269c85145fbd55e/setuptools-50.3.2-py3-none-any.whl", hash = "sha256:2c242a0856fbad7efbe560df4a7add9324f340cf48df43651e9604924466794a", size = 785194, upload-time = "2020-10-17T16:19:02.105Z" },
+]
+
+[[package]]
+name = "setuptools"
+version = "75.3.4"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version == '3.8.*'",
+]
+sdist = { url = "https://files.pythonhosted.org/packages/0e/93/d2622cbf262418995140dfc1ddb890badd6322893fa122302577c82b9617/setuptools-75.3.4.tar.gz", hash = "sha256:b4ea3f76e1633c4d2d422a5d68ab35fd35402ad71e6acaa5d7e5956eb47e8887", size = 1354595, upload-time = "2026-02-08T14:12:34.287Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/cd/b1/961ba076c7d3732e3a97e6681c55ef647afb795fe8bfcd27becec8a762ce/setuptools-75.3.4-py3-none-any.whl", hash = "sha256:2dd50a7f42dddfa1d02a36f275dbe716f38ed250224f609d35fb60a09593d93e", size = 1251633, upload-time = "2026-02-08T14:12:32.364Z" },
+]
+
+[[package]]
+name = "setuptools"
+version = "82.0.1"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.14'",
+    "python_full_version == '3.13.*'",
+    "python_full_version == '3.12.*'",
+    "python_full_version >= '3.10' and python_full_version < '3.12'",
+]
+sdist = { url = "https://files.pythonhosted.org/packages/4f/db/cfac1baf10650ab4d1c111714410d2fbb77ac5a616db26775db562c8fab2/setuptools-82.0.1.tar.gz", hash = "sha256:7d872682c5d01cfde07da7bccc7b65469d3dca203318515ada1de5eda35efbf9", size = 1152316, upload-time = "2026-03-09T12:47:17.221Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9d/76/f789f7a86709c6b087c5a2f52f911838cad707cc613162401badc665acfe/setuptools-82.0.1-py3-none-any.whl", hash = "sha256:a59e362652f08dcd477c78bb6e7bd9d80a7995bc73ce773050228a348ce2e5bb", size = 1006223, upload-time = "2026-03-09T12:47:15.026Z" },
 ]
 
 [[package]]
@@ -5095,9 +5185,42 @@ wheels = [
 name = "wheel"
 version = "0.35.1"
 source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version == '3.9.*'",
+]
 sdist = { url = "https://files.pythonhosted.org/packages/83/72/611c121b6bd15479cb62f1a425b2e3372e121b324228df28e64cc28b01c2/wheel-0.35.1.tar.gz", hash = "sha256:99a22d87add3f634ff917310a3d87e499f19e663413a52eb9232c447aa646c9f", size = 59712, upload-time = "2020-08-14T19:24:00.493Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a7/00/3df031b3ecd5444d572141321537080b40c1c25e1caa3d86cdd12e5e919c/wheel-0.35.1-py2.py3-none-any.whl", hash = "sha256:497add53525d16c173c2c1c733b8f655510e909ea78cc0e29d374243544b77a2", size = 33174, upload-time = "2020-08-14T19:23:59.174Z" },
+]
+
+[[package]]
+name = "wheel"
+version = "0.45.1"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.10' and python_full_version < '3.12'",
+    "python_full_version == '3.8.*'",
+]
+sdist = { url = "https://files.pythonhosted.org/packages/8a/98/2d9906746cdc6a6ef809ae6338005b3f21bb568bea3165cfc6a243fdc25c/wheel-0.45.1.tar.gz", hash = "sha256:661e1abd9198507b1409a20c02106d9670b2576e916d58f520316666abca6729", size = 107545, upload-time = "2024-11-23T00:18:23.513Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/0b/2c/87f3254fd8ffd29e4c02732eee68a83a1d3c346ae39bc6822dcbcb697f2b/wheel-0.45.1-py3-none-any.whl", hash = "sha256:708e7481cc80179af0e556bbf0cc00b8444c7321e2700b8d8580231d13017248", size = 72494, upload-time = "2024-11-23T00:18:21.207Z" },
+]
+
+[[package]]
+name = "wheel"
+version = "0.47.0"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.14'",
+    "python_full_version == '3.13.*'",
+    "python_full_version == '3.12.*'",
+]
+dependencies = [
+    { name = "packaging", version = "25.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/39/62/75f18a0f03b4219c456652c7780e4d749b929eb605c098ce3a5b6b6bc081/wheel-0.47.0.tar.gz", hash = "sha256:cc72bd1009ba0cf63922e28f94d9d83b920aa2bb28f798a31d0691b02fa3c9b3", size = 63854, upload-time = "2026-04-22T15:51:27.727Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/87/1b/9e33c09813d65e248f7f773119148a612516a4bea93e9c6f545f78455b7c/wheel-0.47.0-py3-none-any.whl", hash = "sha256:212281cab4dff978f6cedd499cd893e1f620791ca6ff7107cf270781e587eced", size = 32218, upload-time = "2026-04-22T15:51:26.296Z" },
 ]
 
 [[package]]
@@ -5178,7 +5301,7 @@ resolution-markers = [
     "python_full_version == '3.8.*'",
 ]
 dependencies = [
-    { name = "setuptools", marker = "python_full_version == '3.8.*'" },
+    { name = "setuptools", version = "75.3.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.8.*'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/ba/de/a47e434ed1804d82f3fd7561aee5c55914c72d87f54cac6b99c15cbe7f89/zope.deprecation-5.0.tar.gz", hash = "sha256:b7c32d3392036b2145c40b3103e7322db68662ab09b7267afe1532a9d93f640f", size = 23353, upload-time = "2023-03-29T05:43:03.791Z" }
 wheels = [
@@ -5197,7 +5320,8 @@ resolution-markers = [
     "python_full_version == '3.9.*'",
 ]
 dependencies = [
-    { name = "setuptools", marker = "python_full_version >= '3.9'" },
+    { name = "setuptools", version = "50.3.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.9.*'" },
+    { name = "setuptools", version = "82.0.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/48/22/0e621e31b5826b2ff121fea5b1ea91173c88f86e182181f012abcc84a51f/zope_deprecation-5.1.tar.gz", hash = "sha256:46bed4611fb53edc731aadeb64b28308bcb848f4cc150c60c948d078f7108721", size = 24453, upload-time = "2025-01-15T15:54:01.171Z" }
 wheels = [
@@ -5209,7 +5333,9 @@ name = "zope-interface"
 version = "7.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "setuptools", marker = "python_full_version >= '3.8'" },
+    { name = "setuptools", version = "50.3.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.9.*'" },
+    { name = "setuptools", version = "75.3.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.8.*'" },
+    { name = "setuptools", version = "82.0.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/30/93/9210e7606be57a2dfc6277ac97dcc864fd8d39f142ca194fdc186d596fda/zope.interface-7.2.tar.gz", hash = "sha256:8b49f1a3d1ee4cdaf5b32d2e738362c7f5e40ac8b46dd7d1a65e82a4872728fe", size = 252960, upload-time = "2024-11-28T08:45:39.224Z" }
 wheels = [
