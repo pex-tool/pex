@@ -90,10 +90,6 @@ docs = [
   # `pydyf>=0.10.0`) which is a dependency of sphinx-simplepdf.
   "pydyf<0.11.0; python_version >= '3.8'",
 
-  # The setuptools dep is transitive, but there is a use of pkg_resources by sphinx plugin loading
-  # code; so we pin below 82, where setuptools removed pkg_resources.
-  "setuptools<82",
-
   "sphinx; python_version >= '3.8'",
   "sphinx-simplepdf; python_version >= '3.8'",
 ]
@@ -212,6 +208,11 @@ vendor = [
 cache-keys = [
   { file = "pex/docs/html/index.html" },
   { file = "pex/windows/stubs/*.exe" },
+]
+constraint-dependencies = [
+  # The setuptools dep is transitive, but there is a use of pkg_resources by a sphinx plugin loading
+  # code; so we pin below 82, where setuptools removed pkg_resources.
+  "setuptools<82",
 ]
 
 # This is used to force past a <2 upper bound in blacks deps, and it turns out black works just fine

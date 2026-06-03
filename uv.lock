@@ -21,6 +21,7 @@ resolution-markers = [
 ]
 
 [manifest]
+constraints = [{ name = "setuptools", specifier = "<82" }]
 overrides = [{ name = "tomli", marker = "python_full_version >= '3.8'", specifier = "==2.2.1" }]
 
 [[package]]
@@ -2831,8 +2832,7 @@ dev = [
     { name = "pytest-xdist", version = "3.8.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
     { name = "python-dateutil" },
     { name = "pyyaml", marker = "python_full_version >= '3.8'" },
-    { name = "setuptools", version = "44.1.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.5'" },
-    { name = "setuptools", version = "50.3.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.9.*' or (python_full_version >= '3.5' and python_full_version < '3.8')" },
+    { name = "setuptools", version = "50.3.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.9.*'" },
     { name = "setuptools", version = "75.3.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.8.*'" },
     { name = "setuptools", version = "81.0.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
     { name = "sphinx", version = "5.1.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.8' and python_full_version < '3.12'" },
@@ -2868,10 +2868,6 @@ docs = [
     { name = "myst-parser", version = "1.0.0", source = { registry = "https://pypi.org/simple" }, extra = ["linkify"], marker = "python_full_version >= '3.8' and python_full_version < '3.12'" },
     { name = "myst-parser", version = "5.1.0", source = { registry = "https://pypi.org/simple" }, extra = ["linkify"], marker = "python_full_version >= '3.12'" },
     { name = "pydyf", marker = "python_full_version >= '3.8'" },
-    { name = "setuptools", version = "44.1.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.5'" },
-    { name = "setuptools", version = "50.3.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.9.*' or (python_full_version >= '3.5' and python_full_version < '3.8')" },
-    { name = "setuptools", version = "75.3.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.8.*'" },
-    { name = "setuptools", version = "81.0.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
     { name = "sphinx", version = "5.1.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.8' and python_full_version < '3.12'" },
     { name = "sphinx", version = "9.1.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "sphinx-simplepdf", marker = "python_full_version >= '3.8'" },
@@ -2962,8 +2958,7 @@ mypy = [
     { name = "pytest-xdist", version = "3.8.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
     { name = "python-dateutil" },
     { name = "pyyaml", marker = "python_full_version >= '3.8'" },
-    { name = "setuptools", version = "44.1.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.5'" },
-    { name = "setuptools", version = "50.3.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.9.*' or (python_full_version >= '3.5' and python_full_version < '3.8')" },
+    { name = "setuptools", version = "50.3.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.9.*'" },
     { name = "setuptools", version = "75.3.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.8.*'" },
     { name = "setuptools", version = "81.0.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
     { name = "sphinx", version = "5.1.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.8' and python_full_version < '3.12'" },
@@ -3093,7 +3088,6 @@ dev = [
     { name = "pytest-xdist" },
     { name = "python-dateutil" },
     { name = "pyyaml", marker = "python_full_version >= '3.8'" },
-    { name = "setuptools", specifier = "<82" },
     { name = "setuptools", marker = "python_full_version == '3.8.*' or python_full_version >= '3.10'", specifier = "!=50.3.2" },
     { name = "setuptools", marker = "python_full_version == '3.9.*'", specifier = "==50.3.2" },
     { name = "sphinx", marker = "python_full_version >= '3.8'" },
@@ -3119,7 +3113,6 @@ docs = [
     { name = "httpx", marker = "python_full_version >= '3.8'" },
     { name = "myst-parser", extras = ["linkify"], marker = "python_full_version >= '3.8'" },
     { name = "pydyf", marker = "python_full_version >= '3.8'", specifier = "<0.11.0" },
-    { name = "setuptools", specifier = "<82" },
     { name = "sphinx", marker = "python_full_version >= '3.8'" },
     { name = "sphinx-simplepdf", marker = "python_full_version >= '3.8'" },
 ]
@@ -3180,7 +3173,6 @@ mypy = [
     { name = "pytest-xdist" },
     { name = "python-dateutil" },
     { name = "pyyaml", marker = "python_full_version >= '3.8'" },
-    { name = "setuptools", specifier = "<82" },
     { name = "setuptools", marker = "python_full_version == '3.8.*' or python_full_version >= '3.10'", specifier = "!=50.3.2" },
     { name = "setuptools", marker = "python_full_version == '3.9.*'", specifier = "==50.3.2" },
     { name = "sphinx", marker = "python_full_version >= '3.8'" },
@@ -4854,30 +4846,10 @@ wheels = [
 
 [[package]]
 name = "setuptools"
-version = "44.1.1"
-source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "python_full_version == '3.4.*'",
-    "python_full_version >= '2.8' and python_full_version < '3.4'",
-    "python_full_version < '2.8'",
-]
-sdist = { url = "https://files.pythonhosted.org/packages/b2/40/4e00501c204b457f10fe410da0c97537214b2265247bc9a5bc6edd55b9e4/setuptools-44.1.1.zip", hash = "sha256:c67aa55db532a0dadc4d2e20ba9961cbd3ccc84d544e9029699822542b5a476b", size = 858770, upload-time = "2020-05-29T01:06:07.435Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/e1/b7/182161210a13158cd3ccc41ee19aadef54496b74f2817cc147006ec932b4/setuptools-44.1.1-py2.py3-none-any.whl", hash = "sha256:27a714c09253134e60a6fa68130f78c7037e5562c4f21f8f318f2ae900d152d5", size = 583493, upload-time = "2020-05-29T01:06:05.61Z" },
-]
-
-[[package]]
-name = "setuptools"
 version = "50.3.2"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
     "python_full_version == '3.9.*'",
-    "python_full_version == '3.7.*'",
-    "python_full_version >= '3.6.8' and python_full_version < '3.7'",
-    "python_full_version >= '3.6.2' and python_full_version < '3.6.8'",
-    "python_full_version >= '3.6.1' and python_full_version < '3.6.2'",
-    "python_full_version >= '3.6' and python_full_version < '3.6.1'",
-    "python_full_version == '3.5.*'",
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/a7/e0/30642b9c2df516506d40b563b0cbd080c49c6b3f11a70b4c7a670f13a78b/setuptools-50.3.2.zip", hash = "sha256:ed0519d27a243843b05d82a5e9d01b0b083d9934eaa3d02779a23da18077bd3c", size = 2059552, upload-time = "2020-10-17T16:19:03.628Z" }
 wheels = [
