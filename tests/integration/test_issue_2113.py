@@ -144,14 +144,15 @@ def assert_dist_build_failure_message(result):
     result.assert_failure(
         expected_error_re=(
             r".*"
-            r"^\s*pip:.*{cause_distribution_hint}.*$"
+            r"^\s*pip:.*(?:{cause_distribution_hint_one}|{cause_distribution_hint_two}).*$"
             r".*"
             r"^\s*pip:.*{reason}$"
             r".*"
             r"^\s*pip:.*{requirement}$"
             r".*"
         ).format(
-            cause_distribution_hint=re.escape("feast_simulator-0.1.0.dist-info"),
+            cause_distribution_hint_one=re.escape("feast_simulator-0.1.0.dist-info"),
+            cause_distribution_hint_two=re.escape("feast-simulator-0.1.0.tar.gz"),
             reason=re.escape(".* suffix can only be used with `==` or `!=` operators"),
             requirement=re.escape("ansicolors<1.1.9,>=1.0.*"),
         ),

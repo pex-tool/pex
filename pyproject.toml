@@ -90,6 +90,10 @@ docs = [
   # `pydyf>=0.10.0`) which is a dependency of sphinx-simplepdf.
   "pydyf<0.11.0; python_version >= '3.8'",
 
+  # The setuptools dep is transitive, but there is a use of pkg_resources by sphinx plugin loading
+  # code; so we pin below 82, where setuptools removed pkg_resources.
+  "setuptools<82",
+
   "sphinx; python_version >= '3.8'",
   "sphinx-simplepdf; python_version >= '3.8'",
 ]
@@ -139,8 +143,10 @@ mypy = [
   "mypy[python2]==0.971; python_version >= '3.8' and python_version < '3.12'",
 
   # These versions should track the version in pex/vendor/__init__.py.
-  "packaging==20.9; python_version < '3.12'", # This version should track the lowest version in pex/vendor/__init__.py.
-  "packaging>=21; python_version >= '3.12'",
+  "packaging==20.9; python_version < '3.6'",
+  "packaging>=21.3; python_version == '3.6'",
+  "packaging>=24.0; python_version == '3.7'",
+  "packaging>=26.2; python_version >= '3.8'",
   "toml==0.10.2",  # This versions should track the version in pex/vendor/__init__.py.
 
   # The following stubs are pinned at the last version that does not use positional-only parameter
