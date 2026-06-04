@@ -104,7 +104,7 @@ jobs:
 
           # CPython 2.7 is fast enough not to require sharding.
           - test-cmd: test-py27-pip20.3.4--patched-integration
-
+            pex-test-pos-args: --dist loadfile
           - test-cmd: test-py38-pip22.3.1-integration
             pex-test-pos-args: --shard 1/2
           - test-cmd: test-py38-pip22.3.1-integration
