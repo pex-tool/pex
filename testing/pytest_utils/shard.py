@@ -5,6 +5,7 @@ from __future__ import absolute_import, print_function
 
 import json
 import os.path
+import sys
 from collections import defaultdict
 from typing import DefaultDict, Tuple
 
@@ -15,31 +16,28 @@ from pex.common import pluralize
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from typing import Dict, List
+    from typing import Dict, List, Optional
 
-    import attr  # vendor:skip
     from _pytest import nodes
     from _pytest.config import Config
     from _pytest.config.argparsing import Parser
     from _pytest.terminal import TerminalReporter
-else:
-    from pex.third_party import attr
 
 
 DEFAULT_TIMINGS_PATH = ".test_timings"
 
 
-@attr.s(frozen=True)
 class Plugin(object):
-    config = attr.ib()  # type: Config
+    def __init__(self, config):
+        # type: (Config) -> None
+        self.config = config
 
     @property
     def terminal_reporter(self):
-        # type: () -> TerminalReporter
+        # type: () -> Optional[TerminalReporter]
         return cast("TerminalReporter", self.config.pluginmanager.get_plugin("terminalreporter"))
 
 
-@attr.s(frozen=True)
 class RecordTestTimings(Plugin):
     @classmethod
     def load_timings(cls, timings_path=DEFAULT_TIMINGS_PATH):
@@ -63,11 +61,23 @@ class RecordTestTimings(Plugin):
             timings_path=timings_path,
         )
 
-    seed_timings = attr.ib()  # type: Tuple[Tuple[str, float], ...]
-    timings_path = attr.ib(default=DEFAULT_TIMINGS_PATH)  # type: str
+    def __init__(
+        self,
+        config,  # type: Config
+        seed_timings,  # type: Tuple[Tuple[str, float], ...]
+        timings_path=DEFAULT_TIMINGS_PATH,  # type: str
+    ):
+        # type: (...) -> None
+        super(RecordTestTimings, self).__init__(config)
+        self.seed_timings = seed_timings
+        self.timings_path = timings_path
 
     def pytest_sessionfinish(self):
         # type: () -> None
+
+        if not self.terminal_reporter:
+            print("WARNING!: Cannot record test timings under this version of pytest.", sys.stderr)
+            return
 
         test_times = defaultdict(lambda: 0)  # type: DefaultDict[str, float]
         for test_reports in self.terminal_reporter.stats.values():
@@ -92,7 +102,6 @@ class RecordTestTimings(Plugin):
         )
 
 
-@attr.s(frozen=True)
 class Shard(object):
     @classmethod
     def parse(cls, spec):
@@ -100,8 +109,14 @@ class Shard(object):
         slot, total_slots = spec.split("/", 1)
         return cls(slot=int(slot), total_slots=int(total_slots))
 
-    slot = attr.ib()  # type: int
-    total_slots = attr.ib()  # type: int
+    def __init__(
+        self,
+        slot,  # type: int
+        total_slots,  # type: int
+    ):
+        # type: (...) -> None
+        self.slot = slot
+        self.total_slots = total_slots
 
     def __attrs_post_init__(self):
         # type: () -> None
@@ -119,7 +134,6 @@ class Shard(object):
         return "{slot}/{total_slots}".format(slot=self.slot, total_slots=self.total_slots)
 
 
-@attr.s
 class ShardTests(Plugin):
     @classmethod
     def create(
@@ -132,8 +146,16 @@ class ShardTests(Plugin):
         timings = RecordTestTimings.load_timings(timings_path=timings_path)
         return cls(config=config, shard=shard, timings=tuple(timings.items()))
 
-    shard = attr.ib()  # type: Shard
-    timings = attr.ib()  # type: Tuple[Tuple[str, float], ...]
+    def __init__(
+        self,
+        config,  # type: Config
+        shard,  # type: Shard
+        timings,  # type: Tuple[Tuple[str, float], ...]
+    ):
+        # type: (...) -> None
+        super(ShardTests, self).__init__(config)
+        self.shard = shard
+        self.timings = timings
 
     @hookimpl(trylast=True)
     def pytest_collection_modifyitems(
@@ -171,16 +193,17 @@ class ShardTests(Plugin):
         items[:] = selected_tests
         config.hook.pytest_deselected(items=deselected_tests)
 
-        self.terminal_reporter.write_line(
-            "pex-shard-tests: Selected {count} {tests} for {shard} with an estimated run "
-            "time of {minutes:.2f} minutes".format(
-                count=len(items),
-                tests=pluralize(items, "test"),
-                shard=self.shard,
-                minutes=total_time_by_slot[self.shard.slot] / 60,
-            ),
-            cyan=True,
-        )
+        if self.terminal_reporter:
+            self.terminal_reporter.write_line(
+                "pex-shard-tests: Selected {count} {tests} for {shard} with an estimated run "
+                "time of {minutes:.2f} minutes".format(
+                    count=len(items),
+                    tests=pluralize(items, "test"),
+                    shard=self.shard,
+                    minutes=total_time_by_slot[self.shard.slot] / 60,
+                ),
+                cyan=True,
+            )
 
 
 def pytest_addoption(parser):
@@ -213,7 +236,6 @@ def pytest_addoption(parser):
     group.addoption(
         "--shard",
         dest="shard",
-        type=Shard.parse,
         help=(
             "Shard tests. Values take the form M/N where M is the shard to pick of N total shards. "
             "M numbering is 1-based. For example, `--shard 1/3` means to shard three ways and pick "
@@ -238,7 +260,9 @@ def pytest_configure(config):
     if config.option.shard:
         config.pluginmanager.register(
             ShardTests.create(
-                config=config, shard=config.option.shard, timings_path=config.option.timings_path
+                config=config,
+                shard=Shard.parse(config.option.shard),
+                timings_path=config.option.timings_path,
             ),
             "pex-shard-tests-plugin",
         )
