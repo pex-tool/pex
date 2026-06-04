@@ -17,7 +17,7 @@ DEADSNAKES_VERSIONS=(
   "3.11 {dev,venv,distutils}=3.11.15"
   "3.13 {dev,venv}=3.13.13"
   # N.B.: Install of deadsnakes 3.14.5 - for unknown reasons - causes a 2.7.18 IT CI shard hang.
-  "3.15 {dev,venv}=3.15.0~b2"
+  # Same for 3.15.0b2
 )
 
 add-apt-repository --yes --ppa deadsnakes
@@ -38,6 +38,7 @@ PYENV_VERSIONS=(
   3.6.15
   3.12.13
   3.14.5
+  3.15.0b2
   pypy2.7-7.3.22
   # This is served from https://bitbucket-archive.softwareheritage.org/static/14/140b7b14-aa94-424e-b191-9cd3438381f7/attachments/pypy3.5-7.0.0-linux_x86_64-portable.tar.bz2
   # which has begun to prove flaky; so we comment out for now and perhaps need to drop or self-host:
