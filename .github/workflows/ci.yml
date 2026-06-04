@@ -102,9 +102,11 @@ jobs:
           # Integration tests, split most into two shards:
           # ----------------------------------------------
 
-          # CPython 2.7 is fast enough not to require sharding.
           - test-cmd: test-py27-pip20.3.4--patched-integration
-            pex-test-pos-args: --dist loadfile
+            pex-test-pos-args: --shard 1/2
+          - test-cmd: test-py27-pip20.3.4--patched-integration
+            pex-test-pos-args: --shard 2/2
+
           - test-cmd: test-py38-pip22.3.1-integration
             pex-test-pos-args: --shard 1/2
           - test-cmd: test-py38-pip22.3.1-integration
@@ -273,15 +275,11 @@ jobs:
           - python-version: "3.14"
             test-cmd: test-py314-pip26.1.2-integration
             artifact-name: integration-1
-            pex-test-pos-args: --shard 1/3 --junit-report ../dist/test-results/integration-1.xml
+            pex-test-pos-args: --shard 1/2 --junit-report ../dist/test-results/integration-1.xml
           - python-version: "3.14"
             test-cmd: test-py314-pip26.1.2-integration
             artifact-name: integration-2
-            pex-test-pos-args: --shard 2/3 --junit-report ../dist/test-results/integration-2.xml
-          - python-version: "3.14"
-            test-cmd: test-py314-pip26.1.2-integration
-            artifact-name: integration-3
-            pex-test-pos-args: --shard 3/3 --junit-report ../dist/test-results/integration-3.xml
+            pex-test-pos-args: --shard 2/2 --junit-report ../dist/test-results/integration-2.xml
     steps:
       - name: Checkout Pex
         uses: actions/checkout@v6
