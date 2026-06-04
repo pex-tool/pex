@@ -9,6 +9,7 @@ import os
 import pytest
 
 from pex.common import safe_mkdtemp
+from pex.compatibility import text, to_unicode
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import InterpreterConstraint
 from pex.typing import TYPE_CHECKING
@@ -109,9 +110,9 @@ def test_basic_all(
 def expected_verbose(interpreter):
     # type: (PythonInterpreter) -> Dict[str, Any]
     return {
-        "path": interpreter.binary,
-        "platform": str(interpreter.platform),
-        "requirement": str(InterpreterConstraint.exact_version(interpreter)),
+        to_unicode("path"): to_unicode(interpreter.binary),
+        to_unicode("platform"): to_unicode(str(interpreter.platform)),
+        to_unicode("requirement"): to_unicode(str(InterpreterConstraint.exact_version(interpreter))),
     }
 
 
