@@ -114,7 +114,7 @@ def major_compatible_pythons():
     return (
         (sys.executable, ensure_python_interpreter(PY27))
         if PY2
-        else (sys.executable, ensure_python_interpreter(PY39), ensure_python_interpreter(PY310))
+        else (sys.executable, ensure_python_interpreter(PY310), ensure_python_interpreter(PY311))
     )
 
 

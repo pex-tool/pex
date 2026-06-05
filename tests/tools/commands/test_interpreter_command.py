@@ -5,6 +5,7 @@ from __future__ import absolute_import
 
 import json
 import os
+import subprocess
 
 import pytest
 
@@ -49,8 +50,8 @@ class InterpreterTool(object):
         *args,  # type: str
         **env  # type: str
     ):
-        # type: (...) -> str
-        cmd = [self.tools_pex, "interpreter"]
+        # type: (...) -> bytes
+        cmd = [self.interpreter.binary, self.tools_pex, "interpreter"]
         if args:
             cmd.extend(args)
 
@@ -63,8 +64,7 @@ class InterpreterTool(object):
         )
         environ.update(env)
 
-        _, stdout, _ = self.interpreter.execute(args=cmd, env=environ)
-        return stdout
+        return subprocess.check_output(args=cmd, env=environ)
 
 
 @pytest.fixture(
@@ -93,7 +93,7 @@ def test_basic(
 ):
     # type: (...) -> None
     output = interpreter_tool.run()
-    assert expected_basic(py39) == output.strip()
+    assert expected_basic(py39) == str(output.strip().decode())
 
 
 def test_basic_all(
@@ -103,13 +103,15 @@ def test_basic_all(
 ):
     # type: (...) -> None
     output = interpreter_tool.run("-a")
-    assert [expected_basic(interpreter) for interpreter in (py39, py311)] == output.splitlines()
+    assert [expected_basic(interpreter) for interpreter in (py39, py311)] == [
+        str(line.decode()) for line in output.splitlines()
+    ]
 
 
 def expected_verbose(interpreter):
     # type: (PythonInterpreter) -> Dict[str, Any]
     return {
-        "path": interpreter.binary,
+        "path": str(interpreter.binary),
         "platform": str(interpreter.platform),
         "requirement": str(InterpreterConstraint.exact_version(interpreter)),
     }

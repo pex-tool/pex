@@ -192,15 +192,27 @@ vendor = [
   "ansicolors",
   "httpx; python_version >= '3.8'",
   "libcst; python_version >= '3.8'",
-  "pip==24.0; python_version >= '3.8'",
-  "setuptools==50.3.2; python_version >= '3.8'",
-  "wheel==0.35.1; python_version >= '3.8'",
+
+  # The vendorize script shells out to pip and needs its dependencies pinned to ensure consistent
+  # wheel output vendorize over vendorize. We do not want these requirements pinned for any other
+  # scenarios though; so we just pin for the vendorize command's 3.9 interpreter.
+  "pip==24.0; python_version == '3.9'",
+  "pip!=24.0; python_version >= '3.8' and python_version != '3.9'",
+  "setuptools==50.3.2; python_version == '3.9'",
+  "setuptools!=50.3.2; python_version >= '3.8' and python_version != '3.9'",
+  "wheel==0.35.1; python_version == '3.9'",
+  "wheel!=0.35.1; python_version >= '3.8' and python_version != '3.9'",
 ]
 
 [tool.uv]
 cache-keys = [
   { file = "pex/docs/html/index.html" },
   { file = "pex/windows/stubs/*.exe" },
+]
+constraint-dependencies = [
+  # The setuptools dep is transitive, but there is a use of pkg_resources by a sphinx plugin loading
+  # code; so we pin below 82, where setuptools removed pkg_resources.
+  "setuptools<82",
 ]
 
 # This is used to force past a <2 upper bound in blacks deps, and it turns out black works just fine
@@ -349,7 +361,6 @@ py = "The Python version to run the tests under."
 pip = "The Pip version to default to in test runs."
 integration = "Run the integration tests (also available via `--it` pass through arg)."
 
-
 [tool.dev-cmd.commands.test-gte39-lt316]
 description = """
 Run tests using pytest.
@@ -377,6 +388,7 @@ python = "python3.11"
 args = ["scripts/typecheck.py"]
 
 [tool.dev-cmd.commands.vendorize]
+# N.B.: Update environment markers in the "vendor" dependency group when changing python.
 python = "python3.9"
 args = ["python", "-m", "pex.vendor"]
 accepts-extra-args = true
@@ -384,6 +396,7 @@ dependency-group = "vendor"
 hidden = true
 
 [tool.dev-cmd.commands.vendorize-check]
+# N.B.: Update environment markers in the "vendor" dependency group when changing python.
 python = "python3.9"
 args = ["python", "-m", "pex.vendor", "--no-update"]
 dependency-group = "vendor"
@@ -418,6 +431,7 @@ extra-cache-keys = ["uv.lock"]
 
 3rdparty-export-command = [
   "uv", "export", "-q",
+  "--python", "{markers.python_version}",
   "--frozen",
   "--no-emit-project",
   # Both uv and Pip can't handle VCS URLs in hashed requirements; so we handle this ourselves.
@@ -446,6 +460,7 @@ when = "platform_machine == 'armv7l' or platform_machine == 'riscv64'"
 
 3rdparty-export-command = [
   "uv", "export", "-q",
+  "--python", "{markers.python_version}",
   "--frozen",
   "--no-emit-project",
   # We get some wheels from https://www.piwheels.org/simple and

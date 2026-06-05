@@ -1,5 +1,6 @@
 # An image with the necessary binaries and libraries to develop pex.
-FROM ubuntu:24.04
+ARG UBUNTU_VERSION=24.04
+FROM ubuntu:$UBUNTU_VERSION
 
 # We use pyenv to bootstrap interpreters and pyenv needs most of these packages.
 # See: https://github.com/pyenv/pyenv/wiki#suggested-build-environment
@@ -15,6 +16,7 @@ RUN apt update && \
     clang \
     curl \
     git \
+    gpg-agent \
     libbz2-dev \
     libffi-dev \
     liblzma-dev \
@@ -24,17 +26,12 @@ RUN apt update && \
     libssl-dev \
     libxml2-dev \
     libxmlsec1-dev \
-    python3.12-dev \
-    python3.12-venv \
     software-properties-common \
     ssh \
     tk-dev \
     wget \
     xz-utils \
     zlib1g-dev
-
-COPY install_pythons.sh /root/
-RUN /root/install_pythons.sh
 
 # Setup a modern uv:
 RUN curl -LsSf https://astral.sh/uv/install.sh | UV_INSTALL_DIR=/usr/bin sh
@@ -55,3 +52,7 @@ RUN mkdir -p -m 755 /etc/apt/keyrings && \
       tee /etc/apt/sources.list.d/github-cli.list > /dev/null && \
     apt update && \
     DEBIAN_FRONTEND=noninteractive apt install --yes --no-install-recommends gh -y
+
+ARG PYTHONS=new
+COPY install-pythons.py /root/
+RUN UV_NO_MANAGED_PYTHON=1 uv run /root/install-pythons.py --pythons $PYTHONS
