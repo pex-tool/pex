@@ -1,10 +1,10 @@
 # A data image with the necessary binaries and libraries to develop pex.
-
+ARG PYTHONS=new
 ARG SEED_IMAGE=scratch
 FROM ${SEED_IMAGE} AS seed
 
 # Populate the ~/.pex_dev cache.
-FROM ghcr.io/pex-tool/pex/base:latest AS cache
+FROM ghcr.io/pex-tool/pex/base:latest-${PYTHONS} AS cache
 
 ARG SEED_PATH=/
 ARG CACHE_PATH=/development/pex_dev

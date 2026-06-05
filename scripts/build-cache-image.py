@@ -92,8 +92,11 @@ def build_cache_image(
     image_tag: str,
     pex_repo: str,
     git_ref: str,
+    new: bool,
     seed_image: str | None,
 ) -> None:
+
+    pythons = "new" if new else "old"
 
     seed_args: list[str] = []
     if seed_image:
@@ -113,6 +116,8 @@ def build_cache_image(
             "docker",
             "buildx",
             "build",
+            "--build-arg",
+            f"PYTHONS={pythons}",
             *seed_args,
             "--build-arg",
             f"CACHE_PATH={_CACHE_PATH}",
@@ -242,9 +247,10 @@ def main() -> Any:
         logging.root.level, "Logging configured at level {level}.".format(level=options.log_level)
     )
 
+    tag_suffix = f"-{'new' if new else 'old'}"
     sub_image: str | None = None
     if options.build_style is BuildStyle.MERGE:
-        image_tag = create_image_tag(options.tag)
+        image_tag = create_image_tag(f"{options.tag}{tag_suffix}")
         chroot = Path(mkdtemp())
         atexit.register(shutil.rmtree, str(chroot), ignore_errors=True)
 
@@ -306,7 +312,6 @@ def main() -> Any:
                 else hashlib.sha256("|".join(test_cmds).encode("utf-8")).hexdigest()
             )
 
-        tag_suffix = f"-{'new' if new else 'old'}"
         image_tag = create_image_tag(f"{options.tag}{tag_suffix}", sub_image=sub_image)
         logger.info(f"Building caches for {len(test_cmds)} test commands.")
         for test_cmd in test_cmds:
@@ -318,6 +323,7 @@ def main() -> Any:
             image_tag=image_tag,
             pex_repo=options.pex_repo,
             git_ref=options.git_ref,
+            new=new,
             seed_image=create_image_tag(f"latest{tag_suffix}") if options.seed else None,
         )
 
