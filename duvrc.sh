@@ -7,14 +7,15 @@ ROOT="$(git rev-parse --show-toplevel)"
 if echo $0 | grep -E '\-old.sh$' >/dev/null; then
   BASE_PYTHONS=old
   UBUNTU_VERSION=22.04
+  CACHE_TAG="${CACHE_TAG:-latest-old}"
 else
   BASE_PYTHONS="${BASE_PYTHONS:-new}"
   UBUNTU_VERSION=24.04
+  CACHE_TAG="${CACHE_TAG:-latest-${BASE_PYTHONS}}"
 fi
 
 BASE_MODE="${BASE_MODE:-build}"
 CACHE_MODE="${CACHE_MODE:-}"
-CACHE_TAG="${CACHE_TAG:-latest}"
 
 BASE_INPUT=(
   "${ROOT}/docker/base/Dockerfile"

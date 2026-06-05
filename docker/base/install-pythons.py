@@ -36,13 +36,13 @@ NEW_DEFAULT_PYTHON = "python3.14"
 
 # N.B.: These power some dev-cmd commands with a stable Python version.
 ALWAYS_NEEDED_DEADSNAKES_VERSIONS = (
-    DeadSnake("3.8.20", ["dev", "venv", "distutils"]),
     DeadSnake("3.9.25", ["dev", "venv", "distutils"]),
     DeadSnake("3.11.15", ["dev", "venv"]),
 )
 
 OLD_DEADSNAKES_VERSIONS = (
     DeadSnake("3.7.17", ["dev", "venv", "distutils"]),
+    DeadSnake("3.8.20", ["dev", "venv", "distutils"]),
     *ALWAYS_NEEDED_DEADSNAKES_VERSIONS,
 )
 
