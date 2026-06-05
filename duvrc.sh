@@ -4,7 +4,14 @@ set -euo pipefail
 
 ROOT="$(git rev-parse --show-toplevel)"
 
-BASE_PYTHONS="${BASE_PYTHONS:-new}"
+if echo $0 | grep -E '\-old.sh$' >/dev/null; then
+  BASE_PYTHONS=old
+  UBUNTU_VERSION=22.04
+else
+  BASE_PYTHONS="${BASE_PYTHONS:-new}"
+  UBUNTU_VERSION=24.04
+fi
+
 BASE_MODE="${BASE_MODE:-build}"
 CACHE_MODE="${CACHE_MODE:-}"
 CACHE_TAG="${CACHE_TAG:-latest}"
@@ -21,6 +28,7 @@ function base_image_id() {
 
 if [[ "${BASE_MODE}" == "build" && -z "$(base_image_id)" ]]; then
   docker build \
+    --build-arg "UBUNTU_VERSION=${UBUNTU_VERSION}" \
     --build-arg "PYTHONS=${BASE_PYTHONS}" \
     --tag ghcr.io/pex-tool/pex/base:latest \
     --tag "ghcr.io/pex-tool/pex/base:latest-${BASE_PYTHONS}" \

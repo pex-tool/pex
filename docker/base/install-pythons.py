@@ -1,7 +1,7 @@
 # Copyright 2026 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 # /// script
-# requires-python = "==3.12.*"
+# requires-python = ">=3.9"
 # ///
 
 from __future__ import annotations
@@ -12,9 +12,8 @@ import subprocess
 import sys
 from argparse import ArgumentParser
 from dataclasses import dataclass
-from enum import StrEnum
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any, Iterable, Iterator
 
 # N.B.: 3.12 is the default system python for ubuntu 24.04 and software-properties-common uses it.
 # There may be a way to substitute the deadsnakes version but I have not found it; so we uninstall
@@ -32,18 +31,18 @@ class DeadSnake:
             yield f"python{version}-{package}={self.precise_version}*"
 
 
-OLD_DEFAULT_PYTHON_VERSION = "3.9"
-NEW_DEFAULT_PYTHON_VERSION = "3.14"
+OLD_DEFAULT_PYTHON = "python3.9"
+NEW_DEFAULT_PYTHON = "python3.14"
 
 # N.B.: These power some dev-cmd commands with a stable Python version.
 ALWAYS_NEEDED_DEADSNAKES_VERSIONS = (
+    DeadSnake("3.8.20", ["dev", "venv", "distutils"]),
     DeadSnake("3.9.25", ["dev", "venv", "distutils"]),
-    DeadSnake("3.11.15", ["dev", "venv", "distutils"]),
+    DeadSnake("3.11.15", ["dev", "venv"]),
 )
 
 OLD_DEADSNAKES_VERSIONS = (
     DeadSnake("3.7.17", ["dev", "venv", "distutils"]),
-    DeadSnake("3.8.20", ["dev", "venv", "distutils"]),
     *ALWAYS_NEEDED_DEADSNAKES_VERSIONS,
 )
 
@@ -62,8 +61,10 @@ OLD_PYENV_VERSIONS = (
     "3.5.10",
     "3.6.15",
     "pypy2.7-7.3.22",
-    # This is served from https://bitbucket-archive.softwareheritage.org/static/14/140b7b14-aa94-424e-b191-9cd3438381f7/attachments/pypy3.5-7.0.0-linux_x86_64-portable.tar.bz2
-    # which has begun to prove flaky; so we comment out for now and perhaps need to drop or self-host:
+    # This is served from:
+    #   https://bitbucket-archive.softwareheritage.org/static/14/140b7b14-aa94-424e-b191-9cd3438381f7/attachments/pypy3.5-7.0.0-linux_x86_64-portable.tar.bz2
+    # which has begun to prove flaky; so we comment out for now and perhaps need to drop or
+    # self-host:
     # pypy3.5-7.0.0
     # This is failing install for unknown reasons:
     # pypy3.6-7.3.3
@@ -77,7 +78,9 @@ OLD_PYENV_VERSIONS = (
 NEW_PYENV_VERSIONS = ("3.12.13", "pypy3.11-7.3.22", *ALWAYS_NEEDED_PYENV_VERSIONS)
 
 
-def install_deadsnakes_versions(versions: tuple[DeadSnake, ...]) -> None:
+def install_deadsnakes_versions(
+    versions: tuple[DeadSnake, ...], uninstall: Iterable[str] = ()
+) -> None:
     env = {**os.environ, "DEBIAN_FRONTEND": "noninteractive"}
     subprocess.run(args=["add-apt-repository", "--yes", "--ppa", "deadsnakes"], env=env, check=True)
 
@@ -88,7 +91,7 @@ def install_deadsnakes_versions(versions: tuple[DeadSnake, ...]) -> None:
         args=["add-apt-repository", "--yes", "--remove", "--ppa", "deadsnakes"], env=env, check=True
     )
     subprocess.run(
-        args=["apt", "remove", "--yes", "software-properties-common", "python3.12"],
+        args=["apt", "remove", "--yes", "software-properties-common", *uninstall],
         env=env,
         check=True,
     )
@@ -132,24 +135,18 @@ def install_pyenv_versions(versions: tuple[str, ...]) -> None:
 
 def install_pythons(new: bool = True) -> None:
     if new:
-        install_deadsnakes_versions(NEW_DEADSNAKES_VERSIONS)
+        install_deadsnakes_versions(NEW_DEADSNAKES_VERSIONS, uninstall=["python3.12"])
         install_pyenv_versions(NEW_PYENV_VERSIONS)
-        default_python_exe_name = f"python{NEW_DEFAULT_PYTHON_VERSION}"
-
+        default_python_exe_name = NEW_DEFAULT_PYTHON
     else:
         install_deadsnakes_versions(OLD_DEADSNAKES_VERSIONS)
         install_pyenv_versions(OLD_PYENV_VERSIONS)
-        default_python_exe_name = f"python{OLD_DEFAULT_PYTHON_VERSION}"
+        default_python_exe_name = OLD_DEFAULT_PYTHON
 
     default_python = shutil.which(default_python_exe_name)
     if default_python is None:
         raise InstallError(f"Expected default Python {default_python_exe_name} does not exist")
     os.symlink(default_python, "/usr/bin/python")
-
-
-class Pythons(StrEnum):
-    NEW = "new"
-    OLD = "old"
 
 
 class InstallError(Exception):
@@ -158,10 +155,10 @@ class InstallError(Exception):
 
 def main() -> Any:
     args_parser = ArgumentParser()
-    args_parser.add_argument("--pythons", type=Pythons, default=Pythons.NEW)
+    args_parser.add_argument("--pythons", choices=["old", "new"], default="new")
     args = args_parser.parse_args()
 
-    install_pythons(new=args.pythons is Pythons.NEW)
+    install_pythons(new=args.pythons == "new")
 
 
 if __name__ == "__main__":
