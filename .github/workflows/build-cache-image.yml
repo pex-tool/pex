@@ -1,10 +1,20 @@
 name: Build ./duvrc.sh Cache Image
 on:
   schedule:
-    # 2:00 AM US-Pacific on Wednesdays
+    # new: 2:00 AM US-Pacific on Wednesdays
     - cron: '0 9 * * 3'
+    # old: 2:00 AM US-Pacific on Fridays
+    - cron: '0 9 * * 5'
   workflow_dispatch:
     inputs:
+      pythons:
+        required: false
+        default: new
+        type: choice
+        options:
+          - new
+          - old
+        description: Build the cache for new Pythons or old ones.
       seed:
         required: false
         default: true
@@ -14,6 +24,8 @@ defaults:
   run:
     shell: bash
 env:
+  _PYTHONS: ${{ case(github.event.schedule == '0 9 * * 3', 'new', github.event.schedule == '0 9 * * 5', 'old', inputs.pythons) }}
+
   # We fetch Windows script executable stubs when building Pex.
   _PEX_FETCH_WINDOWS_STUBS_BEARER: ${{ secrets.GITHUB_TOKEN }}
 
@@ -54,7 +66,7 @@ jobs:
         id: setup-test-cmds
         run: |
           echo test-cmds="$(
-            uv -q run dev-cmd -q build-cache-image -- --list-test-cmds | \
+            uv -q run dev-cmd -q build-cache-image -- --list-test-cmds --pythons ${{ env._PYTHONS }} | \
               jq -R . | jq -src .
           )" >> "$GITHUB_OUTPUT"
     outputs:
@@ -92,6 +104,7 @@ jobs:
           uv run dev-cmd build-cache-image -- \
             --color \
             --build-style build \
+            --pythons ${{ env._PYTHONS }} \
             ${{ inputs.seed && '--seed' || '--no-seed' }} \
             --dist-dir export \
             --post-action export \
@@ -138,5 +151,6 @@ jobs:
           uv run dev-cmd build-cache-image -- \
             --color \
             --build-style merge \
+            --pythons ${{ env._PYTHONS }} \
             --dist-dir export \
             --post-action push
