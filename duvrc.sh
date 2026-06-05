@@ -4,27 +4,30 @@ set -euo pipefail
 
 ROOT="$(git rev-parse --show-toplevel)"
 
+BASE_PYTHONS="${BASE_PYTHONS:-new}"
 BASE_MODE="${BASE_MODE:-build}"
 CACHE_MODE="${CACHE_MODE:-}"
 CACHE_TAG="${CACHE_TAG:-latest}"
 
 BASE_INPUT=(
   "${ROOT}/docker/base/Dockerfile"
-  "${ROOT}/docker/base/install_pythons.sh"
+  "${ROOT}/docker/base/install-pythons.py"
 )
 base_hash=$(cat "${BASE_INPUT[@]}" | git hash-object -t blob --stdin)
 
 function base_image_id() {
-  docker image ls -q "ghcr.io/pex-tool/pex/base:${base_hash}"
+  docker image ls -q "ghcr.io/pex-tool/pex/base:${BASE_PYTHONS}-${base_hash}"
 }
 
 if [[ "${BASE_MODE}" == "build" && -z "$(base_image_id)" ]]; then
   docker build \
+    --build-arg "PYTHONS=${BASE_PYTHONS}" \
     --tag ghcr.io/pex-tool/pex/base:latest \
-    --tag "ghcr.io/pex-tool/pex/base:${base_hash}" \
+    --tag "ghcr.io/pex-tool/pex/base:latest-${BASE_PYTHONS}" \
+    --tag "ghcr.io/pex-tool/pex/base:${BASE_PYTHONS}-${base_hash}" \
     "${ROOT}/docker/base"
 elif [[ "${BASE_MODE}" == "pull" ]]; then
-  docker pull "ghcr.io/pex-tool/pex/base:${base_hash}"
+  docker pull "ghcr.io/pex-tool/pex/base:${BASE_PYTHONS}-${base_hash}"
 fi
 
 CONTAINER_HOME="/home/$(id -un)"
@@ -36,18 +39,19 @@ USER_INPUT=(
 user_hash=$(cat "${USER_INPUT[@]}" | git hash-object -t blob --stdin)
 
 function user_image_id() {
-  docker image ls -q "pex-tool/pex/user:${user_hash}"
+  docker image ls -q "pex-tool/pex/user:${BASE_PYTHONS}-${user_hash}"
 }
 
 if [[ -z "$(user_image_id)" ]]; then
   docker build \
-    --build-arg BASE_IMAGE_TAG="${base_hash}" \
+    --build-arg BASE_IMAGE_TAG="${BASE_PYTHONS}-${base_hash}" \
     --build-arg USER="$(id -un)" \
     --build-arg UID="$(id -u)" \
     --build-arg GROUP="$(id -gn)" \
     --build-arg GID="$(id -g)" \
     --tag pex-tool/pex/user:latest \
-    --tag "pex-tool/pex/user:${user_hash}" \
+    --tag "pex-tool/pex/user:latest-${BASE_PYTHONS}" \
+    --tag "pex-tool/pex/user:${BASE_PYTHONS}-${user_hash}" \
     "${ROOT}/docker/user"
 
   docker run \
@@ -59,7 +63,7 @@ if [[ -z "$(user_image_id)" ]]; then
     --volume pex-dev-cmd:/development/pex/.dev-cmd \
     --entrypoint bash \
     --user root \
-    "pex-tool/pex/user:${user_hash}" \
+    "pex-tool/pex/user:${BASE_PYTHONS}-${user_hash}" \
     -c "
       chown -R $(id -un):$(id -gn) \
       /development/pex_dev \
@@ -87,7 +91,7 @@ if [[ "${CACHE_MODE}" == "pull" ]]; then
     --volume pex-dev-caches:/development/pex_dev \
     --entrypoint bash \
     --user root \
-    "pex-tool/pex/user:${user_hash}" \
+    "pex-tool/pex/user:${BASE_PYTHONS}-${user_hash}" \
     -c "chown -R $(id -u):$(id -g) /development/pex_dev"
 fi
 
@@ -166,6 +170,6 @@ exec docker run \
   --volume pex-venv:/development/pex/.venv \
   --volume pex-dev-cmd:/development/pex/.dev-cmd \
   "${DOCKER_ARGS[@]}" \
-  "pex-tool/pex/user:${user_hash}" \
+  "pex-tool/pex/user:${BASE_PYTHONS}-${user_hash}" \
   "$@"
 

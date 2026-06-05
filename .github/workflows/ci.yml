@@ -95,6 +95,8 @@ jobs:
           # Unit tests:
           # -----------
           - test-cmd: test-py27-pip20.3.4--patched
+            base-pythons: old
+
           - test-cmd: test-py314-pip26.1.2
           - test-cmd: test-py315-pip26.1.2
           - test-cmd: test-pypy311-pip24.3.1
@@ -103,13 +105,17 @@ jobs:
           # ----------------------------------------------
 
           - test-cmd: test-py27-pip20.3.4--patched-integration
+            base-pythons: old
             pex-test-pos-args: --shard 1/2
           - test-cmd: test-py27-pip20.3.4--patched-integration
+            base-pythons: old
             pex-test-pos-args: --shard 2/2
 
           - test-cmd: test-py38-pip22.3.1-integration
+            base-pythons: old
             pex-test-pos-args: --shard 1/2
           - test-cmd: test-py38-pip22.3.1-integration
+            base-pythons: old
             pex-test-pos-args: --shard 2/2
 
           - test-cmd: test-py314-pip26.1.2-integration
@@ -165,6 +171,10 @@ jobs:
           # The image uses its own internal settings for these.          
           unset _PEX_CACHE_WINDOWS_STUBS_DIR
           unset _PEX_TEST_DEV_ROOT
+
+          if [[ -n "${{ matrix.base-pythons }}" ]]; then
+            export BASE_PYTHONS=${{ matrix.base-pythons }}
+          fi
 
           BASE_MODE=pull CACHE_MODE=pull \
             ./duvrc.sh ${{ matrix.test-cmd }} -- \

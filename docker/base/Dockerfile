@@ -33,9 +33,6 @@ RUN apt update && \
     xz-utils \
     zlib1g-dev
 
-COPY install_pythons.sh /root/
-RUN /root/install_pythons.sh
-
 # Setup a modern uv:
 RUN curl -LsSf https://astral.sh/uv/install.sh | UV_INSTALL_DIR=/usr/bin sh
 
@@ -55,3 +52,7 @@ RUN mkdir -p -m 755 /etc/apt/keyrings && \
       tee /etc/apt/sources.list.d/github-cli.list > /dev/null && \
     apt update && \
     DEBIAN_FRONTEND=noninteractive apt install --yes --no-install-recommends gh -y
+
+ARG PYTHONS=new
+COPY install-pythons.py /root/
+RUN uv run /root/install-pythons.py --pythons $PYTHONS

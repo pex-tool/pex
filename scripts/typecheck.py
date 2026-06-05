@@ -74,6 +74,11 @@ def main() -> None:
         ),
         subject="scripts",
     )
+    run_mypy(
+        "3.12",
+        files=sorted(find_files_to_check(include=["docker"])),
+        subject="docker scripts",
+    )
 
     source_and_tests = sorted(
         find_files_to_check(

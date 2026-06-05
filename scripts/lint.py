@@ -26,6 +26,7 @@ def run_autoflake(*args: str) -> None:
             "--recursive",
             "-v",
             "build-backend",
+            "docker",
             "docs",
             "package",
             "pex",
