@@ -249,6 +249,7 @@ def main() -> Any:
 
     tag_suffix = f"-{'new' if new else 'old'}"
     sub_image: str | None = None
+    extracted = set()
     if options.build_style is BuildStyle.MERGE:
         image_tag = create_image_tag(f"{options.tag}{tag_suffix}")
         chroot = Path(mkdtemp())
@@ -267,10 +268,11 @@ def main() -> Any:
                         tar_info = tf.next()
                         if not tar_info:
                             break
-                        if not tar_info.isdir() and (chroot / tar_info.name).exists():
+                        if tar_info.name in extracted:
                             logger.debug(f"Skipping already extracted {tar_info.name}")
                             continue
                         tf.extract(tar_info, chroot)
+                        extracted.add(tar_info.name)
 
             logger.info(f"Merging {len(tarballs)} extracted tarballs...")
             merged_tarball = export_tarball_path()
