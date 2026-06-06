@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import atexit
+import getpass
 import glob
+import grp
 import hashlib
 import itertools
 import json
@@ -119,6 +121,14 @@ def build_cache_image(
             "--build-arg",
             f"PYTHONS={pythons}",
             *seed_args,
+            "--build-arg",
+            f"USER={getpass.getuser()}",
+            "--build-arg",
+            f"UID={os.getuid()}",
+            "--build-arg",
+            f"GROUP={grp.getgrgid(os.getgid()).gr_name}",
+            "--build-arg",
+            f"GID={os.getgid()}",
             "--build-arg",
             f"CACHE_PATH={_CACHE_PATH}",
             "--build-arg",

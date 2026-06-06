@@ -80,14 +80,14 @@ def install_deadsnakes_versions(
     env = {**os.environ, "DEBIAN_FRONTEND": "noninteractive"}
     if versions:
         subprocess.run(
-            args=["add-apt-repository", "--yes", "--ppa", "deadsnakes"], env=env, check=True
+            args=["add-apt-repository", "--yes", "ppa:deadsnakes/ppa"], env=env, check=True
         )
 
         packages = [package for dead_snake in versions for package in dead_snake.iter_packages()]
         subprocess.run(args=["apt", "install", "--yes", *packages], env=env, check=True)
 
         subprocess.run(
-            args=["add-apt-repository", "--yes", "--remove", "--ppa", "deadsnakes"],
+            args=["add-apt-repository", "--yes", "--remove", "ppa:deadsnakes/ppa"],
             env=env,
             check=True,
         )

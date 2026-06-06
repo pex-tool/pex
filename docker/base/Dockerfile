@@ -15,7 +15,6 @@ RUN apt update && \
     cargo \
     clang \
     curl \
-    git \
     gpg-agent \
     libbz2-dev \
     libffi-dev \
@@ -32,6 +31,12 @@ RUN apt update && \
     wget \
     xz-utils \
     zlib1g-dev
+
+# Setup a modern git:
+RUN add-apt-repository --yes ppa:git-core/ppa && \
+    apt update && \
+    DEBIAN_FRONTEND=noninteractive apt install --yes --no-install-recommends git && \
+    add-apt-repository --yes --remove ppa:git-core/ppa
 
 # Setup a modern uv:
 RUN curl -LsSf https://astral.sh/uv/install.sh | UV_INSTALL_DIR=/usr/bin sh
