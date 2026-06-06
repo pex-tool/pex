@@ -106,7 +106,7 @@ class Shard(object):
     @classmethod
     def parse(cls, spec):
         # type: (str) -> Shard
-        slot, total_slots = spec.split("/", 1)
+        slot, total_slots = spec.split("/", 1) if "/" in spec else spec.split("@", 1)
         return cls(slot=int(slot), total_slots=int(total_slots))
 
     def __init__(
@@ -237,9 +237,10 @@ def pytest_addoption(parser):
         "--shard",
         dest="shard",
         help=(
-            "Shard tests. Values take the form M/N where M is the shard to pick of N total shards. "
-            "M numbering is 1-based. For example, `--shard 1/3` means to shard three ways and pick "
-            "the 1st shard, `--shard 2/3` picks the 2nd shard and `--shard 3/3 the third."
+            "Shard tests. Values take the form M/N (or M@N) where M is the shard to pick of N "
+            "total shards. M numbering is 1-based. For example, `--shard 1/3` means to shard three "
+            "ways and pick the 1st shard, `--shard 2/3` picks the 2nd shard and `--shard 3/3 the "
+            "third."
         ),
     )
 

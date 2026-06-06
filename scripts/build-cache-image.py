@@ -307,7 +307,7 @@ def main() -> Any:
 
         if options.test_cmds:
             sub_image = (
-                test_cmds[0].replace(":", "_").replace("/", "_")
+                test_cmds[0].replace(":", "_").replace("/", "_").replace("@", "_")
                 if len(test_cmds) == 1
                 else hashlib.sha256("|".join(test_cmds).encode("utf-8")).hexdigest()
             )
