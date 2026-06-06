@@ -1,5 +1,8 @@
 # Copyright 2022 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+from __future__ import absolute_import
+
 import os.path
 import sys
 import sysconfig
@@ -9,7 +12,7 @@ import pytest
 
 from pex import variables
 from pex.common import safe_open
-from pex.compatibility import safe_commonpath
+from pex.compatibility import PY2, safe_commonpath
 from pex.interpreter import PythonInterpreter
 from pex.layout import Layout
 from pex.pep_427 import InstallableType
@@ -22,6 +25,9 @@ if TYPE_CHECKING:
     from typing import Any, Text, Tuple
 
 
+@pytest.mark.skipif(
+    PY2, reason="The setproctitle compatible with Python 2.7 fails to build on modern platforms."
+)
 @pytest.mark.parametrize("venv", [pytest.param(True, id="VENV"), pytest.param(False, id="UNZIP")])
 @pytest.mark.parametrize(
     "layout", [pytest.param(layout, id=layout.value) for layout in Layout.values()]
