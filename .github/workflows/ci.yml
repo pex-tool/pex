@@ -107,9 +107,9 @@ jobs:
           # N.B.: We use @ instead of / for the shard spec delimiter to play well with the
           # build-cache-image.yml job
 
-          - test-cmd: test-py27-pip20.3.4--patched-integration-n0-shard1@2
+          - test-cmd: test-py27-pip20.3.4--patched-integration-shard1@2
             base-pythons: old
-          - test-cmd: test-py27-pip20.3.4--patched-integration-n0-shard2@2
+          - test-cmd: test-py27-pip20.3.4--patched-integration-shard2@2
             base-pythons: old
 
           - test-cmd: test-py38-pip22.3.1-integration-shard1@2
