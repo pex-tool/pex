@@ -84,7 +84,7 @@ jobs:
   # N.B.: The name of this job key (linux-tests) is depended on by scripts/build_cache_image.py. In
   # particular, the test-cmd matrix list is used to ensure the cache covers all Linux CI jobs.
   linux-tests:
-    name: "Linux: ./duvrc.sh ${{ matrix.test-cmd }} ${{ matrix.pex-test-pos-args }}"
+    name: "Linux: ./duvrc.sh ${{ matrix.test-cmd }}"
     needs: setup
     runs-on: ubuntu-24.04
     strategy:
@@ -104,39 +104,27 @@ jobs:
           # Integration tests, split most into two shards:
           # ----------------------------------------------
 
-          - test-cmd: test-py27-pip20.3.4--patched-integration
+          - test-cmd: test-py27-pip20.3.4--patched-integration-shard:1/2
             base-pythons: old
-            pex-test-pos-args: --shard 1/2
-          - test-cmd: test-py27-pip20.3.4--patched-integration
+          - test-cmd: test-py27-pip20.3.4--patched-integration-shard:2/2
             base-pythons: old
-            pex-test-pos-args: --shard 2/2
 
-          - test-cmd: test-py38-pip22.3.1-integration
+          - test-cmd: test-py38-pip22.3.1-integration-shard:1/2
             base-pythons: old
-            pex-test-pos-args: --shard 1/2
-          - test-cmd: test-py38-pip22.3.1-integration
+          - test-cmd: test-py38-pip22.3.1-integration-shard:2/2
             base-pythons: old
-            pex-test-pos-args: --shard 2/2
 
-          - test-cmd: test-py314-pip26.1.2-integration
-            pex-test-pos-args: --shard 1/2
-          - test-cmd: test-py314-pip26.1.2-integration
-            pex-test-pos-args: --shard 2/2
+          - test-cmd: test-py314-pip26.1.2-integration-shard:1/2
+          - test-cmd: test-py314-pip26.1.2-integration-shard:2/2
 
-          - test-cmd: test-py315-pip26.1.2-integration
-            pex-test-pos-args: --shard 1/2
-          - test-cmd: test-py315-pip26.1.2-integration
-            pex-test-pos-args: --shard 2/2
+          - test-cmd: test-py315-pip26.1.2-integration-shard:1/2
+          - test-cmd: test-py315-pip26.1.2-integration-shard:2/2
 
           # PyPy is slow enough to require extra sharding.
-          - test-cmd: test-pypy311-pip24.3.1-integration
-            pex-test-pos-args: --shard 1/4
-          - test-cmd: test-pypy311-pip24.3.1-integration
-            pex-test-pos-args: --shard 2/4
-          - test-cmd: test-pypy311-pip24.3.1-integration
-            pex-test-pos-args: --shard 3/4
-          - test-cmd: test-pypy311-pip24.3.1-integration
-            pex-test-pos-args: --shard 4/4
+          - test-cmd: test-pypy311-pip24.3.1-integration-shard:1/4
+          - test-cmd: test-pypy311-pip24.3.1-integration-shard:2/4
+          - test-cmd: test-pypy311-pip24.3.1-integration-shard:3/4
+          - test-cmd: test-pypy311-pip24.3.1-integration-shard:4/4
     steps:
       - name: Free Up Disk Space
         uses: jlumbroso/free-disk-space@v1.3.1
@@ -177,10 +165,9 @@ jobs:
           fi
 
           BASE_MODE=pull CACHE_MODE=pull \
-            ./duvrc.sh ${{ matrix.test-cmd }} -- \
-              ${{ env._TEST_POS_ARGS }} ${{ matrix.pex-test-pos-args }}
+            ./duvrc.sh ${{ matrix.test-cmd }} -- ${{ env._TEST_POS_ARGS }}
   mac-tests:
-    name: "Mac: uv run dev-cmd ${{ matrix.test-cmd }} ${{ matrix.pex-test-pos-args }}"
+    name: "Mac: uv run dev-cmd ${{ matrix.test-cmd }}"
     needs: setup
     runs-on: macos-15
     strategy:
@@ -189,11 +176,9 @@ jobs:
           - python-version: "3.14"
             test-cmd: test-py314-pip26.1.2
           - python-version: "3.14"
-            test-cmd: test-py314-pip26.1.2-integration
-            pex-test-pos-args: --shard 1/2
+            test-cmd: test-py314-pip26.1.2-integration-shard:1/2
           - python-version: "3.14"
-            test-cmd: test-py314-pip26.1.2-integration
-            pex-test-pos-args: --shard 2/2
+            test-cmd: test-py314-pip26.1.2-integration-shard:2/2
     steps:
       - name: Checkout Pex
         uses: actions/checkout@v6
@@ -241,8 +226,7 @@ jobs:
       - name: Run Tests
         run: |
           cd repo
-          uv run dev-cmd ${{ matrix.test-cmd }} -- \
-            ${{ env._TEST_POS_ARGS }} ${{ matrix.pex-test-pos-args }}
+          uv run dev-cmd ${{ matrix.test-cmd }} -- ${{ env._TEST_POS_ARGS }}
       - name: Cache Pyenv Interpreters
         uses: actions/cache/save@v5
         if: github.ref == 'refs/heads/main'
@@ -262,7 +246,7 @@ jobs:
           path: ${{ env._PEX_CACHE_WINDOWS_STUBS_DIR }}
           key: ${{ steps.restore-windows-stubs.outputs.cache-primary-key }}
   windows-tests:
-    name: "Windows: uv run dev-cmd ${{ matrix.test-cmd }} ${{ matrix.pex-test-pos-args }}"
+    name: "Windows: uv run dev-cmd ${{ matrix.test-cmd }}"
     needs: setup
     runs-on: windows-2022
     continue-on-error: true

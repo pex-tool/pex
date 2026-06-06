@@ -334,6 +334,17 @@ hidden = true
 py = "The Python version to run the tests under."
 pip = "The Pip version to default to in test runs."
 integration = "Run the integration tests (also available via `--it` pass through arg)."
+shard = """
+Shard tests.
+
+Values take the form M/N where M is the shard to pick of N total shards.
+M numbering is 1-based.
+
+For example:
++ `-shard:1/3` means to shard three ways and pick the 1st shard.
++ `-shard:2/3` picks the 2nd shard.
++ `-shard:3/3 the third.
+"""
 
 [tool.dev-cmd.commands.test-lt39]
 description = """
@@ -352,7 +363,12 @@ when = "python_version < '3.9'"
 python = "{-py:}"
 name = "test"
 env = {PYTHONHASHSEED = "{--hashseed}", PYTHONUNBUFFERED = "1", _PEX_PIP_VERSION = "{-pip:}"}
-args = ["testing/bin/run_tests.py", {discard_empty = "{-integration?--it:}"}]
+args = [
+  "testing/bin/run_tests.py",
+  {discard_empty = "{-integration?--it:}"},
+  "--shard",
+  "{-shard:1/1}"
+]
 accepts-extra-args = true
 dependency-group = "test"
 
@@ -360,6 +376,17 @@ dependency-group = "test"
 py = "The Python version to run the tests under."
 pip = "The Pip version to default to in test runs."
 integration = "Run the integration tests (also available via `--it` pass through arg)."
+shard = """
+Shard tests.
+
+Values take the form M/N where M is the shard to pick of N total shards.
+M numbering is 1-based.
+
+For example:
++ `-shard:1/3` means to shard three ways and pick the 1st shard.
++ `-shard:2/3` picks the 2nd shard.
++ `-shard:3/3 the third.
+"""
 
 [tool.dev-cmd.commands.test-gte39-lt316]
 description = """
@@ -378,7 +405,12 @@ when = "python_version >= '3.9' and python_version < '3.16'"
 python = "{-py:}"
 name = "test"
 env = {PYTHONHASHSEED = "{--hashseed}", _PEX_PIP_VERSION = "{-pip:}"}
-args = ["testing/bin/run_tests.py", {discard_empty = "{-integration?--it:}"}]
+args = [
+  "testing/bin/run_tests.py",
+  {discard_empty = "{-integration?--it:}"},
+  "--shard",
+  "{-shard:1/1}"
+]
 accepts-extra-args = true
 dependency-group = "test"
 
