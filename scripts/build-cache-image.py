@@ -82,7 +82,7 @@ def export_tarball_path(sub_image: str | None = None) -> Path:
 def create_image_tag(tag: str, sub_image: str | None = None) -> str:
     image = "ghcr.io/pex-tool/pex/cache"
     if sub_image:
-        image = f"{image}/{sub_image}"
+        image = f"{image}/{sub_image.replace(':', '_').replace('/', '_')}"
     return f"{image}:{tag}"
 
 
