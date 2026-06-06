@@ -6,7 +6,7 @@ ROOT="$(git rev-parse --show-toplevel)"
 
 if echo $0 | grep -E '\-old.sh$' >/dev/null; then
   BASE_PYTHONS=old
-  UBUNTU_VERSION=22.04
+  UBUNTU_VERSION=20.04
   CACHE_TAG="${CACHE_TAG:-latest-old}"
 else
   BASE_PYTHONS="${BASE_PYTHONS:-new}"

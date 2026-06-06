@@ -31,35 +31,34 @@ class DeadSnake:
             yield f"python{version}-{package}={self.precise_version}*"
 
 
-OLD_DEFAULT_PYTHON = "python3.9"
+# N.B.: 2.7, 3.9 and 3.11 are needed in both version sets to run certain dev-cmd commands.
+
 NEW_DEFAULT_PYTHON = "python3.14"
-
-# N.B.: These power some dev-cmd commands with a stable Python version.
-ALWAYS_NEEDED_DEADSNAKES_VERSIONS = (
+NEW_VERSIONS = (
+    # N.B.: Old, but needed for some dev-cmd commands.
+    "2.7.18",
     DeadSnake("3.9.25", ["dev", "venv", "distutils"]),
-    DeadSnake("3.11.15", ["dev", "venv"]),
-)
-
-OLD_DEADSNAKES_VERSIONS = (
-    DeadSnake("3.7.17", ["dev", "venv", "distutils"]),
-    DeadSnake("3.8.20", ["dev", "venv", "distutils"]),
-    *ALWAYS_NEEDED_DEADSNAKES_VERSIONS,
-)
-
-NEW_DEADSNAKES_VERSIONS = (
+    # New:
     DeadSnake("3.10.20", ["dev", "venv", "distutils"]),
+    DeadSnake("3.11.15", ["dev", "venv"]),
+    "3.12.13",
     DeadSnake("3.13.13", ["dev", "venv"]),
     DeadSnake("3.14.5", ["dev", "venv"]),
     DeadSnake("3.15.0~b2", ["dev", "venv"]),
-    *ALWAYS_NEEDED_DEADSNAKES_VERSIONS,
+    "pypy3.11-7.3.22",
 )
 
-# N.B.: These power some dev-cmd commands with a stable Python version.
-ALWAYS_NEEDED_PYENV_VERSIONS = ("2.7.18",)
-
-OLD_PYENV_VERSIONS = (
+OLD_DEFAULT_PYTHON = "python3.9"
+OLD_VERSIONS = (
+    # N.B.: New, but needed for some dev-cmd commands.
+    "3.11.15",
+    # Old:
+    "2.7.18",
     "3.5.10",
     "3.6.15",
+    "3.7.17",
+    "3.8.20",
+    "3.9.25",
     "pypy2.7-7.3.22",
     # This is served from:
     #   https://bitbucket-archive.softwareheritage.org/static/14/140b7b14-aa94-424e-b191-9cd3438381f7/attachments/pypy3.5-7.0.0-linux_x86_64-portable.tar.bz2
@@ -72,24 +71,27 @@ OLD_PYENV_VERSIONS = (
     "pypy3.8-7.3.11",
     "pypy3.9-7.3.16",
     "pypy3.10-7.3.19",
-    *ALWAYS_NEEDED_PYENV_VERSIONS,
 )
-
-NEW_PYENV_VERSIONS = ("3.12.13", "pypy3.11-7.3.22", *ALWAYS_NEEDED_PYENV_VERSIONS)
 
 
 def install_deadsnakes_versions(
-    versions: tuple[DeadSnake, ...], uninstall: Iterable[str] = ()
+    versions: Iterable[DeadSnake], uninstall: Iterable[str] = ()
 ) -> None:
     env = {**os.environ, "DEBIAN_FRONTEND": "noninteractive"}
-    subprocess.run(args=["add-apt-repository", "--yes", "--ppa", "deadsnakes"], env=env, check=True)
+    if versions:
+        subprocess.run(
+            args=["add-apt-repository", "--yes", "--ppa", "deadsnakes"], env=env, check=True
+        )
 
-    packages = [package for dead_snake in versions for package in dead_snake.iter_packages()]
-    subprocess.run(args=["apt", "install", "--yes", *packages], env=env, check=True)
+        packages = [package for dead_snake in versions for package in dead_snake.iter_packages()]
+        subprocess.run(args=["apt", "install", "--yes", *packages], env=env, check=True)
 
-    subprocess.run(
-        args=["add-apt-repository", "--yes", "--remove", "--ppa", "deadsnakes"], env=env, check=True
-    )
+        subprocess.run(
+            args=["add-apt-repository", "--yes", "--remove", "--ppa", "deadsnakes"],
+            env=env,
+            check=True,
+        )
+
     subprocess.run(
         args=["apt", "remove", "--yes", "software-properties-common", *uninstall],
         env=env,
@@ -111,7 +113,10 @@ def install_pyenv() -> None:
     subprocess.run(args=["make", "-C", "src"], env=PYENV_ENV, cwd=PYENV_ROOT, check=True)
 
 
-def install_pyenv_versions(versions: tuple[str, ...]) -> None:
+def install_pyenv_versions(versions: Iterable[str]) -> None:
+    if not versions:
+        return
+
     install_pyenv()
     subprocess.run(
         args=[PYENV_ROOT / "bin" / "pyenv", "install", "--force", *versions],
@@ -134,14 +139,24 @@ def install_pyenv_versions(versions: tuple[str, ...]) -> None:
 
 
 def install_pythons(new: bool = True) -> None:
+    uninstall: list[str] = []
+    versions: Iterable[DeadSnake | str]
     if new:
-        install_deadsnakes_versions(NEW_DEADSNAKES_VERSIONS, uninstall=["python3.12"])
-        install_pyenv_versions(NEW_PYENV_VERSIONS)
+        # N.B.: Ubuntu 24.04 which ships its own (older) CPython 3.12.
+        uninstall.append("python3.12")
+        versions = NEW_VERSIONS
         default_python_exe_name = NEW_DEFAULT_PYTHON
     else:
-        install_deadsnakes_versions(OLD_DEADSNAKES_VERSIONS)
-        install_pyenv_versions(OLD_PYENV_VERSIONS)
+        # N.B.: Ubuntu 20.04 which ships its own (older) CPython 3.8.
+        uninstall.append("python3.8")
+        versions = OLD_VERSIONS
         default_python_exe_name = OLD_DEFAULT_PYTHON
+
+    install_deadsnakes_versions(
+        versions=[version for version in versions if isinstance(version, DeadSnake)],
+        uninstall=uninstall,
+    )
+    install_pyenv_versions(versions=[version for version in versions if isinstance(version, str)])
 
     default_python = shutil.which(default_python_exe_name)
     if default_python is None:

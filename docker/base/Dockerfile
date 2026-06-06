@@ -1,6 +1,6 @@
 # An image with the necessary binaries and libraries to develop pex.
 ARG UBUNTU_VERSION=24.04
-FROM ubuntu:$UBUNTU_VERSION
+FROM ubuntu:${UBUNTU_VERSION}
 
 # We use pyenv to bootstrap interpreters and pyenv needs most of these packages.
 # See: https://github.com/pyenv/pyenv/wiki#suggested-build-environment
@@ -55,4 +55,5 @@ RUN mkdir -p -m 755 /etc/apt/keyrings && \
 
 ARG PYTHONS=new
 COPY install-pythons.py /root/
-RUN UV_NO_MANAGED_PYTHON=1 uv run /root/install-pythons.py --pythons $PYTHONS
+RUN uv run /root/install-pythons.py --pythons $PYTHONS && \
+    uv python uninstall --all
