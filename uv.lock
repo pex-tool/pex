@@ -2610,6 +2610,9 @@ dev = [
     { name = "pytest", version = "8.4.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
     { name = "pytest-md-report", marker = "python_full_version >= '3.9'" },
     { name = "pytest-retry", marker = "python_full_version >= '3.9'" },
+    { name = "pytest-timeout", version = "1.4.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.6'" },
+    { name = "pytest-timeout", version = "2.1.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.6.*'" },
+    { name = "pytest-timeout", version = "2.4.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.7'" },
     { name = "pytest-xdist", version = "1.34.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.5'" },
     { name = "pytest-xdist", version = "2.2.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.5.*'" },
     { name = "pytest-xdist", version = "3.0.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.6.*'" },
@@ -2732,6 +2735,9 @@ mypy = [
     { name = "pytest", version = "8.4.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
     { name = "pytest-md-report", marker = "python_full_version >= '3.9'" },
     { name = "pytest-retry", marker = "python_full_version >= '3.9'" },
+    { name = "pytest-timeout", version = "1.4.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.6'" },
+    { name = "pytest-timeout", version = "2.1.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.6.*'" },
+    { name = "pytest-timeout", version = "2.4.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.7'" },
     { name = "pytest-xdist", version = "1.34.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.5'" },
     { name = "pytest-xdist", version = "2.2.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.5.*'" },
     { name = "pytest-xdist", version = "3.0.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.6.*'" },
@@ -2787,6 +2793,9 @@ test = [
     { name = "pytest", version = "8.4.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
     { name = "pytest-md-report", marker = "python_full_version >= '3.9'" },
     { name = "pytest-retry", marker = "python_full_version >= '3.9'" },
+    { name = "pytest-timeout", version = "1.4.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.6'" },
+    { name = "pytest-timeout", version = "2.1.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.6.*'" },
+    { name = "pytest-timeout", version = "2.4.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.7'" },
     { name = "pytest-xdist", version = "1.34.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.5'" },
     { name = "pytest-xdist", version = "2.2.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.5.*'" },
     { name = "pytest-xdist", version = "3.0.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.6.*'" },
@@ -2865,6 +2874,7 @@ dev = [
     { name = "pytest" },
     { name = "pytest-md-report", marker = "python_full_version >= '3.9'" },
     { name = "pytest-retry", marker = "python_full_version >= '3.9'" },
+    { name = "pytest-timeout" },
     { name = "pytest-xdist" },
     { name = "python-dateutil" },
     { name = "pyyaml", marker = "python_full_version >= '3.8'" },
@@ -2950,6 +2960,7 @@ mypy = [
     { name = "pytest" },
     { name = "pytest-md-report", marker = "python_full_version >= '3.9'" },
     { name = "pytest-retry", marker = "python_full_version >= '3.9'" },
+    { name = "pytest-timeout" },
     { name = "pytest-xdist" },
     { name = "python-dateutil" },
     { name = "pyyaml", marker = "python_full_version >= '3.8'" },
@@ -2982,6 +2993,7 @@ test = [
     { name = "pytest" },
     { name = "pytest-md-report", marker = "python_full_version >= '3.9'" },
     { name = "pytest-retry", marker = "python_full_version >= '3.9'" },
+    { name = "pytest-timeout" },
     { name = "pytest-xdist" },
     { name = "python-dateutil" },
     { name = "subprocess32" },
@@ -3947,6 +3959,66 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/c5/5b/607b017994cca28de3a1ad22a3eee8418e5d428dcd8ec25b26b18e995a73/pytest_retry-1.7.0.tar.gz", hash = "sha256:f8d52339f01e949df47c11ba9ee8d5b362f5824dff580d3870ec9ae0057df80f", size = 19977, upload-time = "2025-01-19T01:56:13.115Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/7c/ff/3266c8a73b9b93c4b14160a7e2b31d1e1088e28ed29f4c2d93ae34093bfd/pytest_retry-1.7.0-py3-none-any.whl", hash = "sha256:a2dac85b79a4e2375943f1429479c65beb6c69553e7dae6b8332be47a60954f4", size = 13775, upload-time = "2025-01-19T01:56:11.199Z" },
+]
+
+[[package]]
+name = "pytest-timeout"
+version = "1.4.2"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version == '3.5.*'",
+    "python_full_version == '3.4.*'",
+    "python_full_version >= '2.8' and python_full_version < '3.4'",
+    "python_full_version < '2.8'",
+]
+dependencies = [
+    { name = "pytest", version = "4.6.7", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.5'" },
+    { name = "pytest", version = "6.1.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.5.*'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/fd/f2/4202dea92b48712481e46bc6fb9122fd76baac727333858c69be5d19dfc5/pytest-timeout-1.4.2.tar.gz", hash = "sha256:20b3113cf6e4e80ce2d403b6fb56e9e1b871b510259206d40ff8d609f48bda76", size = 15424, upload-time = "2020-07-15T19:26:35.383Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/46/df/97cc0b5b8b53da0e265acd0aeecfc0c279e950a029acd2d7b4e54b00b25f/pytest_timeout-1.4.2-py2.py3-none-any.whl", hash = "sha256:541d7aa19b9a6b4e475c759fd6073ef43d7cdc9a92d95644c260076eb257a063", size = 10902, upload-time = "2020-07-15T19:26:33.505Z" },
+]
+
+[[package]]
+name = "pytest-timeout"
+version = "2.1.0"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.6.8' and python_full_version < '3.7'",
+    "python_full_version >= '3.6.2' and python_full_version < '3.6.8'",
+    "python_full_version >= '3.6.1' and python_full_version < '3.6.2'",
+    "python_full_version >= '3.6' and python_full_version < '3.6.1'",
+]
+dependencies = [
+    { name = "pytest", version = "7.0.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.6.*'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ef/30/37abbd50f86cb802cbcea50d68688438de1a7446d73c8ed8d048173b4b13/pytest-timeout-2.1.0.tar.gz", hash = "sha256:c07ca07404c612f8abbe22294b23c368e2e5104b521c1790195561f37e1ac3d9", size = 18386, upload-time = "2022-01-18T21:35:24.147Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/23/02/c85ca1e18e0c00d5ee45f4012f241098c8995294e1178367cb638a26b6c8/pytest_timeout-2.1.0-py3-none-any.whl", hash = "sha256:f6f50101443ce70ad325ceb4473c4255e9d74e3c7cd0ef827309dfa4c0d975c6", size = 12701, upload-time = "2022-01-18T21:35:22.087Z" },
+]
+
+[[package]]
+name = "pytest-timeout"
+version = "2.4.0"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.14'",
+    "python_full_version == '3.13.*'",
+    "python_full_version == '3.12.*'",
+    "python_full_version >= '3.10' and python_full_version < '3.12'",
+    "python_full_version == '3.9.*'",
+    "python_full_version == '3.8.*'",
+    "python_full_version == '3.7.*'",
+]
+dependencies = [
+    { name = "pytest", version = "7.4.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.7.*'" },
+    { name = "pytest", version = "8.3.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.8.*'" },
+    { name = "pytest", version = "8.4.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ac/82/4c9ecabab13363e72d880f2fb504c5f750433b2b6f16e99f4ec21ada284c/pytest_timeout-2.4.0.tar.gz", hash = "sha256:7e68e90b01f9eff71332b25001f85c75495fc4e3a836701876183c4bcfd0540a", size = 17973, upload-time = "2025-05-05T19:44:34.99Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/fa/b6/3127540ecdf1464a00e5a01ee60a1b09175f6913f0644ac748494d9c4b21/pytest_timeout-2.4.0-py3-none-any.whl", hash = "sha256:c42667e5cdadb151aeb5b26d114aff6bdf5a907f176a007a30b940d3d865b5c2", size = 14382, upload-time = "2025-05-05T19:44:33.502Z" },
 ]
 
 [[package]]

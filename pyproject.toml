@@ -182,6 +182,7 @@ test = [
   "pytest",
   "pytest-md-report; python_version >= '3.9'",
   "pytest-retry; python_version >= '3.9'",
+  "pytest-timeout",
   "pytest-xdist",
   "python-dateutil",
   "subprocess32",
