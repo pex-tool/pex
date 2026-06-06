@@ -345,6 +345,11 @@ For example:
 + `-shard:2/3` picks the 2nd shard.
 + `-shard:3/3 the third.
 """
+n = """Use this many jobs to run tests.
+
+Pick 0 to not use any jobs; just run in the current process; pick 1 or more for that many jobs and
+use auto to auto-configure the number of jobs to match the number of cores.
+"""
 
 [tool.dev-cmd.commands.test-lt39]
 description = """
@@ -366,6 +371,8 @@ env = {PYTHONHASHSEED = "{--hashseed}", PYTHONUNBUFFERED = "1", _PEX_PIP_VERSION
 args = [
   "testing/bin/run_tests.py",
   {discard_empty = "{-integration?--it:}"},
+  "--jobs",
+  "{-n:auto}",
   "--shard",
   "{-shard:1/1}"
 ]
@@ -386,6 +393,11 @@ For example:
 + `-shard:1/3` means to shard three ways and pick the 1st shard.
 + `-shard:2/3` picks the 2nd shard.
 + `-shard:3/3 the third.
+"""
+n = """Use this many jobs to run tests.
+
+Pick 0 to not use any jobs; just run in the current process; pick 1 or more for that many jobs and
+use auto to auto-configure the number of jobs to match the number of cores.
 """
 
 [tool.dev-cmd.commands.test-gte39-lt316]
@@ -408,6 +420,8 @@ env = {PYTHONHASHSEED = "{--hashseed}", _PEX_PIP_VERSION = "{-pip:}"}
 args = [
   "testing/bin/run_tests.py",
   {discard_empty = "{-integration?--it:}"},
+  "--jobs",
+  "{-n:auto}",
   "--shard",
   "{-shard:1/1}"
 ]

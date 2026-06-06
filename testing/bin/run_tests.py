@@ -424,6 +424,9 @@ def main():
         help="If using a devpi server for the run, shut it down at the end of the run.",
     )
     parser.add_argument("--it", action="store_true", help="Restrict scope to integration tests.")
+    parser.add_argument(
+        "-n", "--jobs", default="auto", help="Set the number of jobs to use to run tests."
+    )
 
     JunitReport.register_options(parser)
     options, passthrough_args = parser.parse_known_args()
@@ -494,7 +497,7 @@ def main():
     for var, value in test_control_env_vars:
         logger.info("{var}={value}".format(var=var, value=value))
 
-    args = [sys.executable, "-m", "pytest", "-n", "auto", "-p", "testing.pytest_utils.shard"]
+    args = [sys.executable, "-m", "pytest", "-n", options.jobs, "-p", "testing.pytest_utils.shard"]
 
     os.environ["_PEX_REQUIRES_PYTHON"] = pex_dist.requires_python()
 
