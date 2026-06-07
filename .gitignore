@@ -13,5 +13,4 @@ __pycache__/
 /docs/_static_dynamic/
 /pex/docs/html/
 /pex/windows/stubs/
-/docker/cache/.env
 

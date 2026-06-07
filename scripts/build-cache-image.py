@@ -27,6 +27,7 @@ import colors
 import yaml
 
 from pex.argparse import HandleBoolAction
+from pex.common import safe_mkdtemp
 
 
 class BuildStyle(Enum):
@@ -107,8 +108,10 @@ def build_cache_image(
         seed_args.append("--build-arg")
         seed_args.append(f"SEED_PATH={_CACHE_PATH}")
 
-    cache_context = Path("docker") / "cache"
-    with (cache_context / ".env").open(mode="w") as fp:
+    context = Path(safe_mkdtemp()) / f"pex-duvrc-{pythons}-cache-context"
+    shutil.copytree(os.path.join("docker", "cache"), context)
+    shutil.copy(os.path.join("docker", "user", "create_docker_image_user.sh"), context)
+    with (context / ".env").open(mode="w") as fp:
         for name, value in os.environ.items():
             if name.startswith(("_PEX_", "SCIENCE_")):
                 print(f"export {name}={value}", file=fp)
@@ -141,7 +144,7 @@ def build_cache_image(
             f"TEST_CMDS={','.join(test_cmds)}",
             "--tag",
             image_tag,
-            str(cache_context),
+            str(context),
         ],
         check=True,
     )
