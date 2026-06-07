@@ -287,11 +287,13 @@ def main() -> Any:
                             continue
                         tf.extract(tar_info, chroot)
                         extracted.add(tar_info.name)
+                os.unlink(tarball)
 
             logger.info(f"Merging {len(tarballs)} extracted tarballs...")
             merged_tarball = export_tarball_path()
             with tarfile.open(merged_tarball, "w") as tf:
                 tf.add(chroot, arcname="/")
+            shutil.rmtree(chroot, True)
 
         logger.info(f"Importing merged tarball to {image_tag}...")
         subprocess.run(args=["docker", "import", merged_tarball, image_tag], check=True)
