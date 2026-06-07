@@ -114,7 +114,7 @@ def build_cache_image(
     shutil.copy(os.path.join("docker", "user", "create_docker_image_user.sh"), context)
     with (context / ".env").open(mode="w") as fp:
         for name, value in os.environ.items():
-            if name.startswith(("_PEX_", "SCIENCE_")):
+            if name.startswith(("_PEX_", "SCIENCE_")) or name == "CI":
                 print(f"export {name}={value}", file=fp)
 
     subprocess.run(

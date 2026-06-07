@@ -57,6 +57,27 @@ USER_INPUT=(
 user_hash=$(cat "${USER_INPUT[@]}" | git hash-object -t blob --stdin)
 USER_CACHE_DIR="/var/cache/$(id -un)"
 
+function fix_perms() {
+  docker run \
+      --rm \
+      --volume "${VOLUME_DEV_CACHES}:/development/pex_dev" \
+      --volume "${VOLUME_XDG_CACHES}:${USER_CACHE_DIR}" \
+      --volume "${VOLUME_TMP_CACHES}:/tmp" \
+      --volume "${VOLUME_VENV}:/development/pex/.venv" \
+      --volume "${VOLUME_DEV_CMD}:/development/pex/.dev-cmd" \
+      --entrypoint bash \
+      --user root \
+      "pex-tool/pex/user:${BASE_PYTHONS}-${user_hash}" \
+      -c "
+        chown -R $(id -un):$(id -gn) \
+        /development/pex_dev \
+        ${USER_CACHE_DIR} \
+        /tmp \
+        /development/pex/.venv \
+        /development/pex/.dev-cmd
+      "
+}
+
 function user_image_id() {
   docker image ls -q "pex-tool/pex/user:${BASE_PYTHONS}-${user_hash}"
 }
@@ -72,25 +93,7 @@ if [[ -z "$(user_image_id)" ]]; then
     --tag "pex-tool/pex/user:latest-${BASE_PYTHONS}" \
     --tag "pex-tool/pex/user:${BASE_PYTHONS}-${user_hash}" \
     "${ROOT}/docker/user"
-
-  docker run \
-    --rm \
-    --volume "${VOLUME_DEV_CACHES}:/development/pex_dev" \
-    --volume "${VOLUME_XDG_CACHES}:${USER_CACHE_DIR}" \
-    --volume "${VOLUME_TMP_CACHES}:/tmp" \
-    --volume "${VOLUME_VENV}:/development/pex/.venv" \
-    --volume "${VOLUME_DEV_CMD}:/development/pex/.dev-cmd" \
-    --entrypoint bash \
-    --user root \
-    "pex-tool/pex/user:${BASE_PYTHONS}-${user_hash}" \
-    -c "
-      chown -R $(id -un):$(id -gn) \
-      /development/pex_dev \
-      ${USER_CACHE_DIR} \
-      /tmp \
-      /development/pex/.venv \
-      /development/pex/.dev-cmd
-    "
+  fix_perms
 fi
 
 if [[ "${CACHE_MODE}" == "pull" ]]; then
@@ -107,14 +110,7 @@ if [[ "${CACHE_MODE}" == "pull" ]]; then
     --volume "${VOLUME_XDG_CACHES}:${USER_CACHE_DIR}" \
     --pull always \
     "ghcr.io/pex-tool/pex/cache:${CACHE_TAG}" true || true
-  docker run \
-    --rm \
-    --volume "${VOLUME_DEV_CACHES}:/development/pex_dev" \
-    --volume "${VOLUME_XDG_CACHES}:${USER_CACHE_DIR}" \
-    --entrypoint bash \
-    --user root \
-    "pex-tool/pex/user:${BASE_PYTHONS}-${user_hash}" \
-    -c "chown -R $(id -u):$(id -g) /development/pex_dev ${USER_CACHE_DIR}"
+  fix_perms
 fi
 
 DOCKER_ARGS=()
@@ -137,6 +133,12 @@ for env_var in $(/usr/bin/env | grep -E "^(_PEX_|SCIENCE_)"); do
     --env "${env_var}"
   )
 done
+# Testing also looks at CI.
+if [[ -n "${CI:-}" ]]; then
+  DOCKER_ARGS+=(
+      --env "CI=${CI}"
+  )
+fi
 
 if [[ -n "${GH_TOKEN:-}" ]]; then
   # Some tests in CI may need access to the GH_TOKEN.
