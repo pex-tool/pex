@@ -27,7 +27,7 @@ ENV _PEX_CACHE_WINDOWS_STUBS_DIR=${_PEX_TEST_DEV_ROOT}/windows_stubs
 
 # This will be a named volume used to persist caches on the host but isolated from the host caches.
 VOLUME /var/cache
-ENV XDG_CACHE_HOME=/var/cache
+ENV XDG_CACHE_HOME=/var/cache/${USER}
 
 # This will be a named volume used to persist the pytest tmp tree (/tmp/pytest-of-$USER/) for use \
 # in `./duvrc.sh inspect` sessions.
