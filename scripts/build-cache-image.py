@@ -48,6 +48,7 @@ class PostBuildAction(Enum):
 
 _CACHE_INPUTS = (
     Path("docker") / "cache",
+    Path("docker") / "user" / "create_docker_image_user.sh",
     Path("testing") / "__init__.py",  # Sets up fixed set of pyenv interpreters for ITs.
     Path("testing") / "devpi.py",
     Path("uv.lock"),

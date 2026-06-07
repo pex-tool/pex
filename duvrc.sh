@@ -55,6 +55,7 @@ USER_INPUT=(
   "${ROOT}/docker/user/create_docker_image_user.sh"
 )
 user_hash=$(cat "${USER_INPUT[@]}" | git hash-object -t blob --stdin)
+USER_CACHE_DIR="/var/cache/$(id -un)"
 
 function user_image_id() {
   docker image ls -q "pex-tool/pex/user:${BASE_PYTHONS}-${user_hash}"
@@ -75,7 +76,7 @@ if [[ -z "$(user_image_id)" ]]; then
   docker run \
     --rm \
     --volume "${VOLUME_DEV_CACHES}:/development/pex_dev" \
-    --volume "${VOLUME_XDG_CACHES}:/var/cache" \
+    --volume "${VOLUME_XDG_CACHES}:${USER_CACHE_DIR}" \
     --volume "${VOLUME_TMP_CACHES}:/tmp" \
     --volume "${VOLUME_VENV}:/development/pex/.venv" \
     --volume "${VOLUME_DEV_CMD}:/development/pex/.dev-cmd" \
@@ -85,7 +86,7 @@ if [[ -z "$(user_image_id)" ]]; then
     -c "
       chown -R $(id -un):$(id -gn) \
       /development/pex_dev \
-      /var/cache \
+      ${USER_CACHE_DIR} \
       /tmp \
       /development/pex/.venv \
       /development/pex/.dev-cmd
@@ -97,20 +98,22 @@ if [[ "${CACHE_MODE}" == "pull" ]]; then
   # with the contents of a data-only image. In particular, starting with an empty named volume is
   # required to get the subsequent no-op `docker run --volume pex-dev-caches:...` to populate that
   # volume. This population only happens under that condition.
-  docker volume rm --force pex-dev-caches
-  docker volume create pex-dev-caches
+  docker volume rm --force ${VOLUME_DEV_CACHES} ${VOLUME_XDG_CACHES}
+  docker volume create ${VOLUME_DEV_CACHES} ${VOLUME_XDG_CACHES}
   docker run \
     --rm \
     --volume "${VOLUME_DEV_CACHES}:/development/pex_dev" \
+    --volume "${VOLUME_XDG_CACHES}:${USER_CACHE_DIR}" \
     --pull always \
     "ghcr.io/pex-tool/pex/cache:${CACHE_TAG}" true || true
   docker run \
     --rm \
     --volume "${VOLUME_DEV_CACHES}:/development/pex_dev" \
+    --volume "${VOLUME_XDG_CACHES}:${USER_CACHE_DIR}" \
     --entrypoint bash \
     --user root \
     "pex-tool/pex/user:${BASE_PYTHONS}-${user_hash}" \
-    -c "chown -R $(id -u):$(id -g) /development/pex_dev"
+    -c "chown -R $(id -u):$(id -g) /development/pex_dev ${USER_CACHE_DIR}"
 fi
 
 DOCKER_ARGS=()
@@ -184,7 +187,7 @@ exec docker run \
   --rm \
   --volume "${ROOT}:/development/pex" \
   --volume "${VOLUME_DEV_CACHES}:/development/pex_dev" \
-  --volume "${VOLUME_XDG_CACHES}:/var/cache" \
+  --volume "${VOLUME_XDG_CACHES}:${USER_CACHE_DIR}" \
   --volume "${VOLUME_TMP_CACHES}:/tmp" \
   --volume "${VOLUME_VENV}:/development/pex/.venv" \
   --volume "${VOLUME_DEV_CMD}:/development/pex/.dev-cmd" \

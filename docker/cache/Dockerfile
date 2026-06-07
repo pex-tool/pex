@@ -12,10 +12,16 @@ ARG GROUP
 ARG GID
 
 COPY create_docker_image_user.sh /root/
-RUN /root/create_docker_image_user.sh "${USER}" "${UID}" "${GROUP}" "${GID}"
+RUN /root/create_docker_image_user.sh "${USER}" "${UID}" "${GROUP}" "${GID}" && \
+    mkdir -p /development "/var/cache/${USER}" && \
+    chown -R "${USER}:${GROUP}" /development "/var/cache/${USER}" && \
+    DEBIAN_FRONTEND=noninteractive apt install --yes --no-install-recommends sudo && \
+    echo "${USER}	ALL=(ALL:ALL) NOPASSWD: ALL" > "/etc/sudoers.d/${USER}" && \
+    chmod 440 "/etc/sudoers.d/${USER}"
 
 USER "${USER}":"${GROUP}"
 ENV HOME="/home/${USER}"
+ENV XDG_CACHE_HOME="/var/cache/${USER}"
 
 ARG SEED_PATH=/
 ARG CACHE_PATH=/development/pex_dev
@@ -34,13 +40,17 @@ WORKDIR /development/pex
 COPY populate_cache.sh "${HOME}/"
 COPY .env "${HOME}/"
 COPY --from=seed ${SEED_PATH} ${CACHE_PATH}
-RUN chown -R $(id -u):$(id -g) ${CACHE_PATH} && \
+RUN sudo chown -R "${USER}:${GROUP}" "${CACHE_PATH}" "${XDG_CACHE_HOME}" && \
     ENV_FILE="${HOME}/.env" "${HOME}/populate_cache.sh" ${CACHE_PATH} "${TEST_CMDS}" && \
     touch "${CACHE_PATH}/.fingerprint-${FINGERPRINT}"
 
 # Grab just the ~/.pex_dev cache files for the final data-only image.
 FROM scratch
 ARG CACHE_PATH=/development/pex_dev
+ARG USER
+ENV XDG_CACHE_HOME="/var/cache/${USER}"
 VOLUME ${CACHE_PATH}
+VOLUME ${XDG_CACHE_HOME}
 COPY --from=cache ${CACHE_PATH} ${CACHE_PATH}
+COPY --from=cache ${XDG_CACHE_HOME} ${XDG_CACHE_HOME}
 CMD ["I am a pure data image meant only for volume mounting."]
