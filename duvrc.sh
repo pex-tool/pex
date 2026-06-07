@@ -6,13 +6,22 @@ ROOT="$(git rev-parse --show-toplevel)"
 
 if echo $0 | grep -E '\-old.sh$' >/dev/null; then
   BASE_PYTHONS=old
-  UBUNTU_VERSION=20.04
-  CACHE_TAG="${CACHE_TAG:-latest-old}"
 else
   BASE_PYTHONS="${BASE_PYTHONS:-new}"
-  UBUNTU_VERSION=24.04
-  CACHE_TAG="${CACHE_TAG:-latest-${BASE_PYTHONS}}"
 fi
+
+if [[ "${BASE_PYTHONS}" == "new" ]]; then
+  UBUNTU_VERSION=24.04
+else
+  UBUNTU_VERSION=20.04
+fi
+
+CACHE_TAG="${CACHE_TAG:-latest-${BASE_PYTHONS}}"
+VOLUME_DEV_CACHES="pex-dev-caches-${BASE_PYTHONS}"
+VOLUME_XDG_CACHES="pex-xdg-caches-${BASE_PYTHONS}"
+VOLUME_TMP_CACHES="pex-tmp-${BASE_PYTHONS}"
+VOLUME_VENV="pex-venv-${BASE_PYTHONS}"
+VOLUME_DEV_CMD="pex-dev-cmd-${BASE_PYTHONS}"
 
 BASE_MODE="${BASE_MODE:-build}"
 CACHE_MODE="${CACHE_MODE:-}"
@@ -65,11 +74,11 @@ if [[ -z "$(user_image_id)" ]]; then
 
   docker run \
     --rm \
-    --volume pex-dev-caches:/development/pex_dev \
-    --volume pex-xdg-caches:/var/cache \
-    --volume pex-tmp:/tmp \
-    --volume pex-venv:/development/pex/.venv \
-    --volume pex-dev-cmd:/development/pex/.dev-cmd \
+    --volume "${VOLUME_DEV_CACHES}:/development/pex_dev" \
+    --volume "${VOLUME_XDG_CACHES}:/var/cache" \
+    --volume "${VOLUME_TMP_CACHES}:/tmp" \
+    --volume "${VOLUME_VENV}:/development/pex/.venv" \
+    --volume "${VOLUME_DEV_CMD}:/development/pex/.dev-cmd" \
     --entrypoint bash \
     --user root \
     "pex-tool/pex/user:${BASE_PYTHONS}-${user_hash}" \
@@ -92,12 +101,12 @@ if [[ "${CACHE_MODE}" == "pull" ]]; then
   docker volume create pex-dev-caches
   docker run \
     --rm \
-    --volume pex-dev-caches:/development/pex_dev \
+    --volume "${VOLUME_DEV_CACHES}:/development/pex_dev" \
     --pull always \
     "ghcr.io/pex-tool/pex/cache:${CACHE_TAG}" true || true
   docker run \
     --rm \
-    --volume pex-dev-caches:/development/pex_dev \
+    --volume "${VOLUME_DEV_CACHES}:/development/pex_dev" \
     --entrypoint bash \
     --user root \
     "pex-tool/pex/user:${BASE_PYTHONS}-${user_hash}" \
@@ -170,14 +179,15 @@ if [[ -d "${HOME}/.ssh" ]]; then
   )
 fi
 
+
 exec docker run \
   --rm \
-  --volume pex-tmp:/tmp \
-  --volume pex-xdg-caches:/var/cache \
-  --volume pex-dev-caches:/development/pex_dev \
   --volume "${ROOT}:/development/pex" \
-  --volume pex-venv:/development/pex/.venv \
-  --volume pex-dev-cmd:/development/pex/.dev-cmd \
+  --volume "${VOLUME_DEV_CACHES}:/development/pex_dev" \
+  --volume "${VOLUME_XDG_CACHES}:/var/cache" \
+  --volume "${VOLUME_TMP_CACHES}:/tmp" \
+  --volume "${VOLUME_VENV}:/development/pex/.venv" \
+  --volume "${VOLUME_DEV_CMD}:/development/pex/.dev-cmd" \
   "${DOCKER_ARGS[@]}" \
   "pex-tool/pex/user:${BASE_PYTHONS}-${user_hash}" \
   "$@"

@@ -168,7 +168,7 @@ def parse_fabric_version_output(output):
 
 
 @pytest.mark.skipif(
-    PY2 or sys.version_info[:2] >= (3, 12),
+    sys.version_info[:2] >= (3, 12),
     reason=(
         "Fabric depends on invoke which embeds six which uses a meta path importer that only "
         "implements the PEP-302 finder spec and not the modern spec. Only the modern finder spec "
@@ -285,7 +285,7 @@ def test_binary_path(
 
 
 @pytest.mark.skipif(
-    PY2 or sys.version_info[:2] >= (3, 12),
+    sys.version_info[:2] >= (3, 12),
     reason=(
         "Fabric depends on invoke which embeds six which uses a meta path importer that only "
         "implements the PEP-302 finder spec and not the modern spec. Only the modern finder spec "
