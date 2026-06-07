@@ -75,6 +75,7 @@ IS_PYPY3 = IS_PYPY and sys.version_info[0] == 3
 NOT_CPYTHON27 = IS_PYPY or PY_VER != (2, 7)
 IS_LINUX = LINUX
 IS_MAC = MAC
+IS_WINDOWS = WINDOWS
 IS_X86_64 = platform.machine().lower() in ("amd64", "x86_64")
 IS_ARM_64 = platform.machine().lower() in ("arm64", "aarch64")
 IS_LINUX_X86_64 = IS_LINUX and IS_X86_64
@@ -486,10 +487,91 @@ def create_pex_command(
     return cmd
 
 
+@attr.s(frozen=True)
+class UvPython(object):
+    @staticmethod
+    def _get_os():
+        # type: () -> str
+
+        if IS_WINDOWS:
+            return "windows"
+        elif IS_MAC:
+            return "macos"
+        else:
+            return "linux"
+
+    @staticmethod
+    def _get_arch():
+        # type: () -> str
+
+        if IS_WINDOWS:
+            arch = os.environ.get("PROCESSOR_ARCHITECTURE", platform.machine()).lower()
+        else:
+            arch = platform.machine().lower()
+
+        if arch in ("aarch64", "arm64"):
+            return "aarch64"
+        elif arch in ("x86_64", "amd64"):
+            return "x86_64"
+        else:
+            return arch
+
+    major = attr.ib()  # type: int
+    minor = attr.ib()  # type: int
+    implementation = attr.ib(
+        default=InterpreterImplementation.CPYTHON
+    )  # type: InterpreterImplementation.Value
+
+    def spec(self):
+        # type: () -> str
+
+        if self.implementation is InterpreterImplementation.PYPY:
+            return "pypy-{major}.{minor}-{os}-{arch}".format(
+                major=self.major, minor=self.minor, os=self._get_os(), arch=self._get_arch()
+            )
+
+        # N.B.: We force arch to get arm64 PBS builds for Windows arm64 machines.
+        # See: https://github.com/astral-sh/uv/issues/12906
+        return "cpython-{major}.{minor}{suffix}-{os}-{arch}".format(
+            major=self.major,
+            minor=self.minor,
+            suffix="t"
+            if self.implementation is InterpreterImplementation.CPYTHON_FREE_THREADED
+            else "",
+            os=self._get_os(),
+            arch=self._get_arch(),
+        )
+
+
+def ensure_uv_python(
+    python,  # type: Union[UvPython, str]
+    install_if_missing=True,  # type: bool
+):
+    # type: (...) -> str
+
+    python_spec = python.spec() if isinstance(python, UvPython) else python
+
+    env = make_env(UV_PYTHON_INSTALL_DIR=os.path.join(PEX_TEST_DEV_ROOT, "uv-pythons"))
+    process = subprocess.Popen(
+        args=["uv", "python", "find", python_spec], env=env, stdout=subprocess.PIPE
+    )
+    stdout, _ = process.communicate()
+    if process.returncode == 0:
+        return cast(str, stdout.decode("utf-8").strip())
+
+    assert install_if_missing, "The {python} interpreter was not found by uv on the system.".format(
+        python=python
+    )
+    subprocess.check_call(
+        args=["uv", "python", "install", "--managed-python", "--force", python_spec], env=env
+    )
+    return ensure_uv_python(python_spec, install_if_missing=False)
+
+
 def run_pex_command(
     args,  # type: Iterable[str]
     env=None,  # type: Optional[Dict[str, str]]
-    python=None,  # type: Optional[str]
+    python=None,  # type: Optional[Union[str, UvPython]]
     quiet=None,  # type: Optional[bool]
     cwd=None,  # type: Optional[str]
     pex_module="pex",  # type: str
@@ -502,6 +584,8 @@ def run_pex_command(
     generated pex.  This is useful for testing end to end runs with specific command line arguments
     or env options.
     """
+    if isinstance(python, UvPython):
+        python = ensure_uv_python(python)
     cmd = create_pex_command(
         args, python=python, quiet=quiet, pex_module=pex_module, use_pex_whl_venv=use_pex_whl_venv
     )

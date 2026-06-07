@@ -7,7 +7,7 @@ import subprocess
 import sys
 
 from pex.typing import TYPE_CHECKING
-from testing import IntegResults, installed_pex_wheel_venv_python
+from testing import IntegResults, UvPython, ensure_uv_python, installed_pex_wheel_venv_python
 
 if TYPE_CHECKING:
     from typing import Any, Text
@@ -19,13 +19,18 @@ def run_pex3(
 ):
     # type: (...) -> IntegResults
 
-    python_exe = kwargs.pop("python", None) or sys.executable
+    python_exe = kwargs.pop("python", None)
+    if isinstance(python_exe, UvPython):
+        python = ensure_uv_python(python_exe)
+    elif python_exe:
+        python = python_exe
+    else:
+        python = sys.executable
+
     python = (
-        installed_pex_wheel_venv_python(python_exe)
-        if kwargs.pop("use_pex_whl_venv", True)
-        else python_exe
+        installed_pex_wheel_venv_python(python) if kwargs.pop("use_pex_whl_venv", True) else python
     )
-    cmd = [python, "-mpex.cli"] + list(args)
+    cmd = [python, "-mpex.cli"] + list(map(str, args))
     process = subprocess.Popen(args=cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **kwargs)
     stdout, stderr = process.communicate()
     return IntegResults(

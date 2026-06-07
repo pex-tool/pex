@@ -11,12 +11,14 @@ import pytest
 from pex.common import safe_open, temporary_dir
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import InterpreterConstraint, InterpreterConstraints
+from pex.interpreter_implementation import InterpreterImplementation
 from pex.pex_info import PexInfo
 from pex.pip.version import PipVersion
 from testing import (
     PY39,
     PY310,
     PY311,
+    UvPython,
     ensure_python_interpreter,
     make_env,
     run_pex_command,
@@ -514,15 +516,14 @@ def test_free_threaded_cpython_selection(
     py314t_scie = tmpdir.join("py314t")
     run_pex_command(
         args=[
-            "--interpreter-constraint",
-            "CPython==3.14.*",
             "--scie-pbs-free-threaded",
             "--scie",
             "eager",
             "--scie-only",
             "-o",
             py314t_scie,
-        ]
+        ],
+        python=UvPython(implementation=InterpreterImplementation.CPYTHON_GIL, major=3, minor=14),
     ).assert_success()
     py314t = PythonInterpreter.from_binary(
         str(

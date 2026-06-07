@@ -11,7 +11,7 @@ import pytest
 
 from pex.interpreter import PythonInterpreter
 from pex.typing import TYPE_CHECKING
-from testing import run_pex_command
+from testing import UvPython, run_pex_command
 from testing.cli import run_pex3
 from testing.pytest_utils.tmp import Tempdir
 
@@ -207,7 +207,14 @@ def assert_lock_script_conflict(
     # type: (...) -> None
 
     run_pex3(
-        "lock", verb, "--platform", "linux-aarch64-cp-39-cp39", "--script", script, *extra_args
+        "lock",
+        verb,
+        "--platform",
+        "linux-aarch64-cp-39-cp39",
+        "--script",
+        script,
+        *extra_args,
+        python=UvPython(3, 13)
     ).assert_failure(
         expected_error_re=re.escape(
             dedent(
