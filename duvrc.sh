@@ -101,13 +101,11 @@ if [[ "${CACHE_MODE}" == "pull" ]]; then
   # with the contents of a data-only image. In particular, starting with an empty named volume is
   # required to get the subsequent no-op `docker run --volume pex-dev-caches:...` to populate that
   # volume. This population only happens under that condition.
-  docker volume rm --force ${VOLUME_DEV_CACHES} ${VOLUME_XDG_CACHES}
+  docker volume rm --force ${VOLUME_DEV_CACHES}
   docker volume create ${VOLUME_DEV_CACHES}
-  docker volume create ${VOLUME_XDG_CACHES}
   docker run \
     --rm \
     --volume "${VOLUME_DEV_CACHES}:/development/pex_dev" \
-    --volume "${VOLUME_XDG_CACHES}:${USER_CACHE_DIR}" \
     --pull always \
     "ghcr.io/pex-tool/pex/cache:${CACHE_TAG}" true || true
   fix_perms

@@ -47,10 +47,6 @@ RUN sudo chown -R "${USER}:${GROUP}" "${CACHE_PATH}" "${XDG_CACHE_HOME}" && \
 # Grab just the ~/.pex_dev cache files for the final data-only image.
 FROM scratch
 ARG CACHE_PATH=/development/pex_dev
-ARG USER
-ENV XDG_CACHE_HOME="/var/cache/${USER}"
 VOLUME ${CACHE_PATH}
-VOLUME ${XDG_CACHE_HOME}
 COPY --from=cache ${CACHE_PATH} ${CACHE_PATH}
-COPY --from=cache ${XDG_CACHE_HOME} ${XDG_CACHE_HOME}
 CMD ["I am a pure data image meant only for volume mounting."]
