@@ -10,7 +10,7 @@ import sys
 import colors  # vendor:skip
 import pytest
 
-from testing import IS_PYPY, data, run_pex_command
+from testing import IS_PYPY, UvPython, data, ensure_uv_python, run_pex_command
 from testing.pytest_utils.tmp import Tempdir
 
 
@@ -87,10 +87,13 @@ def test_platform_placeholder_multiplatform(tmpdir):
         tmpdir.join("multiplatform-cp314-cp314-macosx_10_15_universal2.manylinux1_x86_64.pex")
         == pex
     )
+    python = (
+        sys.executable if sys.version_info[:2] == (3, 14) else ensure_uv_python(UvPython(3, 14))
+    )
     assert (
         colors.yellow("platform")
         == subprocess.check_output(
-            args=[pex, "-c", "import colors; print(colors.yellow('platform'))"]
+            args=[python, pex, "-c", "import colors; print(colors.yellow('platform'))"]
         )
         .decode("utf-8")
         .strip()

@@ -193,14 +193,15 @@ class ShardTests(Plugin):
         items[:] = selected_tests
         config.hook.pytest_deselected(items=deselected_tests)
 
-        if self.terminal_reporter:
+        total_time = total_time_by_slot.get(self.shard.slot)
+        if total_time and self.terminal_reporter:
             self.terminal_reporter.write_line(
                 "pex-shard-tests: Selected {count} {tests} for {shard} with an estimated run "
                 "time of {minutes:.2f} minutes".format(
                     count=len(items),
                     tests=pluralize(items, "test"),
                     shard=self.shard,
-                    minutes=total_time_by_slot[self.shard.slot] / 60,
+                    minutes=total_time / 60,
                 ),
                 cyan=True,
             )

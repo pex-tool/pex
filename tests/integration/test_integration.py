@@ -397,7 +397,8 @@ def test_entry_point_exit_code(tmpdir):
 
 
 CI_multi_resolve_test = pytest.mark.skipif(
-    IS_CI and not IS_LINUX,
+    # N.B.: CI_flaky (pytest.mark.flaky) is only available for Python>=3.9.
+    IS_CI and (not IS_LINUX or sys.version_info[:2] < (3, 9)),
     reason=(
         "This multiplatform test exercises its full breadth on any given OS; so just running on "
         "Linux is enough"
@@ -430,10 +431,10 @@ def test_pex_multi_resolve_1(tmpdir):
     result = run_pex_command(
         args=[
             "--disable-cache",
-            "lxml==4.6.5",
+            "p537==1.0.10",
             "--no-build",
             "--platform=linux-x86_64-cp-36-m",
-            "--platform=macosx-10.14-x86_64-cp-37-m",
+            "--platform=macosx-13.0-x86_64-cp-37-m",
             "--python={}".format(python39),
             "--python={}".format(python310),
             "-o",
@@ -451,9 +452,9 @@ def test_pex_multi_resolve_1(tmpdir):
         )
     )
 
-    included_dists = get_dep_dist_names_from_pex(pex_path, "lxml")
+    included_dists = get_dep_dist_names_from_pex(pex_path, "p537")
     assert len(included_dists) == 4
-    for dist_substr in ("-cp36-", "-cp39-", "-cp310-", "manylinux2014_x86_64", "-macosx_"):
+    for dist_substr in ("-cp36-", "-cp39-", "-cp310-", "manylinux1_x86_64", "-macosx_"):
         assert any(
             dist_substr in f for f in included_dists
         ), "Failed to find substring {dist_substr} in {included_dists}.".format(
@@ -648,12 +649,12 @@ def test_pex_multi_resolve_2(tmpdir):
     result = run_pex_command(
         args=[
             "--disable-cache",
-            "lxml==3.8.0",
+            "p537==1.0.10",
             "--no-build",
             "--platform=linux-x86_64-cp-36-m",
-            "--platform=linux-x86_64-cp-27-m",
-            "--platform=macosx-10.6-x86_64-cp-36-m",
-            "--platform=macosx-10.6-x86_64-cp-27-m",
+            "--platform=linux-x86_64-cp-37-m",
+            "--platform=macosx-13.0-x86_64-cp-36-m",
+            "--platform=macosx-13.0-x86_64-cp-37-m",
             "-o",
             pex_path,
             "--pip-log",
@@ -669,9 +670,9 @@ def test_pex_multi_resolve_2(tmpdir):
         )
     )
 
-    included_dists = get_dep_dist_names_from_pex(pex_path, "lxml")
+    included_dists = get_dep_dist_names_from_pex(pex_path, "p537")
     assert len(included_dists) == 4
-    for dist_substr in ("-cp27-", "-cp36-", "-manylinux1_x86_64", "-macosx_"):
+    for dist_substr in ("-cp37-", "-cp36-", "manylinux1_x86_64", "-macosx_"):
         assert any(dist_substr in f for f in included_dists), "{} was not found in wheel".format(
             dist_substr
         )

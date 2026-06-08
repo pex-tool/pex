@@ -101,5 +101,5 @@ def test_statically_linked_musl_libc_cpython_support(
                 """
             )
         )
-    output = subprocess.check_output(args=[pex, fortune_db])
+    output = subprocess.check_output(args=[statically_linked_musl_libc_cpython, pex, fortune_db])
     assert b"A day for firm decisions!!!!!  Or is it?\n" == output, output.decode("utf-8")
