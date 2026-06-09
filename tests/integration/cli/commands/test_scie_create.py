@@ -19,13 +19,13 @@ from pex.layout import Layout
 from pex.pep_440 import Version
 from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper
-from testing import PY310, PY311, ensure_python_interpreter, run_pex_command
+from testing import PY310, PY311, ensure_python_interpreter, make_env, run_pex_command
 from testing.cli import run_pex3
 from testing.pytest_utils.tmp import Tempdir
 from testing.scie import skip_if_no_provider
 
 if TYPE_CHECKING:
-    from typing import Optional, Text, Tuple
+    from typing import Any, Optional, Text, Tuple
 
 
 def test_not_a_pex(tmpdir):
@@ -75,15 +75,25 @@ def test_pex_too_old(tmpdir):
     )
 
 
-def get_version(*exe):
-    # type: (*Text) -> Version
-    return Version(subprocess.check_output(args=list(exe) + ["--version"]).decode("utf-8").strip())
+def get_version(
+    *exe,  # type: Text
+    **extra_env  # type: Any
+):
+    # type: (...) -> Version
+    return Version(
+        subprocess.check_output(args=list(exe) + ["--version"], env=make_env(**extra_env))
+        .decode("utf-8")
+        .strip()
+    )
 
 
-def create_scie(*args):
-    # type: (Text) -> Tuple[Text, Version]
+def create_scie(
+    *args,  # type: Text
+    **extra_env  # type: Any
+):
+    # type: (...) -> Tuple[Text, Version]
 
-    result = run_pex3("scie", "create", "--style", "eager", *args)
+    result = run_pex3("scie", "create", "--style", "eager", *args, env=make_env(**extra_env))
 
     match = re.search(r"^Saved PEX scie for .+ to (?P<path>.+)$", result.output)
     assert match is not None
@@ -91,7 +101,7 @@ def create_scie(*args):
     scie_path = match.group("path")
     assert scie_path is not None
 
-    return scie_path, get_version(scie_path)
+    return scie_path, get_version(scie_path, **extra_env)
 
 
 def test_pex_old(tmpdir):
@@ -99,9 +109,15 @@ def test_pex_old(tmpdir):
 
     pex_2_1_25 = download_pex_pex(tmpdir, "2.1.25")
 
+    # N.B.: Pex this old does not respect XDG_CACHE_DIR, which foils CI's cache image arrangement.
+    # We work around this by establishing a custom SCIE_BASE.
+    scie_base = tmpdir.join("nce")
+
     # N.B.: The 20251031 PBS release was the last to ship Python 3.9, which is the upper-bound of
     # supported Pythons for Pex 2.1.25.
-    scie_path, scie_version = create_scie("--scie-pbs-release", "20251031", pex_2_1_25)
+    scie_path, scie_version = create_scie(
+        "--scie-pbs-release", "20251031", pex_2_1_25, SCIE_BASE=scie_base
+    )
     assert scie_path != pex_2_1_25
     assert Version("2.1.25") == scie_version
 
