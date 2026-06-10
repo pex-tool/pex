@@ -1083,8 +1083,12 @@ class WheelBuilder(object):
     def _spawn_wheel_build(self, build_request):
         # type: (BuildRequest) -> SpawnedJob[BuildResult]
         source_path, editable = build_request.prepare()
+        # Use the original sdist path as the build cache key even if the sdist was prepared as an
+        # extracted project directory. Archives with subdirectories need the prepared path to keep the
+        # sub-project identity in the cache key.
         build_result = build_request.result(
-            source_path, honor_editable=self._build_configuration.honor_editable
+            source_path if build_request.subdirectory else None,
+            honor_editable=self._build_configuration.honor_editable,
         )
         if build_result.is_built:
             TRACER.log(

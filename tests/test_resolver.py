@@ -26,7 +26,7 @@ from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.package_repository import PYPI, Repo, ReposConfiguration
 from pex.resolve.resolver_configuration import BuildConfiguration, ResolverVersion
 from pex.resolve.resolvers import ResolvedDistribution, ResolveResult, Unsatisfiable
-from pex.resolver import download
+from pex.resolver import BuildRequest, WheelBuilder, download
 from pex.resolver import resolve as resolve_under_test
 from pex.targets import Target, Targets
 from pex.typing import TYPE_CHECKING
@@ -48,7 +48,7 @@ from testing import (
 from testing.pytest_utils.tmp import Tempdir
 
 if TYPE_CHECKING:
-    from typing import Any, DefaultDict, Iterable, Iterator, List, Union
+    from typing import Any, DefaultDict, Iterable, Iterator, List, Tuple, Union
 
     import attr  # vendor:skip
 else:
@@ -107,6 +107,35 @@ def disabled_cache():
     # from default PEX_ROOT to a temporary directory. We do the same here.
     with temporary_dir() as td, cache(td):
         yield
+
+
+def test_sdist_build_cache_key_is_original_archive(tmpdir, monkeypatch):
+    # type: (Any, Any) -> None
+    sdist_path = os.path.join(str(tmpdir), "project-1.0.tar.gz")
+    with open(sdist_path, "wb") as fp:
+        fp.write(b"Not really an sdist; just enough to fingerprint for this cache key test.")
+
+    build_request = BuildRequest.for_file(target=targets.current(), source_path=sdist_path)
+    cached_build = build_request.result()
+    os.makedirs(cached_build.dist_dir)
+
+    prepared_project = os.path.join(str(tmpdir), "prepared", "project-1.0")
+    os.makedirs(prepared_project)
+
+    def prepare(_build_request):
+        # type: (BuildRequest) -> Tuple[str, bool]
+        return prepared_project, False
+
+    def get_pip(*_args, **_kwargs):
+        # type: (*Any, **Any) -> Any
+        raise AssertionError("Expected the cached sdist build to be re-used.")
+
+    monkeypatch.setattr(BuildRequest, "prepare", prepare)
+    monkeypatch.setattr("pex.resolver.get_pip", get_pip)
+
+    build_result = WheelBuilder()._spawn_wheel_build(build_request).await_result()
+
+    assert cached_build.dist_dir == build_result.dist_dir
 
 
 def test_empty_resolve():

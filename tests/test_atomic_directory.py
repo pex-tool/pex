@@ -132,6 +132,22 @@ def test_atomic_directory_empty_workdir_finalized():
             ), "When the target_dir exists no work_dir should be created."
 
 
+def test_atomic_directory_finalize_cleans_work_dir_when_already_finalized():
+    # type: () -> None
+    with temporary_dir() as sandbox:
+        target_dir = os.path.join(sandbox, "target_dir")
+        os.mkdir(target_dir)
+
+        atomic_dir = AtomicDirectory(target_dir)
+        os.mkdir(atomic_dir.work_dir)
+        touch(os.path.join(atomic_dir.work_dir, "created"))
+
+        atomic_dir.finalize()
+
+        assert not os.path.exists(atomic_dir.work_dir)
+        assert not os.path.exists(os.path.join(target_dir, "created"))
+
+
 def test_atomic_directory_locked_mode():
     # type: () -> None
 

@@ -147,11 +147,11 @@ class AtomicDirectory(object):
         If a race is lost and `target_dir` already exists, the `target_dir` dir is left unchanged and
         the `work_dir` directory will simply be removed.
         """
-        if self.is_finalized():
-            return
-
-        source = os.path.join(self._work_dir, source) if source else self._work_dir
         try:
+            if self.is_finalized():
+                return
+
+            source = os.path.join(self._work_dir, source) if source else self._work_dir
             # Perform an atomic rename.
             #
             # Per the docs: https://docs.python.org/2.7/library/os.html#os.rename
