@@ -30,6 +30,15 @@ BASE_INPUT=(
   "${ROOT}/docker/base/Dockerfile"
   "${ROOT}/docker/base/install-pythons.py"
 )
+if [[ "${BASE_PYTHONS}" == "new" ]]; then
+  BASE_INPUT+=(
+    "${ROOT}/docker/base/new-versions.toml"
+  )
+else
+  BASE_INPUT+=(
+    "${ROOT}/docker/base/old-versions.toml"
+  )
+fi
 base_hash=$(cat "${BASE_INPUT[@]}" | git hash-object -t blob --stdin)
 
 function base_image_id() {
