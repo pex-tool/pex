@@ -42,8 +42,8 @@ NEW_VERSIONS = (
     DeadSnake("3.10.20", ["dev", "venv", "distutils"]),
     DeadSnake("3.11.15", ["dev", "venv"]),
     "3.12.13",
-    DeadSnake("3.13.13", ["dev", "venv"]),
-    DeadSnake("3.14.5", ["dev", "venv"]),
+    DeadSnake("3.13.14", ["dev", "venv"]),
+    DeadSnake("3.14.6", ["dev", "venv"]),
     DeadSnake("3.15.0~b2", ["dev", "venv"]),
     "pypy3.11-7.3.22",
 )
