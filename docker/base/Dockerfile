@@ -59,6 +59,7 @@ RUN mkdir -p -m 755 /etc/apt/keyrings && \
     DEBIAN_FRONTEND=noninteractive apt install --yes --no-install-recommends gh -y
 
 ARG PYTHONS=new
-COPY install-pythons.py /root/
-RUN uv run /root/install-pythons.py --pythons $PYTHONS && \
+COPY install-pythons.py /root/install-pythons.py
+COPY ${PYTHONS}-versions.toml /root/versions.toml
+RUN uv run /root/install-pythons.py /root/versions.toml && \
     uv python uninstall --all

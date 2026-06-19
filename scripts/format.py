@@ -40,7 +40,6 @@ def run_black(*args: str) -> None:
                 "--color",
                 *args,
                 "build-backend",
-                "docker",
                 "docs",
                 "package",
                 "pex",
@@ -48,6 +47,20 @@ def run_black(*args: str) -> None:
                 "setup.py",
                 "testing",
                 "tests",
+            ],
+            stdout=out_fd,
+            stderr=subprocess.STDOUT,
+            encoding="utf-8",
+            check=True,
+        )
+        subprocess.run(
+            args=[
+                "black",
+                "--color",
+                "--target-version",
+                "py310",
+                *args,
+                "docker",
             ],
             stdout=out_fd,
             stderr=subprocess.STDOUT,

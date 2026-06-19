@@ -1,0 +1,34 @@
+# N.B.: 2.7, 3.9 and 3.11 are needed in both version sets to run certain dev-cmd commands.
+
+# N.B.: These versions are installed on Ubuntu 20.04 and Dead Snakes only supports 22.04 and higher;
+# so we stick to pyenv.
+
+default-version = "python3.9"
+versions = [
+    # N.B.: New, but needed for some dev-cmd commands.
+    { source = "pyenv", version = "3.11.15" },
+
+    # Old:
+    { source = "pyenv", version = "2.7.18" },
+    { source = "pyenv", version = "3.5.10" },
+    { source = "pyenv", version = "3.6.15" },
+    { source = "pyenv", version = "3.7.17" },
+    { source = "pyenv", version = "3.8.20" },
+    { source = "pyenv", version = "3.9.25" },
+    { source = "pyenv", version = "pypy2.7-7.3.22" },
+    # This is served from:
+    #   https://bitbucket-archive.softwareheritage.org/static/14/140b7b14-aa94-424e-b191-9cd3438381f7/attachments/pypy3.5-7.0.0-linux_x86_64-portable.tar.bz2
+    # which has begun to prove flaky; so we comment out for now and perhaps need to drop or
+    # self-host:
+    # { source = "pyenv", version = "pypy3.5-7.0.0" },
+    # This is failing install for unknown reasons:
+    # { source = "pyenv", version = "pypy3.6-7.3.3" },
+    { source = "pyenv", version = "pypy3.7-7.3.9" },
+    { source = "pyenv", version = "pypy3.8-7.3.11" },
+    { source = "pyenv", version = "pypy3.9-7.3.16" },
+]
+
+# N.B.: These versions are installed on Ubuntu 20.04 which ships its own (older) CPython 3.8.
+uninstall-packages = [
+    "python3.8"
+]

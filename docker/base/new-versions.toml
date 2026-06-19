@@ -1,0 +1,23 @@
+# N.B.: 2.7, 3.9 and 3.11 are needed in both version sets to run certain dev-cmd commands.
+
+default-version = "python3.14"
+versions = [
+    # N.B.: Old, but needed for some dev-cmd commands.
+    { source = "pyenv", version = "2.7.18" },
+    { source = "dead-snakes", version = "3.9.25", packages = ["dev", "venv", "distutils"] },
+
+    # New:
+    { source = "dead-snakes", version = "3.10.20", packages = ["dev", "venv", "distutils"] },
+    { source = "dead-snakes", version = "3.11.15", packages = ["dev", "venv"] },
+    { source = "pyenv", version = "3.12.13" },
+    { source = "dead-snakes", version = "3.13.14", packages = ["dev", "venv"] },
+    { source = "dead-snakes", version = "3.14.6", packages = ["dev", "venv"] },
+    { source = "dead-snakes", version = "3.15.0~b2", packages = ["dev", "venv"] },
+    { source = "pyenv", version = "pypy3.10-7.3.19" },
+    { source = "pyenv", version = "pypy3.11-7.3.22" },
+]
+
+# N.B.: These versions are installed on Ubuntu 24.04 which ships its own (older) CPython 3.12.
+uninstall-packages = [
+    "python3.12"
+]
