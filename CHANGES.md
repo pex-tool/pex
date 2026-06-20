@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.96.1
+
+This release fixes `pex3 lock sync` to handle multiple input requirements for the same project
+name.
+
+* Fix `pex3 lock sync` for multiple requirements for the same project.
+
 ## 2.96.0
 
 This release adds support for `--pip-version 26.1.2`.
