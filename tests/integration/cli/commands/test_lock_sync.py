@@ -13,7 +13,7 @@ from textwrap import dedent
 import pytest
 
 from pex.atomic_directory import atomic_directory
-from pex.dist_metadata import find_distribution
+from pex.dist_metadata import Requirement, find_distribution
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import InterpreterConstraint
 from pex.pep_425 import CompatibilityTags
@@ -1473,6 +1473,9 @@ def test_sync_extras(tmpdir):
     assert ProjectName("sphinx-click") in updated_locked_requirements
 
 
+@pytest.mark.skipif(
+    sys.version_info[:2] < (3, 13), reason="The lock under test requires Python>=3.13."
+)
 def test_sync_multiple_top_level_requirements_for_single_project(tmpdir):
     # type: (Tempdir) -> None
 
@@ -1484,6 +1487,9 @@ def test_sync_multiple_top_level_requirements_for_single_project(tmpdir):
         run_pex3("lock", "sync", "--lock", lock_file, *extra_args).assert_success()
         lock = json_codec.load(lock_file)
 
+        assert frozenset(
+            (Requirement.parse("paramiko>=3.5.0"), Requirement.parse("paramiko>=3.5.0,<=4.0.0"))
+        ) == frozenset(lock.requirements)
         assert len(lock.locked_resolves) == 1
         locked_resolve = lock.locked_resolves[0]
 

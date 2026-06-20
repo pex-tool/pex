@@ -256,28 +256,39 @@ class ResolveUpdater(object):
     ):
         # type: (...) -> Union[ResolveUpdater, Error]
 
-        original_requirements_by_project_name = OrderedDict(
-            (requirement.project_name, requirement) for requirement in lock_file.requirements
-        )  # type: OrderedDict[ProjectName, Requirement]
+        original_requirements_by_project_name = (
+            OrderedDict()
+        )  # type: OrderedDict[ProjectName, OrderedSet[Requirement]]
+        for requirement in lock_file.requirements:
+            original_requirements_by_project_name.setdefault(
+                requirement.project_name, OrderedSet()
+            ).add(requirement)
 
-        replace_requirements = []  # type: List[Requirement]
+        parsed_requirements_by_project_name = (
+            OrderedDict()
+        )  # type: OrderedDict[ProjectName, OrderedSet[Requirement]]
         for parsed_requirement in parsed_requirements:
             if isinstance(parsed_requirement, (PyPIRequirement, URLRequirement, VCSRequirement)):
                 requirement = parsed_requirement.requirement
-                original_requirement = original_requirements_by_project_name.pop(
-                    requirement.project_name, None
-                )
-                if requirement != original_requirement:
-                    replace_requirements.append(requirement)
+                parsed_requirements_by_project_name.setdefault(
+                    requirement.project_name, OrderedSet()
+                ).add(requirement)
             else:
                 return Error(
                     "Cannot update a bare local project directory requirement on {path}.\n"
                     "Try re-phrasing as a PEP-508 direct reference with a file:// URL.\n"
                     "See: https://peps.python.org/pep-0508/".format(path=parsed_requirement.path)
                 )
+        replace_requirements = OrderedSet()  # type: OrderedSet[Requirement]
+        for project_name, parsed_requirements in parsed_requirements_by_project_name.items():
+            original_reqs = original_requirements_by_project_name.pop(project_name, None)
+            if not original_reqs or parsed_requirements != original_reqs:
+                replace_requirements.update(parsed_requirements)
 
         deletes = tuple(original_requirements_by_project_name) if parsed_requirements else ()
 
+        # TODO(John Sirois): Support multiple constraints for the same project name distinguished
+        #  by markers.
         original_constraints_by_project_name = OrderedDict(
             (constraint.project_name, constraint) for constraint in lock_file.constraints
         )  # type: OrderedDict[ProjectName, Constraint]
@@ -296,15 +307,24 @@ class ResolveUpdater(object):
                 )
             update_constraints_by_project_name[project_name] = requirement.as_constraint()
 
-        original_requirements = OrderedDict(
-            (requirement.project_name, requirement) for requirement in lock_file.requirements
-        )  # type: OrderedDict[ProjectName, Requirement]
-        original_requirements.update(
-            (replacement.project_name, replacement) for replacement in replace_requirements
-        )
+        original_requirements = (
+            OrderedDict()
+        )  # type: OrderedDict[ProjectName, OrderedSet[Requirement]]
+        for requirement in lock_file.requirements:
+            original_requirements.setdefault(requirement.project_name, OrderedSet()).add(
+                requirement
+            )
+        for replacement in replace_requirements:
+            original_requirements.pop(replacement.project_name, None)
+        for replacement in replace_requirements:
+            original_requirements.setdefault(replacement.project_name, OrderedSet()).add(
+                replacement
+            )
         return cls(
             requirement_configuration=requirement_configuration,
-            original_requirements=tuple(original_requirements.values()),
+            original_requirements=tuple(
+                itertools.chain.from_iterable(original_requirements.values())
+            ),
             update_constraints_by_project_name=update_constraints_by_project_name,
             deletes=frozenset(deletes),
             pure_delete=bool(deletes and not replace_requirements),
