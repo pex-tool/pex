@@ -13,7 +13,7 @@ from textwrap import dedent
 import pytest
 
 from pex.atomic_directory import atomic_directory
-from pex.dist_metadata import find_distribution
+from pex.dist_metadata import Requirement, find_distribution
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import InterpreterConstraint
 from pex.pep_425 import CompatibilityTags
@@ -43,6 +43,7 @@ from testing import (
     PY310,
     PY_VER,
     IntegResults,
+    data,
     ensure_python_interpreter,
     make_env,
     re_exact,
@@ -1470,3 +1471,34 @@ def test_sync_extras(tmpdir):
         assert locked_requirement == updated_locked_requirements.pop(project_name)
 
     assert ProjectName("sphinx-click") in updated_locked_requirements
+
+
+@pytest.mark.skipif(
+    sys.version_info[:2] < (3, 13), reason="The lock under test requires Python>=3.13."
+)
+def test_sync_multiple_top_level_requirements_for_single_project(tmpdir):
+    # type: (Tempdir) -> None
+
+    lock_file = tmpdir.join("lock.json")
+    shutil.copy(data.path("locks", "bug-report-pantsbuild-23407.lock.json"), lock_file)
+
+    def assert_sync(*extra_args):
+        # type: (*str) -> None
+        run_pex3("lock", "sync", "--lock", lock_file, *extra_args).assert_success()
+        lock = json_codec.load(lock_file)
+
+        assert frozenset(
+            (Requirement.parse("paramiko>=3.5.0"), Requirement.parse("paramiko>=3.5.0,<=4.0.0"))
+        ) == frozenset(lock.requirements)
+        assert len(lock.locked_resolves) == 1
+        locked_resolve = lock.locked_resolves[0]
+
+        locked_requirements = {
+            locked_requirement.pin.project_name: locked_requirement.pin.version
+            for locked_requirement in locked_resolve.locked_requirements
+        }
+        assert Version("4") == locked_requirements.pop(ProjectName("paramiko"))
+
+    assert_sync()
+    assert_sync("paramiko>=3.5.0", "paramiko>=3.5.0,<=4.0.0")
+    assert_sync("paramiko>=3.5.0,<=4.0.0", "paramiko>=3.5.0")

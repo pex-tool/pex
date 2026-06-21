@@ -1894,15 +1894,27 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
     ):
         # type: (...) -> Result
 
-        original_requirements_by_project_name = OrderedDict(
-            (requirement.project_name, requirement) for requirement in lock_file.requirements
-        )
-        requirements_by_project_name = OrderedDict(
-            (requirement.project_name, requirement) for requirement in lock_update.requirements
-        )
+        original_requirements_by_project_name = (
+            OrderedDict()
+        )  # type: OrderedDict[ProjectName, OrderedSet[Requirement]]
+        for requirement in lock_file.requirements:
+            original_requirements_by_project_name.setdefault(
+                requirement.project_name, OrderedSet()
+            ).add(requirement)
 
+        requirements_by_project_name = (
+            OrderedDict()
+        )  # type: OrderedDict[ProjectName, OrderedSet[Requirement]]
+        for requirement in lock_update.requirements:
+            requirements_by_project_name.setdefault(requirement.project_name, OrderedSet()).add(
+                requirement
+            )
+
+        # TODO(John Sirois): Support multiple constraints for the same project name distinguished
+        #  by markers.
         original_constraints_by_project_name = OrderedDict(
-            (constraint.project_name, constraint) for constraint in lock_file.constraints
+            (constraint.project_name, OrderedSet([constraint]))
+            for constraint in lock_file.constraints
         )
         constraints_by_project_name = original_constraints_by_project_name.copy()
 
@@ -1951,7 +1963,14 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                         "earlier. Found deleted project {project_name} in updated requirements:\n"
                         "{requirements}",
                         project_name=project_name,
-                        requirements="\n".join(map(str, requirements_by_project_name.values())),
+                        requirements="\n".join(
+                            map(
+                                str,
+                                itertools.chain.from_iterable(
+                                    requirements_by_project_name.values()
+                                ),
+                            )
+                        ),
                     )
                     constraints_by_project_name.pop(project_name, None)
                 elif isinstance(update, VersionUpdate):
@@ -1972,7 +1991,9 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                         # grab the latest version in the range already constrained by an existing
                         # requirement or constraint.
                         if update_req and str(update_req) != update_req.name:
-                            constraints_by_project_name[project_name] = update_req.as_constraint()
+                            constraints_by_project_name[project_name] = OrderedSet(
+                                [update_req.as_constraint()]
+                            )
                     else:
                         print(
                             "  {lead_in} {project_name} {updated_version}".format(
@@ -1983,7 +2004,9 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                             file=output,
                         )
                         if update_req:
-                            requirements_by_project_name[project_name] = update_req
+                            requirements_by_project_name.setdefault(project_name, OrderedSet()).add(
+                                update_req
+                            )
                 elif isinstance(update, ArtifactsUpdate):
                     message_lines = [
                         "  {lead_in} {project_name} {version} artifacts:".format(
@@ -2053,15 +2076,15 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 )
 
         def process_req_edit(
-            original,  # type: Optional[Constraint]
-            final,  # type: Optional[Constraint]
+            original,  # type: Iterable[Constraint]
+            final,  # type: Iterable[Constraint]
         ):
             # type: (...) -> None
             if not original:
                 print(
                     "  {lead_in} {requirement!r}".format(
                         lead_in="Would add" if dry_run else "Added",
-                        requirement=str(final),
+                        requirement=", ".join(map(str, final)),
                     ),
                     file=output,
                 )
@@ -2069,7 +2092,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 print(
                     "  {lead_in} {requirement!r}".format(
                         lead_in="Would delete" if dry_run else "Deleted",
-                        requirement=str(original),
+                        requirement=", ".join(map(str, original)),
                     ),
                     file=output,
                 )
@@ -2077,26 +2100,26 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 print(
                     "  {lead_in} {original!r} to {final!r}".format(
                         lead_in="Would update" if dry_run else "Updated",
-                        original=str(original),
-                        final=str(final),
+                        original=", ".join(map(str, original)),
+                        final=", ".join(map(str, final)),
                     ),
                     file=output,
                 )
 
         def process_req_edits(
             requirement_type,  # type: str
-            original,  # type: Mapping[ProjectName, Constraint]
-            final,  # type: Mapping[ProjectName, Constraint]
+            original,  # type: Mapping[ProjectName, Iterable[Constraint]]
+            final,  # type: Mapping[ProjectName, Iterable[Constraint]]
         ):
-            # type: (...) -> Tuple[Tuple[Optional[Constraint], Optional[Constraint]], ...]
-            edits = []  # type: List[Tuple[Optional[Constraint], Optional[Constraint]]]
-            for name, original_req in original.items():
-                final_req = final.get(name)
-                if final_req != original_req:
-                    edits.append((original_req, final_req))
-            for name, final_req in final.items():
+            # type: (...) -> Tuple[Tuple[Iterable[Constraint], Iterable[Constraint]], ...]
+            edits = []  # type: List[Tuple[Iterable[Constraint], Iterable[Constraint]]]
+            for name, original_reqs in original.items():
+                final_reqs = final.get(name, OrderedSet())
+                if final_reqs != original_reqs:
+                    edits.append((original_reqs, final_reqs))
+            for name, final_reqs in final.items():
                 if name not in original:
-                    edits.append((None, final_req))
+                    edits.append((OrderedSet(), final_reqs))
             if not edits:
                 return ()
 
@@ -2138,8 +2161,13 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 lock_file=attr.evolve(
                     lock_file,
                     pex_version=__version__,
-                    requirements=SortedTuple(requirements_by_project_name.values(), key=str),
-                    constraints=SortedTuple(constraints_by_project_name.values(), key=str),
+                    requirements=SortedTuple(
+                        itertools.chain.from_iterable(requirements_by_project_name.values()),
+                        key=str,
+                    ),
+                    constraints=SortedTuple(
+                        itertools.chain.from_iterable(constraints_by_project_name.values()), key=str
+                    ),
                     locked_resolves=SortedTuple(
                         resolve_update.updated_resolve for resolve_update in lock_update.resolves
                     ),
