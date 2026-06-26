@@ -3,6 +3,8 @@
 
 from __future__ import absolute_import
 
+import difflib
+import json
 import re
 
 from pex.dist_metadata import Requirement
@@ -82,8 +84,11 @@ def test_ics_implementation_conflicting():
     )
 
 
-def test_ics_implementation_covering_specifiers_matching(tmpdir):
-    # type: (Tempdir) -> None
+def test_ics_implementation_covering_specifiers_matching(
+    tmpdir,  # type: Tempdir
+    py311,  # type: PythonInterpreter
+):
+    # type: (...) -> None
 
     def lock_vcr(
         lock_file,  # type: str
@@ -95,12 +100,15 @@ def test_ics_implementation_covering_specifiers_matching(tmpdir):
             "create",
             "--style",
             "universal",
+            "--pip-version",
+            "latest-compatible",
             "vcrpy==7.0.0",
             "--indent",
             "2",
             "-o",
             lock_file,
-            *extra_args
+            *extra_args,
+            **dict(python=py311.binary)
         ).assert_success()
 
     lock1 = tmpdir.join("lock1.json")
@@ -117,7 +125,14 @@ def test_ics_implementation_covering_specifiers_matching(tmpdir):
         "--interpreter-constraint",
         ">=3.10,<3.12",
     )
-    assert normalize_lock_configuration(lock1) == normalize_lock_configuration(lock2)
+    lock1_normalized = normalize_lock_configuration(lock1)
+    lock2_normalized = normalize_lock_configuration(lock2)
+    assert lock1_normalized == lock2_normalized, "\n".join(
+        difflib.context_diff(
+            json.dumps(json_codec.as_json_data(lock1_normalized), indent=2).splitlines(),
+            json.dumps(json_codec.as_json_data(lock2_normalized), indent=2).splitlines(),
+        )
+    )
 
     lock3 = tmpdir.join("lock3.json")
     lock_vcr(
