@@ -126,10 +126,12 @@ class LockConfiguration(object):
             universal_target=UniversalTarget(
                 implementation=next(iter(implementations)) if len(implementations) == 1 else None,
                 requires_python=tuple(
-                    interpreter_constraint.requires_python
-                    for interpreter_constraint in interpreter_constraints
+                    OrderedSet(
+                        interpreter_constraint.requires_python
+                        for interpreter_constraint in interpreter_constraints
+                    )
                 ),
-                systems=tuple(systems),
+                systems=tuple(OrderedSet(systems)),
             ),
             elide_unused_requires_dist=elide_unused_requires_dist,
         )
