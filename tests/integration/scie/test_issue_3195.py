@@ -48,16 +48,17 @@ def test_scie_only_foreign_platform(
     ).assert_success()
     scies = glob.glob(tmpdir.join("scie*"))
     assert len(scies) == 1
-    for scie in scies:
-        # N.B.: Prove the scie is a scie and not a PEX by leveraging the fact we build scies using
-        # `--single-lift-line` such that the last "line" of the binary is the lift manifest.
-        manifest_contents = b""
-        with open(scie, "rb") as fp:
-            for line in fp:
-                manifest_contents = line
-        try:
-            manifest = json.loads(manifest_contents)
-        except ValueError:
-            raise AssertionError("The file at {scie} is not a scie.".format(scie=scie))
-        else:
-            assert "scie" == manifest["scie"]["lift"]["name"]
+    scie = scies[0]
+
+    # N.B.: Prove the scie is a scie and not a PEX by leveraging the fact we build scies using
+    # `--single-lift-line` such that the last "line" of the binary is the lift manifest.
+    manifest_contents = b""
+    with open(scie, "rb") as fp:
+        for line in fp:
+            manifest_contents = line
+    try:
+        manifest = json.loads(manifest_contents)
+    except ValueError:
+        raise AssertionError("The file at {scie} is not a scie.".format(scie=scie))
+    else:
+        assert "scie" == manifest["scie"]["lift"]["name"]
