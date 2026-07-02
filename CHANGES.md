@@ -1,11 +1,17 @@
 # Release Notes
 
+## 2.96.2
+
+This release fixes `--scie-only` for foreign platforms.
+
+* Fix `--scie-only` for foreign platforms. (#3196)
+
 ## 2.96.1
 
 This release fixes `pex3 lock sync` to handle multiple input requirements for the same project
 name.
 
-* Fix `pex3 lock sync` for multiple requirements for the same project.
+* Fix `pex3 lock sync` for multiple requirements for the same project. (#3191)
 
 ## 2.96.0
 
