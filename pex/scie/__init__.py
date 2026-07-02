@@ -361,8 +361,7 @@ def register_options(
         help=(
             "Should the Python Standalone Builds CPython distributions be free-threaded. If left "
             "unspecified or otherwise turned off, creating a scie from a PEX with free-threaded "
-            "abi wheels will automatically turn this option on. Note that this option is not "
-            "compatible with `--scie-pbs-stripped`."
+            "abi wheels will automatically turn this option on."
         ),
     )
     parser.add_argument(
@@ -388,7 +387,7 @@ def register_options(
             "Should the Python Standalone Builds CPython distributions used be stripped of debug "
             "symbols or not. For Linux and Windows particularly, the stripped distributions are "
             "less than half the size of the distributions that ship with debug symbols. Note that "
-            "this option is not compatible with `--scie-pbs-free-threaded` or `--scie-pbs-debug`."
+            "this option is not compatible with `--scie-pbs-debug`."
         ),
     )
     parser.add_argument(
@@ -588,10 +587,9 @@ def extract_options(options):
                 )
             )
 
-    if options.scie_pbs_stripped and (options.scie_pbs_free_threaded or options.scie_pbs_debug):
+    if options.scie_pbs_stripped and options.scie_pbs_debug:
         raise ValueError(
-            "Python Standalone Builds does not release stripped distributions for debug or "
-            "free-threaded builds."
+            "Python Standalone Builds does not release stripped distributions for debug builds."
         )
 
     science_binary = None  # type: Optional[Union[File, Url]]

@@ -7,6 +7,7 @@ import os.path
 import re
 import shutil
 import subprocess
+import time
 from collections import OrderedDict
 from subprocess import CalledProcessError
 
@@ -69,7 +70,7 @@ class Manifest(object):
 
 
 SCIENCE_RELEASES_URL = "https://github.com/a-scie/lift/releases"
-MIN_SCIENCE_VERSION = Version("0.18.1")
+MIN_SCIENCE_VERSION = Version("0.19.0")
 SCIENCE_REQUIREMENT = SpecifierSet("~={min_version}".format(min_version=MIN_SCIENCE_VERSION))
 
 
@@ -441,9 +442,20 @@ def create_manifests(
             interpreter_config["base_url"] = "/".join(
                 (configuration.options.assets_base_url, "providers", str(interpreter.provider))
             )
-        if Provider.PythonBuildStandalone is interpreter.provider and not (
-            configuration.options.pbs_debug or pbs_free_threaded
+
+        install_only_available = Provider.PythonBuildStandalone is interpreter.provider
+        if install_only_available and configuration.options.pbs_debug:
+            install_only_available = False
+        if (
+            install_only_available
+            and pbs_free_threaded
+            and interpreter.release
+            and time.strptime(interpreter.release, "%Y%m%d") < time.strptime("20260320", "%Y%m%d")
         ):
+            # N.B.: Builds for free-threaded gained install_only & install_only_stripped flavors as
+            # of https://github.com/astral-sh/python-build-standalone/releases/tag/20260320
+            install_only_available = False
+        if install_only_available:
             interpreter_config.update(
                 flavor=(
                     "install_only_stripped"
