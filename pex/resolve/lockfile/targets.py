@@ -123,7 +123,6 @@ def _iter_universal_targets(
         has_marker(marker, "python_full_version") for marker in split_markers.values()
     )
     if has_python_full_version:
-        # TODO: XXX: when iter_compatible_versions, for any complete range of major.minor, use .*
         complete_version_sets = _group_patch_versions(iter_compatible_versions([]))
         actual_version_sets = _group_patch_versions(
             iter_compatible_versions(universal_target.requires_python)
