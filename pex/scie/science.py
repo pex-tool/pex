@@ -776,6 +776,10 @@ def build(
                         (
                             manifest.qualified_binary_name(name)
                             if use_platform_suffix
+                            or (
+                                use_platform_suffix is None
+                                and manifest.interpreter.platform != SysPlatform.CURRENT
+                            )
                             else manifest.binary_name(name)
                         ),
                     ),
