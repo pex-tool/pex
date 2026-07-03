@@ -572,8 +572,10 @@ class ResolveUpdater(object):
                         candidate_updates = []
                         for (index, lr) in enumerate(updated_lock_file.locked_resolves):
                             if (
-                                lr.marker == locked_resolve.marker
-                                and lr.platform_tag == locked_resolve.platform_tag
+                                lr.platform_tag == locked_resolve.platform_tag
+                                # N.B.: Older versions of packaging vendored for older Pythons don't
+                                # implement __eq__ for Marker; so we str(...)
+                                and str(lr.marker) == str(locked_resolve.marker)
                             ):
                                 candidate_updates.append(lr)
                         production_assert(
