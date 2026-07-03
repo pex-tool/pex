@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.97.0
+
+This release adds support for using `--scie-pbs-stripped` in combination with
+`--scie-pbs-free-threaded`.
+
+* Support PBS free-threaded `install_only(_stripped)`. (#3197)
+
 ## 2.96.2
 
 This release fixes `--scie-only` for foreign platforms.

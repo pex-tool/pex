@@ -350,7 +350,7 @@ def test_specified_science_binary(tmpdir):
 
     local_science_binary = os.path.join(str(tmpdir), "science")
     with open(local_science_binary, "wb") as write_fp, URLFetcher().get_body_stream(
-        "https://github.com/a-scie/lift/releases/download/v0.18.1/{binary}".format(
+        "https://github.com/a-scie/lift/releases/download/v0.19.0/{binary}".format(
             binary=SysPlatform.CURRENT.qualified_binary_name("science")
         )
     ) as read_fp:
@@ -394,7 +394,7 @@ def test_specified_science_binary(tmpdir):
         cached_science_binaries
     ), "Expected the local science binary to be used but not cached."
     assert (
-        "0.18.1"
+        "0.19.0"
         == subprocess.check_output(args=[local_science_binary, "--version"]).decode("utf-8").strip()
     )
 
@@ -1349,6 +1349,9 @@ def test_free_threaded_scie_auto_detected(tmpdir):
             "eager",
             "--scie-only",
             "--scie-pbs-free-threaded",
+            # N.B.: Exercise selection of old free-threaded -full builds.
+            "--scie-pbs-release",
+            "20260310",
             "-o",
             free_threaded_python,
         ]
@@ -1356,7 +1359,16 @@ def test_free_threaded_scie_auto_detected(tmpdir):
 
     scie = tmpdir.join("scie")
     run_pex_command(
-        args=["--scie", "eager", "psutil", "--scie-only", "-o", scie],
+        args=[
+            "--scie",
+            "eager",
+            "psutil",
+            "--scie-only",
+            # N.B.: Exercise selection of newer free-threaded install_only(_stripped) builds.
+            "--scie-pbs-stripped",
+            "-o",
+            scie,
+        ],
         python=free_threaded_python,
         use_pex_whl_venv=False,
     ).assert_success()
