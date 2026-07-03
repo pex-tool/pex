@@ -81,6 +81,7 @@ from pex.resolve.target_system import TargetSystem, UniversalTarget
 from pex.result import Error, Ok, Result, try_
 from pex.sorted_tuple import SortedTuple
 from pex.targets import LocalInterpreter, Target, Targets
+from pex.third_party.packaging.markers import Marker
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
 from pex.venv.virtualenv import InvalidVirtualenvError, Virtualenv
@@ -1910,12 +1911,13 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 requirement
             )
 
-        # TODO(John Sirois): Support multiple constraints for the same project name distinguished
-        #  by markers.
-        original_constraints_by_project_name = OrderedDict(
-            (constraint.project_name, OrderedSet([constraint]))
-            for constraint in lock_file.constraints
-        )
+        original_constraints_by_project_name = (
+            OrderedDict()
+        )  # type: OrderedDict[ProjectName, OrderedSet[Constraint]]
+        for constraint in lock_file.constraints:
+            original_constraints_by_project_name.setdefault(
+                constraint.project_name, OrderedSet()
+            ).add(constraint)
         constraints_by_project_name = original_constraints_by_project_name.copy()
 
         dry_run = self.options.dry_run
@@ -1991,8 +1993,26 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                         # grab the latest version in the range already constrained by an existing
                         # requirement or constraint.
                         if update_req and str(update_req) != update_req.name:
-                            constraints_by_project_name[project_name] = OrderedSet(
-                                [update_req.as_constraint()]
+                            constraints = constraints_by_project_name.setdefault(
+                                project_name, OrderedSet()
+                            )
+                            if resolve_update.updated_resolve.marker and update_req.marker:
+                                marker = Marker(
+                                    "({first}) and ({second})".format(
+                                        first=update_req.marker,
+                                        second=resolve_update.updated_resolve.marker,
+                                    )
+                                )
+                            elif resolve_update.updated_resolve.marker:
+                                marker = resolve_update.updated_resolve.marker
+                            else:
+                                marker = update_req.marker
+                            constraints.add(
+                                Constraint(
+                                    name=update_req.name,
+                                    specifier=update_req.specifier,
+                                    marker=marker,
+                                )
                             )
                     else:
                         print(

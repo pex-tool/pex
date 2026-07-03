@@ -86,6 +86,21 @@ def _calculate_split_markers(
     return split_markers
 
 
+def _group_patch_versions(patch_version_iter):
+    # type: (Iterator[Tuple[int, int, int]]) -> OrderedDict[Tuple[int, int], OrderedSet[Tuple[int, int, int]]]
+    grouped = OrderedDict()  # type: OrderedDict[Tuple[int, int], OrderedSet[Tuple[int, int, int]]]
+    for version in patch_version_iter:
+        major_minor = version[:2]  # type: Tuple[int, int]
+        value = grouped.get(major_minor, None)
+        if value is not None:
+            version_set = value
+        else:
+            version_set = OrderedSet()
+            grouped[major_minor] = version_set
+        version_set.add(version)
+    return grouped
+
+
 def _iter_universal_targets(
     universal_target,  # type: UniversalTarget
     split_markers,  # type: Mapping[str, Marker]
@@ -108,14 +123,27 @@ def _iter_universal_targets(
         has_marker(marker, "python_full_version") for marker in split_markers.values()
     )
     if has_python_full_version:
-        requires_pythons.update(
-            SpecifierSet(
-                "=={major}.{minor}.{patch}".format(
-                    major=version[0], minor=version[1], patch=version[2]
-                )
-            )
-            for version in iter_compatible_versions(universal_target.requires_python)
+        # TODO: XXX: when iter_compatible_versions, for any complete range of major.minor, use .*
+        complete_version_sets = _group_patch_versions(iter_compatible_versions([]))
+        actual_version_sets = _group_patch_versions(
+            iter_compatible_versions(universal_target.requires_python)
         )
+        for major_minor, version_set in actual_version_sets.items():
+            if version_set == complete_version_sets.get(major_minor):
+                requires_pythons.add(
+                    SpecifierSet(
+                        "=={major}.{minor}.*".format(major=major_minor[0], minor=major_minor[1])
+                    )
+                )
+            else:
+                for version in version_set:
+                    requires_pythons.add(
+                        SpecifierSet(
+                            "=={major}.{minor}.{patch}".format(
+                                major=version[0], minor=version[1], patch=version[2]
+                            )
+                        )
+                    )
     elif has_python_version:
         requires_pythons.update(
             SpecifierSet("=={major}.{minor}.*".format(major=version[0], minor=version[1]))

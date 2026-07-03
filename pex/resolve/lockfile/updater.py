@@ -12,6 +12,7 @@ from pex.artifact_url import ArtifactURL, Fingerprint
 from pex.common import pluralize
 from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import Constraint, Requirement
+from pex.exceptions import production_assert
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.pep_440 import Version
@@ -33,6 +34,7 @@ from pex.result import Error, ResultError, catch, try_
 from pex.sorted_tuple import SortedTuple
 from pex.targets import Target, Targets
 from pex.third_party.packaging import tags
+from pex.third_party.packaging.markers import Marker
 from pex.typing import TYPE_CHECKING
 from pex.util import named_temporary_file
 
@@ -287,15 +289,16 @@ class ResolveUpdater(object):
 
         deletes = tuple(original_requirements_by_project_name) if parsed_requirements else ()
 
-        # TODO(John Sirois): Support multiple constraints for the same project name distinguished
-        #  by markers.
-        original_constraints_by_project_name = OrderedDict(
-            (constraint.project_name, constraint) for constraint in lock_file.constraints
-        )  # type: OrderedDict[ProjectName, Constraint]
-
+        original_constraints_by_project_name = (
+            OrderedDict()
+        )  # type: OrderedDict[ProjectName, OrderedSet[Constraint]]
+        for constraint in lock_file.constraints:
+            original_constraints_by_project_name.setdefault(
+                constraint.project_name, OrderedSet()
+            ).add(constraint)
         update_constraints_by_project_name = (
             OrderedDict()
-        )  # type: OrderedDict[ProjectName, Constraint]
+        )  # type: OrderedDict[ProjectName, OrderedSet[Constraint]]
         for requirement in replace_requirements:
             project_name = requirement.project_name
             original_constraint = original_constraints_by_project_name.get(project_name)
@@ -305,7 +308,9 @@ class ResolveUpdater(object):
                         original=original_constraint, override=requirement
                     )
                 )
-            update_constraints_by_project_name[project_name] = requirement.as_constraint()
+            update_constraints_by_project_name.setdefault(project_name, OrderedSet()).add(
+                requirement.as_constraint()
+            )
 
         original_requirements = (
             OrderedDict()
@@ -355,13 +360,16 @@ class ResolveUpdater(object):
             (replacement.project_name, replacement) for replacement in replacements
         )
 
-        original_constraints_by_project_name = OrderedDict(
-            (constraint.project_name, constraint) for constraint in lock_file.constraints
-        )  # type: OrderedDict[ProjectName, Constraint]
-
+        original_constraints_by_project_name = (
+            OrderedDict()
+        )  # type: OrderedDict[ProjectName, OrderedSet[Constraint]]
+        for constraint in lock_file.constraints:
+            original_constraints_by_project_name.setdefault(
+                constraint.project_name, OrderedSet()
+            ).add(constraint)
         update_constraints_by_project_name = (
             OrderedDict()
-        )  # type: OrderedDict[ProjectName, Constraint]
+        )  # type: OrderedDict[ProjectName, OrderedSet[Constraint]]
         for change in itertools.chain(updates, replacements):
             project_name = change.project_name
             original_constraint = original_constraints_by_project_name.get(project_name)
@@ -371,7 +379,9 @@ class ResolveUpdater(object):
                         original=original_constraint, override=change
                     )
                 )
-            update_constraints_by_project_name[project_name] = change.as_constraint()
+            update_constraints_by_project_name.setdefault(project_name, OrderedSet()).add(
+                change.as_constraint()
+            )
 
         return cls(
             requirement_configuration=RequirementConfiguration(
@@ -392,7 +402,9 @@ class ResolveUpdater(object):
 
     requirement_configuration = attr.ib()  # type: RequirementConfiguration
     original_requirements = attr.ib()  # type: Iterable[Requirement]
-    update_constraints_by_project_name = attr.ib()  # type: Mapping[ProjectName, Constraint]
+    update_constraints_by_project_name = (
+        attr.ib()
+    )  # type: Mapping[ProjectName, Iterable[Constraint]]
     deletes = attr.ib()  # type: Container[ProjectName]
     pure_delete = attr.ib()  # type: bool
     lock_configuration = attr.ib()  # type: LockConfiguration
@@ -437,15 +449,33 @@ class ResolveUpdater(object):
             ):
                 continue
 
-            constraint = update_constraints_by_project_name.pop(
-                pin.project_name, pinned_requirement
-            )
-            constraints.append(str(constraint))
+            for constraint in update_constraints_by_project_name.pop(
+                pin.project_name, [pinned_requirement]
+            ):
+                if locked_resolve.marker and constraint.marker:
+                    marker = Marker(
+                        "({first}) and ({second})".format(
+                            first=constraint.marker, second=locked_resolve.marker
+                        )
+                    )
+                elif locked_resolve.marker:
+                    marker = locked_resolve.marker
+                else:
+                    marker = constraint.marker
+                constraints.append(
+                    str(
+                        Constraint(
+                            name=constraint.name, specifier=constraint.specifier, marker=marker
+                        )
+                    )
+                )
 
         # Any update constraints remaining are new requirements to resolve.
         requirements.update(
             as_parsed_requirement(constraint.as_requirement())
-            for constraint in update_constraints_by_project_name.values()
+            for constraint in itertools.chain.from_iterable(
+                update_constraints_by_project_name.values()
+            )
         )
 
         if not constraints:
@@ -536,8 +566,25 @@ class ResolveUpdater(object):
                             avoid_downloads=self.avoid_downloads,
                         )
                     )
-                    assert 1 == len(updated_lock_file.locked_resolves)
-                    updated_resolve = updated_lock_file.locked_resolves[0]
+                    if len(updated_lock_file.locked_resolves) == 1:
+                        updated_resolve = updated_lock_file.locked_resolves[0]
+                    else:
+                        candidate_updates = []
+                        for (index, lr) in enumerate(updated_lock_file.locked_resolves):
+                            if (
+                                lr.marker == locked_resolve.marker
+                                and lr.platform_tag == locked_resolve.platform_tag
+                            ):
+                                candidate_updates.append(lr)
+                        production_assert(
+                            len(candidate_updates) == 1,
+                            (
+                                "Update of locked resolve should have produced one result, "
+                                "found {count}."
+                            ),
+                            count=len(candidate_updates),
+                        )
+                        updated_resolve = candidate_updates[0]
                     updated_requirements = updated_lock_file.requirements
 
         updates = OrderedDict()  # type: OrderedDict[ProjectName, Optional[Update]]
