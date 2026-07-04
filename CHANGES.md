@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.97.1
+
+This release fixes `pex3 lock sync` to handle split `--style universal` locks.
+
+* Fix `pex3 lock sync` for split universal locks. (#3200)
+
 ## 2.97.0
 
 This release adds support for using `--scie-pbs-stripped` in combination with
