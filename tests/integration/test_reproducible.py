@@ -111,11 +111,18 @@ def assert_reproducible_build(
 @pytest.fixture(scope="module")
 def major_compatible_pythons():
     # type: () -> Tuple[str, ...]
-    return (
-        (sys.executable, ensure_python_interpreter(PY27))
-        if PY2
-        else (sys.executable, ensure_python_interpreter(PY310), ensure_python_interpreter(PY311))
-    )
+    if PY2:
+        return sys.executable, ensure_python_interpreter(PY27)
+    else:
+        pythons = sys.executable, ensure_python_interpreter(PY310), ensure_python_interpreter(PY311)
+        pip_version = compatible_pip_version(pythons)
+        if sys.version_info[:2] >= (3, 15) and pip_version is not PipVersion.ADHOC and pip_version <= PipVersion.v26_1_2:
+            pytest.skip(
+                "Pex under Python>=3.15 requires the Pip fix in "
+                "https://github.com/pypa/pip/commit/7456712c30e7bd8944f6d92fba60b7fcfe62017b which "
+                "will be included in Pip 26.2 to maintain proper build isolation."
+            )
+        return pythons
 
 
 @pytest.fixture(scope="module")
