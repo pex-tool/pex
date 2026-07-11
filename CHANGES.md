@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.97.2
+
+This release updates vendored Pip's vendored certifi's cacert.pem to that from certifi 2026.6.17.
+
+* Update vendored Pip's CA cert bundle. (#3202)
+
 ## 2.97.1
 
 This release fixes `pex3 lock sync` to handle split `--style universal` locks.
