@@ -11,6 +11,7 @@ from pex.artifact_url import ArtifactURL, Fingerprint
 from pex.atomic_directory import atomic_directory
 from pex.cache.dirs import CacheDir, DownloadDir
 from pex.common import safe_mkdir, safe_mkdtemp
+from pex.fs.lock import FileLockStyle
 from pex.hashing import Sha256
 from pex.jobs import Job, Raise, SpawnedJob, execute_parallel
 from pex.pip import foreign_platform
@@ -63,7 +64,9 @@ class ArtifactDownloader(object):
         hashing.file_hash(path, digest)
         fingerprint = digest.hexdigest()
         target_dir = DownloadDir.create(file_hash=fingerprint)
-        with atomic_directory(target_dir) as atomic_dir:
+        # All writers to the fingerprint-addressed DownloadDir cache must use the same lock domain.
+        # POSIX record locks and BSD flock locks do not exclude one another on Linux.
+        with atomic_directory(target_dir, lock_style=FileLockStyle.BSD) as atomic_dir:
             if not atomic_dir.is_finalized():
                 shutil.move(path, os.path.join(atomic_dir.work_dir, os.path.basename(path)))
         return Fingerprint.from_hashing_fingerprint(fingerprint)
