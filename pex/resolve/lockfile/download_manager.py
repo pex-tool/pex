@@ -129,7 +129,7 @@ class DownloadManager(Generic["_A"]):
     def __init__(
         self,
         pex_root=ENV,  # type: Union[str, Variables]
-        file_lock_style=FileLockStyle.POSIX,  # type: FileLockStyle.Value
+        file_lock_style=FileLockStyle.BSD,  # type: FileLockStyle.Value
     ):
         # type: (...) -> None
         self._pex_root = pex_root

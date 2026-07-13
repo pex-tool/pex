@@ -10,6 +10,7 @@ import pytest
 from pex import hashing
 from pex.artifact_url import ArtifactURL, Fingerprint
 from pex.cache.dirs import CacheDir
+from pex.fs.lock import FileLockStyle
 from pex.hashing import Sha1Fingerprint, Sha256Fingerprint
 from pex.pep_503 import ProjectName
 from pex.resolve.locked_resolve import FileArtifact
@@ -106,6 +107,12 @@ def test_storage_cache(
     downloaded_artifact2 = download_manager.store(artifact, project_name)
     assert downloaded_artifact1 == downloaded_artifact2
     assert 1 == len(download_manager.save_calls)
+
+
+def test_download_cache_uses_bsd_locks(download_manager):
+    # type: (FakeDownloadManager) -> None
+
+    assert FileLockStyle.BSD is download_manager._file_lock_style
 
 
 def test_storage_version_upgrade(
