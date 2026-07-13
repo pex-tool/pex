@@ -8,7 +8,7 @@ import json
 import os
 
 from pex import hashing
-from pex.atomic_directory import atomic_directory
+from pex.atomic_directory import AtomicDirectory, atomic_directory
 from pex.cache.dirs import DownloadDir
 from pex.common import safe_mkdtemp, safe_rmtree
 from pex.fs.lock import FileLockStyle
@@ -173,10 +173,30 @@ class DownloadManager(Generic["_A"]):
             if not retry:
                 raise ResultError(Error(str(e)))
 
-            TRACER.log(
-                "Found outdated downloaded artifact metadata, upgrading: {err}".format(err=e)
-            )
-            safe_rmtree(download_dir)
+            if hasattr(artifact, "fingerprint"):
+                # `atomic_directory` deliberately takes a lock only when its target does not
+                # exist. Re-check invalid metadata under the artifact lock: another process may
+                # have repaired it after our failed load but before we acquired the lock.
+                cached_download = AtomicDirectory(target_dir=download_dir, locked=True)
+                with cached_download.locked(lock_style=self._file_lock_style):
+                    try:
+                        return DownloadedArtifact.load(download_dir)
+                    except DownloadedArtifact.LoadError as locked_error:
+                        TRACER.log(
+                            "Found outdated downloaded artifact metadata, upgrading: "
+                            "{err}".format(err=locked_error)
+                        )
+                        safe_rmtree(download_dir)
+            else:
+                # Unfingerprinted artifacts use a private temporary directory, not the shared
+                # download cache, so there is no artifact lock to acquire for cleanup.
+                TRACER.log(
+                    "Found outdated downloaded artifact metadata, upgrading: {err}".format(err=e)
+                )
+                safe_rmtree(download_dir)
+
+            # Do not rebuild while holding the artifact lock: Pex's in-process file lock is
+            # intentionally non-reentrant. `atomic_directory` will re-check after acquiring it.
             return self.store(artifact, project_name, retry=False)
 
     def _download(
