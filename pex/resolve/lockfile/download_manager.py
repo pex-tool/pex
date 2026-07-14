@@ -269,9 +269,7 @@ class DownloadManager(Generic["_A"]):
         except DownloadedArtifact.LoadError as e:
             if filename is None:
                 dists = [
-                    path
-                    for path in os.listdir(download_dir)
-                    if os.path.isfile(path) and is_wheel(path) or is_sdist(path)
+                    path for path in os.listdir(download_dir) if is_wheel(path) or is_sdist(path)
                 ]
                 if not dists:
                     raise ResultError(
