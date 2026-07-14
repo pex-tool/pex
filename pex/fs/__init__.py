@@ -6,14 +6,13 @@ from __future__ import absolute_import
 import os
 import sys
 from contextlib import contextmanager
-from typing import IO, BinaryIO, TextIO
 from uuid import uuid4
 
 from pex.os import WINDOWS
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from typing import Iterator, Text
+    from typing import IO, BinaryIO, Iterator, Text, TextIO
 
 if WINDOWS and not hasattr(os, "replace"):
     _MOVEFILE_REPLACE_EXISTING = 0x1
