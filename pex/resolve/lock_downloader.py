@@ -3,12 +3,13 @@
 
 from __future__ import absolute_import
 
+import glob
 import os
 import shutil
 from collections import OrderedDict
 from multiprocessing.pool import ThreadPool
 
-from pex import resolver
+from pex import hashing, resolver
 from pex.auth import PasswordDatabase
 from pex.common import pluralize
 from pex.compatibility import cpu_count
@@ -17,7 +18,7 @@ from pex.network_configuration import NetworkConfiguration
 from pex.pep_503 import ProjectName
 from pex.pip.local_project import digest_local_project
 from pex.pip.tool import PackageIndexConfiguration
-from pex.pip.vcs import digest_vcs_archive
+from pex.pip.vcs import digest_vcs_archive, find_vcs_archive
 from pex.pip.version import PipVersionValue
 from pex.requirements import parse_requirement_string
 from pex.resolve.downloads import ArtifactDownloader
@@ -34,7 +35,7 @@ from pex.resolve.lockfile.download_manager import DownloadedArtifact, DownloadMa
 from pex.resolve.package_repository import ReposConfiguration
 from pex.resolve.resolver_configuration import BuildConfiguration, ResolverVersion
 from pex.resolve.resolvers import MAX_PARALLEL_DOWNLOADS, Resolver
-from pex.result import Error, catch
+from pex.result import Error, ResultError, catch, try_
 from pex.targets import Target, Targets
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV, Variables
@@ -57,6 +58,17 @@ class FileArtifactDownloadManager(DownloadManager[FileArtifact]):
     ):
         super(FileArtifactDownloadManager, self).__init__(pex_root=pex_root)
         self._downloader = downloader
+
+    def digest(
+        self,
+        artifact,  # type: FileArtifact
+        project_name,  # type: ProjectName
+        download_dir,  # type: str
+        digest,  # type: HintedDigest
+    ):
+        # type: (...) -> str
+        hashing.file_hash(path=os.path.join(download_dir, artifact.filename), digest=digest)
+        return artifact.filename
 
     def save(
         self,
@@ -103,6 +115,24 @@ class VCSArtifactDownloadManager(DownloadManager[VCSArtifact]):
         self._use_pip_config = use_pip_config
         self._extra_pip_requirements = extra_pip_requirements
         self._keyring_provider = keyring_provider
+
+    def digest(
+        self,
+        artifact,  # type: Union[UnFingerprintedVCSArtifact, VCSArtifact]
+        project_name,  # type: ProjectName
+        download_dir,  # type: str
+        digest,  # type: HintedDigest
+    ):
+        # type: (...) -> str
+
+        archive_path = try_(find_vcs_archive(download_dir))
+        digest_vcs_archive(
+            project_name=project_name,
+            archive_path=archive_path,
+            vcs=artifact.vcs,
+            digest=digest,
+        )
+        return os.path.basename(archive_path)
 
     def save(
         self,
@@ -169,6 +199,44 @@ class LocalProjectDownloadManager(DownloadManager[LocalProjectArtifact]):
         self._target = target
         self._pip_version = pip_version
         self._resolver = resolver
+
+    def digest(
+        self,
+        artifact,  # type: Union[LocalProjectArtifact, UnFingerprintedLocalProjectArtifact]
+        project_name,  # type: ProjectName
+        download_dir,  # type: str
+        digest,  # type: HintedDigest
+    ):
+        # type: (...) -> str
+
+        top_level_directories = [
+            path for path in glob.glob(os.path.join(download_dir, "*")) if os.path.isdir(path)
+        ]
+        if not top_level_directories:
+            raise ResultError(
+                Error(
+                    "Found no project source directory for {project_name} in download directory "
+                    "{download_dir}.".format(project_name=project_name, download_dir=download_dir)
+                )
+            )
+        if len(top_level_directories) > 1:
+            raise ResultError(
+                Error(
+                    "Found more than one potential project source directory for {project_name} in "
+                    "download directory {download_dir}:\n"
+                    "{top_level_directories}".format(
+                        project_name=project_name,
+                        download_dir=download_dir,
+                        top_level_directories="\n".join(
+                            "{idx}. {directory}".format(idx=idx, directory=directory)
+                            for idx, directory in enumerate(top_level_directories, start=1)
+                        ),
+                    )
+                )
+            )
+        project_dir = top_level_directories[0]
+        hashing.dir_hash(directory=project_dir, digest=digest)
+        return os.path.basename(project_dir)
 
     def save(
         self,

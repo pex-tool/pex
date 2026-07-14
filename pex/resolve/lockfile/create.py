@@ -13,7 +13,7 @@ from pex.auth import PasswordDatabase
 from pex.build_system import pep_517
 from pex.common import pluralize, safe_mkdtemp
 from pex.dependency_configuration import DependencyConfiguration
-from pex.dist_metadata import DistMetadata, ProjectNameAndVersion, Requirement
+from pex.dist_metadata import DistMetadata, ProjectNameAndVersion, Requirement, is_sdist, is_wheel
 from pex.exceptions import production_assert
 from pex.fetcher import URLFetcher
 from pex.jobs import Job, Retain, SpawnedJob, execute_parallel
@@ -58,7 +58,7 @@ from pex.resolver import (
 )
 from pex.resolver import download_requests as pip_download_requests
 from pex.resolver import reports as pip_reports
-from pex.result import Error, try_
+from pex.result import Error, ResultError, try_
 from pex.targets import Target, Targets
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
@@ -228,6 +228,43 @@ class CreateLockDownloadManager(DownloadManager[Artifact]):
 
         for artifact, project_name in self._path_and_version_by_artifact_and_project_name:
             self.store(artifact, project_name)
+
+    def digest(
+        self,
+        artifact,  # type: Artifact
+        project_name,  # type: ProjectName
+        download_dir,  # type: str
+        digest,  # type: HintedDigest
+    ):
+        # type: (...) -> str
+
+        archives = [path for path in os.listdir(download_dir) if is_sdist(path) or is_wheel(path)]
+        if not archives:
+            raise ResultError(
+                Error(
+                    "Found no artifact for {project_name} in download directory "
+                    "{download_dir}.".format(project_name=project_name, download_dir=download_dir)
+                )
+            )
+        if len(archives) > 1:
+            raise ResultError(
+                Error(
+                    "Found more than one artifact for {project_name} in download directory "
+                    "{download_dir}:\n"
+                    "{artifacts}".format(
+                        project_name=project_name,
+                        download_dir=download_dir,
+                        artifacts="\n".join(
+                            "{idx}. {artifact}".format(idx=idx, artifact=artifact)
+                            for idx, artifact in enumerate(archives, start=1)
+                        ),
+                    )
+                )
+            )
+        filename = archives[0]
+        archive = os.path.join(download_dir, filename)
+        hashing.file_hash(archive, digest=digest)
+        return filename
 
     def save(
         self,

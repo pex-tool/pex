@@ -48,6 +48,17 @@ class FakeDownloadManager(DownloadManager[FileArtifact]):
         # type: () -> List[str]
         return self._calls
 
+    def digest(
+        self,
+        artifact,  # type: FileArtifact
+        project_name,  # type: ProjectName
+        download_dir,  # type: str
+        digest,  # type: HintedDigest
+    ):
+        # type: (...) -> str
+        digest.update(self._content)
+        return artifact.filename
+
     def save(
         self,
         artifact,  # type: FileArtifact
@@ -57,10 +68,11 @@ class FakeDownloadManager(DownloadManager[FileArtifact]):
     ):
         # type: (...) -> Union[str, Error]
         self.save_calls.append(dest_dir)
-        digest.update(self._content)
         with safe_open(os.path.join(dest_dir, artifact.filename), "wb") as fp:
             fp.write(self._content)
-        return artifact.filename
+        return self.digest(
+            artifact=artifact, project_name=project_name, download_dir=dest_dir, digest=digest
+        )
 
 
 @pytest.fixture

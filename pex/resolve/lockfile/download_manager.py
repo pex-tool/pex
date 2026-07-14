@@ -11,7 +11,6 @@ from pex import hashing
 from pex.atomic_directory import atomic_directory
 from pex.cache.dirs import DownloadDir
 from pex.common import safe_mkdtemp
-from pex.dist_metadata import is_sdist, is_wheel
 from pex.fs import atomic_text_file
 from pex.hashing import Sha256, Sha256Fingerprint
 from pex.pep_503 import ProjectName
@@ -51,27 +50,6 @@ class DownloadedArtifact(object):
     def metadata_filename(artifact_dir):
         # type: (str) -> str
         return os.path.join(artifact_dir, "metadata.json")
-
-    @classmethod
-    def upgrade_existing(
-        cls,
-        artifact,  # type: _A
-        project_name,  # type: ProjectName
-        download_dir,  # type: str
-        filename,  # type: str
-    ):
-        # type: (...) -> DownloadedArtifact
-
-        artifact_digests = ArtifactDigests(artifact)
-        archive = os.path.join(download_dir, filename)
-        hashing.file_hash(archive, artifact_digests.digest)
-        artifact_digests.check(project_name=project_name)
-        return cls.store(
-            artifact=artifact,
-            artifact_dir=download_dir,
-            filename=filename,
-            artifact_digests=artifact_digests,
-        )
 
     @classmethod
     def store(
@@ -245,7 +223,6 @@ class DownloadManager(Generic["_A"]):
                 artifact.directory, fingerprint=digest.hexdigest(), editable=True
             )
 
-        filename = None  # type: Optional[str]
         if hasattr(artifact, "fingerprint"):
             fingerprint = getattr(artifact, "fingerprint")
             download_dir = DownloadDir.create(
@@ -259,48 +236,37 @@ class DownloadManager(Generic["_A"]):
                         )
                     )
                 else:
-                    filename = self._download(artifact, project_name, atomic_dir.work_dir)
+                    downloaded_artifact = self._download(
+                        artifact, project_name, atomic_dir.work_dir
+                    )
+                    return attr.evolve(
+                        downloaded_artifact,
+                        path=os.path.join(download_dir, os.path.basename(downloaded_artifact.path)),
+                    )
         else:
             download_dir = safe_mkdtemp()
-            filename = self._download(artifact, project_name, download_dir)
+            return self._download(artifact, project_name, download_dir)
 
+        # N.B.: DownloadDir atomic_directory cache hit case.
         try:
             return DownloadedArtifact.load(download_dir)
         except DownloadedArtifact.LoadError as e:
-            if filename is None:
-                dists = [
-                    path for path in os.listdir(download_dir) if is_wheel(path) or is_sdist(path)
-                ]
-                if not dists:
-                    raise ResultError(
-                        Error(
-                            "No downloaded artifact for {url} found under {dir}: {err}".format(
-                                url=artifact.url, dir=download_dir, err=e
-                            )
-                        )
-                    )
-                if len(dists) > 1:
-                    raise ResultError(
-                        Error(
-                            "More than one downloaded artifact found for {url} under {dir}: {err}\n"
-                            "{dists}".format(
-                                url=artifact.url,
-                                dir=download_dir,
-                                err=e,
-                                dists="\n".join(
-                                    "{idx}. {dist}".format(idx=idx, dist=dist)
-                                    for idx, dist in enumerate(dists, start=1)
-                                ),
-                            )
-                        )
-                    )
-                filename = dists[0]
-
             TRACER.log(
                 "Found outdated downloaded artifact metadata, upgrading: {err}".format(err=e)
             )
-            return DownloadedArtifact.upgrade_existing(
-                artifact, project_name, download_dir, filename
+            artifact_digests = ArtifactDigests(artifact)
+            filename = self.digest(
+                artifact=artifact,
+                project_name=project_name,
+                download_dir=download_dir,
+                digest=artifact_digests.digest,
+            )
+            artifact_digests.check(project_name)
+            return DownloadedArtifact.store(
+                artifact=artifact,
+                artifact_dir=download_dir,
+                filename=filename,
+                artifact_digests=artifact_digests,
             )
 
     def _download(
@@ -309,7 +275,7 @@ class DownloadManager(Generic["_A"]):
         project_name,  # type: ProjectName
         dest_dir,  # type: str
     ):
-        # type: (...) -> str
+        # type: (...) -> DownloadedArtifact
 
         artifact_digests = ArtifactDigests(artifact)
         with TRACER.timed(
@@ -326,13 +292,23 @@ class DownloadManager(Generic["_A"]):
                 )
             )
         artifact_digests.check(project_name=project_name)
-        DownloadedArtifact.store(
+        return DownloadedArtifact.store(
             artifact=artifact,
             artifact_dir=dest_dir,
             filename=filename,
             artifact_digests=artifact_digests,
         )
-        return filename
+
+    def digest(
+        self,
+        artifact,  # type: _A
+        project_name,  # type: ProjectName
+        download_dir,  # type: str
+        digest,  # type: HintedDigest
+    ):
+        # type: (...) -> str
+        """Digest the given `artifact` under `dest_dir` and return the saved file name."""
+        raise NotImplementedError()
 
     def save(
         self,
