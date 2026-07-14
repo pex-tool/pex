@@ -10,6 +10,7 @@ import pytest
 from pex import hashing
 from pex.artifact_url import ArtifactURL, Fingerprint
 from pex.cache.dirs import CacheDir
+from pex.common import safe_open
 from pex.pep_503 import ProjectName
 from pex.resolve.locked_resolve import FileArtifact
 from pex.resolve.lockfile.download_manager import (
@@ -57,6 +58,8 @@ class FakeDownloadManager(DownloadManager[FileArtifact]):
         # type: (...) -> Union[str, Error]
         self.save_calls.append(dest_dir)
         digest.update(self._content)
+        with safe_open(os.path.join(dest_dir, artifact.filename), "wb") as fp:
+            fp.write(self._content)
         return artifact.filename
 
 
@@ -126,6 +129,7 @@ def test_storage_version_upgrade(
         os.path.join(root, f)
         for root, _, files in os.walk(os.path.dirname(downloaded_artifact1.path))
         for f in files
+        if f == "metadata.json"
     )
     assert len(files) > 0, "We expect at least one metadata file."
     for f in files:
@@ -133,12 +137,9 @@ def test_storage_version_upgrade(
 
     downloaded_artifact2 = download_manager.store(artifact, project_name)
     assert downloaded_artifact1 == downloaded_artifact2
-    assert 2 == len(
-        download_manager.save_calls
-    ), "Expected two save calls signalling a re-build of the artifact storage."
-    assert 1 == len(set(download_manager.save_calls)), (
-        "Expected each save call is with the same atomic directory work dir signalling a re-build "
-        "of the same artifact storage."
+    assert 1 == len(download_manager.save_calls), (
+        "Expected one save call establishing initial artifact storage. "
+        "Metadata repair should occur separately inline."
     )
 
 
