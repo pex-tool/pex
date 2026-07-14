@@ -10,10 +10,13 @@ import pytest
 from pex import hashing
 from pex.artifact_url import ArtifactURL, Fingerprint
 from pex.cache.dirs import CacheDir
-from pex.hashing import Sha1Fingerprint, Sha256Fingerprint
 from pex.pep_503 import ProjectName
 from pex.resolve.locked_resolve import FileArtifact
-from pex.resolve.lockfile.download_manager import DownloadedArtifact, DownloadManager
+from pex.resolve.lockfile.download_manager import (
+    ArtifactDigests,
+    DownloadedArtifact,
+    DownloadManager,
+)
 from pex.result import Error, catch
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV, Variables
@@ -142,23 +145,37 @@ def test_storage_version_upgrade(
 def test_storage_version_downgrade_v0(tmpdir):
     # type: (Any) -> None
 
+    # N.B.: This test relies on the hashes of no bytes:
+    # sha1:   da39a3ee5e6b4b0d3255bfef95601890afd80709
+    # sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+
+    artifact = FileArtifact(
+        url=ArtifactURL.parse("https://example.com"),
+        verified=True,
+        fingerprint=Fingerprint(
+            algorithm="sha256", hash="da39a3ee5e6b4b0d3255bfef95601890afd80709"
+        ),
+        filename="foo",
+    )
+
+    artifact_digests = ArtifactDigests(artifact)
     DownloadedArtifact.store(
+        artifact=artifact,
         artifact_dir=str(tmpdir),
         filename="foo",
-        legacy_fingerprint=Sha1Fingerprint("bar"),
-        fingerprint=Sha256Fingerprint("baz"),
+        artifact_digests=artifact_digests,
     )
 
     # We should always be emitting v0 metadata since versions of Pex that emitted that format did
     # not have an upgrade (downgrade) mechanism.
     with open(os.path.join(str(tmpdir), "sha1")) as fp:
-        assert "bar" == fp.read()
+        assert "da39a3ee5e6b4b0d3255bfef95601890afd80709" == fp.read()
 
     with open(DownloadedArtifact.metadata_filename(str(tmpdir))) as fp:
         assert (
             dict(
                 algorithm="sha256",
-                hexdigest="baz",
+                hexdigest="e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
                 filename="foo",
                 subdirectory=None,
                 editable=False,

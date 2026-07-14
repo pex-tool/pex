@@ -5,12 +5,15 @@ from __future__ import absolute_import
 
 import os
 import sys
+from contextlib import contextmanager
+from typing import IO, BinaryIO, TextIO
+from uuid import uuid4
 
 from pex.os import WINDOWS
-from pex.typing import TYPE_CHECKING
+from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from typing import Text
+    from typing import Iterator, Text
 
 if WINDOWS and not hasattr(os, "replace"):
     _MOVEFILE_REPLACE_EXISTING = 0x1
@@ -123,3 +126,29 @@ if WINDOWS and not hasattr(os, "link"):
 
 else:
     safe_link = getattr(os, "link")
+
+
+@contextmanager
+def atomic_binary_file(path):
+    # type: (Text) -> Iterator[BinaryIO]
+    with _atomic_file(path, "wb") as fp:
+        yield cast("BinaryIO", fp)
+
+
+@contextmanager
+def atomic_text_file(path):
+    # type: (Text) -> Iterator[TextIO]
+    with _atomic_file(path, "w") as fp:
+        yield cast("TextIO", fp)
+
+
+@contextmanager
+def _atomic_file(
+    path,  # type: Text
+    mode,  # type: str
+):
+    # type: (...) -> Iterator[IO]
+
+    with open("{path}.{suffix}".format(path=path, suffix=uuid4().hex), mode) as fp:
+        yield fp
+    safe_rename(fp.name, path)
