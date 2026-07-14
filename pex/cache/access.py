@@ -9,7 +9,6 @@ from contextlib import contextmanager
 
 from pex.common import touch
 from pex.fs import lock
-from pex.fs.lock import FileLockStyle
 from pex.os import WINDOWS
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
@@ -72,7 +71,7 @@ def _lock(exclusive):
 
     lock_file = os.path.join(ENV.PEX_ROOT, "access.lck")
 
-    file_lock = lock.acquire(lock_file, exclusive=exclusive, style=FileLockStyle.BSD, fd=lock_fd)
+    file_lock = lock.acquire(lock_file, exclusive=exclusive, fd=lock_fd)
     _LOCK = exclusive, file_lock.fd, lock_file
     return lock_file
 

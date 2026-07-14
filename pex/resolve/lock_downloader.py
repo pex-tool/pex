@@ -13,7 +13,6 @@ from pex.auth import PasswordDatabase
 from pex.common import pluralize
 from pex.compatibility import cpu_count
 from pex.dist_metadata import Requirement
-from pex.fs.lock import FileLockStyle
 from pex.network_configuration import NetworkConfiguration
 from pex.pep_503 import ProjectName
 from pex.pip.local_project import digest_local_project
@@ -53,13 +52,10 @@ else:
 class FileArtifactDownloadManager(DownloadManager[FileArtifact]):
     def __init__(
         self,
-        file_lock_style,  # type: FileLockStyle.Value
         downloader,  # type: ArtifactDownloader
         pex_root=ENV,  # type: Union[str, Variables]
     ):
-        super(FileArtifactDownloadManager, self).__init__(
-            pex_root=pex_root, file_lock_style=file_lock_style
-        )
+        super(FileArtifactDownloadManager, self).__init__(pex_root=pex_root)
         self._downloader = downloader
 
     def save(
@@ -77,7 +73,6 @@ class VCSArtifactDownloadManager(DownloadManager[VCSArtifact]):
     def __init__(
         self,
         target,  # type: Target
-        file_lock_style,  # type: FileLockStyle.Value
         repos_configuration=ReposConfiguration(),  # type: ReposConfiguration
         resolver_version=None,  # type: Optional[ResolverVersion.Value]
         network_configuration=None,  # type: Optional[NetworkConfiguration]
@@ -90,9 +85,7 @@ class VCSArtifactDownloadManager(DownloadManager[VCSArtifact]):
         extra_pip_requirements=(),  # type: Tuple[Requirement, ...]
         keyring_provider=None,  # type: Optional[str]
     ):
-        super(VCSArtifactDownloadManager, self).__init__(
-            pex_root=pex_root, file_lock_style=file_lock_style
-        )
+        super(VCSArtifactDownloadManager, self).__init__(pex_root=pex_root)
         self._target = target
         self._repos_configuration = repos_configuration
         self._resolver_version = resolver_version
@@ -168,14 +161,11 @@ class LocalProjectDownloadManager(DownloadManager[LocalProjectArtifact]):
     def __init__(
         self,
         target,  # type: Target
-        file_lock_style,  # type: FileLockStyle.Value
         resolver,  # type: Resolver
         pip_version=None,  # type: Optional[PipVersionValue]
         pex_root=ENV,  # type: Union[str, Variables]
     ):
-        super(LocalProjectDownloadManager, self).__init__(
-            pex_root=pex_root, file_lock_style=file_lock_style
-        )
+        super(LocalProjectDownloadManager, self).__init__(pex_root=pex_root)
         self._target = target
         self._pip_version = pip_version
         self._resolver = resolver
@@ -221,13 +211,6 @@ class LockDownloader(object):
     ):
         # type: (...) -> LockDownloader
 
-        # Since the download managers are stored to via a thread pool, we need to use BSD style locks.
-        # These locks are not as portable as POSIX style locks but work with threading unlike POSIX
-        # locks which are subject to threading-unaware deadlock detection per the standard. Linux, in
-        # fact, implements deadlock detection for POSIX locks; so we can run afoul of false EDEADLCK
-        # errors under the right interleaving of processes and threads and download artifact targets.
-        file_lock_style = FileLockStyle.BSD
-
         password_database = PasswordDatabase.from_netrc().append(
             repos_configuration.password_entries
         )
@@ -236,7 +219,6 @@ class LockDownloader(object):
         )
         file_download_managers_by_target = {
             target: FileArtifactDownloadManager(
-                file_lock_style=file_lock_style,
                 downloader=ArtifactDownloader(
                     resolver=resolver,
                     universal_target=lock_configuration.universal_target,
@@ -259,7 +241,6 @@ class LockDownloader(object):
         vcs_download_managers_by_target = {
             target: VCSArtifactDownloadManager(
                 target=target,
-                file_lock_style=file_lock_style,
                 repos_configuration=repos_configuration,
                 resolver_version=resolver_version,
                 network_configuration=network_configuration,
@@ -275,7 +256,6 @@ class LockDownloader(object):
 
         local_project_download_managers_by_target = {
             target: LocalProjectDownloadManager(
-                file_lock_style=file_lock_style,
                 pip_version=pip_version,
                 target=target,
                 resolver=resolver,

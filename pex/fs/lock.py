@@ -6,7 +6,6 @@ from __future__ import absolute_import
 import os
 
 from pex.common import safe_mkdir
-from pex.enum import Enum
 from pex.os import WINDOWS
 from pex.typing import TYPE_CHECKING
 
@@ -16,17 +15,6 @@ if TYPE_CHECKING:
     import attr  # vendor:skip
 else:
     from pex.third_party import attr
-
-
-class FileLockStyle(Enum["FileLockStyle.Value"]):
-    class Value(Enum.Value):
-        pass
-
-    BSD = Value("bsd")
-    POSIX = Value("posix")
-
-
-FileLockStyle.seal()
 
 
 @attr.s(frozen=True)
@@ -50,7 +38,6 @@ class FileLock(object):
 def acquire(
     path,  # type: str
     exclusive=True,  # type: bool
-    style=FileLockStyle.POSIX,  # type: FileLockStyle.Value
     fd=None,  # type: Optional[int]
 ):
     # type: (...) -> FileLock
@@ -68,22 +55,19 @@ def acquire(
 
         return WindowsFileLock.acquire(lock_fd, exclusive=exclusive)
     else:
-        from pex.fs._posix import PosixFileLock
+        from pex.fs._unix import UnixFileLock
 
-        return PosixFileLock.acquire(lock_fd, exclusive=exclusive, style=style)
+        return UnixFileLock.acquire(lock_fd, exclusive=exclusive)
 
 
-def release(
-    fd,  # type: int
-    style=FileLockStyle.POSIX,  # type: FileLockStyle.Value
-):
-    # type: (...) -> None
+def release(fd):
+    # type: (int) -> None
 
     if WINDOWS:
         from pex.fs._windows import WindowsFileLock
 
         WindowsFileLock.release_lock(fd)
     else:
-        from pex.fs._posix import PosixFileLock
+        from pex.fs._unix import UnixFileLock
 
-        PosixFileLock.release_lock(fd, style=style)
+        UnixFileLock.release_lock(fd)
