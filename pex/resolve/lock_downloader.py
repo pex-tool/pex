@@ -8,17 +8,16 @@ import shutil
 from collections import OrderedDict
 from multiprocessing.pool import ThreadPool
 
-from pex import resolver
+from pex import hashing, resolver, sdist
 from pex.auth import PasswordDatabase
-from pex.common import pluralize
+from pex.common import pluralize, safe_mkdtemp
 from pex.compatibility import cpu_count
-from pex.dist_metadata import Requirement
-from pex.fs.lock import FileLockStyle
+from pex.dist_metadata import Requirement, is_sdist
 from pex.network_configuration import NetworkConfiguration
 from pex.pep_503 import ProjectName
 from pex.pip.local_project import digest_local_project
 from pex.pip.tool import PackageIndexConfiguration
-from pex.pip.vcs import digest_vcs_archive
+from pex.pip.vcs import digest_vcs_archive, find_vcs_archive
 from pex.pip.version import PipVersionValue
 from pex.requirements import parse_requirement_string
 from pex.resolve.downloads import ArtifactDownloader
@@ -35,7 +34,7 @@ from pex.resolve.lockfile.download_manager import DownloadedArtifact, DownloadMa
 from pex.resolve.package_repository import ReposConfiguration
 from pex.resolve.resolver_configuration import BuildConfiguration, ResolverVersion
 from pex.resolve.resolvers import MAX_PARALLEL_DOWNLOADS, Resolver
-from pex.result import Error, catch
+from pex.result import Error, ResultError, catch, try_
 from pex.targets import Target, Targets
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV, Variables
@@ -53,14 +52,22 @@ else:
 class FileArtifactDownloadManager(DownloadManager[FileArtifact]):
     def __init__(
         self,
-        file_lock_style,  # type: FileLockStyle.Value
         downloader,  # type: ArtifactDownloader
         pex_root=ENV,  # type: Union[str, Variables]
     ):
-        super(FileArtifactDownloadManager, self).__init__(
-            pex_root=pex_root, file_lock_style=file_lock_style
-        )
+        super(FileArtifactDownloadManager, self).__init__(pex_root=pex_root)
         self._downloader = downloader
+
+    def digest(
+        self,
+        artifact,  # type: FileArtifact
+        project_name,  # type: ProjectName
+        download_dir,  # type: str
+        digest,  # type: HintedDigest
+    ):
+        # type: (...) -> str
+        hashing.file_hash(path=os.path.join(download_dir, artifact.filename), digest=digest)
+        return artifact.filename
 
     def save(
         self,
@@ -77,7 +84,6 @@ class VCSArtifactDownloadManager(DownloadManager[VCSArtifact]):
     def __init__(
         self,
         target,  # type: Target
-        file_lock_style,  # type: FileLockStyle.Value
         repos_configuration=ReposConfiguration(),  # type: ReposConfiguration
         resolver_version=None,  # type: Optional[ResolverVersion.Value]
         network_configuration=None,  # type: Optional[NetworkConfiguration]
@@ -90,9 +96,7 @@ class VCSArtifactDownloadManager(DownloadManager[VCSArtifact]):
         extra_pip_requirements=(),  # type: Tuple[Requirement, ...]
         keyring_provider=None,  # type: Optional[str]
     ):
-        super(VCSArtifactDownloadManager, self).__init__(
-            pex_root=pex_root, file_lock_style=file_lock_style
-        )
+        super(VCSArtifactDownloadManager, self).__init__(pex_root=pex_root)
         self._target = target
         self._repos_configuration = repos_configuration
         self._resolver_version = resolver_version
@@ -110,6 +114,24 @@ class VCSArtifactDownloadManager(DownloadManager[VCSArtifact]):
         self._use_pip_config = use_pip_config
         self._extra_pip_requirements = extra_pip_requirements
         self._keyring_provider = keyring_provider
+
+    def digest(
+        self,
+        artifact,  # type: Union[UnFingerprintedVCSArtifact, VCSArtifact]
+        project_name,  # type: ProjectName
+        download_dir,  # type: str
+        digest,  # type: HintedDigest
+    ):
+        # type: (...) -> str
+
+        archive_path = try_(find_vcs_archive(download_dir))
+        digest_vcs_archive(
+            project_name=project_name,
+            archive_path=archive_path,
+            vcs=artifact.vcs,
+            digest=digest,
+        )
+        return os.path.basename(archive_path)
 
     def save(
         self,
@@ -168,17 +190,52 @@ class LocalProjectDownloadManager(DownloadManager[LocalProjectArtifact]):
     def __init__(
         self,
         target,  # type: Target
-        file_lock_style,  # type: FileLockStyle.Value
         resolver,  # type: Resolver
         pip_version=None,  # type: Optional[PipVersionValue]
         pex_root=ENV,  # type: Union[str, Variables]
     ):
-        super(LocalProjectDownloadManager, self).__init__(
-            pex_root=pex_root, file_lock_style=file_lock_style
-        )
+        super(LocalProjectDownloadManager, self).__init__(pex_root=pex_root)
         self._target = target
         self._pip_version = pip_version
         self._resolver = resolver
+
+    def digest(
+        self,
+        artifact,  # type: Union[LocalProjectArtifact, UnFingerprintedLocalProjectArtifact]
+        project_name,  # type: ProjectName
+        download_dir,  # type: str
+        digest,  # type: HintedDigest
+    ):
+        # type: (...) -> str
+
+        sdists = [path for path in os.listdir(download_dir) if is_sdist(path)]
+        if not sdists:
+            raise ResultError(
+                Error(
+                    "Found no project source distribution for {project_name} in download directory "
+                    "{download_dir}.".format(project_name=project_name, download_dir=download_dir)
+                )
+            )
+        if len(sdists) > 1:
+            raise ResultError(
+                Error(
+                    "Found more than one potential project source distribution for {project_name} "
+                    "in download directory {download_dir}:\n"
+                    "{sdists}".format(
+                        project_name=project_name,
+                        download_dir=download_dir,
+                        sdists="\n".join(
+                            "{idx}. {directory}".format(idx=idx, directory=directory)
+                            for idx, directory in enumerate(sdists, start=1)
+                        ),
+                    )
+                )
+            )
+        sdist_path = os.path.join(download_dir, sdists[0])
+
+        project_dir = sdist.extract_tarball(sdist_path, dest_dir=safe_mkdtemp())
+        hashing.dir_hash(directory=project_dir, digest=digest)
+        return os.path.basename(sdist_path)
 
     def save(
         self,
@@ -221,13 +278,6 @@ class LockDownloader(object):
     ):
         # type: (...) -> LockDownloader
 
-        # Since the download managers are stored to via a thread pool, we need to use BSD style locks.
-        # These locks are not as portable as POSIX style locks but work with threading unlike POSIX
-        # locks which are subject to threading-unaware deadlock detection per the standard. Linux, in
-        # fact, implements deadlock detection for POSIX locks; so we can run afoul of false EDEADLCK
-        # errors under the right interleaving of processes and threads and download artifact targets.
-        file_lock_style = FileLockStyle.BSD
-
         password_database = PasswordDatabase.from_netrc().append(
             repos_configuration.password_entries
         )
@@ -236,7 +286,6 @@ class LockDownloader(object):
         )
         file_download_managers_by_target = {
             target: FileArtifactDownloadManager(
-                file_lock_style=file_lock_style,
                 downloader=ArtifactDownloader(
                     resolver=resolver,
                     universal_target=lock_configuration.universal_target,
@@ -259,7 +308,6 @@ class LockDownloader(object):
         vcs_download_managers_by_target = {
             target: VCSArtifactDownloadManager(
                 target=target,
-                file_lock_style=file_lock_style,
                 repos_configuration=repos_configuration,
                 resolver_version=resolver_version,
                 network_configuration=network_configuration,
@@ -275,7 +323,6 @@ class LockDownloader(object):
 
         local_project_download_managers_by_target = {
             target: LocalProjectDownloadManager(
-                file_lock_style=file_lock_style,
                 pip_version=pip_version,
                 target=target,
                 resolver=resolver,

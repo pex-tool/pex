@@ -199,9 +199,8 @@ def lock_pex_project_dir():
         return
 
     from pex.fs import lock
-    from pex.fs.lock import FileLockStyle
 
-    lck = lock.acquire(__file__ + ".lck", exclusive=True, style=FileLockStyle.BSD)
+    lck = lock.acquire(__file__ + ".lck", exclusive=True)
     os.environ["_PEX_LOCKED_PROJECT_DIR"] = str(os.getpid())
     try:
         yield

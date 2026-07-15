@@ -8,9 +8,8 @@ from contextlib import contextmanager
 
 import pytest
 
-from pex.atomic_directory import AtomicDirectory, _lock_style, atomic_directory
-from pex.common import environment_as, temporary_dir, touch
-from pex.fs.lock import FileLockStyle
+from pex.atomic_directory import AtomicDirectory, atomic_directory
+from pex.common import temporary_dir, touch
 from pex.typing import TYPE_CHECKING
 
 try:
@@ -20,29 +19,6 @@ except ImportError:
 
 if TYPE_CHECKING:
     from typing import Iterator, Optional, Type
-
-
-def test_is_bsd_lock():
-    # type: () -> None
-
-    assert FileLockStyle.BSD is not _lock_style(
-        lock_style=None
-    ), "Expected the default lock style to be POSIX for maximum compatibility."
-    assert FileLockStyle.BSD is not _lock_style(lock_style=FileLockStyle.POSIX)
-    assert FileLockStyle.BSD is _lock_style(lock_style=FileLockStyle.BSD)
-
-    # The hard-coded default is already POSIX, so setting the env var default changes nothing.
-    with environment_as(_PEX_FILE_LOCK_STYLE="posix"):
-        assert FileLockStyle.BSD is not _lock_style(lock_style=None)
-        assert FileLockStyle.BSD is not _lock_style(lock_style=FileLockStyle.POSIX)
-        assert FileLockStyle.BSD is _lock_style(lock_style=FileLockStyle.BSD)
-
-    with environment_as(_PEX_FILE_LOCK_STYLE="bsd"):
-        assert FileLockStyle.BSD is _lock_style(
-            lock_style=None
-        ), "Expected the default lock style to be taken from the environment when defined."
-        assert FileLockStyle.BSD is not _lock_style(lock_style=FileLockStyle.POSIX)
-        assert FileLockStyle.BSD is _lock_style(lock_style=FileLockStyle.BSD)
 
 
 @contextmanager

@@ -29,7 +29,7 @@ def _project_name_re(project_name):
     return project_name.normalized.replace("-", "[-_.]+")
 
 
-def _built_source_dist_pattern(project_name):
+def _vcs_archive_pattern(project_name):
     # type: (ProjectName) -> Pattern
     return re.compile(
         r"(?P<project_name>{project_name_re})-(?P<version>.+)\.zip".format(
@@ -39,29 +39,54 @@ def _built_source_dist_pattern(project_name):
     )
 
 
-def _find_built_source_dist(
-    build_dir,  # type: str
-    project_name,  # type: ProjectName
-    version,  # type: Version
+def find_vcs_archive(
+    directory,  # type: str
+    project_name=None,  # type: Optional[ProjectName]
+    version=None,  # type: Optional[Version]
 ):
     # type: (...) -> Union[str, Error]
 
     # All VCS requirements are prepared as zip archives with this naming scheme as
     # encoded in: `pip._internal.req.req_install.InstallRequirement.archive`.
 
-    listing = os.listdir(build_dir)
-    pattern = _built_source_dist_pattern(project_name)
-    for name in listing:
-        match = pattern.match(name)
-        if match and Version(match.group("version")) == version:
-            return os.path.join(build_dir, name)
+    listing = os.listdir(directory)
+    if not project_name:
+        vcs_archives = [name for name in listing if name.endswith(".zip")]
+        if not vcs_archives:
+            return Error(
+                "Found no VCS archive in directory {directory}.".format(directory=directory)
+            )
+        if len(vcs_archives) > 1:
+            return Error(
+                "Found more than one VCS archive in directory {directory}:\n"
+                "{archives}".format(
+                    directory=directory,
+                    archives="\n".join(
+                        "{idx}. {archive}".format(idx=idx, archive=archive)
+                        for idx, archive in enumerate(vcs_archives, start=1)
+                    ),
+                )
+            )
+        return os.path.join(directory, vcs_archives[0])
+    else:
+        pattern = _vcs_archive_pattern(project_name)
+        for name in listing:
+            match = pattern.match(name)
+            if match and (not version or Version(match.group("version")) == version):
+                return os.path.join(directory, name)
 
     return Error(
-        "Expected to find built sdist for {project_name} {version} in {build_dir} but only found:\n"
+        "Expected to find built sdist for {project_name_and_version} in {directory} but only "
+        "found:\n"
         "{listing}".format(
-            project_name=project_name.raw,
-            version=version.raw,
-            build_dir=build_dir,
+            project_name_and_version=(
+                "{project_name} {version}".format(
+                    project_name=project_name.raw, version=version.raw
+                )
+                if version
+                else project_name.raw
+            ),
+            directory=directory,
             listing="\n".join(listing),
         )
     )
@@ -76,7 +101,7 @@ def fingerprint_downloaded_vcs_archive(
     # type: (...) -> Tuple[Fingerprint, str]
 
     archive_path = try_(
-        _find_built_source_dist(build_dir=download_dir, project_name=project_name, version=version)
+        find_vcs_archive(directory=download_dir, project_name=project_name, version=version)
     )
     digest = Sha256()
     digest_vcs_archive(project_name=project_name, archive_path=archive_path, vcs=vcs, digest=digest)
@@ -141,7 +166,7 @@ def digest_vcs_archive(
 
     # The zip archives created by Pip have a single project name top-level directory housing
     # the full clone. We look for that to get a consistent clone hash with a bare clone.
-    match = _built_source_dist_pattern(project_name).match(os.path.basename(archive_path))
+    match = _vcs_archive_pattern(project_name).match(os.path.basename(archive_path))
     if match is None:
         raise AssertionError(
             reportable_unexpected_error_msg(

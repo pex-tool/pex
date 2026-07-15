@@ -10,9 +10,9 @@ import os
 from pex import hashing
 from pex.atomic_directory import atomic_directory
 from pex.cache.dirs import DownloadDir
-from pex.common import safe_mkdtemp, safe_rmtree
-from pex.fs.lock import FileLockStyle
-from pex.hashing import Sha256
+from pex.common import safe_mkdtemp
+from pex.fs import atomic_text_file
+from pex.hashing import Sha256, Sha256Fingerprint
 from pex.pep_503 import ProjectName
 from pex.resolve.locked_resolve import (
     Artifact,
@@ -54,24 +54,34 @@ class DownloadedArtifact(object):
     @classmethod
     def store(
         cls,
+        artifact,  # type: _A
         artifact_dir,  # type: str
         filename,  # type: str
-        legacy_fingerprint,  # type: hashing.Sha1Fingerprint
-        fingerprint,  # type: hashing.Fingerprint
-        subdirectory=None,  # type: Optional[str]
-        editable=False,  # type: bool
+        artifact_digests,  # type: ArtifactDigests
     ):
-        # type: (...) -> None
+        # type: (...) -> DownloadedArtifact
 
         # We store v0 metadata so that Pex downgrades work. The v0 metadata mechanism had no
         # remove & retry upgrade (downgrade) mechanism like v1+ does.
-        with open(os.path.join(artifact_dir, "sha1"), "w") as fp:
-            fp.write(legacy_fingerprint)
+        with atomic_text_file(os.path.join(artifact_dir, "sha1")) as fp:
+            fp.write(artifact_digests.legacy_internal_hasher.hexdigest())
 
-        with open(cls.metadata_filename(artifact_dir), "w") as fp:
+        # N.B.: Pip already accounts for subdirectory when it creates source zips from VCS
+        # requirements; so we elide unless the archive was a directly downloaded file artifact.
+        subdirectory = artifact.subdirectory if isinstance(artifact, FileArtifact) else None
+
+        editable = (
+            artifact.editable
+            if isinstance(artifact, (LocalProjectArtifact, UnFingerprintedLocalProjectArtifact))
+            else False
+        )
+
+        fingerprint = artifact_digests.fingerprint()
+
+        with atomic_text_file(cls.metadata_filename(artifact_dir)) as fp:
             json.dump(
                 dict(
-                    algorithm=fingerprint.algorithm,
+                    algorithm=artifact_digests.algorithm,
                     hexdigest=fingerprint,
                     filename=filename,
                     subdirectory=subdirectory,
@@ -80,6 +90,13 @@ class DownloadedArtifact(object):
                 ),
                 fp,
             )
+
+        return cls(
+            path=os.path.join(artifact_dir, filename),
+            fingerprint=fingerprint,
+            subdirectory=subdirectory,
+            editable=editable,
+        )
 
     @classmethod
     def load(cls, artifact_dir):
@@ -125,21 +142,77 @@ class DownloadedArtifact(object):
     editable = attr.ib(default=False)  # type: bool
 
 
+@attr.s(frozen=True)
+class ArtifactDigests(object):
+    _INTERNAL_FP_TYPE = Sha256Fingerprint
+
+    artifact = attr.ib()  # type: UnFingerprintedArtifact
+    legacy_internal_hasher = attr.ib(init=False, factory=hashing.Sha1)  # type: Hasher
+    internal_hasher = attr.ib(init=False, factory=_INTERNAL_FP_TYPE.new_hasher)  # type: Hasher
+    _check = attr.ib(init=False)  # type: Optional[Hasher]
+    digest = attr.ib(init=False)  # type: Hasher
+
+    def __attrs_post_init__(self):
+        digests = [
+            self.legacy_internal_hasher,
+            self.internal_hasher,
+        ]  # type: List[HintedDigest]
+
+        check = None  # type: Optional[Hasher]
+        # The locking process will have pre-calculated some artifact fingerprints ahead of
+        # time; these will be marked as verified and can be trusted.
+        if not self.artifact.verified and isinstance(self.artifact, Artifact):
+            # For the rest (E.G.: PyPI URLs with embedded fingerprints), we distrust and
+            # establish our own fingerprint. This will mostly be wasted effort since we
+            # share the same hash algorithm as PyPI currently, but it will serve to upgrade
+            # the fingerprint on other cheeseshops that use a lower-grade hash algorithm (
+            # See: https://peps.python.org/pep-0503/#specification).
+            check = hashlib.new(self.artifact.fingerprint.algorithm)  # External
+            digests.append(check)
+
+        object.__setattr__(self, "_check", check)
+        object.__setattr__(self, "digest", hashing.MultiDigest(digests))
+
+    def check(self, project_name):
+        # type: (ProjectName) -> None
+
+        if self._check:
+            assert isinstance(
+                self.artifact, Artifact
+            ), "We assured artifacts that need a check had a fingerprint above."
+            actual_hash = self._check.hexdigest()
+            if self.artifact.fingerprint.hash != actual_hash:
+                raise ResultError(
+                    Error(
+                        "Expected {algorithm} hash of {expected_hash} when downloading "
+                        "{project_name} but hashed to {actual_hash}.".format(
+                            algorithm=self.artifact.fingerprint.algorithm,
+                            expected_hash=self.artifact.fingerprint.hash,
+                            project_name=project_name,
+                            actual_hash=actual_hash,
+                        )
+                    )
+                )
+
+    @property
+    def algorithm(self):
+        # type: () -> str
+        return self._INTERNAL_FP_TYPE.algorithm
+
+    def fingerprint(self):
+        # type: () -> hashing.Fingerprint
+        return hashing.new_fingerprint(self.algorithm, self.internal_hasher.hexdigest())
+
+
 class DownloadManager(Generic["_A"]):
-    def __init__(
-        self,
-        pex_root=ENV,  # type: Union[str, Variables]
-        file_lock_style=FileLockStyle.POSIX,  # type: FileLockStyle.Value
-    ):
-        # type: (...) -> None
+    def __init__(self, pex_root=ENV):
+        # type: (Union[str, Variables]) -> None
         self._pex_root = pex_root
-        self._file_lock_style = file_lock_style
 
     def store(
         self,
         artifact,  # type: _A
         project_name,  # type: ProjectName
-        retry=True,  # type: bool
     ):
         # type: (...) -> DownloadedArtifact
 
@@ -149,12 +222,13 @@ class DownloadManager(Generic["_A"]):
             return DownloadedArtifact(
                 artifact.directory, fingerprint=digest.hexdigest(), editable=True
             )
-        elif hasattr(artifact, "fingerprint"):
+
+        if hasattr(artifact, "fingerprint"):
             fingerprint = getattr(artifact, "fingerprint")
             download_dir = DownloadDir.create(
                 file_hash=fingerprint.hash, pex_root=self._pex_root
             )  # type: str
-            with atomic_directory(download_dir, lock_style=self._file_lock_style) as atomic_dir:
+            with atomic_directory(download_dir) as atomic_dir:
                 if atomic_dir.is_finalized():
                     TRACER.log(
                         "Using cached artifact at {} for {}".format(
@@ -162,22 +236,38 @@ class DownloadManager(Generic["_A"]):
                         )
                     )
                 else:
-                    self._download(artifact, project_name, atomic_dir.work_dir)
+                    downloaded_artifact = self._download(
+                        artifact, project_name, atomic_dir.work_dir
+                    )
+                    return attr.evolve(
+                        downloaded_artifact,
+                        path=os.path.join(download_dir, os.path.basename(downloaded_artifact.path)),
+                    )
         else:
             download_dir = safe_mkdtemp()
-            self._download(artifact, project_name, download_dir)
+            return self._download(artifact, project_name, download_dir)
 
+        # N.B.: DownloadDir atomic_directory cache hit case.
         try:
             return DownloadedArtifact.load(download_dir)
         except DownloadedArtifact.LoadError as e:
-            if not retry:
-                raise ResultError(Error(str(e)))
-
             TRACER.log(
                 "Found outdated downloaded artifact metadata, upgrading: {err}".format(err=e)
             )
-            safe_rmtree(download_dir)
-            return self.store(artifact, project_name, retry=False)
+            artifact_digests = ArtifactDigests(artifact)
+            filename = self.digest(
+                artifact=artifact,
+                project_name=project_name,
+                download_dir=download_dir,
+                digest=artifact_digests.digest,
+            )
+            artifact_digests.check(project_name)
+            return DownloadedArtifact.store(
+                artifact=artifact,
+                artifact_dir=download_dir,
+                filename=filename,
+                artifact_digests=artifact_digests,
+            )
 
     def _download(
         self,
@@ -185,27 +275,9 @@ class DownloadManager(Generic["_A"]):
         project_name,  # type: ProjectName
         dest_dir,  # type: str
     ):
-        # type: (...) -> None
+        # type: (...) -> DownloadedArtifact
 
-        legacy_internal_fingerprint = hashing.Sha1()  # Legacy internal
-        internal_fingerprint = hashing.Sha256()  # Internal
-        digests = [
-            legacy_internal_fingerprint,
-            internal_fingerprint,
-        ]  # type: List[HintedDigest]
-
-        check = None  # type: Optional[Hasher]
-        # The locking process will have pre-calculated some artifact fingerprints ahead of
-        # time; these will be marked as verified and can be trusted.
-        if not artifact.verified and isinstance(artifact, Artifact):
-            # For the rest (E.G.: PyPI URLs with embedded fingerprints), we distrust and
-            # establish our own fingerprint. This will mostly be wasted effort since we
-            # share the same hash algorithm as PyPI currently, but it will serve to upgrade
-            # the fingerprint on other cheeseshops that use a lower-grade hash algorithm (
-            # See: https://peps.python.org/pep-0503/#specification).
-            check = hashlib.new(artifact.fingerprint.algorithm)  # External
-            digests.append(check)
-
+        artifact_digests = ArtifactDigests(artifact)
         with TRACER.timed(
             "Downloading {project_name} from {url}".format(
                 project_name=project_name, url=artifact.url.download_url
@@ -216,42 +288,27 @@ class DownloadManager(Generic["_A"]):
                     artifact=artifact,
                     project_name=project_name,
                     dest_dir=dest_dir,
-                    digest=hashing.MultiDigest(digests),
+                    digest=artifact_digests.digest,
                 )
             )
-
-        if check:
-            assert isinstance(
-                artifact, Artifact
-            ), "We assured artifacts that need a check had a fingerprint above."
-            actual_hash = check.hexdigest()
-            if artifact.fingerprint.hash != actual_hash:
-                raise ResultError(
-                    Error(
-                        "Expected {algorithm} hash of {expected_hash} when downloading "
-                        "{project_name} but hashed to {actual_hash}.".format(
-                            algorithm=artifact.fingerprint.algorithm,
-                            expected_hash=artifact.fingerprint.hash,
-                            project_name=project_name,
-                            actual_hash=actual_hash,
-                        )
-                    )
-                )
-
-        DownloadedArtifact.store(
+        artifact_digests.check(project_name=project_name)
+        return DownloadedArtifact.store(
+            artifact=artifact,
             artifact_dir=dest_dir,
             filename=filename,
-            legacy_fingerprint=legacy_internal_fingerprint.hexdigest(),
-            fingerprint=internal_fingerprint.hexdigest(),
-            # N.B.: Pip already accounts for subdirectory when it creates source zips from VCS
-            # requirements; so we elide unless the archive was a directly downloaded file artifact.
-            subdirectory=artifact.subdirectory if isinstance(artifact, FileArtifact) else None,
-            editable=(
-                artifact.editable
-                if isinstance(artifact, (LocalProjectArtifact, UnFingerprintedLocalProjectArtifact))
-                else False
-            ),
+            artifact_digests=artifact_digests,
         )
+
+    def digest(
+        self,
+        artifact,  # type: _A
+        project_name,  # type: ProjectName
+        download_dir,  # type: str
+        digest,  # type: HintedDigest
+    ):
+        # type: (...) -> str
+        """Digest the given `artifact` under `dest_dir` and return the saved file name."""
+        raise NotImplementedError()
 
     def save(
         self,

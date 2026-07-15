@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.97.3
+
+This release fixes concurrent Pex use of artifact downloads.
+
+* Fix concurrent Pex use of artifact downloads. (#3207)
+
 ## 2.97.2
 
 This release updates vendored Pip's vendored certifi's cacert.pem to that from certifi 2026.6.17.

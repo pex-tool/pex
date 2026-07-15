@@ -14,7 +14,6 @@ import pex
 from pex import pex_warnings
 from pex.common import safe_mkdir, safe_rmtree
 from pex.fs import lock
-from pex.fs.lock import FileLockStyle
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -124,14 +123,14 @@ class AtomicDirectory(object):
         # type: () -> str
         return self._lockfile
 
-    def lock(self, lock_style=None):
-        # type: (Optional[FileLockStyle.Value]) -> Callable[[], None]
-        return _LOCK_MANAGER.lock(self._lockfile, lock_style=lock_style)
+    def lock(self):
+        # type: () -> Callable[[], None]
+        return _LOCK_MANAGER.lock(self._lockfile)
 
     @contextmanager
-    def locked(self, lock_style=None):
-        # type: (Optional[FileLockStyle.Value]) -> Iterator[None]
-        unlock = self.lock(lock_style=lock_style)
+    def locked(self):
+        # type: () -> Iterator[None]
+        unlock = self.lock()
         try:
             yield
         finally:
@@ -174,31 +173,15 @@ class AtomicDirectory(object):
         safe_rmtree(self._work_dir)
 
 
-def _lock_style(lock_style=None):
-    # type: (Optional[FileLockStyle.Value]) -> FileLockStyle.Value
-
-    # The atomic_directory file locking has used POSIX locks since inception. These have maximum
-    # compatibility across OSes and stand a decent chance of working over modern NFS. With the
-    # introduction of `pex3 lock ...` a limited set of atomic_directory uses started asking for BSD
-    # locks since they operate in a thread pool. Only those uses actually pass an explicit value for
-    # `lock_style` to atomic_directory. In order to allow experimenting with / debugging possible
-    # file locking bugs, we allow a `_PEX_FILE_LOCK_STYLE` back door private ~API to upgrade all
-    # locks to BSD style locks. This back door can be removed at any time.
-    return lock_style or FileLockStyle.for_value(
-        os.environ.get("_PEX_FILE_LOCK_STYLE", FileLockStyle.POSIX.value)
-    )
-
-
 @attr.s(frozen=True)
 class _FileLock(object):
     _path = attr.ib()  # type: str
-    _style = attr.ib(default=None)  # type: Optional[FileLockStyle.Value]
     _in_process_lock = attr.ib(factory=threading.Lock, init=False, eq=False)
 
     def acquire(self):
         # type: () -> Callable[[], None]
         self._in_process_lock.acquire()
-        file_lock = lock.acquire(self._path, exclusive=True, style=_lock_style(self._style))
+        file_lock = lock.acquire(self._path, exclusive=True)
 
         def release():
             # type: () -> None
@@ -215,12 +198,8 @@ class _LockManager(object):
     _lock = attr.ib(factory=threading.Lock, init=False)  # type: threading.Lock
     _file_locks = attr.ib(factory=dict, init=False)  # type: Dict[str, _FileLock]
 
-    def lock(
-        self,
-        file_path,  # type: str
-        lock_style=None,  # type: Optional[FileLockStyle.Value]
-    ):
-        # type: (...) -> Callable[[], None]
+    def lock(self, file_path):
+        # type: (str) -> Callable[[], None]
         """Locks file path exclusively and returns a callable that can be invoked to unlock it.
 
         The lock obtained is cross-thread and cross-process and is automatically released when
@@ -229,7 +208,7 @@ class _LockManager(object):
         with self._lock:
             file_lock = self._file_locks.get(file_path)
             if file_lock is None:
-                file_lock = _FileLock(file_path, style=lock_style)
+                file_lock = _FileLock(file_path)
                 self._file_locks[file_path] = file_lock
 
         return file_lock.acquire()
@@ -241,14 +220,12 @@ _LOCK_MANAGER = _LockManager()
 @contextmanager
 def atomic_directory(
     target_dir,  # type: str
-    lock_style=None,  # type: Optional[FileLockStyle.Value]
     source=None,  # type: Optional[str]
 ):
     # type: (...) -> Iterator[AtomicDirectory]
     """A context manager that yields an exclusively locked AtomicDirectory.
 
     :param target_dir: The target directory to atomically update.
-    :param lock_style: By default, a POSIX fcntl lock will be used to ensure exclusivity.
     :param source: An optional source offset into the work directory to use for the atomic update
                    of the target directory. By default, the whole work directory is used.
 
@@ -269,7 +246,7 @@ def atomic_directory(
         yield atomic_dir
         return
 
-    unlock = atomic_dir.lock(lock_style=lock_style)
+    unlock = atomic_dir.lock()
     if atomic_dir.is_finalized():
         # We lost the double-checked locking race and our work was done for us by the race
         # winner so exit early.
