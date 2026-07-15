@@ -172,7 +172,7 @@ def test_storage_version_downgrade_v0(tmpdir):
     )
 
     artifact_digests = ArtifactDigests(artifact)
-    DownloadedArtifact.store(
+    DownloadedArtifact.store_with_legacy(
         artifact=artifact,
         artifact_dir=str(tmpdir),
         filename="foo",
