@@ -51,17 +51,6 @@ jobs:
           fetch-depth: 0
       - name: Install uv
         uses: astral-sh/setup-uv@v7
-      - name: Setup Python 3.9 & 3.11
-        run: |
-          # We need to keep Python 3.9 for consistent vendoring.
-          # We use 3.11 for typecheck.
-          export UV_PYTHON_INSTALL_DIR=/tmp/pythons
-          export UV_MANAGED_PYTHON=1
-          uv python install --force 3.9 3.11
-          uv python list --only-installed --output-format json | \
-            jq -r '.[] | .path' | \
-            xargs dirname | \
-            sort -u >> "$GITHUB_PATH"
       - name: Check Formatting, Lints and Types
         run: uv run dev-cmd -t format-check lint-check requires-python-check typecheck
       - name: Check Enum Types
@@ -71,7 +60,7 @@ jobs:
         run: uv run dev-cmd vendor-check
       - name: Check Packaging
         run: |
-          uv run dev-cmd package -- \
+          BASE_MODE=pull ./duvrc.sh package -- \
             --additional-format sdist \
             --additional-format whl \
             --additional-format whl-3.12-plus \
@@ -80,7 +69,7 @@ jobs:
             --scies \
             --gen-md-table-of-hash-and-size dist/hashes.md
       - name: Check Docs
-        run: uv run dev-cmd docs -- --linkcheck --pdf --clean-html
+        run: BASE_MODE=pull ./duvrc.sh docs -- --linkcheck --pdf --clean-html
 
   # N.B.: The name of this job key (linux-tests) is depended on by scripts/build_cache_image.py. In
   # particular, the test-cmd matrix list is used to ensure the cache covers all Linux CI jobs.
@@ -190,12 +179,6 @@ jobs:
           # We need branches and tags for some ITs.
           fetch-depth: 0
           path: repo
-      - name: Setup Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v6
-        with:
-          python-version: "${{ matrix.python-version }}"
-      - name: Expose Pythons
-        uses: pex-tool/actions/expose-pythons@e22fe0e0fe85e1f7eb5bbfc7674c7cbbf24ae6b5
       - name: Restore Cached Pyenv Interpreters
         id: restore-pyenv-interpreters
         uses: actions/cache/restore@v5
@@ -227,12 +210,12 @@ jobs:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
       - name: Install uv
         uses: astral-sh/setup-uv@v7
-      - name: Setup Python 3.11
+      - name: Setup Python 3.11 & ${{ matrix.python-version }}
         run: |
           # # We use 3.11 for running devpi.
           export UV_PYTHON_INSTALL_DIR=/tmp/pythons
           export UV_MANAGED_PYTHON=1
-          uv python install --force 3.11
+          uv python install --force 3.11 ${{ matrix.python-version }}
           uv python list --only-installed --output-format json | \
             jq -r '.[] | .path' | \
             xargs dirname | \
