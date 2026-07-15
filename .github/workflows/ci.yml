@@ -49,10 +49,20 @@ jobs:
           # We need branches and tags since package leans on `git describe`. Passing 0 gets us
           # complete history.
           fetch-depth: 0
+      - name: Setup Python 3.9
+        uses: actions/setup-python@v6
+        with:
+          # We need to keep Python 3.9 for consistent vendoring.
+          python-version: "3.9"
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v6
+        with:
+          # We use 3.11 for typecheck.
+          python-version: "3.11"
       - name: Install uv
         uses: astral-sh/setup-uv@v7
       - name: Check Formatting, Lints and Types
-        run: BASE_MODE=pull ./duvrc.sh -t format-check lint-check requires-python-check typecheck
+        run: uv run dev-cmd -t format-check lint-check requires-python-check typecheck
       - name: Check Enum Types
         run: |
           BASE_MODE=pull ./duvrc.sh enum-check -- -v --require-py27
@@ -60,7 +70,7 @@ jobs:
         run: uv run dev-cmd vendor-check
       - name: Check Packaging
         run: |
-          BASE_MODE=pull ./duvrc.sh package -- \
+          uv run dev-cmd package -- \
             --additional-format sdist \
             --additional-format whl \
             --additional-format whl-3.12-plus \
@@ -69,7 +79,7 @@ jobs:
             --scies \
             --gen-md-table-of-hash-and-size dist/hashes.md
       - name: Check Docs
-        run: BASE_MODE=pull ./duvrc.sh docs -- --linkcheck --pdf --clean-html
+        run: uv run dev-cmd docs -- --linkcheck --pdf --clean-html
 
   # N.B.: The name of this job key (linux-tests) is depended on by scripts/build_cache_image.py. In
   # particular, the test-cmd matrix list is used to ensure the cache covers all Linux CI jobs.
@@ -179,6 +189,12 @@ jobs:
           # We need branches and tags for some ITs.
           fetch-depth: 0
           path: repo
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v6
+        with:
+          python-version: "${{ matrix.python-version }}"
+      - name: Expose Pythons
+        uses: pex-tool/actions/expose-pythons@e22fe0e0fe85e1f7eb5bbfc7674c7cbbf24ae6b5
       - name: Restore Cached Pyenv Interpreters
         id: restore-pyenv-interpreters
         uses: actions/cache/restore@v5
@@ -192,8 +208,8 @@ jobs:
           path: ${{ env._PEX_TEST_DEV_ROOT }}/devpi
           # We're using a key suffix / restore-keys prefix trick here to get an updatable cache.
           # See: https://github.com/actions/cache/blob/main/tips-and-workarounds.md#update-a-cache
-          key: macos-15-${{ runner.arch }}-${{ matrix.test-cmd }}-pex-test-dev-root-devpi-v3-${{ github.run_id }}
-          restore-keys: macos-15-${{ runner.arch }}-${{ matrix.test-cmd }}-pex-test-dev-root-devpi-v3
+          key: macos-15-${{ runner.arch }}-${{ matrix.test-cmd }}-pex-test-dev-root-devpi-v2-${{ github.run_id }}
+          restore-keys: macos-15-${{ runner.arch }}-${{ matrix.test-cmd }}-pex-test-dev-root-devpi-v2
       - name: Restore Windows Stubs
         id: restore-windows-stubs
         uses: actions/cache/restore@v5
@@ -210,16 +226,6 @@ jobs:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
       - name: Install uv
         uses: astral-sh/setup-uv@v7
-      - name: Setup Python 3.11 & ${{ matrix.python-version }}
-        run: |
-          # # We use 3.11 for running devpi.
-          export UV_PYTHON_INSTALL_DIR=/tmp/pythons
-          export UV_MANAGED_PYTHON=1
-          uv python install --force 3.11 ${{ matrix.python-version }}
-          uv python list --only-installed --output-format json | \
-            jq -r '.[] | .path' | \
-            xargs dirname | \
-            sort -u >> "$GITHUB_PATH"
       - name: Run Tests
         run: |
           cd repo
@@ -291,8 +297,8 @@ jobs:
           path: ${{ env._PEX_TEST_DEV_ROOT }}/devpi
           # We're using a key suffix / restore-keys prefix trick here to get an updatable cache.
           # See: https://github.com/actions/cache/blob/main/tips-and-workarounds.md#update-a-cache
-          key: windows-2022-${{ runner.arch }}-${{ matrix.test-cmd }}-pex-test-dev-root-devpi-v3-${{ github.run_id }}
-          restore-keys: windows-2022-${{ runner.arch }}-${{ matrix.test-cmd }}-pex-test-dev-root-devpi-v3
+          key: windows-2022-${{ runner.arch }}-${{ matrix.test-cmd }}-pex-test-dev-root-devpi-v2-${{ github.run_id }}
+          restore-keys: windows-2022-${{ runner.arch }}-${{ matrix.test-cmd }}-pex-test-dev-root-devpi-v2
       - name: Restore Windows Stubs
         id: restore-windows-stubs
         uses: actions/cache/restore@v5
