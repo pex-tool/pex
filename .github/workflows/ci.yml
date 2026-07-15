@@ -52,7 +52,7 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v7
       - name: Check Formatting, Lints and Types
-        run: uv run dev-cmd -t format-check lint-check requires-python-check typecheck
+        run: BASE_MODE=pull ./duvrc.sh -t format-check lint-check requires-python-check typecheck
       - name: Check Enum Types
         run: |
           BASE_MODE=pull ./duvrc.sh enum-check -- -v --require-py27
