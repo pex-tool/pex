@@ -7,7 +7,7 @@ import hashlib
 import os
 from contextlib import contextmanager
 
-from pex.common import open_zip
+from pex.common import is_pyc_dir, is_pyc_file, open_zip
 from pex.compatibility import to_unicode
 from pex.typing import TYPE_CHECKING, Generic
 
@@ -333,8 +333,6 @@ if __name__ == "__main__":
     import sys
     import zipfile
     from argparse import ArgumentParser
-
-    from pex.common import is_pyc_dir, is_pyc_file
 
     parser = ArgumentParser()
     parser.add_argument(
