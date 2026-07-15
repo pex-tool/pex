@@ -7,7 +7,7 @@ import hashlib
 import os
 from contextlib import contextmanager
 
-from pex.common import is_pyc_dir, is_pyc_file, open_zip
+from pex.common import open_zip
 from pex.compatibility import to_unicode
 from pex.typing import TYPE_CHECKING, Generic
 
@@ -260,24 +260,6 @@ def dir_hash(
             file_hash(file_path, digest)
 
 
-def python_project_dir_hash(
-    directory,  # type: Text
-    digest,  # type: HintedDigest
-    followlinks=True,  # type: bool
-):
-    """Digest the contents of a Python project directory in a reproducible manner.
-
-    Compiled Python files will be ignored when generating the hash.
-    """
-    dir_hash(
-        directory=directory,
-        digest=digest,
-        dir_filter=lambda d: not is_pyc_dir(d),
-        file_filter=lambda f: not is_pyc_file(f),
-        followlinks=followlinks,
-    )
-
-
 def zip_hash(
     zip_path,  # type: Text
     digest,  # type: HintedDigest
@@ -333,6 +315,8 @@ if __name__ == "__main__":
     import sys
     import zipfile
     from argparse import ArgumentParser
+
+    from pex.common import is_pyc_dir, is_pyc_file
 
     parser = ArgumentParser()
     parser.add_argument(

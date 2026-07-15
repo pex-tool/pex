@@ -112,7 +112,12 @@ class CacheHelper(object):
         """Return a reproducible hash of the contents of a directory; excluding all `.pyc` files."""
         if digest is None:
             digest = hasher()
-        hashing.python_project_dir_hash(directory=directory, digest=digest)
+        hashing.dir_hash(
+            directory=directory,
+            digest=digest,
+            dir_filter=lambda d: not is_pyc_dir(d),
+            file_filter=lambda f: not is_pyc_file(f),
+        )
         return digest.hexdigest()
 
     @classmethod

@@ -3,17 +3,16 @@
 
 from __future__ import absolute_import
 
-import glob
 import os
 import shutil
 from collections import OrderedDict
 from multiprocessing.pool import ThreadPool
 
-from pex import hashing, resolver
+from pex import hashing, resolver, sdist
 from pex.auth import PasswordDatabase
-from pex.common import pluralize
+from pex.common import pluralize, safe_mkdtemp
 from pex.compatibility import cpu_count
-from pex.dist_metadata import Requirement
+from pex.dist_metadata import Requirement, is_sdist
 from pex.network_configuration import NetworkConfiguration
 from pex.pep_503 import ProjectName
 from pex.pip.local_project import digest_local_project
@@ -209,34 +208,34 @@ class LocalProjectDownloadManager(DownloadManager[LocalProjectArtifact]):
     ):
         # type: (...) -> str
 
-        top_level_directories = [
-            path for path in glob.glob(os.path.join(download_dir, "*")) if os.path.isdir(path)
-        ]
-        if not top_level_directories:
+        sdists = [path for path in os.listdir(download_dir) if is_sdist(path)]
+        if not sdists:
             raise ResultError(
                 Error(
-                    "Found no project source directory for {project_name} in download directory "
+                    "Found no project source distribution for {project_name} in download directory "
                     "{download_dir}.".format(project_name=project_name, download_dir=download_dir)
                 )
             )
-        if len(top_level_directories) > 1:
+        if len(sdists) > 1:
             raise ResultError(
                 Error(
-                    "Found more than one potential project source directory for {project_name} in "
-                    "download directory {download_dir}:\n"
-                    "{top_level_directories}".format(
+                    "Found more than one potential project source distribution for {project_name} "
+                    "in download directory {download_dir}:\n"
+                    "{sdists}".format(
                         project_name=project_name,
                         download_dir=download_dir,
-                        top_level_directories="\n".join(
+                        sdists="\n".join(
                             "{idx}. {directory}".format(idx=idx, directory=directory)
-                            for idx, directory in enumerate(top_level_directories, start=1)
+                            for idx, directory in enumerate(sdists, start=1)
                         ),
                     )
                 )
             )
-        project_dir = top_level_directories[0]
-        hashing.python_project_dir_hash(directory=project_dir, digest=digest)
-        return os.path.basename(project_dir)
+        sdist_path = os.path.join(download_dir, sdists[0])
+
+        project_dir = sdist.extract_tarball(sdist_path, dest_dir=safe_mkdtemp())
+        hashing.dir_hash(directory=project_dir, digest=digest)
+        return os.path.basename(sdist_path)
 
     def save(
         self,

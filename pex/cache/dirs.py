@@ -139,7 +139,7 @@ class CacheDir(Enum["CacheDir.Value"]):
 
     DOWNLOADS = Value(
         "downloads",
-        version=1,
+        version=2,
         name="Lock Artifact Downloads",
         description="Distributions downloaded when resolving from a Pex lock file.",
     )

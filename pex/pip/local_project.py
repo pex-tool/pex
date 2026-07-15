@@ -34,7 +34,7 @@ def digest_local_project(
         with temporary_dir() as td:
             sdist_path_or_error = pep_517.build_sdist(
                 project_directory=directory,
-                dist_dir=os.path.join(td, "dists"),
+                dist_dir=dest_dir or os.path.join(td, "dists"),
                 pip_version=pip_version,
                 target=target,
                 resolver=resolver,
@@ -43,7 +43,7 @@ def digest_local_project(
                 return sdist_path_or_error
             sdist_path = sdist_path_or_error
 
-            extract_dir = dest_dir or os.path.join(td, "extracted")
+            extract_dir = os.path.join(td, "extracted")
             project_dir = sdist.extract_tarball(sdist_path, dest_dir=extract_dir)
-            hashing.python_project_dir_hash(directory=directory, digest=digest)
-            return os.path.join(extract_dir, project_dir)
+            hashing.dir_hash(directory=project_dir, digest=digest)
+            return sdist_path
