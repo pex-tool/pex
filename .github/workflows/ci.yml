@@ -193,6 +193,11 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: "${{ matrix.python-version }}"
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v6
+        with:
+          # We use 3.11 for running devpi.
+          python-version: "3.11"
       - name: Expose Pythons
         uses: pex-tool/actions/expose-pythons@e22fe0e0fe85e1f7eb5bbfc7674c7cbbf24ae6b5
       - name: Restore Cached Pyenv Interpreters
