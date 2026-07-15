@@ -213,8 +213,8 @@ jobs:
           path: ${{ env._PEX_TEST_DEV_ROOT }}/devpi
           # We're using a key suffix / restore-keys prefix trick here to get an updatable cache.
           # See: https://github.com/actions/cache/blob/main/tips-and-workarounds.md#update-a-cache
-          key: macos-15-${{ runner.arch }}-${{ matrix.test-cmd }}-pex-test-dev-root-devpi-v2-${{ github.run_id }}
-          restore-keys: macos-15-${{ runner.arch }}-${{ matrix.test-cmd }}-pex-test-dev-root-devpi-v2
+          key: macos-15-${{ runner.arch }}-${{ matrix.test-cmd }}-pex-test-dev-root-devpi-v3-${{ github.run_id }}
+          restore-keys: macos-15-${{ runner.arch }}-${{ matrix.test-cmd }}-pex-test-dev-root-devpi-v3
       - name: Restore Windows Stubs
         id: restore-windows-stubs
         uses: actions/cache/restore@v5
@@ -302,8 +302,8 @@ jobs:
           path: ${{ env._PEX_TEST_DEV_ROOT }}/devpi
           # We're using a key suffix / restore-keys prefix trick here to get an updatable cache.
           # See: https://github.com/actions/cache/blob/main/tips-and-workarounds.md#update-a-cache
-          key: windows-2022-${{ runner.arch }}-${{ matrix.test-cmd }}-pex-test-dev-root-devpi-v2-${{ github.run_id }}
-          restore-keys: windows-2022-${{ runner.arch }}-${{ matrix.test-cmd }}-pex-test-dev-root-devpi-v2
+          key: windows-2022-${{ runner.arch }}-${{ matrix.test-cmd }}-pex-test-dev-root-devpi-v3-${{ github.run_id }}
+          restore-keys: windows-2022-${{ runner.arch }}-${{ matrix.test-cmd }}-pex-test-dev-root-devpi-v3
       - name: Restore Windows Stubs
         id: restore-windows-stubs
         uses: actions/cache/restore@v5
