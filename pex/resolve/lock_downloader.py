@@ -235,7 +235,7 @@ class LocalProjectDownloadManager(DownloadManager[LocalProjectArtifact]):
                 )
             )
         project_dir = top_level_directories[0]
-        hashing.dir_hash(directory=project_dir, digest=digest)
+        hashing.python_project_dir_hash(directory=project_dir, digest=digest)
         return os.path.basename(project_dir)
 
     def save(

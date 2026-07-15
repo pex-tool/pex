@@ -45,5 +45,5 @@ def digest_local_project(
 
             extract_dir = dest_dir or os.path.join(td, "extracted")
             project_dir = sdist.extract_tarball(sdist_path, dest_dir=extract_dir)
-            hashing.dir_hash(directory=project_dir, digest=digest)
+            hashing.python_project_dir_hash(directory=directory, digest=digest)
             return os.path.join(extract_dir, project_dir)
