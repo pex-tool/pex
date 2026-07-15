@@ -16,6 +16,7 @@ class _InterpreterImplementationValue(Enum.Value):
         value,  # type: str
         abbr,  # type: str
         binary_name,  # type: str
+        platform_python_implementation=None,  # type: Optional[str]
         alias=None,  # type: Optional[str]
         free_threaded=None,  # type: Optional[bool]
         initial_version=None,  # type: Optional[Tuple[int, ...]]
@@ -23,6 +24,7 @@ class _InterpreterImplementationValue(Enum.Value):
         # type: (...) -> None
         super(_InterpreterImplementationValue, self).__init__(value)
         self.abbr = abbr
+        self.platform_python_implementation = platform_python_implementation or value
         self.binary_name = binary_name
         self.alias = alias
         self.free_threaded = free_threaded
@@ -86,11 +88,19 @@ class InterpreterImplementation(Enum["InterpreterImplementation.Value"]):
         "CPython+t",
         "cp",
         "python",
+        platform_python_implementation="CPython",
         alias="CPython[free-threaded]",
         free_threaded=True,
         initial_version=(3, 13),
     )
-    CPYTHON_GIL = Value("CPython-t", "cp", "python", alias="CPython[gil]", free_threaded=False)
+    CPYTHON_GIL = Value(
+        "CPython-t",
+        "cp",
+        "python",
+        platform_python_implementation="CPython",
+        alias="CPython[gil]",
+        free_threaded=False,
+    )
     PYPY = Value("PyPy", "pp", "pypy")
 
 
