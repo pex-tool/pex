@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     sys.version_info[:2] < (3, 8),
     reason="Building Pex requires Python >= 3.8 to read pyproject.toml heterogeneous arrays.",
 )
-def test_locks_equivalent_round_trip(
+def test_download_artifact_metadata_refresh(
     tmpdir,  # type: Tempdir
     pex_project_dir,  # type: str
 ):
