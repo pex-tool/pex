@@ -52,7 +52,7 @@ class DownloadedArtifact(object):
         return os.path.join(artifact_dir, "metadata.json")
 
     @classmethod
-    def store(
+    def store_with_legacy(
         cls,
         artifact,  # type: _A
         artifact_dir,  # type: str
@@ -66,6 +66,17 @@ class DownloadedArtifact(object):
         with atomic_text_file(os.path.join(artifact_dir, "sha1")) as fp:
             fp.write(artifact_digests.legacy_internal_hasher.hexdigest())
 
+        return cls.store(artifact, artifact_dir, filename, artifact_digests.fingerprint())
+
+    @classmethod
+    def store(
+        cls,
+        artifact,  # type: _A
+        artifact_dir,  # type: str
+        filename,  # type: str
+        fingerprint,  # type: hashing.Fingerprint
+    ):
+        # type: (...) -> DownloadedArtifact
         # N.B.: Pip already accounts for subdirectory when it creates source zips from VCS
         # requirements; so we elide unless the archive was a directly downloaded file artifact.
         subdirectory = artifact.subdirectory if isinstance(artifact, FileArtifact) else None
@@ -76,12 +87,10 @@ class DownloadedArtifact(object):
             else False
         )
 
-        fingerprint = artifact_digests.fingerprint()
-
         with atomic_text_file(cls.metadata_filename(artifact_dir)) as fp:
             json.dump(
                 dict(
-                    algorithm=artifact_digests.algorithm,
+                    algorithm=fingerprint.algorithm,
                     hexdigest=fingerprint,
                     filename=filename,
                     subdirectory=subdirectory,
@@ -262,7 +271,7 @@ class DownloadManager(Generic["_A"]):
                 digest=artifact_digests.digest,
             )
             artifact_digests.check(project_name)
-            return DownloadedArtifact.store(
+            return DownloadedArtifact.store_with_legacy(
                 artifact=artifact,
                 artifact_dir=download_dir,
                 filename=filename,
@@ -292,7 +301,7 @@ class DownloadManager(Generic["_A"]):
                 )
             )
         artifact_digests.check(project_name=project_name)
-        return DownloadedArtifact.store(
+        return DownloadedArtifact.store_with_legacy(
             artifact=artifact,
             artifact_dir=dest_dir,
             filename=filename,
