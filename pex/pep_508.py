@@ -4,7 +4,7 @@
 from __future__ import absolute_import
 
 from pex.interpreter_implementation import InterpreterImplementation
-from pex.platforms import Platform
+from pex.platforms import PlatformSpec
 from pex.third_party.packaging import markers
 from pex.typing import TYPE_CHECKING
 
@@ -49,7 +49,7 @@ class MarkerEnvironment(object):
 
     @classmethod
     def from_platform(cls, platform):
-        # type: (Platform) -> MarkerEnvironment
+        # type: (PlatformSpec) -> MarkerEnvironment
         """Populate a partial marker environment given what we know from platform information.
 
         Since Pex support is (currently) restricted to:
@@ -117,10 +117,10 @@ class MarkerEnvironment(object):
             platform_system = "Windows"
             sys_platform = "win32"
 
-        platform_python_implementation = None
         for implementation in InterpreterImplementation.values():
             if implementation.abbr == platform.impl:
-                platform_python_implementation = implementation.value
+                platform_python_implementation = implementation.platform_python_implementation
+                break
 
         python_version = ".".join(map(str, platform.version_info[:2]))
 
