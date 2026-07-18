@@ -54,7 +54,8 @@ def _narrow_interpreter_constraints(
                     or (
                         user_interpreter_constraint.implementation
                         and pex_interpreter_constraint.implementation.includes(
-                            user_interpreter_constraint.implementation
+                            user_interpreter_constraint.implementation,
+                            user_interpreter_constraint.specifier,
                         )
                     )
                 )

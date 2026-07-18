@@ -23,6 +23,7 @@ from pex.interpreter_selection_strategy import InterpreterSelectionStrategy
 from pex.pex_warnings import PEXWarning
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.typing import TYPE_CHECKING
+from testing import UvPython, ensure_uv_python
 
 if TYPE_CHECKING:
     from typing import List, Tuple
@@ -46,6 +47,22 @@ def test_parse(py39):
 
     assert py39 in InterpreterConstraint.parse("CPython-t==3.9.*")
     assert py39 in InterpreterConstraint.parse("CPython[gil]==3.9.*")
+
+    py313 = PythonInterpreter.from_binary(ensure_uv_python(UvPython(3, 13)))
+    assert py313 in InterpreterConstraint.parse("CPython==3.13.*")
+    assert py313 in InterpreterConstraint.parse("CPython-t==3.13.*")
+    assert py313 in InterpreterConstraint.parse("CPython[gil]==3.13.*")
+    assert py313 not in InterpreterConstraint.parse("CPython+t==3.13.*")
+    assert py313 not in InterpreterConstraint.parse("CPython[free-threaded]==3.13.*")
+
+    py313t = PythonInterpreter.from_binary(
+        ensure_uv_python(UvPython(3, 13, InterpreterImplementation.CPYTHON_FREE_THREADED))
+    )
+    assert py313t in InterpreterConstraint.parse("CPython==3.13.*")
+    assert py313t not in InterpreterConstraint.parse("CPython-t==3.13.*")
+    assert py313t not in InterpreterConstraint.parse("CPython[gil]==3.13.*")
+    assert py313t in InterpreterConstraint.parse("CPython+t==3.13.*")
+    assert py313t in InterpreterConstraint.parse("CPython[free-threaded]==3.13.*")
 
     assert py39 in InterpreterConstraint.parse(
         "==3.9.*", default_interpreter_implementation=InterpreterImplementation.CPYTHON

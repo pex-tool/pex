@@ -3,11 +3,13 @@
 
 from __future__ import absolute_import
 
+from pex import specifier_sets
 from pex.enum import Enum
+from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import FrozenSet, List, Optional, Tuple
+    from typing import FrozenSet, List, Optional, Tuple, Union
 
 
 class _InterpreterImplementationValue(Enum.Value):
@@ -47,15 +49,34 @@ class _InterpreterImplementationValue(Enum.Value):
 
 class InterpreterImplementation(Enum["InterpreterImplementation.Value"]):
     class Value(_InterpreterImplementationValue):
-        def includes(self, implementation):
-            # type: (InterpreterImplementation.Value) -> bool
+        def includes(
+            self,
+            implementation,  # type: InterpreterImplementation.Value
+            version,  # type: Union[Tuple[int, int], Tuple[int, int, int], SpecifierSet]
+        ):
+            # type: (...) -> bool
+
             if self is implementation:
                 return True
+
             if self is InterpreterImplementation.CPYTHON and implementation in (
                 InterpreterImplementation.CPYTHON_FREE_THREADED,
                 InterpreterImplementation.CPYTHON_GIL,
             ):
                 return True
+
+            if (
+                self is InterpreterImplementation.CPYTHON_GIL
+                # N.B.: CPython means CPython[gil] / CPython-t prior to the 3.13 release, which
+                # introduced free-threading.
+                and implementation is InterpreterImplementation.CPYTHON
+                and (
+                    (isinstance(version, tuple) and version[:2] < (3, 13))
+                    or (specifier_sets.includes("<3.13", version))
+                )
+            ):
+                return True
+
             return False
 
     @classmethod
