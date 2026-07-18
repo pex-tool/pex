@@ -511,7 +511,7 @@ def test_free_threaded_cpython_selection(
 ):
     # type: (...) -> None
 
-    assert py311.free_threaded is False
+    assert py311.free_threaded is None
 
     py314t_scie = tmpdir.join("py314t")
     run_pex_command(
