@@ -269,12 +269,9 @@ class PythonIdentity(object):
             "Optional[Tuple[int, int, int]]",
             tuple(getattr(sys, "pypy_version_info", ())[:3]) or None,
         )
-        if pypy_version is None:
-            free_threaded = (
-                sys.version_info[:2] >= (3, 13) and sys_config_vars.get("Py_GIL_DISABLED", 0) == 1
-            )  # type: Optional[bool]
-        else:
-            free_threaded = None
+        free_threaded = None  # type: Optional[bool]
+        if pypy_version is None and sys.version_info[:2] >= (3, 13):
+            free_threaded = sys_config_vars.get("Py_GIL_DISABLED", 0) == 1
 
         # Pex identifies interpreters using a bit of Pex code injected via an extraction of that
         # code under the `PEX_ROOT` adjoined to `sys.path` via `PYTHONPATH`. Pex also exposes the

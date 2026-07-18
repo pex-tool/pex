@@ -1,5 +1,14 @@
 # Release Notes
 
+## 2.98.0
+
+This release adds proper support for windowed PEX scies targeting Windows. When you specify at least
+one of `--scie-icon`, `--scie-desktop-file` or `--scie-windowed` and a scie is generated targeting
+Windows, that scie will behave like a proper Windows windowed app and will not launch a background
+console when opened.
+
+* Add support for windowed PEX scies on Windows. (#3212)
+
 ## 2.97.3
 
 This release fixes concurrent Pex use of artifact downloads.

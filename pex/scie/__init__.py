@@ -173,6 +173,18 @@ def register_options(
         ),
     )
     parser.add_argument(
+        "--scie-windowed",
+        dest="windowed",
+        default=False,
+        action="store_true",
+        help=(
+            "Indicate the generated scie launches a windowed application. If a scie targeting "
+            "Windows is created, the scie-jump used for the scie tip will be selected for windowed "
+            "application support (it will not launch a console). This option is implied by either "
+            "`--scie-icon` or `--scie-desktop-file`."
+        ),
+    )
+    parser.add_argument(
         "--scie-name-style",
         dest="naming_style",
         default=None,
@@ -291,11 +303,7 @@ def register_options(
         default=[],
         action="append",
         type=SysPlatform.parse,
-        choices=[
-            platform
-            for platform in SysPlatform.values()
-            if platform not in (SysPlatform.WINDOWS_AARCH64, SysPlatform.WINDOWS_X86_64)
-        ],
+        choices=SysPlatform.values(),
         help=(
             "The platform to produce the native PEX scie executable for. Can be specified multiple "
             "times. You can use a value of 'current' to select the current platform. If left "
@@ -464,6 +472,8 @@ def render_options(options):
         if options.desktop_app.icon:
             args.append("--scie-icon")
             args.append(options.desktop_app.icon)
+    if options.windowed:
+        args.append("--scie-windowed")
     for name, value in options.bind_resource_paths:
         args.append("--scie-bind-resource-path")
         args.append("{name}={value}".format(name=name, value=value))
@@ -614,6 +624,9 @@ def extract_options(options):
             resource_bindings=tuple(binding[0] for binding in bind_resource_paths),
             prompt_install=options.scie_prompt_desktop_install,
         )
+        windowed = True
+    else:
+        windowed = options.windowed
 
     return ScieOptions(
         style=options.scie_style,
@@ -621,6 +634,7 @@ def extract_options(options):
         scie_only=options.scie_only,
         load_dotenv=options.scie_load_dotenv,
         desktop_app=desktop_app,
+        windowed=windowed,
         bind_resource_paths=bind_resource_paths,
         custom_entrypoint=custom_entrypoint,
         busybox_entrypoints=busybox_entrypoints,
