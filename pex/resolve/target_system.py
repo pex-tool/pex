@@ -140,6 +140,41 @@ class MarkerVisitor(Generic["_C"]):
 if TYPE_CHECKING:
     _C = TypeVar("_C")
 
+    Expression = Tuple[Any, str, Any]
+    ComplexExpression = List[Union[str, Expression, List]]
+
+
+class _ParenthesizedAnd(list):
+    pass
+
+
+def _canonicalize_expression(
+    expression,  # type: ComplexExpression
+    marker,  # type: Marker
+):
+    # type: (...) -> ComplexExpression
+
+    # N.B.: Instead of shunting yard or Pratt, this is in the spirit of Fortran:
+    #   https://en.wikipedia.org/wiki/Operator-precedence_parser#Full_parenthesization
+    # Since we only have 1 precedence rule to respect (`and` binds more tightly than `or`), this
+    # seems simple and direct, just add explicit parenthesization around all `and`s.
+
+    canonicalized_expression = []  # type: ComplexExpression
+    for item in expression:
+        if item == "and":
+            if len(canonicalized_expression) == 0:
+                raise ValueError("Marker is invalid: {marker}".format(marker=marker))
+            canonicalized_expression[-1] = _ParenthesizedAnd([canonicalized_expression[-1], "and"])
+        else:
+            item = _canonicalize_expression(item, marker) if isinstance(item, list) else item
+            if len(canonicalized_expression) > 1 and isinstance(
+                canonicalized_expression[-1], _ParenthesizedAnd
+            ):
+                cast(_ParenthesizedAnd, canonicalized_expression[-1]).append(item)
+            else:
+                canonicalized_expression.append(item)
+    return canonicalized_expression
+
 
 class MarkerParser(Generic["_C"]):
     def __init__(self, visitor):
@@ -177,7 +212,11 @@ class MarkerParser(Generic["_C"]):
     ):
         # type: (...) -> _C
 
-        for item in _marker_items(marker):
+        # 1. Ensure precedence is respected for unparenthesized `and` and `or` operators.
+        items = _canonicalize_expression(list(_marker_items(marker)), marker)
+
+        # 2. perform walk:
+        for item in items:
             self._parse_marker_item(item, marker, context)
         return context
 
