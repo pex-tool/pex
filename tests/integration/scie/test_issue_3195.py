@@ -8,13 +8,9 @@ import json
 
 from pex.os import Os
 from pex.platforms import Platform
-from pex.typing import TYPE_CHECKING
 from testing import run_pex_command
 from testing.pytest_utils.tmp import Tempdir
 from testing.scie import skip_if_no_provider
-
-if TYPE_CHECKING:
-    pass
 
 
 @skip_if_no_provider
