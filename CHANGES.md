@@ -1,5 +1,23 @@
 # Release Notes
 
+## 2.98.2
+
+This release fixes generation of foreign platform PEX scies to respect the foreign platform cache
+directory standards.
+
+In addition `--scie only -o <name that does not end in ".pex">` PEX scies can now be split and
+re-packed with:
+```console
+:; SCIE=split <PEX scie> split-dir
+:; cd split-dir
+:; ./scie-jump
+```
+
+Previously splitting always worked, but the scie boot-pack would fail due to a name clash between
+the final scie and the application PEX file.
+
+* All scies honor platform cache conventions & are re-packable. (#3220)
+
 ## 2.98.1
 
 This release fixes marker processing in `--style universal` locks to respect `and` binding more
