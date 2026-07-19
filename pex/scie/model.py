@@ -389,6 +389,7 @@ class ScieOptions(object):
     scie_only = attr.ib(default=False)  # type: bool
     load_dotenv = attr.ib(default=False)  # type: bool
     desktop_app = attr.ib(default=None)  # type: Optional[DesktopApp]
+    windowed = attr.ib(default=False)  # type: bool
     bind_resource_paths = attr.ib(default=())  # type: Tuple[Tuple[str, str], ...]
     custom_entrypoint = attr.ib(default=None)  # type: Optional[Command]
     busybox_entrypoints = attr.ib(default=None)  # type: Optional[BusyBoxEntryPoints]

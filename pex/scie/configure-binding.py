@@ -23,11 +23,20 @@ def write_bindings(
     pex,  # type: str
     venv_bin_dir=None,  # type: Optional[str]
     desktop_file=None,  # type: Optional[str]
+    windowed=False,  # type: bool
 ):
     # type: (...) -> None
 
     with open(env_file, "a") as fp:
-        print("PYTHON=" + sys.executable, file=fp)
+        stem, ext = os.path.splitext(sys.executable)
+        if windowed and ext == ".exe" and not stem.endswith("w"):
+            parent_dir = os.path.dirname(sys.executable)
+            python = os.path.join(parent_dir, "{binary_name}w.exe".format(binary_name=stem))
+
+        else:
+            python = sys.executable
+
+        print("PYTHON=" + python, file=fp)
         print("PEX=" + pex, file=fp)
         if venv_bin_dir:
             print("VIRTUAL_ENV=" + os.path.dirname(venv_bin_dir), file=fp)
@@ -176,6 +185,7 @@ if __name__ == "__main__":
             "CONFIGURE_DESKTOP_INSTALL env var is set and directs otherwise."
         ),
     )
+    parser.add_argument("--windowed", action="store_true", default=False)
     options = parser.parse_args()
 
     pex_hash = options.pex_hash[0]
@@ -232,5 +242,6 @@ if __name__ == "__main__":
         pex=pex,
         venv_bin_dir=os.path.join(pex, options.venv_bin_dir) if options.venv_bin_dir else None,
         desktop_file=desktop_install_path,
+        windowed=options.windowed,
     )
     sys.exit(0)

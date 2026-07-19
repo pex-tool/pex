@@ -28,6 +28,7 @@ else:
 @attr.s(frozen=True)
 class InterpreterTool(object):
     tools_pex = attr.ib()  # type: str
+    is_pexrc = attr.ib()  # type: bool
     interpreter = attr.ib()  # type: PythonInterpreter
     other_interpreters = attr.ib(default=())  # type: Iterable[PythonInterpreter]
 
@@ -35,12 +36,14 @@ class InterpreterTool(object):
     def create(
         cls,
         tools_pex,  # type: str
+        is_pexrc,  # type: bool
         interpreter,  # type: PythonInterpreter
         *other_interpreters  # type: PythonInterpreter
     ):
         # type: (...) -> InterpreterTool
         return cls(
             tools_pex=tools_pex,
+            is_pexrc=is_pexrc,
             interpreter=interpreter,
             other_interpreters=other_interpreters,
         )
@@ -68,7 +71,10 @@ class InterpreterTool(object):
 
 
 @pytest.fixture(
-    params=[pytest.param(["--include-tools"], id="PEX"), pytest.param(["--rc"], id="PEX.rc")]
+    params=[
+        pytest.param((["--include-tools"], False), id="PEX"),
+        pytest.param((["--rc"], True), id="PEX.rc"),
+    ]
 )
 def interpreter_tool(
     request,  # type: Any
@@ -78,8 +84,9 @@ def interpreter_tool(
 ):
     # type: (...) -> InterpreterTool
     tools_pex = os.path.join(str(tmpdir), "tools.pex")
-    run_pex_command(args=["-o", tools_pex] + request.param, python=py39.binary).assert_success()
-    return InterpreterTool.create(tools_pex, py39, py311)
+    args, is_pexrc = request.param
+    run_pex_command(args=["-o", tools_pex] + args, python=py39.binary).assert_success()
+    return InterpreterTool.create(tools_pex, is_pexrc, py39, py311)
 
 
 def expected_basic(interpreter):
@@ -117,11 +124,21 @@ def expected_verbose(interpreter):
     }
 
 
+def xfail_pexrc_primary_tag_issue(is_pexrc):
+    # type: (bool) -> None
+    if is_pexrc:
+        pytest.xfail(
+            "There is a misalignment in the primary tag that needs to be resolved: "
+            "https://github.com/pex-tool/pex/issues/3212"
+        )
+
+
 def test_verbose(
     py39,  # type: PythonInterpreter
     interpreter_tool,  # type: InterpreterTool
 ):
     # type: (...) -> None
+    xfail_pexrc_primary_tag_issue(interpreter_tool.is_pexrc)
     output = interpreter_tool.run("-v")
     assert expected_verbose(py39) == json.loads(output)
 
@@ -132,6 +149,7 @@ def test_verbose_all(
     interpreter_tool,  # type: InterpreterTool
 ):
     # type: (...) -> None
+    xfail_pexrc_primary_tag_issue(interpreter_tool.is_pexrc)
     output = interpreter_tool.run("-va")
     assert [expected_verbose(interpreter) for interpreter in (py39, py311)] == [
         json.loads(line) for line in output.splitlines()
@@ -150,6 +168,7 @@ def test_verbose_verbose(
     interpreter_tool,  # type: InterpreterTool
 ):
     # type: (...) -> None
+    xfail_pexrc_primary_tag_issue(interpreter_tool.is_pexrc)
     output = interpreter_tool.run("-vv")
     assert expected_verbose_verbose(py39) == json.loads(output)
 
@@ -159,6 +178,7 @@ def test_verbose_verbose_verbose(
     interpreter_tool,  # type: InterpreterTool
 ):
     # type: (...) -> None
+    xfail_pexrc_primary_tag_issue(interpreter_tool.is_pexrc)
     output = interpreter_tool.run("-vvv")
     expected = expected_verbose_verbose(py39)
     expected.update(env_markers=py39.identity.env_markers.as_dict(), venv=False)
@@ -166,18 +186,21 @@ def test_verbose_verbose_verbose(
 
 
 @pytest.mark.parametrize(
-    "tools_pex_args",
+    ["tools_pex_args", "is_pexrc"],
     [
-        pytest.param(["--include-tools"], id="PEX"),
-        pytest.param(["--rc"], id="PEX.rc"),
+        pytest.param(["--include-tools"], False, id="PEX"),
+        pytest.param(["--rc"], True, id="PEX.rc"),
     ],
 )
 def test_verbose_verbose_verbose_venv(
     py310,  # type: PythonInterpreter
     tools_pex_args,  # type: List[str]
+    is_pexrc,  # type: bool
     tmpdir,  # type: Tempdir
 ):
     # type: (...) -> None
+    xfail_pexrc_primary_tag_issue(is_pexrc)
+
     venv = Virtualenv.create(venv_dir=safe_mkdtemp(), interpreter=py310, force=True)
     assert venv.interpreter.is_venv
 
@@ -186,7 +209,7 @@ def test_verbose_verbose_verbose_venv(
 
     # N.B.: Non-venv-mode PEXes always escape venvs to prevent `sys.path` contamination unless
     # `PEX_INHERIT_PATH` is not "false".
-    output = InterpreterTool.create(tools_pex, venv.interpreter).run(
+    output = InterpreterTool.create(tools_pex, is_pexrc, venv.interpreter).run(
         "-vvv", PEX_INHERIT_PATH="fallback"
     )
 

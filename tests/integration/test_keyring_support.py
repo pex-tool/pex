@@ -115,7 +115,7 @@ def keyring_backend(shared_integration_test_tmpdir):
                                     "pex_test_backend = pex_test_backend",
                                 ],
                             },
-                            install_requires=["keyring==24.1.1"],
+                            install_requires=["keyring==25.2.1"],
                             py_modules=["pex_test_backend"],
                         )
                         """
@@ -182,7 +182,7 @@ def devpi_clean_env():
 
 
 skip_if_required_keyring_version_not_supported = pytest.mark.skipif(
-    PY_VER < (3, 7), reason="The keyring distribution used for this test requires Python `>=3.7`."
+    PY_VER < (3, 8), reason="The keyring distribution used for this test requires Python `>=3.8`."
 )
 
 keyring_provider_pip_versions = pytest.mark.parametrize(

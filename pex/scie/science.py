@@ -70,7 +70,7 @@ class Manifest(object):
 
 
 SCIENCE_RELEASES_URL = "https://github.com/a-scie/lift/releases"
-MIN_SCIENCE_VERSION = Version("0.19.0")
+MIN_SCIENCE_VERSION = Version("0.21.0")
 SCIENCE_REQUIREMENT = SpecifierSet("~={min_version}".format(min_version=MIN_SCIENCE_VERSION))
 
 
@@ -85,7 +85,7 @@ def _science_binary_url(suffix=""):
 
 
 PTEX_VERSION = "1.7.0"
-SCIE_JUMP_VERSION = "1.11.2"
+SCIE_JUMP_VERSION = "1.12.0"
 
 
 class Filenames(Enum["Filenames.Value"]):
@@ -345,6 +345,7 @@ def create_manifests(
         "name": app_name,
         "load_dotenv": configuration.options.load_dotenv,
         "scie_jump": scie_jump_config,
+        "windowed": configuration.options.windowed,
     }  # type: Dict[str, Any]
 
     if configuration.options.style is ScieStyle.LAZY:
@@ -497,6 +498,8 @@ def create_manifests(
                     else configuration.options.desktop_app.icon,
                 )
             )
+        if interpreter.platform.os is Os.WINDOWS and configuration.options.windowed:
+            extra_configure_binding_args.append("--windowed")
         extra_configure_binding_args.append(pex_hash)
 
         if use_platform_suffix is True or (

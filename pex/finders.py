@@ -122,13 +122,16 @@ def get_entry_point_from_console_script(
     # Check all distributions for the console_script "script". De-dup by dist key to allow for a
     # duplicate console script IFF the distribution is platform-specific and this is a
     # multi-platform pex.
-    def get_entrypoint(dist):
-        # type: (Distribution) -> Optional[NamedEntryPoint]
-        return dist.get_entry_map().get("console_scripts", {}).get(script)
+    def get_entrypoint(
+        dist,  # type: Distribution
+        gui=False,  # type: bool
+    ):
+        # type: (...) -> Optional[NamedEntryPoint]
+        return dist.get_entry_map().get("gui_scripts" if gui else "console_scripts", {}).get(script)
 
     entries = {}  # type: Dict[ProjectName, DistributionEntryPoint]
     for dist in dists:
-        named_entry_point = get_entrypoint(dist)
+        named_entry_point = get_entrypoint(dist) or get_entrypoint(dist, gui=True)
         if named_entry_point is not None:
             entries[dist.metadata.project_name] = DistributionEntryPoint(
                 dist=dist, name=named_entry_point.name, entry_point=named_entry_point.entry_point
