@@ -416,7 +416,18 @@ def create_manifests(
             lift["base"] = configuration.options.base
         elif pex_info.pex_root_set:
             lift["base"] = CacheDir.SCIES.path(
-                "base", os=interpreter.platform.os, pex_root=pex_info.raw_pex_root
+                "base",
+                os=interpreter.platform.os,
+                pex_root=(
+                    pex_info.raw_pex_root
+                    if interpreter.platform.os is Os.CURRENT
+                    else interpreter.platform.os.path_join(
+                        "{{scie.user.cache_dir={fallback}}}".format(
+                            fallback=interpreter.platform.os.path_join("~", ".cache")
+                        ),
+                        "pex",
+                    )
+                ),
             )
 
         manifest_path = os.path.join(
