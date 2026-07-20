@@ -10,11 +10,11 @@ from pex.resolve.lockfile.model import Lockfile
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import List, Mapping, Union
+    from typing import Dict, List, Union
 
 
 def index_lock_artifacts(lock_file):
-    # type: (Union[str, Lockfile]) -> Mapping[ProjectName, LockedRequirement]
+    # type: (Union[str, Lockfile]) -> Dict[ProjectName, LockedRequirement]
 
     lock = lock_file if isinstance(lock_file, Lockfile) else json_codec.load(lock_file)
     assert 1 == len(lock.locked_resolves)

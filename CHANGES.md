@@ -1,5 +1,14 @@
 # Release Notes
 
+## 2.98.1
+
+This release fixes marker processing in `--style universal` locks to respect `and` binding more
+tightly than `or` in the spec. Previously `and` and `or` were processed left to right without
+regard for precedence rules. Thanks to @notatallshaw for a pre-emptive report of this when surveying
+the ecosystem.
+
+* Add explicit grouping to ensure `and` / `or` precedence. (#3219)
+
 ## 2.98.0
 
 This release adds proper support for windowed PEX scies targeting Windows. When you specify at least
