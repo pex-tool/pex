@@ -3,6 +3,7 @@
 
 from __future__ import absolute_import
 
+import itertools
 import os.path
 import re
 import shutil
@@ -324,7 +325,9 @@ def create_manifests(
     # Try to give the PEX the extracted filename expected by the user. This should work in almost
     # all cases save for the Pex PEX.
     pex_name = os.path.basename(pex.path())
-    if pex_name not in frozenset(filename.value for filename in Filenames.values()):
+    if pex_name not in frozenset(
+        itertools.chain([app_name], (filename.value for filename in Filenames.values()))
+    ):
         pex_key = Filenames.PEX.name  # type: Optional[str]
     else:
         pex_name = Filenames.PEX.name
@@ -416,7 +419,18 @@ def create_manifests(
             lift["base"] = configuration.options.base
         elif pex_info.pex_root_set:
             lift["base"] = CacheDir.SCIES.path(
-                "base", os=interpreter.platform.os, pex_root=pex_info.raw_pex_root
+                "base",
+                os=interpreter.platform.os,
+                pex_root=(
+                    pex_info.raw_pex_root
+                    if interpreter.platform.os is Os.CURRENT
+                    else interpreter.platform.os.path_join(
+                        "{{scie.user.cache_dir={fallback}}}".format(
+                            fallback=interpreter.platform.os.path_join("~", ".cache")
+                        ),
+                        "pex",
+                    )
+                ),
             )
 
         manifest_path = os.path.join(
