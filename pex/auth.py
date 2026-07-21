@@ -165,3 +165,23 @@ class PasswordDatabase(object):
     def append(self, entries):
         # type: (Iterable[PasswordEntry]) -> PasswordDatabase
         return PasswordDatabase(entries=self.entries + tuple(entries))
+
+    def lookup(self, url):
+        # type: (Text) -> Optional[PasswordEntry]
+        """Finds the password entry for the machine serving the given URL, if any.
+
+        N.B.: Only machine-scoped entries are considered; the credentials of a machine-less
+        `default` netrc entry are only safe to present in response to a challenge, not
+        preemptively to arbitrary hosts.
+        """
+        try:
+            machine = Machine.from_url(url)
+        except ValueError:
+            return None
+
+        # Later entries are appended from more explicit configuration sources and should take
+        # precedence over earlier entries (e.g. an index URL credential over a netrc credential).
+        for entry in reversed(self.entries):
+            if entry.machine == machine:
+                return entry
+        return None

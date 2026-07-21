@@ -539,8 +539,16 @@ class Locker(LogAnalyzer):
             line,
         )
         if match:
+            # N.B.: Pip redacts credentials in the URLs it logs (e.g.:
+            # https://user:****@example.com/simple/); so the scraped URL cannot be used to
+            # authenticate as-is. We strip the credentials here and the `URLFetcher` used to
+            # make PEP-691 API requests re-attaches the real credentials for the endpoint's
+            # machine from its `PasswordDatabase`.
             self._pep_691_endpoints.add(
-                Endpoint(url=match.group("index_url"), content_type=match.group("content_type"))
+                Endpoint(
+                    url=str(CredentialedURL.parse(match.group("index_url")).strip_credentials()),
+                    content_type=match.group("content_type"),
+                )
             )
             return self.Continue()
 

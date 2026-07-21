@@ -3,6 +3,7 @@
 
 from __future__ import absolute_import
 
+import base64
 import contextlib
 import os
 import socket
@@ -214,6 +215,71 @@ class UnixHTTPHandler(AbstractHTTPHandler):
         )
 
 
+def _basic_auth_header(
+    username,  # type: Text
+    password,  # type: Optional[Text]
+):
+    # type: (...) -> str
+    credentials = (
+        "{username}:{password}".format(username=username, password=password)
+        if password is not None
+        else username
+    )
+    return "Basic {credentials}".format(
+        credentials=base64.b64encode(credentials.encode("utf-8")).decode("ascii")
+    )
+
+
+class SchemeGuardedHTTPBasicAuthHandler(HTTPBasicAuthHandler):
+    """A drop-in HTTPBasicAuthHandler that tolerates unsupported challenge schemes.
+
+    The stdlib auth handlers raise `ValueError` when a 401 response carries a `WWW-Authenticate`
+    challenge scheme they do not implement (e.g.: the `Bearer` challenges sent by AWS
+    CodeArtifact), which turns a garden variety auth failure into an opaque crash. Ignoring the
+    challenge instead allows the original 401 `HTTPError` to propagate to the caller.
+
+    N.B.: Under Python 3 both the basic and digest handlers raise; under Python 2.7 only the
+    digest handler does. See the `http_error_auth_reqed` implementations in `urllib.request`
+    (`AbstractBasicAuthHandler` and `AbstractDigestAuthHandler`) and their `urllib2`
+    counterparts.
+    """
+
+    def http_error_401(
+        self,
+        req,  # type: Any
+        fp,  # type: Any
+        code,  # type: Any
+        msg,  # type: Any
+        headers,  # type: Any
+    ):
+        # type: (...) -> Any
+        try:
+            return HTTPBasicAuthHandler.http_error_401(self, req, fp, code, msg, headers)
+        except ValueError:
+            return None
+
+
+class SchemeGuardedHTTPDigestAuthHandler(HTTPDigestAuthHandler):
+    """A drop-in HTTPDigestAuthHandler that tolerates unsupported challenge schemes.
+
+    See `SchemeGuardedHTTPBasicAuthHandler`.
+    """
+
+    def http_error_401(
+        self,
+        req,  # type: Any
+        fp,  # type: Any
+        code,  # type: Any
+        msg,  # type: Any
+        headers,  # type: Any
+    ):
+        # type: (...) -> Any
+        try:
+            return HTTPDigestAuthHandler.http_error_401(self, req, fp, code, msg, headers)
+        except ValueError:
+            return None
+
+
 class URLFetcher(object):
     USER_AGENT = "pex/{version}".format(version=__version__)
 
@@ -270,6 +336,44 @@ class URLFetcher(object):
         # type: (...) -> Iterator[BinaryIO]
 
         handlers = list(self._handlers)
+
+        preemptive_authorization = None  # type: Optional[str]
+        url_info = urlparse.urlparse(url)
+        if url_info.username:
+            # The stdlib openers cannot handle credentials in a URL netloc (the netloc fails to
+            # parse as a valid host); so we strip the credentials from the URL and send them
+            # preemptively via a basic auth header instead.
+            preemptive_authorization = _basic_auth_header(url_info.username, url_info.password)
+            host = url_info.hostname or ""
+            if ":" in host:
+                # N.B.: The `hostname` accessor strips IPv6 brackets; restore them.
+                host = "[{host}]".format(host=host)
+            netloc = (
+                "{host}:{port}".format(host=host, port=url_info.port)
+                if url_info.port is not None
+                else host
+            )
+            url = urlparse.urlunparse(
+                (
+                    url_info.scheme,
+                    netloc,
+                    url_info.path,
+                    url_info.params,
+                    url_info.query,
+                    url_info.fragment,
+                )
+            )
+        else:
+            password_entry = self._password_database.lookup(url)
+            if password_entry:
+                # Some servers accept basic auth but respond to unauthenticated requests with a
+                # challenge scheme the stdlib auth handlers cannot process (e.g.: the
+                # `WWW-Authenticate: Bearer ...` challenges sent by AWS CodeArtifact); sending
+                # known credentials preemptively side-steps the challenge round trip altogether.
+                preemptive_authorization = _basic_auth_header(
+                    password_entry.username, password_entry.password
+                )
+
         if self._password_database.entries:
             password_manager = HTTPPasswordMgrWithDefaultRealm()
             for password_entry in self._password_database.entries:
@@ -282,7 +386,10 @@ class URLFetcher(object):
                     passwd=password_entry.password,
                 )
             handlers.extend(
-                (HTTPBasicAuthHandler(password_manager), HTTPDigestAuthHandler(password_manager))
+                (
+                    SchemeGuardedHTTPBasicAuthHandler(password_manager),
+                    SchemeGuardedHTTPDigestAuthHandler(password_manager),
+                )
             )
 
         retries = 0
@@ -295,6 +402,10 @@ class URLFetcher(object):
 
             opener = build_opener(*handlers)
             headers = dict(extra_headers) if extra_headers else {}
+            if preemptive_authorization and not any(
+                "authorization" == header_name.lower() for header_name in headers
+            ):
+                headers["Authorization"] = preemptive_authorization
             headers["User-Agent"] = self.USER_AGENT
             request = Request(
                 # N.B.: MyPy incorrectly thinks url must be a str in Python 2 where a unicode url
