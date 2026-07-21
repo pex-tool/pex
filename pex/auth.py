@@ -179,7 +179,9 @@ class PasswordDatabase(object):
         except ValueError:
             return None
 
-        for entry in self.entries:
+        # Later entries are appended from more explicit configuration sources and should take
+        # precedence over earlier entries (e.g. an index URL credential over a netrc credential).
+        for entry in reversed(self.entries):
             if entry.machine == machine:
                 return entry
         return None

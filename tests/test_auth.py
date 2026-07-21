@@ -20,6 +20,21 @@ def test_password_database_lookup_matches_machine():
     assert database.lookup("https://other.example.com/simple/foo/") is None
 
 
+def test_password_database_lookup_prefers_later_entries():
+    # type: () -> None
+
+    machine = Machine.from_url("https://example.com")
+    netrc = PasswordEntry(machine=machine, username="joe", password="stale")
+    configured = PasswordEntry(machine=machine, username="joe", password="current")
+
+    database = PasswordDatabase(entries=(netrc,)).append((configured,))
+
+    assert configured == database.lookup("https://example.com/simple/foo/"), (
+        "Credentials from explicit configuration appended to the password database should take "
+        "precedence over earlier netrc credentials for the same machine."
+    )
+
+
 def test_password_database_lookup_ignores_default_entries():
     # type: () -> None
 
