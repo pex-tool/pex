@@ -86,7 +86,7 @@ def _science_binary_url(suffix=""):
 
 
 PTEX_VERSION = "1.7.0"
-SCIE_JUMP_VERSION = "1.12.0"
+SCIE_JUMP_VERSION = "1.13.0"
 
 
 class Filenames(Enum["Filenames.Value"]):

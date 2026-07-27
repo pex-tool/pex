@@ -396,6 +396,7 @@ class BootstrapPip(object):
         log=None,  # type: Optional[str]
         pip_verbosity=0,  # type: int
         extra_env=None,  # type: Optional[Dict[str, str]]
+        set_last_access=True,  # type: bool
         **popen_kwargs  # type: Any
     ):
         # type: (...) -> Tuple[List[str], subprocess.Popen]
@@ -492,6 +493,9 @@ class BootstrapPip(object):
         # moves lead to in the `pip wheel` case.
         extra_env.update(TMPDIR=safe_mkdtemp(dir=safe_mkdir(self.cache_dir), prefix=".tmp."))
 
+        if not set_last_access:
+            extra_env.update(_PEX_CACHE_SET_LAST_ACCESS="0")
+
         with ENV.strip().patch(
             PEX_ROOT=ENV.PEX_ROOT,
             PEX_VERBOSE=str(ENV.PEX_VERBOSE),
@@ -537,6 +541,7 @@ class BootstrapPip(object):
         pip_verbosity=0,  # type: int
         finalizer=None,  # type: Optional[Callable[[int], None]]
         extra_env=None,  # type: Optional[Dict[str, str]]
+        set_last_access=True,  # type: bool
         **popen_kwargs  # type: Any
     ):
         # type: (...) -> Job
@@ -547,6 +552,7 @@ class BootstrapPip(object):
             log=log,
             pip_verbosity=pip_verbosity,
             extra_env=extra_env,
+            set_last_access=set_last_access,
             **popen_kwargs
         )
         return Job(command=command, process=process, finalizer=finalizer, context="pip")
@@ -759,7 +765,7 @@ class BootstrapPip(object):
         # analyzer brings that build failure information to the fore.
         log_analyzers.append(_PexIssue2113Analyzer())
 
-        popen_kwargs = {}
+        popen_kwargs = {}  # type: Dict[str, Any]
         finalizer = None
         log = log or os.path.join(safe_mkdtemp(prefix="pex-pip-log."), "pip.log")
 
@@ -893,6 +899,7 @@ class BootstrapPip(object):
         return self._spawn_pip_isolated_job(
             args=["cache", "remove", wheel_name_glob],
             pip_verbosity=1,
+            set_last_access=False,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
@@ -902,6 +909,7 @@ class BootstrapPip(object):
         return self._spawn_pip_isolated_job(
             args=["cache", "list", "--format", "abspath"],
             pip_verbosity=1,
+            set_last_access=False,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )

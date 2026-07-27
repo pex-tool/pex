@@ -4,6 +4,7 @@
 from __future__ import print_function
 
 import importlib
+import json
 import os
 import sys
 from argparse import ArgumentParser
@@ -23,9 +24,12 @@ def write_bindings(
 ):
     # type: (...) -> None
 
-    with open(env_file, "a") as fp:
-        for env_name, resource_path in bound_resource_paths:
-            print("BIND_RESOURCE_" + env_name + "=" + resource_path, file=fp)
+    bindings = [
+        {"key": "BIND_RESOURCE_" + env_name, "value": resource_path, "brake": "file"}
+        for env_name, resource_path in bound_resource_paths
+    ]
+    with open(env_file, "w") as fp:
+        json.dump(bindings, fp)
 
 
 class ResourceBindingError(Exception):
@@ -106,6 +110,6 @@ if __name__ == "__main__":
         sys.exit(str(e))
 
     write_bindings(
-        env_file=os.environ["SCIE_BINDING_ENV"], bound_resource_paths=bound_resource_paths
+        env_file=os.environ["SCIE_BINDING_JSON"], bound_resource_paths=bound_resource_paths
     )
     sys.exit(0)

@@ -166,6 +166,8 @@ def boot(
         except ImportError:
             pass
 
+    set_last_access = os.environ.pop("_PEX_CACHE_SET_LAST_ACCESS", "1").lower() in ("1", "true")
+
     ignored_pex_env_vars = [
         "{}={}".format(name, value)
         for name, value in os.environ.items()
@@ -325,6 +327,14 @@ def boot(
             return self.__dict__[key]
 
     replacements = Namespace(env=Namespace(os.environ, safe=True))
+
+    # Update last access time for proper pex3 cache prune behavior when run directly via a PEX
+    # `--sh-boot` script header or a PEX scie.
+    if set_last_access:
+        with open(os.path.join(os.path.dirname(__file__), ".last-access"), "a") as fp:
+            os.utime(fp.name, None)
+
+    # Now execute the appropriate PEX entry point.
 
     pex_script = pex_overrides.get("PEX_SCRIPT") if pex_overrides else script
     if pex_script:

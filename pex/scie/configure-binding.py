@@ -15,7 +15,21 @@ from argparse import ArgumentParser
 TYPE_CHECKING = False
 
 if TYPE_CHECKING:
-    from typing import Iterable, Optional
+    from typing import Dict, Iterable, Optional
+
+    from typing_extensions import Literal
+
+
+def create_binding(
+    key,  # type: str
+    value,  # type: str
+    brake=None,  # type: Optional[Literal["dir", "file", "exists"]]
+):
+    # type: (...) -> Dict[str, str]
+    binding = {"key": key, "value": value}
+    if brake is not None:
+        binding["brake"] = brake
+    return binding
 
 
 def write_bindings(
@@ -27,22 +41,31 @@ def write_bindings(
 ):
     # type: (...) -> None
 
-    with open(env_file, "a") as fp:
-        stem, ext = os.path.splitext(sys.executable)
-        if windowed and ext == ".exe" and not stem.endswith("w"):
-            parent_dir = os.path.dirname(sys.executable)
-            python = os.path.join(parent_dir, "{binary_name}w.exe".format(binary_name=stem))
+    stem, ext = os.path.splitext(sys.executable)
+    if windowed and ext == ".exe" and not stem.endswith("w"):
+        parent_dir = os.path.dirname(sys.executable)
+        python = os.path.join(parent_dir, "{binary_name}w.exe".format(binary_name=stem))
+    else:
+        python = sys.executable
 
-        else:
-            python = sys.executable
+    bindings = [
+        create_binding("PYTHON", python, brake="file"),
+        create_binding("PEX", pex, brake="file" if os.path.isfile(pex) else "dir"),
+    ]
+    if venv_bin_dir:
+        bindings.extend(
+            (
+                # N.B.: If we're in --venv mode, PEX is inside the VIRTUAL_ENV; so there is no need
+                # to check the directory's existence again: the PEX check succeeding confirms it.
+                create_binding("VIRTUAL_ENV", os.path.dirname(venv_bin_dir)),
+                create_binding("VENV_BIN_DIR_PLUS_SEP", venv_bin_dir + os.path.sep, brake="dir"),
+            )
+        )
+    if desktop_file:
+        bindings.append(create_binding("DESKTOP_FILE", desktop_file))
 
-        print("PYTHON=" + python, file=fp)
-        print("PEX=" + pex, file=fp)
-        if venv_bin_dir:
-            print("VIRTUAL_ENV=" + os.path.dirname(venv_bin_dir), file=fp)
-            print("VENV_BIN_DIR_PLUS_SEP=" + venv_bin_dir + os.path.sep, file=fp)
-        if desktop_file:
-            print("DESKTOP_FILE=" + desktop_file, file=fp)
+    with open(env_file, "w") as fp:
+        json.dump(bindings, fp)
 
 
 class PexDirNotFound(Exception):
@@ -238,7 +261,7 @@ if __name__ == "__main__":
             desktop_uninstall(desktop_file=desktop_install_path)
 
     write_bindings(
-        env_file=os.environ["SCIE_BINDING_ENV"],
+        env_file=os.environ["SCIE_BINDING_JSON"],
         pex=pex,
         venv_bin_dir=os.path.join(pex, options.venv_bin_dir) if options.venv_bin_dir else None,
         desktop_file=desktop_install_path,

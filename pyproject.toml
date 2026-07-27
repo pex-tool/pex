@@ -156,6 +156,8 @@ mypy = [
   # 0.10.6 stubs are not compatible with Python 2.7
   "types-toml==0.10.5; python_version >= '3.8'",
 
+  "typing_extensions",
+
   {include-group = "build-cache-image"},
   {include-group = "devpi-server"},
   {include-group = "docs"},
