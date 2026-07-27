@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.98.3
+
+This release fixes `--venv` PEX scies robustness to PEX_ROOT cache deletion and  also fixes `--venv`
+PEX behavior with regard to accurate `pex3 cache prune` last access time pruning.
+
+* Fix `--venv` PEX cache handling. (#3226)
+
 ## 2.98.2
 
 This release fixes generation of foreign platform PEX scies to respect the foreign platform cache
