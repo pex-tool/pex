@@ -62,7 +62,7 @@ def write_bindings(
             )
         )
     if desktop_file:
-        bindings.append(create_binding("DESKTOP_FILE", desktop_file, brake="file"))
+        bindings.append(create_binding("DESKTOP_FILE", desktop_file))
 
     with open(env_file, "w") as fp:
         json.dump(bindings, fp)
