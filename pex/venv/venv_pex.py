@@ -326,6 +326,13 @@ def boot(
 
     replacements = Namespace(env=Namespace(os.environ, safe=True))
 
+    # Update last access time for proper pex3 cache prune behavior when run directly via a PEX
+    # `--sh-boot` script header or a PEX scie.
+    with open(os.path.join(os.path.dirname(__file__), ".last-access"), "a") as fp:
+        os.utime(fp.name, None)
+
+    # Now execute the appropriate PEX entry point.
+
     pex_script = pex_overrides.get("PEX_SCRIPT") if pex_overrides else script
     if pex_script:
         script_path = os.path.join(venv_bin_dir, pex_script)
