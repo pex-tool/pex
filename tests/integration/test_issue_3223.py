@@ -4,6 +4,7 @@
 from __future__ import absolute_import
 
 import os
+import shutil
 import subprocess
 from uuid import uuid4
 
@@ -78,3 +79,45 @@ def test_venv_direct_execution_prune_time(
             venv_dir=venv_dirs.path
         )
     assert not new_access_times
+
+
+@pytest.mark.parametrize(
+    "extra_args",
+    [
+        pytest.param([], id="PEX"),
+        pytest.param(["--sh-boot"], id="SH_BOOT"),
+        pytest.param(["--scie", "eager", "--scie-only"], id="SCIE"),
+    ],
+)
+def test_venv_cache_robustness(
+    tmpdir,  # type: Tempdir
+    extra_args,  # type: List[str]
+):
+    # type: (...) -> None
+
+    if WINDOWS and "--sh-boot" in extra_args:
+        pytest.skip("The direct execution of --sh-boot shebang PEXes does not work on Windows.")
+    if "--scie" in extra_args and not has_provider():
+        pytest.skip(
+            "Either A PBS or PyPy release must be available for the current interpreter to run "
+            "this test."
+        )
+
+    resources = tmpdir.join("resources")
+    with safe_open(os.path.join(resources, "generate-unique-pex-hash"), "w") as fp:
+        fp.write(uuid4().hex)
+
+    pex = tmpdir.join("pex")
+    run_pex_command(
+        args=["-D", resources, "cowsay==5.0", "-c", "cowsay", "-o", pex, "--venv", "prepend"]
+        + extra_args
+    ).assert_success()
+    pex_hash = PexInfo.from_pex(pex).pex_hash
+
+    assert b"| Moo! |" in subprocess.check_output(args=[pex, "Moo!"])
+    venv_dirs = [venv_dirs for venv_dirs in VenvDirs.iter_all() if venv_dirs.pex_hash == pex_hash]
+    assert len(venv_dirs) == 1
+    venv_dir = venv_dirs[0].path
+
+    shutil.rmtree(venv_dir)
+    assert b"| Moo! |" in subprocess.check_output(args=[pex, "Moo!"])
