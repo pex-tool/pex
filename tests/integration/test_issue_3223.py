@@ -21,7 +21,38 @@ from testing.pytest_utils.tmp import Tempdir
 from testing.scie import has_provider
 
 if TYPE_CHECKING:
-    from typing import Dict, List
+    from typing import Dict, List, Tuple
+
+
+def create_venv_pex(
+    tmpdir,  # type: Tempdir
+    extra_args,  # type: List[str]
+):
+    # type: (...) -> Tuple[str, str]
+
+    if WINDOWS and "--sh-boot" in extra_args:
+        pytest.skip("The direct execution of --sh-boot shebang PEXes does not work on Windows.")
+
+    if "--scie" in extra_args and not has_provider():
+        pytest.skip(
+            "Either A PBS or PyPy release must be available for the current interpreter to run "
+            "this test."
+        )
+
+    resources = tmpdir.join("resources")
+    with safe_open(os.path.join(resources, "generate-unique-pex-hash"), "w") as fp:
+        fp.write(uuid4().hex)
+
+    pex = tmpdir.join("pex")
+    run_pex_command(
+        args=["-D", resources, "cowsay==5.0", "-c", "cowsay", "-o", pex, "--venv", "prepend"]
+        + extra_args
+    ).assert_success()
+
+    pex_hash = PexInfo.from_pex(pex).pex_hash
+    assert pex_hash is not None
+
+    return pex, pex_hash
 
 
 @pytest.mark.parametrize(
@@ -38,24 +69,7 @@ def test_venv_direct_execution_prune_time(
 ):
     # type: (...) -> None
 
-    if WINDOWS and "--sh-boot" in extra_args:
-        pytest.skip("The direct execution of --sh-boot shebang PEXes does not work on Windows.")
-    if "--scie" in extra_args and not has_provider():
-        pytest.skip(
-            "Either A PBS or PyPy release must be available for the current interpreter to run "
-            "this test."
-        )
-
-    resources = tmpdir.join("resources")
-    with safe_open(os.path.join(resources, "generate-unique-pex-hash"), "w") as fp:
-        fp.write(uuid4().hex)
-
-    pex = tmpdir.join("pex")
-    run_pex_command(
-        args=["-D", resources, "cowsay==5.0", "-c", "cowsay", "-o", pex, "--venv", "prepend"]
-        + extra_args
-    ).assert_success()
-    pex_hash = PexInfo.from_pex(pex).pex_hash
+    pex, pex_hash = create_venv_pex(tmpdir, extra_args)
 
     def collect_venv_access_times():
         # type: () -> Dict[VenvDirs, float]
@@ -95,24 +109,7 @@ def test_venv_cache_robustness(
 ):
     # type: (...) -> None
 
-    if WINDOWS and "--sh-boot" in extra_args:
-        pytest.skip("The direct execution of --sh-boot shebang PEXes does not work on Windows.")
-    if "--scie" in extra_args and not has_provider():
-        pytest.skip(
-            "Either A PBS or PyPy release must be available for the current interpreter to run "
-            "this test."
-        )
-
-    resources = tmpdir.join("resources")
-    with safe_open(os.path.join(resources, "generate-unique-pex-hash"), "w") as fp:
-        fp.write(uuid4().hex)
-
-    pex = tmpdir.join("pex")
-    run_pex_command(
-        args=["-D", resources, "cowsay==5.0", "-c", "cowsay", "-o", pex, "--venv", "prepend"]
-        + extra_args
-    ).assert_success()
-    pex_hash = PexInfo.from_pex(pex).pex_hash
+    pex, pex_hash = create_venv_pex(tmpdir, extra_args)
 
     assert b"| Moo! |" in subprocess.check_output(args=[pex, "Moo!"])
     venv_dirs = [venv_dirs for venv_dirs in VenvDirs.iter_all() if venv_dirs.pex_hash == pex_hash]
