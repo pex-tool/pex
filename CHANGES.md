@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.98.5
+
+This release fixes `pex3 lock create` to better handle authenticated PEP-691 endpoints.
+
+* Fix PEP-691 fingerprinting for authenticated indexes. (#3230)
+
 ## 2.98.4
 
 This release updates vendored Pip's vendored certifi's cacert.pem to that from certifi 2026.7.22.

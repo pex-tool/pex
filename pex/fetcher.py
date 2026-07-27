@@ -214,6 +214,22 @@ class UnixHTTPHandler(AbstractHTTPHandler):
         )
 
 
+def scheme_guard(auth_handler):
+    # type: (Any) -> Any
+    http_error_401 = getattr(auth_handler, "http_error_401", None)
+    if not http_error_401:
+        return auth_handler
+
+    def guard(*args, **kwargs):
+        try:
+            return http_error_401(*args, **kwargs)
+        except ValueError:
+            return None
+
+    setattr(auth_handler, "http_error_401", guard)
+    return auth_handler
+
+
 class URLFetcher(object):
     USER_AGENT = "pex/{version}".format(version=__version__)
 
@@ -282,7 +298,20 @@ class URLFetcher(object):
                     passwd=password_entry.password,
                 )
             handlers.extend(
-                (HTTPBasicAuthHandler(password_manager), HTTPDigestAuthHandler(password_manager))
+                (
+                    HTTPBasicAuthHandler(password_manager),
+                    # N.B.: Python stdlib HTTPDigestAuthHandler docs note:
+                    # > Changed in version 3.3: Raise ValueError on unsupported Authentication
+                    # > Scheme.
+                    # We saw this in the wild in https://github.com/pex-tool/pex/issues/3224; so we
+                    # hack around this by guarding against the ValueError raise here.
+                    #
+                    # Likely, it would be better to just remove this auth handler altogether -
+                    # Digest auth would seem to be rarely used in the contexts Pex runs in. That
+                    # said, this would be a backward compatibility break for anyone that happened to
+                    # rely on it.
+                    scheme_guard(HTTPDigestAuthHandler(password_manager)),
+                )
             )
 
         retries = 0
