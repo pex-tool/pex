@@ -1,9 +1,15 @@
 # Release Notes
 
+## 2.98.4
+
+This release updates vendored Pip's vendored certifi's cacert.pem to that from certifi 2026.7.22.
+
+* Update vendored Pip's CA cert bundle. (#3227)
+
 ## 2.98.3
 
-This release fixes `--venv` PEX scies robustness to PEX_ROOT cache deletion and  also fixes `--venv`
-PEX behavior with regard to accurate `pex3 cache prune` last access time pruning.
+This release fixes `--venv` PEX scies robustness to `PEX_ROOT` cache deletion and  also fixes
+`--venv` PEX behavior with regard to accurate `pex3 cache prune` last access time pruning.
 
 * Fix `--venv` PEX cache handling. (#3226)
 
