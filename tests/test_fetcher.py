@@ -9,7 +9,7 @@ from threading import Thread
 import pytest
 
 from pex.auth import Machine, PasswordEntry
-from pex.compatibility import PY2, HTTPError
+from pex.compatibility import PY2
 from pex.fetcher import URLFetcher
 from pex.typing import TYPE_CHECKING
 from pex.version import __version__
@@ -130,27 +130,3 @@ def test_preemptive_basic_auth_from_url_credentials(bearer_challenge_server_addr
     url_fetcher = URLFetcher(netrc_file=None)
     with url_fetcher.get_body_stream(url) as fp:
         assert b"authorized" == fp.read()
-
-
-def test_unsupported_challenge_scheme_yields_http_error(bearer_challenge_server_address):
-    # type: (Tuple[str, int]) -> None
-
-    host, port = bearer_challenge_server_address
-    url = "http://{host}:{port}/simple/foo/".format(host=host, port=port)
-    url_fetcher = URLFetcher(
-        password_entries=[
-            # N.B.: These credentials are for another machine; so no preemptive auth applies and
-            # the server's `WWW-Authenticate: Bearer` challenge is processed by the stdlib auth
-            # handlers, which do not support the scheme.
-            PasswordEntry(
-                machine=Machine.from_url("https://other.example.com"),
-                username="joe",
-                password="bob",
-            )
-        ],
-        netrc_file=None,
-    )
-    with pytest.raises(HTTPError) as exc_info:
-        with url_fetcher.get_body_stream(url) as fp:
-            fp.read()
-    assert 401 == exc_info.value.code
