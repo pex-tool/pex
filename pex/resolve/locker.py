@@ -548,9 +548,11 @@ class Locker(LogAnalyzer):
             maybe_credentialed_url = CredentialedURL.parse(index_url)
             self._pep_691_endpoints.add(
                 Endpoint(
-                    url=str(maybe_credentialed_url.strip_credentials())
-                    if maybe_credentialed_url.has_redacted_credentials
-                    else index_url,
+                    url=(
+                        str(maybe_credentialed_url.strip_credentials())
+                        if maybe_credentialed_url.has_redacted_credentials
+                        else index_url
+                    ),
                     content_type=match.group("content_type"),
                 )
             )
