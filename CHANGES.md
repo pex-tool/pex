@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.99.0
+
+This release adds support for Pip 26.2.
+
+* Add support for Pip 26.2. (#3231)
+
 ## 2.98.5
 
 This release fixes `pex3 lock create` to better handle authenticated PEP-691 endpoints.
