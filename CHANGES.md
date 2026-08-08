@@ -4,7 +4,7 @@
 
 This release upgrades pexrc to 0.16.3 to fix `--rc` for Python release candidates.
 
-* Fix `--rc` for Python release candidates. (#3237)
+* Fix `--rc` for Python release candidates. (#3235)
 
 ## 2.100.0
 
