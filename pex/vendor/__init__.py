@@ -321,8 +321,11 @@ def iter_vendor_specs(
         # The last version to support 3.7.
         yield VendorSpec.pinned("packaging", "24.0", import_path="packaging_24_0")
     if not python_major_minor or python_major_minor >= (3, 8):
-        # Modern packaging for everyone else.
+        # The last version to support 3.8.
         yield VendorSpec.pinned("packaging", "26.2", import_path="packaging_26_2")
+    if not python_major_minor or python_major_minor >= (3, 9):
+        # Modern packaging for everyone else.
+        yield VendorSpec.pinned("packaging", "26.3", import_path="packaging_26_3")
 
     # N.B.: All vendored items below are optional and may not be present in Pex distributions
     # targeting newer Pythons.
