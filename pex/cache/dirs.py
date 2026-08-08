@@ -198,7 +198,7 @@ class CacheDir(Enum["CacheDir.Value"]):
 
     PLATFORMS = Value(
         "platforms",
-        version=0,
+        version=1,
         name="Abbreviated Platforms",
         description=(
             "Information calculated about abbreviated platforms specified via `--platform`."

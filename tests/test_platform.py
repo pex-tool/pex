@@ -2,12 +2,15 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import itertools
+import os.path
 import re
 from textwrap import dedent
 
 import pytest
 
 from pex.pep_425 import CompatibilityTags
+from pex.pep_440 import Version
+from pex.pip.version import PipVersion
 from pex.platforms import PlatformSpec
 from pex.resolve import abbreviated_platforms
 from pex.third_party.packaging import tags
@@ -125,7 +128,18 @@ def test_platform_supported_tags():
 
     # A golden file test. This could break if we upgrade Pip and it upgrades packaging which, from
     # time to time, corrects omissions in tag sets.
-    golden_tags = data.load("platforms/macosx_10_13_x86_64-cp-36-m.tags.txt")
+    golden_tags = data.load(
+        os.path.join(
+            "platforms",
+            (
+                # N.B.: Pip 26.3 (currently unreleased) upgrades vendored packaging to 26.3, which
+                # fixes _fat32 -> _fat3 in macOS tags.
+                "macosx_10_13_x86_64-cp-36-m.tags-packaging26.3.txt"
+                if PipVersion.DEFAULT.version >= Version("26.3")
+                else "macosx_10_13_x86_64-cp-36-m.tags.txt"
+            ),
+        )
+    )
     assert golden_tags is not None
     assert (
         CompatibilityTags(

@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.100.0
+
+This release adds support for Pip 26.2.1 and updates vendored packaging to 26.3 for Python >= 3.9.
+
+* Add support for Pip 26.2.1 (#3236)
+
 ## 2.99.0
 
 This release adds support for Pip 26.2.
