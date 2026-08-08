@@ -97,8 +97,8 @@ jobs:
           - test-cmd: test-py27-pip20.3.4--patched
             base-pythons: old
 
-          - test-cmd: test-py314-pip26.2
-          - test-cmd: test-py315-pip26.2
+          - test-cmd: test-py314-pip26.2.1
+          - test-cmd: test-py315-pip26.2.1
           - test-cmd: test-pypy311-pip24.3.1
 
           # Integration tests, split most into two shards:
@@ -117,11 +117,11 @@ jobs:
           - test-cmd: test-py38-pip22.3.1-integration-shard2@2
             base-pythons: old
 
-          - test-cmd: test-py314-pip26.2-integration-shard1@2
-          - test-cmd: test-py314-pip26.2-integration-shard2@2
+          - test-cmd: test-py314-pip26.2.1-integration-shard1@2
+          - test-cmd: test-py314-pip26.2.1-integration-shard2@2
 
-          - test-cmd: test-py315-pip26.2-integration-shard1@2
-          - test-cmd: test-py315-pip26.2-integration-shard2@2
+          - test-cmd: test-py315-pip26.2.1-integration-shard1@2
+          - test-cmd: test-py315-pip26.2.1-integration-shard2@2
 
           # PyPy is slow enough to require extra sharding.
           - test-cmd: test-pypy311-pip24.3.1-integration-shard1@4
@@ -177,11 +177,11 @@ jobs:
       matrix:
         include:
           - python-version: "3.14"
-            test-cmd: test-py314-pip26.2
+            test-cmd: test-py314-pip26.2.1
           - python-version: "3.14"
-            test-cmd: test-py314-pip26.2-integration-shard:1/2
+            test-cmd: test-py314-pip26.2.1-integration-shard:1/2
           - python-version: "3.14"
-            test-cmd: test-py314-pip26.2-integration-shard:2/2
+            test-cmd: test-py314-pip26.2.1-integration-shard:2/2
     steps:
       - name: Checkout Pex
         uses: actions/checkout@v6
@@ -266,15 +266,15 @@ jobs:
           - python-version: "3.11"
             test-cmd: typecheck package docs
           - python-version: "3.14"
-            test-cmd: test-py314-pip26.2
+            test-cmd: test-py314-pip26.2.1
             artifact-name: unit
             pex-test-pos-args: --junit-report ../dist/test-results/unit.xml
           - python-version: "3.14"
-            test-cmd: test-py314-pip26.2-integration
+            test-cmd: test-py314-pip26.2.1-integration
             artifact-name: integration-1
             pex-test-pos-args: --shard 1/2 --junit-report ../dist/test-results/integration-1.xml
           - python-version: "3.14"
-            test-cmd: test-py314-pip26.2-integration
+            test-cmd: test-py314-pip26.2.1-integration
             artifact-name: integration-2
             pex-test-pos-args: --shard 2/2 --junit-report ../dist/test-results/integration-2.xml
     steps:

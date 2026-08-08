@@ -15,6 +15,7 @@ from pex.exceptions import production_assert
 from pex.jobs import SpawnedJob
 from pex.pep_425 import CompatibilityTags
 from pex.pip.installation import get_pip
+from pex.pip.version import PipVersion
 from pex.platforms import Platform, PlatformSpec
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.resolver_configuration import PipConfiguration
@@ -141,7 +142,8 @@ def create(
     if manylinux:
         components.append(manylinux)
     disk_cache_key = CacheDir.PLATFORMS.path(
-        "pip-{version}".format(version=pip_configuration.version), PlatformSpec.SEP.join(components)
+        "pip-{version}".format(version=pip_configuration.version or PipVersion.DEFAULT),
+        PlatformSpec.SEP.join(components),
     )
 
     with atomic_directory(target_dir=disk_cache_key) as cache_dir:
