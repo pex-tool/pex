@@ -9,7 +9,6 @@ from textwrap import dedent
 import pytest
 
 from pex.pep_425 import CompatibilityTags
-from pex.pep_440 import Version
 from pex.pip.version import PipVersion
 from pex.platforms import PlatformSpec
 from pex.resolve import abbreviated_platforms
@@ -132,10 +131,11 @@ def test_platform_supported_tags():
         os.path.join(
             "platforms",
             (
-                # N.B.: Pip 26.3 (currently unreleased) upgrades vendored packaging to 26.3, which
-                # fixes _fat32 -> _fat3 in macOS tags.
+                # N.B.: The version of Pip following 26.2.1 (currently unreleased) upgrades vendored
+                # packaging to 26.3, which fixes _fat32 -> _fat3 in macOS tags.
+                # See: https://github.com/pypa/pip/pull/14230
                 "macosx_10_13_x86_64-cp-36-m.tags-packaging26.3.txt"
-                if PipVersion.DEFAULT.version >= Version("26.3")
+                if PipVersion.DEFAULT > PipVersion.v26_2_1
                 else "macosx_10_13_x86_64-cp-36-m.tags.txt"
             ),
         )
