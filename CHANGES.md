@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.100.1
+
+This release upgrades pexrc to 0.16.3 to fix `--rc` for Python release candidates.
+
+* Fix `--rc` for Python release candidates. (#3235)
+
 ## 2.100.0
 
 This release adds support for Pip 26.2.1 and updates vendored packaging to 26.3 for Python >= 3.9.
