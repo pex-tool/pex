@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.100.2
+
+This release upgrades pexrc to 0.16.4 to fix `--rc` for macOS Python Framework builds.
+
+* Fix `--rc` for Python Framework builds. (#3240)
+
 ## 2.100.1
 
 This release upgrades pexrc to 0.16.3 to fix `--rc` for Python release candidates.
