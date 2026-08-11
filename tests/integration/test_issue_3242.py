@@ -7,12 +7,8 @@ import subprocess
 
 from pex.common import open_zip
 from pex.sysconfig import SysPlatform
-from pex.typing import TYPE_CHECKING
 from testing import run_pex_command
 from testing.pytest_utils.tmp import Tempdir
-
-if TYPE_CHECKING:
-    pass
 
 
 def assert_clib_count(
