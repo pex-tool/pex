@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.100.3
+
+This release fixes `pex --rc --pexrc-platform ...` handling. Previously `--pexrc-platform` was not
+forwarded to `pexrc inject --target ...` leading to the creation of bigger PEXes than need be.
+
+* Pass `pex --rc --pexrc-platform ...` to `pexrc inject --target ...`. (#3243)
+
 ## 2.100.2
 
 This release upgrades pexrc to 0.16.4 to fix `--rc` for macOS Python Framework builds.
