@@ -19,7 +19,7 @@ from pex.os import is_exe
 from pex.pep_440 import Version
 from pex.rc.model import File, NativeRuntimeConfiguration, Url
 from pex.result import Error, try_
-from pex.sysconfig import LibC, SysPlatform
+from pex.sysconfig import SysPlatform
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.third_party.packaging.version import InvalidVersion
 from pex.tracer import TRACER
@@ -30,45 +30,59 @@ from pex.variables import ENV, Variables
 if TYPE_CHECKING:
     from typing import Iterator, Optional, Union
 
+    import attr  # vendor:skip
+else:
+    from pex.third_party import attr
+
 
 PEXRC_RELEASES_URL = "https://github.com/pex-tool/pex.rc/releases"
 MIN_PEXRC_VERSION = Version("0.16.4")
 PEXRC_REQUIREMENT = SpecifierSet("~={min_version}".format(min_version=MIN_PEXRC_VERSION))
 
 
-def _pexrc_platform_suffix():
-    # type: () -> str
-    if SysPlatform.CURRENT == SysPlatform.LINUX_AARCH64:
-        if SysPlatform.CURRENT.libc == LibC.MUSL:
-            return "aarch64-linux-musl"
-        return "aarch64-linux-gnu"
-    elif SysPlatform.CURRENT == SysPlatform.LINUX_ARMV7L:
-        return "armv7-linux-gnueabihf"
-    elif SysPlatform.CURRENT == SysPlatform.LINUX_PPC64LE:
-        return "powerpc64le-linux-gnu"
-    elif SysPlatform.CURRENT == SysPlatform.LINUX_RISCV64:
-        return "riscv64gc-linux-gnu"
-    elif SysPlatform.CURRENT == SysPlatform.LINUX_S390X:
-        return "s390x-linux-gnu"
-    elif SysPlatform.CURRENT == SysPlatform.LINUX_X86_64:
-        if SysPlatform.CURRENT.libc == LibC.MUSL:
-            return "x86_64-linux-musl"
-        return "x86_64-linux-gnu"
-    elif SysPlatform.CURRENT == SysPlatform.MACOS_AARCH64:
-        return "aarch64-macos"
-    elif SysPlatform.CURRENT == SysPlatform.MACOS_X86_64:
-        return "x86_64-macos"
-    elif SysPlatform.CURRENT == SysPlatform.WINDOWS_AARCH64:
-        return "aarch64-windows.exe"
-    elif SysPlatform.CURRENT == SysPlatform.WINDOWS_X86_64:
-        return "x86_64-windows.exe"
-    raise ValueError("There is no `pexrc` support for the current platform.")
+@attr.s(frozen=True)
+class PexrcInfo(object):
+    target = attr.ib()  # type: str
+    extension = attr.ib(default="")  # type: str
+
+    def platform_suffix(self):
+        return (
+            "{target}.{extension}".format(target=self.target, extension=self.extension)
+            if self.extension
+            else self.target
+        )
+
+
+_PEXRC_INFO_BY_SYS_PLATFORM = {
+    SysPlatform.LINUX_AARCH64: PexrcInfo(target="aarch64-linux-gnu"),
+    SysPlatform.MUSL_LINUX_AARCH64: PexrcInfo(target="aarch64-linux-musl"),
+    SysPlatform.LINUX_ARMV7L: PexrcInfo(target="armv7-linux-gnueabihf"),
+    SysPlatform.LINUX_PPC64LE: PexrcInfo(target="powerpc64le-linux-gnu"),
+    SysPlatform.LINUX_RISCV64: PexrcInfo(target="riscv64gc-linux-gnu"),
+    SysPlatform.LINUX_S390X: PexrcInfo(target="s390x-linux-gnu"),
+    SysPlatform.LINUX_X86_64: PexrcInfo(target="x86_64-linux-gnu"),
+    SysPlatform.MUSL_LINUX_X86_64: PexrcInfo(target="x86_64-linux-musl"),
+    SysPlatform.MACOS_AARCH64: PexrcInfo(target="aarch64-macos"),
+    SysPlatform.MACOS_X86_64: PexrcInfo(target="x86_64-macos"),
+    SysPlatform.WINDOWS_AARCH64: PexrcInfo(target="aarch64-windows", extension="exe"),
+    SysPlatform.WINDOWS_X86_64: PexrcInfo(target="x86_64-windows", extension="exe"),
+}
+
+
+def _pexrc_info(platform):
+    # type: (SysPlatform.Value) -> PexrcInfo
+    info = _PEXRC_INFO_BY_SYS_PLATFORM.get(platform)
+    if not info:
+        raise ValueError(
+            "There is no `pexrc` support for the {platform} platform.".format(platform=platform)
+        )
+    return info
 
 
 def _pexrc_binary_names():
     # type: () -> Iterator[str]
     yield SysPlatform.CURRENT.binary_name("pexrc")
-    yield "pexrc-{suffix}".format(suffix=_pexrc_platform_suffix())
+    yield "pexrc-{suffix}".format(suffix=_pexrc_info(SysPlatform.CURRENT).platform_suffix())
 
 
 def _pexrc_binary_url(suffix=""):
@@ -76,9 +90,14 @@ def _pexrc_binary_url(suffix=""):
     return "{pexrc_releases_url}/download/v{version}/pexrc-{platform_suffix}{suffix}".format(
         pexrc_releases_url=PEXRC_RELEASES_URL,
         version=MIN_PEXRC_VERSION.raw,
-        platform_suffix=_pexrc_platform_suffix(),
+        platform_suffix=_pexrc_info(SysPlatform.CURRENT).platform_suffix(),
         suffix=suffix,
     )
+
+
+def _pexrc_target(platform):
+    # type: (SysPlatform.Value) -> str
+    return _pexrc_info(platform).target
 
 
 def _is_compatible_pexrc_binary(
@@ -223,6 +242,9 @@ def inject(
     if configuration.compression_level:
         args.append("--compression-level")
         args.append(str(configuration.compression_level))
+    for platform in configuration.platforms:
+        args.append("--target")
+        args.append(_pexrc_target(platform))
     args.append(pex_file)
 
     with open(os.devnull, "wb") as devnull:
