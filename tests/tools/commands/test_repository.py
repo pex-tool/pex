@@ -21,6 +21,7 @@ from pex.pip.version import PipVersion
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.resolver_configuration import BuildConfiguration
 from pex.resolve.target_system import MarkerParser, MarkerVisitor
+from pex.sysconfig import SysPlatform
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.typing import TYPE_CHECKING
 from testing import (
@@ -47,6 +48,8 @@ else:
         pytest.param(
             [
                 "--rc",
+                "--pexrc-platform",
+                SysPlatform.CURRENT.value,
                 "--compression-method",
                 "deflated",
                 "--layout",
