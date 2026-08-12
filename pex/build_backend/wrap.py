@@ -10,6 +10,7 @@ import hashlib
 import io
 import os
 import tarfile
+import zipfile
 
 from pex import sdist
 from pex.build_backend import BuildError
@@ -123,6 +124,11 @@ def build_wheel(
     build_dir = _build_dir("wheel")
 
     with open_zip(wheel_path) as zf:
+        # N.B.: ZipFile.compression exists all the way back through Python 2.7.
+        original_whl_compression = zf.compression  # type: ignore[attr-defined]
+        original_whl_compress_by_name = {
+            info.filename: info.compress_type == zipfile.ZIP_DEFLATED for info in zf.infolist()
+        }
         zf.extractall(build_dir)
 
     entries = glob.glob(os.path.join(build_dir, "*.dist-info"))
@@ -148,17 +154,20 @@ def build_wheel(
         os.path.join(build_dir, record_relpath), arcname=record_relpath, date_time=date_time
     )
     csv_writer, get_csv_bytes = csv_output()
-    with open_zip(wheel_path, "w") as zf:
+    with open_zip(wheel_path, "w", compression=original_whl_compression) as zf:
         for path in _iter_files_deterministic(build_dir):
             if path == record_relpath:
                 continue
 
+            src = os.path.join(build_dir, path)
+            compress = original_whl_compress_by_name.get(path, os.path.isfile(src))
             digest = hashlib.sha256()
             size = zf.write_deterministic(
-                os.path.join(build_dir, path),
+                filename=src,
                 arcname=path,
                 digest=digest,
                 deterministic=_CONFIG.deterministic,
+                compress=compress,
             )
             fingerprint = base64.urlsafe_b64encode(digest.digest()).rstrip(b"=").decode("ascii")
             csv_writer.writerow(
