@@ -207,7 +207,7 @@ class CacheDir(Enum["CacheDir.Value"]):
 
     REPACKED_WHEELS = Value(
         "repacked_wheels",
-        version=0,
+        version=1,
         name="Reconstituted Wheels",
         description=(
             "Wheels that have been reconstituted from {installed_wheels!r}, as well as from wheels "

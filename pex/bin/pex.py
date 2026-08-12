@@ -1039,23 +1039,25 @@ def build_pex(
             )
         )
 
+    pip_configuration = (
+        resolver_configuration
+        if isinstance(resolver_configuration, PipConfiguration)
+        else resolver_configuration.pip_configuration
+    )
+
     dependency_manager = DependencyManager()
     with TRACER.timed(
         "Adding distributions from pexes: {}".format(" ".join(options.requirements_pexes))
     ):
         for requirements_pex in options.requirements_pexes:
             requirements_pex_info = dependency_manager.add_from_pex(
-                requirements_pex, result_type_wheel_file=pex_info.deps_are_wheel_files
+                requirements_pex,
+                result_type_wheel_file=pex_info.deps_are_wheel_files,
+                use_system_time=pip_configuration.build_configuration.use_system_time,
             )
             dependency_config = dependency_config.merge(
                 DependencyConfiguration.from_pex_info(requirements_pex_info)
             )
-
-    pip_configuration = (
-        resolver_configuration
-        if isinstance(resolver_configuration, PipConfiguration)
-        else resolver_configuration.pip_configuration
-    )
 
     group_requirements = project.get_group_requirements(options)
     if group_requirements:
@@ -1301,6 +1303,7 @@ def main(args=None):
                 resolver_configuration = resolver_options.configure(
                     options,
                     use_system_time=options.use_system_time,
+                    compress=options.compress,
                     # N.B.: Since a PEX freezes in whls, there is no point to using editable whls.
                     honor_editable=False,
                 )

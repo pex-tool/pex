@@ -72,6 +72,7 @@ class BuildConfiguration(object):
         use_pep517=None,  # type: Optional[bool]
         build_isolation=True,  # type: bool
         use_system_time=False,  # type: bool
+        compress=True,  # type: bool
         honor_editable=True,  # type: bool
     ):
         # type: (...) -> BuildConfiguration
@@ -84,6 +85,7 @@ class BuildConfiguration(object):
             use_pep517=use_pep517,
             build_isolation=build_isolation,
             use_system_time=use_system_time,
+            compress=compress,
             honor_editable=honor_editable,
         )
 
@@ -95,6 +97,7 @@ class BuildConfiguration(object):
     use_pep517 = attr.ib(default=None)  # type: Optional[bool]
     build_isolation = attr.ib(default=True)  # type: bool
     use_system_time = attr.ib(default=False)  # type: bool
+    compress = attr.ib(default=True)  # type: bool
     honor_editable = attr.ib(default=True)  # type: bool
 
     def __attrs_post_init__(self):
@@ -194,6 +197,11 @@ class PexRepositoryConfiguration(object):
     def transitive(self):
         # type: () -> bool
         return self.pip_configuration.transitive
+
+    @property
+    def use_system_time(self):
+        # type: () -> bool
+        return self.pip_configuration.build_configuration.use_system_time
 
 
 @attr.s(frozen=True)
