@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.100.3
+
+This release fixes `pex --venv-repository ...` to respect the `--[no-]system-time` option and its
+default.
+
+* Fix `--venv-repository` to respect `--[no-]system-time`. (#3245)
+
 ## 2.100.2
 
 This release upgrades pexrc to 0.16.4 to fix `--rc` for macOS Python Framework builds.

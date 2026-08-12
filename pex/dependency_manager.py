@@ -44,6 +44,7 @@ class DependencyManager(object):
         self,
         pex,  # type: str
         result_type_wheel_file=False,  # type: bool
+        use_system_time=False,  # type: bool
     ):
         # type: (...) -> PexInfo
 
@@ -53,7 +54,7 @@ class DependencyManager(object):
 
         pex_environment = PEXEnvironment.mount(pex, pex_info=pex_info)
         for dist in pex_environment.iter_distributions(
-            result_type_wheel_file=result_type_wheel_file
+            result_type_wheel_file=result_type_wheel_file, use_system_time=use_system_time
         ):
             self.add_distribution(dist)
 

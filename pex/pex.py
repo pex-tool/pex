@@ -258,12 +258,18 @@ class PEX(object):  # noqa: T000
                 seen.add(dist)
                 yield dist
 
-    def iter_distributions(self, result_type_wheel_file=False):
-        # type: (bool) -> Iterator[FingerprintedDistribution]
+    def iter_distributions(
+        self,
+        result_type_wheel_file=False,  # type: bool
+        use_system_time=False,  # type: bool
+    ):
+        # type: (...) -> Iterator[FingerprintedDistribution]
         """Iterates all distributions loadable from this PEX."""
         seen = set()
         for env in self._loaded_envs:
-            for dist in env.iter_distributions(result_type_wheel_file=result_type_wheel_file):
+            for dist in env.iter_distributions(
+                result_type_wheel_file=result_type_wheel_file, use_system_time=use_system_time
+            ):
                 # N.B.: Since there can be more than one PEX env on the PEX_PATH we take care to
                 # de-dup distributions they have in common.
                 if dist in seen:

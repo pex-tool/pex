@@ -195,6 +195,11 @@ class PexRepositoryConfiguration(object):
         # type: () -> bool
         return self.pip_configuration.transitive
 
+    @property
+    def use_system_time(self):
+        # type: () -> bool
+        return self.pip_configuration.build_configuration.use_system_time
+
 
 @attr.s(frozen=True)
 class LockRepositoryConfiguration(object):

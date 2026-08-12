@@ -692,7 +692,7 @@ def resolve_from_venvs(
                 venv_resolve_results,
                 max_install_jobs=pip_configuration.max_jobs,
                 result_type=result_type,
-                use_system_time=True,
+                use_system_time=pip_configuration.build_configuration.use_system_time,
             )
         ),
         type=result_type,
