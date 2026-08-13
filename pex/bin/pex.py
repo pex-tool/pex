@@ -1054,6 +1054,7 @@ def build_pex(
                 requirements_pex,
                 result_type_wheel_file=pex_info.deps_are_wheel_files,
                 use_system_time=pip_configuration.build_configuration.use_system_time,
+                compress=pip_configuration.build_configuration.compress,
             )
             dependency_config = dependency_config.merge(
                 DependencyConfiguration.from_pex_info(requirements_pex_info)

@@ -605,6 +605,7 @@ class PEXEnvironment(object):
         dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
         result_type=None,  # type: Optional[InstallableType.Value]
         use_system_time=False,  # type: bool
+        compress=True,  # type: bool
     ):
         # type: (...) -> Iterable[FingerprintedDistribution]
 
@@ -616,7 +617,9 @@ class PEXEnvironment(object):
 
         self._update_candidate_distributions(
             self.iter_distributions(
-                result_type_wheel_file=result_type_wheel_file, use_system_time=use_system_time
+                result_type_wheel_file=result_type_wheel_file,
+                use_system_time=use_system_time,
+                compress=compress,
             )
         )
 

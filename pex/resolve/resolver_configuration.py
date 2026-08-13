@@ -203,6 +203,11 @@ class PexRepositoryConfiguration(object):
         # type: () -> bool
         return self.pip_configuration.build_configuration.use_system_time
 
+    @property
+    def compress(self):
+        # type: () -> bool
+        return self.pip_configuration.build_configuration.compress
+
 
 @attr.s(frozen=True)
 class LockRepositoryConfiguration(object):

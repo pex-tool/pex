@@ -39,6 +39,7 @@ def resolve_from_pex(
     result_type=InstallableType.INSTALLED_WHEEL_CHROOT,  # type: InstallableType.Value
     dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
     use_system_time=False,  # type: bool
+    compress=True,  # type: bool
 ):
     # type: (...) -> ResolveResult
 
@@ -89,6 +90,7 @@ def resolve_from_pex(
                 result_type=result_type,
                 dependency_configuration=dependency_configuration,
                 use_system_time=use_system_time,
+                compress=compress,
             )
         except environment.ResolveError as e:
             raise Unsatisfiable(str(e))
