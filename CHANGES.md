@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.100.4
+
+This release fixes `pex --venv-repository ...` to respect the `--[no-]system-time` option and its
+default.
+
+* Fix `--venv-repository` to respect `--[no-]system-time`. (#3245)
+
 ## 2.100.3
 
 This release fixes `pex --rc --pexrc-platform ...` handling. Previously `--pexrc-platform` was not

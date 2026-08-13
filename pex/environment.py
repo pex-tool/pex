@@ -280,8 +280,13 @@ class PEXEnvironment(object):
         # type: () -> str
         return self._source_pex or self._pex
 
-    def iter_distributions(self, result_type_wheel_file=False):
-        # type: (bool) -> Iterator[FingerprintedDistribution]
+    def iter_distributions(
+        self,
+        result_type_wheel_file=False,  # type: bool
+        use_system_time=False,  # type: bool
+        compress=True,  # type: bool
+    ):
+        # type: (...) -> Iterator[FingerprintedDistribution]
         if result_type_wheel_file and self._pex_info.deps_are_wheel_files:
             with TRACER.timed(
                 "Searching dependency cache: {cache}".format(
@@ -311,7 +316,8 @@ class PEXEnvironment(object):
                             installed_wheel=dist_path,
                             distribution_name=distribution_name,
                             fingerprint=fingerprint,
-                            use_system_time=True,
+                            use_system_time=use_system_time,
+                            compress=compress,
                         )
                     else:
                         yield FingerprintedDistribution(
@@ -598,6 +604,8 @@ class PEXEnvironment(object):
         reqs,  # type: Iterable[Requirement]
         dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
         result_type=None,  # type: Optional[InstallableType.Value]
+        use_system_time=False,  # type: bool
+        compress=True,  # type: bool
     ):
         # type: (...) -> Iterable[FingerprintedDistribution]
 
@@ -608,7 +616,11 @@ class PEXEnvironment(object):
             result_type_wheel_file = result_type is InstallableType.WHEEL_FILE
 
         self._update_candidate_distributions(
-            self.iter_distributions(result_type_wheel_file=result_type_wheel_file)
+            self.iter_distributions(
+                result_type_wheel_file=result_type_wheel_file,
+                use_system_time=use_system_time,
+                compress=compress,
+            )
         )
 
         unresolved_reqs = OrderedDict()  # type: OrderedDict[Requirement, OrderedSet]

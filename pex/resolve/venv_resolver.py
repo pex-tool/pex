@@ -114,6 +114,7 @@ def _install_distribution(
     venv_distribution,  # type: VenvDistribution
     result_type,  # type: InstallableType.Value
     use_system_time,  # type: bool
+    compress,  # type: bool
 ):
     # type: (...) -> ResolvedDistribution
 
@@ -197,6 +198,7 @@ def _install_distribution(
             installed_wheel,
             fingerprint=installed_wheel.fingerprint,
             use_system_time=use_system_time,
+            compress=compress,
         ),
         direct_requirements=venv_distribution.direct_requirements,
     )
@@ -214,6 +216,7 @@ def _install_venv_distributions(
     max_install_jobs=DEFAULT_MAX_JOBS,  # type: int
     result_type=InstallableType.INSTALLED_WHEEL_CHROOT,  # type: InstallableType.Value
     use_system_time=False,  # type: bool
+    compress=True,  # type: bool
 ):
     # type: (...) -> Iterator[ResolvedDistribution]
 
@@ -259,7 +262,10 @@ def _install_venv_distributions(
     for resolved_distribution in iter_map_parallel(
         inputs=venv_distributions,
         function=functools.partial(
-            _install_distribution, result_type=result_type, use_system_time=use_system_time
+            _install_distribution,
+            result_type=result_type,
+            use_system_time=use_system_time,
+            compress=compress,
         ),
         max_jobs=max_install_jobs,
     ):
@@ -692,7 +698,8 @@ def resolve_from_venvs(
                 venv_resolve_results,
                 max_install_jobs=pip_configuration.max_jobs,
                 result_type=result_type,
-                use_system_time=True,
+                use_system_time=pip_configuration.build_configuration.use_system_time,
+                compress=pip_configuration.build_configuration.compress,
             )
         ),
         type=result_type,

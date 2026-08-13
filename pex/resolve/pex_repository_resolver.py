@@ -38,6 +38,8 @@ def resolve_from_pex(
     ignore_errors=False,  # type: bool
     result_type=InstallableType.INSTALLED_WHEEL_CHROOT,  # type: InstallableType.Value
     dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
+    use_system_time=False,  # type: bool
+    compress=True,  # type: bool
 ):
     # type: (...) -> ResolveResult
 
@@ -81,17 +83,14 @@ def resolve_from_pex(
     )
     distributions = OrderedSet()  # type: OrderedSet[ResolvedDistribution]
     for target in targets.unique_targets():
-        # TODO(John Sirois): Handling of result type should be centralized. As it stands, it's
-        #  currently critical to _not_ PEXEnvironment.mount(...) if you want to resolve wheel files
-        #  instead of installed wheel chroots.
-        pex_env = (
-            PEXEnvironment(pex, target=target)
-            if result_type is InstallableType.WHEEL_FILE
-            else PEXEnvironment.mount(pex, target=target)
-        )
+        pex_env = PEXEnvironment.mount(pex, target=target)
         try:
             fingerprinted_distributions = pex_env.resolve_dists(
-                all_reqs, result_type=result_type, dependency_configuration=dependency_configuration
+                all_reqs,
+                result_type=result_type,
+                dependency_configuration=dependency_configuration,
+                use_system_time=use_system_time,
+                compress=compress,
             )
         except environment.ResolveError as e:
             raise Unsatisfiable(str(e))

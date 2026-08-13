@@ -138,6 +138,7 @@ def test_venv_repository_resolve_whls(tmpdir):
             "-o",
             embedded_whl_pex,
             "--no-pre-install-wheels",
+            "--use-system-time",
             "--include-tools",
         ]
     ).assert_success()

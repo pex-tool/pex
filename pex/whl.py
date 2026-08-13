@@ -24,6 +24,7 @@ def repacked_whl(
     fingerprint,  # type: str
     distribution_name=None,  # type: Optional[str]
     use_system_time=False,  # type: bool
+    compress=True,  # type: bool
 ):
     # type: (...) -> FingerprintedDistribution
 
@@ -33,7 +34,11 @@ def repacked_whl(
         else InstalledWheel.load(installed_wheel)
     )
 
-    repack_dir = CacheDir.REPACKED_WHEELS.path(fingerprint)
+    flavor = "{compression}-{timestamps}".format(
+        compression="deflated" if compress else "stored",
+        timestamps="system-time" if use_system_time else "deterministic",
+    )
+    repack_dir = CacheDir.REPACKED_WHEELS.path(fingerprint, flavor)
     with atomic_directory(target_dir=repack_dir) as atomic_dir:
         if not atomic_dir.is_finalized():
             whl = repack(
@@ -52,6 +57,7 @@ def repacked_whl(
                 # This override allows higher levels to adjust for this.
                 override_wheel_file_name=distribution_name,
                 use_system_time=use_system_time,
+                compress=compress,
             )
             with open(os.path.join(atomic_dir.work_dir, "FINGERPRINT"), "w") as fp:
                 fp.write(CacheHelper.hash(whl, hasher=hashlib.sha256))
