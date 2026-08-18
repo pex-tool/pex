@@ -156,7 +156,7 @@ class CacheDir(Enum["CacheDir.Value"]):
 
     INSTALLED_WHEELS = Value(
         "installed_wheels",
-        version=2,
+        version=3,
         name="Pre-installed Wheels",
         description=(
             "Pre-installed wheel chroots used to both build PEXes and serve as runtime `sys.path` "
@@ -180,7 +180,7 @@ class CacheDir(Enum["CacheDir.Value"]):
 
     PACKED_WHEELS = Value(
         "packed_wheels",
-        version=1,
+        version=2,
         name="Packed Wheels",
         description=(
             "The same content as {installed_wheels!r}, but zipped up for `--layout packed` "
@@ -207,7 +207,7 @@ class CacheDir(Enum["CacheDir.Value"]):
 
     REPACKED_WHEELS = Value(
         "repacked_wheels",
-        version=1,
+        version=2,
         name="Reconstituted Wheels",
         description=(
             "Wheels that have been reconstituted from {installed_wheels!r}, as well as from wheels "

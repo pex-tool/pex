@@ -1037,10 +1037,7 @@ def install_wheel(
                     if is_entry_point_script(src_path):
                         # This entry point script will be installed afresh below as needed.
                         break
-                    rewrite_script = interpreter is not None and is_python_script(
-                        src_path, check_executable=False
-                    )
-
+                    rewrite_script = is_python_script(src_path, check_executable=False)
                 dst_rel_path = os.path.relpath(src_path, installed_path)
                 dst_components = path_name, dst_rel_path, rewrite_script
                 break
@@ -1090,6 +1087,24 @@ def install_wheel(
                             out_fp.write(next_line)
                     shutil.copyfileobj(in_fp, out_fp)
                 chmod_plus_x(out_fp.name)
+
+                # We modified the script shebang; so we need to re-hash / re-size.
+                dst_installed_file = create_dst_installed_file(regenerate_hash=True)
+            elif rewrite_script and interpreter is None:
+                with open(src_file, mode="rb") as in_fp, safe_open(dst_file, "wb") as out_fp:
+                    first_line = in_fp.readline()
+                    if re.match(br"#!/bin/sh", first_line):
+                        # This is a too-long-shebang re-director script as identified by
+                        # `is_python_script` above; so we need to discard all lines that make up
+                        # that script - which are enclosed in a python `'''` string also consumable
+                        # by `sh`.
+                        in_fp.readline()  # Initial `'''` line
+                        while True:
+                            next_line = in_fp.readline()
+                            if not next_line or next_line.endswith(b"'''\n"):
+                                break
+                    out_fp.write(b"#!python\n")
+                    shutil.copyfileobj(in_fp, out_fp)
 
                 # We modified the script shebang; so we need to re-hash / re-size.
                 dst_installed_file = create_dst_installed_file(regenerate_hash=True)

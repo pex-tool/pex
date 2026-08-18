@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.100.5
+
+This release fixes handling of `#!/bin/sh` too-long script shebang re-directors created by other
+tools like pip and uv for data scripts when round-tripping installed wheels from venvs.
+
+* Handle foreign too-long Python script shebangs. (#3249)
+
 ## 2.100.4
 
 This release fixes `pex --venv-repository ...` to respect the `--[no-]system-time` option and its
