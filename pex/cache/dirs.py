@@ -156,7 +156,7 @@ class CacheDir(Enum["CacheDir.Value"]):
 
     INSTALLED_WHEELS = Value(
         "installed_wheels",
-        version=2,
+        version=3,
         name="Pre-installed Wheels",
         description=(
             "Pre-installed wheel chroots used to both build PEXes and serve as runtime `sys.path` "
