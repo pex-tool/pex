@@ -81,6 +81,7 @@ def create_too_long_venv_dir(tmpdir):
 
 skip_for_pypy = pytest.mark.skipif(IS_PYPY, reason="The `undill` script does not work with PyPy.")
 
+
 @pytest.mark.skipif(
     sys.version_info < (3, 8), reason="Use of uv is required and uv only supports Python >= 3.8."
 )
