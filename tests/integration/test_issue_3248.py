@@ -11,6 +11,7 @@ from textwrap import dedent
 
 import pytest
 
+from pex.interpreter import MAX_SHEBANG_LENGTH
 from pex.typing import cast
 from pex.venv.virtualenv import InstallationChoice, Virtualenv
 from testing import IS_PYPY
@@ -74,8 +75,8 @@ def assert_venv_repository_from(
 def create_too_long_venv_dir(tmpdir):
     # type: (...) -> str
     venv_dir = tmpdir.join("venv", "too-long")
-    venv_dir = os.path.join(venv_dir, "x" * max(1, 256 - len(venv_dir)))
-    assert len(venv_dir) > 256
+    venv_dir = os.path.join(venv_dir, "x" * max(1, MAX_SHEBANG_LENGTH - len(venv_dir)))
+    assert len(venv_dir) > MAX_SHEBANG_LENGTH
     return cast(str, venv_dir)
 
 
