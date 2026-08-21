@@ -75,7 +75,13 @@ def assert_venv_repository_from(
 def create_too_long_venv_dir(tmpdir):
     # type: (...) -> str
     venv_dir = tmpdir.join("venv", "too-long")
-    venv_dir = os.path.join(venv_dir, "x" * max(1, MAX_SHEBANG_LENGTH - len(venv_dir)))
+    while len(venv_dir) < MAX_SHEBANG_LENGTH:
+        # N.B.: Instead of adding one extra directory to make up the remaining length needed to
+        # break MAX_SHEBANG_LENGTH, we limit directory names to 127 characters to not run afoul of
+        # max filename lengths in the process. The 127 is chosen at ~1/2 255 which is the expected
+        # real limit on both Linux and macOS.
+        extra = min(127, max(1, MAX_SHEBANG_LENGTH - len(venv_dir)))
+        venv_dir = os.path.join(venv_dir, "x" * extra)
     assert len(venv_dir) > MAX_SHEBANG_LENGTH
     return cast(str, venv_dir)
 
