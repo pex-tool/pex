@@ -1087,20 +1087,24 @@ def install_wheel(
                 dst_installed_file = create_dst_installed_file(regenerate_hash=True)
             elif rewrite_script and interpreter is None:
                 with open(src_file, mode="rb") as in_fp, safe_open(dst_file, "wb") as out_fp:
-                    first_line = in_fp.readline()
-                    if re.match(br"#!/bin/sh", first_line):
+                    encoding_line = ""
+                    if b"#!/bin/sh" == in_fp.readline().rstrip():
                         # This is a too-long-shebang re-director script as identified by
                         # `is_python_script` above; so we need to discard all lines that make up
                         # that script - which are enclosed in a python `'''` string also consumable
                         # by `sh`.
-                        next_line = in_fp.readline()  # Initial `'''` line or encoding line
-                        if maybe_read_encoding_line(next_line):
+                        encoding_line = maybe_read_encoding_line(
+                            in_fp.readline()
+                        )  # Initial `'''` line or encoding line
+                        if encoding_line:
                             in_fp.readline()  # Initial `'''` line
                         while True:
                             next_line = in_fp.readline()
                             if not next_line or next_line.endswith(b"'''\n"):
                                 break
                     out_fp.write(b"#!python\n")
+                    if encoding_line:
+                        out_fp.write(encoding_line.encode("ascii"))
                     shutil.copyfileobj(in_fp, out_fp)
 
                 # We modified the script shebang; so we need to re-hash / re-size.

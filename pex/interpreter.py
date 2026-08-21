@@ -1741,17 +1741,18 @@ def create_shebang(
     """
     python = "{exe} {args}".format(exe=python_exe, args=python_args) if python_args else python_exe
     shebang = "#!{python}".format(python=python)
+    stripped_encoding_line = encoding_line.rstrip()
 
     # N.B.: We add 1 to be conservative and account for the EOL character.
     if WINDOWS or len(shebang) + 1 <= max_shebang_length:
-        return shebang
+        return "\n".join((shebang, stripped_encoding_line)) if stripped_encoding_line else shebang
 
     lines = []
     shebang, body = create_sh_python_redirector_shebang(
         'exec {python} "$0" "$@"'.format(python=python)
     )
     lines.append(shebang)
-    if encoding_line:
-        lines.append(encoding_line)
+    if stripped_encoding_line:
+        lines.append(stripped_encoding_line)
     lines.append(body)
     return "\n".join(lines)
