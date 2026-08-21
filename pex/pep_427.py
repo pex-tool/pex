@@ -33,7 +33,7 @@ from pex.dist_metadata import DistMetadata, Distribution, MetadataFiles
 from pex.entry_points_txt import install_scripts
 from pex.enum import Enum
 from pex.exceptions import production_assert, reportable_unexpected_error_msg
-from pex.executables import chmod_plus_x, is_python_script
+from pex.executables import chmod_plus_x, is_python_script, maybe_read_encoding_line
 from pex.installed_wheel import InstalledWheel
 from pex.interpreter import PythonInterpreter
 from pex.pep_376 import InstalledDirectory, InstalledFile, Record, create_installed_file
@@ -1069,13 +1069,8 @@ def install_wheel(
                         _, _, shebang_args = first_line.partition(b" ")
                         if hermetic_scripts and not shebang_args:
                             shebang_args = interpreter.hermetic_args.encode("utf-8")
-                        encoding_line = ""
                         next_line = in_fp.readline()
-                        # See: https://peps.python.org/pep-0263/
-                        if next_line and re.match(
-                            br"^[ \t\f]*#.*?coding[:=][ \t]*([-_.a-zA-Z0-9]+)", next_line
-                        ):
-                            encoding_line = str(next_line.decode("ascii"))
+                        encoding_line = maybe_read_encoding_line(next_line)
                         out_fp.write(
                             "{shebang}\n".format(
                                 shebang=interpreter.shebang(
@@ -1098,7 +1093,9 @@ def install_wheel(
                         # `is_python_script` above; so we need to discard all lines that make up
                         # that script - which are enclosed in a python `'''` string also consumable
                         # by `sh`.
-                        in_fp.readline()  # Initial `'''` line
+                        next_line = in_fp.readline()  # Initial `'''` line or encoding line
+                        if maybe_read_encoding_line(next_line):
+                            in_fp.readline()  # Initial `'''` line
                         while True:
                             next_line = in_fp.readline()
                             if not next_line or next_line.endswith(b"'''\n"):

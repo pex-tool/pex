@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.100.6
+
+Further improve handling of `#!/bin/sh` re-director scripts.
+
+* Beef up `#!/bin/sh` re-director script handling. (#3252)
+
 ## 2.100.5
 
 This release fixes handling of `#!/bin/sh` too-long script shebang re-directors created by other

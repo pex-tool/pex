@@ -19,6 +19,7 @@ from pex import third_party
 from pex.cache.dirs import InterpreterDir
 from pex.common import safe_mkdtemp, safe_rmtree
 from pex.exceptions import production_assert
+from pex.executables import create_sh_python_redirector_shebang
 from pex.executor import Executor
 from pex.interpreter_implementation import InterpreterImplementation
 from pex.jobs import Job, Retain, SpawnedJob, execute_parallel
@@ -1745,30 +1746,12 @@ def create_shebang(
     if WINDOWS or len(shebang) + 1 <= max_shebang_length:
         return shebang
 
-    # This trick relies on /bin/sh being ubiquitous and the concordance of:
-    # 1. Python: triple quoted strings plus allowance for free-floating string values in
-    #    python files.
-    # 2. sh: Any number of pairs of `'` evaluating away when followed immediately by a
-    #    command string (`''command` -> `command`) and lazy parsing allowing for invalid sh
-    #    content immediately following an exec line.
-    # The end result is a file that is both a valid sh script with a short shebang and a
-    # valid Python program.
-    return (
-        dedent(
-            """\
-            #!/bin/sh
-            {encoding_line}
-            # N.B.: This python script executes via a /bin/sh re-exec as a hack to work around a
-            # potential maximum shebang length of {max_shebang_length} bytes on this system which
-            # the python interpreter `exec`ed below would violate.
-            ''''exec {python} "$0" "$@"
-            '''
-            """
-        )
-        .format(
-            encoding_line=encoding_line.rstrip(),
-            max_shebang_length=max_shebang_length,
-            python=python,
-        )
-        .strip()
+    lines = []
+    shebang, body = create_sh_python_redirector_shebang(
+        'exec {python} "$0" "$@"'.format(python=python)
     )
+    lines.append(shebang)
+    if encoding_line:
+        lines.append(encoding_line)
+    lines.append(body)
+    return "\n".join(lines)

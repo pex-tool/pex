@@ -112,6 +112,15 @@ def create_sh_python_redirector_shebang(sh_script_content):
     )
 
 
+def maybe_read_encoding_line(line):
+    # type: (bytes) -> str
+    """Returns the PEP-263 file encoding if the given line declares one; otherwise ""."""
+    # See: https://peps.python.org/pep-0263/
+    if re.match(br"^[ \t\f]*#.*?coding[:=][ \t]*([-_.a-zA-Z0-9]+)", line):
+        return str(line.decode("ascii"))
+    return ""
+
+
 _PYTHON_SHEBANG_RE = br"""(?ix)
 # The aim is to admit the common shebang forms:
 # + python
@@ -156,6 +165,9 @@ def is_python_script(
             return False
 
         next_line = fp.readline()
+        if maybe_read_encoding_line(next_line):
+            next_line = fp.readline()
+
         if b"'''': pshprs\n" == next_line:
             # A Pex too-long-shebang exec re-director.
             return True
