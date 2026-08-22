@@ -15,10 +15,9 @@ import pytest
 from pex.common import safe_open
 from pex.compatibility import to_unicode
 from pex.dist_metadata import ProjectNameAndVersion
-from pex.interpreter import MAX_SHEBANG_LENGTH
 from pex.typing import TYPE_CHECKING, cast
 from pex.venv.virtualenv import InstallationChoice, Virtualenv
-from testing import IS_LINUX, IS_PYPY, WheelBuilder
+from testing import IS_PYPY, WheelBuilder
 from testing.cli import run_pex3
 from testing.pytest_utils.tmp import Tempdir
 
@@ -80,6 +79,10 @@ def assert_undill_venv_repository_from(
     assert_undill_works()
     shutil.rmtree(venv.venv_dir)
     assert_undill_works()
+
+
+# N.B.: This covers Linux in standard configurations (generally 255) as well as macOS (511).
+MAX_SHEBANG_LENGTH = 512
 
 
 def create_too_long_venv_dir(tmpdir):
@@ -280,8 +283,8 @@ def test_uv_too_long_data_scripts_shebang_custom_script_encoding(
     # '''
     # # coding=XXX
     # ---
-    # In other words - it does not put the `# coding=XXX` line 2nd after the shebang - which is required for Python to
-    # read it and interpret the script Python code using the XXX encoding.
+    # In other words - it does not put the `# coding=XXX` line 2nd after the shebang - which is
+    # required for Python to read it and interpret the script Python code using the XXX encoding.
 
     assert_custom_script_repository_from(tmpdir, uv_venv, custom_script_requirement)
 
@@ -297,15 +300,9 @@ def test_pip_too_long_data_scripts_shebang_custom_script_encoding(
 
     # N.B.: As of this writing no version of Pip re-writes #!python in data scripts using a
     # `#!/bin/sh` re-director script: https://github.com/pypa/pip/issues/13389
-    # As such, we do not `assert_bin_sh_shebang`.
+    # As such, we do not `assert_bin_sh_shebang(pip_venv)` or
+    # `assert_custom_script_works(pip_venv)`.
 
-    if IS_LINUX:
-        # This does not work on macOS for unknown reasons at this time. Looks like:
-        # OSError: [Errno 8] Exec format error: '/private/var/folders/_5/zjnzxgh147qcg3bb5cg2wvqw0000gn/T/pytest-of-runner/pytest-0/popen-gw0/test_pip_too_long_data_s-104740/venv/too-long/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/bin/script'
-        assert_custom_script_works(pip_venv)
-    else:
-        with open(pip_venv.bin_path("script")) as fp:
-            sys.stderr.write(fp.read())
     assert_custom_script_repository_from(tmpdir, pip_venv, custom_script_requirement)
 
 
