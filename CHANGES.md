@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.100.7
+
+Finalize improvements of `#!/bin/sh` re-director scripts by ensuring custom script file encodings
+are preserved round trip.
+
+* Preserve file encoding for `#!/bin/sh` re-director scripts. (#3254)
+
 ## 2.100.6
 
 Further improve handling of `#!/bin/sh` re-director scripts.
