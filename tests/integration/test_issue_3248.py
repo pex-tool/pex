@@ -13,6 +13,7 @@ from textwrap import dedent
 import pytest
 
 from pex.common import safe_open
+from pex.compatibility import to_unicode
 from pex.dist_metadata import ProjectNameAndVersion
 from pex.interpreter import MAX_SHEBANG_LENGTH
 from pex.typing import TYPE_CHECKING, cast
@@ -155,18 +156,15 @@ def custom_script_wheel(tmpdir):
 
     project_dir = tmpdir.join("project")
     with safe_open(os.path.join(project_dir, "script"), "wb") as fp:
-        # These bytes are:
-        # ---
-        # #!python
-        # coding=windows-1252
-        # print("��")
-        # ---
-        # Where the printed chars are <euro><trademark>; i.e.: €™
-        fp.write(
-            b"\x23\x21\x70\x79\x74\x68\x6f\x6e\n"
-            b"\x23\x20\x63\x6f\x64\x69\x6e\x67\x3d\x77\x69\x6e\x64\x6f\x77\x73\x2d\x31\x32\x35\x32\n"
-            b"\x70\x72\x69\x6e\x74\x28\x22\x80\x99\x22\x29\n"
-        )
+        # The \x80\x99 in windows-1252 are <euro><trademark>; i.e.: €™
+        # These bytes are picked since they differ in UTF-8 and are <PAD><SGCI> there; i.e.:
+        # non-printing characters.
+        fp.write(b"#!python\n" b"# coding=windows-1252\n")
+        fp.write(b'print("\x80\x99"')
+        if sys.version_info[0] == 2:
+            fp.write(b'.decode("windows-1252").encode("utf-8")')
+        fp.write(b")\n")
+
     with safe_open(os.path.join(project_dir, "setup.py"), "w") as fp:
         fp.write(
             dedent(
@@ -212,7 +210,9 @@ def custom_script_requirement(custom_script_wheel):
 
 def assert_custom_script_works(venv):
     # type: (Virtualenv) -> None
-    assert "€™\n" == subprocess.check_output(args=[(venv.bin_path("script"))]).decode("utf-8")
+    assert to_unicode("€™\n") == subprocess.check_output(args=[(venv.bin_path("script"))]).decode(
+        "utf-8"
+    )
 
 
 def assert_custom_script_repository_from(
