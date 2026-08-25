@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.101.0
+
+Add support for `PEX_MULTIPROCESSING_START_METHOD` to control the multiprocessing start method used
+by Pex when run under Python 3.
+
+* Support `PEX_MULTIPROCESSING_START_METHOD`. (#3257)
+
 ## 2.100.7
 
 Finalize improvements of `#!/bin/sh` re-director scripts by ensuring custom script file encodings

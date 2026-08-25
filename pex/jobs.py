@@ -8,6 +8,7 @@ import functools
 import multiprocessing
 import os
 import subprocess
+import sys
 import time
 from abc import abstractmethod
 from collections import defaultdict
@@ -16,8 +17,10 @@ from threading import BoundedSemaphore, Event, Thread
 
 from pex.common import pluralize
 from pex.compatibility import Queue, cpu_count
+from pex.job_start_method import StartMethod
 from pex.tracer import TRACER
-from pex.typing import TYPE_CHECKING, Generic
+from pex.typing import TYPE_CHECKING, Generic, cast
+from pex.variables import ENV
 
 if TYPE_CHECKING:
     from typing import (
@@ -679,6 +682,10 @@ def _apply_function(
 if TYPE_CHECKING:
 
     class Pool(Protocol):
+        def __call__(self, processes):
+            # type: (int) -> Pool
+            pass
+
         def imap_unordered(
             self,
             func,  # type: Callable[[_I], _O]
@@ -697,11 +704,36 @@ if TYPE_CHECKING:
             pass
 
 
-@contextmanager
-def _mp_pool(size):
-    # type: (int) -> Iterator[Pool]
+def _mp_pool_type(start_method=None):
+    # type: (Optional[StartMethod.Value]) -> Pool
+    if sys.version_info[:2] >= (3, 4):
+        method = None  # type: Optional[str]
+        custom_start_method = start_method or ENV.PEX_MULTIPROCESSING_START_METHOD
+        if custom_start_method:
+            TRACER.log(
+                "Using custom multiprocessing start method of {method!r} set via {via}.".format(
+                    method=custom_start_method,
+                    via=(
+                        "function parameter"
+                        if start_method
+                        else "PEX_MULTIPROCESSING_START_METHOD env var"
+                    ),
+                )
+            )
+            method = custom_start_method.value
+        return cast("Pool", multiprocessing.get_context(method=method).Pool)
+    else:
+        return cast("Pool", multiprocessing.Pool)
 
-    pool = multiprocessing.Pool(processes=size)
+
+@contextmanager
+def _mp_pool(
+    size,  # type: int
+    start_method=None,  # type: Optional[StartMethod.Value]
+):
+    # type: (...) -> Iterator[Pool]
+
+    pool = _mp_pool_type(start_method=start_method)(processes=size)
     try:
         yield pool
     finally:
@@ -719,6 +751,7 @@ def iter_map_parallel(
     inputs,  # type: Iterable[_I]
     function,  # type: Callable[[_I], _O]
     max_jobs=None,  # type: Optional[int]
+    start_method=None,  # type: Optional[StartMethod.Value]
     min_average_load=MULTIPROCESSING_DEFAULT_MIN_AVERAGE_LOAD,  # type: int
     costing_function=None,  # type: Optional[Callable[[_I], Comparable]]
     result_render_function=None,  # type: Optional[Callable[[_O], Any]]
@@ -732,6 +765,7 @@ def iter_map_parallel(
     :param inputs: The items to process with `function`.
     :param function: A function that takes a single argument from `inputs` and returns a result.
     :param max_jobs: The maximum number of Python processes to spawn to service the `inputs`.
+    :param start_method: The `multiprocessing` start method to use.
     :param min_average_load: The minimum avg. number of inputs each Python process should service.
     :param costing_function: A function that can estimate the cost of processing each input.
     :param result_render_function: A function that can take a result from `function` and render an
@@ -749,7 +783,7 @@ def iter_map_parallel(
     # average in order to overcome multiprocessing overheads. If we don't need at least 2 slots, we
     # are unlikely to get any boost from multiprocessing.
     needed_slots = len(input_items) // min_average_load
-    if needed_slots < 2:
+    if needed_slots < 2 or max_jobs == 1:
         for item in input_items:
             yield function(item)
         return
@@ -785,7 +819,7 @@ def iter_map_parallel(
             inputs=pluralize(input_items, noun),
         )
     ):
-        with _mp_pool(size=pool_size) as pool:
+        with _mp_pool(size=pool_size, start_method=start_method) as pool:
             for pid, result, elapsed_secs in pool.imap_unordered(apply_function, input_items):
                 TRACER.log(
                     "[{pid}] {verbed} {result} in {elapsed_secs:.2f}s".format(
@@ -826,6 +860,7 @@ def map_parallel(
     inputs,  # type: Iterable[_I]
     function,  # type: Callable[[_I], _O]
     max_jobs=None,  # type: Optional[int]
+    start_method=None,  # type: Optional[StartMethod.Value]
     min_average_load=MULTIPROCESSING_DEFAULT_MIN_AVERAGE_LOAD,  # type: int
     costing_function=None,  # type: Optional[Callable[[_I], Comparable]]
     result_render_function=None,  # type: Optional[Callable[[_O], Any]]
@@ -847,6 +882,7 @@ def map_parallel(
             inputs,
             function,
             max_jobs=max_jobs,
+            start_method=start_method,
             min_average_load=min_average_load,
             costing_function=costing_function,
             result_render_function=result_render_function,
