@@ -196,6 +196,7 @@ def boot(
             "PEX_VERBOSE",
             "PEX_EMIT_WARNINGS",
             "PEX_MAX_INSTALL_JOBS",
+            "PEX_MULTIPROCESSING_START_METHOD",
             # This is used by the vendoring system.
             "__PEX_UNVENDORED__",
             # These are _not_ used at runtime, but are present under testing / CI and

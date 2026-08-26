@@ -162,7 +162,8 @@ def custom_script_wheel(tmpdir):
         # The \x80\x99 in windows-1252 are <euro><trademark>; i.e.: €™
         # These bytes are picked since they differ in UTF-8 and are <PAD><SGCI> there; i.e.:
         # non-printing characters.
-        fp.write(b"#!python\n" b"# coding=windows-1252\n")
+        fp.write(b"#!python\n")
+        fp.write(b"# coding=windows-1252\n")
         fp.write(b'print("\x80\x99"')
         if sys.version_info[0] == 2:
             fp.write(b'.decode("windows-1252").encode("utf-8")')

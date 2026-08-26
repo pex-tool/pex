@@ -17,6 +17,7 @@ from textwrap import dedent
 from pex import pex_root, pex_warnings
 from pex.common import die
 from pex.inherit_path import InheritPath
+from pex.job_start_method import StartMethod
 from pex.orderedset import OrderedSet
 from pex.typing import TYPE_CHECKING, Generic, overload
 from pex.venv.bin_path import BinPath
@@ -525,6 +526,24 @@ class Variables(object):
             return InheritPath.for_value(self._get_string("PEX_INHERIT_PATH"))
         except ValueError as e:
             die("Invalid value for PEX_INHERIT_PATH: {}".format(e))
+
+    @property
+    def PEX_MULTIPROCESSING_START_METHOD(self):
+        # type: () -> Optional[StartMethod.Value]
+        """String (fork|forkserver|spawn)
+
+        Override the default start method used by Pex for `multiprocessing` jobs. When not set, the
+        default start method for the ambient Python is used.
+
+        N.B.: This option is only respected for Python 3.
+        """
+        value = self._maybe_get_string("PEX_MULTIPROCESSING_START_METHOD")
+        if not value:
+            return None
+        try:
+            return StartMethod.for_value(value)
+        except ValueError as e:
+            die("Invalid value for PEX_MULTIPROCESSING_START_METHOD: {}".format(e))
 
     @defaulted_property(default=False)
     def PEX_INTERPRETER(self):
