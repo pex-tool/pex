@@ -8,7 +8,7 @@ import re
 import subprocess
 from textwrap import dedent
 
-import colors
+import colors  # vendor:skip
 
 from pex.common import safe_open
 from testing import WheelBuilder, make_env, run_pex_command
