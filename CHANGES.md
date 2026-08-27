@@ -1,5 +1,15 @@
 # Release Notes
 
+## 2.101.1
+
+This release has use of `--intransitive` implying `--ignore-errors` since an intransitive resolve
+either is complete by arrangement (or luck) or else intentionally incomplete, requiring externally
+provided dependencies (e.g.: via `PEX_PATH`, `PEX_INHERIT_PATH` or `PEX_EXTRA_SYS_PATH`). If
+complete, there will be no errors. If incomplete, then `--intransitive` already called this shot and
+forcing `--ignore-errors` is just red tape.
+
+* Let `--intransitive` imply `--ignore-errors`in built PEXes. (#3260)
+
 ## 2.101.0
 
 Add support for `PEX_MULTIPROCESSING_START_METHOD` to control the multiprocessing start method used
