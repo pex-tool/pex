@@ -90,6 +90,7 @@ def test_intransitive_auto_ignores_errors(tmpdir):
     process = subprocess.Popen(args=cmd, stderr=subprocess.PIPE)
     _, stderr = process.communicate()
     assert process.returncode != 0
+    assert re.match(b".*Error: No module named '?colors'?$", stderr, re.DOTALL)
 
     assert "| {msg} |".format(msg=colors.cyan("Moo?")) in subprocess.check_output(
         args=cmd, env=make_env(PEX_PATH=requirements_pex)

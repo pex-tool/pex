@@ -455,7 +455,10 @@ def register(
         dest="transitive",
         default=default_resolver_configuration.transitive,
         action=_HandleTransitiveAction,
-        help="Whether to transitively resolve requirements.",
+        help=(
+            "Whether to transitively resolve requirements. Specifying `--intransitive` or"
+            "`--no-transitive` implies `--ignore-errors`."
+        ),
     )
     register_max_jobs_option(parser)
     register_pip_log(parser)
