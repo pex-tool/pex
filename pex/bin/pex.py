@@ -370,8 +370,10 @@ def configure_clp_pex_options(parser):
         dest="ignore_errors",
         default=False,
         action="store_true",
-        help="Ignore requirement resolution solver errors when building pexes and later invoking "
-        "them.",
+        help=(
+            "Ignore requirement resolution solver errors when building pexes and later invoking "
+            "them."
+        ),
     )
 
     group.add_argument(
@@ -1013,7 +1015,9 @@ def build_pex(
     pex_info.venv_hermetic_scripts = options.venv_hermetic_scripts
     pex_info.includes_tools = options.include_tools or options.venv
     pex_info.pex_path = options.pex_path.split(os.pathsep) if options.pex_path else ()
-    pex_info.ignore_errors = options.ignore_errors
+    pex_info.ignore_errors = (
+        options.ignore_errors or not resolver_configuration.pip_configuration.transitive
+    )
     pex_info.emit_warnings = options.emit_warnings
     pex_info.inherit_path = options.inherit_path
     pex_info.pex_root = options.runtime_pex_root

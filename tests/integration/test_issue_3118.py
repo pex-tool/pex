@@ -30,7 +30,6 @@ def test_bad_perms_ignored(tmpdir):
             pex_root,
             "ag-ui-protocol==0.1.14",
             "--intransitive",
-            "--ignore-errors",
             "-o",
             pex,
         ]
