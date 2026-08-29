@@ -20,7 +20,14 @@ from pex.fs import safe_rename
 from pex.layout import Layout
 from pex.os import WINDOWS
 from pex.pex import PEX
-from pex.pex_builder import Check, InvalidZipAppError, PEXBuilder
+from pex.pex_builder import (
+    _CACHE_ENTRY_DIGEST,
+    Check,
+    CorruptCacheEntryError,
+    InvalidZipAppError,
+    PEXBuilder,
+    cache_zip,
+)
 from pex.pex_warnings import PEXWarning
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
@@ -605,3 +612,55 @@ def test_check(tmpdir):
                 True if layout is Layout.ZIPAPP and check is not Check.NONE else None
             )
     assert b"BOOTED\n" == subprocess.check_output(args=[sys.executable, zipapp_ok])
+
+
+def test_cache_zip_rejects_incomplete_entry(tmpdir):
+    # type: (Any) -> None
+
+    cache_dir = os.path.join(str(tmpdir), "cache")
+    builds = []  # type: List[str]
+
+    def create_zip(dest):
+        # type: (str) -> None
+        builds.append(dest)
+        with safe_open(dest, "wb"):
+            pass
+        with open_zip(dest, "w") as zf:
+            zf.writestr("pkg/__init__.py", "")
+            zf.writestr("pkg-1.0.dist-info/METADATA", "Name: pkg\nVersion: 1.0\n")
+
+    cached = cache_zip(cache_dir, "pkg-1.0-py3-none-any.whl", create_zip)
+    assert 1 == len(builds)
+    assert os.path.isfile(cached)
+
+    # A finalized entry that still matches its digest is reused as-is.
+    assert cached == cache_zip(cache_dir, "pkg-1.0-py3-none-any.whl", create_zip)
+    assert 1 == len(builds)
+
+    # An entry that was finalized while incomplete is a structurally valid zip, so it can only
+    # be told apart from a good one by the digest recorded when it was written.
+    with open_zip(cached, "w") as zf:
+        zf.writestr("pkg/__init__.py", "")
+    assert cached == cache_zip(cache_dir, "pkg-1.0-py3-none-any.whl", create_zip)
+    assert 2 == len(builds), "Expected the incomplete entry to be discarded and re-created."
+    with open_zip(cached) as zf:
+        assert any(name.endswith(".dist-info/METADATA") for name in zf.namelist())
+
+    # An entry written before digests were recorded carries none and is not trusted.
+    os.remove(os.path.join(cache_dir, _CACHE_ENTRY_DIGEST))
+    cache_zip(cache_dir, "pkg-1.0-py3-none-any.whl", create_zip)
+    assert 3 == len(builds), "Expected an entry with no recorded digest to be re-created."
+
+
+def test_cache_zip_raises_when_no_zip_produced(tmpdir):
+    # type: (Any) -> None
+
+    def create_nothing(dest):
+        # type: (str) -> None
+        with safe_open(dest, "wb"):
+            pass
+
+    cache_dir = os.path.join(str(tmpdir), "cache")
+    with pytest.raises(CorruptCacheEntryError):
+        cache_zip(cache_dir, "pkg-1.0-py3-none-any.whl", create_nothing)
+    assert not os.path.exists(os.path.join(cache_dir, "pkg-1.0-py3-none-any.whl"))

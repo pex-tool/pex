@@ -1,5 +1,15 @@
 # Release Notes
 
+## Unreleased
+
+Packed PEX cache entries are now verified against a digest recorded when they were written. An entry
+finalized while incomplete was previously admitted by `is_finalized()` alone and copied into every
+later PEX built against that `PEX_ROOT`, so a single bad write failed every subsequent build with
+`MetadataError: Failed to determine project name and version` for a missing `.deps/` wheel, or
+`ModuleNotFoundError: No module named 'pex.version'` for a short `.bootstrap`.
+
+* Verify packed PEX cache entries before reuse.
+
 ## 2.101.1
 
 This release has use of `--intransitive` implying `--ignore-errors` since an intransitive resolve
