@@ -2,11 +2,16 @@
 
 ## Unreleased
 
-Packed PEX cache entries are now verified against a digest recorded when they were written. An entry
-finalized while incomplete was previously admitted by `is_finalized()` alone and copied into every
-later PEX built against that `PEX_ROOT`, so a single bad write failed every subsequent build with
-`MetadataError: Failed to determine project name and version` for a missing `.deps/` wheel, or
-`ModuleNotFoundError: No module named 'pex.version'` for a short `.bootstrap`.
+Pex now records a digest alongside each packed cache entry it writes and, under `--check warn` (the
+default) or `--check error`, checks a reused entry against that digest. `atomic_directory` publishes
+a complete entry but makes no claim about it afterwards, admitting it on `os.path.exists` of the
+target directory alone; an entry truncated, partially removed or otherwise modified after the fact
+is therefore reused verbatim by every later build sharing a durable `PEX_ROOT`. An entry that no
+longer matches is rebuilt outside the cache for that PEX and the cache is left untouched, since
+other processes may be reading it concurrently.
+
+The check reads each reused zip in full, where reuse is otherwise close to free, so `--check none`
+skips it entirely.
 
 * Verify packed PEX cache entries before reuse.
 

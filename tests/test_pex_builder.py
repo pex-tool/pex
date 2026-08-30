@@ -6,6 +6,7 @@ import os
 import re
 import stat
 import sys
+import warnings
 import zipfile
 from contextlib import contextmanager
 from zipfile import ZipFile
@@ -40,7 +41,11 @@ except ImportError:
     import mock  # type: ignore[no-redef,import]
 
 if TYPE_CHECKING:
-    from typing import Any, Iterator, List, Set, Text
+    from typing import Any, Dict, Iterator, List, Set, Text
+
+    import attr  # vendor:skip
+else:
+    from pex.third_party import attr
 
 exe_main = """
 import sys
@@ -614,42 +619,137 @@ def test_check(tmpdir):
     assert b"BOOTED\n" == subprocess.check_output(args=[sys.executable, zipapp_ok])
 
 
-def test_cache_zip_rejects_incomplete_entry(tmpdir):
-    # type: (Any) -> None
+WHEEL_RELPATH = "pkg-1.0-py3-none-any.whl"
 
-    cache_dir = os.path.join(str(tmpdir), "cache")
-    builds = []  # type: List[str]
 
-    def create_zip(dest):
+@attr.s(frozen=True)
+class RecordingZipFactory(object):
+    """Builds a two member zip, recording the destination of every build it performs."""
+
+    builds = attr.ib(factory=list)  # type: List[str]
+
+    def __call__(self, dest):
         # type: (str) -> None
-        builds.append(dest)
+        self.builds.append(dest)
         with safe_open(dest, "wb"):
             pass
         with open_zip(dest, "w") as zf:
             zf.writestr("pkg/__init__.py", "")
             zf.writestr("pkg-1.0.dist-info/METADATA", "Name: pkg\nVersion: 1.0\n")
 
-    cached = cache_zip(cache_dir, "pkg-1.0-py3-none-any.whl", create_zip)
-    assert 1 == len(builds)
-    assert os.path.isfile(cached)
 
-    # A finalized entry that still matches its digest is reused as-is.
-    assert cached == cache_zip(cache_dir, "pkg-1.0-py3-none-any.whl", create_zip)
-    assert 1 == len(builds)
+def snapshot_dir(directory):
+    # type: (str) -> Dict[str, bytes]
+    """Capture the full contents of `directory` so mutation of any kind can be detected."""
 
-    # An entry that was finalized while incomplete is a structurally valid zip, so it can only
-    # be told apart from a good one by the digest recorded when it was written.
-    with open_zip(cached, "w") as zf:
+    contents = {}  # type: Dict[str, bytes]
+    for root, _, files in os.walk(directory):
+        for f in files:
+            path = os.path.join(root, f)
+            with open(path, "rb") as fp:
+                contents[os.path.relpath(path, directory)] = fp.read()
+    return contents
+
+
+def drop_zip_member(zip_path):
+    # type: (str) -> None
+    """Rewrite `zip_path` as a structurally valid zip that has lost a member.
+
+    Truncation is not enough to model this: an entry that goes bad after Pex published it is
+    typically still a readable zip, so only the recorded digest can tell it apart from a good one.
+    """
+    with open_zip(zip_path, "w") as zf:
         zf.writestr("pkg/__init__.py", "")
-    assert cached == cache_zip(cache_dir, "pkg-1.0-py3-none-any.whl", create_zip)
-    assert 2 == len(builds), "Expected the incomplete entry to be discarded and re-created."
-    with open_zip(cached) as zf:
+
+
+def test_cache_zip_reuses_verified_entry(tmpdir):
+    # type: (Any) -> None
+
+    cache_dir = os.path.join(str(tmpdir), "cache")
+    create_zip = RecordingZipFactory()
+
+    cached = cache_zip(cache_dir, WHEEL_RELPATH, create_zip, check=Check.WARN)
+    assert 1 == len(create_zip.builds)
+    assert os.path.isfile(cached)
+    assert cached == os.path.join(cache_dir, WHEEL_RELPATH)
+
+    # An entry that still matches its digest is reused as-is.
+    assert cached == cache_zip(cache_dir, WHEEL_RELPATH, create_zip, check=Check.WARN)
+    assert 1 == len(create_zip.builds)
+
+
+def test_cache_zip_bypasses_modified_entry_without_touching_cache(tmpdir):
+    # type: (Any) -> None
+
+    cache_dir = os.path.join(str(tmpdir), "cache")
+    create_zip = RecordingZipFactory()
+
+    cached = cache_zip(cache_dir, WHEEL_RELPATH, create_zip, check=Check.WARN)
+    drop_zip_member(cached)
+    before = snapshot_dir(cache_dir)
+
+    with warnings.catch_warnings(record=True) as events:
+        warnings.simplefilter("always")
+        rebuilt = cache_zip(cache_dir, WHEEL_RELPATH, create_zip, check=Check.WARN)
+
+    assert 2 == len(create_zip.builds), "Expected the zip to be rebuilt outside the cache."
+    assert rebuilt != cached, "Expected a path outside the cache to be returned."
+    assert not rebuilt.startswith(cache_dir)
+    with open_zip(rebuilt) as zf:
         assert any(name.endswith(".dist-info/METADATA") for name in zf.namelist())
 
-    # An entry written before digests were recorded carries none and is not trusted.
+    # The heart of it: other processes may be reading this entry and `atomic_directory` grants no
+    # lock for an already-finalized directory, so `cache_zip` must never write to or remove it.
+    assert before == snapshot_dir(cache_dir), "Expected the cache entry to be left untouched."
+    assert any(
+        issubclass(event.category, PEXWarning) and "does not match the digest" in str(event.message)
+        for event in events
+    )
+
+
+def test_cache_zip_check_none_skips_verification(tmpdir):
+    # type: (Any) -> None
+
+    cache_dir = os.path.join(str(tmpdir), "cache")
+    create_zip = RecordingZipFactory()
+
+    cached = cache_zip(cache_dir, WHEEL_RELPATH, create_zip, check=Check.NONE)
+    drop_zip_member(cached)
+
+    # Reusing a cache entry is otherwise close to free; `Check.NONE` buys that back by never
+    # reading the entry, which necessarily means it cannot notice the entry has changed.
+    assert cached == cache_zip(cache_dir, WHEEL_RELPATH, create_zip, check=Check.NONE)
+    assert 1 == len(create_zip.builds)
+
+
+def test_cache_zip_check_error_raises_on_modified_entry(tmpdir):
+    # type: (Any) -> None
+
+    cache_dir = os.path.join(str(tmpdir), "cache")
+    create_zip = RecordingZipFactory()
+
+    cached = cache_zip(cache_dir, WHEEL_RELPATH, create_zip, check=Check.ERROR)
+    drop_zip_member(cached)
+    before = snapshot_dir(cache_dir)
+
+    with pytest.raises(CorruptCacheEntryError):
+        cache_zip(cache_dir, WHEEL_RELPATH, create_zip, check=Check.ERROR)
+    assert before == snapshot_dir(cache_dir), "Expected the cache entry to be left untouched."
+
+
+def test_cache_zip_trusts_entry_with_no_recorded_digest(tmpdir):
+    # type: (Any) -> None
+
+    cache_dir = os.path.join(str(tmpdir), "cache")
+    create_zip = RecordingZipFactory()
+
+    cached = cache_zip(cache_dir, WHEEL_RELPATH, create_zip, check=Check.WARN)
+
+    # An entry written by a Pex that predates digest recording makes no claim about itself, so
+    # there is nothing to check and upgrading Pex must not invalidate it.
     os.remove(os.path.join(cache_dir, _CACHE_ENTRY_DIGEST))
-    cache_zip(cache_dir, "pkg-1.0-py3-none-any.whl", create_zip)
-    assert 3 == len(builds), "Expected an entry with no recorded digest to be re-created."
+    assert cached == cache_zip(cache_dir, WHEEL_RELPATH, create_zip, check=Check.ERROR)
+    assert 1 == len(create_zip.builds)
 
 
 def test_cache_zip_raises_when_no_zip_produced(tmpdir):
@@ -662,5 +762,5 @@ def test_cache_zip_raises_when_no_zip_produced(tmpdir):
 
     cache_dir = os.path.join(str(tmpdir), "cache")
     with pytest.raises(CorruptCacheEntryError):
-        cache_zip(cache_dir, "pkg-1.0-py3-none-any.whl", create_nothing)
-    assert not os.path.exists(os.path.join(cache_dir, "pkg-1.0-py3-none-any.whl"))
+        cache_zip(cache_dir, WHEEL_RELPATH, create_nothing)
+    assert not os.path.exists(os.path.join(cache_dir, WHEEL_RELPATH))

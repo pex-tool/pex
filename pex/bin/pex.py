@@ -258,11 +258,17 @@ def configure_clp_pex_options(parser):
         choices=Check.values(),
         type=Check.for_value,
         help=(
-            "Check that the built PEX is valid. Currently this only applies to `--layout {zipapp}` "
-            "where the PEX zip is tested for importability of its `__main__` module by the Python "
-            "zipimport module. This check will fail for PEX zips that use ZIP64 extensions since "
-            "the Python zipimport zipimporter only works with 32 bit zips. The check no-ops for "
-            "all other layouts.".format(zipapp=Layout.ZIPAPP)
+            "Check that the built PEX is valid. For `--layout {zipapp}` the PEX zip is tested for "
+            "importability of its `__main__` module by the Python zipimport module. This check "
+            "will fail for PEX zips that use ZIP64 extensions since the Python zipimport "
+            "zipimporter only works with 32 bit zips. For `--layout {packed}` any cached bootstrap "
+            "or wheel zip reused from the `PEX_ROOT` is checked against the digest Pex recorded "
+            "when it wrote that cache entry; an entry that no longer matches is rebuilt for this "
+            "PEX instead of being reused, and the cache is left untouched. That check reads each "
+            "reused zip in full, so `none` is appreciably faster for large PEXes built against a "
+            "warm cache. The check no-ops for all other layouts.".format(
+                zipapp=Layout.ZIPAPP, packed=Layout.PACKED
+            )
         ),
     )
 

@@ -9,10 +9,16 @@ import os
 import shutil
 import zipimport
 from textwrap import dedent
-from zipfile import BadZipfile
 from zipimport import ZipImportError
 
-from pex import layout, pex_warnings
+try:
+    # N.B.: `BadZipfile` is the Python 2.7 spelling; it survives in Python 3 only as a deprecated
+    # alias. Prefer the modern name so a future removal of the alias does not break this import.
+    from zipfile import BadZipFile  # type: ignore[attr-defined]
+except ImportError:
+    from zipfile import BadZipfile as BadZipFile  # type: ignore[no-redef]
+
+from pex import hashing, layout, pex_warnings
 from pex.atomic_directory import atomic_directory
 from pex.cache.dirs import BootstrapZipDir, PackedWheelDir
 from pex.common import (
@@ -27,7 +33,6 @@ from pex.common import (
     safe_mkdir,
     safe_mkdtemp,
     safe_open,
-    safe_rmtree,
 )
 from pex.compatibility import safe_commonpath, to_bytes
 from pex.compiler import Compiler
@@ -65,12 +70,11 @@ class InvalidZipAppError(Exception):
 
 
 class CorruptCacheEntryError(Exception):
-    """Indicates a PEX cache entry could not be produced in a complete state."""
+    """Indicates a PEX cache entry no longer holds what Pex wrote to it."""
 
 
-# Records the digest of the zip a cache entry holds. Written inside the
-# `atomic_directory` work dir, so it lands through the same atomic rename as the
-# zip it describes.
+# Records the digest of the zip a cache entry holds. Written inside the `atomic_directory` work dir,
+# so it lands through the same atomic rename as the zip it describes.
 _CACHE_ENTRY_DIGEST = ".pex-cache-entry-digest"
 
 
@@ -79,81 +83,43 @@ def _zip_has_entries(zip_path):
     try:
         with open_zip(zip_path) as zf:
             return len(zf.namelist()) > 0
-    except (IOError, OSError, BadZipfile):
+    except (IOError, OSError, BadZipFile, KeyError, RuntimeError):
         return False
 
 
-def _cache_entry_verified(
+def _record_cache_entry_digest(
+    work_dir,  # type: str
+    zip_path,  # type: str
+):
+    # type: (...) -> None
+    with safe_open(os.path.join(work_dir, _CACHE_ENTRY_DIGEST), "w") as digest_fp:
+        digest_fp.write(CacheHelper.hash(zip_path, hasher=hashing.Sha256))
+
+
+def _cache_entry_matches_digest(
     cache_dir,  # type: str
     relpath,  # type: str
 ):
     # type: (...) -> bool
+    """Check a cache entry against the digest recorded when Pex wrote it.
+
+    An entry carrying no digest was written before Pex recorded them. No claim was made about
+    that entry, so none is checked and it is taken as-is.
+    """
     zip_path = os.path.join(cache_dir, relpath)
-    digest_path = os.path.join(cache_dir, _CACHE_ENTRY_DIGEST)
-    if not os.path.isfile(zip_path) or not os.path.isfile(digest_path):
+    if not os.path.isfile(zip_path):
         return False
+
+    digest_path = os.path.join(cache_dir, _CACHE_ENTRY_DIGEST)
+    if not os.path.isfile(digest_path):
+        return True
+
     try:
-        with open(digest_path) as fp:
-            expected = fp.read().strip()
+        with open(digest_path) as digest_fp:
+            expected = digest_fp.read().strip()
     except (IOError, OSError):
         return False
-    return bool(expected) and expected == CacheHelper.hash(zip_path, hasher=hashlib.sha256)
-
-
-def cache_zip(
-    cache_dir,  # type: str
-    relpath,  # type: str
-    create_zip,  # type: Callable[[str], None]
-):
-    # type: (...) -> str
-    """Return the path of a verified zip at `relpath` under `cache_dir`, creating it if needed.
-
-    `create_zip` is handed the path to write when the entry has to be built.
-
-    `atomic_directory` admits an existing entry on `is_finalized()` alone, which is just
-    `os.path.exists` of the target dir. An entry that was finalized while incomplete is
-    therefore reused verbatim by every later build, and the resulting PEX fails at runtime
-    with `MetadataError: Failed to determine project name and version` for a missing
-    `.deps/` wheel, or `ModuleNotFoundError: No module named 'pex.version'` for a short
-    `.bootstrap`. Comparing the entry against the digest recorded when it was written turns
-    "the directory exists" into "the directory still holds what we put there".
-
-    An entry written before this check existed carries no digest and is treated as
-    unverified, so it is re-created once rather than trusted.
-
-    Scope: this stops a bad entry from being *reused*, which is what turns a single bad
-    write into a permanent failure for every later build sharing the cache. It cannot vouch
-    for content a `create_zip` produced without raising -- the digest is taken from what was
-    written -- so a short write that still yields a structurally valid zip is caught only by
-    the emptiness guard below.
-    """
-    for attempt in range(2):
-        with atomic_directory(cache_dir) as atomic_dir:
-            if not atomic_dir.is_finalized():
-                work_zip = os.path.join(atomic_dir.work_dir, relpath)
-                create_zip(work_zip)
-                if not _zip_has_entries(work_zip):
-                    raise CorruptCacheEntryError(
-                        "Zipping {relpath} for the PEX cache entry at {cache_dir} produced no "
-                        "readable zip.".format(relpath=relpath, cache_dir=cache_dir)
-                    )
-                with safe_open(
-                    os.path.join(atomic_dir.work_dir, _CACHE_ENTRY_DIGEST), "w"
-                ) as digest_fp:
-                    digest_fp.write(CacheHelper.hash(work_zip, hasher=hashlib.sha256))
-        if _cache_entry_verified(cache_dir, relpath):
-            return os.path.join(cache_dir, relpath)
-        if attempt == 0:
-            pex_warnings.warn(
-                "Discarding incomplete PEX cache entry at {cache_dir} and re-creating "
-                "it.".format(cache_dir=cache_dir)
-            )
-            safe_rmtree(cache_dir)
-
-    raise CorruptCacheEntryError(
-        "The PEX cache entry at {cache_dir} was still incomplete after being re-created. "
-        "Remove that directory and try again.".format(cache_dir=cache_dir)
-    )
+    return bool(expected) and expected == CacheHelper.hash(zip_path, hasher=hashing.Sha256)
 
 
 class Check(Enum["Check.Value"]):
@@ -205,12 +171,96 @@ class Check(Enum["Check.Value"]):
             pex_warnings.warn(message)
             return False
 
+        def verify_cache_entry(
+            self,
+            cache_dir,  # type: str
+            relpath,  # type: str
+        ):
+            # type: (...) -> bool
+            """Return `True` if the cache entry at `relpath` can be trusted for reuse.
+
+            N.B.: Verification reads the cached zip in full. Reusing a cache entry is otherwise
+            close to free -- `safe_copy` hard links it into the PEX under construction where the
+            platform allows -- so `Check.NONE` skips the read entirely.
+            """
+            if self is Check.NONE:
+                return True
+
+            if _cache_entry_matches_digest(cache_dir, relpath):
+                return True
+
+            message = (
+                dedent(
+                    """\
+                    The PEX cache entry at {cache_dir} does not match the digest Pex recorded when
+                    it wrote that entry; so it has been modified since. Building {relpath} without
+                    the cache for this PEX. Remove that directory to restore caching for it.
+                    """
+                )
+                .format(cache_dir=cache_dir, relpath=relpath)
+                .strip()
+            )
+            if self is Check.ERROR:
+                raise CorruptCacheEntryError(message)
+
+            pex_warnings.warn(message)
+            return False
+
     NONE = Value("none")
     WARN = Value("warn")
     ERROR = Value("error")
 
 
 Check.seal()
+
+
+def cache_zip(
+    cache_dir,  # type: str
+    relpath,  # type: str
+    create_zip,  # type: Callable[[str], None]
+    check=Check.NONE,  # type: Check.Value
+):
+    # type: (...) -> str
+    """Return the path of a zip at `relpath` under `cache_dir`, creating the entry if needed.
+
+    `create_zip` is handed the path to write whenever the zip has to be built.
+
+    `atomic_directory` populates a work dir and renames it into place, so a cache entry is
+    complete at the moment it is published. It makes no claim about the entry afterwards: it
+    admits an existing entry on `is_finalized()` alone, which is just `os.path.exists` of the
+    target dir. An entry that has since been truncated, partially removed by an external process
+    or left short by an unclean host shutdown is therefore reused verbatim by every later build
+    sharing the `PEX_ROOT`. Recording a digest alongside the zip turns "the directory exists" into
+    "the directory still holds what Pex put there".
+
+    Scope: this guards *reuse*. It cannot vouch for content `create_zip` produced without raising
+    -- the digest is taken from what was written -- so a short write that still yields a
+    structurally valid zip is caught only by the emptiness guard below.
+
+    A failing entry is never removed or rewritten. Other processes may be reading it concurrently,
+    and `atomic_directory` grants no lock for an already-finalized directory; so the zip is instead
+    rebuilt outside the cache for this PEX alone and the cache is left for its owner to clean up.
+    """
+
+    def build_zip(dest):
+        # type: (str) -> str
+        create_zip(dest)
+        if not _zip_has_entries(dest):
+            raise CorruptCacheEntryError(
+                "Zipping {relpath} for the PEX cache entry at {cache_dir} produced no readable "
+                "zip.".format(relpath=relpath, cache_dir=cache_dir)
+            )
+        return dest
+
+    with atomic_directory(cache_dir) as atomic_dir:
+        if not atomic_dir.is_finalized():
+            work_zip = build_zip(os.path.join(atomic_dir.work_dir, relpath))
+            _record_cache_entry_digest(atomic_dir.work_dir, work_zip)
+
+    if check.verify_cache_entry(cache_dir, relpath):
+        return os.path.join(cache_dir, relpath)
+
+    return build_zip(os.path.join(safe_mkdtemp(), relpath))
 
 
 class PEXBuilder(object):
@@ -735,7 +785,8 @@ class PEXBuilder(object):
         :param layout: The layout to use for the PEX.
         :param compress: Whether to compress zip entries when building to a layout that uses zip
                          files.
-        :param check: The check to perform on the built PEX.
+        :param check: The check to perform on the built PEX and on any cached artifacts reused to
+                      build it.
         If the PEXBuilder is not yet frozen, it will be frozen by ``build``.  This renders the
         PEXBuilder immutable.
         """
@@ -764,6 +815,7 @@ class PEXBuilder(object):
                 deterministic=deterministic,
                 compress=compress,
                 bytecode_compile=bytecode_compile,
+                check=check,
             )
         else:
             self._build_zipapp(
@@ -825,6 +877,7 @@ class PEXBuilder(object):
         deterministic=False,  # type: bool
         compress=True,  # type: bool
         bytecode_compile=False,  # type: bool
+        check=Check.NONE,  # type: Check.Value
     ):
         # type: (...) -> None
 
@@ -858,6 +911,7 @@ class PEXBuilder(object):
                     labels=("bootstrap",),
                     compress=compress,
                 ),
+                check=check,
             )
         safe_copy(cached_bootstrap_zip, os.path.join(dirname, pex_info.bootstrap))
 
@@ -881,10 +935,15 @@ class PEXBuilder(object):
                         cached_installed_wheel_zip_dir = PackedWheelDir.create(
                             fingerprint, compress, pex_root=pex_info.pex_root
                         )
-                        cached_wheel_zip = cache_zip(
-                            cached_installed_wheel_zip_dir,
-                            location,
-                            lambda zip_dest, location=location: self._chroot.zip(
+
+                        # N.B.: `location` is bound as a default so this cannot pick up a later
+                        # loop iteration's value.
+                        def zip_installed_wheel(
+                            zip_dest,  # type: str
+                            location=location,  # type: str
+                        ):
+                            # type: (...) -> None
+                            self._chroot.zip(
                                 zip_dest,
                                 deterministic=deterministic,
                                 exclude_file=(
@@ -893,7 +952,13 @@ class PEXBuilder(object):
                                 strip_prefix=os.path.join(pex_info.internal_cache, location),
                                 labels=(location,),
                                 compress=compress,
-                            ),
+                            )
+
+                        cached_wheel_zip = cache_zip(
+                            cached_installed_wheel_zip_dir,
+                            location,
+                            zip_installed_wheel,
+                            check=check,
                         )
                         safe_copy(cached_wheel_zip, dest)
 
