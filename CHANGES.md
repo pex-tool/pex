@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.101.2
+
+This release add diagnostics around cache locks to help debugging in the wild.
+
+* Add `atomic_directory` diagnostics. (#3263)
+
 ## 2.101.1
 
 This release has use of `--intransitive` implying `--ignore-errors` since an intransitive resolve
