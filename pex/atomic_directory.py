@@ -6,13 +6,14 @@ from __future__ import absolute_import
 import errno
 import hashlib
 import os
+import shutil
 import threading
 from contextlib import contextmanager
 from uuid import uuid4
 
 import pex
 from pex import pex_warnings
-from pex.common import safe_mkdir, safe_rmtree
+from pex.common import safe_rmtree
 from pex.fs import lock
 from pex.typing import TYPE_CHECKING
 
@@ -72,10 +73,15 @@ class AtomicDirectory(object):
         self._lockfile = os.path.join(
             head, ".{target_dir_name}.atomic_directory.lck".format(target_dir_name=tail)
         )
-        self._work_dir = "{target_dir}.{type}.work".format(
-            target_dir=target_dir, type="lck" if locked else uuid4().hex
-        )
         self._target_dir = target_dir
+        self._set_workdir(random=not locked)
+
+    def _set_workdir(self, random=True):
+        # type: (bool) -> None
+
+        self._work_dir = "{target_dir}.{type}.work".format(
+            target_dir=self._target_dir, type=uuid4().hex if random else "lck"
+        )
 
         target_basename = os.path.basename(self._work_dir)
         if len(target_basename) > 143:
@@ -241,9 +247,20 @@ def atomic_directory(
     # exclusive blocking file lock.
 
     atomic_dir = AtomicDirectory(target_dir=target_dir, locked=True)
+    with _atomic_directory(atomic_dir, source=source):
+        yield atomic_dir
+
+
+@contextmanager
+def _atomic_directory(
+    atomic_dir,  # type: AtomicDirectory
+    source=None,  # type: Optional[str]
+):
+    # type: (...) -> Iterator[None]
+
     if atomic_dir.is_finalized():
         # Our work is already done for us so exit early.
-        yield atomic_dir
+        yield
         return
 
     unlock = atomic_dir.lock()
@@ -251,14 +268,19 @@ def atomic_directory(
         # We lost the double-checked locking race and our work was done for us by the race
         # winner so exit early.
         try:
-            yield atomic_dir
+            yield
         finally:
             unlock()
         return
 
-    # If there is an error making the work_dir that means that either file-locking guarantees have
-    # failed somehow and another process has the lock and has made the work_dir already or else a
-    # process holding the lock ended abnormally.
+    # If there is an error making the work_dir that means that either a process holding the lock
+    # ended abnormally (likely) or else file-locking guarantees have failed somehow (unlikely
+    # unless on NFS or similar).
+    #
+    # In the former case, cleaning up the stale work_dir is the right thing to do. In the latter
+    # case another process currently has the lock and has made the work_dir already. We can do
+    # nothing good in this case since we can't detect it and distinguish it definitively from an
+    # abnormal process end (the former case) and everything relies on locking actually working.
     try:
         os.mkdir(atomic_dir.work_dir)
     except OSError as e:
@@ -282,10 +304,25 @@ def atomic_directory(
                 workdir=atomic_dir.work_dir,
             )
         )
-        safe_mkdir(atomic_dir.work_dir, clean=True)
+
+        try:
+            shutil.rmtree(atomic_dir.work_dir, False)
+        except OSError as e:
+            pex_warnings.warn(
+                "{ident}: Failed to forcibly re-create the work directory at {workdir}: "
+                "{err}".format(ident=ident, workdir=atomic_dir.work_dir, err=e)
+            )
+            atomic_dir._set_workdir(random=True)
+            pex_warnings.warn(
+                "{ident}: Using new random workdir instead: {workdir}.".format(
+                    ident=ident, workdir=atomic_dir.work_dir
+                )
+            )
+
+        os.mkdir(atomic_dir.work_dir)
 
     try:
-        yield atomic_dir
+        yield
     except Exception:
         atomic_dir.cleanup()
         raise

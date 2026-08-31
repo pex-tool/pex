@@ -33,6 +33,12 @@ fix to the underlying creation-time cause in `atomic_directory` itself.
 
 * Verify packed PEX cache entries and installed wheel chroots before reuse.
 
+## 2.101.2
+
+This release add diagnostics around cache locks to help debugging in the wild.
+
+* Add `atomic_directory` diagnostics. (#3263)
+
 ## 2.101.1
 
 This release has use of `--intransitive` implying `--ignore-errors` since an intransitive resolve
