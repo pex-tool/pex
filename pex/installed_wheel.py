@@ -24,12 +24,12 @@ class InstalledWheel(object):
     class LoadError(Exception):
         """Indicates an installed wheel was not loadable at a particular path."""
 
-    _LAYOUT_JSON_FILENAME = ".layout.json"
+    LAYOUT_JSON_FILENAME = ".layout.json"
 
     @classmethod
     def layout_file(cls, prefix_dir):
         # type: (str) -> str
-        return os.path.join(prefix_dir, cls._LAYOUT_JSON_FILENAME)
+        return os.path.join(prefix_dir, cls.LAYOUT_JSON_FILENAME)
 
     @classmethod
     def save(

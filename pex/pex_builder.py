@@ -7,9 +7,7 @@ import hashlib
 import logging
 import os
 import shutil
-import zipimport
 from textwrap import dedent
-from zipimport import ZipImportError
 
 try:
     # N.B.: `BadZipfile` is the Python 2.7 spelling; it survives in Python 3 only as a deprecated
@@ -21,6 +19,7 @@ except ImportError:
 from pex import hashing, layout, pex_warnings
 from pex.atomic_directory import atomic_directory
 from pex.cache.dirs import BootstrapZipDir, PackedWheelDir
+from pex.cache_check import CACHE_ENTRY_DIGEST, Check, CorruptCacheEntryError
 from pex.common import (
     Chroot,
     CopyMode,
@@ -37,7 +36,6 @@ from pex.common import (
 from pex.compatibility import safe_commonpath, to_bytes
 from pex.compiler import Compiler
 from pex.dist_metadata import Distribution, DistributionType, MetadataError
-from pex.enum import Enum
 from pex.executables import chmod_plus_x, create_sh_python_redirector_shebang
 from pex.finders import get_entry_point_from_console_script, get_script_from_distributions
 from pex.fs import safe_rename, safe_symlink
@@ -65,19 +63,6 @@ if TYPE_CHECKING:
 _ABS_PEX_PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
-class InvalidZipAppError(Exception):
-    pass
-
-
-class CorruptCacheEntryError(Exception):
-    """Indicates a PEX cache entry no longer holds what Pex wrote to it."""
-
-
-# Records the digest of the zip a cache entry holds. Written inside the `atomic_directory` work dir,
-# so it lands through the same atomic rename as the zip it describes.
-_CACHE_ENTRY_DIGEST = ".pex-cache-entry-digest"
-
-
 def _zip_has_entries(zip_path):
     # type: (str) -> bool
     try:
@@ -92,126 +77,8 @@ def _record_cache_entry_digest(
     zip_path,  # type: str
 ):
     # type: (...) -> None
-    with safe_open(os.path.join(work_dir, _CACHE_ENTRY_DIGEST), "w") as digest_fp:
+    with safe_open(os.path.join(work_dir, CACHE_ENTRY_DIGEST), "w") as digest_fp:
         digest_fp.write(CacheHelper.hash(zip_path, hasher=hashing.Sha256))
-
-
-def _cache_entry_matches_digest(
-    cache_dir,  # type: str
-    relpath,  # type: str
-):
-    # type: (...) -> bool
-    """Check a cache entry against the digest recorded when Pex wrote it.
-
-    An entry carrying no digest was written before Pex recorded them. No claim was made about
-    that entry, so none is checked and it is taken as-is.
-    """
-    zip_path = os.path.join(cache_dir, relpath)
-    if not os.path.isfile(zip_path):
-        return False
-
-    digest_path = os.path.join(cache_dir, _CACHE_ENTRY_DIGEST)
-    if not os.path.isfile(digest_path):
-        return True
-
-    try:
-        with open(digest_path) as digest_fp:
-            expected = digest_fp.read().strip()
-    except (IOError, OSError):
-        return False
-    return bool(expected) and expected == CacheHelper.hash(zip_path, hasher=hashing.Sha256)
-
-
-class Check(Enum["Check.Value"]):
-    class Value(Enum.Value):
-        def perform_check(
-            self,
-            layout,  # type: Layout.Value
-            path,  # type: str
-        ):
-            # type: (...) -> Optional[bool]
-
-            if self is Check.NONE:
-                return None
-
-            if layout is not Layout.ZIPAPP:
-                return None
-
-            try:
-                importer = zipimport.zipimporter(path)
-
-                # N.B.: The legacy `find_module` method returns the `zipimporter` instance itself on
-                # success and the `find_spec` method returns a `ModuleSpec` instance on success, but
-                # both return `None` on failure to find the module.
-                finder = "find_spec" if hasattr(importer, "find_spec") else "find_module"
-                if getattr(importer, finder)("__main__") is not None:
-                    return True
-                reason = "Could not find the `__main__` module."
-            except ZipImportError as e:
-                # N.B.: PyPy<3.8 raises "ZipImportError: <PATH> seems not to be a zipfile" for ZIP64
-                # zips; so we handle that here.
-                reason = str(e)
-
-            message = (
-                dedent(
-                    """\
-                    The PEX zip at {path} is not a valid zipapp: {reason}
-                    This is likely due to the zip requiring ZIP64 extensions due to size or the
-                    number of file entries or both. You can work around this limitation in Python's
-                    `zipimport` module by re-building the PEX with `--layout packed` or
-                    `--layout loose`.
-                    """
-                )
-                .format(path=path, reason=reason)
-                .strip()
-            )
-            if self is Check.ERROR:
-                raise InvalidZipAppError(message)
-
-            pex_warnings.warn(message)
-            return False
-
-        def verify_cache_entry(
-            self,
-            cache_dir,  # type: str
-            relpath,  # type: str
-        ):
-            # type: (...) -> bool
-            """Return `True` if the cache entry at `relpath` can be trusted for reuse.
-
-            N.B.: Verification reads the cached zip in full. Reusing a cache entry is otherwise
-            close to free -- `safe_copy` hard links it into the PEX under construction where the
-            platform allows -- so `Check.NONE` skips the read entirely.
-            """
-            if self is Check.NONE:
-                return True
-
-            if _cache_entry_matches_digest(cache_dir, relpath):
-                return True
-
-            message = (
-                dedent(
-                    """\
-                    The PEX cache entry at {cache_dir} does not match the digest Pex recorded when
-                    it wrote that entry; so it has been modified since. Building {relpath} without
-                    the cache for this PEX. Remove that directory to restore caching for it.
-                    """
-                )
-                .format(cache_dir=cache_dir, relpath=relpath)
-                .strip()
-            )
-            if self is Check.ERROR:
-                raise CorruptCacheEntryError(message)
-
-            pex_warnings.warn(message)
-            return False
-
-    NONE = Value("none")
-    WARN = Value("warn")
-    ERROR = Value("error")
-
-
-Check.seal()
 
 
 def cache_zip(

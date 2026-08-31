@@ -19,6 +19,7 @@ from textwrap import TextWrapper
 from pex import build_properties, dependency_configuration, pex_warnings, rc, repl, scie
 from pex.argparse import HandleBoolAction, InjectArgAction, InjectEnvAction
 from pex.build_properties import BuildProperties
+from pex.cache_check import Check
 from pex.commands.command import (
     GlobalConfigurationError,
     global_environment,
@@ -42,7 +43,7 @@ from pex.pep_427 import InstallableType
 from pex.pep_723 import ScriptMetadata
 from pex.pex import PEX, validate_entry_point
 from pex.pex_bootstrapper import ensure_venv
-from pex.pex_builder import Check, PEXBuilder
+from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
 from pex.requirements import as_parsed_requirement
 from pex.resolve import (
@@ -264,9 +265,13 @@ def configure_clp_pex_options(parser):
             "zipimporter only works with 32 bit zips. For `--layout {packed}` any cached bootstrap "
             "or wheel zip reused from the `PEX_ROOT` is checked against the digest Pex recorded "
             "when it wrote that cache entry; an entry that no longer matches is rebuilt for this "
-            "PEX instead of being reused, and the cache is left untouched. That check reads each "
-            "reused zip in full, so `none` is appreciably faster for large PEXes built against a "
-            "warm cache. The check no-ops for all other layouts.".format(
+            "PEX instead of being reused, and the cache is left untouched. Additionally, any "
+            "cached installed wheel chroot this resolve reuses from the `PEX_ROOT` is checked "
+            "against the fingerprint Pex recorded when it wrote that chroot; a chroot that no "
+            "longer matches is reinstalled into a private location for this PEX instead of being "
+            "reused, and the cache is left untouched. Those checks read each reused zip or chroot "
+            "in full, so `none` is appreciably faster for large PEXes built against a warm cache. "
+            "The zip check no-ops for all other layouts.".format(
                 zipapp=Layout.ZIPAPP, packed=Layout.PACKED
             )
         ),
@@ -1133,6 +1138,7 @@ def build_pex(
                     else InstallableType.WHEEL_FILE
                 ),
                 dependency_configuration=dependency_config,
+                check=options.check,
             )
             resolve_result = attr.evolve(
                 resolve_result,

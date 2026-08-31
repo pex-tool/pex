@@ -13,7 +13,25 @@ other processes may be reading it concurrently.
 The check reads each reused zip in full, where reuse is otherwise close to free, so `--check none`
 skips it entirely.
 
-* Verify packed PEX cache entries before reuse.
+The same `--check` flag now also covers `installed_wheels` cache entries (the exploded wheel
+chroots that packed wheel zips are themselves built from) at the two points a build's own resolve
+step reuses one: installing this build's own requirements (`pex.resolver`), and installing Pip
+itself and its own build/tool dependencies (`pex.pip.installation`, used for things like
+`build_backend.pex` and `twine.pex`). Each chroot already carries a fingerprint recorded when Pex
+wrote it (in `.layout.json`); a reused chroot that no longer matches its recorded fingerprint is
+reinstalled into a private location for this PEX instead of being reused, and the cache entry is
+left untouched, for the same reason as above.
+
+This closes a real gap: a packed wheel zip is only ever a faithful re-zip of whatever its
+`installed_wheels` chroot currently holds, so a corrupted chroot was previously re-zipped as
+"correct" the moment it was first packed, undetected. This covers corruption already present in a
+shared `PEX_ROOT` by the time a build's own resolve step reuses it -- including corruption left
+behind by a separate, already-finished process -- but not corruption introduced by a process
+running concurrently with this same resolve step, nor corruption of a chroot reused only when an
+already-built PEX is later *executed* (as opposed to built). Both remain open; see PR #3263 for a
+fix to the underlying creation-time cause in `atomic_directory` itself.
+
+* Verify packed PEX cache entries and installed wheel chroots before reuse.
 
 ## 2.101.1
 

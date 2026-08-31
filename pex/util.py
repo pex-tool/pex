@@ -107,8 +107,14 @@ class CacheHelper(object):
         return digest.hexdigest()
 
     @classmethod
-    def dir_hash(cls, directory, digest=None, hasher=sha1):
-        # type: (str, Optional[Hasher], Callable[[], Hasher]) -> str
+    def dir_hash(
+        cls,
+        directory,
+        digest=None,
+        hasher=sha1,
+        exclude_files=(),  # type: Container[str]
+    ):
+        # type: (str, Optional[Hasher], Callable[[], Hasher], Container[str]) -> str
         """Return a reproducible hash of the contents of a directory; excluding all `.pyc` files."""
         if digest is None:
             digest = hasher()
@@ -116,7 +122,7 @@ class CacheHelper(object):
             directory=directory,
             digest=digest,
             dir_filter=lambda d: not is_pyc_dir(d),
-            file_filter=lambda f: not is_pyc_file(f),
+            file_filter=lambda f: not is_pyc_file(f) and f not in exclude_files,
         )
         return digest.hexdigest()
 

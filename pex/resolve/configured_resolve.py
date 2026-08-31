@@ -3,6 +3,7 @@
 
 from __future__ import absolute_import
 
+from pex.cache_check import Check
 from pex.common import pluralize
 from pex.dependency_configuration import DependencyConfiguration
 from pex.pep_427 import InstallableType
@@ -39,6 +40,7 @@ def resolve(
     ignore_errors=False,  # type: bool
     result_type=InstallableType.INSTALLED_WHEEL_CHROOT,  # type: InstallableType.Value
     dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
+    check=Check.NONE,  # type: Check.Value
 ):
     # type: (...) -> ResolveResult
 
@@ -194,4 +196,5 @@ def resolve(
                 uploaded_prior_to=resolver_configuration.uploaded_prior_to,
                 result_type=result_type,
                 dependency_configuration=dependency_configuration,
+                check=check,
             )

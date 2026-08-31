@@ -107,6 +107,23 @@ def test_directory_hasher(hasher, includes_hidden_expected):
         assert includes_hidden == includes_hidden_expected
 
 
+def test_dir_hash_exclude_files():
+    # type: () -> None
+    with temporary_dir() as tmp_dir:
+        with safe_open(os.path.join(tmp_dir, "a.py"), "w") as fp:
+            fp.write("contents1")
+        hash1 = CacheHelper.dir_hash(tmp_dir)
+
+        with safe_open(os.path.join(tmp_dir, "excluded.json"), "w") as fp:
+            fp.write("contents2")
+        assert hash1 != CacheHelper.dir_hash(
+            tmp_dir
+        ), "A new, non-excluded file should change the hash."
+        assert hash1 == CacheHelper.dir_hash(
+            tmp_dir, exclude_files=("excluded.json",)
+        ), "An excluded file should not affect the hash, whether or not it's present."
+
+
 try:
     import __builtin__ as python_builtins  # type: ignore[import]
 except ImportError:

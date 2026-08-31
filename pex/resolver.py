@@ -18,6 +18,7 @@ from pex import sdist, targets
 from pex.atomic_directory import AtomicDirectory, atomic_directory
 from pex.build_system import pep_517
 from pex.cache.dirs import BuiltWheelDir, CacheDir
+from pex.cache_check import Check
 from pex.common import (
     open_zip,
     pluralize,
@@ -942,8 +943,18 @@ class InstallResult(object):
         # type: () -> str
         return self._atomic_dir.target_dir
 
-    def finalize_install(self, install_requests):
-        # type: (Iterable[InstallRequest]) -> Iterator[ResolvedDistribution]
+    def finalize_install(
+        self,
+        install_requests,  # type: Iterable[InstallRequest]
+        check=Check.NONE,  # type: Check.Value
+    ):
+        # type: (...) -> Iterator[ResolvedDistribution]
+
+        # N.B.: `is_installed` reflects reality *before* the `finalize` call just below, so it's
+        # only True here if this chroot already existed prior to this call; i.e.: it's a reused
+        # cache entry, not one we just populated ourselves in this same call. Only reused entries
+        # need verifying: one we just populated is trivially correct.
+        was_already_installed = self.is_installed
         self._atomic_dir.finalize()
 
         # The install_chroot is keyed by the hash of the wheel file (zip) we installed. Here we add
@@ -1017,16 +1028,41 @@ class InstallResult(object):
                     self.install_chroot, os.path.join(atomic_dir.work_dir, self.request.wheel_file)
                 )
 
-        return self._iter_resolved_distributions(install_requests, fingerprint=wheel_dir_hash)
+        install_chroot_override = None  # type: Optional[str]
+        if was_already_installed and not check.verify_installed_wheel(self.install_chroot):
+            # The cache entry no longer matches what Pex wrote; rebuild into a private scratch
+            # chroot instead of touching the shared cache entry, mirroring `cache_zip`'s contract:
+            # other processes may be reading it concurrently, and `atomic_directory` grants no lock
+            # for an already-finalized directory. The `install_chroot` used for the runtime-key
+            # symlink above is deliberately left untouched.
+            #
+            # N.B.: The chroot's own basename must be the wheel file name, matching the convention
+            # `install_chroot` itself follows (`.../<fingerprint>/<wheel_file>`); downstream code
+            # (e.g. `PEXBuilder.add_distribution`) derives the distribution's identity from
+            # `os.path.basename(distribution.location)`.
+            install_chroot_override = os.path.join(safe_mkdtemp(), self.request.wheel_file)
+            safe_mkdir(install_chroot_override)
+            install_wheel_chroot(
+                wheel=self.request.wheel_path,
+                destination=install_chroot_override,
+                normalize_file_stat=self.request.was_built_locally,
+            )
+
+        return self._iter_resolved_distributions(
+            install_requests,
+            fingerprint=wheel_dir_hash,
+            install_chroot_override=install_chroot_override,
+        )
 
     def _iter_resolved_distributions(
         self,
         install_requests,  # type: Iterable[InstallRequest]
         fingerprint,  # type: str
+        install_chroot_override=None,  # type: Optional[str]
     ):
         # type: (...) -> Iterator[ResolvedDistribution]
         if self.is_installed:
-            distribution = Distribution.load(self.install_chroot)
+            distribution = Distribution.load(install_chroot_override or self.install_chroot)
             for install_request in install_requests:
                 yield ResolvedDistribution(
                     target=install_request.target,
@@ -1461,6 +1497,7 @@ class BuildAndInstallRequest(object):
         ignore_errors=False,  # type: bool
         max_parallel_jobs=None,  # type: Optional[int]
         local_project_directory_to_sdist=None,  # type: Optional[Mapping[str, str]]
+        check=Check.NONE,  # type: Check.Value
     ):
         # type: (...) -> Iterable[ResolvedDistribution]
 
@@ -1497,7 +1534,7 @@ class BuildAndInstallRequest(object):
 
         def add_installation(install_result):
             install_requests = install_requests_by_wheel_file[install_result.request.wheel_file]
-            installations.extend(install_result.finalize_install(install_requests))
+            installations.extend(install_result.finalize_install(install_requests, check=check))
 
         with TRACER.timed(
             "Installing {} distributions".format(len(representative_install_requests))
@@ -1567,6 +1604,7 @@ def resolve(
     uploaded_prior_to=None,  # type: Optional[str]
     result_type=InstallableType.INSTALLED_WHEEL_CHROOT,  # type: InstallableType.Value
     dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
+    check=Check.NONE,  # type: Check.Value
 ):
     # type: (...) -> ResolveResult
     """Resolves all distributions needed to meet requirements for multiple distribution targets.
@@ -1708,7 +1746,7 @@ def resolve(
     ignore_errors = ignore_errors or not transitive
     distributions = tuple(
         build_and_install_request.install_distributions(
-            ignore_errors=ignore_errors, max_parallel_jobs=max_parallel_jobs
+            ignore_errors=ignore_errors, max_parallel_jobs=max_parallel_jobs, check=check
         )
         if result_type is InstallableType.INSTALLED_WHEEL_CHROOT
         else build_and_install_request.build_distributions(

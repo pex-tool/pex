@@ -14,6 +14,7 @@ from zipfile import ZipFile
 import pytest
 
 from pex.cache.dirs import CacheDir
+from pex.cache_check import CACHE_ENTRY_DIGEST, Check, CorruptCacheEntryError, InvalidZipAppError
 from pex.common import CopyMode, open_zip, safe_open, temporary_dir, touch
 from pex.compatibility import safe_commonpath
 from pex.executor import Executor
@@ -21,14 +22,7 @@ from pex.fs import safe_rename
 from pex.layout import Layout
 from pex.os import WINDOWS
 from pex.pex import PEX
-from pex.pex_builder import (
-    _CACHE_ENTRY_DIGEST,
-    Check,
-    CorruptCacheEntryError,
-    InvalidZipAppError,
-    PEXBuilder,
-    cache_zip,
-)
+from pex.pex_builder import PEXBuilder, cache_zip
 from pex.pex_warnings import PEXWarning
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
@@ -747,7 +741,7 @@ def test_cache_zip_trusts_entry_with_no_recorded_digest(tmpdir):
 
     # An entry written by a Pex that predates digest recording makes no claim about itself, so
     # there is nothing to check and upgrading Pex must not invalidate it.
-    os.remove(os.path.join(cache_dir, _CACHE_ENTRY_DIGEST))
+    os.remove(os.path.join(cache_dir, CACHE_ENTRY_DIGEST))
     assert cached == cache_zip(cache_dir, WHEEL_RELPATH, create_zip, check=Check.ERROR)
     assert 1 == len(create_zip.builds)
 
@@ -764,3 +758,62 @@ def test_cache_zip_raises_when_no_zip_produced(tmpdir):
     with pytest.raises(CorruptCacheEntryError):
         cache_zip(cache_dir, WHEEL_RELPATH, create_nothing)
     assert not os.path.exists(os.path.join(cache_dir, WHEEL_RELPATH))
+
+
+def test_packed_build_rebuilds_around_corrupted_cache_entry(tmpdir):
+    # type: (Any) -> None
+    """End-to-end: a corrupted `packed_wheels` cache entry is detected and rebuilt around.
+
+    This exercises the full `PEXBuilder.build(..., layout=Layout.PACKED, check=...)` path (as
+    opposed to `cache_zip` in isolation, which the tests above already cover) to prove the
+    detection backstop actually protects a real packed PEX build, end to end.
+    """
+
+    pex_root = os.path.join(str(tmpdir), "pex_root")
+    pex_app = os.path.join(str(tmpdir), "app.pex")
+
+    with ENV.patch(PEX_ROOT=pex_root), make_bdist(name="my_project") as dist:
+        pb = PEXBuilder(copy_mode=CopyMode.SYMLINK)
+        pb.add_dist_location(dist.location)
+        pb.set_script("shell_script")
+        pb.build(pex_app, layout=Layout.PACKED, check=Check.WARN)
+
+    assert "hello world from shell script\n" == subprocess.check_output(
+        args=[os.path.join(pex_app, "__main__.py")]
+    ).decode("utf-8")
+
+    assert 1 == len(pb.info.distributions)
+    location, sha = next(iter(pb.info.distributions.items()))
+    cached_dist_zip = CacheDir.PACKED_WHEELS.path(sha, "defN", location, pex_root=pex_root)
+    assert zipfile.is_zipfile(cached_dist_zip)
+
+    drop_zip_member(cached_dist_zip)
+    cache_dir = os.path.dirname(cached_dist_zip)
+    before = snapshot_dir(cache_dir)
+
+    with warnings.catch_warnings(record=True) as events:
+        warnings.simplefilter("always")
+        with ENV.patch(PEX_ROOT=pex_root), make_bdist(name="my_project") as dist:
+            pb2 = PEXBuilder(copy_mode=CopyMode.SYMLINK)
+            pb2.add_dist_location(dist.location)
+            pb2.set_script("shell_script")
+            pb2.build(pex_app, layout=Layout.PACKED, check=Check.WARN)
+
+    assert any(
+        issubclass(event.category, PEXWarning) and "does not match the digest" in str(event.message)
+        for event in events
+    ), "Expected a warning about the corrupted cache entry."
+
+    # The rebuilt PEX itself must be correct, using the rebuilt-outside-the-cache zip rather than
+    # the still-corrupted shared cache entry.
+    assert "hello world from shell script\n" == subprocess.check_output(
+        args=[os.path.join(pex_app, "__main__.py")]
+    ).decode("utf-8")
+    spread_dist_zip = os.path.join(pex_app, pb2.info.internal_cache, location)
+    with open_zip(spread_dist_zip) as zf:
+        assert any(
+            name.endswith(".dist-info/METADATA") for name in zf.namelist()
+        ), "Expected the packed PEX's own copy of the dependency zip to be the rebuilt, correct one."
+
+    # The heart of it: the shared cache entry itself must never be touched by the rebuild.
+    assert before == snapshot_dir(cache_dir), "Expected the cache entry to be left untouched."

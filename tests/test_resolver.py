@@ -6,6 +6,7 @@ from __future__ import absolute_import
 import os
 import shutil
 import sys
+import warnings
 import zipfile
 from collections import defaultdict
 from contextlib import contextmanager
@@ -15,10 +16,12 @@ import pytest
 
 from pex import dist_metadata, targets
 from pex.build_system.pep_517 import build_sdist
+from pex.cache_check import Check
 from pex.common import safe_copy, safe_mkdtemp, temporary_dir
 from pex.dist_metadata import Distribution, Requirement
 from pex.interpreter import PythonInterpreter
 from pex.pep_427 import InstallableType
+from pex.pex_warnings import PEXWarning
 from pex.pip.version import PipVersion
 from pex.requirements import parse_requirement_string, parse_requirement_strings
 from pex.resolve import abbreviated_platforms
@@ -48,7 +51,7 @@ from testing import (
 from testing.pytest_utils.tmp import Tempdir
 
 if TYPE_CHECKING:
-    from typing import Any, DefaultDict, Iterable, Iterator, List, Union
+    from typing import Any, DefaultDict, Dict, Iterable, Iterator, List, Union
 
     import attr  # vendor:skip
 else:
@@ -169,6 +172,89 @@ def test_resolve_cache():
         assert resolved_dists1 != resolved_dists3
         assert resolved_dists2 != resolved_dists3
         assert resolved_dists3 == resolved_dists4
+
+
+def snapshot_dir(directory):
+    # type: (str) -> Dict[str, bytes]
+    """Capture the full contents of `directory` so mutation of any kind can be detected."""
+
+    contents = {}  # type: Dict[str, bytes]
+    for root, _, files in os.walk(directory):
+        for f in files:
+            path = os.path.join(root, f)
+            with open(path, "rb") as fp:
+                contents[os.path.relpath(path, directory)] = fp.read()
+    return contents
+
+
+def test_resolve_rebuilds_around_corrupted_installed_wheel_cache_entry(tmpdir):
+    # type: (Tempdir) -> None
+    """A corrupted `installed_wheels` cache entry is detected and rebuilt around under `--check`.
+
+    This protects the case where `packed_wheels` would otherwise faithfully re-zip whatever is
+    currently sitting in a corrupted `installed_wheels` chroot: the corruption must be caught here,
+    at the point this resolve reuses the chroot, not later when it's zipped up.
+    """
+    project_wheel = build_wheel(name="project")
+
+    with temporary_dir() as td, temporary_dir() as cache_dir:
+        safe_copy(project_wheel, os.path.join(td, os.path.basename(project_wheel)))
+        repos_configuration = ReposConfiguration.create(find_links=[Repo(td)])
+
+        with cache(cache_dir):
+            resolved_dists1 = local_resolve(
+                requirements=[parse_requirement_string("project")],
+                repos_configuration=repos_configuration,
+            )
+        assert 1 == len(resolved_dists1)
+        install_chroot = resolved_dists1[0].distribution.location
+        assert os.path.isdir(install_chroot)
+
+        # Corrupt the installed wheel chroot the way a partially re-populated work dir would:
+        # drop a member without raising any error along the way.
+        record_files = [
+            os.path.join(root, f)
+            for root, _, files in os.walk(install_chroot)
+            for f in files
+            if f == "RECORD"
+        ]
+        assert 1 == len(record_files)
+        os.unlink(record_files[0])
+        before = snapshot_dir(install_chroot)
+
+        with cache(cache_dir), warnings.catch_warnings(record=True) as events:
+            warnings.simplefilter("always")
+            resolved_dists2 = local_resolve(
+                requirements=[parse_requirement_string("project")],
+                repos_configuration=repos_configuration,
+                check=Check.WARN,
+            )
+        assert 1 == len(resolved_dists2)
+        assert (
+            install_chroot != resolved_dists2[0].distribution.location
+        ), "Expected a rebuilt location outside the corrupted cache entry."
+        assert os.path.isfile(
+            os.path.join(resolved_dists2[0].distribution.location, "project-0.0.0.dist-info/RECORD")
+        )
+        assert any(
+            issubclass(event.category, PEXWarning)
+            and "does not match the fingerprint" in str(event.message)
+            for event in events
+        ), "Expected a warning about the corrupted installed wheel chroot."
+
+        # The heart of it: the shared cache entry itself must never be touched by the rebuild.
+        assert before == snapshot_dir(
+            install_chroot
+        ), "Expected the cache entry to be left untouched."
+
+        # And `Check.NONE` (the default) must not even notice the corruption.
+        with cache(cache_dir):
+            resolved_dists3 = local_resolve(
+                requirements=[parse_requirement_string("project")],
+                repos_configuration=repos_configuration,
+            )
+        assert 1 == len(resolved_dists3)
+        assert install_chroot == resolved_dists3[0].distribution.location
 
 
 def test_diamond_local_resolve_cached():

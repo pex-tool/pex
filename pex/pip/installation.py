@@ -3,6 +3,7 @@
 
 from __future__ import absolute_import
 
+import functools
 import glob
 import hashlib
 import os
@@ -12,7 +13,8 @@ from textwrap import dedent
 from pex import pep_427, pex_warnings, third_party
 from pex.atomic_directory import atomic_directory
 from pex.cache.dirs import InstalledWheelDir, PipPexDir
-from pex.common import REPRODUCIBLE_BUILDS_ENV, CopyMode, pluralize, safe_mkdtemp
+from pex.cache_check import Check
+from pex.common import REPRODUCIBLE_BUILDS_ENV, CopyMode, pluralize, safe_mkdir, safe_mkdtemp
 from pex.dist_metadata import Requirement
 from pex.exceptions import production_assert, reportable_unexpected_error_msg
 from pex.fs import safe_symlink
@@ -215,14 +217,18 @@ class PipInstallError(Exception):
     """Indicates an error installing Pip."""
 
 
-def _install_wheel(wheel_path):
-    # type: (str) -> str
+def _install_wheel(
+    wheel_path,  # type: str
+    check=Check.NONE,  # type: Check.Value
+):
+    # type: (...) -> str
 
     # TODO(John Sirois): Consolidate with pex.resolver.BuildAndInstallRequest.
     #  https://github.com/pex-tool/pex/issues/2556
     wheel_hash = CacheHelper.hash(wheel_path, hasher=hashlib.sha256)
     wheel_name = os.path.basename(wheel_path)
     installed_wheel_dir = InstalledWheelDir.create(wheel_name=wheel_name, install_hash=wheel_hash)
+    effective_installed_wheel_dir = installed_wheel_dir
     with atomic_directory(installed_wheel_dir) as atomic_dir:
         if not atomic_dir.is_finalized():
             installed_wheel = pep_427.install_wheel_chroot(
@@ -244,7 +250,21 @@ def _install_wheel(wheel_path):
                         installed_wheel_dir, runtime_key_dir.symlink_dir
                     )
                     safe_symlink(relative_target_path, source_path)
-    return installed_wheel_dir
+        elif not check.verify_installed_wheel(installed_wheel_dir):
+            # The cache entry no longer matches what Pex wrote; rebuild into a private scratch
+            # chroot instead of touching the shared cache entry, mirroring `cache_zip`'s contract:
+            # other processes may be reading it concurrently, and `atomic_directory` grants no lock
+            # for an already-finalized directory.
+            #
+            # N.B.: The chroot's own basename must be the wheel file name, matching the convention
+            # `installed_wheel_dir` itself follows; downstream code (e.g.
+            # `PEXBuilder.add_distribution`) derives the distribution's identity from
+            # `os.path.basename(distribution.location)`.
+            scratch_dir = os.path.join(safe_mkdtemp(), wheel_name)
+            safe_mkdir(scratch_dir)
+            pep_427.install_wheel_chroot(wheel=wheel_path, destination=scratch_dir)
+            effective_installed_wheel_dir = scratch_dir
+    return effective_installed_wheel_dir
 
 
 def _bootstrap_pip(
@@ -252,6 +272,7 @@ def _bootstrap_pip(
     pip_requirements,  # type: Iterable[str]
     pip_configuration,  # type: PipConfiguration
     interpreter=None,  # type: Optional[PythonInterpreter]
+    check=Check.NONE,  # type: Check.Value
 ):
     # type: (...) -> Callable[[], Iterator[str]]
 
@@ -324,7 +345,7 @@ def _bootstrap_pip(
 
         return iter_map_parallel(
             inputs=glob.glob(os.path.join(wheels, "*.whl")),
-            function=_install_wheel,
+            function=functools.partial(_install_wheel, check=check),
             costing_function=os.path.getsize,
             noun="wheel",
             verb="install",
