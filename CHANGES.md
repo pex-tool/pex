@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.101.3
+
+This release fixes `venv` PEX tool to arrange for the venv `pex` script not to attempt a touch of
+the venv `.last-access` file. This is only needed for venvs under the `PEX_ROOT`.
+
+* Fix PEX tool created venv touch of `.last-access` file. (#3266)
+
 ## 2.101.2
 
 This release add diagnostics around cache locks to help debugging in the wild.
