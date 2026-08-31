@@ -152,6 +152,7 @@ class Venv(PEXCommand):
             ),
             scope=installer_configuration.scope,
             hermetic_scripts=installer_configuration.hermetic_scripts,
+            set_last_access=False,
         )
 
         if installer_configuration.compile:

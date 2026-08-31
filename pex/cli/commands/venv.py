@@ -507,4 +507,5 @@ def _install_from_resolve(
         shebang=provenance.calculate_shebang(hermetic_scripts=hermetic_scripts),
         venv_python=provenance.target_python,
         bin_path=installer_configuration.bin_path,
+        set_last_access=False,
     )

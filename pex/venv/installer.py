@@ -363,6 +363,7 @@ def populate_venv_sources(
     bin_path=BinPath.FALSE,  # type: BinPath.Value
     hermetic_scripts=True,  # type: bool
     shebang=None,  # type: Optional[str]
+    set_last_access=True,  # type: bool
 ):
     # type: (...) -> str
 
@@ -375,6 +376,7 @@ def populate_venv_sources(
             shebang=shebang,
             venv_python=provenance.target_python,
             bin_path=bin_path,
+            set_last_access=set_last_access,
         )
     )
     return shebang
@@ -410,6 +412,7 @@ def populate_venv_from_pex(
     copy_mode=CopyMode.LINK,  # type: CopyMode.Value
     scope=InstallScope.ALL,  # type: InstallScope.Value
     hermetic_scripts=True,  # type: bool
+    set_last_access=True,  # type: bool
 ):
     # type: (...) -> str
 
@@ -435,6 +438,7 @@ def populate_venv_from_pex(
             hermetic_scripts=hermetic_scripts,
             provenance=provenance,
             shebang=shebang,
+            set_last_access=set_last_access,
         )
 
     provenance.check_collisions(collisions_ok, source="PEX at {pex}".format(pex=pex.path()))
@@ -617,6 +621,7 @@ def install_pex_main(
     shebang,  # type: str
     venv_python,  # type: str
     bin_path,  # type: BinPath.Value
+    set_last_access,  # type: bool
 ):
     # type: (...) -> None
 
@@ -699,6 +704,7 @@ def install_pex_main(
                         entry_point={entry_point!r},
                         script={script!r},
                         hermetic_re_exec={hermetic_re_exec!r},
+                        set_last_access={set_last_access!r},
                     )
                 """
             ).format(
@@ -716,6 +722,7 @@ def install_pex_main(
                 hermetic_re_exec=(
                     venv.interpreter.hermetic_args if pex_info.venv_hermetic_scripts else None
                 ),
+                set_last_access=set_last_access,
             )
         )
     chmod_plus_x(fp.name)
@@ -741,6 +748,7 @@ def _populate_first_party(
     shebang,  # type: str
     venv_python,  # type: str
     bin_path,  # type: BinPath.Value
+    set_last_access,  # type: bool
 ):
     # type: (...) -> Iterator[Tuple[Text, Text]]
 
@@ -760,4 +768,5 @@ def _populate_first_party(
         shebang=shebang,
         venv_python=venv_python,
         bin_path=bin_path,
+        set_last_access=set_last_access,
     )
