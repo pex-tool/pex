@@ -2,6 +2,7 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
+import shutil
 import sys
 from textwrap import dedent
 
@@ -18,6 +19,7 @@ from testing import (
     run_pex_command,
     subprocess,
 )
+from testing.pytest_utils.tmp import Tempdir
 from testing.venv import assert_venv_site_packages_copy_mode
 
 if TYPE_CHECKING:
@@ -397,3 +399,34 @@ def test_site_packages_copies(tmpdir):
         args=[pex, "venv", "--site-packages-copies", venv_copies], env=make_env(PEX_TOOLS=1)
     )
     assert_venv(venv_copies, expect_copies=True)
+
+
+def test_issue_3265(tmpdir):
+    # type: (Tempdir) -> None
+
+    pex_root = tmpdir.join("pex-root")
+    pex = tmpdir.join("pex")
+    run_pex_command(
+        args=[
+            "--pex-root",
+            pex_root,
+            "--runtime-pex-root",
+            pex_root,
+            "cowsay<6",
+            "-c",
+            "cowsay",
+            "-o",
+            pex,
+            "--include-tools",
+        ]
+    ).assert_success()
+
+    venv_dir = tmpdir.join("venv")
+    subprocess.check_call(args=[pex, "venv", "--compile", venv_dir], env=make_env(PEX_TOOLS=1))
+    shutil.rmtree(pex_root)
+    expected_venv_fingerprint = CacheHelper.dir_hash(venv_dir)
+
+    assert b"| Moo! |" in subprocess.check_output(args=[os.path.join(venv_dir, "pex"), "Moo!"])
+    assert not os.path.exists(pex_root)
+    assert not os.path.exists(os.path.join(venv_dir, ".last-access"))
+    assert expected_venv_fingerprint == CacheHelper.dir_hash(venv_dir)
