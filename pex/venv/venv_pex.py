@@ -96,6 +96,7 @@ def boot(
     entry_point,  # type: Optional[str]
     script,  # type: Optional[str]
     hermetic_re_exec,  # type: Optional[str]
+    set_last_access,  # type: bool
 ):
     # type: (...) -> None
 
@@ -166,7 +167,9 @@ def boot(
         except ImportError:
             pass
 
-    set_last_access = os.environ.pop("_PEX_CACHE_SET_LAST_ACCESS", "1").lower() in ("1", "true")
+    override_set_last_access = os.environ.pop("_PEX_CACHE_SET_LAST_ACCESS", None)
+    if override_set_last_access is not None:
+        set_last_access = override_set_last_access.lower() in ("1", "true")
 
     ignored_pex_env_vars = [
         "{}={}".format(name, value)
