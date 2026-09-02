@@ -609,11 +609,12 @@ def test_check(tmpdir):
 
 
 class UnlistableSubdirWalk(object):
-    """An `os.walk` whose subdirectory listings fail.
+    """An `os.walk` stand-in that yields `top`, then fails every subdirectory listing.
 
-    Models os.walk's error contract: the failure is handed to `onerror` and the
-    subtree is omitted either way, so under os.walk's default of
-    `onerror=None` the loss is silent and the walk still completes.
+    Reproduces just the part of os.walk's error contract this test needs: the failure is handed
+    to `onerror` and the subtree is omitted either way, so under os.walk's default of
+    `onerror=None` the loss is silent and the walk still completes. It does not recurse into
+    readable subdirectories, and it ignores `topdown` and `followlinks`.
     """
 
     def __init__(self, error_number):

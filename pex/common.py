@@ -531,25 +531,28 @@ def deterministic_walk(*args, **kwargs):
     # type: (*Any, **Any) -> Iterator[Tuple[str, List[str], List[str]]]
     """Walk the specified directory tree in deterministic order.
 
-    Takes the same parameters as os.walk and yields tuples of the same shape,
-    except for the `topdown` parameter, which must always be true, and the
-    `onerror` parameter, which defaults to re-raising instead of os.walk's
-    silent discard. `deterministic_walk` is essentially a wrapper of os.walk,
-    and os.walk doesn't allow modifying the order of the walk when called with
-    `topdown` set to false.
+    Takes the same parameters as os.walk and yields tuples of the same shape, except that
+    `topdown` must always be true -- os.walk ignores modifications to `dirs` when it is false --
+    and `onerror` defaults to re-raising instead of os.walk's silent discard. Pass `onerror`
+    explicitly, including `None`, to choose other handling.
 
-    os.walk uses os.listdir or os.scandir, depending on the Python version,
-    both of which don't guarantee the order in which directory entries get listed.
-    So when the build output depends on the order of directory traversal,
-    use deterministic_walk instead.
+    os.walk uses os.listdir or os.scandir, depending on the Python version, neither of which
+    guarantees the order in which directory entries get listed. So when the build output depends
+    on the order of directory traversal, use deterministic_walk instead.
 
-    A caller that walks a tree in order to reproduce it elsewhere cannot use
-    os.walk's default of `onerror=None`, which discards any listing error and
-    omits that subtree with no indication anything was lost. The walk then
-    completes normally and yields a strict subset of the tree, so the caller
-    writes out a truncated copy and every downstream consumer treats it as
-    whole. Raising surfaces the errno at the point of loss instead. Pass
-    `onerror` explicitly to choose different handling.
+    The `onerror` default matters to callers that walk a tree in order to reproduce it elsewhere.
+    Under `onerror=None` a directory that cannot be listed is dropped along with everything below
+    it, the walk still completes normally, and the caller writes out a truncated copy that every
+    downstream consumer treats as whole. Raising surfaces the errno at the point of loss.
+
+    That covers listing errors only. os.walk stays silent about two further losses:
+
+    + An entry that cannot be stat-ed is classified as a file and never descended into, with no
+      call to `onerror`. A stat is needed for symlinks and, on filesystems whose directory
+      listings omit the entry type -- NFS, overlayfs and many FUSE filesystems among them -- for
+      every entry.
+    + An error part way through listing a directory discards the entries already read from it, so
+      that directory is omitted as well, not just the part after the error.
     """
     # when topdown is false, modifying ``dirs`` has no effect
     assert kwargs.get("topdown", True), "Determinism cannot be guaranteed when ``topdown`` is false"
