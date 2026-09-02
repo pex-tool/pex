@@ -4,6 +4,7 @@
 import contextlib
 import errno
 import os
+import shutil
 import stat
 
 import pytest
@@ -30,7 +31,7 @@ except ImportError:
     import mock  # type: ignore[no-redef,import]
 
 if TYPE_CHECKING:
-    from typing import Iterator, Tuple
+    from typing import Iterator, List, Tuple
 
 
 def test_zip_file_type_mode(tmpdir):
@@ -302,6 +303,60 @@ def test_deterministic_walk():
             (dir_b, [], ["file_b"]),
         ], "Modifying dirs should not affect the order of the walk"
         assert result_a == result_b, "Should be resilient to os.walk yielding in arbitrary order"
+
+
+def test_deterministic_walk_raises_on_listing_error():
+    # type: () -> None
+    """A subtree that cannot be listed must not be silently omitted.
+
+    os.walk defaults to `onerror=None`, which discards the error and yields a
+    strict subset of the tree while completing normally. A caller walking a
+    directory to reproduce it elsewhere then writes out a truncated copy with
+    nothing to indicate anything was lost.
+    """
+    with temporary_dir() as tmp:
+        root_dir = os.path.join(tmp, "root")
+        subdir = os.path.join(root_dir, "subdir")
+        touch(os.path.join(subdir, "nested_file"))
+        touch(os.path.join(root_dir, "root_file"))
+
+        walk = deterministic_walk(root_dir)
+        assert (root_dir, ["subdir"], ["root_file"]) == next(walk)
+
+        # A concurrent process removing the subtree between the listing of its
+        # parent and the descent into it is one way this fires in practice.
+        shutil.rmtree(subdir)
+
+        with pytest.raises(OSError) as exc_info:
+            next(walk)
+        assert errno.ENOENT == exc_info.value.errno
+
+
+@pytest.mark.parametrize(
+    "pass_positionally", [pytest.param(True, id="positional"), pytest.param(False, id="keyword")]
+)
+def test_deterministic_walk_onerror_can_be_overridden(pass_positionally):
+    # type: (bool) -> None
+    """A caller that wants os.walk's best-effort behavior can still ask for
+    it."""
+    with temporary_dir() as tmp:
+        root_dir = os.path.join(tmp, "root")
+        subdir = os.path.join(root_dir, "subdir")
+        touch(os.path.join(subdir, "nested_file"))
+        touch(os.path.join(root_dir, "root_file"))
+
+        errors = []  # type: List[OSError]
+        walk = (
+            deterministic_walk(root_dir, True, errors.append)
+            if pass_positionally
+            else deterministic_walk(root_dir, onerror=errors.append)
+        )
+        assert (root_dir, ["subdir"], ["root_file"]) == next(walk)
+        shutil.rmtree(subdir)
+
+        assert [] == list(walk), "The unreadable subtree is omitted rather than raised."
+        assert 1 == len(errors)
+        assert errno.ENOENT == errors[0].errno
 
 
 @pytest.fixture
