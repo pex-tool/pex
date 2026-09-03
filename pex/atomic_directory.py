@@ -242,10 +242,6 @@ def atomic_directory(
 
     The new work directory will be cleaned up regardless of whether the enclosed block succeeds.
     """
-
-    # We use double-checked locking with the check being target_dir existence and the lock being an
-    # exclusive blocking file lock.
-
     atomic_dir = AtomicDirectory(target_dir=target_dir, locked=True)
     with _atomic_directory(atomic_dir, source=source):
         yield atomic_dir
@@ -257,6 +253,9 @@ def _atomic_directory(
     source=None,  # type: Optional[str]
 ):
     # type: (...) -> Iterator[None]
+
+    # We use double-checked locking with the check being target_dir existence and the lock being an
+    # exclusive blocking file lock.
 
     if atomic_dir.is_finalized():
         # Our work is already done for us so exit early.
