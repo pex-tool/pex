@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.101.4
+
+This release fixes Pex to fail fast when encountering errors walking directories when, for example,
+building zips.
+
+* Raise on Directory Listing Errors in `deterministic_walk` (#3269)
+
 ## 2.101.3
 
 This release fixes `venv` PEX tool to arrange for the venv `pex` script not to attempt a touch of

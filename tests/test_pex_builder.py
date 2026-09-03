@@ -1,6 +1,7 @@
 # Copyright 2014 Pex project contributors.
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+import errno
 import filecmp
 import os
 import re
@@ -33,7 +34,7 @@ except ImportError:
     import mock  # type: ignore[no-redef,import]
 
 if TYPE_CHECKING:
-    from typing import Any, Iterator, List, Set, Text
+    from typing import Any, Callable, Iterator, List, Optional, Set, Text, Tuple
 
 exe_main = """
 import sys
@@ -605,3 +606,74 @@ def test_check(tmpdir):
                 True if layout is Layout.ZIPAPP and check is not Check.NONE else None
             )
     assert b"BOOTED\n" == subprocess.check_output(args=[sys.executable, zipapp_ok])
+
+
+class UnlistableSubdirWalk(object):
+    """An `os.walk` stand-in that yields `top`, then fails every subdirectory listing.
+
+    Reproduces just the part of os.walk's error contract this test needs: the failure is handed
+    to `onerror` and the subtree is omitted either way, so under os.walk's default of
+    `onerror=None` the loss is silent and the walk still completes. It does not recurse into
+    readable subdirectories, and it ignores `topdown` and `followlinks`.
+    """
+
+    def __init__(self, error_number):
+        # type: (int) -> None
+        self._error_number = error_number
+
+    def __call__(
+        self,
+        top,  # type: str
+        topdown=True,  # type: bool
+        onerror=None,  # type: Optional[Callable[[OSError], None]]
+        followlinks=False,  # type: bool
+    ):
+        # type: (...) -> Iterator[Tuple[str, List[str], List[str]]]
+        entries = sorted(os.listdir(top))
+        dirs = [entry for entry in entries if os.path.isdir(os.path.join(top, entry))]
+        files = [entry for entry in entries if not os.path.isdir(os.path.join(top, entry))]
+        yield top, dirs, files
+        for directory in dirs:
+            if onerror is not None:
+                onerror(
+                    OSError(
+                        self._error_number,
+                        "Simulated listing failure",
+                        os.path.join(top, directory),
+                    )
+                )
+
+
+def test_pex_builder_add_dist_surfaces_listing_errors(tmpdir):
+    # type: (Any) -> None
+    """A dist chroot that cannot be fully listed must fail the build.
+
+    Under os.walk's default `onerror`, `_add_dist` registered only the
+    chroot's root-level files and raised nothing, `_build_packedapp` zipped
+    that subset, and `atomic_directory` finalized it under the *complete*
+    chroot's fingerprint -- caching a truncated wheel under a key that claims
+    it is whole. The PEX then carried a `.deps/<wheel>.whl` with no
+    `*.dist-info/METADATA`, which fails at `PEX_TOOLS=1 ... venv` with a
+    MetadataError naming that wheel, far from the listing that lost it.
+    """
+    chroot = os.path.join(str(tmpdir), "example-1.0-py3-none-any.whl")
+    dist_name = os.path.basename(chroot)
+    # `.layout.json` is written last by InstalledWheel.save and carries a hash of
+    # the finished chroot, so its presence means installation completed.
+    touch(os.path.join(chroot, ".layout.json"))
+    touch(os.path.join(chroot, "example.so"))
+    touch(os.path.join(chroot, "example-1.0.dist-info", "METADATA"))
+
+    with mock.patch("os.walk", new=UnlistableSubdirWalk(errno.EACCES)):
+        with pytest.raises(OSError) as exc_info:
+            PEXBuilder()._add_dist(chroot, dist_name, fingerprint="deadbeef")
+    assert errno.EACCES == exc_info.value.errno
+
+    # Control: with the listing intact the same chroot registers the metadata
+    # whose absence the truncated fileset went on to hide.
+    builder = PEXBuilder()
+    builder._add_dist(chroot, dist_name, fingerprint="deadbeef")
+    assert any(
+        collected.endswith(os.path.join("example-1.0.dist-info", "METADATA"))
+        for collected in builder._chroot.filesets[dist_name]
+    )
