@@ -18,6 +18,8 @@ class _CurrentOs(object):
     def __get__(self, obj, objtype=None):
         # type: (...) -> Os.Value
         if not hasattr(self, "_current"):
+            # See: https://docs.python.org/3/library/sys.html#sys.platform
+
             # N.B.: Python 2.7 uses "linux2".
             if sys.platform.startswith("linux"):
                 self._current = Os.LINUX
@@ -25,6 +27,12 @@ class _CurrentOs(object):
                 self._current = Os.MACOS
             elif sys.platform == "win32":
                 self._current = Os.WINDOWS
+            elif (
+                sys.platform.startswith("aix")
+                or sys.platform.startswith("freebsd")
+                or sys.platform in ("android", "ios")
+            ):
+                self._current = Os.UNIX
             if not hasattr(self, "_current"):
                 raise ValueError(
                     "The current operating system is not supported!: {system}".format(
@@ -43,6 +51,7 @@ class Os(Enum["Os.Value"]):
     LINUX = Value("linux")
     MACOS = Value("macos")
     WINDOWS = Value("windows")
+    UNIX = Value("unix")
     CURRENT = _CurrentOs()
 
 
