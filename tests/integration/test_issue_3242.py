@@ -6,6 +6,7 @@ from __future__ import absolute_import
 import subprocess
 
 from pex.common import open_zip
+from pex.os import Os
 from pex.sysconfig import SysPlatform
 from testing import run_pex_command
 from testing.pytest_utils.tmp import Tempdir
@@ -39,7 +40,10 @@ def test_pexrc_platform(tmpdir):
     run_pex_command(
         args=["--runtime-pex-root", pex_root, "--rc", "-o", all_supported_platforms_pex]
     ).assert_success()
-    assert_clib_count(all_supported_platforms_pex, len(SysPlatform.values()))
+    assert_clib_count(
+        all_supported_platforms_pex,
+        len([value for value in SysPlatform.values() if value.os is not Os.UNIX]),
+    )
     python_version = get_python_version(all_supported_platforms_pex)
 
     current_platform_pex = tmpdir.join("current.pex")
