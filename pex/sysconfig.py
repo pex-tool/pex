@@ -12,6 +12,7 @@ from sysconfig import get_config_var
 
 from pex import pex_warnings
 from pex.enum import Enum
+from pex.exceptions import production_assert
 from pex.os import Os
 from pex.typing import TYPE_CHECKING
 
@@ -120,6 +121,11 @@ class _CurrentPlatform(object):
                     self._current = SysPlatform.WINDOWS_AARCH64
                 elif machine in ("amd64", "x86_64"):
                     self._current = SysPlatform.WINDOWS_X86_64
+            if Os.CURRENT is Os.UNIX:
+                if machine in ("aarch64", "arm64"):
+                    self._current = SysPlatform.UNIX_AARCH64
+                elif machine in ("amd64", "x86_64"):
+                    self._current = SysPlatform.UNIX_X86_64
             if not hasattr(self, "_current"):
                 raise ValueError(
                     "The current operating system / machine pair is not supported!: "
@@ -161,12 +167,28 @@ class _PlatformValue(Enum.Value):
 
     def qualified_binary_name(self, binary_name):
         # type: (_Text) -> _Text
+        production_assert(
+            self.os is not Os.UNIX,
+            (
+                "Pex should not be attempting to find an operating system specific {name} binary "
+                "for the generic unix os."
+            ),
+            name=binary_name,
+        )
         return "{binary_name}-{platform}{extension}".format(
             binary_name=binary_name, platform=self, extension=self.exe_extension
         )
 
     def qualified_file_name(self, file_name):
         # type: (_Text) -> _Text
+        production_assert(
+            self.os is not Os.UNIX,
+            (
+                "Pex should not be attempting to find the operating system specific {name} file "
+                "for the generic unix os."
+            ),
+            name=file_name,
+        )
         stem, ext = os.path.splitext(file_name)
         return "{stem}-{platform}{ext}".format(stem=stem, platform=self, ext=ext)
 
@@ -187,6 +209,8 @@ class SysPlatform(Enum["SysPlatform.Value"]):
     MACOS_X86_64 = Value(Os.MACOS, "x86_64")
     WINDOWS_AARCH64 = Value(Os.WINDOWS, "aarch64")
     WINDOWS_X86_64 = Value(Os.WINDOWS, "x86_64")
+    UNIX_X86_64 = Value(Os.UNIX, "x86_64")
+    UNIX_AARCH64 = Value(Os.UNIX, "aarch64")
     CURRENT = _CurrentPlatform()
 
     @classmethod

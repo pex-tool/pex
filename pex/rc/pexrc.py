@@ -6,16 +6,18 @@ from __future__ import absolute_import
 import os
 import shutil
 import subprocess
+import sys
 from subprocess import CalledProcessError
 
 from pex.atomic_directory import atomic_directory
 from pex.cache.dirs import CacheDir
 from pex.common import safe_rmtree
+from pex.exceptions import production_assert
 from pex.executables import chmod_plus_x
 from pex.fetcher import URLFetcher
 from pex.fs import safe_rename
 from pex.hashing import Sha256
-from pex.os import is_exe
+from pex.os import Os, is_exe
 from pex.pep_440 import Version
 from pex.rc.model import File, NativeRuntimeConfiguration, Url
 from pex.result import Error, try_
@@ -81,12 +83,28 @@ def _pexrc_info(platform):
 
 def _pexrc_binary_names():
     # type: () -> Iterator[str]
+    production_assert(
+        Os.CURRENT is not Os.UNIX,
+        (
+            "Pex should not be looking for pexrc binaries for the generic unix os (actual os is "
+            "{os})."
+        ),
+        os=sys.platform,
+    )
     yield SysPlatform.CURRENT.binary_name("pexrc")
     yield "pexrc-{suffix}".format(suffix=_pexrc_info(SysPlatform.CURRENT).platform_suffix())
 
 
 def _pexrc_binary_url(suffix=""):
     # type: (str) -> str
+    production_assert(
+        Os.CURRENT is not Os.UNIX,
+        (
+            "Pex should not be looking for pexrc binaries for the generic unix os (actual os is "
+            "{os})."
+        ),
+        os=sys.platform,
+    )
     return "{pexrc_releases_url}/download/v{version}/pexrc-{platform_suffix}{suffix}".format(
         pexrc_releases_url=PEXRC_RELEASES_URL,
         version=MIN_PEXRC_VERSION.raw,
@@ -154,6 +172,12 @@ def ensure_pexrc(
     env=ENV,  # type: Variables
 ):
     # type: (...) -> str
+
+    if Os.CURRENT is Os.UNIX:
+        raise PexrcError(
+            "The --rc option is not supported for the current operating system (sys.platform of "
+            "{os}).".format(os=sys.platform)
+        )
 
     if isinstance(pexrc_binary, File):
         if not is_exe(pexrc_binary):

@@ -8,6 +8,7 @@ import os.path
 import re
 import shutil
 import subprocess
+import sys
 import time
 from collections import OrderedDict
 from subprocess import CalledProcessError
@@ -19,7 +20,7 @@ from pex.common import pluralize, safe_mkdtemp, safe_open
 from pex.compatibility import shlex_quote
 from pex.dist_metadata import NamedEntryPoint, parse_entry_point
 from pex.enum import Enum
-from pex.exceptions import reportable_unexpected_error_msg
+from pex.exceptions import production_assert, reportable_unexpected_error_msg
 from pex.executables import chmod_plus_x
 from pex.fetcher import URLFetcher
 from pex.hashing import Sha256
@@ -77,6 +78,14 @@ SCIENCE_REQUIREMENT = SpecifierSet("~={min_version}".format(min_version=MIN_SCIE
 
 def _science_binary_url(suffix=""):
     # type: (str) -> str
+    production_assert(
+        Os.CURRENT is not Os.UNIX,
+        (
+            "Pex should not be looking for science binaries for the generic unix os (actual os is "
+            "{os})."
+        ),
+        os=sys.platform,
+    )
     return "{science_releases_url}/download/v{version}/{binary}{suffix}".format(
         science_releases_url=SCIENCE_RELEASES_URL,
         version=MIN_SCIENCE_VERSION.raw,
@@ -558,6 +567,14 @@ def _science_dir(
 
 def _science_binary_names():
     # type: () -> Iterator[str]
+    production_assert(
+        Os.CURRENT is not Os.UNIX,
+        (
+            "Pex should not be looking for science binaries for the generic unix os (actual os is "
+            "{os})."
+        ),
+        os=sys.platform,
+    )
     yield SysPlatform.CURRENT.binary_name("science-fat")
     yield SysPlatform.CURRENT.qualified_binary_name("science-fat")
     yield SysPlatform.CURRENT.binary_name("science")
@@ -612,6 +629,12 @@ def ensure_science(
     env=ENV,  # type: Variables
 ):
     # type: (...) -> str
+
+    if Os.CURRENT is Os.UNIX:
+        raise ScienceError(
+            "The --scie {{eager,lazy}} option is not supported for the current operating system ( "
+            "sys.platform of {os}).".format(os=sys.platform)
+        )
 
     if isinstance(science_binary, File):
         if not is_exe(science_binary):

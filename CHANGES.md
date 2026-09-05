@@ -1,5 +1,14 @@
 # Release Notes
 
+## 2.101.5
+
+This release fixes Pex to not fail fast for well known Unix platforms supported by Python; namely
+aix, android, freebsd and ios. Options like `--rc` and `--scie {eager,lazy}` that require native
+platform support binaries will fail fast, but PEX building and execution should work on a best
+effort basis.
+
+* Don't fail fast on AIX, Android, FreeBSD and iOS. (#3272)
+
 ## 2.101.4
 
 This release fixes Pex to fail fast when encountering errors walking directories when, for example,
