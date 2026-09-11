@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.101.6
+
+This release upgrades `pexrc` to 0.20.0 when using the `--rc` option for better build failure
+diagnostics.
+
+* Upgrade `pexrc` to 0.20.0. (#3274)
+
 ## 2.101.5
 
 This release fixes Pex to not fail fast for well known Unix platforms supported by Python; namely
