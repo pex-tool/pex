@@ -38,7 +38,7 @@ else:
 
 
 PEXRC_RELEASES_URL = "https://github.com/pex-tool/pex.rc/releases"
-MIN_PEXRC_VERSION = Version("0.16.5")
+MIN_PEXRC_VERSION = Version("0.20.0")
 PEXRC_REQUIREMENT = SpecifierSet("~={min_version}".format(min_version=MIN_PEXRC_VERSION))
 
 
