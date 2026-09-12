@@ -616,7 +616,7 @@ def _resolve_from_venv(
         )
 
     return VenvResolveResult(
-        target=venv_repository.target,
+        target=target,
         venv=venv,
         venv_distributions=tuple(venv_distributions),
         re_resolved_distributions=tuple(fingerprinted_distributions),
