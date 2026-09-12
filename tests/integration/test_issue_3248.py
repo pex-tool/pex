@@ -20,6 +20,7 @@ from pex.venv.virtualenv import InstallationChoice, Virtualenv
 from testing import IS_PYPY, WheelBuilder
 from testing.cli import run_pex3
 from testing.pytest_utils.tmp import Tempdir
+from testing.uv import mark_skip_if_uv_not_supported
 
 if TYPE_CHECKING:
     from typing import Text
@@ -99,13 +100,10 @@ def create_too_long_venv_dir(tmpdir):
     return cast(str, venv_dir)
 
 
-skip_if_uv_not_supported = pytest.mark.skipif(
-    sys.version_info < (3, 8), reason="Use of uv is required and uv only supports Python >= 3.8."
-)
 skip_for_pypy = pytest.mark.skipif(IS_PYPY, reason="The `undill` script does not work with PyPy.")
 
 
-@skip_if_uv_not_supported
+@mark_skip_if_uv_not_supported
 @skip_for_pypy
 def test_uv_too_long_data_scripts_shebang(tmpdir):
     # type: (Tempdir) -> None
@@ -246,7 +244,7 @@ def assert_custom_script_repository_from(
     assert_custom_script_works(pex_venv)
 
 
-@skip_if_uv_not_supported
+@mark_skip_if_uv_not_supported
 def test_uv_too_long_data_scripts_shebang_custom_script_encoding(
     tmpdir,  # type: Tempdir
     custom_script_wheel,  # type: str

@@ -107,6 +107,10 @@ class Rank(Generic["_R"]):
         # type: () -> str
         return "{class_name}({value})".format(class_name=self.__class__.__name__, value=self._value)
 
+    def __hash__(self):
+        # type: () -> int
+        return self._value
+
     def __eq__(self, other):
         # type: (Any) -> bool
         return type(self) == type(other) and self._value == other._value

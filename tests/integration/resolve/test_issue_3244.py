@@ -23,6 +23,7 @@ from testing import run_command_with_jitter, run_pex_command
 from testing.cli import run_pex3
 from testing.pep_427 import get_installable_type_flag
 from testing.pytest_utils.tmp import Tempdir
+from testing.uv import skip_if_uv_not_supported
 
 if TYPE_CHECKING:
     from typing import Any, Callable, List
@@ -61,16 +62,6 @@ def generate_pylock_args(tmpdir):
     pylock = tmpdir.join("pylock.toml")
     run_pex3("lock", "export", "--format", "pep-751", "-o", pylock, generate_lock(tmpdir))
     return ["--pylock", pylock]
-
-
-def skip_if_uv_not_supported():
-    # type: () -> None
-    if sys.version_info < (3, 8):
-        pytest.skip(
-            "This test uses uv to generate venvs, but uv does not support Python {version}".format(
-                version=sys.version
-            )
-        )
 
 
 def generate_venv_args(tmpdir):
