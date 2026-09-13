@@ -5,6 +5,7 @@ from __future__ import absolute_import
 
 import functools
 import hashlib
+import itertools
 import os
 from collections import defaultdict, deque
 
@@ -28,6 +29,7 @@ from pex.installed_wheel import InstalledWheel
 from pex.jobs import DEFAULT_MAX_JOBS, iter_map_parallel
 from pex.orderedset import OrderedSet
 from pex.pep_376 import InstalledDirectory, InstalledFile, Record
+from pex.pep_425 import TagRank
 from pex.pep_427 import InstallableType, InstallableWheel, InstallPaths, install_wheel_chroot
 from pex.pep_503 import ProjectName
 from pex.pip.version import PipVersion
@@ -56,6 +58,7 @@ if TYPE_CHECKING:
         Iterator,
         List,
         Mapping,
+        Optional,
         Set,
         Tuple,
         Union,
@@ -251,7 +254,7 @@ def _install_venv_distributions(
             seen.add(wheel_file_name)
             venv_distributions.append(
                 VenvDistribution(
-                    target=target,
+                    target=LocalInterpreter.create(venv_resolve_result.venv.interpreter),
                     distribution=venv_distribution,
                     direct_requirements=direct_requirements.get(
                         venv_distribution.metadata.project_name, ()
@@ -465,6 +468,7 @@ def _resolve_distributions(
 
 @attr.s(frozen=True)
 class VenvResolveResult(object):
+    target = attr.ib()  # type: Target
     venv = attr.ib()  # type: Virtualenv
     venv_distributions = attr.ib()  # type: Tuple[Distribution, ...]
     re_resolved_distributions = attr.ib()  # type: Tuple[FingerprintedDistribution, ...]
@@ -472,14 +476,9 @@ class VenvResolveResult(object):
         eq=False
     )  # type: Mapping[ProjectName, Iterable[Requirement]]
 
-    @property
-    def target(self):
-        # type: () -> LocalInterpreter
-        return LocalInterpreter.create(self.venv.interpreter)
-
 
 def _resolve_from_venv(
-    venv,  # type: Virtualenv
+    venv_repository,  # type: VenvRepository
     requirement_configuration,  # type: RequirementConfiguration
     pip_configuration,  # type: PipConfiguration
     compile,  # type: bool
@@ -488,7 +487,8 @@ def _resolve_from_venv(
     dependency_configuration,  # type: DependencyConfiguration
 ):
     # type: (...) -> Union[VenvResolveResult, Error]
-    target = LocalInterpreter.create(venv.interpreter)
+    target = venv_repository.target
+    venv = venv_repository.venv
 
     if pip_configuration.version:
         compatible_pip_version = (
@@ -616,11 +616,27 @@ def _resolve_from_venv(
         )
 
     return VenvResolveResult(
+        target=target,
         venv=venv,
         venv_distributions=tuple(venv_distributions),
         re_resolved_distributions=tuple(fingerprinted_distributions),
         direct_requirements_by_project_name=direct_requirements_by_project_name,
     )
+
+
+@attr.s(frozen=True)
+class VenvRepository(object):
+    @classmethod
+    def create(
+        cls,
+        venv,  # type: Virtualenv
+        target=None,  # type: Optional[Target]
+    ):
+        # type: (...) -> VenvRepository
+        return cls(venv, target or LocalInterpreter.create(venv.interpreter))
+
+    venv = attr.ib()  # type: Virtualenv
+    target = attr.ib()  # type: Target
 
 
 def resolve_from_venvs(
@@ -635,47 +651,93 @@ def resolve_from_venvs(
 ):
     # type: (...) -> Union[ResolveResult, Error]
 
-    if not targets.is_empty:
-        return Error(
-            "You configured custom targets via --python, --interpreter-constraint, --platform or "
-            "--complete-platform but custom targets are not allowed when resolving from {venvs}.\n"
-            "For such resolves, the supported target is implicitly the one matching the venv "
-            "{interpreters}; in this case:{targets}.".format(
-                venvs="a virtual environment" if len(venvs) == 1 else "virtual environments",
-                interpreters=pluralize(venvs, "interpreter"),
-                targets=(
-                    " {target}".format(
-                        target=LocalInterpreter.create(venvs[0].interpreter).render_description()
-                    )
-                    if len(venvs) == 1
-                    else "\n  {targets}".format(
-                        targets="\n  ".join(
-                            LocalInterpreter.create(venv.interpreter).render_description()
-                            for venv in venvs
+    # All the `--venv-repository`s that apply to each target, sorted best-fit 1st.
+    venv_repositories_by_target = defaultdict(
+        deque
+    )  # type: DefaultDict[Target, Deque[VenvRepository]]
+    if targets.is_empty:
+        for venv in venvs:
+            venv_repository = VenvRepository.create(venv)
+            venv_repositories_by_target[venv_repository.target].append(venv_repository)
+    else:
+        venvs_by_tags = {
+            frozenset(
+                itertools.chain.from_iterable(
+                    WHEEL.load(dist.location, project_name=dist.metadata.project_name).tags
+                    for dist in venv.iter_distributions()
+                )
+            ): venv
+            for venv in venvs
+        }
+
+        unmatched_targets = []  # type: List[Target]
+        for target in targets.unique_targets():
+            target_tags = target.supported_tags
+            ranked_venvs = []  # type: List[Tuple[TagRank, Virtualenv]]
+            for venv_tags, venv in venvs_by_tags.items():
+                compatible_tags = target_tags.compatible_tags(venv_tags)
+                if frozenset(compatible_tags) != venv_tags:
+                    continue
+                venv_rank = target_tags.rank(next(iter(compatible_tags)))
+                if venv_rank:
+                    ranked_venvs.append((venv_rank, venv))
+
+            if ranked_venvs:
+                venv_repositories_by_target[target].extend(
+                    VenvRepository.create(venv=venv, target=target)
+                    for _, venv in sorted(ranked_venvs, key=lambda item: item[0])
+                )
+            else:
+                unmatched_targets.append(target)
+
+        if unmatched_targets:
+            return Error(
+                "You configured targets via --python, --interpreter-constraint, --platform or "
+                "--complete-platform but the following targets are not resolvable for the given "
+                "virtual {environments}:{targets}.".format(
+                    environments=pluralize(venvs, "environment"),
+                    targets=(
+                        " {target}".format(target=unmatched_targets[0].render_description())
+                        if len(unmatched_targets) == 1
+                        else "\n  {targets}".format(
+                            targets="\n  ".join(
+                                unmatched_target.render_description()
+                                for unmatched_target in unmatched_targets
+                            )
                         )
-                    )
-                ),
+                    ),
+                )
             )
-        )
 
     errors = []  # type: List[Error]
     venv_resolve_results = []  # type: List[VenvResolveResult]
-    for result in iter_map_parallel(
-        venvs,
-        functools.partial(
-            _resolve_from_venv,
-            requirement_configuration=requirement_configuration,
-            pip_configuration=pip_configuration,
-            compile=compile,
-            ignore_errors=ignore_errors,
-            result_type=result_type,
-            dependency_configuration=dependency_configuration,
-        ),
-    ):
-        if isinstance(result, Error):
-            errors.append(result)
-        else:
-            venv_resolve_results.append(result)
+    while venv_repositories_by_target:
+        venv_repositories = []
+        for target in tuple(venv_repositories_by_target):
+            target_venvs = venv_repositories_by_target.pop(target)
+            if target_venvs:
+                target_venv = target_venvs.popleft()
+                venv_repositories.append(target_venv)
+                if target_venvs:
+                    venv_repositories_by_target[target] = target_venvs
+
+        for result in iter_map_parallel(
+            venv_repositories,
+            functools.partial(
+                _resolve_from_venv,
+                requirement_configuration=requirement_configuration,
+                pip_configuration=pip_configuration,
+                compile=compile,
+                ignore_errors=ignore_errors,
+                result_type=result_type,
+                dependency_configuration=dependency_configuration,
+            ),
+        ):
+            if isinstance(result, Error):
+                errors.append(result)
+            else:
+                venv_resolve_results.append(result)
+                venv_repositories_by_target.pop(result.target, None)
 
     if len(errors) == 1:
         return errors[0]

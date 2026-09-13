@@ -1,5 +1,13 @@
 # Release Notes
 
+## 2.102.0
+
+This release adds support for mixing target platforms specified via --python,
+--interpreter-constraint, --platform and --complete-platform with multiple --venv-repositories,
+selecting the appropriate --venv-repository to resolve from for each specified target platform.
+
+* Support mixing target platforms with multiple `--venv-repository`s. (#3276)
+
 ## 2.101.6
 
 This release upgrades `pexrc` to 0.20.0 when using the `--rc` option for better build failure
