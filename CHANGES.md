@@ -1,5 +1,15 @@
 # Release Notes
 
+## 2.103.0
+
+This release adds `pex3 venv create --link-python`, which points the created venv's Python at a
+given path instead of the interpreter that created the venv. Since that path need not exist yet,
+this also unlocks creating a venv for a foreign platform: the venv is laid out by a local
+interpreter that differs from the foreign platform in machine architecture alone and its Python is
+then linked to where the foreign interpreter will live.
+
+* Support creating a venv for a foreign platform. (#3279)
+
 ## 2.102.0
 
 This release adds support for mixing target platforms specified via --python,

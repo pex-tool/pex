@@ -6,7 +6,7 @@ from __future__ import absolute_import
 import itertools
 import logging
 import os.path
-from argparse import ArgumentParser, _ActionsContainer
+from argparse import ArgumentParser, Namespace, _ActionsContainer
 
 from pex import dependency_configuration, pex_warnings
 from pex.cli.command import BuildTimeCommand
@@ -18,8 +18,11 @@ from pex.enum import Enum
 from pex.executables import is_python_script, is_script
 from pex.executor import Executor
 from pex.fingerprinted_distribution import FingerprintedDistribution
+from pex.interpreter import PythonInterpreter
 from pex.orderedset import OrderedSet
+from pex.os import Os
 from pex.pex import PEX
+from pex.pex_bootstrapper import normalize_path
 from pex.pex_info import PexInfo
 from pex.resolve import configured_resolve, requirement_options, resolver_options, target_options
 from pex.resolve.resolver_configuration import (
@@ -39,7 +42,7 @@ from pex.venv.installer_configuration import InstallerConfiguration
 from pex.venv.virtualenv import Virtualenv
 
 if TYPE_CHECKING:
-    from typing import Any, Dict, Iterable, Optional, Sequence
+    from typing import Any, Dict, Iterable, Optional, Sequence, Union
 
 
 logger = logging.getLogger(__name__)
@@ -117,6 +120,20 @@ class Venv(OutputMixin, JsonMixin, BuildTimeCommand):
                     flat=InstallLayout.FLAT,
                     flat_zipped=InstallLayout.FLAT_ZIPPED,
                 )
+            ),
+        )
+        parser.add_argument(
+            "--link-python",
+            dest="link_python",
+            metavar="PATH",
+            default=None,
+            help=(
+                "The path the venv's Python should link to instead of the interpreter used to "
+                "create the venv. The interpreter need not exist; it only has to be in place by "
+                "the time the venv is used. This is what allows creating a venv for a foreign "
+                "platform: the venv is laid out by a local interpreter differing from the foreign "
+                "platform in machine architecture alone and its Python is then linked to the "
+                "given path. Only applies to the {venv} layout.".format(venv=InstallLayout.VENV)
             ),
         )
         installer_options.register(parser)
@@ -274,16 +291,33 @@ class Venv(OutputMixin, JsonMixin, BuildTimeCommand):
                 )
             )
             if layout is InstallLayout.VENV:
+                venv_interpreter = target.get_interpreter()
                 if target.is_foreign:
-                    return Error(
-                        "Cannot create a local venv for foreign platform {platform}.".format(
-                            platform=target.platform
+                    if Os.CURRENT is Os.WINDOWS:
+                        return Error(
+                            "Cannot create a local venv for foreign platform {platform}.\n"
+                            "This is only supported for Unix environments.".format(
+                                platform=target.platform
+                            )
                         )
-                    )
+                    elif not self.options.link_python:
+                        return Error(
+                            "Cannot create a local venv for foreign platform {platform}.\n"
+                            "Specify --link-python to say where the venv's Python will live in "
+                            "the foreign environment.".format(platform=target.platform)
+                        )
+                    elif not target.python_version or target.python_version < (3, 3):
+                        return Error(
+                            "Cannot create a local venv for foreign platform {platform}.\n"
+                            "This is only supported for Python 3.3 and newer.".format(
+                                platform=target.platform
+                            )
+                        )
+                    venv_interpreter = try_(_find_stand_in_interpreter(target, self.options))
 
                 venv = Virtualenv.create(
                     venv_dir=dest_dir,
-                    interpreter=target.get_interpreter(),
+                    interpreter=venv_interpreter,
                     force=installer_configuration.force,
                     copies=installer_configuration.copies,
                     system_site_packages=installer_configuration.system_site_packages,
@@ -398,10 +432,16 @@ class Venv(OutputMixin, JsonMixin, BuildTimeCommand):
 
         if installer_configuration.compile:
             with TRACER.timed("Compiling venv sources"):
+                compiler = venv.interpreter if venv else target.get_interpreter()
                 try:
-                    target.get_interpreter().execute(["-m", "compileall", dest_dir])
+                    compiler.execute(["-m", "compileall", dest_dir])
                 except Executor.NonZeroExit as non_zero_exit:
                     pex_warnings.warn("ignoring compile error {}".format(repr(non_zero_exit)))
+
+        # N.B.: This must come last since it can leave the venv Python dangling until the venv
+        # reaches its final resting place.
+        if venv and self.options.link_python:
+            venv.link_python(self.options.link_python)
 
         if layout is InstallLayout.FLAT_ZIPPED:
             paths = sorted(
@@ -415,6 +455,40 @@ class Venv(OutputMixin, JsonMixin, BuildTimeCommand):
                     zf.write_deterministic(path, arcname=os.path.relpath(path, unprefixed_dest_dir))
 
         return Ok()
+
+
+def _find_stand_in_interpreter(
+    target,  # type: Target
+    options,  # type: Namespace
+):
+    # type: (...) -> Union[PythonInterpreter, Error]
+    """Find a local interpreter that lays a venv out just like `target` would.
+
+    A venv's layout is fixed by the Python implementation, version and OS; the machine architecture
+    plays no part. That lets a local interpreter stand in for a foreign one it differs from in
+    architecture alone.
+    """
+    python_path = target_options.configure_interpreters(options).python_path
+    target_tag = target.platform.tag
+    for interpreter in PythonInterpreter.iter(paths=normalize_path(python_path)):
+        tag = interpreter.platform.tag
+        if (
+            tag.interpreter == target_tag.interpreter
+            and tag.abi == target_tag.abi
+            and interpreter.identity.env_markers.platform_system
+            == target.marker_environment.platform_system
+        ):
+            return interpreter
+
+    return Error(
+        "Could not find a local interpreter to lay out a venv for {platform}.\n"
+        "A {interpreter} interpreter running on {system} is needed; searched: {search_path}".format(
+            platform=target.platform,
+            interpreter=target_tag.interpreter,
+            system=target.marker_environment.platform_system,
+            search_path=os.pathsep.join(python_path) if python_path else "$PATH",
+        )
+    )
 
 
 def _install_from_pex(
