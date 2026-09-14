@@ -8,7 +8,7 @@ this also unlocks creating a venv for a foreign platform: the venv is laid out b
 interpreter that differs from the foreign platform in machine architecture alone and its Python is
 then linked to where the foreign interpreter will live.
 
-* Support creating a venv for a foreign platform. (#PR)
+* Support creating a venv for a foreign platform. (#3279)
 
 ## 2.102.0
 
