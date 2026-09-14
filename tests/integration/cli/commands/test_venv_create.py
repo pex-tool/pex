@@ -19,7 +19,7 @@ from pex.cli.commands.venv import InstallLayout
 from pex.common import open_zip, safe_open
 from pex.compatibility import safe_commonpath
 from pex.dist_metadata import Distribution
-from pex.interpreter import PythonInterpreter
+from pex.interpreter import PythonInterpreter, PyVenvCfg
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pex import PEX
@@ -28,6 +28,7 @@ from pex.typing import TYPE_CHECKING
 from pex.venv.bin_path import BinPath
 from pex.venv.virtualenv import Virtualenv
 from testing import (
+    IS_ARM_64,
     IS_MAC,
     PY39,
     PY310,
@@ -499,11 +500,30 @@ def test_foreign_target(
     )
     result.assert_failure()
     assert (
-        "Cannot create a local venv for foreign platform {platform}.".format(
-            platform=abbreviated_platforms.create(foreign_platform)
-        )
+        "Cannot create a local venv for foreign platform {platform}.\n"
+        "Specify --link-python to say where the venv's Python will live in the foreign "
+        "environment.".format(platform=abbreviated_platforms.create(foreign_platform))
         == result.error.strip()
     )
+
+    # The foreign_platform fixture is a foreign OS; so no local interpreter can stand in for it.
+    result = run_pex3(
+        "venv",
+        "create",
+        "psutil==5.9.5",
+        "-d",
+        dest,
+        "--platform",
+        foreign_platform,
+        "--link-python",
+        "/opt/python/bin/python3.10",
+    )
+    result.assert_failure()
+    assert result.error.strip().startswith(
+        "Could not find a local interpreter to lay out a venv for {platform}.".format(
+            platform=abbreviated_platforms.create(foreign_platform)
+        )
+    ), result.error
 
     run_pex3(
         "venv",
@@ -523,6 +543,53 @@ def test_foreign_target(
     dist = distributions[0]
     assert ProjectName("psutil") == dist.metadata.project_name
     assert Version("5.9.5") == dist.metadata.version
+
+
+@pytest.fixture
+def cross_arch_platform():
+    # type: () -> str
+    """A foreign platform differing from the local one in machine architecture alone."""
+    if IS_MAC:
+        return "macosx_11_0_{machine}-cp-310-cp310".format(
+            machine="x86_64" if IS_ARM_64 else "arm64"
+        )
+    return "linux_{machine}-cp-310-cp310".format(machine="x86_64" if IS_ARM_64 else "aarch64")
+
+
+def test_foreign_target_link_python(
+    tmpdir,  # type: Any
+    cross_arch_platform,  # type: str
+):
+    # type: (...) -> None
+
+    dest = os.path.join(str(tmpdir), "dest")
+    link_python = "/opt/python/bin/python3.10"
+    run_pex3(
+        "venv",
+        "create",
+        "psutil==5.9.5",
+        "-d",
+        dest,
+        "--platform",
+        cross_arch_platform,
+        "--python-path",
+        ensure_python_interpreter(PY310),
+        "--link-python",
+        link_python,
+    ).assert_success()
+
+    assert {link_python} == {
+        os.readlink(python) for python in glob.glob(os.path.join(dest, "bin", "python*"))
+    }
+
+    pyvenv_cfg = PyVenvCfg.parse(os.path.join(dest, "pyvenv.cfg"))
+    assert os.path.dirname(link_python) == pyvenv_cfg.home
+    assert link_python == pyvenv_cfg.config("executable")
+
+    site_packages = os.path.join(dest, "lib", "python3.10", "site-packages")
+    distributions = list(dist_metadata.find_distributions(search_path=[site_packages]))
+    assert 1 == len(distributions)
+    assert ProjectName("psutil") == distributions[0].metadata.project_name
 
 
 def test_venv_update_target_mismatch(
