@@ -5,6 +5,7 @@ from __future__ import absolute_import
 
 import glob
 import os.path
+import re
 import shutil
 import sys
 from subprocess import CalledProcessError
@@ -24,14 +25,17 @@ from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pex import PEX
 from pex.resolve import abbreviated_platforms
+from pex.sysconfig import SysPlatform
 from pex.typing import TYPE_CHECKING
 from pex.venv.bin_path import BinPath
 from pex.venv.virtualenv import Virtualenv
 from testing import (
     IS_ARM_64,
     IS_MAC,
+    IS_WINDOWS,
     PY39,
     PY310,
+    IntegResults,
     ensure_python_interpreter,
     make_env,
     run_pex_command,
@@ -545,51 +549,94 @@ def test_foreign_target(
     assert Version("5.9.5") == dist.metadata.version
 
 
-@pytest.fixture
-def cross_arch_platform():
-    # type: () -> str
+def cross_arch_platform(
+    major,  # type: int
+    minor,  # type: int
+    abiflags="",  # type: str
+):
+    # type: (...) -> str
     """A foreign platform differing from the local one in machine architecture alone."""
+    pyver = "{major}{minor}".format(major=major, minor=minor)
     if IS_MAC:
-        return "macosx_11_0_{machine}-cp-310-cp310".format(
-            machine="x86_64" if IS_ARM_64 else "arm64"
+        return "macosx_11_0_{machine}-cp-{pyver}-cp{pyver}{abiflags}".format(
+            machine="x86_64" if IS_ARM_64 else "arm64", pyver=pyver, abiflags=abiflags
         )
-    return "linux_{machine}-cp-310-cp310".format(machine="x86_64" if IS_ARM_64 else "aarch64")
+    return "linux_{machine}-cp-{pyver}-cp{pyver}{abiflags}".format(
+        machine="x86_64" if IS_ARM_64 else "aarch64", pyver=pyver, abiflags=abiflags
+    )
 
 
+@pytest.mark.skipif(IS_WINDOWS, reason="This feature is not supported on Windows.")
 def test_foreign_target_link_python(
-    tmpdir,  # type: Any
-    cross_arch_platform,  # type: str
+    tmpdir,  # type: Tempdir
+    py310,  # type: PythonInterpreter
+    py311,  # type: PythonInterpreter
 ):
     # type: (...) -> None
 
-    dest = os.path.join(str(tmpdir), "dest")
-    link_python = "/opt/python/bin/python3.10"
-    run_pex3(
-        "venv",
-        "create",
-        "psutil==5.9.5",
-        "-d",
-        dest,
-        "--platform",
-        cross_arch_platform,
-        "--python-path",
-        ensure_python_interpreter(PY310),
-        "--link-python",
-        link_python,
-    ).assert_success()
+    venv_dir = tmpdir.join("venv")
+    link_python = "/opt/python/bin/bob"
 
-    assert {link_python} == {
-        os.readlink(python) for python in glob.glob(os.path.join(dest, "bin", "python*"))
-    }
+    def create_venv(foreign_platform):
+        # type: (str) -> IntegResults
+        return run_pex3(
+            "venv",
+            "create",
+            "psutil==5.9.5",
+            "-d",
+            venv_dir,
+            "--platform",
+            foreign_platform,
+            "--python-path",
+            os.pathsep.join(interpreter.binary for interpreter in (py310, py311)),
+            "--link-python",
+            link_python,
+            "--force",
+        )
 
-    pyvenv_cfg = PyVenvCfg.parse(os.path.join(dest, "pyvenv.cfg"))
-    assert os.path.dirname(link_python) == pyvenv_cfg.home
-    assert link_python == pyvenv_cfg.config("executable")
+    def assert_foreign_venv(
+        major,  # type: int
+        minor,  # type: int
+        expect_pyvenv_cfg_executable,  # type: Optional[str]
+    ):
+        # type: (...) -> None
+        assert {link_python} == {
+            os.readlink(python) for python in glob.glob(os.path.join(venv_dir, "bin", "python*"))
+        }
 
-    site_packages = os.path.join(dest, "lib", "python3.10", "site-packages")
-    distributions = list(dist_metadata.find_distributions(search_path=[site_packages]))
-    assert 1 == len(distributions)
-    assert ProjectName("psutil") == distributions[0].metadata.project_name
+        pyvenv_cfg = PyVenvCfg.parse(os.path.join(venv_dir, "pyvenv.cfg"))
+        assert os.path.dirname(link_python) == pyvenv_cfg.home
+        pyvenv_cfg_executable = pyvenv_cfg.config("executable")
+        if expect_pyvenv_cfg_executable:
+            assert pyvenv_cfg_executable == expect_pyvenv_cfg_executable
+        else:
+            assert pyvenv_cfg_executable is None
+
+        site_packages = os.path.join(
+            venv_dir, SysPlatform.CURRENT.venv_lib_dir(version=(major, minor)), "site-packages"
+        )
+        distributions = list(dist_metadata.find_distributions(search_path=[site_packages]))
+        assert 1 == len(distributions)
+        assert ProjectName("psutil") == distributions[0].metadata.project_name
+
+    foreign_platform = cross_arch_platform(2, 7, "mu")
+    create_venv(foreign_platform=cross_arch_platform(2, 7, "mu")).assert_failure(
+        expected_error_re=r".*{msg}$".format(
+            msg=re.escape(
+                "Cannot create a local venv for foreign platform {foreign_platform}.\n"
+                "This is only supported for Python 3.3 and newer.".format(
+                    foreign_platform=foreign_platform
+                )
+            )
+        ),
+        re_flags=re.DOTALL,
+    )
+
+    create_venv(foreign_platform=cross_arch_platform(3, 10)).assert_success()
+    assert_foreign_venv(3, 10, expect_pyvenv_cfg_executable=None)
+
+    create_venv(foreign_platform=cross_arch_platform(3, 11)).assert_success()
+    assert_foreign_venv(3, 11, expect_pyvenv_cfg_executable=link_python)
 
 
 def test_venv_update_target_mismatch(

@@ -20,6 +20,7 @@ from pex.executor import Executor
 from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.interpreter import PythonInterpreter
 from pex.orderedset import OrderedSet
+from pex.os import Os
 from pex.pex import PEX
 from pex.pex_bootstrapper import normalize_path
 from pex.pex_info import PexInfo
@@ -292,11 +293,25 @@ class Venv(OutputMixin, JsonMixin, BuildTimeCommand):
             if layout is InstallLayout.VENV:
                 venv_interpreter = target.get_interpreter()
                 if target.is_foreign:
-                    if not self.options.link_python:
+                    if Os.CURRENT is Os.WINDOWS:
+                        return Error(
+                            "Cannot create a local venv for foreign platform {platform}.\n"
+                            "This is only supported for Unix environments.".format(
+                                platform=target.platform
+                            )
+                        )
+                    elif not self.options.link_python:
                         return Error(
                             "Cannot create a local venv for foreign platform {platform}.\n"
                             "Specify --link-python to say where the venv's Python will live in "
                             "the foreign environment.".format(platform=target.platform)
+                        )
+                    elif not target.python_version or target.python_version < (3, 3):
+                        return Error(
+                            "Cannot create a local venv for foreign platform {platform}.\n"
+                            "This is only supported for Python 3.3 and newer.".format(
+                                platform=target.platform
+                            )
                         )
                     venv_interpreter = try_(_find_stand_in_interpreter(target, self.options))
 
