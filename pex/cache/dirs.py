@@ -190,7 +190,7 @@ class CacheDir(Enum["CacheDir.Value"]):
 
     PIP = Value(
         "pip",
-        version=3,
+        version=4,
         name="Pip Versions",
         description="Isolated Pip caches and Pip PEXes Pex uses to resolve distributions.",
         dependencies=[INSTALLED_WHEELS],
@@ -255,7 +255,7 @@ class CacheDir(Enum["CacheDir.Value"]):
 
     UNZIPPED_PEXES = Value(
         "unzipped_pexes",
-        version=3,
+        version=4,
         name="Unzipped PEXes",
         description="The unzipped PEX files executed on this machine.",
         dependencies=[BOOTSTRAPS, USER_CODE, INSTALLED_WHEELS],
@@ -263,7 +263,7 @@ class CacheDir(Enum["CacheDir.Value"]):
 
     VENVS = Value(
         "venvs",
-        version=3,
+        version=4,
         name="Virtual Environments",
         description="Virtual environments generated at runtime for `--venv` mode PEXes.",
         dependencies=[INSTALLED_WHEELS],

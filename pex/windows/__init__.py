@@ -14,7 +14,6 @@ from pex.atomic_directory import atomic_directory
 from pex.cache.dirs import CacheDir
 from pex.common import open_zip, safe_open
 from pex.executables import chmod_plus_x
-from pex.fetcher import URLFetcher
 from pex.fs import safe_rename
 from pex.os import Os
 from pex.sysconfig import SysPlatform
@@ -67,6 +66,8 @@ def _fetch_stub(stub_name):
     stub_dir = os.path.join(_CACHE_DIR, stub_name)
     with atomic_directory(stub_dir) as atomic_dir:
         if not atomic_dir.is_finalized():
+            from pex.fetcher import URLFetcher
+
             with URLFetcher().get_body_stream(
                 "https://raw.githubusercontent.com/astral-sh/uv/refs/tags/{version}/crates/"
                 "uv-trampoline/trampolines/{stub_name}".format(

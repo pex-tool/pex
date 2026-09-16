@@ -20,7 +20,6 @@ from pex.compatibility import get_stdout_bytes_buffer, safe_commonpath
 from pex.dist_metadata import Distribution, find_distributions
 from pex.enum import Enum
 from pex.executor import Executor
-from pex.fetcher import URLFetcher
 from pex.fs import safe_symlink
 from pex.interpreter import (
     Platlib,
@@ -608,6 +607,8 @@ class Virtualenv(object):
             get_pip = os.path.join(ENV.PEX_ROOT, "get-pip", dst_rel_path)
             with atomic_directory(os.path.dirname(get_pip)) as atomic_dir:
                 if not atomic_dir.is_finalized():
+                    from pex.fetcher import URLFetcher
+
                     with URLFetcher().get_body_stream(
                         "https://bootstrap.pypa.io/pip/" + url_rel_path
                     ) as src_fp, safe_open(
