@@ -504,6 +504,35 @@ class Virtualenv(object):
         ):
             yield dist
 
+    def link_python(self, python):
+        # type: (str) -> None
+        """Point this venv's Python links at `python`.
+
+        The `python` path need not exist; it only has to be in place by the time the venv is used.
+        This supports creating a venv destined for a final resting place, like an image layer,
+        where the interpreter lives at a known path but is not available where the venv is created.
+        """
+        python_links = [
+            path
+            for path in _iter_files(self._bin_dir)
+            if os.path.islink(path) and PythonInterpreter.matches_binary_name(path)
+        ]
+        for python_link in python_links:
+            os.unlink(python_link)
+            safe_symlink(python, python_link)
+
+        pyvenv_cfg = self._pyvenv_cfg
+        if pyvenv_cfg:
+            with closing(FileInput(files=[pyvenv_cfg.path], inplace=True)) as fi:
+                for line in fi:
+                    key, delimiter, _ = line.partition("=")
+                    if delimiter and key.strip() == "home":
+                        sys.stdout.write("home = {home}\n".format(home=os.path.dirname(python)))
+                    elif delimiter and key.strip() == "executable":
+                        sys.stdout.write("executable = {python}\n".format(python=python))
+                    else:
+                        sys.stdout.write(line)
+
     def _rewrite_base_scripts(self, real_venv_dir):
         # type: (str) -> Iterator[str]
         scripts = [

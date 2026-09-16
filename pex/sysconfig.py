@@ -17,7 +17,7 @@ from pex.os import Os
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Optional, Text, TypeVar
+    from typing import Optional, Text, Tuple, TypeVar, Union
 
 EXE_EXTENSION = get_config_var("EXE") or ""
 EXE_EXTENSIONS = (
@@ -158,6 +158,14 @@ class _PlatformValue(Enum.Value):
     def venv_bin_dir(self):
         # type: () -> str
         return "Scripts" if self.os is Os.WINDOWS else "bin"
+
+    def venv_lib_dir(self, version):
+        # type: (Union[Tuple[int, int], Tuple[int, int, int]]) -> str
+        return (
+            "Lib"
+            if self.os is Os.WINDOWS
+            else "lib/python{major}.{minor}".format(major=version[0], minor=version[1])
+        )
 
     def binary_name(self, binary_name):
         # type: (_Text) -> _Text
