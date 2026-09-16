@@ -16,11 +16,10 @@ from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ssl import SSLContext
-    from typing import BinaryIO, Dict, Iterator, Optional
+    from typing import Dict, Iterator, Optional
 
     import attr  # vendor:skip
 else:
-    BinaryIO = None
     from pex.third_party import attr
 
 
