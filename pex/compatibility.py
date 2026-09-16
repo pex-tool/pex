@@ -134,7 +134,15 @@ if PY3:
     from urllib.request import HTTPBasicAuthHandler as HTTPBasicAuthHandler
     from urllib.request import HTTPDigestAuthHandler as HTTPDigestAuthHandler
     from urllib.request import HTTPPasswordMgrWithDefaultRealm as HTTPPasswordMgrWithDefaultRealm
-    from urllib.request import HTTPSHandler as HTTPSHandler
+
+    try:
+        # N.B.: Interpreters built without SSL support (as can happen for e.g. embedded / AOSP
+        # Python builds) do not define `urllib.request.HTTPSHandler` at all. We don't want a mere
+        # import of this module to blow up in that case; only code paths that actually need to
+        # perform an HTTPS fetch should fail (and only then, at the point of use).
+        from urllib.request import HTTPSHandler as HTTPSHandler
+    except ImportError:
+        HTTPSHandler = None  # type: ignore[assignment,misc]
     from urllib.request import ProxyHandler as ProxyHandler
     from urllib.request import Request as Request
     from urllib.request import build_opener as build_opener
@@ -153,10 +161,16 @@ else:
     from urllib2 import HTTPDigestAuthHandler as HTTPDigestAuthHandler
     from urllib2 import HTTPError as HTTPError
     from urllib2 import HTTPPasswordMgrWithDefaultRealm as HTTPPasswordMgrWithDefaultRealm
-    from urllib2 import HTTPSHandler as HTTPSHandler
+
+    try:
+        from urllib2 import HTTPSHandler as HTTPSHandler
+    except ImportError:
+        HTTPSHandler = None  # type: ignore[assignment,misc]
     from urllib2 import ProxyHandler as ProxyHandler
     from urllib2 import Request as Request
     from urllib2 import build_opener as build_opener
+
+HAS_SSL = HTTPSHandler is not None
 
 urlparse = _url_parse
 url_unquote = _url_unquote

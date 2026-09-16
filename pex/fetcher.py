@@ -13,6 +13,7 @@ from contextlib import closing, contextmanager
 
 from pex.auth import PasswordDatabase, PasswordEntry
 from pex.compatibility import (
+    HAS_SSL,
     PY2,
     AbstractHTTPHandler,
     FileHandler,
@@ -36,7 +37,7 @@ from pex.version import __version__
 
 if TYPE_CHECKING:
     from ssl import SSLContext
-    from typing import Any, BinaryIO, Dict, Iterable, Iterator, Mapping, Optional, Text
+    from typing import Any, BinaryIO, Dict, Iterable, Iterator, List, Mapping, Optional, Text
 
     import attr  # vendor:skip
 else:
@@ -120,7 +121,16 @@ class _CertConfig(object):
             # `from gevent import monkey; monkey.patch_all()` call.
             #
             # See: https://github.com/pex-tool/pex/issues/2415
-            import ssl
+            try:
+                import ssl
+            except ImportError as e:
+                # The interpreter was built without SSL support (as can happen for e.g. embedded /
+                # AOSP Python builds). We only get here if something actually tries to establish an
+                # HTTPS connection; a plain import of this module never triggers this.
+                raise IOError(
+                    "Cannot establish an HTTPS connection: this Python interpreter was built "
+                    "without SSL support ({error}).".format(error=e)
+                )
 
             ssl_context = ssl.create_default_context(cafile=self.cert)
             if self.client_cert:
@@ -149,7 +159,12 @@ def initialize_ssl_context(network_configuration=None):
 # N.B.: We eagerly initialize an SSLContext for the default case of no CA cert and no client cert.
 # When a custom CA cert or client cert or both are configured, that code will need to call
 # initialize_ssl_context on its own.
-initialize_ssl_context()
+#
+# This is skipped entirely when the interpreter has no SSL support at all (e.g. some embedded /
+# AOSP Python builds): merely importing this module must not require SSL; only actually fetching
+# an https:// URL should (and will, lazily, via create_ssl_context above).
+if HAS_SSL:
+    initialize_ssl_context()
 
 
 class UnixHTTPConnection(HTTPConnection):
@@ -254,9 +269,12 @@ class URLFetcher(object):
 
         handlers = [
             ProxyHandler(proxies),
-            HTTPSHandler(context=get_ssl_context(network_configuration=network_configuration)),
             UnixHTTPHandler(),
-        ]
+        ]  # type: List[Any]
+        if HAS_SSL:
+            handlers.append(
+                HTTPSHandler(context=get_ssl_context(network_configuration=network_configuration))
+            )
         if handle_file_urls:
             handlers.append(FileHandler())
 
