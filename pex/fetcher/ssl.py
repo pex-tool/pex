@@ -3,6 +3,7 @@
 
 from __future__ import absolute_import
 
+import contextlib
 import os
 import sys
 import threading
@@ -31,7 +32,7 @@ def guard_stdout():
     if hasattr(sys, "pypy_version_info") and sys.version_info[:2] >= (3, 9):
         with open(os.devnull, "w") as fp:
             # The `contextlib.redirect_stdout` function is available for Python 3.4+.
-            with contextlib.redirect_stdout(fp):  # type: ignore[name-defined]
+            with contextlib.redirect_stdout(fp):  # type: ignore[attr-defined]
                 yield
     else:
         yield
