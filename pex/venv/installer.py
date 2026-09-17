@@ -364,6 +364,7 @@ def populate_venv_sources(
     hermetic_scripts=True,  # type: bool
     shebang=None,  # type: Optional[str]
     set_last_access=True,  # type: bool
+    activated_dists=None,  # type: Optional[Iterable[Distribution]]
 ):
     # type: (...) -> str
 
@@ -377,6 +378,7 @@ def populate_venv_sources(
             venv_python=provenance.target_python,
             bin_path=bin_path,
             set_last_access=set_last_access,
+            activated_dists=activated_dists,
         )
     )
     return shebang
@@ -749,6 +751,7 @@ def _populate_first_party(
     venv_python,  # type: str
     bin_path,  # type: BinPath.Value
     set_last_access,  # type: bool
+    activated_dists=None,  # type: Optional[Iterable[Distribution]]
 ):
     # type: (...) -> Iterator[Tuple[Text, Text]]
 
@@ -764,7 +767,12 @@ def _populate_first_party(
         target_dir=target_dir,
         venv=venv,
         pex_info=pex_info,
-        activated_dists=tuple(pex.resolve()),
+        # N.B.: A venv laid out for a foreign platform cannot re-resolve the PEX: that resolve
+        # runs against a local interpreter, which the PEX need hold no distributions for. The
+        # caller passes the distributions it resolved for the target instead.
+        activated_dists=(
+            tuple(activated_dists) if activated_dists is not None else tuple(pex.resolve())
+        ),
         shebang=shebang,
         venv_python=venv_python,
         bin_path=bin_path,

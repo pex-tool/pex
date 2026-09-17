@@ -533,6 +533,7 @@ def _install_from_pex(
                 provenance=provenance,
                 bin_path=installer_configuration.bin_path,
                 hermetic_scripts=hermetic_scripts,
+                activated_dists=distributions,
             )
         else:
             installer.populate_flat_sources(dst=dest_dir, pex=pex, provenance=provenance)
