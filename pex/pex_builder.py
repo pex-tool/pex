@@ -568,7 +568,7 @@ class PEXBuilder(object):
         )
 
         bootstrap_digest = hashlib.sha1()
-        bootstrap_packages = ["cache", "fs", "repl", "third_party", "venv", "windows"]
+        bootstrap_packages = ["cache", "fetcher", "fs", "repl", "third_party", "venv", "windows"]
         if self._pex_info.includes_tools:
             bootstrap_packages.extend(["commands", "tools"])
 

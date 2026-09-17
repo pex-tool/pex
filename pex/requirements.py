@@ -19,7 +19,6 @@ from pex.dist_metadata import (
     Requirement,
     RequirementParseError,
 )
-from pex.fetcher import URLFetcher
 from pex.orderedset import OrderedSet
 from pex.pep_503 import ProjectName
 from pex.third_party.packaging.markers import Marker
@@ -31,6 +30,8 @@ if TYPE_CHECKING:
     from typing import FrozenSet, Iterable, Iterator, Match, Optional, Text, Tuple, Union
 
     import attr  # vendor:skip
+
+    from pex.fetcher import URLFetcher
 else:
     from pex.third_party import attr
 

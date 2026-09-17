@@ -1,5 +1,14 @@
 # Release Notes
 
+## 2.103.1
+
+This releases fixes import hygiene in the PEX runtime surrounding use of HTTPS fetches. These only
+occur when creating venvs via `PEX_TOOLS=1` when using a system interpreter without the `ensurepip`
+module. A practical benefit is runtime support for normal PEX use on interpreters without the `ssl`
+module.
+
+* Isolate `URLFetcher` use in the PEX runtime. (#3283)
+
 ## 2.103.0
 
 This release adds `pex3 venv create --link-python`, which points the created venv's Python at a

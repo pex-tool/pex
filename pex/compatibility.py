@@ -121,23 +121,12 @@ else:
 
 
 if PY3:
-    from http.client import HTTPConnection as HTTPConnection
-    from http.client import HTTPResponse as HTTPResponse
     from urllib import parse as _url_parse
     from urllib.error import HTTPError as HTTPError
     from urllib.parse import quote as _url_quote
     from urllib.parse import quote_plus as _url_quote_plus
     from urllib.parse import unquote as _url_unquote
     from urllib.parse import unquote_plus as _url_unquote_plus
-    from urllib.request import AbstractHTTPHandler as AbstractHTTPHandler
-    from urllib.request import FileHandler as FileHandler
-    from urllib.request import HTTPBasicAuthHandler as HTTPBasicAuthHandler
-    from urllib.request import HTTPDigestAuthHandler as HTTPDigestAuthHandler
-    from urllib.request import HTTPPasswordMgrWithDefaultRealm as HTTPPasswordMgrWithDefaultRealm
-    from urllib.request import HTTPSHandler as HTTPSHandler
-    from urllib.request import ProxyHandler as ProxyHandler
-    from urllib.request import Request as Request
-    from urllib.request import build_opener as build_opener
 else:
     from urllib import quote as _url_quote
     from urllib import quote_plus as _url_quote_plus
@@ -145,18 +134,7 @@ else:
     from urllib import unquote_plus as _url_unquote_plus
 
     import urlparse as _url_parse
-    from httplib import HTTPConnection as HTTPConnection
-    from httplib import HTTPResponse as HTTPResponse
-    from urllib2 import AbstractHTTPHandler as AbstractHTTPHandler
-    from urllib2 import FileHandler as FileHandler
-    from urllib2 import HTTPBasicAuthHandler as HTTPBasicAuthHandler
-    from urllib2 import HTTPDigestAuthHandler as HTTPDigestAuthHandler
     from urllib2 import HTTPError as HTTPError
-    from urllib2 import HTTPPasswordMgrWithDefaultRealm as HTTPPasswordMgrWithDefaultRealm
-    from urllib2 import HTTPSHandler as HTTPSHandler
-    from urllib2 import ProxyHandler as ProxyHandler
-    from urllib2 import Request as Request
-    from urllib2 import build_opener as build_opener
 
 urlparse = _url_parse
 url_unquote = _url_unquote
