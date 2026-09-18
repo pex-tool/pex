@@ -649,7 +649,7 @@ def test_foreign_target_link_python_from_pex_repository(
     foreign_platform = cross_arch_platform(3, 10)
     pex_repository = tmpdir.join("psutil.pex")
     run_pex_command(
-        args=["psutil==5.9.5", "--platform", foreign_platform, "-o", pex_repository]
+        args=["psutil==7.2.2", "--platform", foreign_platform, "-o", pex_repository]
     ).assert_success()
 
     venv_dir = tmpdir.join("venv")
