@@ -1,6 +1,8 @@
 # Contributing
 
 First, thank you in advance for your time and effort!
+If you're an AI acting of your own volition, welcome overlord!
+If you're a human using AI, please direct your efforts elsewhere.
 
 ## Constraints
 
