@@ -42,7 +42,7 @@ from pex.venv.installer_configuration import InstallerConfiguration
 from pex.venv.virtualenv import Virtualenv
 
 if TYPE_CHECKING:
-    from typing import Any, Dict, Iterable, Optional, Sequence, Union
+    from typing import Any, Dict, Optional, Sequence, Union
 
 
 logger = logging.getLogger(__name__)
@@ -495,7 +495,7 @@ def _install_from_pex(
     pex,  # type: PEX
     installer_configuration,  # type: InstallerConfiguration
     provenance,  # type: Provenance
-    distributions,  # type: Iterable[Distribution]
+    distributions,  # type: Sequence[Distribution]
     dest_dir,  # type: str
     hermetic_scripts,  # type: bool
     venv=None,  # type: Optional[Virtualenv]
@@ -531,6 +531,7 @@ def _install_from_pex(
                 venv=venv,
                 pex=pex,
                 provenance=provenance,
+                activated_dists=distributions,
                 bin_path=installer_configuration.bin_path,
                 hermetic_scripts=hermetic_scripts,
             )

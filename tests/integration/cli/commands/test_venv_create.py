@@ -639,6 +639,48 @@ def test_foreign_target_link_python(
     assert_foreign_venv(3, 11, expect_pyvenv_cfg_executable=link_python)
 
 
+@pytest.mark.skipif(IS_WINDOWS, reason="This feature is not supported on Windows.")
+def test_foreign_target_link_python_from_pex_repository(
+    tmpdir,  # type: Tempdir
+    py310,  # type: PythonInterpreter
+):
+    # type: (...) -> None
+
+    foreign_platform = cross_arch_platform(3, 10)
+    pex_repository = tmpdir.join("psutil.pex")
+    run_pex_command(
+        args=["psutil==7.2.2", "--platform", foreign_platform, "-o", pex_repository]
+    ).assert_success()
+
+    venv_dir = tmpdir.join("venv")
+    link_python = "/opt/python/bin/bob"
+    run_pex3(
+        "venv",
+        "create",
+        "-d",
+        venv_dir,
+        "--pex-repository",
+        pex_repository,
+        "--platform",
+        foreign_platform,
+        "--python-path",
+        py310.binary,
+        "--link-python",
+        link_python,
+    ).assert_success()
+
+    assert {link_python} == {
+        os.readlink(python) for python in glob.glob(os.path.join(venv_dir, "bin", "python*"))
+    }
+
+    site_packages = os.path.join(
+        venv_dir, SysPlatform.CURRENT.venv_lib_dir(version=(3, 10)), "site-packages"
+    )
+    distributions = list(dist_metadata.find_distributions(search_path=[site_packages]))
+    assert 1 == len(distributions)
+    assert ProjectName("psutil") == distributions[0].metadata.project_name
+
+
 def test_venv_update_target_mismatch(
     tmpdir,  # type: Any
     foreign_platform,  # type: str

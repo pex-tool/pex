@@ -360,6 +360,7 @@ def populate_venv_sources(
     venv,  # type: Virtualenv
     pex,  # type: PEX
     provenance,  # type: Provenance
+    activated_dists,  # type: Sequence[Distribution]
     bin_path=BinPath.FALSE,  # type: BinPath.Value
     hermetic_scripts=True,  # type: bool
     shebang=None,  # type: Optional[str]
@@ -373,6 +374,7 @@ def populate_venv_sources(
             target_dir=provenance.target_dir,
             venv=venv,
             pex=pex,
+            activated_dists=activated_dists,
             shebang=shebang,
             venv_python=provenance.target_python,
             bin_path=bin_path,
@@ -420,10 +422,11 @@ def populate_venv_from_pex(
     shebang = provenance.calculate_shebang(hermetic_scripts=hermetic_scripts)
     top_level_source_packages = tuple(iter_top_level_source_packages(pex))
 
+    distributions = tuple(pex.resolve())
     if scope in (InstallScope.ALL, InstallScope.DEPS_ONLY):
         populate_venv_distributions(
             venv=venv,
-            distributions=pex.resolve(),
+            distributions=distributions,
             copy_mode=copy_mode,
             hermetic_scripts=hermetic_scripts,
             provenance=provenance,
@@ -434,6 +437,7 @@ def populate_venv_from_pex(
         populate_venv_sources(
             venv=venv,
             pex=pex,
+            activated_dists=distributions,
             bin_path=bin_path,
             hermetic_scripts=hermetic_scripts,
             provenance=provenance,
@@ -745,6 +749,7 @@ def _populate_first_party(
     target_dir,  # type: str
     venv,  # type: Virtualenv
     pex,  # type: PEX
+    activated_dists,  # type: Sequence[Distribution]
     shebang,  # type: str
     venv_python,  # type: str
     bin_path,  # type: BinPath.Value
@@ -764,7 +769,7 @@ def _populate_first_party(
         target_dir=target_dir,
         venv=venv,
         pex_info=pex_info,
-        activated_dists=tuple(pex.resolve()),
+        activated_dists=activated_dists,
         shebang=shebang,
         venv_python=venv_python,
         bin_path=bin_path,

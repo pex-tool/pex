@@ -1,5 +1,15 @@
 # Release Notes
 
+## 2.103.2
+
+This release fixes `pex3 venv create --link-python` for a foreign platform when the venv is
+installed from a `--pex-repository`. Populating the venv's sources re-resolved the repository PEX
+against a local interpreter, which fails whenever that PEX holds no distributions for it, as is the
+case for a PEX built for the foreign platform alone. The distributions already resolved for the
+target are now used instead.
+
+* Fix `pex3 venv create --link-python` for `--pex-repository`. (#3286)
+
 ## 2.103.1
 
 This releases fixes import hygiene in the PEX runtime surrounding use of HTTPS fetches. These only
