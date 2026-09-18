@@ -8,7 +8,7 @@ against a local interpreter, which fails whenever that PEX holds no distribution
 case for a PEX built for the foreign platform alone. The distributions already resolved for the
 target are now used instead.
 
-* Fix `pex3 venv create --link-python` for `--pex-repository`. (#3285)
+* Fix `pex3 venv create --link-python` for `--pex-repository`. (#3286)
 
 ## 2.103.1
 
