@@ -11,7 +11,7 @@ else
 fi
 
 if [[ "${BASE_PYTHONS}" == "new" ]]; then
-  UBUNTU_VERSION=24.04
+  UBUNTU_VERSION=26.04
 else
   UBUNTU_VERSION=20.04
 fi

@@ -1,5 +1,5 @@
 # An image with the necessary binaries and libraries to develop pex.
-ARG UBUNTU_VERSION=24.04
+ARG UBUNTU_VERSION=26.04
 FROM ubuntu:${UBUNTU_VERSION}
 
 # We use pyenv to bootstrap interpreters and pyenv needs most of these packages.
