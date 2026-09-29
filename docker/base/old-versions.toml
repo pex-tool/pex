@@ -15,7 +15,7 @@ versions = [
     { source = "pyenv", version = "3.7.17" },
     { source = "pyenv", version = "3.8.20" },
     { source = "pyenv", version = "3.9.25" },
-    { source = "pyenv", version = "pypy2.7-7.3.22" },
+    { source = "pyenv", version = "pypy2.7-8.0.0" },
     # This is served from:
     #   https://bitbucket-archive.softwareheritage.org/static/14/140b7b14-aa94-424e-b191-9cd3438381f7/attachments/pypy3.5-7.0.0-linux_x86_64-portable.tar.bz2
     # which has begun to prove flaky; so we comment out for now and perhaps need to drop or

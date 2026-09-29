@@ -14,7 +14,8 @@ versions = [
     { source = "pyenv", version = "3.14.7" },
     { source = "dead-snakes", version = "3.15.0~rc2", packages = ["dev", "venv"] },
     { source = "pyenv", version = "pypy3.10-7.3.19" },
-    { source = "pyenv", version = "pypy3.11-7.3.22" },
+    { source = "pyenv", version = "pypy3.11-8.0.0" },
+    { source = "pyenv", version = "pypy3.12-8.0.0" },
 ]
 
 # N.B.: These versions are installed on Ubuntu 24.04 which ships its own (older) CPython 3.12.
