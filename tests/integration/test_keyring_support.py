@@ -23,7 +23,7 @@ from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.package_repository import PYPI
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import InstallationChoice, Virtualenv
-from testing import PY_VER, WheelBuilder, make_env, run_pex_command
+from testing import IS_PYPY, PY_VER, WheelBuilder, make_env, run_pex_command
 from testing.mitmproxy import Proxy
 
 if TYPE_CHECKING:
@@ -182,7 +182,12 @@ def devpi_clean_env():
 
 
 skip_if_required_keyring_version_not_supported = pytest.mark.skipif(
-    PY_VER < (3, 8), reason="The keyring distribution used for this test requires Python `>=3.8`."
+    PY_VER < (3, 8) or IS_PYPY,
+    reason=(
+        "The keyring distribution used for this test requires Python `>=3.8`. Additionally some "
+        "transitive dependencies (cryptography et. al.) are only available in sdist form for the "
+        "versions of PyPy (>=8.0.0) we test against, and those are very slow to build."
+    ),
 )
 
 keyring_provider_pip_versions = pytest.mark.parametrize(

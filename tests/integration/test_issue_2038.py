@@ -12,17 +12,18 @@ import pytest
 
 from pex.common import touch
 from pex.typing import TYPE_CHECKING
-from testing import run_pex_command, subprocess
+from testing import IS_PYPY, run_pex_command, subprocess
 
 if TYPE_CHECKING:
     from typing import Any
 
 
 @pytest.mark.skipif(
-    sys.version_info[:2] < (3, 7) or sys.version_info >= (3, 13),
+    sys.version_info[:2] < (3, 7) or sys.version_info >= (3, 13) or IS_PYPY,
     reason=(
         "This test needs to run Poetry which requires at least Python 3.7. Poetry also indirectly "
-        "depends on rpds-py (0.18.1 currently), which uses PyO3 which requires Python<3.13."
+        "depends on rpds-py (0.18.1 currently), which uses PyO3 which requires Python<3.13. The "
+        "PyO3 dep builds under PyPy and that is too slow; so we also skip PyPy."
     ),
 )
 def test_wheel_file_url_dep(tmpdir):

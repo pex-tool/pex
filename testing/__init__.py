@@ -36,7 +36,7 @@ from pex.sysconfig import SCRIPT_DIR, script_name
 from pex.targets import LocalInterpreter
 from pex.typing import TYPE_CHECKING, cast
 from pex.util import CacheHelper, named_temporary_file
-from pex.venv.virtualenv import InstallationChoice, Virtualenv
+from pex.venv.virtualenv import InstallationChoice, InvalidVirtualenvError, Virtualenv
 
 # Explicitly re-export subprocess to enable a transparent substitution in tests that supports
 # executing PEX files directly on Windows.
@@ -1029,8 +1029,11 @@ class NonDeterministicWalk:
         return x[-rotate_by:] + x[:-rotate_by]
 
 
-def installed_pex_wheel_venv_python(python):
-    # type: (str) -> str
+def installed_pex_wheel_venv_python(
+    python,  # type: str
+    reinstall=True,  # type: bool
+):
+    # type: (...) -> str
 
     from testing.pex_dist import wheel
 
@@ -1048,4 +1051,17 @@ def installed_pex_wheel_venv_python(python):
             ):
                 # Just ensure the re-writing iterator is driven to completion.
                 pass
-    return Virtualenv(pex_venv_dir).interpreter.binary
+
+    if not reinstall:
+        return Virtualenv(pex_venv_dir).interpreter.binary
+
+    # N.B.: This handles dangling symlinks when we upgrade our base image interpreters.
+    unlock = atomic_dir.lock()
+    try:
+        venv_python = Virtualenv(pex_venv_dir).interpreter.binary
+        unlock()
+        return venv_python
+    except InvalidVirtualenvError:
+        safe_rmtree(pex_venv_dir)
+        unlock()
+        return installed_pex_wheel_venv_python(python, reinstall=False)
