@@ -260,16 +260,39 @@ def create_sh_boot_script(
         fi
 
         find_python() {{
+            if [ -f "${{PEX_PYTHON:-}}" -a -x "${{PEX_PYTHON:-}}" ]; then
+                echo "${{PEX_PYTHON}}"
+                return
+            fi
+            _path="${{PATH:-}}"
+            _ifs=$IFS
+            IFS=:
+            for entry in ${{PEX_PYTHON_PATH:-}}; do
+                if [ -z "${{entry}}" ]; then
+                    entry="."
+                fi
+                if [ -f "${{entry}}" -a -x "${{entry}}" ]; then
+                    echo "${{entry}}"
+                    return
+                elif [ -d "${{entry}}" ]; then
+                    if [ -n "${{_path}}" ]; then
+                        _path="${{entry}}:${{_path}}"
+                    else
+                        _path="${{entry}}"
+                    fi
+                fi
+            done
+            IFS=$_ifs
             for python in \\
         {pythons} \\
             ; do
-                if command -v "${{python}}" 2>/dev/null; then
+                if PATH="${{_path}}" command -v "${{python}}" 2>/dev/null; then
                     return
                 fi
             done
         }}
 
-        if [ -x "${{DEFAULT_PYTHON}}" ]; then
+        if [ -f "${{DEFAULT_PYTHON}}" -a -x "${{DEFAULT_PYTHON}}" ]; then
             python_exe="${{DEFAULT_PYTHON}}"
         else
             python_exe="$(find_python)"
