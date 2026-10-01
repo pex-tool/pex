@@ -7,10 +7,10 @@ versions = [
     { source = "dead-snakes", version = "3.9.25", packages = ["dev", "venv", "distutils"] },
 
     # New:
-    { source = "pyenv", version = "3.10.22" },
-    { source = "pyenv", version = "3.11.17" },
-    { source = "pyenv", version = "3.12.15" },
-    { source = "pyenv", version = "3.13.16" },
+    { source = "dead-snakes", version = "3.10.22", packages = ["dev", "venv", "distutils"] },
+    { source = "dead-snakes", version = "3.11.17", packages = ["dev", "venv", "distutils"] },
+    { source = "dead-snakes", version = "3.12.15", packages = ["dev", "venv"] },
+    { source = "dead-snakes", version = "3.13.16", packages = ["dev", "venv"] },
     { source = "pyenv", version = "3.14.8" },
     { source = "dead-snakes", version = "3.15.0~rc2", packages = ["dev", "venv"] },
     { source = "pyenv", version = "pypy3.10-7.3.19" },
