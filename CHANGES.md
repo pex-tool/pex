@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.103.3
+
+This release fixes `--sh-boot` mode to respect `PEX_PYTHON` and `PEX_PYTHON_PATH`. Previously, only
+`PATH` was consulted in the search for Python interpreters in the `/bin/sh` boot code.
+
+* Fix `--sh-boot` to respect `PEX_PYTHON{,_PATH}`. (#3291)
+
 ## 2.103.2
 
 This release fixes `pex3 venv create --link-python` for a foreign platform when the venv is
