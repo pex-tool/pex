@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.103.4
+
+This release upgrades the minimum `pexrc` verison to 0.32.1 when using `pex --rc`. This brings
+improved improved `--sh-boot` handling along the lines of the improvement in Pex in 2.103.3.
+
+* Upgrade `pexrc` to 0.32.1.
+
 ## 2.103.3
 
 This release fixes `--sh-boot` mode to respect `PEX_PYTHON` and `PEX_PYTHON_PATH`. Previously, only
