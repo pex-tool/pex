@@ -12,7 +12,7 @@ versions = [
     { source = "dead-snakes", version = "3.12.15", packages = ["dev", "venv"] },
     { source = "dead-snakes", version = "3.13.16", packages = ["dev", "venv"] },
     { source = "pyenv", version = "3.14.8" },
-    { source = "dead-snakes", version = "3.15.0~rc2", packages = ["dev", "venv"] },
+    { source = "dead-snakes", version = "3.15.0~rc3", packages = ["dev", "venv"] },
     { source = "pyenv", version = "pypy3.10-7.3.19" },
     { source = "pyenv", version = "pypy3.11-8.0.0" },
     { source = "pyenv", version = "pypy3.12-8.0.0" },
