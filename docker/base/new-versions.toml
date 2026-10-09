@@ -1,6 +1,6 @@
 # N.B.: 2.7, 3.9 and 3.11 are needed in both version sets to run certain dev-cmd commands.
 
-default-version = "python3.15"
+default-version = "python3.14"
 versions = [
     # N.B.: Old, but needed for some dev-cmd commands.
     { source = "pyenv", version = "2.7.18" },
