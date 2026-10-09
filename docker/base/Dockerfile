@@ -1,4 +1,5 @@
 # An image with the necessary binaries and libraries to develop pex.
+ARG CACHE_KEY=0
 ARG UBUNTU_VERSION=26.04
 FROM ubuntu:${UBUNTU_VERSION}
 
@@ -39,7 +40,7 @@ RUN add-apt-repository --yes ppa:git-core/ppa && \
     add-apt-repository --yes --remove ppa:git-core/ppa
 
 # Setup a modern uv:
-RUN curl -LsSf https://astral.sh/uv/install.sh | UV_INSTALL_DIR=/usr/bin sh
+RUN curl -fsSL https://astral.sh/uv/install.sh | UV_INSTALL_DIR=/usr/bin sh
 
 # Setup a modern jq:
 RUN curl -fsSL https://github.com/jqlang/jq/releases/latest/download/jq-linux64 -O && \

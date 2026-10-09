@@ -49,6 +49,7 @@ if [[ "${BASE_MODE}" == "build" && -z "$(base_image_id)" ]]; then
   docker build \
     --build-arg "UBUNTU_VERSION=${UBUNTU_VERSION}" \
     --build-arg "PYTHONS=${BASE_PYTHONS}" \
+    --build-arg "CACHE_KEY=${CACHE_KEY:-0}" \
     --tag ghcr.io/pex-tool/pex/base:latest \
     --tag "ghcr.io/pex-tool/pex/base:latest-${BASE_PYTHONS}" \
     --tag "ghcr.io/pex-tool/pex/base:${BASE_PYTHONS}-${base_hash}" \
