@@ -369,7 +369,7 @@ def test_specified_science_binary(tmpdir):
             "--scie",
             "lazy",
             "--scie-python-version",
-            "3.10",
+            "3.11",
             "-o",
             scie,
             "--scie-science-binary",
@@ -512,7 +512,7 @@ def test_pex_pex_scie(
             "--scie",
             "lazy",
             "--scie-python-version",
-            "3.10",
+            "3.11",
             "-o",
             pex,
         ]
