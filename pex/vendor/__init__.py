@@ -260,10 +260,12 @@ class VendorSpec(
 #     Automated update of Pip's vendored certifi's cacert.pem to that from certifi 2026.6.17.
 # 19.) https://github.com/pex-tool/pip/commit/4f50d41b0b22e6c7444fb5914531614220468186
 #     Automated update of Pip's vendored certifi's cacert.pem to that from certifi 2026.7.22.
+# 20.) https://github.com/pex-tool/pip/commit/e8d46c2a6c8a16bedaddc1e5a4bace583d2dbead
+#     Automated update of Pip's vendored certifi's cacert.pem to that from certifi 2026.10.18.
 
 PIP_SPEC = VendorSpec.git(
     repo="https://github.com/pex-tool/pip",
-    commit="4f50d41b0b22e6c7444fb5914531614220468186",
+    commit="e8d46c2a6c8a16bedaddc1e5a4bace583d2dbead",
     project_name="pip",
     rewrite=False,
 )
