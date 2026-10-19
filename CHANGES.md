@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.103.5
+
+This release updates vendored Pip's vendored certifi's cacert.pem to that from certifi 2026.10.18.
+
+* Update vendored Pip's CA cert bundle. (#3299)
+
 ## 2.103.4
 
 This release upgrades the minimum `pexrc` verison to 0.32.1 when using `pex --rc`. This brings
