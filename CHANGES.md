@@ -1,5 +1,16 @@
 # Release Notes
 
+## 2.104.0
+
+This release adds support for Pip 26.2.2. Note that the Pip 26.2.2 release is in response to the
+security incident announced here:
+https://discuss.python.org/t/information-for-python-users-regarding-emudhra-emsign-ca-certificate-security-incident/109576
+
+In line with this, vendored Pip's vendored certifi's cacert.pem is also updated to that from
+certifi 2026.10.19.
+
+* Add support for Pip 26.2.2. (#3301)
+
 ## 2.103.5
 
 This release updates vendored Pip's vendored certifi's cacert.pem to that from certifi 2026.10.18.

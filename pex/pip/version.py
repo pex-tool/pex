@@ -515,6 +515,13 @@ class PipVersion(Enum["PipVersionValue"]):
         requires_python=">=3.10,<3.16",
     )
 
+    v26_2_2 = PipVersionValue(
+        version="26.2.2",
+        setuptools_version="84.2.0",
+        wheel_version="0.48.0",
+        requires_python=">=3.10,<3.16",
+    )
+
     ADHOC = Adhoc()
 
     VENDORED = v20_3_4_patched
