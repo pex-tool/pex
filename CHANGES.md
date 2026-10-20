@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.104.0
+
+This release adds support for Pip 26.2.2.
+
+* Add support for Pip 26.2.2. (#3301)
+
 ## 2.103.5
 
 This release updates vendored Pip's vendored certifi's cacert.pem to that from certifi 2026.10.18.
