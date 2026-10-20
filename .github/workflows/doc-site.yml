@@ -21,19 +21,19 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout Pex (for release-docs event)
-        uses: actions/checkout@v6
+        uses: actions/checkout@v6.1.0
         if: github.event_name == 'repository_dispatch'
         with:
           ref: ${{ github.event.client_payload.ref }}
       - name: Checkout Pex (for manual workflow dispatch)
-        uses: actions/checkout@v6
+        uses: actions/checkout@v6.1.0
         if: github.event_name == 'workflow_dispatch'
       - name: Setup Python 3.11
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v6.3.0
         with:
           python-version: "3.11"
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@v7.6.0
       - name: Build Doc Site
         if: github.repository_owner == 'pex-tool'
         run: uv run dev-cmd docs -- --linkcheck --pdf --clean-html
@@ -41,11 +41,11 @@ jobs:
         if: github.repository_owner != 'pex-tool'
         run: uv run dev-cmd docs -- --linkcheck --pdf --clean-html --subdir ${{ github.event.repository.name }}
       - name: Setup Pages
-        uses: actions/configure-pages@v4
+        uses: actions/configure-pages@v4.0.0
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v3.0.1
         with:
           path: "dist/docs/html/"
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v4.0.5
