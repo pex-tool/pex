@@ -3,7 +3,8 @@
 ## 2.104.1
 
 This release fixes `--venv-repository` to ignore `uv`-specific `.dist-info` metadata files. This
-fixes PEX builds from uv venvs to be reproducible when they should be.
+fixes PEX builds from uv venvs to be reproducible when they should be. For `--rc` builds, `pexrc`
+is upgraded to `0.37.1` to pick up the equivalent fix in `pexrc`.
 
 ## 2.104.0
 
