@@ -1,5 +1,10 @@
 # Release Notes
 
+## 2.104.1
+
+This release fixes `--venv-repository` to ignore `uv`-specific `.dist-info` metadata files. This
+fixes PEX builds from uv venvs to be reproducible when they should be.
+
 ## 2.104.0
 
 This release adds support for Pip 26.2.2. Note that the Pip 26.2.2 release is in response to the
