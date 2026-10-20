@@ -11,7 +11,7 @@ import sys
 from collections import defaultdict
 from textwrap import dedent
 
-import colors
+import colors  # vendor:skip
 import pytest
 
 from pex.common import safe_copy, safe_mkdir, safe_open, safe_rmtree, touch
