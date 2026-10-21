@@ -51,6 +51,7 @@ if TYPE_CHECKING:
         Callable,
         DefaultDict,
         Dict,
+        FrozenSet,
         Iterable,
         Iterator,
         List,
@@ -63,8 +64,6 @@ if TYPE_CHECKING:
     )
 
     import attr  # vendor:skip
-
-    from pex.installed_wheel import InstalledWheel  # noqa
 else:
     from pex.third_party import attr
 
@@ -978,6 +977,16 @@ def install_wheel(
     pex_info_dir_relpath = wheel.pex_metadata_path()
     installer_relpath = wheel.metadata_path("INSTALLER")
     requested_relpath = wheel.metadata_path("REQUESTED")
+    ignored_relpaths = frozenset(
+        (
+            # These are undocumented files used by uv to track wheels linked out of its cache. We
+            # run across these when resolving from a `--venv-repository` and ignore them since they
+            # can contain variable metadata that is private to uv and otherwise un-needed and can
+            # lead to unstable wheel contents.
+            wheel.metadata_path("uv_build.json"),
+            wheel.metadata_path("uv_cache.json"),
+        )
+    )  # type: FrozenSet[str]
     zip_metadata_relpath = wheel.pex_metadata_path(ZipMetadata.FILENAME)
 
     installed_files = []  # type: List[Union[InstalledFile, InstalledDirectory]]
@@ -1002,6 +1011,8 @@ def install_wheel(
             continue
         if installed_file.path in (installer_relpath, requested_relpath, zip_metadata_relpath):
             # We'll generate these metadata files below as needed.
+            continue
+        if installed_file.path in ignored_relpaths:
             continue
 
         if not compile and installed_file.path.endswith(".pyc"):

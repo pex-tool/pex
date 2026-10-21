@@ -3,6 +3,7 @@
 
 from __future__ import absolute_import, print_function
 
+import filecmp
 import json
 import os.path
 import re
@@ -10,9 +11,10 @@ import sys
 from collections import defaultdict
 from textwrap import dedent
 
+import colors  # vendor:skip
 import pytest
 
-from pex.common import safe_copy, safe_mkdir, safe_open, safe_rmtree
+from pex.common import safe_copy, safe_mkdir, safe_open, safe_rmtree, touch
 from pex.dist_metadata import ProjectNameAndVersion
 from pex.pep_425 import CompatibilityTags
 from pex.pep_503 import ProjectName
@@ -299,3 +301,115 @@ def test_foreign_targets_uv(tmpdir):
         ),
         re_flags=re.DOTALL,
     )
+
+
+@mark_skip_if_uv_not_supported
+def test_uv_cache_json_ignored(tmpdir):
+    # type: (Tempdir) -> None
+
+    project = tmpdir.join("project")
+    with safe_open(os.path.join(project, "pyproject.toml"), "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                [build-system]
+                requires = ["uv_build>=0.13.4,<0.14"]
+                build-backend = "uv_build"
+
+                [project]
+                name = "blue-moo"
+                version = "0.1.0"
+
+                dependencies = [
+                    "ansicolors",
+                    "cowsay<6",
+                ]
+
+                [project.scripts]
+                blue-moo = "blue_moo:quack"
+                """
+            )
+        )
+    with safe_open(os.path.join(project, "src", "blue_moo", "__init__.py"), "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                import sys
+
+                import colors
+                import cowsay
+
+
+                def quack(*message):
+                    cowsay.tux(colors.cyan(" ".join(message or sys.argv[1:])))
+                """
+            )
+        )
+
+    uv_cache_dir = tmpdir.join("uv-cache")
+
+    def create_uv_venv():
+        # type: () -> str
+        venv = tmpdir.join("venv")
+        subprocess.check_call(
+            args=[
+                "uv",
+                "--cache-dir",
+                uv_cache_dir,
+                "venv",
+                "--python",
+                "{impl}{major}.{minor}".format(
+                    impl="pypy" if IS_PYPY else "python",
+                    major=sys.version_info[0],
+                    minor=sys.version_info[1],
+                ),
+                venv,
+            ]
+        )
+        subprocess.check_call(
+            args=["uv", "--cache-dir", uv_cache_dir, "pip", "install", "--python", venv, project]
+        )
+        return venv
+
+    def build_blue_moo_pex(
+        venv,  # type: str
+        name,  # type: str
+    ):
+        # type: (...) -> str
+        pex_root = tmpdir.join("pex-root")
+        pex = tmpdir.join(name)
+        run_pex_command(
+            args=[
+                "--pex-root",
+                pex_root,
+                "--runtime-pex-root",
+                pex_root,
+                "--venv-repository",
+                venv,
+                "-c",
+                "blue-moo",
+                "-o",
+                pex,
+            ]
+        ).assert_success()
+        return pex
+
+    venv_dir = create_uv_venv()
+    pex1 = build_blue_moo_pex(venv_dir, "first")
+    assert "| {message} |".format(message=colors.cyan("Moo?")) in subprocess.check_output(
+        args=[sys.executable, pex1, "Moo?"]
+    ).decode("utf-8")
+
+    safe_rmtree(uv_cache_dir)
+    safe_rmtree(venv_dir)
+
+    # N.B.: This triggers a change to blue_moo-0.1.0.dist-info/uv_cache.json
+    touch(os.path.join(project, "pyproject.toml"))
+
+    venv_dir = create_uv_venv()
+    pex2 = build_blue_moo_pex(venv_dir, "second")
+    assert "| {message} |".format(message=colors.cyan("Moo?")) in subprocess.check_output(
+        args=[sys.executable, pex2, "Moo?"]
+    ).decode("utf-8")
+
+    assert filecmp.cmp(pex1, pex2, shallow=False)
