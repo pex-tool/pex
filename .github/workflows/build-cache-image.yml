@@ -55,13 +55,13 @@ jobs:
     needs: org-check
     steps:
       - name: Checkout Pex
-        uses: actions/checkout@v6
+        uses: actions/checkout@v6.1.0
       - name: Setup Python 3.11
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v6.3.0
         with:
           python-version: "3.11"
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@v7.6.0
       - name: Setup matrix combinations
         id: setup-test-cmds
         run: |
@@ -92,13 +92,13 @@ jobs:
           docker-images: false
           swap-storage: false
       - name: Checkout Pex
-        uses: actions/checkout@v6
+        uses: actions/checkout@v6.1.0
       - name: Setup Python 3.11
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v6.3.0
         with:
           python-version: "3.11"
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@v7.6.0
       - name: Build & Export Cache Image for ${{ matrix.test-cmd }}
         run: |
           uv run dev-cmd build-cache-image -- \
@@ -109,7 +109,7 @@ jobs:
             --dist-dir export \
             --post-action export \
             --test-cmd ${{ matrix.test-cmd }}
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@v7.0.2
         with:
           path: |
             export/*.tar
@@ -133,14 +133,14 @@ jobs:
           docker-images: false
           swap-storage: false
       - name: Checkout Pex
-        uses: actions/checkout@v6
+        uses: actions/checkout@v6.1.0
       - name: Setup Python 3.11
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v6.3.0
         with:
           python-version: "3.11"
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
-      - uses: actions/download-artifact@v7
+        uses: astral-sh/setup-uv@v7.6.0
+      - uses: actions/download-artifact@v7.0.0
         with:
           merge-multiple: true
       - name: Merge & Push Cache Image
