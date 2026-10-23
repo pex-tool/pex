@@ -373,8 +373,12 @@ class VCSArtifact(Artifact):
         )
 
     vcs = attr.ib()  # type: VCS.Value
-    requested_revision = attr.ib(default=None)  # type: Optional[str]
-    commit_id = attr.ib(default=None)  # type: Optional[str]
+    requested_revision = attr.ib(
+        default=None, order=lambda requested_revision: requested_revision or ""
+    )  # type: Optional[str]
+    commit_id = attr.ib(
+        default=None, order=lambda commit_id: commit_id or ""
+    )  # type: Optional[str]
 
     @property
     def is_source(self):
@@ -494,7 +498,9 @@ class LockedRequirement(object):
     pin = attr.ib()  # type: Pin
     artifact = attr.ib()  # type: Union[FileArtifact, LocalProjectArtifact, VCSArtifact]
     requires_dists = attr.ib(default=SortedTuple())  # type: SortedTuple[Requirement]
-    requires_python = attr.ib(default=None)  # type: Optional[SpecifierSet]
+    requires_python = attr.ib(
+        default=None, order=lambda requires_python: str(requires_python) if requires_python else ""
+    )  # type: Optional[SpecifierSet]
     additional_artifacts = attr.ib(
         default=SortedTuple()
     )  # type: SortedTuple[Union[FileArtifact, LocalProjectArtifact, VCSArtifact]]
