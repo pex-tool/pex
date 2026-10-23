@@ -5,7 +5,10 @@ from __future__ import absolute_import
 
 import sys
 
+import pytest
+
 from pex.pep_503 import ProjectName
+from pex.pip.version import PipVersion
 from pex.resolve.lockfile import json_codec
 from pex.typing import TYPE_CHECKING
 from testing.cli import run_pex3
@@ -15,6 +18,13 @@ if TYPE_CHECKING:
     pass
 
 
+@pytest.mark.skipif(
+    PipVersion.DEFAULT < PipVersion.v23_2,
+    reason=(
+        "Pip prior to 23.2 does not accept direct URLs with markers which are required for this "
+        "test."
+    ),
+)
 def test_split_universal_lock_sync(tmpdir):
     # type: (Tempdir) -> None
 
