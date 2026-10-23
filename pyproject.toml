@@ -39,7 +39,7 @@ license-files = ["LICENSE"]
 name = "pex"
 
 # N.B.: This must be kept in sync with the same setting in setup.cfg to support Python 2.7.
-requires-python = ">=2.7,<3.16,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*"
+requires-python = ">=2.7,<3.17,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*"
 
 dynamic = [
   "authors",
@@ -382,7 +382,7 @@ args = [
 accepts-extra-args = true
 dependency-group = "test"
 
-[tool.dev-cmd.commands.test-gte39-lt316.factors]
+[tool.dev-cmd.commands.test-gte39-lt317.factors]
 py = "The Python version to run the tests under."
 pip = "The Pip version to default to in test runs."
 integration = "Run the integration tests (also available via `--it` pass through arg)."
@@ -403,7 +403,7 @@ Pick 0 to not use any jobs; just run in the current process; pick 1 or more for 
 use auto to auto-configure the number of jobs to match the number of cores.
 """
 
-[tool.dev-cmd.commands.test-gte39-lt316]
+[tool.dev-cmd.commands.test-gte39-lt317]
 description = """
 Run tests using pytest.
 
@@ -416,7 +416,7 @@ For example:
 The factors mix and match and are useful for parallel run of many setups; e.g.:
 $ dev-cmd --parallel test-py3{9..13} -- -k test_compiler
 """
-when = "python_version >= '3.9' and python_version < '3.16'"
+when = "python_version >= '3.9' and python_version < '3.17'"
 python = "{-py:}"
 name = "test"
 env = {PYTHONHASHSEED = "{--hashseed}", _PEX_PIP_VERSION = "{-pip:}"}
@@ -472,7 +472,7 @@ default = "checks"
 exit-style = "immediate"
 
 [[tool.dev-cmd.python]]
-when = "python_version >= '3.7' and python_version < '3.16' and platform_machine != 'armv7l' and platform_machine != 'riscv64'"
+when = "python_version >= '3.7' and python_version < '3.17' and platform_machine != 'armv7l' and platform_machine != 'riscv64'"
 
 # Suppress pyproject cache keys since uv.lock is enough to uniquely determine venv content.
 pyproject-cache-keys = []

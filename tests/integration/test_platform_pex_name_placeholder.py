@@ -71,7 +71,7 @@ def test_platform_placeholder_multiplatform(tmpdir):
         args=[
             "cowsay<6",
             "ansicolors==1.1.8",
-            "p537==1.0.10",
+            "p537==1.0.11",
             "--complete-platform",
             data.path("platforms", "linux-x86_64.json"),
             "--complete-platform",

@@ -87,8 +87,8 @@ def test_resolved_wheel_tag_platform_mismatch_warns(
                 pex \
                     --python python3.11 \
                     --platform manylinux_2_28_x86_64-cp-3.11.9-cp311 \
-                    cryptography==42.0.8 \
                     cffi==1.16.0 \
+                    cryptography==42.0.8 \
                     -o component_deps.pex
                 ./component_deps.pex -c 'import cffi; print(cffi.__file__)'
                 """

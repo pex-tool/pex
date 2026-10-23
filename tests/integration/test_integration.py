@@ -431,7 +431,7 @@ def test_pex_multi_resolve_1(tmpdir):
     result = run_pex_command(
         args=[
             "--disable-cache",
-            "p537==1.0.10",
+            "p537==1.0.11",
             "--no-build",
             "--platform=linux-x86_64-cp-36-m",
             "--platform=macosx-13.0-x86_64-cp-37-m",
@@ -649,7 +649,7 @@ def test_pex_multi_resolve_2(tmpdir):
     result = run_pex_command(
         args=[
             "--disable-cache",
-            "p537==1.0.10",
+            "p537==1.0.11",
             "--no-build",
             "--platform=linux-x86_64-cp-36-m",
             "--platform=linux-x86_64-cp-37-m",
@@ -1023,7 +1023,7 @@ def test_multiplatform_entrypoint(tmpdir):
     interpreter = ensure_python_interpreter(PY39)
     res = run_pex_command(
         [
-            "p537==1.0.10",
+            "p537==1.0.11",
             "--no-build",
             "--python={}".format(interpreter),
             "--python-shebang=#!{}".format(interpreter),
@@ -1489,7 +1489,7 @@ def test_pex_cache_dir_and_pex_root():
                 cache_dir,
                 "--pex-root",
                 cache_dir,
-                "p537==1.0.10",
+                "p537==1.0.11",
                 "-o",
                 pex_file,
             ],
@@ -1504,7 +1504,7 @@ def test_pex_cache_dir_and_pex_root():
         # When the options have conflicting values they should be rejected.
         run_pex_command(
             python=python,
-            args=["--cache-dir", cache_dir, "--pex-root", pex_root, "p537==1.0.10", "-o", pex_file],
+            args=["--cache-dir", cache_dir, "--pex-root", pex_root, "p537==1.0.11", "-o", pex_file],
         ).assert_failure()
 
         assert not os.path.exists(cache_dir)
@@ -1519,7 +1519,7 @@ def test_disable_cache():
         pex_file = os.path.join(td, "pex_file")
         run_pex_command(
             python=python,
-            args=["--disable-cache", "p537==1.0.10", "-o", pex_file],
+            args=["--disable-cache", "p537==1.0.11", "-o", pex_file],
             env=make_env(PEX_ROOT=pex_root),
         ).assert_success()
 

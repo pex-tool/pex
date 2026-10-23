@@ -1,6 +1,6 @@
 version = 1
-revision = 3
-requires-python = ">=2.7, <3.16"
+revision = 5
+requires-python = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*, <3.17"
 resolution-markers = [
     "python_full_version >= '3.14'",
     "python_full_version == '3.13.*'",

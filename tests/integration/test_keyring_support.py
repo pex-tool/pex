@@ -182,11 +182,12 @@ def devpi_clean_env():
 
 
 skip_if_required_keyring_version_not_supported = pytest.mark.skipif(
-    PY_VER < (3, 8) or IS_PYPY,
+    PY_VER < (3, 8) or IS_PYPY or PY_VER >= (3, 16),
     reason=(
         "The keyring distribution used for this test requires Python `>=3.8`. Additionally some "
         "transitive dependencies (cryptography et. al.) are only available in sdist form for the "
-        "versions of PyPy (>=8.0.0) we test against, and those are very slow to build."
+        "versions of PyPy (>=8.0.0) we test against, and those are very slow to build. "
+        "Additionally, the transitive cffi dependency does not compile for 3.16 yet."
     ),
 )
 

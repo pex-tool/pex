@@ -17,7 +17,7 @@ def test_sdist_extraction(
     # type: (...) -> None
 
     assert (
-        b"/root/.cache/pex/installed_wheels/2/"
+        b"/root/.cache/pex/installed_wheels/3/"
         b"f0e26292130d3efebe48e40b10c5f9e79911ad507ccd2f02aea5793dea67abc0/"
         b"pymongo-3.11.4-cp311-cp311-linux_x86_64.whl/pymongo/__init__.py\n"
     ) == subprocess.check_output(
