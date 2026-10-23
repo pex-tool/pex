@@ -1831,6 +1831,13 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                     ResolveUpdateRequest(target=target, locked_resolve=locked_resolve)
                     for target in update_targets.unique_targets()
                 ]
+            elif lock_file.configuration.style is LockStyle.UNIVERSAL:
+                # N.B.: A split (by markers) universal lock.
+                update_requests = [
+                    ResolveUpdateRequest(target=target, locked_resolve=locked_resolve)
+                    for target in update_targets.unique_targets()
+                    for locked_resolve in lock_file.locked_resolves
+                ]
             else:
                 # N.B.: With 1 locked resolve in the lock file we're updating, there is no ambiguity
                 # about which locked resolve should be paired with which target, but when there is
