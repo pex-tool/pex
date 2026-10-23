@@ -6,6 +6,7 @@ from __future__ import absolute_import
 import glob
 import os
 import sys
+import uuid
 
 import pytest
 from _pytest.monkeypatch import MonkeyPatch
@@ -129,7 +130,7 @@ def fake_system_tmp_dir(
 ):
     # type: (...) -> str
 
-    fake_system_tmp_dir = safe_mkdir(tmpdir.join("tmp"))
+    fake_system_tmp_dir = safe_mkdir(tmpdir.join("tmp-{uuid}".format(uuid=uuid.uuid4())))
     monkeypatch.setenv("TMPDIR", fake_system_tmp_dir)
 
     tmpdir_path = (
