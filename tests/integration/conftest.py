@@ -6,7 +6,6 @@ from __future__ import absolute_import
 import glob
 import os
 import sys
-import uuid
 
 import pytest
 from _pytest.monkeypatch import MonkeyPatch
@@ -19,10 +18,10 @@ from pex.pip.version import PipVersion
 from pex.typing import TYPE_CHECKING
 from testing import make_env, run_pex_command, subprocess
 from testing.mitmproxy import Proxy
-from testing.pytest_utils.tmp import Tempdir
+from testing.pytest_utils.tmp import Tempdir, TempdirFactory
 
 if TYPE_CHECKING:
-    from typing import Any, Callable
+    from typing import Callable
 
 
 @pytest.fixture(scope="session")
@@ -46,11 +45,11 @@ def is_pytest_xdist(worker_id):
 
 @pytest.fixture(scope="session")
 def shared_integration_test_tmpdir(
-    tmpdir_factory,  # type: Any
+    tmpdir_factory,  # type: TempdirFactory
     is_pytest_xdist,  # type: bool
 ):
     # type: (...) -> str
-    tmpdir = str(tmpdir_factory.getbasetemp())
+    tmpdir = tmpdir_factory.getbasetemp()
 
     # We know pytest-xdist creates a subdir under the pytest session tmp dir for each worker; so we
     # go up a level to lock a directory all workers can use.
@@ -97,21 +96,21 @@ def pex_bdist(
 
 @pytest.fixture
 def proxy(tmpdir):
-    # type: (Any) -> Proxy
-    config_dir = os.path.join(str(tmpdir), "mitmdump-cfg")
+    # type: (Tempdir) -> Proxy
+    config_dir = tmpdir.join("mitmdump-cfg")
     os.mkdir(config_dir)
     return Proxy.configured(config_dir=config_dir)
 
 
 @pytest.fixture
 def clone(tmpdir):
-    # type: (Any) -> Callable[[str, str], str]
+    # type: (Tempdir) -> Callable[[str, str], str]
 
     def _clone(
         git_project_url,  # type: str
         commit,  # type: str
     ):
-        project_dir = os.path.join(str(tmpdir), "project")
+        project_dir = tmpdir.join("project")
 
         subprocess.check_call(args=["git", "clone", git_project_url, project_dir])
         subprocess.check_call(
@@ -130,7 +129,7 @@ def fake_system_tmp_dir(
 ):
     # type: (...) -> str
 
-    fake_system_tmp_dir = safe_mkdir(tmpdir.join("tmp-{uuid}".format(uuid=uuid.uuid4())))
+    fake_system_tmp_dir = safe_mkdir(tmpdir.join("tmp"))
     monkeypatch.setenv("TMPDIR", fake_system_tmp_dir)
 
     tmpdir_path = (
