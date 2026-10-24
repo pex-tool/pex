@@ -3,7 +3,6 @@
 
 from __future__ import absolute_import
 
-import filecmp
 import glob
 import os.path
 import subprocess
