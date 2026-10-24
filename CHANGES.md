@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.105.1
+
+This release updates vendored Pip's vendored certifi's cacert.pem to that from certifi 2026.10.23.
+
+* Update vendored Pip's CA cert bundle. (#3311)
+
 ## 2.105.0
 
 This release adds support for CPython 3.16 as it enters the alpha phase.
