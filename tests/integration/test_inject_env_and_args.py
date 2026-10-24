@@ -148,7 +148,7 @@ def test_inject_args(
 
 
 @pytest.mark.skipif(
-    PY_VER < (3, 8), reason="The version of uvicorn tested only supports Python 3.8+."
+    PY_VER < (3, 8), reason="The versions of uvicorn tested only support Python 3.8+."
 )
 @parametrize_execution_mode_args
 def test_complex(
@@ -194,7 +194,8 @@ def test_complex(
         args=[
             "-D",
             src,
-            "uvicorn==0.33",
+            "uvicorn==0.33; python_version < '3.10'",
+            "uvicorn==0.54; python_version >= '3.10'",
             "-c",
             "uvicorn",
             "--inject-args",

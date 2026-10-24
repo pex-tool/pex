@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.105.0
+
+This release adds support for CPython 3.16 as it enters the alpha phase.
+
+* Support CPython 3.16. (#3309)
+
 ## 2.104.2
 
 This release fixes `pex3 lock sync` for split `--style universal` locks.

@@ -456,63 +456,63 @@ class PipVersion(Enum["PipVersionValue"]):
         version="25.2",
         setuptools_version="80.9.0",
         wheel_version="0.45.1",
-        requires_python=">=3.9,<3.16",
+        requires_python=">=3.9,<3.17",
     )
 
     v25_3 = PipVersionValue(
         version="25.3",
         setuptools_version="80.9.0",
         wheel_version="0.45.1",
-        requires_python=">=3.9,<3.16",
+        requires_python=">=3.9,<3.17",
     )
 
     v26_0 = PipVersionValue(
         version="26.0",
         setuptools_version="80.10.2",
         wheel_version="0.46.3",
-        requires_python=">=3.9,<3.16",
+        requires_python=">=3.9,<3.17",
     )
 
     v26_0_1 = PipVersionValue(
         version="26.0.1",
         setuptools_version="80.10.2",
         wheel_version="0.46.3",
-        requires_python=">=3.9,<3.16",
+        requires_python=">=3.9,<3.17",
     )
 
     v26_1 = PipVersionValue(
         version="26.1",
         setuptools_version="82.0.1",
         wheel_version="0.47.0",
-        requires_python=">=3.10,<3.16",
+        requires_python=">=3.10,<3.17",
     )
 
     v26_1_1 = PipVersionValue(
         version="26.1.1",
         setuptools_version="82.0.1",
         wheel_version="0.47.0",
-        requires_python=">=3.10,<3.16",
+        requires_python=">=3.10,<3.17",
     )
 
     v26_1_2 = PipVersionValue(
         version="26.1.2",
         setuptools_version="82.0.1",
         wheel_version="0.47.0",
-        requires_python=">=3.10,<3.16",
+        requires_python=">=3.10,<3.17",
     )
 
     v26_2 = PipVersionValue(
         version="26.2",
         setuptools_version="83.0.0",
         wheel_version="0.47.0",
-        requires_python=">=3.10,<3.16",
+        requires_python=">=3.10,<3.17",
     )
 
     v26_2_1 = PipVersionValue(
         version="26.2.1",
         setuptools_version="83.0.0",
         wheel_version="0.47.0",
-        requires_python=">=3.10,<3.16",
+        requires_python=">=3.10,<3.17",
     )
 
     v26_2_2 = PipVersionValue(

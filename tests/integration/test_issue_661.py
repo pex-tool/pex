@@ -3,15 +3,15 @@
 
 import pytest
 
-from testing import IS_ARM_64, IS_PYPY, run_pex_command, subprocess
+from testing import IS_ARM_64, IS_PYPY, PY_VER, run_pex_command, subprocess
 from testing.pytest_utils.tmp import Tempdir
 
 
 @pytest.mark.skipif(
-    IS_ARM_64 or IS_PYPY,
+    IS_ARM_64 or IS_PYPY or PY_VER >= (3, 16),
     reason=(
         "No wheels are published for arm or PyPy and the sdist fails to compile against modern "
-        "OpenSSL."
+        "OpenSSL / under Python 3.16"
     ),
 )
 def test_devendoring_required(tmpdir):

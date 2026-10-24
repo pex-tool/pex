@@ -6,6 +6,7 @@ import shutil
 import sys
 from textwrap import dedent
 
+import pytest
 from colors import cyan  # vendor:skip
 
 from pex.common import CopyMode, is_pyc_file, safe_open
@@ -13,6 +14,7 @@ from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper
 from pex.venv.virtualenv import Virtualenv
 from testing import (
+    PY_VER,
     IntegResults,
     installed_pex_wheel_venv_python,
     make_env,
@@ -115,6 +117,9 @@ def test_collisions(
     ) in result.error, result.error
 
 
+@pytest.mark.skipif(
+    PY_VER >= (3, 16), reason="The cffi transitive dep does not yet compile under CPython 3.16."
+)
 def test_collisions_mergeable_issue_1570(tmpdir):
     # type: (Any) -> None
 

@@ -8,6 +8,7 @@ import filecmp
 from testing import PY311, ensure_python_interpreter, run_pex_command
 from testing.cli import run_pex3
 from testing.pytest_utils.tmp import Tempdir
+from testing.zip import assert_equal_zips
 
 
 def lock_nautobot(lock_file, *extra_lock_args):
@@ -63,4 +64,4 @@ def test_issue_3148(tmpdir):
     ).assert_success()
 
     assert filecmp.cmp(lock_avoid_downloads, lock_no_avoid_downloads, shallow=False)
-    assert filecmp.cmp(pex_avoid_downloads, pex_no_avoid_downloads, shallow=False)
+    assert_equal_zips(pex_avoid_downloads, pex_no_avoid_downloads)

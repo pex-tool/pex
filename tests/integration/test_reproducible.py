@@ -33,6 +33,7 @@ from testing import (
 )
 from testing.cli import run_pex3
 from testing.pytest_utils.tmp import Tempdir
+from testing.zip import assert_equal_zips
 
 if TYPE_CHECKING:
     from typing import Iterable, List, Optional, Tuple
@@ -69,6 +70,8 @@ def assert_reproducible_build(
 
     pexes_dir = tmpdir.join("pexes")
     if pythons:
+        # N.B.: Compression ratios for zip / zlib / DEFLATED changed starting at the 3.14 boundary.
+        ignore_compressed_size = True
         pexes = run_commands_with_jitter(
             path_argument="--output-file",
             commands=[
@@ -82,6 +85,7 @@ def assert_reproducible_build(
             dest=pexes_dir,
         )
     else:
+        ignore_compressed_size = False
         pexes = run_command_with_jitter(
             create_pex_command(args=args, quiet=True),
             path_argument="--output-file",
@@ -105,7 +109,7 @@ def assert_reproducible_build(
             # Check that the entire file is equal, including metadata.
             assert filecmp.cmp(member1, member2, shallow=False)
         # Finally, check that the .pex files are byte-for-byte identical.
-        assert filecmp.cmp(pex1, pex2, shallow=False)
+        assert_equal_zips(pex1, pex2, ignore_compressed_size=ignore_compressed_size)
 
 
 @pytest.fixture(scope="module")

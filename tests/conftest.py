@@ -9,6 +9,8 @@ import tempfile
 
 import pytest
 
+pytest.register_assert_rewrite("testing.zip")
+
 import testing
 from pex.interpreter import PythonInterpreter
 from pex.platforms import Platform
