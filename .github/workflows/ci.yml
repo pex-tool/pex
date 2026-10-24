@@ -98,6 +98,7 @@ jobs:
             base-pythons: old
 
           - test-cmd: test-py315-pip26.2.2
+          - test-cmd: test-py316-pip26.2.2
           - test-cmd: test-pypy311-pip24.3.1
 
           # Integration tests, split most into two shards:
@@ -121,6 +122,10 @@ jobs:
           - test-cmd: test-py315-pip26.2.2-integration-shard1@3
           - test-cmd: test-py315-pip26.2.2-integration-shard2@3
           - test-cmd: test-py315-pip26.2.2-integration-shard3@3
+
+          - test-cmd: test-py316-pip26.2.2-integration-shard1@3
+          - test-cmd: test-py316-pip26.2.2-integration-shard2@3
+          - test-cmd: test-py316-pip26.2.2-integration-shard3@3
 
           # PyPy is slow enough to require extra sharding.
           - test-cmd: test-pypy311-pip24.3.1-integration-shard1@6

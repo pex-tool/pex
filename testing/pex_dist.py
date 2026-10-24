@@ -11,13 +11,14 @@ import subprocess
 
 from pex import hashing
 from pex.atomic_directory import atomic_directory
+from pex.common import safe_mkdtemp, safe_rmtree
 from pex.compatibility import ConfigParser
 from pex.targets import LocalInterpreter, Target, WheelEvaluation
 from pex.typing import TYPE_CHECKING, cast
 from pex.util import CacheHelper
 from pex.venv.virtualenv import Virtualenv
 from pex.version import __version__
-from testing import PEX_TEST_DEV_ROOT, pex_project_dir
+from testing import PEX_TEST_DEV_ROOT, make_env, pex_project_dir
 
 if TYPE_CHECKING:
     from typing import Iterable, List
@@ -57,10 +58,15 @@ def wheels():
     pex_wheel_dir = os.path.join(PEX_TEST_DEV_ROOT, "pex_wheels", "0", pex_wheel_inputs_fingerprint)
     with atomic_directory(pex_wheel_dir) as atomic_dir:
         if not atomic_dir.is_finalized():
+            # Pex can be bootstrapped using this code path for run_pex_command and friends in tests.
+            # To not interfere with test expectations, we use a private TMPDIR here and clean it up
+            # to not leak uv or Pex build temporaries.
+            temp_dir = safe_mkdtemp()
+
             # The package command can be slow to run which locks up uv; so we just ensure a synced
             # uv venv (fast), then run the dev-cmd console script directly to avoid uv lock
             # timeouts in CI.
-            subprocess.check_call(args=["uv", "sync", "--frozen"])
+            subprocess.check_call(args=["uv", "sync", "--frozen"], env=make_env(TMPDIR=temp_dir))
             subprocess.check_call(
                 args=[
                     Virtualenv(".venv").bin_path("dev-cmd"),
@@ -73,8 +79,12 @@ def wheels():
                     "whl-3.12-plus",
                     "--dist-dir",
                     atomic_dir.work_dir,
-                ]
+                ],
+                env=make_env(TMPDIR=temp_dir),
             )
+
+            safe_rmtree(temp_dir)
+
     return glob.glob(os.path.join(pex_wheel_dir, "pex-{version}-*.whl".format(version=__version__)))
 
 

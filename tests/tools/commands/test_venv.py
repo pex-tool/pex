@@ -49,6 +49,9 @@ def pex(
 ):
     # type: (...) -> Iterator[str]
 
+    if PY_VER >= (3, 16):
+        pytest.skip("The transitive CFFI dep does not yet compile for CPython 3.16.")
+
     pex_path = tmpdir.join("fabric.pex")
 
     src_dir = tmpdir.join("src")

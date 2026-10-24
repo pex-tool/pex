@@ -3,7 +3,6 @@
 
 from __future__ import absolute_import
 
-import filecmp
 import glob
 import os.path
 import subprocess
@@ -17,6 +16,7 @@ from pex.util import CacheHelper
 from pex.venv.virtualenv import InstallationChoice, Virtualenv
 from testing import make_env, run_pex_command
 from testing.pytest_utils.tmp import Tempdir
+from testing.zip import assert_equal_zips
 
 
 def test_record_directory_entries_handled(tmpdir):
@@ -78,7 +78,7 @@ def test_record_directory_entries_whl_round_trip(tmpdir):
     assert len(extracted_wheels) == 1
     extracted_wheel = extracted_wheels[0]
 
-    assert filecmp.cmp(original_wheel, extracted_wheel, shallow=False)
+    assert_equal_zips(original_wheel, extracted_wheel)
 
     venv_dir = tmpdir.join("venv")
     venv = Virtualenv.create(venv_dir=venv_dir, install_pip=InstallationChoice.UPGRADED)

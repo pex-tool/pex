@@ -3,7 +3,6 @@
 
 from __future__ import absolute_import
 
-import filecmp
 import glob
 import os.path
 import subprocess
@@ -21,13 +20,14 @@ from pex.util import CacheHelper
 from pex.wheel import Wheel
 from testing import IS_PYPY, PY_VER, make_env, run_pex_command
 from testing.pytest_utils.tmp import Tempdir
+from testing.zip import assert_equal_zips
 
 
 @pytest.mark.skipif(
-    IS_PYPY or PY_VER >= (3, 15),
+    IS_PYPY or PY_VER >= (3, 16),
     reason=(
         "This test requires a pre-built wheel to compare against an install, repack lifecycle and "
-        "there are no pre-built wheels for PyPy or Python >=3.15."
+        "there are no pre-built wheels for PyPy or Python >=3.16."
     ),
 )
 @pytest.mark.parametrize(
@@ -45,7 +45,7 @@ def test_repository_extract_wheels_with_data(
     # strangest .data files case.
 
     greenlet_requirement = (
-        "greenlet==1.1.2" if sys.version_info[:2] < (3, 11) else "greenlet==3.2.4"
+        "greenlet==1.1.2" if sys.version_info[:2] < (3, 11) else "greenlet==3.5.6"
     )
 
     wheels_dir = tmpdir.join("wheels")
@@ -73,9 +73,8 @@ def test_repository_extract_wheels_with_data(
     extracted_greenlet_wheel = extracted_wheels[0]
 
     assert os.path.basename(downloaded_greenlet_wheel) == os.path.basename(extracted_greenlet_wheel)
-    assert use_system_time is filecmp.cmp(
-        downloaded_greenlet_wheel, extracted_greenlet_wheel, shallow=False
-    )
+    if use_system_time:
+        assert_equal_zips(downloaded_greenlet_wheel, extracted_greenlet_wheel)
 
     downloaded_greenlet_unzipped = tmpdir.join(
         "{whl}.downloaded".format(whl=os.path.basename(downloaded_greenlet_wheel))
@@ -151,4 +150,4 @@ def test_venv_repository_resolve_whls(tmpdir):
     repo_wheels = glob.glob(os.path.join(repo, "*.whl"))
     assert len(repo_wheels) == 1
     repacked_ansicolors_whl = repo_wheels[0]
-    assert filecmp.cmp(pypi_ansicolors_whl, repacked_ansicolors_whl, shallow=False)
+    assert_equal_zips(pypi_ansicolors_whl, repacked_ansicolors_whl)
