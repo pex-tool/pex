@@ -300,7 +300,7 @@ PYTHONPATH = "."
 # Used to get wheels for armv7l and riscv64.
 PIP_EXTRA_INDEX_URL = """\
     https://www.piwheels.org/simple \
-    https://gitlab.com/api/v4/projects/riseproject%2Fpython%2Fwheel_builder/packages/pypi/simple \
+    https://pypi.riseproject.dev/simple \
 """
 
 [tool.dev-cmd.commands.lint]
@@ -512,8 +512,7 @@ when = "platform_machine == 'armv7l' or platform_machine == 'riscv64'"
   "--python", "{markers.python_version}",
   "--frozen",
   "--no-emit-project",
-  # We get some wheels from https://www.piwheels.org/simple and
-  # https://gitlab.com/api/v4/projects/riseproject%2Fpython%2Fwheel_builder/packages/pypi/simple
+  # We get some wheels from https://www.piwheels.org/simple and https://pypi.riseproject.dev/simple
   # but uv does not have hashes for those; so we just accept the pins.
   "--no-hashes",
   "--only-group", "{dependency-group:dev}",

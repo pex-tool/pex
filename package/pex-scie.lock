@@ -37,7 +37,7 @@
             {
               "algorithm": "sha256",
               "hash": "da8bdfeef4403c66ba6cc54ff866c5f571bcf15a55a92f91929da4bb90ba90ce",
-              "url": "https://gitlab.com/api/v4/projects/56254198/packages/pypi/files/da8bdfeef4403c66ba6cc54ff866c5f571bcf15a55a92f91929da4bb90ba90ce/psutil-7.0.0-cp36-abi3-manylinux_2_31_riscv64.manylinux_2_35_riscv64.whl"
+              "url": "https://github.com/riseproject-dev/python-wheels/releases/download/psutil-v7.0.0-20260902125649/psutil-7.0.0-cp36-abi3-manylinux_2_31_riscv64.manylinux_2_35_riscv64.whl"
             }
           ],
           "project_name": "psutil",
@@ -196,8 +196,8 @@
   "only_wheels": [],
   "overridden": [],
   "path_mappings": {},
-  "pex_version": "2.71.1",
-  "pip_version": "25.3",
+  "pex_version": "2.105.2",
+  "pip_version": "26.2.2",
   "prefer_older_binary": false,
   "requirements": [
     "psutil>=5.3"

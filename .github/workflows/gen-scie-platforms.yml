@@ -81,7 +81,7 @@ jobs:
           if [[ "arm/v7" == "${{ matrix.docker-arch }}" ]]; then
             export PIP_EXTRA_INDEX_URL=https://www.piwheels.org/simple
           elif [[ "riscv64" == "${{ matrix.docker-arch }}" ]]; then
-            export PIP_EXTRA_INDEX_URL=https://__pat_na__:${{ secrets.GITLAB_READ_PASS }}@gitlab.com/api/v4/projects/riseproject%2Fpython%2Fwheel_builder/packages/pypi/simple
+            export PIP_EXTRA_INDEX_URL=https://pypi.riseproject.dev/simple
           fi
 
           # N.B.: We install Pex 1st from sources to ensure the current local Pex code powers
