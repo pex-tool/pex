@@ -45,7 +45,7 @@ jobs:
             docker-arch: riscv64
             artifact-name: linux-riscv64
           - platform: macOS x86_64
-            os: macos-x86_64
+            os: macos-15-intel
             artifact-name: macos-x86_64
           - platform: macOS arm64
             os: macos-15
