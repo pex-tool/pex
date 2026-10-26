@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.105.2
+
+This release upgrades the released Pex PEX scies to CPython 3.14.10 to pick up fixes related to the
+[eMudhra incident](https://emudhra.we-have-a-problem.com/).
+
+* Upgrade CPythons. (#3313)
+
 ## 2.105.1
 
 This release updates vendored Pip's vendored certifi's cacert.pem to that from certifi 2026.10.23.

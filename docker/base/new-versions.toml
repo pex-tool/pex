@@ -8,11 +8,11 @@ versions = [
 
     # New:
     { source = "dead-snakes", version = "3.10.22", packages = ["dev", "venv", "distutils"] },
-    { source = "dead-snakes", version = "3.11.17", packages = ["dev", "venv", "distutils"] },
-    { source = "dead-snakes", version = "3.12.15", packages = ["dev", "venv"] },
-    { source = "dead-snakes", version = "3.13.17", packages = ["dev", "venv"] },
-    { source = "pyenv", version = "3.14.9" },
-    { source = "dead-snakes", version = "3.15.1", packages = ["dev", "venv"] },
+    { source = "dead-snakes", version = "3.11.18", packages = ["dev", "venv", "distutils"] },
+    { source = "dead-snakes", version = "3.12.16", packages = ["dev", "venv"] },
+    { source = "dead-snakes", version = "3.13.18", packages = ["dev", "venv"] },
+    { source = "pyenv", version = "3.14.10" },
+    { source = "dead-snakes", version = "3.15.2", packages = ["dev", "venv"] },
     { source = "dead-snakes", version = "3.16.0~a1", packages = ["dev", "venv"] },
     { source = "pyenv", version = "pypy3.10-7.3.19" },
     { source = "pyenv", version = "pypy3.11-8.0.0" },

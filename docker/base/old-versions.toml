@@ -6,7 +6,7 @@
 default-version = "python3.9"
 versions = [
     # N.B.: New, but needed for some dev-cmd commands.
-    { source = "pyenv", version = "3.11.17" },
+    { source = "pyenv", version = "3.11.18" },
 
     # Old:
     { source = "pyenv", version = "2.7.18" },
