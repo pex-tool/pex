@@ -8,12 +8,15 @@ import os
 import shutil
 import zipfile
 from collections import defaultdict
-from typing import Callable, DefaultDict, Dict, Iterable, Iterator, Optional, Set, Tuple, Union
 
 from pex.common import deterministic_walk, safe_copy, safe_mkdir, safe_relative_symlink, touch
 from pex.executables import chmod_plus_x
 from pex.modes import Modes
+from pex.typing import TYPE_CHECKING
 from pex.zipfile import open_zip
+
+if TYPE_CHECKING:
+    from typing import Callable, DefaultDict, Dict, Iterable, Iterator, Optional, Set, Tuple, Union
 
 
 class Chroot(object):

@@ -7,7 +7,6 @@ import json
 import os.path
 import sys
 from collections import defaultdict
-from typing import DefaultDict, Tuple
 
 from _pytest.config import create_terminal_writer, hookimpl  # type: ignore[import]
 from _pytest.reports import TestReport  # type: ignore[import]
@@ -16,7 +15,7 @@ from pex.common import pluralize
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from typing import Dict, List, Optional
+    from typing import DefaultDict, Dict, List, Optional, Tuple
 
     from _pytest import nodes
     from _pytest.config import Config

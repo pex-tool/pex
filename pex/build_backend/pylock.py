@@ -10,7 +10,6 @@ import subprocess
 import sys
 from collections import defaultdict
 from subprocess import CalledProcessError
-from typing import DefaultDict, List, Text
 
 from pex.build_backend import BuildError
 from pex.build_backend.configuration import ConfigurationError
@@ -19,7 +18,7 @@ from pex.compatibility import string, text
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from typing import Any, Dict, Optional, Tuple, Union
+    from typing import Any, DefaultDict, Dict, List, Optional, Text, Tuple, Union
 
     import attr  # vendor:skip
 else:

@@ -13,7 +13,6 @@ import time
 import zipfile
 from collections import namedtuple
 from contextlib import closing
-from typing import Any, Iterable, Iterator, Optional, Text, Tuple, Union, cast
 from zipfile import ZipFile, ZipInfo
 
 from pex.common import DETERMINISTIC_DATETIME, safe_mkdir
@@ -21,9 +20,11 @@ from pex.enum import Enum
 from pex.executables import chmod_plus_x
 from pex.modes import Modes
 from pex.os import is_exe
-from pex.typing import TYPE_CHECKING
+from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
+    from typing import Any, Iterable, Iterator, Optional, Text, Tuple, Union
+
     from pex.hashing_types import Digest
 
 

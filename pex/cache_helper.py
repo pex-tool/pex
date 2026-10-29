@@ -6,13 +6,14 @@ from __future__ import absolute_import
 import hashlib
 import os
 from hashlib import sha1
-from typing import Callable, Container, Optional, Text
 
 from pex import files_hash, hashing
 from pex.common import is_pyc_dir, is_pyc_file
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from typing import Callable, Container, Optional, Text
+
     from pex.hashing_types import Hasher
 
 

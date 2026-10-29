@@ -4,7 +4,6 @@
 from __future__ import absolute_import, print_function
 
 import os
-from typing import Callable, Iterator, Optional, Text
 
 from pex.compatibility import to_unicode
 from pex.hashing import Sha256, file_hash, locked_directory, update_hash
@@ -12,6 +11,8 @@ from pex.typing import TYPE_CHECKING
 from pex.zipfile import open_zip
 
 if TYPE_CHECKING:
+    from typing import Callable, Iterator, Optional, Text
+
     from pex.hashing_types import HintedDigest
 
 

@@ -5,13 +5,12 @@ from __future__ import absolute_import
 
 import shlex
 from argparse import Action, ArgumentError, ArgumentParser, Namespace
-from typing import Optional
 
 from pex.os import WINDOWS
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Any, Callable, Sequence, Text, Type, Union
+    from typing import Any, Callable, Optional, Sequence, Text, Type, Union
 
 
 class HandleBoolAction(Action):
