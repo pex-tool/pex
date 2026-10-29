@@ -14,7 +14,7 @@ from zipfile import ZipFile
 import pytest
 
 from pex.cache.dirs import CacheDir
-from pex.common import CopyMode, open_zip, safe_open, temporary_dir, touch
+from pex.common import CopyMode, safe_open, temporary_dir, touch
 from pex.compatibility import safe_commonpath
 from pex.executor import Executor
 from pex.fs import safe_rename
@@ -25,6 +25,7 @@ from pex.pex_builder import Check, InvalidZipAppError, PEXBuilder
 from pex.pex_warnings import PEXWarning
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
+from pex.zipfile import open_zip
 from testing import IS_PYPY, NonDeterministicWalk, install_wheel, make_bdist, make_env, subprocess
 from testing import write_simple_pex as write_pex
 

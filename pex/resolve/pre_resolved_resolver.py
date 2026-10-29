@@ -8,6 +8,7 @@ import os
 from collections import defaultdict
 
 from pex.artifact_url import ArtifactURL, Fingerprint
+from pex.cache_helper import CacheHelper
 from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import Distribution, Requirement
 from pex.exceptions import production_assert
@@ -36,7 +37,6 @@ from pex.sorted_tuple import SortedTuple
 from pex.targets import Targets
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
-from pex.util import CacheHelper
 
 if TYPE_CHECKING:
     from typing import DefaultDict, Dict, List, Sequence, Tuple

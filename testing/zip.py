@@ -6,8 +6,8 @@ from __future__ import absolute_import
 import filecmp
 from zipfile import ZipInfo
 
-from pex.common import open_zip
 from pex.typing import TYPE_CHECKING
+from pex.zipfile import open_zip
 
 if TYPE_CHECKING:
     from typing import Any, Dict

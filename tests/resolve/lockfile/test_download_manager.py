@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 
     import attr  # vendor:skip
 
-    from pex.hashing import HintedDigest
+    from pex.hashing_types import HintedDigest
 else:
     from pex.third_party import attr
 

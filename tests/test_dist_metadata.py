@@ -12,7 +12,7 @@ from textwrap import dedent
 
 import pytest
 
-from pex.common import open_zip, safe_open, temporary_dir, touch
+from pex.common import safe_open, temporary_dir, touch
 from pex.dist_metadata import (
     CallableEntryPoint,
     Distribution,
@@ -35,6 +35,7 @@ from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.resolver_configuration import BuildConfiguration
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.typing import TYPE_CHECKING
+from pex.zipfile import open_zip
 from testing import PY_VER
 from testing.dist_metadata import create_dist_metadata
 

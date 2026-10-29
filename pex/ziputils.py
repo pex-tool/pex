@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from typing import BinaryIO, Optional, Text
 
     import attr  # vendor:skip
+
 else:
     from pex.third_party import attr
 

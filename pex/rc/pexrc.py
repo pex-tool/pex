@@ -11,6 +11,7 @@ from subprocess import CalledProcessError
 
 from pex.atomic_directory import atomic_directory
 from pex.cache.dirs import CacheDir
+from pex.cache_helper import CacheHelper
 from pex.common import safe_rmtree
 from pex.exceptions import production_assert
 from pex.executables import chmod_plus_x
@@ -26,7 +27,6 @@ from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.third_party.packaging.version import InvalidVersion
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
-from pex.util import CacheHelper
 from pex.variables import ENV, Variables
 
 if TYPE_CHECKING:

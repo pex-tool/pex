@@ -6,7 +6,7 @@ from __future__ import absolute_import
 import os
 import re
 
-from pex import hashing
+from pex import files_hash
 from pex.artifact_url import VCS, Fingerprint
 from pex.common import is_pyc_dir, is_pyc_file
 from pex.exceptions import reportable_unexpected_error_msg
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     from re import Pattern  # type: ignore[attr-defined]
     from typing import Callable, Optional, Text, Tuple, Union
 
-    from pex.hashing import HintedDigest
+    from pex.hashing_types import HintedDigest
 
 
 def _project_name_re(project_name):
@@ -178,7 +178,7 @@ def digest_vcs_archive(
         )
     top_dir = match.group("project_name")
 
-    hashing.zip_hash(
+    files_hash.zip_hash(
         zip_path=archive_path,
         digest=digest,
         relpath=top_dir,
@@ -196,7 +196,7 @@ def digest_vcs_repo(
 ):
     # type: (...) -> None
 
-    hashing.dir_hash(
+    files_hash.dir_hash(
         directory=os.path.join(repo_path, subdirectory) if subdirectory else repo_path,
         digest=digest,
         dir_filter=_vcs_dir_filter(vcs, project_name),

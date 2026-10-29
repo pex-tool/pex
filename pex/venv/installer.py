@@ -11,6 +11,7 @@ from textwrap import dedent
 
 from pex import layout, pex_warnings, repl
 from pex.cache import access as cache_access
+from pex.cache_helper import CacheHelper
 from pex.common import CopyMode, iter_copytree, pluralize
 from pex.compatibility import is_valid_python_identifier
 from pex.dist_metadata import Distribution
@@ -30,7 +31,6 @@ from pex.result import Error
 from pex.sysconfig import SCRIPT_DIR
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
-from pex.util import CacheHelper
 from pex.venv import venv_pex
 from pex.venv.bin_path import BinPath
 from pex.venv.install_scope import InstallScope

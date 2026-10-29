@@ -14,8 +14,9 @@ from zipimport import ZipImportError
 from pex import layout, pex_warnings
 from pex.atomic_directory import atomic_directory
 from pex.cache.dirs import BootstrapZipDir, PackedWheelDir
+from pex.cache_helper import CacheHelper
+from pex.chroot import Chroot
 from pex.common import (
-    Chroot,
     CopyMode,
     deterministic_walk,
     is_pyc_file,
@@ -45,7 +46,6 @@ from pex.sh_boot import create_sh_boot_script
 from pex.targets import Targets
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
-from pex.util import CacheHelper
 
 if TYPE_CHECKING:
     from typing import Dict, Iterable, Optional

@@ -12,13 +12,13 @@ import sys
 
 import pytest
 
+from pex.cache_helper import CacheHelper
 from pex.common import safe_delete
 from pex.fetcher import URLFetcher
 from pex.interpreter import PythonInterpreter
 from pex.layout import Layout
 from pex.pep_440 import Version
 from pex.typing import TYPE_CHECKING
-from pex.util import CacheHelper
 from testing import PY310, PY311, ensure_python_interpreter, make_env, run_pex_command
 from testing.cli import run_pex3
 from testing.pytest_utils.tmp import Tempdir

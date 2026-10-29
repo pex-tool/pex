@@ -16,6 +16,7 @@ from subprocess import CalledProcessError
 from pex import toml
 from pex.atomic_directory import atomic_directory
 from pex.cache.dirs import CacheDir
+from pex.cache_helper import CacheHelper
 from pex.common import pluralize, safe_mkdtemp, safe_open
 from pex.compatibility import shlex_quote
 from pex.dist_metadata import NamedEntryPoint, parse_entry_point
@@ -46,7 +47,6 @@ from pex.third_party.packaging.utils import parse_wheel_filename
 from pex.third_party.packaging.version import InvalidVersion
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
-from pex.util import CacheHelper
 from pex.variables import ENV, Variables
 
 if TYPE_CHECKING:

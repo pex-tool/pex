@@ -8,10 +8,10 @@ from contextlib import contextmanager
 from textwrap import dedent
 
 from pex.atomic_directory import atomic_directory
+from pex.cache_helper import CacheHelper
 from pex.common import safe_rmtree
 from pex.interpreter import PythonInterpreter
 from pex.typing import TYPE_CHECKING
-from pex.util import CacheHelper
 from pex.venv.virtualenv import InvalidVirtualenvError, Virtualenv
 from testing import PEX_TEST_DEV_ROOT, PY311, data, ensure_python_interpreter
 

@@ -11,13 +11,14 @@ from contextlib import contextmanager
 from pex.atomic_directory import atomic_directory
 from pex.cache import access as cache_access
 from pex.cache.dirs import BootstrapDir, InstalledWheelDir, UserCodeDir
-from pex.common import ZipFileEx, open_zip, safe_copy, safe_mkdir, safe_mkdtemp
+from pex.common import safe_copy, safe_mkdir, safe_mkdtemp
 from pex.enum import Enum
 from pex.executables import is_script
 from pex.fs import safe_symlink
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV, unzip_dir
+from pex.zipfile import ZipFileEx, open_zip
 
 if TYPE_CHECKING:
     from types import TracebackType

@@ -6,7 +6,7 @@ from __future__ import absolute_import
 import ast
 import os
 
-from pex.common import open_zip, safe_mkdtemp
+from pex.common import safe_mkdtemp
 from pex.dist_metadata import (
     CallableEntryPoint,
     Distribution,
@@ -20,6 +20,7 @@ from pex.pep_503 import ProjectName
 from pex.sysconfig import SCRIPT_DIR, script_name
 from pex.typing import TYPE_CHECKING, cast
 from pex.wheel import Wheel
+from pex.zipfile import open_zip
 
 if TYPE_CHECKING:
     from typing import Dict, Iterable, Optional, Union

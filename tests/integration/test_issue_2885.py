@@ -13,13 +13,13 @@ from textwrap import dedent
 import pytest
 
 from pex import toml
+from pex.cache_helper import CacheHelper
 from pex.common import safe_mkdir, safe_open
 from pex.dist_metadata import DistMetadata, Requirement
 from pex.orderedset import OrderedSet
 from pex.resolve.lockfile.pep_751 import Pylock
 from pex.result import try_
 from pex.typing import TYPE_CHECKING
-from pex.util import CacheHelper
 from testing import IntegResults, WheelBuilder, run_pex_command
 from testing.pytest_utils.tmp import Tempdir
 

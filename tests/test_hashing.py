@@ -6,17 +6,17 @@ import os.path
 
 import pytest
 
-from pex.common import is_pyc_file, open_zip
+from pex.common import is_pyc_file
+from pex.files_hash import dir_hash, zip_hash
 from pex.hashing import (
     HashlibHasher,
     MultiDigest,
     Sha1Fingerprint,
     Sha256,
     Sha256Fingerprint,
-    dir_hash,
     new_fingerprint,
-    zip_hash,
 )
+from pex.zipfile import open_zip
 from testing.pytest_utils.tmp import Tempdir
 
 

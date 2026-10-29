@@ -22,7 +22,7 @@ from io import StringIO
 from textwrap import dedent
 
 from pex import pex_warnings, specifier_sets
-from pex.common import open_zip, pluralize
+from pex.common import pluralize
 from pex.compatibility import PY2, string, to_unicode
 from pex.enum import Enum
 from pex.exceptions import reportable_unexpected_error_msg
@@ -33,6 +33,7 @@ from pex.third_party.packaging.requirements import InvalidRequirement
 from pex.third_party.packaging.requirements import Requirement as PackagingRequirement
 from pex.third_party.packaging.specifiers import InvalidSpecifier, SpecifierSet
 from pex.typing import TYPE_CHECKING, cast
+from pex.zipfile import open_zip
 
 if TYPE_CHECKING:
     from typing import (

@@ -972,8 +972,8 @@ class InterpreterDir(AtomicCacheDir):
         import hashlib
         import platform
 
+        from pex.cache_helper import CacheHelper
         from pex.tracer import TRACER
-        from pex.util import CacheHelper
 
         # Part of the PythonInterpreter data are environment markers that depend on the current OS
         # release. That data can change when the OS is upgraded but (some of) the installed

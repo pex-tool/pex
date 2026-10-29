@@ -17,9 +17,7 @@ from zipfile import ZIP_DEFLATED, ZIP_STORED
 from pex import pex_warnings
 from pex.common import (
     CopyMode,
-    ZipFileType,
     deterministic_walk,
-    open_zip,
     safe_copy,
     safe_mkdir,
     safe_mkdtemp,
@@ -44,6 +42,7 @@ from pex.third_party.packaging.tags import Tag
 from pex.typing import TYPE_CHECKING, cast
 from pex.venv.virtualenv import Virtualenv
 from pex.wheel import Wheel
+from pex.zipfile import ZipFileType, open_zip
 
 if TYPE_CHECKING:
     from typing import (  # noqa

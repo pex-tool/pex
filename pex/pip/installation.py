@@ -12,6 +12,7 @@ from textwrap import dedent
 from pex import pep_427, pex_warnings, third_party
 from pex.atomic_directory import atomic_directory
 from pex.cache.dirs import InstalledWheelDir, PipPexDir
+from pex.cache_helper import CacheHelper
 from pex.common import REPRODUCIBLE_BUILDS_ENV, CopyMode, pluralize, safe_mkdtemp
 from pex.dist_metadata import Requirement
 from pex.exceptions import production_assert, reportable_unexpected_error_msg
@@ -33,7 +34,6 @@ from pex.result import Error, try_
 from pex.targets import LocalInterpreter, RequiresPythonError, Targets
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
-from pex.util import CacheHelper
 from pex.variables import ENV, Variables
 from pex.venv.virtualenv import InstallationChoice, Virtualenv
 

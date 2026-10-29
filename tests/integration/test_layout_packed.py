@@ -9,7 +9,7 @@ import subprocess
 import sys
 import zipfile
 
-from pex.common import open_zip
+from pex.zipfile import open_zip
 from testing import run_pex_command
 from testing.pytest_utils.tmp import Tempdir
 

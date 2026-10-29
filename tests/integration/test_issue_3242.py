@@ -5,9 +5,9 @@ from __future__ import absolute_import
 
 import subprocess
 
-from pex.common import open_zip
 from pex.os import Os
 from pex.sysconfig import SysPlatform
+from pex.zipfile import open_zip
 from testing import run_pex_command
 from testing.pytest_utils.tmp import Tempdir
 

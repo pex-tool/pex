@@ -5,7 +5,7 @@ from __future__ import absolute_import
 
 import os.path
 
-from pex import hashing, sdist
+from pex import files_hash, sdist
 from pex.build_system import pep_517
 from pex.common import temporary_dir
 from pex.pip.version import PipVersionValue
@@ -18,7 +18,7 @@ from pex.typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from typing import Optional, Union
 
-    from pex.hashing import HintedDigest
+    from pex.hashing_types import HintedDigest
 
 
 def digest_local_project(
@@ -45,5 +45,5 @@ def digest_local_project(
 
             extract_dir = os.path.join(td, "extracted")
             project_dir = sdist.extract_tarball(sdist_path, dest_dir=extract_dir)
-            hashing.dir_hash(directory=project_dir, digest=digest)
+            files_hash.dir_hash(directory=project_dir, digest=digest)
             return sdist_path

@@ -7,12 +7,13 @@ from textwrap import dedent
 
 import pytest
 
+from pex.cache_helper import CacheHelper
 from pex.common import safe_mkdir, safe_open, temporary_dir, touch
 from pex.fs import safe_rename
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.typing import TYPE_CHECKING, cast
-from pex.util import CacheHelper, DistributionHelper, named_temporary_file
+from pex.util import DistributionHelper, named_temporary_file
 from testing import subprocess
 
 if TYPE_CHECKING:

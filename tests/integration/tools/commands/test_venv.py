@@ -9,9 +9,9 @@ from textwrap import dedent
 import pytest
 from colors import cyan  # vendor:skip
 
+from pex.cache_helper import CacheHelper
 from pex.common import CopyMode, is_pyc_file, safe_open
 from pex.typing import TYPE_CHECKING
-from pex.util import CacheHelper
 from pex.venv.virtualenv import Virtualenv
 from testing import (
     PY_VER,

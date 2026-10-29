@@ -19,13 +19,12 @@ from pex.build_backend.pylock import ScriptLocks
 from pex.common import (
     DETERMINISTIC_DATETIME,
     DETERMINISTIC_DATETIME_TIMESTAMP,
-    ZipFileEx,
     deterministic_walk,
-    open_zip,
     safe_mkdtemp,
 )
 from pex.compatibility import PY2
 from pex.typing import TYPE_CHECKING, cast
+from pex.zipfile import ZipFileEx, open_zip
 
 if TYPE_CHECKING:
     from typing import Any, Callable, Dict, Iterator, Optional, Sequence, Tuple

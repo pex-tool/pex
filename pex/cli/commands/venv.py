@@ -11,7 +11,7 @@ from argparse import ArgumentParser, Namespace, _ActionsContainer
 from pex import dependency_configuration, pex_warnings
 from pex.cli.command import BuildTimeCommand
 from pex.commands.command import JsonMixin, OutputMixin
-from pex.common import CopyMode, open_zip, pluralize
+from pex.common import CopyMode, pluralize
 from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import Distribution, Requirement
 from pex.enum import Enum
@@ -40,6 +40,7 @@ from pex.venv.install_scope import InstallScope
 from pex.venv.installer import Provenance
 from pex.venv.installer_configuration import InstallerConfiguration
 from pex.venv.virtualenv import Virtualenv
+from pex.zipfile import open_zip
 
 if TYPE_CHECKING:
     from typing import Any, Dict, Optional, Sequence, Union

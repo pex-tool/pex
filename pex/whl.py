@@ -8,12 +8,12 @@ import os
 
 from pex.atomic_directory import atomic_directory
 from pex.cache.dirs import CacheDir
+from pex.cache_helper import CacheHelper
 from pex.dist_metadata import Distribution
 from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.installed_wheel import InstalledWheel
 from pex.pep_427 import repack
 from pex.typing import TYPE_CHECKING
-from pex.util import CacheHelper
 
 if TYPE_CHECKING:
     from typing import Optional, Union

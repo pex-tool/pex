@@ -4,9 +4,9 @@
 from __future__ import absolute_import
 
 from pex.atomic_directory import AtomicDirectory
-from pex.common import ZipFileEx
 from pex.compatibility import PY2
 from pex.lang import qualified_name
+from pex.zipfile import ZipFileEx
 
 
 def test_qualified_name():
