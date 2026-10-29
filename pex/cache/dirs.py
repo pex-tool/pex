@@ -12,13 +12,14 @@ from pex.common import pluralize, safe_rmtree
 from pex.compatibility import safe_commonpath, string
 from pex.enum import Enum
 from pex.exceptions import production_assert
+from pex.modes import Modes
 from pex.orderedset import OrderedSet
 from pex.os import Os, is_exe
 from pex.typing import TYPE_CHECKING, cast
 from pex.variables import ENV, Variables
 
 if TYPE_CHECKING:
-    from typing import Any, Iterable, Iterator, List, Optional, Type, TypeVar, Union
+    from typing import Any, Iterable, Iterator, List, Optional, Tuple, Type, TypeVar, Union
 
     from pex.dist_metadata import ProjectNameAndVersion
     from pex.interpreter import PythonInterpreter
@@ -180,7 +181,7 @@ class CacheDir(Enum["CacheDir.Value"]):
 
     PACKED_WHEELS = Value(
         "packed_wheels",
-        version=2,
+        version=3,
         name="Packed Wheels",
         description=(
             "The same content as {installed_wheels!r}, but zipped up for `--layout packed` "
@@ -596,6 +597,37 @@ class BootstrapDir(AtomicCacheDir):
         self.bootstrap_hash = bootstrap_hash
 
 
+def as_packed_key(
+    compress,  # type: bool
+    modes,  # type: Optional[Modes]
+):
+    # type: (...) -> str
+    compress_key = "defN" if compress else "stor"
+    if modes is None:
+        return "{compress_key}-original".format(compress_key=compress_key)
+    else:
+        return "{compress_key}-d{dir:o}-e{exe:o}-f{file:o}".format(
+            compress_key=compress_key,
+            dir=modes.directory & 0o777,
+            exe=modes.executable & 0o777,
+            file=modes.file & 0o777,
+        )
+
+
+def from_packed_key(key):
+    # type: (str) -> Tuple[bool, Optional[Modes]]
+
+    compress_key, _, modes_key = key.partition("-")
+    compress = compress_key == "defN"
+    if key == "original":
+        return compress, None
+
+    directory, executable, file = modes_key.split("-")
+    return compress, Modes(
+        directory=int(directory[1:], 8), executable=int(executable[1:], 8), file=int(file[1:], 8)
+    )
+
+
 class BootstrapZipDir(AtomicCacheDir):
     @classmethod
     def iter(
@@ -606,32 +638,37 @@ class BootstrapZipDir(AtomicCacheDir):
         # type: (...) -> Iterator[BootstrapZipDir]
 
         for path in glob.glob(CacheDir.BOOTSTRAP_ZIPS.path(bootstrap_hash, "*", pex_root=pex_root)):
-            compress = os.path.basename(path) == "defN"
-            yield cls(path=path, bootstrap_hash=bootstrap_hash, compress=compress)
+            compress, modes = from_packed_key(os.path.basename(path))
+            yield cls(path=path, bootstrap_hash=bootstrap_hash, compress=compress, modes=modes)
 
     @classmethod
     def create(
         cls,
         bootstrap_hash,  # type: str
         compress=True,  # type: bool
+        modes=Modes(),  # type: Optional[Modes]
         pex_root=ENV,  # type: Union[str, Variables]
     ):
         # type: (...) -> BootstrapZipDir
         bootstrap_zip_dir = CacheDir.BOOTSTRAP_ZIPS.path(
-            bootstrap_hash, "defN" if compress else "stor", pex_root=pex_root
+            bootstrap_hash, as_packed_key(compress, modes), pex_root=pex_root
         )
-        return cls(path=bootstrap_zip_dir, bootstrap_hash=bootstrap_hash, compress=compress)
+        return cls(
+            path=bootstrap_zip_dir, bootstrap_hash=bootstrap_hash, compress=compress, modes=modes
+        )
 
     def __init__(
         self,
         path,  # type: str
         bootstrap_hash,  # type: str
         compress,  # type: bool
+        modes,  # type: Optional[Modes]
     ):
         # type: (...) -> None
         super(BootstrapZipDir, self).__init__(path)
         self.bootstrap_hash = bootstrap_hash
         self.compress = compress
+        self.modes = modes
 
 
 class PackedWheelDir(AtomicCacheDir):
@@ -644,32 +681,35 @@ class PackedWheelDir(AtomicCacheDir):
         # type: (...) -> Iterator[PackedWheelDir]
 
         for path in glob.glob(CacheDir.PACKED_WHEELS.path(fingerprint, "*", pex_root=pex_root)):
-            compress = os.path.basename(path) == "defN"
-            yield cls(path=path, fingerprint=fingerprint, compress=compress)
+            compress, modes = from_packed_key(os.path.basename(path))
+            yield cls(path=path, fingerprint=fingerprint, compress=compress, modes=modes)
 
     @classmethod
     def create(
         cls,
         fingerprint,  # type: str
         compress=True,  # type: bool
+        modes=Modes(),  # type: Optional[Modes]
         pex_root=ENV,  # type: Union[str, Variables]
     ):
         # type: (...) -> PackedWheelDir
         packed_wheel_dir = CacheDir.PACKED_WHEELS.path(
-            fingerprint, "defN" if compress else "stor", pex_root=pex_root
+            fingerprint, as_packed_key(compress, modes), pex_root=pex_root
         )
-        return cls(path=packed_wheel_dir, fingerprint=fingerprint, compress=compress)
+        return cls(path=packed_wheel_dir, fingerprint=fingerprint, compress=compress, modes=modes)
 
     def __init__(
         self,
         path,  # type: str
         fingerprint,  # type: str
         compress,  # type: bool
+        modes,  # type: Optional[Modes]
     ):
         # type: (...) -> None
         super(PackedWheelDir, self).__init__(path)
         self.fingerprint = fingerprint
         self.compress = compress
+        self.modes = modes
 
 
 class UserCodeDir(AtomicCacheDir):

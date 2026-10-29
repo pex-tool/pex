@@ -19,6 +19,7 @@ from zipfile import ZipFile, ZipInfo
 from pex.common import DETERMINISTIC_DATETIME, safe_mkdir
 from pex.enum import Enum
 from pex.executables import chmod_plus_x
+from pex.modes import Modes
 from pex.os import is_exe
 from pex.typing import TYPE_CHECKING
 
@@ -139,6 +140,25 @@ class ZipFileEx(ZipFile):
             zip_info.compress_type = zipfile.ZIP_DEFLATED if compress else zipfile.ZIP_STORED
         return zip_info, is_dir
 
+    def __init__(self, *args, **kwargs):
+        self._modes = kwargs.pop("modes", Modes())  # type: Optional[Modes]
+        super(ZipFileEx, self).__init__(*args, **kwargs)
+
+    def _file_mode(self, path):
+        # type: (Text) -> int
+
+        if self._modes is None:
+            # I'm not sure why MyPy can figure this one out.
+            return cast(int, os.stat(path).st_mode)
+
+        zip_file_type = ZipFileType.from_path(path)
+        if zip_file_type is ZipFileType.DIRECTORY:
+            return self._modes.directory
+        elif zip_file_type is ZipFileType.EXECUTABLE:
+            return self._modes.executable
+        else:
+            return self._modes.file
+
     def write_deterministic(
         self,
         filename,  # type: Text
@@ -152,7 +172,7 @@ class ZipFileEx(ZipFile):
                 filename,
                 arcname=arcname,
                 date_time=DETERMINISTIC_DATETIME.timetuple(),
-                file_mode=ZipFileType.from_path(filename).deterministic_mode,
+                file_mode=self._file_mode(filename),
                 digest=digest,
                 compress=compress,
             )
@@ -282,5 +302,6 @@ def open_zip(
     # extensions across all Pex supported Pythons.
     kwargs.setdefault("allowZip64", True)
 
+    kwargs.setdefault("modes", Modes())
     with contextlib.closing(ZipFileEx(path, *args, **kwargs)) as zip_fp:
         yield zip_fp

@@ -3,6 +3,8 @@
 
 from __future__ import absolute_import
 
+import stat
+
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -77,9 +79,9 @@ class Modes(object):
         executable=0o755,  # type: int
         file=0o644,  # type: int
     ):
-        self.directory = directory
-        self.executable = executable
-        self.file = file
+        self.directory = stat.S_IFDIR | (directory & 0o777)
+        self.executable = stat.S_IFREG | (executable & 0o777)
+        self.file = stat.S_IFREG | (file & 0o777)
 
     def __str__(self):
         # type: () -> str

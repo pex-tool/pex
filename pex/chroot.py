@@ -225,7 +225,7 @@ class Chroot(object):
         strip_prefix=None,  # type: Optional[str]
         labels=None,  # type: Optional[Iterable[str]]
         compress=True,  # type: bool
-        modes=Modes(),  # type: Modes
+        modes=Modes(),  # type: Optional[Modes]
     ):
         # type: (...) -> None
 
@@ -237,7 +237,10 @@ class Chroot(object):
             selected_files = self.files()
 
         with open_zip(
-            filename, mode, zipfile.ZIP_DEFLATED if compress else zipfile.ZIP_STORED
+            filename,
+            mode=mode,
+            compression=zipfile.ZIP_DEFLATED if compress else zipfile.ZIP_STORED,
+            modes=modes,
         ) as zf:
 
             def write_entry(
