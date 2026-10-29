@@ -18,6 +18,7 @@ from pex.executables import chmod_plus_x
 from pex.fetcher import URLFetcher
 from pex.fs import safe_rename
 from pex.hashing import Sha256
+from pex.modes import Modes
 from pex.os import Os, is_exe
 from pex.pep_440 import Version
 from pex.rc.model import File, NativeRuntimeConfiguration, Url
@@ -38,7 +39,7 @@ else:
 
 
 PEXRC_RELEASES_URL = "https://github.com/pex-tool/pex.rc/releases"
-MIN_PEXRC_VERSION = Version("0.37.1")
+MIN_PEXRC_VERSION = Version("0.38.0")
 PEXRC_REQUIREMENT = SpecifierSet("~={min_version}".format(min_version=MIN_PEXRC_VERSION))
 
 
@@ -248,6 +249,7 @@ def inject(
     pex_file,  # type: str
     url_fetcher=None,  # type: Optional[URLFetcher]
     env=ENV,  # type: Variables
+    modes=Modes(),  # type: Optional[Modes]
 ):
     # type: (...) -> None
     pexrc = ensure_pexrc(
@@ -269,6 +271,8 @@ def inject(
     for platform in configuration.platforms:
         args.append("--target")
         args.append(_pexrc_target(platform))
+    args.append("--modes")
+    args.append(Modes.render_value(modes))
     args.append(pex_file)
 
     with open(os.devnull, "wb") as devnull:

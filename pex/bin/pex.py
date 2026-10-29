@@ -17,7 +17,7 @@ from argparse import Action, ArgumentDefaultsHelpFormatter, ArgumentParser
 from textwrap import TextWrapper
 
 from pex import build_properties, dependency_configuration, pex_warnings, rc, repl, scie
-from pex.argparse import HandleBoolAction, InjectArgAction, InjectEnvAction
+from pex.argparse import HandleBoolAction, InjectArgAction, InjectEnvAction, parse_action
 from pex.build_properties import BuildProperties
 from pex.commands.command import (
     GlobalConfigurationError,
@@ -36,6 +36,7 @@ from pex.inherit_path import InheritPath
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import InterpreterConstraints
 from pex.layout import Layout, ensure_installed
+from pex.modes import Modes
 from pex.orderedset import OrderedSet
 from pex.pep_425 import RankedTag
 from pex.pep_427 import InstallableType
@@ -198,7 +199,7 @@ def configure_clp_pex_options(parser):
         dest="layout",
         default=Layout.ZIPAPP,
         choices=Layout.values(),
-        type=Layout.for_value,
+        action=parse_action(Layout.for_value),
         help=(
             "By default, a PEX is created as a single file zipapp when `-o` is specified, but "
             "either a packed or loose directory tree based layout can be chosen instead. A packed "
@@ -256,7 +257,7 @@ def configure_clp_pex_options(parser):
         dest="check",
         default=Check.WARN,
         choices=Check.values(),
-        type=Check.for_value,
+        action=parse_action(Check.for_value),
         help=(
             "Check that the built PEX is valid. Currently this only applies to `--layout {zipapp}` "
             "where the PEX zip is tested for importability of its `__main__` module by the Python "
@@ -278,6 +279,22 @@ def configure_clp_pex_options(parser):
         help=(
             "Whether to compress zip entries when creating either a zipapp PEX file or a packed "
             "PEX's bootstrap and dependency zip files. Does nothing for loose layout PEXes."
+        ),
+    )
+
+    group.add_argument(
+        "--modes",
+        dest="modes",
+        default=Modes(),
+        action=parse_action(Modes.parse_value),
+        help=(
+            "The modes to use for zip entries. Modes are specified in octal; i.e.: `rwx` for a "
+            "directory is specified as `755`. The value can be a single file mode value, in which "
+            "case it is applied to zip directory entries, executable entries and regular file "
+            "entries. Alternatively, the value can be a comma-separated list of individual modes "
+            "for directories (`dir`), executables (`exe`) and files (`file`); e.g.: "
+            "`dir=750,exe=750,file=640`. A value of `original` can also be used to preserve "
+            "original wheel entry modes (and timestamps) when available."
         ),
     )
 
@@ -381,7 +398,7 @@ def configure_clp_pex_options(parser):
         dest="inherit_path",
         default=InheritPath.FALSE,
         choices=InheritPath.values(),
-        type=InheritPath.for_value,
+        action=parse_action(InheritPath.for_value),
         help="Inherit the contents of sys.path (including site-packages, user site-packages and "
         "PYTHONPATH) running the pex. Possible values: {false} (does not inherit sys.path), "
         "{fallback} (inherits sys.path after packaged dependencies), {prefer} (inherits sys.path "
@@ -1487,7 +1504,9 @@ def do_main(
                 password_entries=resolver_configuration.repos_configuration.password_entries,
                 handle_file_urls=True,
             )
-            rc.inject(native_runtime_configuration, pex_file, url_fetcher=url_fetcher)
+            rc.inject(
+                native_runtime_configuration, pex_file, url_fetcher=url_fetcher, modes=options.modes
+            )
         if options.seed is not Seed.NONE:
             seed_info = seed_cache(
                 pex_file,
