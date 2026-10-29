@@ -1,5 +1,13 @@
 # Release Notes
 
+## 2.106.0
+
+This release adds support for parent directory bindings to `pex --bind-resource-path` (via trailing
+`..` path segments) as well as adding support for controlling zip entry file modes via
+`pex --modes` and interpolating `{pex.env.*}` for `--inject-env` values.
+
+* Enable rules_py Pex CLI use. (#3318)
+
 ## 2.105.2
 
 This release upgrades the released Pex PEX scies to CPython 3.14.10 to pick up fixes related to the
