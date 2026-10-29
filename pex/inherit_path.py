@@ -21,18 +21,12 @@ class InheritPath(Enum["InheritPath.Value"]):
     @classmethod
     def for_value(cls, value):
         # type: (Union[str, bool]) -> InheritPath.Value
-        if not isinstance(value, bool):
+        if isinstance(value, str):
             return super(InheritPath, cls).for_value(value)
-        elif value is False:
-            return InheritPath.FALSE
-        elif value is True:
+        elif value:
             return InheritPath.PREFER
         else:
-            raise ValueError(
-                "An InheritPath.Value must be a str or a bool; given {} of type {}".format(
-                    value, type(value)
-                )
-            )
+            return InheritPath.FALSE
 
 
 InheritPath.seal()

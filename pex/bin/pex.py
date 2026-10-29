@@ -198,7 +198,7 @@ def configure_clp_pex_options(parser):
         "--layout",
         dest="layout",
         default=Layout.ZIPAPP,
-        choices=Layout.values(),
+        choices=Layout.value_strings(),
         action=parse_action(Layout.for_value),
         help=(
             "By default, a PEX is created as a single file zipapp when `-o` is specified, but "
@@ -256,7 +256,7 @@ def configure_clp_pex_options(parser):
         "--check",
         dest="check",
         default=Check.WARN,
-        choices=Check.values(),
+        choices=Check.value_strings(),
         action=parse_action(Check.for_value),
         help=(
             "Check that the built PEX is valid. Currently this only applies to `--layout {zipapp}` "
@@ -396,15 +396,24 @@ def configure_clp_pex_options(parser):
     group.add_argument(
         "--inherit-path",
         dest="inherit_path",
+        nargs="?",
         default=InheritPath.FALSE,
-        choices=InheritPath.values(),
-        action=parse_action(InheritPath.for_value),
-        help="Inherit the contents of sys.path (including site-packages, user site-packages and "
-        "PYTHONPATH) running the pex. Possible values: {false} (does not inherit sys.path), "
-        "{fallback} (inherits sys.path after packaged dependencies), {prefer} (inherits sys.path "
-        "before packaged dependencies), No value (alias for prefer, for backwards "
-        "compatibility).".format(
-            false=InheritPath.FALSE, fallback=InheritPath.FALLBACK, prefer=InheritPath.PREFER
+        choices=InheritPath.value_strings(),
+        action=parse_action(
+            # N.B.: `--inherit-path` used to be a boolean arg (so either was absent, or
+            # `--inherit-path`). We account for the no-arg (`None`) case here.
+            lambda value: InheritPath.PREFER
+            if value is None
+            else InheritPath.for_value(value)
+        ),
+        help=(
+            "Inherit the contents of sys.path (including site-packages, user site-packages and "
+            "PYTHONPATH) running the pex. Possible values: {false} (does not inherit sys.path), "
+            "{fallback} (inherits sys.path after packaged dependencies), {prefer} (inherits "
+            "sys.path before packaged dependencies), No value (alias for prefer, for backwards "
+            "compatibility).".format(
+                false=InheritPath.FALSE, fallback=InheritPath.FALLBACK, prefer=InheritPath.PREFER
+            )
         ),
     )
 
@@ -426,10 +435,12 @@ def configure_clp_pex_options(parser):
         dest="use_system_time",
         default=False,
         action=HandleBoolAction,
-        help="Use the current system time to generate timestamps for the new pex. Otherwise, Pex "
-        "will use midnight on January 1, 1980. By using system time, the generated pex "
-        "will not be reproducible, meaning that if you were to run `./pex -o` with the "
-        "same inputs then the new pex would not be byte-for-byte identical to the original.",
+        help=(
+            "Use the current system time to generate timestamps for the new pex. Otherwise, Pex "
+            "will use midnight on January 1, 1980. By using system time, the generated pex "
+            "will not be reproducible, meaning that if you were to run `./pex -o` with the "
+            "same inputs then the new pex would not be byte-for-byte identical to the original."
+        ),
     )
 
     group.add_argument(
@@ -1199,16 +1210,6 @@ def build_pex(
     return pex_builder
 
 
-def transform_legacy_arg(arg):
-    # type: (str) -> str
-    # inherit-path used to be a boolean arg (so either was absent, or --inherit-path)
-    # Now it takes a string argument, so --inherit-path is invalid.
-    # Fix up the args we're about to parse to preserve backwards compatibility.
-    if arg == "--inherit-path":
-        return "--inherit-path={}".format(InheritPath.PREFER.value)
-    return arg
-
-
 def _compatible_with_current_platform(interpreter, platforms):
     if not platforms:
         return True
@@ -1298,7 +1299,6 @@ def configure_requirements_and_targets(
 
 def main(args=None):
     args = args[:] if args else sys.argv[1:]
-    args = [transform_legacy_arg(arg) for arg in args]
 
     parser = catch(configure_clp)
     if isinstance(parser, Error):
@@ -1496,6 +1496,7 @@ def do_main(
             deterministic=not options.use_system_time,
             layout=options.layout,
             compress=options.compress,
+            modes=options.modes,
             check=options.check,
         )
         if native_runtime_configuration:
