@@ -15,7 +15,7 @@ from argparse import ArgumentParser
 TYPE_CHECKING = False
 
 if TYPE_CHECKING:
-    from typing import Iterable, List, Tuple
+    from typing import Iterable, List, Optional, Tuple
 
 
 def write_bindings(
@@ -55,6 +55,70 @@ def imported_file(
     return path
 
 
+def _resolve_resource_path(
+    name,  # type: str
+    resource,  # type: str
+):
+    # type: (...) -> str
+
+    if os.path.isabs(resource):
+        raise ResourceBindingError(
+            "The following resource binding spec is invalid: {name}={resource}\n"
+            "The resource path {resource} must be relative to the `sys.path`.".format(
+                name=name, resource=resource
+            )
+        )
+
+    resource_path = None  # type: Optional[str]
+    parents = []  # type: List[str]
+    for component in resource.split("/"):
+        if component == os.pardir:
+            if resource_path is None:
+                raise ResourceBindingError(
+                    "The following resource binding spec is invalid: {name}={resource}\n"
+                    "The resource path {resource} must be relative to the `sys.path`.".format(
+                        name=name, resource=resource
+                    )
+                )
+            parents.append(component)
+        elif parents:
+            raise ResourceBindingError(
+                "The following resource binding spec is invalid: {name}={resource}\n"
+                "The resource path {resource} can only have trailing {parent_dir} components; "
+                "not embedded ones.".format(name=name, resource=resource, parent_dir=os.pardir)
+            )
+        elif resource_path is None:
+            resource_path = component
+        else:
+            resource_path = os.path.join(resource_path, component)
+
+    if not resource_path:
+        raise ResourceBindingError(
+            "The following resource binding spec is invalid: {name}={resource}\n"
+            "The resource path cannot be empty.".format(name=name, resource=resource)
+        )
+    rel_path = os.path.normpath(resource_path)
+
+    for entry in sys.path:
+        value = os.path.join(entry, rel_path)
+        if os.path.isfile(value):
+            if parents:
+                value = os.path.normpath(os.path.join(value, *parents))
+                if not value.startswith(entry):
+                    raise ResourceBindingError(
+                        "The resource binding spec {name}={resource} resolved to {value} which "
+                        "escapes the `sys.path` entry {entry}.".format(
+                            name=name, resource=resource, value=value, entry=entry
+                        )
+                    )
+            return value
+
+    raise ResourceBindingError(
+        "There was no resource file {resource} found on the `sys.path` corresponding to "
+        "the given resource binding spec `{name}={resource}`".format(resource=resource, name=name)
+    )
+
+
 def bind_resource_paths(bindings):
     # type: (Iterable[str]) -> Tuple[Tuple[str, str], ...]
 
@@ -68,25 +132,7 @@ def bind_resource_paths(bindings):
                 "It must be in the form `<env var name>=<resource rel path>`.".format(spec=spec)
             )
 
-        rel_path = os.path.normpath(os.path.join(*resource.split("/")))
-        if os.path.isabs(resource) or rel_path.startswith(os.pardir):
-            raise ResourceBindingError(
-                "The following resource binding spec is invalid: {spec}\n"
-                "The resource path {resource} must be relative to the `sys.path`.".format(
-                    spec=spec, resource=resource
-                )
-            )
-
-        for entry in sys.path:
-            value = os.path.join(entry, rel_path)
-            if os.path.isfile(value):
-                resource_paths.append((name, value))
-                break
-        else:
-            raise ResourceBindingError(
-                "There was no resource file {resource} found on the `sys.path` corresponding to "
-                "the given resource binding spec `{spec}`".format(resource=resource, spec=spec)
-            )
+        resource_paths.append((name, _resolve_resource_path(name, resource)))
     return tuple(resource_paths)
 
 

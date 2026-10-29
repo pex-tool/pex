@@ -96,14 +96,14 @@ class CacheDir(Enum["CacheDir.Value"]):
 
     BOOTSTRAP_ZIPS = Value(
         "bootstrap_zips",
-        version=1,
+        version=2,
         name="Packed Bootstraps",
         description="PEX runtime bootstrap code, zipped up for `--layout packed` PEXes.",
     )
 
     BOOTSTRAPS = Value(
         "bootstraps",
-        version=0,
+        version=1,
         name="Bootstraps",
         description="PEX runtime bootstrap code.",
     )
@@ -255,7 +255,7 @@ class CacheDir(Enum["CacheDir.Value"]):
 
     UNZIPPED_PEXES = Value(
         "unzipped_pexes",
-        version=4,
+        version=5,
         name="Unzipped PEXes",
         description="The unzipped PEX files executed on this machine.",
         dependencies=[BOOTSTRAPS, USER_CODE, INSTALLED_WHEELS],
@@ -263,7 +263,7 @@ class CacheDir(Enum["CacheDir.Value"]):
 
     VENVS = Value(
         "venvs",
-        version=4,
+        version=5,
         name="Virtual Environments",
         description="Virtual environments generated at runtime for `--venv` mode PEXes.",
         dependencies=[INSTALLED_WHEELS],
