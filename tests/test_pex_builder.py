@@ -13,12 +13,13 @@ from zipfile import ZipFile
 
 import pytest
 
-from pex.cache.dirs import CacheDir
+from pex.cache.dirs import BootstrapZipDir, PackedWheelDir
 from pex.common import CopyMode, safe_open, temporary_dir, touch
 from pex.compatibility import safe_commonpath
 from pex.executor import Executor
 from pex.fs import safe_rename
 from pex.layout import Layout
+from pex.modes import Modes
 from pex.os import WINDOWS
 from pex.pex import PEX
 from pex.pex_builder import Check, InvalidZipAppError, PEXBuilder
@@ -253,9 +254,17 @@ def test_pex_builder_setuptools_script(tmpdir):
         pytest.param(False, id="--no-compress"),
     ],
 )
+@pytest.mark.parametrize(
+    "modes",
+    [
+        pytest.param(Modes(), id="d755-e755-f644"),
+        pytest.param(None, id="original"),
+    ],
+)
 def test_pex_builder_packed(
     tmpdir,  # type: Any
     compress,  # type: bool
+    modes,  # type: Optional[Modes]
 ):
     # type: (...) -> None
 
@@ -269,7 +278,7 @@ def test_pex_builder_packed(
         pb.add_source(source_file, "a.file")
         pb.add_dist_location(dist.location)
         pb.set_script("shell_script")
-        pb.build(pex_app, layout=Layout.PACKED, compress=compress)
+        pb.build(pex_app, layout=Layout.PACKED, compress=compress, modes=modes)
 
     assert "hello world from shell script\n" == subprocess.check_output(
         args=[os.path.join(pex_app, "__main__.py")]
@@ -278,8 +287,9 @@ def test_pex_builder_packed(
     spread_dist_bootstrap = os.path.join(pex_app, pb.info.bootstrap)
     assert zipfile.is_zipfile(spread_dist_bootstrap)
 
-    cached_bootstrap_zip = CacheDir.BOOTSTRAP_ZIPS.path(
-        pb.info.bootstrap_hash, "defN" if compress else "stor", pb.info.bootstrap, pex_root=pex_root
+    cached_bootstrap_zip = os.path.join(
+        BootstrapZipDir.create(pb.info.bootstrap_hash, compress, modes, pex_root=pex_root),
+        pb.info.bootstrap,
     )
     assert zipfile.is_zipfile(cached_bootstrap_zip)
 
@@ -302,8 +312,8 @@ def test_pex_builder_packed(
     spread_dist_zip = os.path.join(pex_app, pb.info.internal_cache, location)
     assert zipfile.is_zipfile(spread_dist_zip)
 
-    cached_dist_zip = CacheDir.PACKED_WHEELS.path(
-        sha, "defN" if compress else "stor", location, pex_root=pex_root
+    cached_dist_zip = os.path.join(
+        PackedWheelDir.create(sha, compress, modes, pex_root=pex_root), location
     )
     assert zipfile.is_zipfile(cached_dist_zip)
 

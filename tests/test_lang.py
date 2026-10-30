@@ -33,7 +33,7 @@ def test_qualified_name():
         AtomicDirectory.work_dir
     ), "Expected @property to be handled."
 
-    expected_prefix = "pex.common." if PY2 else "pex.common.ZipFileEx."
+    expected_prefix = "pex.zipfile." if PY2 else "pex.zipfile.ZipFileEx."
     assert expected_prefix + "zip_info_from_file" == qualified_name(
         ZipFileEx.zip_info_from_file
     ), "Expected @classmethod to be handled."

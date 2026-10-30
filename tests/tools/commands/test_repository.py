@@ -53,6 +53,8 @@ else:
                 SysPlatform.CURRENT.value,
                 "--compression-method",
                 "deflated",
+                "--modes",
+                "original",
                 "--layout",
                 "packed",
             ],
