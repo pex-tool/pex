@@ -12,6 +12,7 @@ from pex.dist_metadata import Requirement
 from pex.environment import PEXEnvironment
 from pex.exceptions import production_assert
 from pex.fingerprinted_distribution import FingerprintedDistribution
+from pex.modes import Modes
 from pex.orderedset import OrderedSet
 from pex.pep_503 import ProjectName
 from pex.pex_builder import PEXBuilder
@@ -20,7 +21,7 @@ from pex.resolve.resolvers import ResolveResult
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import DefaultDict
+    from typing import DefaultDict, Optional
 
     import attr  # vendor:skip
 else:
@@ -46,6 +47,7 @@ class DependencyManager(object):
         result_type_wheel_file=False,  # type: bool
         use_system_time=False,  # type: bool
         compress=True,  # type: bool
+        modes=Modes(),  # type: Optional[Modes]
     ):
         # type: (...) -> PexInfo
 
@@ -58,6 +60,7 @@ class DependencyManager(object):
             result_type_wheel_file=result_type_wheel_file,
             use_system_time=use_system_time,
             compress=compress,
+            modes=modes,
         ):
             self.add_distribution(dist)
 

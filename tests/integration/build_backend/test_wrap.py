@@ -12,13 +12,14 @@ from textwrap import dedent
 import pytest
 
 from pex.build_system import pep_517
-from pex.common import open_zip, safe_open
+from pex.common import safe_open
 from pex.interpreter import PythonInterpreter
 from pex.pip.version import PipVersion, PipVersionValue
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.result import try_
 from pex.targets import LocalInterpreter
 from pex.typing import TYPE_CHECKING
+from pex.zipfile import open_zip
 from testing import WheelBuilder
 from testing.pytest_utils.tmp import Tempdir
 

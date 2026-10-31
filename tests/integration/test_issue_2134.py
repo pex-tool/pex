@@ -7,8 +7,9 @@ import sys
 import pytest
 
 from pex import layout
-from pex.common import open_zip, touch
+from pex.common import touch
 from pex.typing import TYPE_CHECKING
+from pex.zipfile import open_zip
 from testing import run_pex_command, subprocess
 
 if TYPE_CHECKING:

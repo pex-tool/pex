@@ -8,7 +8,7 @@ import shutil
 from collections import OrderedDict
 from multiprocessing.pool import ThreadPool
 
-from pex import hashing, resolver, sdist
+from pex import files_hash, hashing, resolver, sdist
 from pex.auth import PasswordDatabase
 from pex.common import pluralize, safe_mkdtemp
 from pex.compatibility import cpu_count
@@ -44,7 +44,7 @@ if TYPE_CHECKING:
 
     import attr  # vendor:skip
 
-    from pex.hashing import HintedDigest
+    from pex.hashing_types import HintedDigest
 else:
     from pex.third_party import attr
 
@@ -234,7 +234,7 @@ class LocalProjectDownloadManager(DownloadManager[LocalProjectArtifact]):
         sdist_path = os.path.join(download_dir, sdists[0])
 
         project_dir = sdist.extract_tarball(sdist_path, dest_dir=safe_mkdtemp())
-        hashing.dir_hash(directory=project_dir, digest=digest)
+        files_hash.dir_hash(directory=project_dir, digest=digest)
         return os.path.basename(sdist_path)
 
     def save(

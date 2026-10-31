@@ -4,16 +4,13 @@
 from __future__ import absolute_import
 
 import contextlib
-import hashlib
 import importlib
 import os
 import shutil
 import tempfile
-from hashlib import sha1
 from site import makepath  # type: ignore[attr-defined]
 
-from pex import hashing
-from pex.common import is_pyc_dir, is_pyc_file, safe_delete, safe_mkdir, safe_mkdtemp
+from pex.common import safe_delete, safe_mkdir, safe_mkdtemp
 from pex.compatibility import (  # type: ignore[attr-defined]  # `exec_function` is defined dynamically
     PY2,
     exec_function,
@@ -22,9 +19,7 @@ from pex.orderedset import OrderedSet
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import IO, Any, Callable, Container, Iterator, Optional, Text
-
-    from pex.hashing import Hasher
+    from typing import IO, Any, Iterator, Optional
 
 
 class DistributionHelper(object):
@@ -67,76 +62,6 @@ class DistributionHelper(object):
                         src = os.path.join(root, f)
                         shutil.copy(src, os.path.join(temp_dir, os.path.relpath(src, resource_dir)))
         return temp_dir
-
-
-class CacheHelper(object):
-    @classmethod
-    def hash(cls, path, digest=None, hasher=sha1):
-        # type: (Text, Optional[Hasher], Callable[[], Hasher]) -> str
-        """Return the digest of a single file in a memory-efficient manner."""
-        if digest is None:
-            digest = hasher()
-        hashing.file_hash(path, digest)
-        return digest.hexdigest()
-
-    @classmethod
-    def pex_code_hash(
-        cls,
-        directory,
-        exclude_dirs=(),  # type: Container[str]
-        exclude_files=(),  # type: Container[str]
-    ):
-        # type: (...) -> str
-        """Return a reproducible hash of the user code of a loose PEX; excluding all `.pyc` files.
-
-        If no code is found, `None` is returned.
-        """
-        digest = hashlib.sha1()
-        hashing.dir_hash(
-            directory=directory,
-            digest=digest,
-            dir_filter=lambda d: not is_pyc_dir(d) and d not in exclude_dirs,
-            file_filter=(
-                lambda f: (
-                    not is_pyc_file(f)
-                    and not os.path.basename(f).startswith(".")
-                    and f not in exclude_files
-                )
-            ),
-        )
-        return digest.hexdigest()
-
-    @classmethod
-    def dir_hash(cls, directory, digest=None, hasher=sha1):
-        # type: (str, Optional[Hasher], Callable[[], Hasher]) -> str
-        """Return a reproducible hash of the contents of a directory; excluding all `.pyc` files."""
-        if digest is None:
-            digest = hasher()
-        hashing.dir_hash(
-            directory=directory,
-            digest=digest,
-            dir_filter=lambda d: not is_pyc_dir(d),
-            file_filter=lambda f: not is_pyc_file(f),
-        )
-        return digest.hexdigest()
-
-    @classmethod
-    def zip_hash(
-        cls,
-        zip_path,  # type: str
-        relpath=None,  # type: Optional[str]
-    ):
-        # type: (...) -> str
-        """Return a reproducible hash of the contents of a zip; excluding all `.pyc` files."""
-        digest = hashlib.sha1()
-        hashing.zip_hash(
-            zip_path=zip_path,
-            digest=digest,
-            relpath=relpath,
-            dir_filter=lambda d: not is_pyc_dir(d),
-            file_filter=lambda f: not is_pyc_file(f),
-        )
-        return digest.hexdigest()
 
 
 @contextlib.contextmanager

@@ -12,13 +12,13 @@ from zipfile import ZipFile, ZipInfo
 
 import pytest
 
-from pex import hashing
-from pex.common import open_zip
+from pex import files_hash, hashing
 from pex.enum import Enum
 from pex.layout import Layout
 from pex.pep_427 import InstallableType
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import Virtualenv
+from pex.zipfile import open_zip
 from testing import run_command_with_jitter, run_pex_command
 from testing.cli import run_pex3
 from testing.pep_427 import get_installable_type_flag
@@ -150,7 +150,7 @@ def test_reproducible_pex(
         if os.path.isfile(pex):
             hashing.file_hash(path=pex, digest=digest)
         else:
-            hashing.dir_hash(directory=pex, digest=digest)
+            files_hash.dir_hash(directory=pex, digest=digest)
         return digest.hexdigest()
 
     assert fingerprint(pex1) == fingerprint(pex2)

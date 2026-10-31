@@ -12,9 +12,10 @@ from textwrap import dedent
 
 from colors import color  # vendor:skip
 
-from pex.common import open_zip, safe_open, touch
+from pex.cache_helper import CacheHelper
+from pex.common import safe_open, touch
 from pex.typing import TYPE_CHECKING
-from pex.util import CacheHelper
+from pex.zipfile import open_zip
 from testing import run_pex_command, subprocess
 from testing.cli import run_pex3
 

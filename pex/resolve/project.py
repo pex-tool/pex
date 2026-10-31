@@ -10,6 +10,7 @@ from argparse import Namespace, _ActionsContainer
 
 from pex import requirements, sdist, toml
 from pex.build_system import pep_517
+from pex.cache_helper import CacheHelper
 from pex.common import pluralize, safe_mkdtemp
 from pex.compatibility import string
 from pex.dependency_configuration import DependencyConfiguration
@@ -34,7 +35,6 @@ from pex.sorted_tuple import SortedTuple
 from pex.targets import LocalInterpreter, Target, Targets
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
-from pex.util import CacheHelper
 
 if TYPE_CHECKING:
     from typing import Any, Dict, Iterable, Iterator, List, Mapping, Optional, Set, Tuple, Union

@@ -6,7 +6,6 @@ from __future__ import absolute_import
 import glob
 import os.path
 from email.message import Message
-from typing import Callable, Text, Tuple
 
 from pex.common import safe_mkdtemp
 from pex.dist_metadata import DistMetadata, DistMetadataFile, MetadataFiles, MetadataType
@@ -15,7 +14,7 @@ from pex.pep_503 import ProjectName
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Iterable, Optional
+    from typing import Callable, Iterable, Optional, Text, Tuple
 
 
 def create_dist_metadata(

@@ -11,8 +11,8 @@ from typing import Tuple
 
 import pytest
 
+from pex.cache_helper import CacheHelper
 from pex.common import safe_delete
-from pex.util import CacheHelper
 from testing import (
     IS_LINUX_X86_64,
     PyenvPythonDistribution,

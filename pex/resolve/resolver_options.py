@@ -15,6 +15,7 @@ from pex.argparse import HandleBoolAction
 from pex.common import pluralize
 from pex.dist_metadata import Requirement, is_sdist, is_wheel
 from pex.fetcher import initialize_ssl_context
+from pex.modes import Modes
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.os import is_exe
@@ -766,6 +767,7 @@ def configure(
     options,  # type: Namespace
     use_system_time=False,  # type: bool
     compress=True,  # type: bool
+    modes=Modes(),  # type: Optional[Modes]
     honor_editable=True,  # type: bool
 ):
     # type: (...) -> ResolverConfiguration
@@ -774,13 +776,18 @@ def configure(
     :param options: The resolver configuration options.
     :param use_system_time: `False` to attempt use a reproducible timestamp for builds.
     :param compress: `False` to create wheel zips without compression.
+    :param modes: The modes to create wheel zips entries with.
     :param honor_editable: `False` to ignore requirements flagged as editable and build a static
                            wheel for them instead.
     :raise: :class:`InvalidConfigurationError` if the resolver configuration is invalid.
     """
 
     pip_configuration = create_pip_configuration(
-        options, use_system_time=use_system_time, compress=compress, honor_editable=honor_editable
+        options,
+        use_system_time=use_system_time,
+        compress=compress,
+        modes=modes,
+        honor_editable=honor_editable,
     )
 
     pex_repository = getattr(options, "pex_repository", None)
@@ -852,6 +859,7 @@ def create_pip_configuration(
     options,  # type: Namespace
     use_system_time=False,  # type: bool
     compress=True,  # type: bool
+    modes=Modes(),  # type: Optional[Modes]
     honor_editable=True,  # type: bool
 ):
     # type: (...) -> PipConfiguration
@@ -860,6 +868,7 @@ def create_pip_configuration(
     :param options: The Pip resolver configuration options.
     :param use_system_time: `False` to attempt use a reproducible timestamp for builds.
     :param compress: `False` to create wheel zips without compression.
+    :param modes: The modes to use when creating zip entries.
     :param honor_editable: `False` to ignore requirements flagged as editable and build a static
                            wheel for them instead.
     """
@@ -907,6 +916,7 @@ def create_pip_configuration(
         build_isolation=options.build_isolation,
         use_system_time=use_system_time,
         compress=compress,
+        modes=modes,
         honor_editable=honor_editable,
     )
 

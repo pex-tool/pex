@@ -172,6 +172,11 @@ class Enum(Generic["_V"]):
         return cls._values
 
     @classmethod
+    def value_strings(cls):
+        # type: (Type[Enum[_V]]) -> Tuple[str, ...]
+        return tuple(map(str, cls.values()))
+
+    @classmethod
     def for_value(
         cls,  # type: Type[Enum[_V]]
         value,  # type: str

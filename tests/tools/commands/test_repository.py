@@ -13,7 +13,7 @@ from textwrap import dedent
 
 import pytest
 
-from pex.common import DETERMINISTIC_DATETIME, open_zip, safe_open
+from pex.common import DETERMINISTIC_DATETIME, safe_open
 from pex.dist_metadata import Distribution, Requirement
 from pex.os import kill
 from pex.pip.installation import get_pip
@@ -24,6 +24,7 @@ from pex.resolve.target_system import MarkerParser, MarkerVisitor
 from pex.sysconfig import SysPlatform
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.typing import TYPE_CHECKING
+from pex.zipfile import open_zip
 from testing import (
     PY310,
     PY_VER,
@@ -52,6 +53,8 @@ else:
                 SysPlatform.CURRENT.value,
                 "--compression-method",
                 "deflated",
+                "--modes",
+                "original",
                 "--layout",
                 "packed",
             ],

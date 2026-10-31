@@ -7,11 +7,12 @@ from textwrap import dedent
 
 import colors  # vendor:skip
 
-from pex.common import open_zip, safe_open
+from pex.cache_helper import CacheHelper
+from pex.common import safe_open
 from pex.dist_metadata import ProjectNameAndVersion
 from pex.pex_info import PexInfo
 from pex.typing import TYPE_CHECKING
-from pex.util import CacheHelper
+from pex.zipfile import open_zip
 from testing import run_pex_command, subprocess
 
 if TYPE_CHECKING:

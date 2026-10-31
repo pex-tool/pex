@@ -14,8 +14,9 @@ from zipimport import ZipImportError
 from pex import layout, pex_warnings
 from pex.atomic_directory import atomic_directory
 from pex.cache.dirs import BootstrapZipDir, PackedWheelDir
+from pex.cache_helper import CacheHelper
+from pex.chroot import Chroot
 from pex.common import (
-    Chroot,
     CopyMode,
     deterministic_walk,
     is_pyc_file,
@@ -37,6 +38,7 @@ from pex.inherit_path import InheritPath
 from pex.installed_wheel import InstalledWheel
 from pex.interpreter import PythonInterpreter
 from pex.layout import Layout
+from pex.modes import Modes
 from pex.orderedset import OrderedSet
 from pex.os import WINDOWS
 from pex.pex import PEX
@@ -45,7 +47,6 @@ from pex.sh_boot import create_sh_boot_script
 from pex.targets import Targets
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
-from pex.util import CacheHelper
 
 if TYPE_CHECKING:
     from typing import Dict, Iterable, Optional
@@ -625,6 +626,7 @@ class PEXBuilder(object):
         deterministic=False,  # type: bool
         layout=Layout.ZIPAPP,  # type: Layout.Value
         compress=True,  # type: bool
+        modes=Modes(),  # type: Optional[Modes]
         check=Check.NONE,  # type: Check.Value
     ):
         # type: (...) -> None
@@ -640,6 +642,7 @@ class PEXBuilder(object):
         :param layout: The layout to use for the PEX.
         :param compress: Whether to compress zip entries when building to a layout that uses zip
                          files.
+        :param modes: The modes to apply to PEX zip entries.
         :param check: The check to perform on the built PEX.
         If the PEXBuilder is not yet frozen, it will be frozen by ``build``.  This renders the
         PEXBuilder immutable.
@@ -669,12 +672,14 @@ class PEXBuilder(object):
                 deterministic=deterministic,
                 compress=compress,
                 bytecode_compile=bytecode_compile,
+                modes=modes,
             )
         else:
             self._build_zipapp(
                 filename=tmp_pex,
                 deterministic=deterministic,
                 compress=compress,
+                modes=modes,
                 bytecode_compile=bytecode_compile,
             )
         if layout in (Layout.LOOSE, Layout.PACKED):
@@ -730,6 +735,7 @@ class PEXBuilder(object):
         deterministic=False,  # type: bool
         compress=True,  # type: bool
         bytecode_compile=False,  # type: bool
+        modes=Modes(),  # type: Optional[Modes]
     ):
         # type: (...) -> None
 
@@ -749,7 +755,7 @@ class PEXBuilder(object):
                 "Expected bootstrap_hash to be populated for {}.".format(self._pex_info)
             )
         cached_bootstrap_zip_dir = BootstrapZipDir.create(
-            pex_info.bootstrap_hash, compress=compress, pex_root=pex_info.pex_root
+            pex_info.bootstrap_hash, compress=compress, modes=modes, pex_root=pex_info.pex_root
         )
         with TRACER.timed("Zipping PEX .bootstrap/ code."):
             with atomic_directory(cached_bootstrap_zip_dir) as atomic_bootstrap_zip_dir:
@@ -761,6 +767,7 @@ class PEXBuilder(object):
                         strip_prefix=pex_info.bootstrap,
                         labels=("bootstrap",),
                         compress=compress,
+                        modes=modes,
                     )
         safe_copy(
             os.path.join(cached_bootstrap_zip_dir, pex_info.bootstrap),
@@ -785,7 +792,7 @@ class PEXBuilder(object):
                             safe_copy(os.path.join(self._chroot.chroot, path), dest)
                     else:
                         cached_installed_wheel_zip_dir = PackedWheelDir.create(
-                            fingerprint, compress, pex_root=pex_info.pex_root
+                            fingerprint, compress=compress, modes=modes, pex_root=pex_info.pex_root
                         )
                         with atomic_directory(cached_installed_wheel_zip_dir) as atomic_zip_dir:
                             if not atomic_zip_dir.is_finalized():
@@ -798,6 +805,7 @@ class PEXBuilder(object):
                                     strip_prefix=os.path.join(pex_info.internal_cache, location),
                                     labels=(location,),
                                     compress=compress,
+                                    modes=modes,
                                 )
                         safe_copy(os.path.join(cached_installed_wheel_zip_dir, location), dest)
 
@@ -806,6 +814,7 @@ class PEXBuilder(object):
         filename,  # type: str
         deterministic=False,  # type: bool
         compress=True,  # type: bool
+        modes=Modes(),  # type: Optional[Modes]
         bytecode_compile=False,  # type: bool
     ):
         # type: (...) -> None
@@ -828,5 +837,6 @@ class PEXBuilder(object):
                 # racy.
                 exclude_file=is_pyc_temporary_file if bytecode_compile else is_pyc_file,
                 compress=compress,
+                modes=modes,
             )
         chmod_plus_x(filename)

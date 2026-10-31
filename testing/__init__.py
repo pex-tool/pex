@@ -18,7 +18,8 @@ from textwrap import dedent
 import pytest
 
 from pex.atomic_directory import atomic_directory
-from pex.common import open_zip, safe_mkdir, safe_mkdtemp, safe_rmtree, safe_sleep, temporary_dir
+from pex.cache_helper import CacheHelper
+from pex.common import safe_mkdir, safe_mkdtemp, safe_rmtree, safe_sleep, temporary_dir
 from pex.compatibility import to_unicode
 from pex.dist_metadata import Distribution
 from pex.executor import Executor
@@ -35,8 +36,9 @@ from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.sysconfig import SCRIPT_DIR, script_name
 from pex.targets import LocalInterpreter
 from pex.typing import TYPE_CHECKING, cast
-from pex.util import CacheHelper, named_temporary_file
+from pex.util import named_temporary_file
 from pex.venv.virtualenv import InstallationChoice, InvalidVirtualenvError, Virtualenv
+from pex.zipfile import open_zip
 
 # Explicitly re-export subprocess to enable a transparent substitution in tests that supports
 # executing PEX files directly on Windows.

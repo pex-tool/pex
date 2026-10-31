@@ -6,6 +6,7 @@ from __future__ import absolute_import
 from pex import pex_warnings
 from pex.enum import Enum
 from pex.jobs import DEFAULT_MAX_JOBS
+from pex.modes import Modes
 from pex.network_configuration import NetworkConfiguration
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
@@ -73,6 +74,7 @@ class BuildConfiguration(object):
         build_isolation=True,  # type: bool
         use_system_time=False,  # type: bool
         compress=True,  # type: bool
+        modes=Modes(),  # type: Optional[Modes]
         honor_editable=True,  # type: bool
     ):
         # type: (...) -> BuildConfiguration
@@ -86,6 +88,7 @@ class BuildConfiguration(object):
             build_isolation=build_isolation,
             use_system_time=use_system_time,
             compress=compress,
+            modes=modes,
             honor_editable=honor_editable,
         )
 
@@ -98,6 +101,7 @@ class BuildConfiguration(object):
     build_isolation = attr.ib(default=True)  # type: bool
     use_system_time = attr.ib(default=False)  # type: bool
     compress = attr.ib(default=True)  # type: bool
+    modes = attr.ib(default=Modes())  # type: Optional[Modes]
     honor_editable = attr.ib(default=True)  # type: bool
 
     def __attrs_post_init__(self):
@@ -207,6 +211,11 @@ class PexRepositoryConfiguration(object):
     def compress(self):
         # type: () -> bool
         return self.pip_configuration.build_configuration.compress
+
+    @property
+    def modes(self):
+        # type: () -> Optional[Modes]
+        return self.pip_configuration.build_configuration.modes
 
 
 @attr.s(frozen=True)

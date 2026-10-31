@@ -12,12 +12,13 @@ import zipfile
 
 from pex.atomic_directory import atomic_directory
 from pex.cache.dirs import CacheDir
-from pex.common import open_zip, safe_open
+from pex.common import safe_open
 from pex.executables import chmod_plus_x
 from pex.fs import safe_rename
 from pex.os import Os
 from pex.sysconfig import SysPlatform
 from pex.typing import TYPE_CHECKING
+from pex.zipfile import open_zip
 
 if TYPE_CHECKING:
     from typing import Iterator, Optional, Text, TypeVar

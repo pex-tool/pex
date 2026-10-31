@@ -13,7 +13,8 @@ import colors  # vendor:skip
 import pytest
 
 from pex import dist_metadata
-from pex.common import open_zip, safe_open
+from pex.cache_helper import CacheHelper
+from pex.common import safe_open
 from pex.dist_metadata import ProjectNameAndVersion
 from pex.fs import safe_rename
 from pex.interpreter import PythonInterpreter
@@ -22,7 +23,7 @@ from pex.pep_503 import ProjectName
 from pex.pex_info import PexInfo
 from pex.pip.version import PipVersion
 from pex.typing import TYPE_CHECKING
-from pex.util import CacheHelper
+from pex.zipfile import open_zip
 from testing import IS_PYPY, PY39, PY311, PY_VER, built_wheel, make_env, run_pex_command, subprocess
 from testing.cli import run_pex3
 from testing.lock import index_lock_artifacts

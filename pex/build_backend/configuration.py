@@ -6,7 +6,6 @@ from __future__ import absolute_import
 import importlib
 import os.path
 from types import ModuleType
-from typing import Callable, Text
 
 from pex import toml
 from pex.build_backend import BuildError
@@ -16,7 +15,7 @@ from pex.lang import qualified_name
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Any, Dict, Iterable, Iterator, Optional, Tuple
+    from typing import Any, Callable, Dict, Iterable, Iterator, Optional, Text, Tuple
 
     import attr  # vendor:skip
 else:

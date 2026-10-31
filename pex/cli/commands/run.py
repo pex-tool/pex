@@ -20,9 +20,10 @@ from pex.atomic_directory import atomic_directory
 from pex.build_system import pep_517
 from pex.cache import access as cache_access
 from pex.cache.dirs import CacheDir
+from pex.cache_helper import CacheHelper
 from pex.cli.command import BuildTimeCommand
 from pex.cli.commands.cache_aware import CacheAwareMixin
-from pex.common import open_zip, safe_copy, safe_mkdtemp, safe_rmtree
+from pex.common import safe_copy, safe_mkdtemp, safe_rmtree
 from pex.compatibility import shlex_quote
 from pex.dist_metadata import (
     DistMetadata,
@@ -59,12 +60,12 @@ from pex.result import Error, Result, ResultError, try_
 from pex.targets import LocalInterpreter, Targets
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
-from pex.util import CacheHelper
 from pex.variables import ENV, venv_dir
 from pex.venv import installer
 from pex.venv.installer import Provenance
 from pex.venv.virtualenv import Virtualenv
 from pex.wheel import Wheel
+from pex.zipfile import open_zip
 
 if TYPE_CHECKING:
     from typing import Iterable, Iterator, List, Optional, Tuple, Union

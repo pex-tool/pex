@@ -17,7 +17,7 @@ from argparse import Action, ArgumentDefaultsHelpFormatter, ArgumentParser
 from textwrap import TextWrapper
 
 from pex import build_properties, dependency_configuration, pex_warnings, rc, repl, scie
-from pex.argparse import HandleBoolAction, InjectArgAction, InjectEnvAction
+from pex.argparse import HandleBoolAction, InjectArgAction, InjectEnvAction, parse_action
 from pex.build_properties import BuildProperties
 from pex.commands.command import (
     GlobalConfigurationError,
@@ -36,6 +36,7 @@ from pex.inherit_path import InheritPath
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import InterpreterConstraints
 from pex.layout import Layout, ensure_installed
+from pex.modes import Modes
 from pex.orderedset import OrderedSet
 from pex.pep_425 import RankedTag
 from pex.pep_427 import InstallableType
@@ -197,8 +198,8 @@ def configure_clp_pex_options(parser):
         "--layout",
         dest="layout",
         default=Layout.ZIPAPP,
-        choices=Layout.values(),
-        type=Layout.for_value,
+        choices=Layout.value_strings(),
+        action=parse_action(Layout.for_value),
         help=(
             "By default, a PEX is created as a single file zipapp when `-o` is specified, but "
             "either a packed or loose directory tree based layout can be chosen instead. A packed "
@@ -255,8 +256,8 @@ def configure_clp_pex_options(parser):
         "--check",
         dest="check",
         default=Check.WARN,
-        choices=Check.values(),
-        type=Check.for_value,
+        choices=Check.value_strings(),
+        action=parse_action(Check.for_value),
         help=(
             "Check that the built PEX is valid. Currently this only applies to `--layout {zipapp}` "
             "where the PEX zip is tested for importability of its `__main__` module by the Python "
@@ -278,6 +279,22 @@ def configure_clp_pex_options(parser):
         help=(
             "Whether to compress zip entries when creating either a zipapp PEX file or a packed "
             "PEX's bootstrap and dependency zip files. Does nothing for loose layout PEXes."
+        ),
+    )
+
+    group.add_argument(
+        "--modes",
+        dest="modes",
+        default=Modes(),
+        action=parse_action(Modes.parse_value),
+        help=(
+            "The modes to use for zip entries. Modes are specified in octal; i.e.: `rwx` for a "
+            "directory is specified as `755`. The value can be a single file mode value, in which "
+            "case it is applied to zip directory entries, executable entries and regular file "
+            "entries. Alternatively, the value can be a comma-separated list of individual modes "
+            "for directories (`dir`), executables (`exe`) and files (`file`); e.g.: "
+            "`dir=750,exe=750,file=640`. A value of `original` can also be used to preserve "
+            "original wheel entry modes (and timestamps) when available."
         ),
     )
 
@@ -379,15 +396,23 @@ def configure_clp_pex_options(parser):
     group.add_argument(
         "--inherit-path",
         dest="inherit_path",
+        nargs="?",
         default=InheritPath.FALSE,
-        choices=InheritPath.values(),
-        type=InheritPath.for_value,
-        help="Inherit the contents of sys.path (including site-packages, user site-packages and "
-        "PYTHONPATH) running the pex. Possible values: {false} (does not inherit sys.path), "
-        "{fallback} (inherits sys.path after packaged dependencies), {prefer} (inherits sys.path "
-        "before packaged dependencies), No value (alias for prefer, for backwards "
-        "compatibility).".format(
-            false=InheritPath.FALSE, fallback=InheritPath.FALLBACK, prefer=InheritPath.PREFER
+        choices=InheritPath.value_strings(),
+        action=parse_action(
+            # N.B.: `--inherit-path` used to be a boolean arg (so either was absent, or
+            # `--inherit-path`). We account for the no-arg (`None`) case here.
+            lambda value: (InheritPath.PREFER if value is None else InheritPath.for_value(value)),
+            optional_value=True,
+        ),
+        help=(
+            "Inherit the contents of sys.path (including site-packages, user site-packages and "
+            "PYTHONPATH) running the pex. Possible values: {false} (does not inherit sys.path), "
+            "{fallback} (inherits sys.path after packaged dependencies), {prefer} (inherits "
+            "sys.path before packaged dependencies), No value (alias for prefer, for backwards "
+            "compatibility).".format(
+                false=InheritPath.FALSE, fallback=InheritPath.FALLBACK, prefer=InheritPath.PREFER
+            )
         ),
     )
 
@@ -409,10 +434,12 @@ def configure_clp_pex_options(parser):
         dest="use_system_time",
         default=False,
         action=HandleBoolAction,
-        help="Use the current system time to generate timestamps for the new pex. Otherwise, Pex "
-        "will use midnight on January 1, 1980. By using system time, the generated pex "
-        "will not be reproducible, meaning that if you were to run `./pex -o` with the "
-        "same inputs then the new pex would not be byte-for-byte identical to the original.",
+        help=(
+            "Use the current system time to generate timestamps for the new pex. Otherwise, Pex "
+            "will use midnight on January 1, 1980. By using system time, the generated pex "
+            "will not be reproducible, meaning that if you were to run `./pex -o` with the "
+            "same inputs then the new pex would not be byte-for-byte identical to the original."
+        ),
     )
 
     group.add_argument(
@@ -1057,8 +1084,9 @@ def build_pex(
             requirements_pex_info = dependency_manager.add_from_pex(
                 requirements_pex,
                 result_type_wheel_file=pex_info.deps_are_wheel_files,
-                use_system_time=pip_configuration.build_configuration.use_system_time,
-                compress=pip_configuration.build_configuration.compress,
+                use_system_time=options.use_system_time,
+                compress=options.compress,
+                modes=options.modes,
             )
             dependency_config = dependency_config.merge(
                 DependencyConfiguration.from_pex_info(requirements_pex_info)
@@ -1182,16 +1210,6 @@ def build_pex(
     return pex_builder
 
 
-def transform_legacy_arg(arg):
-    # type: (str) -> str
-    # inherit-path used to be a boolean arg (so either was absent, or --inherit-path)
-    # Now it takes a string argument, so --inherit-path is invalid.
-    # Fix up the args we're about to parse to preserve backwards compatibility.
-    if arg == "--inherit-path":
-        return "--inherit-path={}".format(InheritPath.PREFER.value)
-    return arg
-
-
 def _compatible_with_current_platform(interpreter, platforms):
     if not platforms:
         return True
@@ -1281,7 +1299,6 @@ def configure_requirements_and_targets(
 
 def main(args=None):
     args = args[:] if args else sys.argv[1:]
-    args = [transform_legacy_arg(arg) for arg in args]
 
     parser = catch(configure_clp)
     if isinstance(parser, Error):
@@ -1479,6 +1496,7 @@ def do_main(
             deterministic=not options.use_system_time,
             layout=options.layout,
             compress=options.compress,
+            modes=options.modes,
             check=options.check,
         )
         if native_runtime_configuration:
@@ -1487,7 +1505,9 @@ def do_main(
                 password_entries=resolver_configuration.repos_configuration.password_entries,
                 handle_file_urls=True,
             )
-            rc.inject(native_runtime_configuration, pex_file, url_fetcher=url_fetcher)
+            rc.inject(
+                native_runtime_configuration, pex_file, url_fetcher=url_fetcher, modes=options.modes
+            )
         if options.seed is not Seed.NONE:
             seed_info = seed_cache(
                 pex_file,

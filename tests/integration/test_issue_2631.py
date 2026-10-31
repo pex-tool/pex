@@ -12,7 +12,8 @@ from textwrap import dedent
 import pytest
 
 from pex import resolver
-from pex.common import open_zip, safe_copy, safe_mkdir, safe_open
+from pex.cache_helper import CacheHelper
+from pex.common import safe_copy, safe_mkdir, safe_open
 from pex.http.server import Server
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import InterpreterConstraint
@@ -27,8 +28,8 @@ from pex.resolve.resolver_configuration import PipConfiguration, ResolverVersion
 from pex.resolver import LocalDistribution
 from pex.targets import LocalInterpreter, Targets
 from pex.typing import TYPE_CHECKING
-from pex.util import CacheHelper
 from pex.wheel import Wheel
+from pex.zipfile import open_zip
 from testing import IS_MAC, PY311, ensure_python_interpreter
 from testing.cli import run_pex3
 from testing.pytest_utils import IS_CI

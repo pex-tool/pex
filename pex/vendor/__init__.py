@@ -9,10 +9,12 @@ import subprocess
 import sys
 from textwrap import dedent
 
-from pex.common import Chroot, is_pyc_dir, is_pyc_file, open_zip, safe_mkdtemp, touch
+from pex.chroot import Chroot
+from pex.common import is_pyc_dir, is_pyc_file, safe_mkdtemp, touch
 from pex.exceptions import production_assert
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
+from pex.zipfile import open_zip
 
 if TYPE_CHECKING:
     from typing import Iterable, Iterator, List, Optional, Sequence, Set, Text, Tuple, Union

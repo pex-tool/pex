@@ -18,14 +18,8 @@ from pex import sdist, targets
 from pex.atomic_directory import AtomicDirectory, atomic_directory
 from pex.build_system import pep_517
 from pex.cache.dirs import BuiltWheelDir, CacheDir
-from pex.common import (
-    open_zip,
-    pluralize,
-    safe_mkdir,
-    safe_mkdtemp,
-    safe_open,
-    safe_relative_symlink,
-)
+from pex.cache_helper import CacheHelper
+from pex.common import pluralize, safe_mkdir, safe_mkdtemp, safe_open, safe_relative_symlink
 from pex.compatibility import url_unquote, urlparse
 from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import (
@@ -71,8 +65,8 @@ from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.third_party.packaging.tags import Tag
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
-from pex.util import CacheHelper
 from pex.variables import ENV
+from pex.zipfile import open_zip
 
 if TYPE_CHECKING:
     from typing import (
@@ -575,7 +569,7 @@ class IntegrityError(Exception):
 
 
 if TYPE_CHECKING:
-    from pex.hashing import Hasher
+    from pex.hashing_types import Hasher
 
 
 def _hasher():

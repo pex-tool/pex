@@ -65,8 +65,7 @@ def _resolve_resource_path(
 ):
     # type: (...) -> Union[str, Error]
 
-    rel_path = os.path.normpath(os.path.join(*resource.split("/")))
-    if os.path.isabs(resource) or rel_path.startswith(os.pardir):
+    if os.path.isabs(resource):
         return Error(
             "The following resource binding spec is invalid: {name}={resource}\n"
             "The resource path {resource} must be relative to the `sys.path`.".format(
@@ -74,9 +73,48 @@ def _resolve_resource_path(
             )
         )
 
+    resource_path = None  # type: Optional[str]
+    parents = []  # type: List[str]
+    for component in resource.split("/"):
+        if component == os.pardir:
+            if resource_path is None:
+                return Error(
+                    "The following resource binding spec is invalid: {name}={resource}\n"
+                    "The resource path {resource} must be relative to the `sys.path`.".format(
+                        name=name, resource=resource
+                    )
+                )
+            parents.append(component)
+        elif parents:
+            return Error(
+                "The following resource binding spec is invalid: {name}={resource}\n"
+                "The resource path {resource} can only have trailing {parent_dir} components; "
+                "not embedded ones.".format(name=name, resource=resource, parent_dir=os.pardir)
+            )
+        elif resource_path is None:
+            resource_path = component
+        else:
+            resource_path = os.path.join(resource_path, component)
+
+    if not resource_path:
+        return Error(
+            "The following resource binding spec is invalid: {name}={resource}\n"
+            "The resource path cannot be empty.".format(name=name, resource=resource)
+        )
+    rel_path = os.path.normpath(resource_path)
+
     for entry in sys.path:
         value = os.path.join(entry, rel_path)
         if os.path.isfile(value):
+            if parents:
+                value = os.path.normpath(os.path.join(value, *parents))
+                if not value.startswith(entry):
+                    return Error(
+                        "The resource binding spec {name}={resource} resolved to {value} which "
+                        "escapes the `sys.path` entry {entry}.".format(
+                            name=name, resource=resource, value=value, entry=entry
+                        )
+                    )
             return value
 
     return Error(
@@ -285,18 +323,6 @@ def boot(
 
     pex_interpreter_history = os.environ.get("PEX_INTERPRETER_HISTORY")
     pex_interpreter_history_file = os.environ.get("PEX_INTERPRETER_HISTORY_FILE")
-    if strip_pex_env:
-        for key in list(os.environ):
-            if key.startswith("PEX_"):
-                if key == "PEX_EXTRA_SYS_PATH":
-                    # We always want sys.path additions to propagate so that the venv PEX
-                    # acts like a normal Python interpreter where sys.path seen in
-                    # subprocesses is the same as the sys.executable in the parent process.
-                    os.environ["__PEX_EXTRA_SYS_PATH__"] = os.environ["PEX_EXTRA_SYS_PATH"]
-                del os.environ[key]
-
-    for name, value in inject_env:
-        os.environ.setdefault(name, value)
 
     for name, resource in bind_resource_paths:
         resource_path = _resolve_resource_path(name, resource)
@@ -331,6 +357,25 @@ def boot(
             return self.__dict__[key]
 
     replacements = Namespace(env=Namespace(os.environ, safe=True))
+
+    for name, value in inject_env:
+        os.environ.setdefault(name, value.format(pex=replacements))
+
+    extra_sys_path = os.environ.get("PEX_EXTRA_SYS_PATH")
+    if extra_sys_path:
+        for entry in extra_sys_path.split(os.pathsep):
+            if entry not in sys.path:
+                sys.path.append(entry)
+
+    if strip_pex_env:
+        for key in list(os.environ):
+            if key.startswith("PEX_"):
+                if key == "PEX_EXTRA_SYS_PATH":
+                    # We always want sys.path additions to propagate so that the venv PEX
+                    # acts like a normal Python interpreter where sys.path seen in
+                    # subprocesses is the same as the sys.executable in the parent process.
+                    os.environ["__PEX_EXTRA_SYS_PATH__"] = os.environ["PEX_EXTRA_SYS_PATH"]
+                del os.environ[key]
 
     # Update last access time for proper pex3 cache prune behavior when run directly via a PEX
     # `--sh-boot` script header or a PEX scie.

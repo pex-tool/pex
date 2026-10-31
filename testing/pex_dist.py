@@ -11,11 +11,11 @@ import subprocess
 
 from pex import hashing
 from pex.atomic_directory import atomic_directory
+from pex.cache_helper import CacheHelper
 from pex.common import safe_mkdtemp, safe_rmtree
 from pex.compatibility import ConfigParser
 from pex.targets import LocalInterpreter, Target, WheelEvaluation
 from pex.typing import TYPE_CHECKING, cast
-from pex.util import CacheHelper
 from pex.venv.virtualenv import Virtualenv
 from pex.version import __version__
 from testing import PEX_TEST_DEV_ROOT, make_env, pex_project_dir

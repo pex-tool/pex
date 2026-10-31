@@ -18,6 +18,7 @@ from pex.inherit_path import InheritPath
 from pex.installed_wheel import InstalledWheel
 from pex.interpreter import PythonInterpreter
 from pex.layout import ensure_installed, identify_layout
+from pex.modes import Modes
 from pex.orderedset import OrderedSet
 from pex.pep_425 import TagRank
 from pex.pep_503 import ProjectName
@@ -285,6 +286,7 @@ class PEXEnvironment(object):
         result_type_wheel_file=False,  # type: bool
         use_system_time=False,  # type: bool
         compress=True,  # type: bool
+        modes=Modes(),  # type: Optional[Modes]
     ):
         # type: (...) -> Iterator[FingerprintedDistribution]
         if result_type_wheel_file and self._pex_info.deps_are_wheel_files:
@@ -318,6 +320,7 @@ class PEXEnvironment(object):
                             fingerprint=fingerprint,
                             use_system_time=use_system_time,
                             compress=compress,
+                            modes=modes,
                         )
                     else:
                         yield FingerprintedDistribution(
@@ -606,6 +609,7 @@ class PEXEnvironment(object):
         result_type=None,  # type: Optional[InstallableType.Value]
         use_system_time=False,  # type: bool
         compress=True,  # type: bool
+        modes=Modes(),  # type: Optional[Modes]
     ):
         # type: (...) -> Iterable[FingerprintedDistribution]
 
@@ -620,6 +624,7 @@ class PEXEnvironment(object):
                 result_type_wheel_file=result_type_wheel_file,
                 use_system_time=use_system_time,
                 compress=compress,
+                modes=modes,
             )
         )
 

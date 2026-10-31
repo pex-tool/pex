@@ -4,13 +4,15 @@
 from __future__ import absolute_import
 
 import filecmp
+from collections import defaultdict
 from zipfile import ZipInfo
 
-from pex.common import open_zip
+from pex.enum import Enum
 from pex.typing import TYPE_CHECKING
+from pex.zipfile import open_zip
 
 if TYPE_CHECKING:
-    from typing import Any, Dict
+    from typing import Any, DefaultDict, Dict, Set
 
 
 def _ignore_compressed_size(info):
@@ -60,3 +62,25 @@ def assert_equal_zips(
             )
     else:
         assert filecmp.cmp(zip1, zip2, shallow=False)
+
+
+class EntryType(Enum["EntryType.Value"]):
+    class Value(Enum.Value):
+        pass
+
+    DIR = Value("dir")
+    FILE = Value("file")
+
+
+EntryType.seal()
+
+
+def inventory_zip_modes(path):
+    # type: (str) -> Dict[EntryType.Value, Set[int]]
+    with open_zip(path) as zip_fp:
+        inventory = defaultdict(set)  # type: DefaultDict[EntryType.Value, Set[int]]
+        for zip_info in zip_fp.infolist():
+            inventory[EntryType.DIR if zip_info.filename.endswith("/") else EntryType.FILE].add(
+                zip_info.external_attr >> 16
+            )
+        return inventory

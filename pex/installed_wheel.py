@@ -7,8 +7,8 @@ import hashlib
 import json
 import os
 
+from pex.cache_helper import CacheHelper
 from pex.typing import TYPE_CHECKING, cast
-from pex.util import CacheHelper
 from pex.wheel import WHEEL, Wheel, WheelMetadataLoadError
 
 if TYPE_CHECKING:

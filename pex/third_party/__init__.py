@@ -13,13 +13,10 @@ import sys
 import zipfile
 from collections import OrderedDict, namedtuple
 
-from pex.common import CopyMode, iter_copytree
-
 # NB: ~All pex imports are performed lazily to play well with the un-imports performed by both the
 # PEX runtime when it demotes the bootstrap code and any pex modules that uninstalled
 # VendorImporters un-import.
 from pex.typing import TYPE_CHECKING
-from pex.util import CacheHelper
 
 if TYPE_CHECKING:
     from typing import Container, Dict, Iterable, Iterator, List, Optional, Tuple
@@ -463,7 +460,8 @@ def _isolate_pex_from_zip(
     exclude_files,  # type: Container[str]
 ):
     # type: (...) -> None
-    from pex.common import open_zip, safe_open
+    from pex.common import safe_open
+    from pex.zipfile import open_zip
 
     with open_zip(pex_zip) as zf:
         for name in zf.namelist():
@@ -497,7 +495,7 @@ def isolated(interpreter=None):
         from pex import layout, vendor
         from pex.atomic_directory import atomic_directory
         from pex.cache.dirs import CacheDir
-        from pex.util import CacheHelper
+        from pex.cache_helper import CacheHelper
 
         module = "pex"
 
@@ -663,6 +661,8 @@ def expose_installed_wheels(
 
     from pex.atomic_directory import atomic_directory
     from pex.cache.dirs import InstalledWheelDir
+    from pex.cache_helper import CacheHelper
+    from pex.common import CopyMode, iter_copytree
     from pex.installed_wheel import InstalledWheel
 
     for path in expose(dists, interpreter=interpreter):

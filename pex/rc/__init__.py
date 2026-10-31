@@ -9,6 +9,7 @@ from argparse import Namespace, _ActionsContainer
 from pex.argparse import HandleBoolAction
 from pex.compatibility import urlparse
 from pex.fetcher import URLFetcher
+from pex.modes import Modes
 from pex.orderedset import OrderedSet
 from pex.rc import pexrc
 from pex.rc.model import CompressionMethod, File, NativeRuntimeConfiguration, Url
@@ -148,7 +149,8 @@ def inject(
     pex_file,  # type: str
     url_fetcher=None,  # type: Optional[URLFetcher]
     env=ENV,  # type: Variables
+    modes=Modes(),  # type: Optional[Modes]
 ):
     # type: (...) -> None
 
-    pexrc.inject(configuration, pex_file, url_fetcher=url_fetcher, env=env)
+    pexrc.inject(configuration, pex_file, url_fetcher=url_fetcher, env=env, modes=modes)

@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
     import attr  # vendor:skip
 
-    from pex.hashing import Hasher
+    from pex.hashing_types import Hasher
 
     class CSVWriter(Protocol):
         def writerow(self, row):

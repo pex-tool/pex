@@ -10,6 +10,7 @@ import os
 from pex import hashing
 from pex.atomic_directory import atomic_directory
 from pex.cache.dirs import DownloadDir
+from pex.cache_helper import CacheHelper
 from pex.common import safe_mkdtemp
 from pex.fs import atomic_text_file
 from pex.hashing import Sha256, Sha256Fingerprint
@@ -24,7 +25,6 @@ from pex.resolve.locked_resolve import (
 from pex.result import Error, ResultError, try_
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, Generic
-from pex.util import CacheHelper
 from pex.variables import ENV, Variables
 
 if TYPE_CHECKING:
@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 
     import attr  # vendor:skip
 
-    from pex.hashing import Hasher, HintedDigest
+    from pex.hashing_types import Hasher, HintedDigest
 
     _A = TypeVar("_A", bound=UnFingerprintedArtifact)
 else:

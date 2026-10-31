@@ -10,13 +10,14 @@ from textwrap import dedent
 
 import pytest
 
-from pex.common import open_zip, safe_mkdtemp, temporary_dir
+from pex.common import safe_mkdtemp, temporary_dir
 from pex.pep_427 import InstallableType
 from pex.pip.version import PipVersion
 from pex.requirements import as_parsed_requirement
 from pex.resolver import resolve
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import InstallationChoice, Virtualenv
+from pex.zipfile import open_zip
 from testing import WheelBuilder, make_project, pex_dist, subprocess, temporary_content
 
 if TYPE_CHECKING:

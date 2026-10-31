@@ -3,11 +3,12 @@
 
 from __future__ import absolute_import
 
+from pex.compatibility import string
 from pex.enum import Enum
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Union
+    from typing import Text, Union
 
 
 class InheritPath(Enum["InheritPath.Value"]):
@@ -20,19 +21,13 @@ class InheritPath(Enum["InheritPath.Value"]):
 
     @classmethod
     def for_value(cls, value):
-        # type: (Union[str, bool]) -> InheritPath.Value
-        if not isinstance(value, bool):
-            return super(InheritPath, cls).for_value(value)
-        elif value is False:
-            return InheritPath.FALSE
-        elif value is True:
+        # type: (Union[Text, bool]) -> InheritPath.Value
+        if isinstance(value, string):
+            return super(InheritPath, cls).for_value(str(value))
+        elif value:
             return InheritPath.PREFER
         else:
-            raise ValueError(
-                "An InheritPath.Value must be a str or a bool; given {} of type {}".format(
-                    value, type(value)
-                )
-            )
+            return InheritPath.FALSE
 
 
 InheritPath.seal()

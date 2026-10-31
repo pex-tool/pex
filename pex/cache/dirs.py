@@ -12,13 +12,14 @@ from pex.common import pluralize, safe_rmtree
 from pex.compatibility import safe_commonpath, string
 from pex.enum import Enum
 from pex.exceptions import production_assert
+from pex.modes import Modes
 from pex.orderedset import OrderedSet
 from pex.os import Os, is_exe
 from pex.typing import TYPE_CHECKING, cast
 from pex.variables import ENV, Variables
 
 if TYPE_CHECKING:
-    from typing import Any, Iterable, Iterator, List, Optional, Type, TypeVar, Union
+    from typing import Any, Iterable, Iterator, List, Optional, Tuple, Type, TypeVar, Union
 
     from pex.dist_metadata import ProjectNameAndVersion
     from pex.interpreter import PythonInterpreter
@@ -96,7 +97,7 @@ class CacheDir(Enum["CacheDir.Value"]):
 
     BOOTSTRAP_ZIPS = Value(
         "bootstrap_zips",
-        version=1,
+        version=2,
         name="Packed Bootstraps",
         description="PEX runtime bootstrap code, zipped up for `--layout packed` PEXes.",
     )
@@ -180,7 +181,7 @@ class CacheDir(Enum["CacheDir.Value"]):
 
     PACKED_WHEELS = Value(
         "packed_wheels",
-        version=2,
+        version=3,
         name="Packed Wheels",
         description=(
             "The same content as {installed_wheels!r}, but zipped up for `--layout packed` "
@@ -207,7 +208,7 @@ class CacheDir(Enum["CacheDir.Value"]):
 
     REPACKED_WHEELS = Value(
         "repacked_wheels",
-        version=2,
+        version=3,
         name="Reconstituted Wheels",
         description=(
             "Wheels that have been reconstituted from {installed_wheels!r}, as well as from wheels "
@@ -255,7 +256,7 @@ class CacheDir(Enum["CacheDir.Value"]):
 
     UNZIPPED_PEXES = Value(
         "unzipped_pexes",
-        version=4,
+        version=5,
         name="Unzipped PEXes",
         description="The unzipped PEX files executed on this machine.",
         dependencies=[BOOTSTRAPS, USER_CODE, INSTALLED_WHEELS],
@@ -263,7 +264,7 @@ class CacheDir(Enum["CacheDir.Value"]):
 
     VENVS = Value(
         "venvs",
-        version=4,
+        version=5,
         name="Virtual Environments",
         description="Virtual environments generated at runtime for `--venv` mode PEXes.",
         dependencies=[INSTALLED_WHEELS],
@@ -596,6 +597,46 @@ class BootstrapDir(AtomicCacheDir):
         self.bootstrap_hash = bootstrap_hash
 
 
+def compress_key(compress):
+    # type: (bool) -> str
+    return "defN" if compress else "stor"
+
+
+def modes_key(modes):
+    # type: (Optional[Modes]) -> str
+    if modes is None:
+        return "original"
+    return "{dir:o}-e{exe:o}-f{file:o}".format(
+        dir=modes.directory & 0o777,
+        exe=modes.executable & 0o777,
+        file=modes.file & 0o777,
+    )
+
+
+def as_packed_key(
+    compress,  # type: bool
+    modes,  # type: Optional[Modes]
+):
+    # type: (...) -> str
+    return "{compress_key}-{modes_key}".format(
+        compress_key=compress_key(compress), modes_key=modes_key(modes)
+    )
+
+
+def from_packed_key(key):
+    # type: (str) -> Tuple[bool, Optional[Modes]]
+
+    compress_key, _, modes_key = key.partition("-")
+    compress = compress_key == "defN"
+    if key == "original":
+        return compress, None
+
+    directory, executable, file = modes_key.split("-")
+    return compress, Modes(
+        directory=int(directory[1:], 8), executable=int(executable[1:], 8), file=int(file[1:], 8)
+    )
+
+
 class BootstrapZipDir(AtomicCacheDir):
     @classmethod
     def iter(
@@ -606,32 +647,37 @@ class BootstrapZipDir(AtomicCacheDir):
         # type: (...) -> Iterator[BootstrapZipDir]
 
         for path in glob.glob(CacheDir.BOOTSTRAP_ZIPS.path(bootstrap_hash, "*", pex_root=pex_root)):
-            compress = os.path.basename(path) == "defN"
-            yield cls(path=path, bootstrap_hash=bootstrap_hash, compress=compress)
+            compress, modes = from_packed_key(os.path.basename(path))
+            yield cls(path=path, bootstrap_hash=bootstrap_hash, compress=compress, modes=modes)
 
     @classmethod
     def create(
         cls,
         bootstrap_hash,  # type: str
         compress=True,  # type: bool
+        modes=Modes(),  # type: Optional[Modes]
         pex_root=ENV,  # type: Union[str, Variables]
     ):
         # type: (...) -> BootstrapZipDir
         bootstrap_zip_dir = CacheDir.BOOTSTRAP_ZIPS.path(
-            bootstrap_hash, "defN" if compress else "stor", pex_root=pex_root
+            bootstrap_hash, as_packed_key(compress, modes), pex_root=pex_root
         )
-        return cls(path=bootstrap_zip_dir, bootstrap_hash=bootstrap_hash, compress=compress)
+        return cls(
+            path=bootstrap_zip_dir, bootstrap_hash=bootstrap_hash, compress=compress, modes=modes
+        )
 
     def __init__(
         self,
         path,  # type: str
         bootstrap_hash,  # type: str
         compress,  # type: bool
+        modes,  # type: Optional[Modes]
     ):
         # type: (...) -> None
         super(BootstrapZipDir, self).__init__(path)
         self.bootstrap_hash = bootstrap_hash
         self.compress = compress
+        self.modes = modes
 
 
 class PackedWheelDir(AtomicCacheDir):
@@ -644,32 +690,35 @@ class PackedWheelDir(AtomicCacheDir):
         # type: (...) -> Iterator[PackedWheelDir]
 
         for path in glob.glob(CacheDir.PACKED_WHEELS.path(fingerprint, "*", pex_root=pex_root)):
-            compress = os.path.basename(path) == "defN"
-            yield cls(path=path, fingerprint=fingerprint, compress=compress)
+            compress, modes = from_packed_key(os.path.basename(path))
+            yield cls(path=path, fingerprint=fingerprint, compress=compress, modes=modes)
 
     @classmethod
     def create(
         cls,
         fingerprint,  # type: str
         compress=True,  # type: bool
+        modes=Modes(),  # type: Optional[Modes]
         pex_root=ENV,  # type: Union[str, Variables]
     ):
         # type: (...) -> PackedWheelDir
         packed_wheel_dir = CacheDir.PACKED_WHEELS.path(
-            fingerprint, "defN" if compress else "stor", pex_root=pex_root
+            fingerprint, as_packed_key(compress, modes), pex_root=pex_root
         )
-        return cls(path=packed_wheel_dir, fingerprint=fingerprint, compress=compress)
+        return cls(path=packed_wheel_dir, fingerprint=fingerprint, compress=compress, modes=modes)
 
     def __init__(
         self,
         path,  # type: str
         fingerprint,  # type: str
         compress,  # type: bool
+        modes,  # type: Optional[Modes]
     ):
         # type: (...) -> None
         super(PackedWheelDir, self).__init__(path)
         self.fingerprint = fingerprint
         self.compress = compress
+        self.modes = modes
 
 
 class UserCodeDir(AtomicCacheDir):
@@ -972,8 +1021,8 @@ class InterpreterDir(AtomicCacheDir):
         import hashlib
         import platform
 
+        from pex.cache_helper import CacheHelper
         from pex.tracer import TRACER
-        from pex.util import CacheHelper
 
         # Part of the PythonInterpreter data are environment markers that depend on the current OS
         # release. That data can change when the OS is upgraded but (some of) the installed

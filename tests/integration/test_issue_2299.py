@@ -10,14 +10,14 @@ import sys
 
 import pytest
 
-from pex.common import open_zip
+from pex.cache_helper import CacheHelper
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pip.installation import get_pip
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.resolver_configuration import BuildConfiguration
-from pex.util import CacheHelper
 from pex.wheel import Wheel
+from pex.zipfile import open_zip
 from testing import IS_PYPY, PY_VER, make_env, run_pex_command
 from testing.pytest_utils.tmp import Tempdir
 from testing.zip import assert_equal_zips

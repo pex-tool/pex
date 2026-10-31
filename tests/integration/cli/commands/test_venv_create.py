@@ -17,7 +17,7 @@ import pytest
 
 from pex import dist_metadata
 from pex.cli.commands.venv import InstallLayout
-from pex.common import open_zip, safe_open
+from pex.common import safe_open
 from pex.compatibility import safe_commonpath
 from pex.dist_metadata import Distribution
 from pex.interpreter import PythonInterpreter, PyVenvCfg
@@ -29,6 +29,7 @@ from pex.sysconfig import SysPlatform
 from pex.typing import TYPE_CHECKING
 from pex.venv.bin_path import BinPath
 from pex.venv.virtualenv import Virtualenv
+from pex.zipfile import open_zip
 from testing import (
     IS_ARM_64,
     IS_MAC,

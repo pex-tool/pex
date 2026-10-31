@@ -16,6 +16,7 @@ from pex.artifact_url import (
     Fingerprint,
     VCSScheme,
 )
+from pex.cache_helper import CacheHelper
 from pex.common import pluralize
 from pex.compatibility import text, urlparse
 from pex.dependency_configuration import DependencyConfiguration
@@ -61,7 +62,6 @@ from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.toml import InlineTable, TomlDecodeError
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
-from pex.util import CacheHelper
 
 if TYPE_CHECKING:
     from typing import (

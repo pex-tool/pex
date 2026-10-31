@@ -11,6 +11,7 @@ from argparse import ArgumentParser
 
 from pex import scie, specifier_sets
 from pex.artifact_url import ArtifactURL
+from pex.cache_helper import CacheHelper
 from pex.cli.command import BuildTimeCommand
 from pex.commands.command import OutputMixin
 from pex.common import safe_mkdir
@@ -24,7 +25,6 @@ from pex.result import Error, Ok, Result, catch, try_
 from pex.scie import build as build_scies
 from pex.targets import Targets
 from pex.typing import TYPE_CHECKING
-from pex.util import CacheHelper
 
 if TYPE_CHECKING:
     from typing import Optional, Tuple, Union

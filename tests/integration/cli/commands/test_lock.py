@@ -13,6 +13,7 @@ import pytest
 
 from pex.artifact_url import Fingerprint
 from pex.cache.dirs import CacheDir
+from pex.cache_helper import CacheHelper
 from pex.common import safe_open
 from pex.dist_metadata import Constraint, Requirement
 from pex.interpreter_constraints import InterpreterConstraint
@@ -29,7 +30,6 @@ from pex.resolve.resolver_configuration import ResolverVersion
 from pex.sorted_tuple import SortedTuple
 from pex.targets import AbbreviatedPlatform, LocalInterpreter
 from pex.typing import TYPE_CHECKING
-from pex.util import CacheHelper
 from pex.version import __version__
 from testing import (
     IS_LINUX,

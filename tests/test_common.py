@@ -9,19 +9,11 @@ import stat
 
 import pytest
 
-from pex.common import (
-    Chroot,
-    ZipFileEx,
-    ZipFileType,
-    deterministic_walk,
-    open_zip,
-    safe_mkdir,
-    safe_open,
-    temporary_dir,
-    touch,
-)
+from pex.chroot import Chroot
+from pex.common import deterministic_walk, safe_mkdir, safe_open, temporary_dir, touch
 from pex.executables import chmod_plus_x
 from pex.typing import TYPE_CHECKING
+from pex.zipfile import ZipFileEx, ZipFileType, open_zip
 from testing import NonDeterministicWalk
 from testing.pytest_utils.tmp import Tempdir
 

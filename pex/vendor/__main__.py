@@ -12,7 +12,6 @@ import zipfile
 from argparse import ArgumentParser
 from collections import OrderedDict, defaultdict
 from contextlib import closing
-from typing import FrozenSet, Iterator, List
 
 import libcst
 from colors import bold, green, yellow  # vendor:skip
@@ -49,7 +48,7 @@ from pex.typing import TYPE_CHECKING
 from pex.vendor import VendorSpec, iter_vendor_specs
 
 if TYPE_CHECKING:
-    from typing import Union
+    from typing import FrozenSet, Iterator, List, Union
 
     from libcst import BaseSmallStatement, Import, ImportAlias, ImportFrom
 

@@ -10,6 +10,7 @@ from pex import environment
 from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import Requirement
 from pex.environment import PEXEnvironment
+from pex.modes import Modes
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.pep_427 import InstallableType
@@ -40,6 +41,7 @@ def resolve_from_pex(
     dependency_configuration=DependencyConfiguration(),  # type: DependencyConfiguration
     use_system_time=False,  # type: bool
     compress=True,  # type: bool
+    modes=Modes(),  # type: Optional[Modes]
 ):
     # type: (...) -> ResolveResult
 
@@ -91,6 +93,7 @@ def resolve_from_pex(
                 dependency_configuration=dependency_configuration,
                 use_system_time=use_system_time,
                 compress=compress,
+                modes=modes,
             )
         except environment.ResolveError as e:
             raise Unsatisfiable(str(e))

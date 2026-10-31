@@ -9,7 +9,6 @@ import zipfile
 
 from pex import layout, pex_root, pex_warnings, variables
 from pex.cache import root as cache_root
-from pex.common import open_zip
 from pex.compatibility import PY2
 from pex.compatibility import string as compatibility_string
 from pex.inherit_path import InheritPath
@@ -20,6 +19,7 @@ from pex.typing import TYPE_CHECKING, cast
 from pex.variables import ENV, Variables
 from pex.venv.bin_path import BinPath
 from pex.version import __version__ as pex_version
+from pex.zipfile import open_zip
 
 if TYPE_CHECKING:
     # MyPy run for 2.7 does not recognize the Collection type

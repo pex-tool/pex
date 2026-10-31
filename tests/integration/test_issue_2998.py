@@ -7,13 +7,14 @@ import glob
 import os.path
 import subprocess
 
-from pex.common import open_zip, safe_rmtree
+from pex.cache_helper import CacheHelper
+from pex.common import safe_rmtree
 from pex.compatibility import commonpath
 from pex.pip.installation import get_pip
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.resolver_configuration import BuildConfiguration
-from pex.util import CacheHelper
 from pex.venv.virtualenv import InstallationChoice, Virtualenv
+from pex.zipfile import open_zip
 from testing import make_env, run_pex_command
 from testing.pytest_utils.tmp import Tempdir
 from testing.zip import assert_equal_zips

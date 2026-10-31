@@ -7,13 +7,14 @@ import hashlib
 import os
 
 from pex.atomic_directory import atomic_directory
-from pex.cache.dirs import CacheDir
+from pex.cache.dirs import CacheDir, compress_key, modes_key
+from pex.cache_helper import CacheHelper
 from pex.dist_metadata import Distribution
 from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.installed_wheel import InstalledWheel
+from pex.modes import Modes
 from pex.pep_427 import repack
 from pex.typing import TYPE_CHECKING
-from pex.util import CacheHelper
 
 if TYPE_CHECKING:
     from typing import Optional, Union
@@ -25,6 +26,7 @@ def repacked_whl(
     distribution_name=None,  # type: Optional[str]
     use_system_time=False,  # type: bool
     compress=True,  # type: bool
+    modes=Modes(),  # type: Optional[Modes]
 ):
     # type: (...) -> FingerprintedDistribution
 
@@ -34,8 +36,9 @@ def repacked_whl(
         else InstalledWheel.load(installed_wheel)
     )
 
-    flavor = "{compression}-{timestamps}".format(
-        compression="deflated" if compress else "stored",
+    flavor = "{compress_key}-{modes_key}-{timestamps}".format(
+        compress_key=compress_key(compress),
+        modes_key=modes_key(modes),
         timestamps="system-time" if use_system_time else "deterministic",
     )
     repack_dir = CacheDir.REPACKED_WHEELS.path(fingerprint, flavor)
@@ -58,6 +61,7 @@ def repacked_whl(
                 override_wheel_file_name=distribution_name,
                 use_system_time=use_system_time,
                 compress=compress,
+                modes=modes,
             )
             with open(os.path.join(atomic_dir.work_dir, "FINGERPRINT"), "w") as fp:
                 fp.write(CacheHelper.hash(whl, hasher=hashlib.sha256))

@@ -121,10 +121,10 @@ class IsolatedSysPath(object):
             # they never sneak by.
             if path.startswith(self._site_packages_entries):
                 return False
-            if path.startswith(self._extras_paths_entries):
-                return False
             if path.startswith(self._sys_path_entries):
                 return True
+            if path.startswith(self._extras_paths_entries):
+                return False
 
         # A sys.path entry injected by calling code. This can happen when a PEX is used as a
         # sys.path entry via the __pex__ importer mechanism or via the old pex_bootstrapper
@@ -159,8 +159,7 @@ class PEX(object):  # noqa: T000
     ):
         # type: (...) -> str
 
-        rel_path = os.path.normpath(os.path.join(*resource.split("/")))
-        if os.path.isabs(resource) or rel_path.startswith(os.pardir):
+        if os.path.isabs(resource):
             raise cls.ResourceBindingError(
                 "The following resource binding spec is invalid: {name}={resource}\n"
                 "The resource path {resource} must be relative to the `sys.path`.".format(
@@ -168,9 +167,47 @@ class PEX(object):  # noqa: T000
                 )
             )
 
+        resource_path = None  # type: Optional[str]
+        parents = []  # type: List[str]
+        for component in resource.split("/"):
+            if component == os.pardir:
+                if resource_path is None:
+                    raise cls.ResourceBindingError(
+                        "The following resource binding spec is invalid: {name}={resource}\n"
+                        "The resource path {resource} must be relative to the `sys.path`.".format(
+                            name=name, resource=resource
+                        )
+                    )
+                parents.append(component)
+            elif parents:
+                raise cls.ResourceBindingError(
+                    "The following resource binding spec is invalid: {name}={resource}\n"
+                    "The resource path {resource} can only have trailing {parent_dir} components; "
+                    "not embedded ones.".format(name=name, resource=resource, parent_dir=os.pardir)
+                )
+            elif resource_path is None:
+                resource_path = component
+            else:
+                resource_path = os.path.join(resource_path, component)
+
+        if not resource_path:
+            raise cls.ResourceBindingError(
+                "The following resource binding spec is invalid: {name}={resource}\n"
+                "The resource path cannot be empty.".format(name=name, resource=resource)
+            )
+        rel_path = os.path.normpath(resource_path)
         for entry in sys.path:
             value = os.path.join(entry, rel_path)
             if os.path.isfile(value):
+                if parents:
+                    value = os.path.normpath(os.path.join(value, *parents))
+                    if not value.startswith(entry):
+                        raise cls.ResourceBindingError(
+                            "The resource binding spec {name}={resource} resolved to {value} which "
+                            "escapes the `sys.path` entry {entry}.".format(
+                                name=name, resource=resource, value=value, entry=entry
+                            )
+                        )
                 return value
 
         raise cls.ResourceBindingError(
@@ -623,15 +660,21 @@ class PEX(object):  # noqa: T000
         # type: (Sequence[str]) -> Any
         force_interpreter = self._vars.PEX_INTERPRETER
 
-        self._clean_environment(strip_pex_env=self._pex_info.strip_pex_env)
-
-        for name, value in self._pex_info.inject_env.items():
-            os.environ.setdefault(name, value)
-
         for name, resource in self._pex_info.bind_resource_paths.items():
             os.environ[name] = self._resolve_resource_path(name, resource)
 
         replacements = Namespace(env=Namespace(os.environ, safe=True))
+
+        for name, value in self._pex_info.inject_env.items():
+            os.environ.setdefault(name, value.format(pex=replacements))
+
+        extra_sys_path = os.environ.get("PEX_EXTRA_SYS_PATH")
+        if extra_sys_path:
+            for entry in extra_sys_path.split(os.pathsep):
+                if entry not in sys.path:
+                    sys.path.append(entry)
+
+        self._clean_environment(strip_pex_env=self._pex_info.strip_pex_env)
 
         if force_interpreter:
             TRACER.log("PEX_INTERPRETER specified, dropping into interpreter")
