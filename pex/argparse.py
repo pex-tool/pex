@@ -74,8 +74,11 @@ class InjectArgAction(Action):
         self.default.extend(shlex.split(values, posix=not WINDOWS))
 
 
-def parse_action(parse_func):
-    # type: (Callable[[str], Any]) -> Type[Action]
+def parse_action(
+    parse_func,  # type: Callable
+    optional_value=False,  # type: bool
+):
+    # type: (...) -> Type[Action]
 
     class ParseAction(Action):
         def __call__(
@@ -86,10 +89,11 @@ def parse_action(parse_func):
             option_string=None,  # type: Optional[Text]
         ):
             # type: (...) -> None
-            if not isinstance(values, str):
+            if isinstance(values, str) or (optional_value and values is None):
+                setattr(namespace, self.dest, parse_func(values))
+            else:
                 raise ArgumentError(
                     self, "Unexpected {dest} value: {values}".format(dest=self.dest, values=values)
                 )
-            setattr(namespace, self.dest, parse_func(values))
 
     return ParseAction
