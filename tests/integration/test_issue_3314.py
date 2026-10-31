@@ -110,7 +110,12 @@ def assert_pex_output(pex):
 
 
 @pytest.mark.parametrize(
-    "build_args", [pytest.param([], id="PEX"), pytest.param(["--rc"], id="PEX.rc")]
+    "build_args",
+    [
+        pytest.param([], id="PEX"),
+        pytest.param(["--venv", "prepend"], id="VENV"),
+        pytest.param(["--rc"], id="PEX.rc"),
+    ],
 )
 def test_issue_3314(
     tmpdir,  # type: Tempdir
@@ -149,7 +154,9 @@ def test_issue_3314(
             "-o",
             pex,
         ]
+        + build_args
     ).assert_success()
+
     assert {
         EntryType.DIR: {stat.S_IFDIR | 0o755},
         EntryType.FILE: {stat.S_IFREG | 0o755},
