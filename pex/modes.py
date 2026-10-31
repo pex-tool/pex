@@ -8,7 +8,7 @@ import stat
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Optional, Set, Text
+    from typing import Any, Optional, Set, Text
 
 
 class Modes(object):
@@ -92,3 +92,21 @@ class Modes(object):
         return "dir={dir:o},exe={exe:o},file={file:o}".format(
             dir=self.directory, exe=self.executable, file=self.file
         )
+
+    def __eq__(self, value):
+        # type: (Any) -> bool
+        if type(self) != type(value):
+            return NotImplemented
+        return (self.directory, self.executable, self.file) == (
+            value.directory,
+            value.executable,
+            value.file,
+        )
+
+    def __ne__(self, other):
+        # type: (Any) -> bool
+        return not self == other
+
+    def hash(self):
+        # type: () -> int
+        return hash((self.directory, self.executable, self.file))
