@@ -402,9 +402,7 @@ def configure_clp_pex_options(parser):
         action=parse_action(
             # N.B.: `--inherit-path` used to be a boolean arg (so either was absent, or
             # `--inherit-path`). We account for the no-arg (`None`) case here.
-            lambda value: InheritPath.PREFER
-            if value is None
-            else InheritPath.for_value(value)
+            lambda value: (InheritPath.PREFER if value is None else InheritPath.for_value(value))
         ),
         help=(
             "Inherit the contents of sys.path (including site-packages, user site-packages and "
