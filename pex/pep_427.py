@@ -34,6 +34,7 @@ from pex.exceptions import production_assert, reportable_unexpected_error_msg
 from pex.executables import chmod_plus_x, is_python_script, maybe_read_encoding_line
 from pex.installed_wheel import InstalledWheel
 from pex.interpreter import PythonInterpreter
+from pex.modes import Modes
 from pex.pep_376 import InstalledDirectory, InstalledFile, Record, create_installed_file
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
@@ -630,6 +631,7 @@ def repack(
     dest_dir,  # type: str
     use_system_time=False,  # type: bool
     compress=True,  # type: bool
+    modes=Modes(),  # type: Optional[Modes]
     override_wheel_file_name=None,  # type: Optional[str]
 ):
     # type: (...) -> str
@@ -638,6 +640,7 @@ def repack(
         destination=dest_dir,
         use_system_time=use_system_time,
         compress=compress,
+        modes=modes,
         override_wheel_file_name=override_wheel_file_name,
     )
 
@@ -746,6 +749,7 @@ def create_whl(
     compile=False,  # type: bool
     use_system_time=False,  # type: bool
     compress=True,  # type: bool
+    modes=Modes(),  # type: Optional[Modes]
     override_wheel_file_name=None,  # type: Optional[str]
 ):
     # type: (...) -> str
@@ -771,7 +775,9 @@ def create_whl(
         raise AssertionError(reportable_unexpected_error_msg())
 
     wheel_path = os.path.join(destination, whl_file_name)
-    with open_zip(wheel_path, "w", compression=ZIP_DEFLATED if compress else ZIP_STORED) as zip_fp:
+    with open_zip(
+        wheel_path, "w", compression=ZIP_DEFLATED if compress else ZIP_STORED, modes=modes
+    ) as zip_fp:
         if use_system_time and wheel_to_create.zip_metadata:
             for zip_entry_info in wheel_to_create.zip_metadata:
                 src = os.path.join(whl_chroot, zip_entry_info.filename)

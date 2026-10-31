@@ -27,6 +27,7 @@ from pex.exceptions import production_assert, reportable_unexpected_error_msg
 from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.installed_wheel import InstalledWheel
 from pex.jobs import DEFAULT_MAX_JOBS, iter_map_parallel
+from pex.modes import Modes
 from pex.orderedset import OrderedSet
 from pex.pep_376 import InstalledDirectory, InstalledFile, Record
 from pex.pep_425 import TagRank
@@ -118,6 +119,7 @@ def _install_distribution(
     result_type,  # type: InstallableType.Value
     use_system_time,  # type: bool
     compress,  # type: bool
+    modes,  # type: Optional[Modes]
 ):
     # type: (...) -> ResolvedDistribution
 
@@ -202,6 +204,7 @@ def _install_distribution(
             fingerprint=installed_wheel.fingerprint,
             use_system_time=use_system_time,
             compress=compress,
+            modes=modes,
         ),
         direct_requirements=venv_distribution.direct_requirements,
     )
@@ -220,6 +223,7 @@ def _install_venv_distributions(
     result_type=InstallableType.INSTALLED_WHEEL_CHROOT,  # type: InstallableType.Value
     use_system_time=False,  # type: bool
     compress=True,  # type: bool
+    modes=Modes(),  # type: Optional[Modes]
 ):
     # type: (...) -> Iterator[ResolvedDistribution]
 
@@ -269,6 +273,7 @@ def _install_venv_distributions(
             result_type=result_type,
             use_system_time=use_system_time,
             compress=compress,
+            modes=modes,
         ),
         max_jobs=max_install_jobs,
     ):
@@ -762,6 +767,7 @@ def resolve_from_venvs(
                 result_type=result_type,
                 use_system_time=pip_configuration.build_configuration.use_system_time,
                 compress=pip_configuration.build_configuration.compress,
+                modes=pip_configuration.build_configuration.modes,
             )
         ),
         type=result_type,

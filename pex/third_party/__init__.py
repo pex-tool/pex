@@ -13,9 +13,6 @@ import sys
 import zipfile
 from collections import OrderedDict, namedtuple
 
-from pex.cache_helper import CacheHelper
-from pex.common import CopyMode, iter_copytree
-
 # NB: ~All pex imports are performed lazily to play well with the un-imports performed by both the
 # PEX runtime when it demotes the bootstrap code and any pex modules that uninstalled
 # VendorImporters un-import.
@@ -664,6 +661,8 @@ def expose_installed_wheels(
 
     from pex.atomic_directory import atomic_directory
     from pex.cache.dirs import InstalledWheelDir
+    from pex.cache_helper import CacheHelper
+    from pex.common import CopyMode, iter_copytree
     from pex.installed_wheel import InstalledWheel
 
     for path in expose(dists, interpreter=interpreter):

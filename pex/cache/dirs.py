@@ -104,7 +104,7 @@ class CacheDir(Enum["CacheDir.Value"]):
 
     BOOTSTRAPS = Value(
         "bootstraps",
-        version=1,
+        version=0,
         name="Bootstraps",
         description="PEX runtime bootstrap code.",
     )
@@ -208,7 +208,7 @@ class CacheDir(Enum["CacheDir.Value"]):
 
     REPACKED_WHEELS = Value(
         "repacked_wheels",
-        version=2,
+        version=3,
         name="Reconstituted Wheels",
         description=(
             "Wheels that have been reconstituted from {installed_wheels!r}, as well as from wheels "
@@ -597,21 +597,30 @@ class BootstrapDir(AtomicCacheDir):
         self.bootstrap_hash = bootstrap_hash
 
 
+def compress_key(compress):
+    # type: (bool) -> str
+    return "defN" if compress else "stor"
+
+
+def modes_key(modes):
+    # type: (Optional[Modes]) -> str
+    if modes is None:
+        return "original"
+    return "{dir:o}-e{exe:o}-f{file:o}".format(
+        dir=modes.directory & 0o777,
+        exe=modes.executable & 0o777,
+        file=modes.file & 0o777,
+    )
+
+
 def as_packed_key(
     compress,  # type: bool
     modes,  # type: Optional[Modes]
 ):
     # type: (...) -> str
-    compress_key = "defN" if compress else "stor"
-    if modes is None:
-        return "{compress_key}-original".format(compress_key=compress_key)
-    else:
-        return "{compress_key}-d{dir:o}-e{exe:o}-f{file:o}".format(
-            compress_key=compress_key,
-            dir=modes.directory & 0o777,
-            exe=modes.executable & 0o777,
-            file=modes.file & 0o777,
-        )
+    return "{compress_key}-{modes_key}".format(
+        compress_key=compress_key(compress), modes_key=modes_key(modes)
+    )
 
 
 def from_packed_key(key):

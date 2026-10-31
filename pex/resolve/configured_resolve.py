@@ -121,6 +121,7 @@ def resolve(
                 dependency_configuration=dependency_configuration,
                 use_system_time=resolver_configuration.use_system_time,
                 compress=resolver_configuration.compress,
+                modes=resolver_configuration.modes,
             )
     elif isinstance(resolver_configuration, PreResolvedConfiguration):
         with TRACER.timed(
