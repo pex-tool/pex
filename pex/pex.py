@@ -121,10 +121,10 @@ class IsolatedSysPath(object):
             # they never sneak by.
             if path.startswith(self._site_packages_entries):
                 return False
-            if path.startswith(self._extras_paths_entries):
-                return False
             if path.startswith(self._sys_path_entries):
                 return True
+            if path.startswith(self._extras_paths_entries):
+                return False
 
         # A sys.path entry injected by calling code. This can happen when a PEX is used as a
         # sys.path entry via the __pex__ importer mechanism or via the old pex_bootstrapper

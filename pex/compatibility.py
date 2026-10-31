@@ -10,7 +10,6 @@ import os
 import re
 import sys
 import threading
-from abc import ABCMeta
 from sys import version_info as sys_version_info
 
 from pex.os import WINDOWS
@@ -40,7 +39,6 @@ except ImportError:
     from configparser import ConfigParser as ConfigParser  # type: ignore[import, no-redef]
 
 
-AbstractClass = ABCMeta("AbstractClass", (object,), {})
 PY2 = sys_version_info[0] == 2
 PY3 = sys_version_info[0] == 3
 
