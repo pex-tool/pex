@@ -8,6 +8,7 @@ import os
 from pex.dist_metadata import Constraint, Distribution
 from pex.dist_metadata import requires_python as dist_requires_python
 from pex.interpreter import PythonInterpreter
+from pex.interpreter_constraints import InterpreterConstraints
 from pex.interpreter_implementation import InterpreterImplementation
 from pex.interpreter_selection_strategy import InterpreterSelectionStrategy
 from pex.orderedset import OrderedSet
@@ -384,6 +385,9 @@ class Targets(object):
     interpreter_selection_strategy = attr.ib(
         default=InterpreterSelectionStrategy.OLDEST
     )  # type: InterpreterSelectionStrategy.Value
+    interpreter_constraints = attr.ib(
+        default=InterpreterConstraints()
+    )  # type: InterpreterConstraints
     complete_platforms = attr.ib(default=())  # type: Tuple[CompletePlatform, ...]
     platforms = attr.ib(default=())  # type: Tuple[Optional[Platform], ...]
 
@@ -471,6 +475,14 @@ class Targets(object):
             return cast(Target, next(iter(resolved_targets)))
         except StopIteration:
             return None
+
+    def matches_ic(self, target):
+        # type: (Target) -> bool
+        if not isinstance(target, LocalInterpreter):
+            return False
+        if not self.interpreter_constraints:
+            return False
+        return target.interpreter in self.interpreter_constraints
 
     def compatible_shebang(self):
         # type: () -> Optional[str]
