@@ -413,3 +413,59 @@ def test_uv_cache_json_ignored(tmpdir):
     ).decode("utf-8")
 
     assert filecmp.cmp(pex1, pex2, shallow=False)
+
+
+def test_venv_repository_with_ics(tmpdir):
+    # type: (Tempdir) -> None
+
+    pex_root = tmpdir.join("pex-root")
+    venv_dir = tmpdir.join("venv")
+    run_pex3(
+        "venv", "create", "--pex-root", pex_root, "-d", venv_dir, "ansicolors", "cowsay<6"
+    ).assert_success()
+
+    with safe_open(tmpdir.join("exe.py"), "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                #!/usr/bin/env python{major}.{minor}
+                # /// script
+                # requires-python = "=={major}.{minor}.*"
+                # dependencies = [
+                #     "ansicolors",
+                #     "cowsay<6",
+                # ]
+                # ///
+
+                import sys
+
+                import colors
+                import cowsay
+
+
+                if __name__ == "__main__":
+                    cowsay.tux(colors.cyan(" ".join(sys.argv[1:])))
+                """.format(
+                    major=sys.version_info[0], minor=sys.version_info[1]
+                )
+            )
+        )
+
+    pex = tmpdir.join("pex")
+    run_pex_command(
+        args=[
+            "--pex-root",
+            pex_root,
+            "--runtime-pex-root",
+            pex_root,
+            "--venv-repository",
+            venv_dir,
+            "--exe",
+            fp.name,
+            "-o",
+            pex,
+        ]
+    ).assert_success()
+    assert "| {message} |".format(
+        message=colors.cyan("Once in a blue moo?")
+    ) in subprocess.check_output(args=[pex, "Once in a blue moo?"]).decode("utf-8")

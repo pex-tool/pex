@@ -676,7 +676,16 @@ def resolve_from_venvs(
         }
 
         unmatched_targets = []  # type: List[Target]
+        ic_matched = False
+        for venv in venvs:
+            venv_target = LocalInterpreter.create(venv.interpreter)
+            if targets.matches_ic(venv_target):
+                ic_matched = True
+                venv_repositories_by_target[venv_target].append(
+                    VenvRepository.create(venv=venv, target=venv_target)
+                )
         for target in targets.unique_targets():
+            ic_matched |= targets.matches_ic(target)
             target_tags = target.supported_tags
             ranked_venvs = []  # type: List[Tuple[TagRank, Virtualenv]]
             for venv_tags, venv in venvs_by_tags.items():
@@ -694,6 +703,14 @@ def resolve_from_venvs(
                 )
             else:
                 unmatched_targets.append(target)
+
+        if not venv_repositories_by_target:
+            return Error("None of the supplied venvs can satisfy the configured targets.")
+
+        if ic_matched:
+            unmatched_targets = [
+                target for target in unmatched_targets if not targets.matches_ic(target)
+            ]
 
         if unmatched_targets:
             return Error(

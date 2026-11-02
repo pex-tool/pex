@@ -240,6 +240,7 @@ class TargetConfiguration(object):
         return Targets(
             interpreters=tuple(interpreters),
             interpreter_selection_strategy=self.interpreter_configuration.interpreter_selection_strategy,
+            interpreter_constraints=self.interpreter_configuration.interpreter_constraints,
             complete_platforms=tuple(requested_complete_platforms),
             platforms=tuple(requested_platforms),
         )
