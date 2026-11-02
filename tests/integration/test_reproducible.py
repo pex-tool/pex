@@ -183,12 +183,25 @@ def test_reproducible_build_sdist_requirements(
 ):
     # type: (...) -> None
 
+    # The python-dateutil 4.0.0 release bumps Requires-Python to >=3.11 and major_compatible_pythons
+    # includes 3.10; so we pin low.
+    with safe_open(tmpdir.join("constraints.txt"), "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                python-dateutil<4
+                """
+            )
+        )
+
     # The python-crontab sdist will be built as py2-none-any or py3-none-any depending on the
     # Python major version since it is not marked as universal in the sdist.
     assert_reproducible_build(
         tmpdir,
         [
             "python-crontab==2.3.6",
+            "--constraints",
+            fp.name,
             "--pip-version",
             str(compatible_pip_version(major_compatible_pythons)),
         ],
