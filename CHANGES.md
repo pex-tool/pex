@@ -1,5 +1,13 @@
 # Release Notes
 
+## 2.106.2
+
+This release fixes `pex3 lock export --format pep-751` package marker calculation. As pointed out by
+@gmjimenezc, packages reachable via multiple dependency paths would fail to have markers propagated
+in certain cases.
+
+* Walk all paths when calculating a package marker. (#3324)
+
 ## 2.106.1
 
 This release fixes the `--venv-repository` resolver to handle resolves that also include interpreter
