@@ -212,14 +212,14 @@ def test_issue_1821(
     # with no wheels published for CPython 3.10 (see: https://pypi.org/project/pywin32/227/#files);
     # so, without restricting the target operating systems for the lock, we expect failure.
     result = run_lock(os.path.join(str(tmpdir), "lock"), args)
-    result.assert_failure()
-    assert (
-        "ERROR: Could not find a version that satisfies the requirement "
-        'pywin32==227; sys_platform == "win32" (from docker)'
-    ) in result.error
-    assert (
-        'ERROR: No matching distribution found for pywin32==227; sys_platform == "win32"'
-    ) in result.error
+    result.assert_failure(
+        expected_error_re=(
+            r".*\n"
+            # N.B.: Older Pips quote the requirement; Pip >= 26.3 does not.
+            r"pip: ERROR: Could not find a version that satisfies the requirement '?pywin32==227.*"
+            r"\n.*"
+        )
+    )
 
     lockfile = lock(tmpdir, args, TargetSystem.LINUX, TargetSystem.MAC)
     assert lockfile.configuration.universal_target is not None
