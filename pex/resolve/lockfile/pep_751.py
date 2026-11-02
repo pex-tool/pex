@@ -92,16 +92,18 @@ else:
 
 
 def _calculate_marker(
-    project_name,  # type: ProjectName
     dependants_by_project_name,  # type: Mapping[ProjectName, OrderedSet[Tuple[ProjectName, Optional[Marker]]]]
-    seen=None,  # type: Optional[Set[ProjectName]]
+    project_name,  # type: ProjectName
+    dependency=None,  # type: Optional[ProjectName]
+    seen=None,  # type: Optional[Set[Tuple[ProjectName, Optional[ProjectName]]]]
 ):
     # type: (...) -> Optional[Marker]
 
     visited = set() if seen is None else seen
-    if project_name in visited:
+    visit_path = (project_name, dependency)
+    if visit_path in visited:
         return None
-    visited.add(project_name)
+    visited.add(visit_path)
 
     dependants = dependants_by_project_name.get(project_name)
     if not dependants:
@@ -117,7 +119,10 @@ def _calculate_marker(
         if marker:
             and_markers.add(str(marker))
         guard_marker = _calculate_marker(
-            dependant_project_name, dependants_by_project_name, seen=visited
+            dependants_by_project_name,
+            dependant_project_name,
+            dependency=project_name,
+            seen=visited,
         )
         if guard_marker:
             and_markers.add(str(guard_marker))
@@ -362,7 +367,7 @@ def convert(
             package["version"] = locked_requirement.pin.version.normalized
 
         # https://peps.python.org/pep-0751/#packages-marker
-        marker = _calculate_marker(locked_requirement.pin.project_name, dependants_by_project_name)
+        marker = _calculate_marker(dependants_by_project_name, locked_requirement.pin.project_name)
         if marker:
             package["marker"] = str(marker)
 
