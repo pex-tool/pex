@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.106.1
+
+This release fixes the `--venv-repository` resolver to handle resolves that also include interpreter
+constraints.
+
+* Fix `--venv-repository` to handle ICs. (#3320)
+
 ## 2.106.0
 
 This release adds support for parent directory bindings to `pex --bind-resource-path` (via trailing
