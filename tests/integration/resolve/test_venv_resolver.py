@@ -421,7 +421,7 @@ def test_venv_repository_with_ics(tmpdir):
     pex_root = tmpdir.join("pex-root")
     venv_dir = tmpdir.join("venv")
     run_pex3(
-        "venv", "create", "--pex-root", pex_root, "-d", venv_dir, "ansicolors", "cowsay"
+        "venv", "create", "--pex-root", pex_root, "-d", venv_dir, "ansicolors", "cowsay<6"
     ).assert_success()
 
     with safe_open(tmpdir.join("exe.py"), "w") as fp:
@@ -433,7 +433,7 @@ def test_venv_repository_with_ics(tmpdir):
                 # requires-python = "=={major}.{minor}.*"
                 # dependencies = [
                 #     "ansicolors",
-                #     "cowsay",
+                #     "cowsay<6",
                 # ]
                 # ///
 
