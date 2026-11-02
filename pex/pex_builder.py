@@ -216,21 +216,6 @@ class PEXBuilder(object):
         self._ensure_unfrozen("Adding source")
         self._copy_or_link(filename, env_filename, "source")
 
-    def add_resource(self, filename, env_filename):
-        """Add a resource to the PEX environment.
-
-        :param filename: The source filename to add to the PEX; None to create an empty file at
-          `env_filename`.
-        :param env_filename: The destination filename in the PEX.  This path
-          must be a relative path.
-        """
-        pex_warnings.warn(
-            "The `add_resource` method is deprecated. Resources should be added via the "
-            "`add_source` method instead."
-        )
-        self._ensure_unfrozen("Adding a resource")
-        self._copy_or_link(filename, env_filename, "resource")
-
     def add_requirement(self, req):
         """Add a requirement to the PEX environment.
 
