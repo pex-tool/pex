@@ -3,6 +3,7 @@
 
 import itertools
 import os.path
+import re
 
 import pytest
 
@@ -16,7 +17,7 @@ from pex.resolve.resolved_requirement import Pin
 from pex.resolve.target_system import TargetSystem
 from pex.sorted_tuple import SortedTuple
 from pex.typing import TYPE_CHECKING
-from testing import IntegResults, run_pex_command
+from testing import IS_PYPY, IntegResults, run_pex_command
 from testing.cli import run_pex3
 
 if TYPE_CHECKING:
@@ -186,6 +187,13 @@ def test_target_system_platform_specific(
     assert linux_and_mac_and_windows_wheels == assert_expected_artifacts(5)
 
 
+@pytest.mark.skipif(
+    IS_PYPY,
+    reason=(
+        "The interpreter implementation is not relevant to this test and the test is expensive;"
+        "doubly so under PyPy."
+    ),
+)
 def test_issue_1821(
     tmpdir,  # type: Any
     py310,  # type: PythonInterpreter
@@ -213,12 +221,11 @@ def test_issue_1821(
     # so, without restricting the target operating systems for the lock, we expect failure.
     result = run_lock(os.path.join(str(tmpdir), "lock"), args)
     result.assert_failure(
+        # N.B.: Older Pips quote the requirement; Pip >= 26.3 does not.
         expected_error_re=(
-            r".*\n"
-            # N.B.: Older Pips quote the requirement; Pip >= 26.3 does not.
-            r"pip: ERROR: Could not find a version that satisfies the requirement '?pywin32==227.*"
-            r"\n.*"
-        )
+            r".*ERROR: Could not find a version that satisfies the requirement ['\"]?pywin32==227.*"
+        ),
+        re_flags=re.DOTALL,
     )
 
     lockfile = lock(tmpdir, args, TargetSystem.LINUX, TargetSystem.MAC)
