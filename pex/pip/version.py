@@ -519,7 +519,14 @@ class PipVersion(Enum["PipVersionValue"]):
         version="26.2.2",
         setuptools_version="84.2.0",
         wheel_version="0.48.0",
-        requires_python=">=3.10,<3.16",
+        requires_python=">=3.10,<3.17",
+    )
+
+    v26_3 = PipVersionValue(
+        version="26.3",
+        setuptools_version="84.2.1",
+        wheel_version="0.48.0",
+        requires_python=">=3.10,<3.17",
     )
 
     ADHOC = Adhoc()
