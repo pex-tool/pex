@@ -17,9 +17,9 @@ from testing.pytest_utils.tmp import Tempdir
 @pytest.mark.skipif(
     PY_VER < (3, 7),
     reason=(
-       "The distributions under test have a pdm-backend build dependency that requires "
-       "Python >= 23.7."
-    )
+        "The distributions under test have a pdm-backend build dependency that requires "
+        "Python >= 23.7."
+    ),
 )
 @pytest.mark.parametrize(
     "requirement_url",
@@ -29,16 +29,16 @@ from testing.pytest_utils.tmp import Tempdir
                 "git+https://github.com/tgolsson/pants-backends"
                 "@b60257de38d7bf87622cbdc2a68d0220cf300cb1"
             ),
-            id="VCS"
+            id="VCS",
         ),
         pytest.param(
             (
                 "https://github.com/tgolsson/pants-backends"
                 "/archive/b60257de38d7bf87622cbdc2a68d0220cf300cb1.zip"
             ),
-            id="source-archive"
-        )
-    ]
+            id="source-archive",
+        ),
+    ],
 )
 def test_lock_same_url_different_subdirs(
     tmpdir,  # type: Tempdir
@@ -79,7 +79,9 @@ def test_lock_same_url_different_subdirs(
     assert Version("0.7.0") == pants_backend_k8s.pin.version
     assert "pants-plugins/k8s" == pants_backend_k8s.artifact.subdirectory
 
-    pants_backend_mdbook = locked_requirements_by_project_name.pop(ProjectName("pants-backend-mdbook"))
+    pants_backend_mdbook = locked_requirements_by_project_name.pop(
+        ProjectName("pants-backend-mdbook")
+    )
     assert Version("0.8.0") == pants_backend_mdbook.pin.version
     assert "pants-plugins/mdbook" == pants_backend_mdbook.artifact.subdirectory
 
