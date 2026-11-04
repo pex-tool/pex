@@ -10,7 +10,7 @@ from collections import defaultdict
 
 from pex import hashing, pex_warnings
 from pex.compatibility import PY3, url_unquote, url_unquote_plus, urlparse
-from pex.dist_metadata import is_wheel
+from pex.dist_metadata import is_sdist, is_wheel
 from pex.enum import Enum
 from pex.hashing import HashlibHasher
 from pex.tracer import TRACER
@@ -266,16 +266,22 @@ class ArtifactURL(object):
             fingerprints=tuple(fingerprints),
         )
 
+    normalized_url = attr.ib()  # type: str
+    subdirectory = attr.ib()  # type: Optional[str]
     raw_url = attr.ib(eq=False)  # type: str
     url_info = attr.ib(eq=False)  # type: urlparse.ParseResult
     download_url = attr.ib(eq=False)  # type: str
-    normalized_url = attr.ib()  # type: str
     scheme = attr.ib(eq=False)  # type: Union[str, ArchiveScheme.Value, VCSScheme]
     path = attr.ib(eq=False)  # type: str
-    subdirectory = attr.ib(eq=False)  # type: Optional[str]
     parameters = attr.ib(eq=False)  # type: str
     fragment_parameters = attr.ib(eq=False)  # type: Mapping[str, Sequence[str]]
     fingerprints = attr.ib(eq=False)  # type: Tuple[Fingerprint, ...]
+
+    def subdirectory_fragment(self):
+        # type: () -> Optional[str]
+        if self.subdirectory:
+            return self.create_fragment({"subdirectory": [self.subdirectory]})
+        return None
 
     def fragment(self, excludes=()):
         # type: (Container[str]) -> str
@@ -285,6 +291,10 @@ class ArtifactURL(object):
     def is_wheel(self):
         # type: () -> bool
         return is_wheel(self.path)
+
+    @property
+    def is_sdist(self):
+        return is_sdist(self.path)
 
     @property
     def fingerprint(self):
