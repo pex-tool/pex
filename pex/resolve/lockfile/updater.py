@@ -132,13 +132,11 @@ class ArtifactsUpdate(object):
 
         def key(artifact):
             # type: (Artifact) -> str
-            if isinstance(artifact, FileArtifact):
-                return artifact.filename
-
-            fragment = artifact.url.subdirectory_fragment()
-            if fragment:
-                return "{url}#{fragment}".format(url=artifact.url.normalized_url, fragment=fragment)
-            return artifact.url.normalized_url
+            return (
+                artifact.filename
+                if isinstance(artifact, FileArtifact)
+                else artifact.url.normalized()
+            )
 
         def calculate_updates(
             original_art,  # type: Artifact

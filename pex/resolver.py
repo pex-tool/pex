@@ -469,13 +469,15 @@ class _PipSession(object):
             if self.package_index_configuration
             else None
         )
-        subdirectory_by_filename = {}  # type: Dict[str, str]
+        subdirectories_by_filename = defaultdict(
+            OrderedSet
+        )  # type: DefaultDict[str, OrderedSet[str]]
         for parsed_requirement in requirement_config.parse_requirements(network_configuration):
             if not isinstance(parsed_requirement, URLRequirement):
                 continue
             subdirectory = parsed_requirement.subdirectory
             if subdirectory:
-                subdirectory_by_filename[parsed_requirement.filename] = subdirectory
+                subdirectories_by_filename[parsed_requirement.filename].add(subdirectory)
 
         download_target = request.download_target
         download_dir = os.path.join(resolved_dists_dir, download_target.id(complete=True))
@@ -487,7 +489,7 @@ class _PipSession(object):
             else None
         )
 
-        download_result = DownloadResult(download_target, download_dir, subdirectory_by_filename)
+        download_result = DownloadResult(download_target, download_dir, subdirectories_by_filename)
         target = download_target.target
         download_job = get_pip(
             interpreter=target.get_interpreter(),
@@ -526,7 +528,7 @@ class DownloadResult(object):
 
     download_target = attr.ib()  # type: DownloadTarget
     download_dir = attr.ib()  # type: str
-    subdirectory_by_filename = attr.ib()  # type: Mapping[str, str]
+    subdirectories_by_filename = attr.ib()  # type: Mapping[str, OrderedSet[str]]
 
     def _iter_distribution_paths(self):
         # type: () -> Iterator[str]
@@ -539,21 +541,21 @@ class DownloadResult(object):
         # type: () -> Iterator[BuildRequest]
         for distribution_path in self._iter_distribution_paths():
             if not self._is_wheel(distribution_path):
-                subdirectory = self.subdirectory_by_filename.get(
-                    os.path.basename(distribution_path)
-                )
-                production_assert(
-                    os.path.isfile(distribution_path),
-                    (
-                        "Pip download results should always be files and never local project "
-                        "directories."
-                    ),
-                )
-                yield BuildRequest.for_file(
-                    target=self.download_target,
-                    source_path=distribution_path,
-                    subdirectory=subdirectory,
-                )
+                for subdirectory in self.subdirectories_by_filename.get(
+                    os.path.basename(distribution_path), [None]
+                ):
+                    production_assert(
+                        os.path.isfile(distribution_path),
+                        (
+                            "Pip download results should always be files and never local project "
+                            "directories."
+                        ),
+                    )
+                    yield BuildRequest.for_file(
+                        target=self.download_target,
+                        source_path=distribution_path,
+                        subdirectory=subdirectory,
+                    )
 
     def install_requests(self):
         # type: () -> Iterator[InstallRequest]

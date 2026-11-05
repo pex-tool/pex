@@ -588,7 +588,10 @@ def test_pylock_parse_archive():
     assert not package.artifact.verified
     assert package.artifact.is_source
     assert "foo-1.2.3.tar.gz" == package.artifact.filename
-    assert ArtifactURL.parse("https://example.org/foo-1.2.3.tar.gz") == package.artifact.url
+    assert (
+        ArtifactURL.parse("https://example.org/foo-1.2.3.tar.gz#subdirectory=bar")
+        == package.artifact.url
+    )
     assert Fingerprint(algorithm="sha256", hash="abcd1234") == package.artifact.fingerprint
     assert "bar" == package.artifact.subdirectory
     assert len(package.additional_wheels) == 0
@@ -646,7 +649,7 @@ def test_pylock_parse_vcs():
     assert package.artifact.vcs is VCS.Git
     assert "main" == package.artifact.requested_revision
     assert "abcd1234" == package.artifact.commit_id
-    assert ArtifactURL.parse("https://github.com/foo/foo") == package.artifact.url
+    assert ArtifactURL.parse("https://github.com/foo/foo#subdirectory=bar") == package.artifact.url
     assert "bar" == package.artifact.subdirectory
     assert len(package.additional_wheels) == 0
 

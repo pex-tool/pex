@@ -283,6 +283,13 @@ class ArtifactURL(object):
             return self.create_fragment({"subdirectory": [self.subdirectory]})
         return None
 
+    def normalized(self):
+        # type: () -> str
+        fragment = self.subdirectory_fragment()
+        if fragment:
+            return "{url}#{fragment}".format(url=self.normalized_url, fragment=fragment)
+        return self.normalized_url
+
     def fragment(self, excludes=()):
         # type: (Container[str]) -> str
         return self.create_fragment(self.fragment_parameters, excludes=excludes)

@@ -10,7 +10,7 @@ from itertools import repeat
 from multiprocessing.pool import ThreadPool
 
 from pex import pex_warnings
-from pex.artifact_url import Fingerprint, VCSScheme
+from pex.artifact_url import Fingerprint
 from pex.atomic_directory import atomic_directory
 from pex.cache.dirs import CacheDir
 from pex.compatibility import cpu_count
@@ -172,11 +172,8 @@ class FingerprintService(object):
         for artifact in artifacts:
             if artifact.fingerprint:
                 yield artifact
-            elif artifact.url.scheme == "file" or isinstance(artifact.url.scheme, VCSScheme):
-                # N.B.: PEP-691 is an index API that serves data for remote whls and sdists only.
-                continue
-            elif artifact.url.is_wheel or artifact.url.is_sdist:
-                artifacts_to_fingerprint[artifact.url.normalized_url] = artifact
+            else:
+                artifacts_to_fingerprint[artifact.url.normalized()] = artifact
 
         if not artifacts_to_fingerprint:
             return
@@ -231,7 +228,7 @@ class FingerprintService(object):
                 continue
 
             for file in result.files:
-                fingerprinted_artifact = artifacts_to_fingerprint.pop(file.url.normalized_url, None)
+                fingerprinted_artifact = artifacts_to_fingerprint.pop(file.url.normalized(), None)
                 if not fingerprinted_artifact:
                     continue
 
@@ -239,7 +236,7 @@ class FingerprintService(object):
                 yield attr.evolve(fingerprinted_artifact, fingerprint=maybe_fingerprint)
                 if maybe_fingerprint:
                     fingerprinted_urls.append(
-                        FingerprintedURL(url=file.url.normalized_url, fingerprint=maybe_fingerprint)
+                        FingerprintedURL(url=file.url.normalized(), fingerprint=maybe_fingerprint)
                     )
 
         # The remaining artifacts have no fingerprint and no endpoint to fetch the data from; so we

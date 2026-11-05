@@ -50,17 +50,11 @@ def test_lock_same_url_different_subdirs(
     run_pex3(
         "lock",
         "create",
-        (
-            "pants-backend-k8s @ "
-            "git+https://github.com/tgolsson/pants-backends"
-            "@b60257de38d7bf87622cbdc2a68d0220cf300cb1"
-            "#subdirectory=pants-plugins/k8s"
+        "pants-backend-k8s @ {requirement_url}#subdirectory=pants-plugins/k8s".format(
+            requirement_url=requirement_url
         ),
-        (
-            "pants-backend-mdbook @ "
-            "git+https://github.com/tgolsson/pants-backends"
-            "@b60257de38d7bf87622cbdc2a68d0220cf300cb1"
-            "#subdirectory=pants-plugins/mdbook"
+        "pants-backend-mdbook @ {requirement_url}#subdirectory=pants-plugins/mdbook".format(
+            requirement_url=requirement_url
         ),
         "--indent",
         "2",
