@@ -10,7 +10,7 @@ from collections import defaultdict
 
 from pex import hashing, pex_warnings
 from pex.compatibility import PY3, url_unquote, url_unquote_plus, urlparse
-from pex.dist_metadata import is_sdist, is_wheel
+from pex.dist_metadata import is_wheel
 from pex.enum import Enum
 from pex.hashing import HashlibHasher
 from pex.tracer import TRACER
@@ -298,10 +298,6 @@ class ArtifactURL(object):
     def is_wheel(self):
         # type: () -> bool
         return is_wheel(self.path)
-
-    @property
-    def is_sdist(self):
-        return is_sdist(self.path)
 
     @property
     def fingerprint(self):

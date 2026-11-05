@@ -8,6 +8,7 @@ import json
 import os
 
 from pex import hashing
+from pex.artifact_url import ArtifactURL
 from pex.atomic_directory import atomic_directory
 from pex.cache.dirs import DownloadDir
 from pex.cache_helper import CacheHelper
@@ -90,6 +91,7 @@ class DownloadedArtifact(object):
         with atomic_text_file(cls.metadata_filename(artifact_dir)) as fp:
             json.dump(
                 dict(
+                    url=artifact.url.raw_url,
                     algorithm=fingerprint.algorithm,
                     hexdigest=fingerprint,
                     filename=filename,
@@ -101,6 +103,7 @@ class DownloadedArtifact(object):
             )
 
         return cls(
+            url=artifact.url,
             path=os.path.join(artifact_dir, filename),
             fingerprint=fingerprint,
             subdirectory=subdirectory,
@@ -131,6 +134,7 @@ class DownloadedArtifact(object):
                         )
                     )
                 return DownloadedArtifact(
+                    url=ArtifactURL.parse(metadata["url"]),
                     path=os.path.join(artifact_dir, metadata["filename"]),
                     fingerprint=hashing.new_fingerprint(
                         algorithm=str(metadata["algorithm"]), hexdigest=str(metadata["hexdigest"])
@@ -145,6 +149,7 @@ class DownloadedArtifact(object):
                 )
             )
 
+    url = attr.ib()  # type: ArtifactURL
     path = attr.ib()  # type: str
     fingerprint = attr.ib()  # type: hashing.Fingerprint
     subdirectory = attr.ib(default=None)  # type: Optional[str]
@@ -229,6 +234,7 @@ class DownloadManager(Generic["_A"]):
             digest = Sha256()  # type: ignore[unreachable]
             CacheHelper.dir_hash(artifact.directory, digest=digest)
             return DownloadedArtifact(
+                artifact.url,
                 artifact.directory,
                 fingerprint=digest.hexdigest(),
                 subdirectory=artifact.subdirectory,
