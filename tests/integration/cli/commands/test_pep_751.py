@@ -674,6 +674,15 @@ def pdm_exported_pylock_toml(shared_integration_test_tmpdir):
                         """
                     )
                 )
+            with open(os.path.join(chroot.work_dir, "constraints.txt"), "w") as fp:
+                fp.write(
+                    dedent(
+                        """\
+                        # The hishel 2.0 release breaks either pytest or tox, not sure which.
+                        hishel < 2
+                        """
+                    )
+                )
 
             def run_pdm(*args):
                 # type: (*str) -> None
@@ -684,6 +693,8 @@ def pdm_exported_pylock_toml(shared_integration_test_tmpdir):
                         "run",
                         "--from",
                         "pdm>=2.24.2",
+                        "-c",
+                        fp.name,
                         "pdm",
                     ]
                     + list(args),
