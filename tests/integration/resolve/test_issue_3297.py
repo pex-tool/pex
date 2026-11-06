@@ -10,12 +10,8 @@ import pytest
 from pex.pep_503 import ProjectName
 from pex.pip.version import PipVersion
 from pex.resolve.lockfile import json_codec
-from pex.typing import TYPE_CHECKING
 from testing.cli import run_pex3
 from testing.pytest_utils.tmp import Tempdir
-
-if TYPE_CHECKING:
-    pass
 
 
 @pytest.mark.skipif(

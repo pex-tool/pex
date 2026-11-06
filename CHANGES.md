@@ -1,5 +1,14 @@
 # Release Notes
 
+## 2.107.1
+
+This release fixes handling of source distributions that utilize `#subdirectory=...`. Previously,
+dependening on more that one such source distribution from the same URL using different
+subdirectories would lead to invalid locks that picked out a single subdirectory and applied that
+to all distributions from the same source URL.
+
+* Account for subdirectory in normalized URLs. (#3329)
+
 ## 2.107.0
 
 This release adds support for Pip 26.3.

@@ -266,16 +266,29 @@ class ArtifactURL(object):
             fingerprints=tuple(fingerprints),
         )
 
+    normalized_url = attr.ib()  # type: str
+    subdirectory = attr.ib()  # type: Optional[str]
     raw_url = attr.ib(eq=False)  # type: str
     url_info = attr.ib(eq=False)  # type: urlparse.ParseResult
     download_url = attr.ib(eq=False)  # type: str
-    normalized_url = attr.ib()  # type: str
     scheme = attr.ib(eq=False)  # type: Union[str, ArchiveScheme.Value, VCSScheme]
     path = attr.ib(eq=False)  # type: str
-    subdirectory = attr.ib(eq=False)  # type: Optional[str]
     parameters = attr.ib(eq=False)  # type: str
     fragment_parameters = attr.ib(eq=False)  # type: Mapping[str, Sequence[str]]
     fingerprints = attr.ib(eq=False)  # type: Tuple[Fingerprint, ...]
+
+    def subdirectory_fragment(self):
+        # type: () -> Optional[str]
+        if self.subdirectory:
+            return self.create_fragment({"subdirectory": [self.subdirectory]})
+        return None
+
+    def normalized(self):
+        # type: () -> str
+        fragment = self.subdirectory_fragment()
+        if fragment:
+            return "{url}#{fragment}".format(url=self.normalized_url, fragment=fragment)
+        return self.normalized_url
 
     def fragment(self, excludes=()):
         # type: (Container[str]) -> str

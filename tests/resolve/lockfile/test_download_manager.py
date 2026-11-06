@@ -187,6 +187,7 @@ def test_storage_version_downgrade_v0(tmpdir):
     with open(DownloadedArtifact.metadata_filename(str(tmpdir))) as fp:
         assert (
             dict(
+                url="https://example.com",
                 algorithm="sha256",
                 hexdigest="e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
                 filename="foo",
@@ -224,6 +225,7 @@ def test_fingerprint_checking(
     downloaded_artifact = download_manager.store(verified_artifact, project_name)
     assert (
         DownloadedArtifact(
+            url=artifact.url,
             path=os.path.join(expected_artifact_dir, "foo-1.0.tar.gz"),
             fingerprint=hashing.Sha256(actual_content).hexdigest(),
         )

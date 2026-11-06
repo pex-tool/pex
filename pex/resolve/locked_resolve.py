@@ -341,6 +341,9 @@ class VCSArtifact(Artifact):
         vcs_url = artifact_url.normalized_url
         if "@" in artifact_url.path:
             vcs_url, _, requested_revision = vcs_url.rpartition("@")
+            fragment = artifact_url.subdirectory_fragment()
+            if fragment:
+                vcs_url = "{vcs_url}#{fragment}".format(vcs_url=vcs_url, fragment=fragment)
         else:
             requested_revision = None
         return ArtifactURL.parse(vcs_url), requested_revision or None

@@ -8,6 +8,7 @@ from argparse import Namespace, _ActionsContainer
 
 from pex import dependency_configuration
 from pex import resolver as pip_resolver
+from pex.artifact_url import VCSScheme
 from pex.dependency_configuration import DependencyConfiguration
 from pex.dist_metadata import is_wheel
 from pex.exceptions import reportable_unexpected_error_msg
@@ -115,6 +116,12 @@ def _to_dists(downloaded_artifacts):
             return WheelDist(downloaded_artifact.path)
         if os.path.isdir(downloaded_artifact.path):
             return LocalProject(downloaded_artifact.path, editable=downloaded_artifact.editable)
+        if isinstance(downloaded_artifact, DownloadedArtifact) and isinstance(
+            downloaded_artifact.url.scheme, VCSScheme
+        ):
+            # N.B.: VCS source dists have already had their subdirectory accounted for by Pip in its
+            # VCS check out -> zip creation process.
+            return SourceDist(downloaded_artifact.path)
         return SourceDist(downloaded_artifact.path, subdirectory=downloaded_artifact.subdirectory)
 
     return tuple(map(to_dist, downloaded_artifacts))

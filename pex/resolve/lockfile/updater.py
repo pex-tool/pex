@@ -135,7 +135,7 @@ class ArtifactsUpdate(object):
             return (
                 artifact.filename
                 if isinstance(artifact, FileArtifact)
-                else artifact.url.normalized_url
+                else artifact.url.normalized()
             )
 
         def calculate_updates(
