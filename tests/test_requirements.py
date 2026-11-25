@@ -8,7 +8,7 @@ from textwrap import dedent
 
 import pytest
 
-from pex.artifact_url import VCS, ArtifactURL
+from pex.artifact_url import VCS, ArtifactURL, Fingerprint
 from pex.common import environment_as, safe_open, touch
 from pex.compatibility import urlparse
 from pex.dist_metadata import Requirement
@@ -27,6 +27,7 @@ from pex.requirements import (
     VCSRequirement,
     parse_requirement_file,
     parse_requirement_from_project_name_and_specifier,
+    parse_requirement_string,
     parse_requirements,
 )
 from pex.third_party.packaging.markers import Marker
@@ -631,3 +632,36 @@ def test_url_requirement_constraints_issue_3089(tmpdir):
             ),
         )
     ] == normalize_results(parse_requirement_file(fp.name, is_constraints=True))
+
+
+def test_issue_3335():
+    def assert_six_direct_reference(*extras):
+        # type: (*str) -> None
+        req = parse_requirement_string(
+            "{six}"
+            " @ "
+            "https://files.pythonhosted.org/packages/b7/ce/"
+            "149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/"
+            "six-1.17.0-py2.py3-none-any.whl"
+            "#sha256=4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274 "
+            '; sys_platform != "darwin"'.format(
+                six="six[{extras}]".format(extras=",".join(extras)) if extras else "six"
+            )
+        )
+        assert isinstance(req, URLRequirement)
+        assert req.extras == frozenset(extras)
+        assert str(Marker('sys_platform != "darwin"')) == str(req.marker)
+        assert (
+            tuple(
+                [
+                    Fingerprint(
+                        "sha256", "4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274"
+                    )
+                ]
+            )
+            == req.url.fingerprints
+        )
+
+    assert_six_direct_reference()
+    assert_six_direct_reference("all")
+    assert_six_direct_reference("one", "two")
