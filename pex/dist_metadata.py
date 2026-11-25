@@ -569,7 +569,10 @@ def project_name_and_version(
             source = "<parsed message>"
         return ProjectNameAndVersion.from_parsed_pkg_info(source=source, pkg_info=pkg_info)
     if fallback_to_filename and not isinstance(location, (Distribution, Message)):
-        return ProjectNameAndVersion.from_filename(location)
+        try:
+            return ProjectNameAndVersion.from_filename(location)
+        except UnrecognizedDistributionFormat:
+            pass
     return None
 
 

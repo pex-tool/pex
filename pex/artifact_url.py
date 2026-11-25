@@ -277,6 +277,10 @@ class ArtifactURL(object):
     fragment_parameters = attr.ib(eq=False)  # type: Mapping[str, Sequence[str]]
     fingerprints = attr.ib(eq=False)  # type: Tuple[Fingerprint, ...]
 
+    @property
+    def is_local_path(self):
+        return self.scheme in ("", "file")
+
     def subdirectory_fragment(self):
         # type: () -> Optional[str]
         if self.subdirectory:
