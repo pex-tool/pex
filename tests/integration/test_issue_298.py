@@ -62,7 +62,7 @@ def test_confounding_encoding(
                 import os
                 import zipfile
 
-                from pex.common import open_zip
+                from pex.zipfile import open_zip
 
 
                 def chown_dest():

@@ -11,20 +11,20 @@ from argparse import ArgumentParser
 from contextlib import contextmanager
 
 from pex import attrs, dist_metadata, pex_warnings
-from pex.artifact_url import VCS, ArchiveScheme, ArtifactURL, VCSScheme
-from pex.compatibility import url_unquote, urlparse
+from pex.artifact_url import VCS, ArtifactURL, VCSScheme, parse_qs
+from pex.compatibility import url_quote, urlparse
 from pex.dist_metadata import (
-    MetadataError,
     ProjectNameAndVersion,
     Requirement,
     RequirementParseError,
+    UnrecognizedDistributionFormat,
 )
 from pex.orderedset import OrderedSet
 from pex.pep_503 import ProjectName
 from pex.third_party.packaging.markers import Marker
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.third_party.packaging.version import InvalidVersion, Version
-from pex.typing import TYPE_CHECKING
+from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     from typing import FrozenSet, Iterable, Iterator, Match, Optional, Text, Tuple, Union
@@ -263,7 +263,7 @@ class VCSRequirement(_ParsedItem):
         return self.requirement.marker
 
 
-def parse_requirement_from_project_name_and_specifier(
+def requirement_from_parts(
     project_name,  # type: Text
     extras=None,  # type: Optional[Iterable[str]]
     specifier=None,  # type: Optional[SpecifierSet]
@@ -282,31 +282,6 @@ def parse_requirement_from_project_name_and_specifier(
     return attr.evolve(Requirement.parse(requirement_string, editable=editable), url=url)
 
 
-def parse_requirement_from_dist(
-    dist,  # type: str
-    extras=None,  # type: Optional[Iterable[str]]
-    marker=None,  # type: Optional[Marker]
-    editable=False,  # type: bool
-):
-    # type: (...) -> Requirement
-    project_name_and_version = dist_metadata.project_name_and_version(dist)
-    if project_name_and_version is None:
-        raise ValueError(
-            "Failed to find a project name and version from the given wheel path: "
-            "{wheel}".format(wheel=dist)
-        )
-    project_name_and_specifier = ProjectNameAndSpecifier.from_project_name_and_version(
-        project_name_and_version
-    )
-    return parse_requirement_from_project_name_and_specifier(
-        project_name_and_specifier.project_name,
-        extras=extras,
-        specifier=project_name_and_specifier.specifier,
-        marker=marker,
-        editable=editable,
-    )
-
-
 @attr.s(frozen=True)
 class LocalProjectRequirement(_ParsedItem):
     """A requirement realized by building a distribution from local sources."""
@@ -320,21 +295,37 @@ class LocalProjectRequirement(_ParsedItem):
     def as_requirement(self, dist=None):
         # type: (Optional[str]) -> Requirement
         """Create a requirement given a distribution that was built from this local project."""
-        if dist is None and self.project_name is None:
+
+        specifier = None  # type: Optional[SpecifierSet]
+        url = None  # type: Optional[Text]
+        if dist is not None:
+            project_name_and_version = dist_metadata.project_name_and_version(dist)
+            if project_name_and_version is None:
+                raise ValueError(
+                    "Failed to find a project name and version from the given distribution path: "
+                    "{dist}".format(dist=dist)
+                )
+            project_name_and_specifier = _ProjectNameAndSpecifier.from_project_name_and_version(
+                project_name_and_version
+            )
+            project_name = project_name_and_specifier.project_name
+            specifier = project_name_and_specifier.specifier
+        elif self.project_name is not None:
+            project_name = self.project_name.raw
+            url = "file://{path}".format(path=self.path)
+        else:
             raise ValueError(
                 "No distribution was supplied and the local project at {path} has an unknown "
                 "project name; so no requirement can be calculated.".format(path=self.path)
             )
 
-        if dist is not None:
-            return parse_requirement_from_dist(dist, self.extras, self.marker, self.editable)
-
-        return parse_requirement_from_project_name_and_specifier(
-            project_name=str(self.project_name),
+        return requirement_from_parts(
+            project_name=project_name,
             extras=self.extras,
+            specifier=specifier,
             marker=self.marker,
             editable=self.editable,
-            url="file://{path}".format(path=self.path),
+            url=url,
         )
 
 
@@ -385,32 +376,7 @@ def _strip_requirement_options(line):
 
 
 @attr.s(frozen=True)
-class ProjectNameExtrasAndMarker(object):
-    project_name = attr.ib()  # type: Text
-    extras = attr.ib(default=(), converter=attrs.str_tuple_from_iterable)  # type: Tuple[str, ...]
-    marker = attr.ib(default=None)  # type: Optional[Marker]
-
-    def astuple(self):
-        # type: () -> Tuple[Text, Tuple[str, ...], Optional[Marker]]
-        return self.project_name, self.extras, self.marker
-
-
-def _try_parse_fragment_project_name_and_marker(url):
-    # type: (ArtifactURL) -> Optional[ProjectNameExtrasAndMarker]
-    project_names = url.fragment_parameters.get("egg")
-    if not project_names:
-        return None
-
-    project_name = project_names[-1]
-    try:
-        req = Requirement.parse(project_name)
-        return ProjectNameExtrasAndMarker(req.name, extras=req.extras, marker=req.marker)
-    except (RequirementParseError, ValueError):
-        return ProjectNameExtrasAndMarker(project_name)
-
-
-@attr.s(frozen=True)
-class ProjectNameAndSpecifier(object):
+class _ProjectNameAndSpecifier(object):
     @staticmethod
     def _version_as_specifier(version):
         # type: (Text) -> SpecifierSet
@@ -421,7 +387,7 @@ class ProjectNameAndSpecifier(object):
 
     @classmethod
     def from_project_name_and_version(cls, project_name_and_version):
-        # type: (ProjectNameAndVersion) -> ProjectNameAndSpecifier
+        # type: (ProjectNameAndVersion) -> _ProjectNameAndSpecifier
         return cls(
             project_name=project_name_and_version.project_name,
             specifier=cls._version_as_specifier(project_name_and_version.version),
@@ -431,95 +397,255 @@ class ProjectNameAndSpecifier(object):
     specifier = attr.ib()  # type: SpecifierSet
 
 
-def _try_parse_project_name_and_specifier_from_path(path):
-    # type: (str) -> Optional[ProjectNameAndSpecifier]
-    try:
-        return ProjectNameAndSpecifier.from_project_name_and_version(
-            ProjectNameAndVersion.from_filename(path)
-        )
-    except MetadataError:
-        return None
-
-
-def _try_parse_pip_local_formats(
-    path,  # type: Text
-    basepath=None,  # type: Optional[Text]
+def _parse_url(
+    raw_url,  # type: Text
+    basepath,  # type: Text
 ):
-    # type: (...) -> Optional[ProjectNameExtrasAndMarker]
-    project_requirement = os.path.basename(path)
+    # type: (...) -> ArtifactURL
+    url = ArtifactURL.parse(raw_url)
+    if url.is_local_path and not os.path.isabs(url.path):
+        abs_path = os.path.normpath(os.path.join(basepath, url.path))
+        url = ArtifactURL.from_url_info(url.url_info._replace(path=str(url_quote(abs_path))))
+    return url
 
-    # Requirements strings can optionally include:
-    REQUIREMENT_PARTS_START = (
-        # + Trailing extras denoted by `[...]`.
-        #   See: https://peps.python.org/pep-0508/#extras
-        r"\[",
-        # + A version specifier denoted by a leading `!=`, `==`, `===`, `>=`, `<=` or `~=`.
-        #   See: https://peps.python.org/pep-0508/#grammar
-        r"!=><~",
-        # + Environment markers denoted by `;...`
-        #   See: https://peps.python.org/pep-0508/#environment-markers
-        r";",
-        # + A trailing whitespace character separating any of the above
-        r"\s",
+
+@attr.s(frozen=True)
+class _DirectReference(object):
+    project_name = attr.ib()  # type: str
+    url = attr.ib()  # type: ArtifactURL
+    extras = attr.ib(default=frozenset())  # type: FrozenSet[str]
+    marker = attr.ib(default=None)  # type: Optional[Marker]
+
+    @classmethod
+    def try_parse(
+        cls,
+        processed_text,  # type: Text
+        basepath,  # type: Text
+    ):
+        # type: (...) -> Optional[_DirectReference]
+
+        match = re.match(
+            r"""
+            ^
+            (?P<requirement>
+                \w+(?:[-_.]+\w+)*
+                (?:
+                    \s*
+                    \[
+                        \w+(?:[-_.]+\w+)*
+                        (?:
+                            \s*
+                            ,
+                            \s*
+                            \w+(?:[-_.]+\w+)*
+                        )*
+                    ]
+                )?
+            )
+            \s*
+            @
+            \s*
+            (?P<url>\S+)
+            (?:
+                \s+
+                ;
+                \s*
+                (?P<marker>.+)
+            )?
+            $
+            """,
+            processed_text,
+            re.VERBOSE,
+        )
+        if not match:
+            return None
+
+        matches = match.groupdict()
+
+        req = Requirement.parse(matches["requirement"])
+        marker = None  # type: Optional[Marker]
+        raw_marker = matches.get("marker", None)
+        if raw_marker:
+            marker = Marker(raw_marker)
+
+        raw_url = str(matches["url"])
+        url = _parse_url(raw_url, basepath)
+
+        return cls(project_name=req.name, url=url, extras=req.extras, marker=marker)
+
+    @classmethod
+    def try_parse_pip_proprietary(
+        cls,
+        processed_text,  # type: Text
+        basepath,  # type: Text
+    ):
+        # type: (...) -> Optional[_DirectReference]
+
+        url = _parse_url(processed_text, basepath)
+
+        project_names = url.fragment_parameters.get("egg")
+        if not project_names:
+            return None
+
+        project_name = project_names[-1]
+        url = ArtifactURL.from_url_info(
+            url.url_info._replace(
+                params="",
+                # Omit `egg=project_name` since that gets moved to a `project_name @` suffix in
+                # `parse_requirement_from_project_name_and_specifier`, but retain all other fragment
+                # parameters; notably, subdirectory when present.
+                fragment=ArtifactURL.create_fragment(
+                    fragment_parameters=parse_qs(url.url_info.fragment), excludes={"egg"}
+                ),
+            )
+        )
+        try:
+            req = Requirement.parse(project_name)
+            return cls(
+                project_name=req.name,
+                url=url,
+                extras=req.extras,
+                marker=req.marker,
+            )
+        except (RequirementParseError, ValueError):
+            return cls(project_name=project_name, url=url)
+
+
+@attr.s(frozen=True)
+class _PipRemoteRequirement(object):
+    url = attr.ib()  # type: ArtifactURL
+    project_name_and_version = attr.ib()  # type: ProjectNameAndVersion
+    marker = attr.ib(default=None)  # type: Optional[Marker]
+
+    @classmethod
+    def try_parse(cls, processed_text):
+        # type: (Text) -> Optional[_PipRemoteRequirement]
+
+        match = re.match(
+            r"""
+            ^
+            (?P<url>\S+)
+            (?:
+                \s*
+                ;
+                \s*
+                (?P<marker>.+)
+            )?
+            $
+            """,
+            processed_text,
+            re.VERBOSE,
+        )
+        if not match:
+            return None
+
+        matches = match.groupdict()
+
+        raw_url = str(matches["url"])
+        url = ArtifactURL.parse(raw_url)
+        if url.is_local_path:
+            return None
+
+        marker = None  # type: Optional[Marker]
+        raw_marker = matches.get("marker", None)
+        if raw_marker:
+            marker = Marker(raw_marker)
+
+        try:
+            project_name_and_version = ProjectNameAndVersion.from_filename(url.path)
+            return cls(url=url, project_name_and_version=project_name_and_version, marker=marker)
+        except UnrecognizedDistributionFormat:
+            return None
+
+
+@attr.s(frozen=True)
+class _PipLocalRequirement(object):
+    url = attr.ib()  # type: ArtifactURL
+    path = attr.ib()  # type: str
+    extras = attr.ib(default=frozenset())  # type: FrozenSet[str]
+    marker = attr.ib(default=None)  # type: Optional[Marker]
+
+    @classmethod
+    def try_parse(
+        cls,
+        processed_text,  # type: Text
+        basepath,  # type: Text
+    ):
+        # type: (...) -> Optional[_PipLocalRequirement]
+
+        url = _parse_url(processed_text, basepath)
+        if not url.is_local_path:
+            return None
+
+        if processed_text.startswith("file://"):
+            scheme_stripped = processed_text[7:]
+        elif processed_text.startswith("file:"):
+            scheme_stripped = processed_text[5:]
+        else:
+            scheme_stripped = processed_text
+        project_requirement = os.path.basename(scheme_stripped)
+
+        # Requirements strings can optionally include:
+        REQUIREMENT_PARTS_START = (
+            # + Trailing extras denoted by `[...]`.
+            #   See: https://peps.python.org/pep-0508/#extras
+            r"\[",
+            # + A version specifier denoted by a leading `!=`, `==`, `===`, `>=`, `<=` or `~=`.
+            #   See: https://peps.python.org/pep-0508/#grammar
+            r"!=><~",
+            # + Environment markers denoted by `;...`
+            #   See: https://peps.python.org/pep-0508/#environment-markers
+            r";",
+            # + A trailing whitespace character separating any of the above
+            r"\s",
+        )
+        # N.B.: The basename of the current directory (.) is '' and we allow this.
+        match = re.match(
+            r"""
+            ^
+            (?P<directory_name>[^{REQUIREMENT_PARTS_START}]*)?
+            (?P<requirement_parts>.*)?
+            $
+            """.format(
+                REQUIREMENT_PARTS_START="".join(REQUIREMENT_PARTS_START)
+            ),
+            project_requirement,
+            re.VERBOSE,
+        )
+        if not match:
+            return None
+
+        base_name, requirement_parts = match.groups()
+        stripped_path = os.path.join(os.path.dirname(scheme_stripped), base_name)
+        abs_stripped_path = cast(
+            str,
+            os.path.normpath(
+                os.path.join(basepath, stripped_path)
+                if not os.path.isabs(stripped_path)
+                else stripped_path
+            ),
+        )
+        if not os.path.exists(abs_stripped_path):
+            return None
+
+        # Maybe a local archive or project path.
+        requirement_parts = match.group("requirement_parts")
+        if not requirement_parts:
+            return cls(url=url, path=abs_stripped_path)
+
+        project_requirement = "fake_project{}".format(requirement_parts)
+        try:
+            req = Requirement.parse(project_requirement)
+            return cls(url=url, path=abs_stripped_path, extras=req.extras, marker=req.marker)
+        except (RequirementParseError, ValueError):
+            return None
+
+
+def _is_local_project_dir(path):
+    # type: (Text) -> bool
+    return os.path.isdir(path) and any(
+        os.path.isfile(os.path.join(path, p)) for p in ("setup.py", "pyproject.toml")
     )
-    # N.B.: The basename of the current directory (.) is '' and we allow this.
-    match = re.match(
-        r"""
-        ^
-        (?P<directory_name>[^{REQUIREMENT_PARTS_START}]*)?
-        (?P<requirement_parts>.*)?
-        $
-        """.format(
-            REQUIREMENT_PARTS_START="".join(REQUIREMENT_PARTS_START)
-        ),
-        project_requirement,
-        re.VERBOSE,
-    )
-    if not match:
-        return None
-
-    directory_name, requirement_parts = match.groups()
-    stripped_path = os.path.join(os.path.dirname(path), directory_name)
-    abs_stripped_path = (
-        os.path.join(basepath, stripped_path)
-        if basepath and not os.path.isabs(stripped_path)
-        else os.path.abspath(stripped_path)
-    )
-    if not os.path.exists(abs_stripped_path):
-        return None
-
-    # Maybe a local archive or project path.
-    requirement_parts = match.group("requirement_parts")
-    if not requirement_parts:
-        return ProjectNameExtrasAndMarker(abs_stripped_path)
-
-    project_requirement = "fake_project{}".format(requirement_parts)
-    try:
-        req = Requirement.parse(project_requirement)
-        return ProjectNameExtrasAndMarker(abs_stripped_path, extras=req.extras, marker=req.marker)
-    except (RequirementParseError, ValueError):
-        return None
-
-
-def _split_direct_references(processed_text):
-    # type: (Text) -> Union[Tuple[Text, Text], Tuple[None, None]]
-    match = re.match(
-        r"""
-        ^
-        (?P<requirement>[a-zA-Z0-9]+(?:[-_.]+[a-zA-Z0-9]+)*)
-        \s*
-        @
-        \s*
-        (?P<url>.+)?
-        $
-        """,
-        processed_text,
-        re.VERBOSE,
-    )
-    if not match:
-        return None, None
-    project_name, url = match.groups()
-    return project_name, url
 
 
 def _parse_requirement_line(
@@ -531,109 +657,87 @@ def _parse_requirement_line(
     basepath = basepath or os.getcwd()
 
     editable, processed_text = _strip_requirement_options(line)
-    project_name, direct_reference_url = _split_direct_references(processed_text)
-    parsed_url = ArtifactURL.parse(direct_reference_url or processed_text)
 
-    # Handle non-local URLs.
-    if isinstance(parsed_url.scheme, (ArchiveScheme.Value, VCSScheme)):
-        project_name_extras_and_marker = _try_parse_fragment_project_name_and_marker(parsed_url)
-        project_name, extras, marker = (
-            project_name_extras_and_marker.astuple()
-            if project_name_extras_and_marker
-            else (project_name, (), None)
-        )
-        specifier = None  # type: Optional[SpecifierSet]
-        if not project_name:
-            project_name_and_specifier = _try_parse_project_name_and_specifier_from_path(
-                # There may be whitespace separated markers; so we strip the trailing whitespace
-                # used to support those.
-                url_unquote(parsed_url.path).rstrip()
-            )
-            if project_name_and_specifier is not None:
-                project_name = project_name_and_specifier.project_name
-                specifier = project_name_and_specifier.specifier
-        # Pip allows an environment marker after the url which matches the urlparse structure:
-        #   scheme://netloc/path;parameters?query#fragment
-        # See: https://docs.python.org/3/library/urllib.parse.html#urllib.parse.urlparse
-        if not marker and parsed_url.parameters:
-            marker = Marker(parsed_url.parameters)
-        if project_name is None:
-            raise ParseError(
+    # Handle PEP-440 direct references (Packaging for Python 2.7 doesn't handle these properly; so
+    # we hand roll the parsing of those).
+    direct_reference = _DirectReference.try_parse(
+        processed_text, basepath=basepath
+    ) or _DirectReference.try_parse_pip_proprietary(processed_text, basepath=basepath)
+    if direct_reference:
+        parsed_scheme = direct_reference.url.scheme
+        if "file" == parsed_scheme and _is_local_project_dir(direct_reference.url.path):
+            return LocalProjectRequirement(
                 line,
-                (
-                    "Could not determine a project name for URL requirement {url}, consider using "
-                    "#egg=<project name>.".format(url=parsed_url.raw_url)
-                ),
+                path=direct_reference.url.path,
+                extras=direct_reference.extras,
+                marker=direct_reference.marker,
+                editable=editable,
+                project_name=ProjectName(direct_reference.project_name),
             )
-        parsed_url_info = parsed_url.url_info._replace(
-            params="",
-            # Omit `egg=project_name` since that gets moved to a `project_name @` suffix in
-            # `parse_requirement_from_project_name_and_specifier`, but retain all other fragment
-            # parameters; notably, subdirectory when present.
-            fragment=parsed_url.fragment(excludes={"egg"}),
+
+        requirement = requirement_from_parts(
+            project_name=direct_reference.project_name,
+            extras=direct_reference.extras,
+            marker=direct_reference.marker,
+            editable=editable,
+            url=direct_reference.url.raw_url,
         )
-        # There may be whitespace separated markers; so we strip the trailing whitespace
-        # used to support those.
-        url = parsed_url_info.geturl().rstrip()
-        requirement = parse_requirement_from_project_name_and_specifier(
-            project_name,
-            extras=extras,
-            specifier=specifier,
-            marker=marker,
-            url=url,
-        )
-        parsed_scheme = parsed_url.scheme
         if isinstance(parsed_scheme, VCSScheme):
+            parsed_url_info = direct_reference.url.url_info
             url = parsed_url_info._replace(scheme=parsed_scheme.scheme).geturl()
             _, sep, commit = parsed_url_info.path.rpartition("@")
             return VCSRequirement(
                 line, parsed_scheme.vcs, url, requirement, commit=commit if sep else None
             )
-        return URLRequirement(line, url=ArtifactURL.parse(url), requirement=requirement)
 
-    # Handle local archives and project directories via path or file URL (Pip proprietary).
-    local_requirement = parsed_url.url_info._replace(scheme="").geturl()
-    project_name_extras_and_marker = _try_parse_pip_local_formats(
-        local_requirement, basepath=basepath
-    )
-    maybe_abs_path, extras, marker = (
-        project_name_extras_and_marker.astuple()
-        if project_name_extras_and_marker
-        else (project_name, (), None)
-    )
-    if isinstance(maybe_abs_path, str) and any(
-        os.path.isfile(os.path.join(maybe_abs_path, *p))
-        for p in ((), ("setup.py",), ("pyproject.toml",))
-    ):
-        archive_or_project_path = os.path.realpath(maybe_abs_path)
-        if os.path.isdir(archive_or_project_path):
+        return URLRequirement(line, url=direct_reference.url, requirement=requirement)
+
+    # Handle the remaining Pip proprietary formats with no #egg=<project name> fragment.
+    pip_remote_requirement = _PipRemoteRequirement.try_parse(processed_text)
+    if pip_remote_requirement:
+        project_name_and_specifier = _ProjectNameAndSpecifier.from_project_name_and_version(
+            pip_remote_requirement.project_name_and_version
+        )
+        requirement = requirement_from_parts(
+            project_name=project_name_and_specifier.project_name,
+            specifier=project_name_and_specifier.specifier,
+            marker=pip_remote_requirement.marker,
+            editable=editable,
+            url=pip_remote_requirement.url.raw_url,
+        )
+        return URLRequirement(line, url=pip_remote_requirement.url, requirement=requirement)
+
+    pip_local_requirement = _PipLocalRequirement.try_parse(processed_text, basepath)
+    if pip_local_requirement:
+        if _is_local_project_dir(pip_local_requirement.path):
             return LocalProjectRequirement(
                 line,
-                archive_or_project_path,
-                extras=extras,
-                marker=marker,
+                path=pip_local_requirement.path,
+                extras=pip_local_requirement.extras,
+                marker=pip_local_requirement.marker,
                 editable=editable,
-                project_name=ProjectName(project_name) if project_name else None,
             )
-        try:
-            requirement = parse_requirement_from_dist(
-                archive_or_project_path, extras=extras, marker=marker
+        project_name_and_version = dist_metadata.project_name_and_version(
+            pip_local_requirement.path
+        )
+        if project_name_and_version:
+            project_name_and_specifier = _ProjectNameAndSpecifier.from_project_name_and_version(
+                project_name_and_version
             )
-            return URLRequirement(
-                line,
-                url=ArtifactURL.parse(archive_or_project_path),
-                requirement=requirement,
+            requirement = requirement_from_parts(
+                project_name=project_name_and_specifier.project_name,
+                extras=pip_local_requirement.extras,
+                specifier=project_name_and_specifier.specifier,
+                marker=pip_local_requirement.marker,
+                editable=editable,
             )
-        except dist_metadata.UnrecognizedDistributionFormat:
-            # This is not a recognized local archive distribution. Fall through and try parsing as a
-            # PEP-440 requirement.
-            pass
+            return URLRequirement(line, url=pip_local_requirement.url, requirement=requirement)
 
-    # Handle PEP-440. See: https://peps.python.org/pep-0440.
+    # Handle non-direct-reference PEP-440. See: https://peps.python.org/pep-0440.
     #
     # The `pex.dist_metadata.Requirement.parse` method does all of this for us (via
     # `packaging.requirements.Requirement`) except for the handling of PEP-440 direct url
-    # references; which we handled above and won't encounter here.
+    # references under older Python versions; which we handled above and won't encounter here.
     try:
         return as_parsed_requirement(Requirement.parse(processed_text), line=line)
     except RequirementParseError as e:
@@ -842,9 +946,12 @@ def parse_requirement_file(
             yield req_info
 
 
-def parse_requirement_string(requirement):
-    # type: (Text) -> ParsedRequirement
-    return _parse_requirement_line(LogicalLine.from_str(requirement))
+def parse_requirement_string(
+    requirement,  # type: Text
+    basepath=None,  # type: Optional[Text]
+):
+    # type: (...) -> ParsedRequirement
+    return _parse_requirement_line(LogicalLine.from_str(requirement), basepath=basepath)
 
 
 def parse_requirement_strings(requirements):
@@ -877,7 +984,7 @@ def as_parsed_requirement(
             commit=commit,
         )
 
-    if url.scheme == "file" and os.path.isdir(url.path):
+    if url.is_local_path and os.path.isdir(url.path):
         return LocalProjectRequirement(
             line=logical_line,
             path=url.path,

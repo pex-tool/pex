@@ -69,6 +69,8 @@ def pex(
 
     run_pex_command(
         args=[
+            "--resolver-version",
+            "pip-2020-resolver",
             "fabric=={}".format(FABRIC_VERSION),
             "--constraints",
             constraints,

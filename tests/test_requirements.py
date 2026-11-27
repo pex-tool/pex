@@ -8,7 +8,7 @@ from textwrap import dedent
 
 import pytest
 
-from pex.artifact_url import VCS, ArtifactURL
+from pex.artifact_url import VCS, ArtifactURL, Fingerprint
 from pex.common import environment_as, safe_open, touch
 from pex.compatibility import urlparse
 from pex.dist_metadata import Requirement
@@ -26,8 +26,9 @@ from pex.requirements import (
     URLRequirement,
     VCSRequirement,
     parse_requirement_file,
-    parse_requirement_from_project_name_and_specifier,
+    parse_requirement_string,
     parse_requirements,
+    requirement_from_parts,
 )
 from pex.third_party.packaging.markers import Marker
 from pex.typing import TYPE_CHECKING
@@ -136,25 +137,32 @@ def req(
     # type: (...) -> PyPIRequirement
     return PyPIRequirement(
         line=DUMMY_LINE,
-        requirement=parse_requirement_from_project_name_and_specifier(
+        requirement=requirement_from_parts(
             project_name, extras=extras, specifier=specifier, marker=marker
         ),
     )
 
 
 def file_req(
-    url,  # type: str
+    path,  # type: str
     project_name,  # type: str
     extras=None,  # type: Optional[Iterable[str]]
     specifier=None,  # type: Optional[str]
     marker=None,  # type: Optional[str]
+    scheme=True,  # type: bool
 ):
     # type: (...) -> URLRequirement
+
+    url = "file://{path}".format(path=path) if scheme else path
     return URLRequirement(
         line=DUMMY_LINE,
         url=ArtifactURL.parse(url),
-        requirement=parse_requirement_from_project_name_and_specifier(
-            project_name, extras=extras, specifier=specifier, marker=marker
+        requirement=requirement_from_parts(
+            project_name,
+            extras=extras,
+            specifier=specifier,
+            marker=marker,
+            url=url if scheme else None,
         ),
     )
 
@@ -170,7 +178,7 @@ def url_req(
     return URLRequirement(
         line=DUMMY_LINE,
         url=ArtifactURL.parse(url),
-        requirement=parse_requirement_from_project_name_and_specifier(
+        requirement=requirement_from_parts(
             project_name, extras=extras, specifier=specifier, marker=marker, url=url
         ),
     )
@@ -192,7 +200,7 @@ def vcs_req(
         line=DUMMY_LINE,
         vcs=vcs,
         url=url,
-        requirement=parse_requirement_from_project_name_and_specifier(
+        requirement=requirement_from_parts(
             project_name,
             extras=extras,
             specifier=specifier,
@@ -309,7 +317,7 @@ def test_parse_requirements_stress(tmpdir):
                 Django@git+https://github.com/django/django.git@stable/2.1.x
                 Django@ git+https://github.com/django/django.git\\
                     @fd209f62f1d83233cc634443cfac5ee4328d98b8
-                Django @ file:projects/django-2.3.zip; python_version >= "3.10"
+                Django @ file:projects/django-2.3.zip ; python_version >= "3.10"
                 Django @ file:projects/django-2.3.zip ;python_version >= "3.10"
 
                 # Wheel with local version
@@ -501,15 +509,15 @@ def test_parse_requirements_stress(tmpdir):
             commit="fd209f62f1d83233cc634443cfac5ee4328d98b8",
         ),
         file_req(
-            project_name="django",
-            url=tmpdir.join("extra", "projects", "django-2.3.zip"),
-            specifier="==2.3",
+            project_name="Django",
+            path=tmpdir.join("extra", "projects", "django-2.3.zip"),
+            scheme=True,
             marker="python_version>='3.10'",
         ),
         file_req(
-            project_name="django",
-            url=tmpdir.join("extra", "projects", "django-2.3.zip"),
-            specifier="==2.3",
+            project_name="Django",
+            path=tmpdir.join("extra", "projects", "django-2.3.zip"),
+            scheme=True,
             marker="python_version>='3.10'",
         ),
         url_req(
@@ -523,7 +531,8 @@ def test_parse_requirements_stress(tmpdir):
         local_req(path=tmpdir.join("extra", "another", "local", "project"), editable=True),
         file_req(
             project_name="numpy",
-            url=tmpdir.join("downloads", "numpy-1.9.2-cp34-none-win32.whl"),
+            path=tmpdir.join("downloads", "numpy-1.9.2-cp34-none-win32.whl"),
+            scheme=False,
             specifier="==1.9.2",
         ),
         url_req(
@@ -631,3 +640,36 @@ def test_url_requirement_constraints_issue_3089(tmpdir):
             ),
         )
     ] == normalize_results(parse_requirement_file(fp.name, is_constraints=True))
+
+
+def test_issue_3335():
+    def assert_six_direct_reference(*extras):
+        # type: (*str) -> None
+        req = parse_requirement_string(
+            "{six}"
+            " @ "
+            "https://files.pythonhosted.org/packages/b7/ce/"
+            "149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/"
+            "six-1.17.0-py2.py3-none-any.whl"
+            "#sha256=4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274 "
+            '; sys_platform != "darwin"'.format(
+                six="six[{extras}]".format(extras=",".join(extras)) if extras else "six"
+            )
+        )
+        assert isinstance(req, URLRequirement)
+        assert req.extras == frozenset(extras)
+        assert str(Marker('sys_platform != "darwin"')) == str(req.marker)
+        assert (
+            tuple(
+                [
+                    Fingerprint(
+                        "sha256", "4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274"
+                    )
+                ]
+            )
+            == req.url.fingerprints
+        )
+
+    assert_six_direct_reference()
+    assert_six_direct_reference("all")
+    assert_six_direct_reference("one", "two")

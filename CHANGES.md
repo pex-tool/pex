@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.107.2
+
+This release fixes Pex requirements parsing for direct reference URL requirements containing both
+a fingerprint fragment and a trailing marker. Previously the trailing marker information was lost.
+
+* Fix requirements parsing. (#3336)
+
 ## 2.107.1
 
 This release fixes handling of source distributions that utilize `#subdirectory=...`. Previously,
