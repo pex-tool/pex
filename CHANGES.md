@@ -1,5 +1,15 @@
 # Release Notes
 
+## 2.107.2
+
+This release fixes `pex3 interpreter inspect -v` for venvs whose base interpreter cannot be
+resolved. Previously, inspection would warn that the base interpreter could not be determined and
+then immediately fail with the same error instead of carrying on with the rest of the inspection
+data. As a bonus, the base interpreter is no longer resolved twice for venvs where it can be
+resolved.
+
+* Fix `pex3 interpreter inspect -v` for unresolvable venv base interpreters. (#XXXX)
+
 ## 2.107.1
 
 This release fixes handling of source distributions that utilize `#subdirectory=...`. Previously,

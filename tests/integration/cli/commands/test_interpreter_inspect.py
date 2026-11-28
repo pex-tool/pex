@@ -3,8 +3,13 @@
 
 import json
 import os
+import sysconfig
 
+import pytest
+
+from pex.compatibility import PY2
 from pex.interpreter import PythonInterpreter
+from pex.os import WINDOWS
 from pex.pep_425 import CompatibilityTags
 from pex.pep_508 import MarkerEnvironment
 from pex.typing import TYPE_CHECKING, cast
@@ -151,3 +156,60 @@ def test_inspect_distributions(tmpdir):
 
     data = assert_verbose_data(venv.interpreter, "-vd", "--python", venv.interpreter.binary)
     assert {"pip", "ansicolors", "cowsay"}.issubset(data["distributions"].keys())
+
+
+@pytest.mark.skipif(PY2, reason="Virtualenvs on Python 2.7 have no `pyvenv.cfg` to re-home.")
+@pytest.mark.skipif(WINDOWS, reason="Symlinks are not generally available on Windows.")
+def test_inspect_verbose_venv_with_unresolvable_base_interpreter(tmpdir):
+    # type: (Any) -> None
+
+    # A venv keeps working when its base interpreter is replaced with one of a different ABI or
+    # removed outright, but its base interpreter can then no longer be resolved. The rest of the
+    # verbose data is still valid, so inspection should warn and carry on instead of failing.
+    venv = Virtualenv.create(
+        venv_dir=os.path.join(str(tmpdir), "venv"),
+        copies=True,
+        install_pip=InstallationChoice.NO,
+    )
+
+    # Re-home the venv on a base prefix that has the venv's stdlib - so its interpreter keeps
+    # working - but no interpreter binary, so base interpreter resolution has nothing to find.
+    base_prefix = os.path.join(str(tmpdir), "base")
+    os.makedirs(os.path.join(base_prefix, "bin"))
+    os.makedirs(os.path.join(base_prefix, "lib"))
+    os.symlink(
+        sysconfig.get_path("stdlib"),
+        os.path.join(base_prefix, "lib", "python{0}.{1}".format(*venv.interpreter.version[:2])),
+    )
+    pyvenv_cfg = os.path.join(venv.venv_dir, "pyvenv.cfg")
+    with open(pyvenv_cfg) as fp:
+        lines = fp.read().splitlines()
+    with open(pyvenv_cfg, "w") as fp:
+        for line in lines:
+            if line.startswith("home = "):
+                line = "home = {bin_dir}".format(bin_dir=os.path.join(base_prefix, "bin"))
+            fp.write(line + "\n")
+
+    result = run_pex3(
+        "interpreter",
+        "inspect",
+        "-v",
+        "--pex-root",
+        str(tmpdir.join("pex-root")),
+        "--python",
+        venv.interpreter.binary,
+        use_pex_whl_venv=False,
+    )
+    result.assert_success()
+
+    data = json.loads(result.output)
+    assert venv.interpreter.binary == data.pop("path")
+    assert data.pop("venv") is True
+    assert "base_interpreter" not in data, (
+        "There is no base interpreter to report, but the rest of the verbose data should be "
+        "present: {data}".format(data=data)
+    )
+    warning = "Failed to determine base interpreter for venv interpreter"
+    assert warning in result.error, "Expected warning {!r}; got: {error}".format(
+        warning, error=result.error
+    )

@@ -153,9 +153,6 @@ class Interpreter(OutputMixin, JsonMixin, BuildTimeCommand):
                                         interpreter=interpreter.binary, err=e
                                     )
                                 )
-                            interpreter_info[
-                                "base_interpreter"
-                            ] = interpreter.resolve_base_interpreter().binary
                     if self.options.tags:
                         interpreter_info[
                             "compatible_tags"
